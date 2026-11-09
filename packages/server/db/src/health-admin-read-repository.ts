@@ -337,9 +337,29 @@ function mapIncident(row: Row) {
   });
 }
 
+function targetRecommendation(row: Row) {
+  const value = recommendation(row.h5_recommendation);
+  if (value === null) return null;
+  const identity = row.h5_result?.identity;
+  const profileRevisionId =
+    row.candidate_profile_revision_id ??
+    row.baseline_profile_revision_id ??
+    row.profile_revision_id;
+  const scopeMatches =
+    identity != null &&
+    identity.provider === row.provider &&
+    identity.surface === row.surface &&
+    (identity.variant ?? "default") === row.variant &&
+    identity.candidateProfileRevisionId === profileRevisionId &&
+    identity.browserFamily === row.browser_family &&
+    identity.browserVersion === row.browser_version &&
+    identity.monitoringLayer === (row.monitoring_layer ?? "NO_SESSION");
+  return scopeMatches ? value : "STALE";
+}
+
 function mapTarget(row: Row) {
   const h5Outcome = row.h5_result?.outcome ?? row.h5_outcome ?? null;
-  const recommendationValue = recommendation(row.h5_recommendation);
+  const recommendationValue = targetRecommendation(row);
   return HealthAdminTargetDetailSchema.parse({
     targetId: row.target_id,
     provider: row.provider,
