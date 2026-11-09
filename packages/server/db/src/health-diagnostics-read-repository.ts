@@ -79,7 +79,9 @@ const incidentFilters = `
   AND ($9::text IS NULL OR i.status::text=$9)`;
 
 function iso(value: unknown): string | null {
-  return value == null ? null : new Date(String(value)).toISOString();
+  return value == null
+    ? null
+    : (value instanceof Date ? value : new Date(String(value))).toISOString();
 }
 
 function counts(rows: Row[]): HealthDiagnosticsStateCount[] {
@@ -225,7 +227,7 @@ export function createHealthDiagnosticsReadRepository(
         browserVersion: row.browserVersion ?? null,
         observationStatus: (row.latestCompletedRunAt == null
           ? "NO_DATA"
-          : new Date(String(row.latestCompletedRunAt)) < bounds.start
+          : new Date(iso(row.latestCompletedRunAt)!) < bounds.start
             ? "NO_RECENT_RUN"
             : "OBSERVED") as "OBSERVED" | "NO_RECENT_RUN" | "NO_DATA",
         latestHealthState: row.latestHealthState ?? null,
