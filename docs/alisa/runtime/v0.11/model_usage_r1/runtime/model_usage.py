@@ -26,6 +26,11 @@ def install(repo):
         c.execute("INSERT OR IGNORE INTO model_usage_meta VALUES('started_at',?)", (repo.clock(),))
 
 
+def begin_run(repo):
+    with repo.connection(True) as c:
+        c.execute("INSERT OR REPLACE INTO model_usage_meta VALUES('coverage_since',?)", (repo.clock(),))
+
+
 def accepted(c, tenant, request_id, now):
     # This is called in the SAME queue transaction, after replay validation.
     # Distinct cache hits and joins count as requests; transport/message replay,
@@ -46,6 +51,8 @@ def summary(repo):
     cutoff = now - WINDOW_SECONDS
     with repo.connection() as c:
         started = c.execute("SELECT value FROM model_usage_meta WHERE name='started_at'").fetchone()[0]
+        coverage = c.execute("SELECT value FROM model_usage_meta WHERE name='coverage_since'").fetchone()
+        coverage_since = coverage[0] if coverage else started
         requests = c.execute('SELECT COUNT(*) FROM model_usage_requests WHERE at>? AND at<=?', (cutoff, now)).fetchone()[0]
         rows = c.execute("SELECT state, COUNT(*) FROM calls WHERE source LIKE 'model:%' AND dispatched>? AND dispatched<=? GROUP BY state", (cutoff, now)).fetchall()
         by_state = {row[0]: row[1] for row in rows}
@@ -53,7 +60,7 @@ def summary(repo):
     attempts = sum(by_state.values())
     return dict(schema=SCHEMA, generated_at=now, window_seconds=WINDOW_SECONDS,
                 window_start=max(cutoff, started), collection_started_at=started,
-                full_window=started <= cutoff, requests=requests, attempts=attempts,
+                coverage_since=coverage_since, full_window=coverage_since <= cutoff, requests=requests, attempts=attempts,
                 average=round(attempts / requests, 4) if requests else None,
                 received=by_state.get('RECEIVED', 0),
                 failed=by_state.get('HTTP_ERROR', 0),

@@ -94,6 +94,12 @@ class UsageTests(unittest.TestCase):
             self.assertEqual(c.execute('SELECT COUNT(*) FROM model_usage_requests WHERE at<=?',(old,)).fetchone()[0],0)
             self.assertEqual(c.execute("SELECT COUNT(*) FROM calls WHERE source='ozon:source'").fetchone()[0],1)
 
+    def test_restart_requalifies_coverage_without_erasing_counts(self):
+        self.submit();self.clock.advance(model_usage.WINDOW_SECONDS+1)
+        self.assertTrue(model_usage.summary(self.repo)['full_window'])
+        model_usage.begin_run(self.repo)
+        self.assertFalse(model_usage.summary(self.repo)['full_window'])
+
     def test_old_schema_upgrade_and_rollback_reads(self):
         self.submit();again=Repository(self.repo.path,clock=self.clock)
         self.assertEqual(model_usage.summary(again)['requests'],1)

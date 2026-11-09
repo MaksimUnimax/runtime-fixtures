@@ -39,8 +39,6 @@ class _Budget:
             return min(self.timeout, remaining)
 
     def observe_dispatch(self):
-        # Called once at the first HTTP send, after DNS/connect/TLS and pool
-        # admission. It counts attempts, not a promise of provider billing.
         self.remaining()
         if not self.dispatch_observed and self.on_dispatch is not None:
             self.on_dispatch()
