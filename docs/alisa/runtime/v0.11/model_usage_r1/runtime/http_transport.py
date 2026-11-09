@@ -184,7 +184,7 @@ class HTTPTransport:
             except (ValueError,TypeError):
                 try:retry_at=parsedate_to_datetime(retry).timestamp()
                 except (ValueError,TypeError,OverflowError):pass
-            status=exc.code;code='HTTP_'+str(status)
+            status=exc.code;code='HTTP_'+str(status);feedback=None
             if status==403:
                 try:
                     from provider_denial import diagnose_denial,MAX_DIAGNOSTIC_BYTES
@@ -196,8 +196,12 @@ class HTTPTransport:
                     # Failure to inspect the received body never erases its HTTP
                     # status or manufactures a network-unknown/retry decision.
                     pass
+            if status in (400,422) and is_read:
+                from model_recovery import provider_feedback
+                try:feedback=provider_feedback(exc.read(16385),request.body.get('params',{}),meta)
+                except Exception:feedback={'reason_hints':[],'mentioned_parameters':[]}
             exc.close()
-            raise CallError(code,status=status,retry_at=retry_at) from None
+            raise CallError(code,status=status,retry_at=retry_at,feedback=feedback) from None
         except (urllib.error.URLError,TimeoutError,ConnectionError,OSError,http.client.HTTPException):
             raise CallError('NETWORK_OUTCOME_UNKNOWN',unknown=True) from None
         if len(raw)>12000000:raise CallError('RESPONSE_SIZE',status=status)

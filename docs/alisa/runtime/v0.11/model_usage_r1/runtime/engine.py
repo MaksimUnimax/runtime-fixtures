@@ -19,8 +19,9 @@ HELP = ('Доступны заказы, расход рекламы и ДРР о
         'Для получения отчета: результат. Для обновления: обнови и исходный запрос.')
 
 class CallError(Exception):
-    def __init__(self,code,status=None,unknown=False,retry_at=None):
+    def __init__(self,code,status=None,unknown=False,retry_at=None,feedback=None):
         self.code,self.status,self.unknown,self.retry_at = code,status,unknown,retry_at
+        self.feedback=feedback
         super().__init__(code)
 
 def validate_model_budget(value):
@@ -243,7 +244,7 @@ class Worker:
     def __init__(self,engine: Engine,transport):
         self.engine,self.repo,self.transport=engine,engine.repo,transport
 
-    def _call(self,row,request,store=None):
+    def _call(self,row,request,store=None,*,on_rejection=None):
         # Keep the single ledger, provider pacing and Retry-After, but no local
         # daily allowance for either model or marketplace calls.
         from request_recovery import repeat_safe, retry_due
@@ -260,7 +261,13 @@ class Worker:
             self.repo.received(event,meta)
             return value
         except CallError as exc:
-            self.repo.failed_call(event,exc.status,exc.unknown,exc.code)
+            repaired=False
+            with self.repo.connection(True):
+                self.repo.failed_call(event,exc.status,exc.unknown,exc.code)
+                if on_rejection is not None:repaired=on_rejection(exc)
+            if repaired:
+                from model_recovery import DecisionRepaired
+                raise DecisionRepaired() from None
             due = retry_due(self.repo, row, request, exc, safe)
             if due is not None:
                 self.repo.defer_source(request.source, due)

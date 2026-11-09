@@ -3,12 +3,12 @@ import hashlib, json, shutil, subprocess
 from pathlib import Path
 
 ROOT=Path('/root/alice-lab-evidence/model-usage-20261109')
-CANDIDATE=Path('/dev/shm/alisa-model-usage-20261109/csv-completion-merge')
-BASE=Path('/opt/alice-market/releases/alisa-runtime-read-completion-r2-20261109')
+CANDIDATE=Path('/dev/shm/alisa-model-usage-20261109/model-repair-v2')
+BASE=Path('/opt/alice-market/releases/alisa-model-usage-r4-csv-20261109')
 OLD=BASE
-STATION=Path('/opt/alisa-station/releases/station-auto-r8-model-usage-r2')
-TARGET=Path('/opt/alice-market/releases/alisa-model-usage-r4-csv-20261109')
-STARGET=Path('/opt/alisa-station/releases/station-auto-r8-model-usage-r4')
+STATION=Path('/opt/alisa-station/releases/station-auto-r8-model-usage-r4')
+TARGET=Path('/opt/alice-market/releases/alisa-model-usage-r5-repair-20261109')
+STARGET=Path('/opt/alisa-station/releases/station-auto-r8-model-usage-r5')
 SOURCE=None
 
 def show(unit, prop):
@@ -26,7 +26,6 @@ def main():
     selected=['engine.py','repository.py','http_transport.py','shared_http.py','retention.py','local_gateway.py','runtime.py']
     base_manifest=json.loads((BASE/'manifest.json').read_text())
     assert all(digest(BASE/n)==h for n,h in base_manifest['files'].items()),'BASE_MANIFEST_CHANGED'
-    assert all(digest(BASE/n)==digest(CANDIDATE/'runtime'/n)for n in ['read_surface.py','universal_reads.py']),'PARALLEL_READ_DELTA_CHANGED'
     need=sum(p.stat().st_size for p in CANDIDATE.rglob('*')if p.is_file())
     assert shutil.disk_usage('/').free-need>3072*1024**2,'DISK_RESERVE'
     import os
@@ -55,7 +54,7 @@ def main():
     subprocess.run(['runuser','-u','alice-market','--','/usr/bin/python3','-B','/opt/alice-market/releases/runtime-policy-guard-20261108/check.py','--release',str(TARGET),'--config','/etc/alice-market/market-runtime.json'],check=True)
     receipt=dict(state='PREPARED',source_commit=SOURCE,runtime=str(TARGET),station=str(STARGET),base=str(BASE),
         config_sha256=digest(Path('/etc/alice-market/market-runtime.json')),source_hashes=expected)
-    (ROOT/'PREPARED_R4.json').write_text(json.dumps(receipt,indent=2))
+    (ROOT/'PREPARED_R5.json').write_text(json.dumps(receipt,indent=2))
     Path('/opt/alice-market/.model-usage-7d-owner.lock').write_text(json.dumps(dict(owner='controller-model-usage-20261109',status='PREPARED',
         scope='Dispatch marker, seven-day accounting, OWNER UI; preserve active read-r5 and all matrices',runtime=str(TARGET),evidence=str(ROOT)),indent=2))
     print(json.dumps(dict(state='PREPARED',source=SOURCE,files=len(expected),bytes=need)))
