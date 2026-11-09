@@ -1,11 +1,11 @@
 {
-  "base_runtime": "alisa-read-completion-resume-r1-20261109",
+  "base_runtime": "alisa-model-usage-r5-repair-20261109",
   "files": {
     "runtime/engine.py": "f0a52e61cfdaa034f838bbe17fe696e97d8fade40721d3d6a39e07b8d3bb5e14",
-    "runtime/http_transport.py": "8ed3bc3437abf8251275a9a0a3d87c10ba021d0ad087d6ad2e4d205bc25ce39c",
-    "runtime/universal_reads.py": "fb25376c52978f49744eb24512974d45a55b55618b0e092f5b3b6cea3ea9c8fc",
-    "runtime/model_recovery.py": "fbe894ecfd620b8155bdcba3e23833e741b2f73fa6bf678b93cb58706eee513c",
-    "runtime/tests/test_model_recovery.py": "b10112b4c8548132dc2a6739b154563f0b4d36cb99c7e4ccd2f6f71e1fe6a448"
+    "runtime/http_transport.py": "83edbba8ca8ec44dcfde8652d132c68b56a63db167d17f1d9ef9ae99facd98d3",
+    "runtime/universal_reads.py": "950c77f89ef83ab8cdd2fa7d00091b962ce3ae68a2ac46abd66527a63134e2c8",
+    "runtime/model_recovery.py": "c80b09431f793ebc2db9779138e31970a446b7db656d1f39ee5de7df558c4a88",
+    "runtime/tests/test_model_recovery.py": "caa35a1c5993360beee707020f4116d3cb003bcc961d159b07fbc6ebf9d77ee3"
   },
   "rule": "Copy the entire immutable base; overlay only these five files. Preserve all protected-read, token-boundary, artifact and retention code from the base."
 }

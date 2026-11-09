@@ -84,6 +84,19 @@ class ModelRecovery(unittest.TestCase):
             self.assertEqual(connection.execute('SELECT COUNT(*) FROM calls WHERE jid=? AND http=400',(a['job_id'],)).fetchone()[0],0)
 
 class SafeFeedback(unittest.TestCase):
+    def test_missing_field_from_provider_catalog_without_echoing_values(self):
+        value=provider_feedback(b'{"error":"empty campaigns SECRET_BEARER"}',{'dateFrom':'private'},None,{'campaigns','access_token'})
+        self.assertEqual(value['mentioned_parameters'],['campaigns'])
+        self.assertIn('required',value['reason_hints'])
+        self.assertNotIn('SECRET_BEARER',json.dumps(value))
+
+    def test_provider_rejection_survives_overwritten_local_feedback(self):
+        from universal_reads import planner_context
+        plan={'question':'fixture','calendar_date':'2026-11-09','snapshot_slot':1,'timezone':'Europe/Moscow','stores':[]}
+        receipt={'request':{'operation':'fixture','params':{'dateFrom':'2026-11-08'}},'feedback':{'code':'READ_PROVIDER_ARGUMENTS_REJECTED'}}
+        progress={'calls':[],'feedback':{'code':'READ_PROVIDER_ARGUMENTS_REPEATED'},'read_rejections':[receipt]}
+        self.assertEqual(planner_context(plan,progress)['provider_rejections'],[receipt])
+
     def test_non_string_function_name_is_rejected_not_type_error(self):
         from universal_reads import pointer_fields
         from semantics import Rejected

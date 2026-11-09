@@ -126,7 +126,7 @@ def planner_context(plan,progress):
     return {'question':plan['question'],'server_date':plan['calendar_date'],'as_of_utc':snapshot_time(plan),'timezone':plan['timezone'],
        'allowed_stores':plan['stores'],'catalog_clusters':{p:surface.clusters(p)for p in {s['platform']for s in plan['stores']}},
        'discovery':progress.get('discovery'),'recent_actions':progress.get('events',[]),'calls':calls,'feedback':progress.get('feedback'),
-       'application_call_limit':None,'expression_language':expression_contract()}
+       'application_call_limit':None,'expression_language':expression_contract(),'provider_rejections':progress.get('read_rejections',[])}
 
 
 def pointer_fields(expr,question=''):

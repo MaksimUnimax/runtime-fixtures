@@ -12,10 +12,23 @@ class DecisionRepaired(Exception):
 def request_key(item):
     return fingerprint({key:item[key] for key in ('store_id','operation','params')})
 
-def provider_feedback(raw, params, operation_schema=None):
+def catalog_parameter_names(platform):
+    import read_surface
+    names=set()
+    def visit(value):
+        if type(value)is dict:
+            for key,child in value.items():
+                if type(key)is str and re.fullmatch('[A-Za-z_][A-Za-z0-9_]{0,79}',key) and not re.search('token|password|secret|authorization|cookie',key,re.I):names.add(key)
+                visit(child)
+        elif type(value)is list:
+            for child in value[:1]:visit(child)
+    for meta in read_surface.CATALOG['providers'][platform]['operations'].values():visit(meta.get('template'))
+    return names
+
+def provider_feedback(raw, params, operation_schema=None, known_parameters=()):
     """Expose categories and known parameter NAMES, never echoed values/text."""
     text=raw[:16384].decode('utf-8',errors='replace').lower()
-    names=set()
+    names={name for name in known_parameters if type(name)is str and re.fullmatch('[A-Za-z_][A-Za-z0-9_]{0,79}',name) and not re.search('token|password|secret|authorization|cookie',name,re.I)}
     def walk(value,depth=0):
         if depth>5 or len(names)>=64:return
         if type(value)is dict:
@@ -32,10 +45,11 @@ def provider_feedback(raw, params, operation_schema=None):
                 for part in name.split('.'):
                     if re.fullmatch('[A-Za-z_][A-Za-z0-9_]{0,79}',part):names.add(part)
     hints=[]
-    for label,words in [('required',['required','missing','обязатель']),('format',['format','unmarshal','invalid','incorrect','формат']),('range',['range','too large','too small','диапазон'])]:
+    for label,words in [('required',['required','missing','empty','обязатель']),('format',['format','unmarshal','invalid','incorrect','формат']),('range',['range','too large','too small','диапазон'])]:
         if any(word in text for word in words):hints.append(label)
     result={'reason_hints':hints,'mentioned_parameters':sorted(name for name in names if re.search(r'\b'+re.escape(name.lower())+r'\b',text)),
-            'body_truncated':len(raw)>16384}
+            'body_truncated':len(raw)>16384,
+            'parameter_hint_scope':'provider_catalog_vocabulary_only; operation schema and request validator remain authoritative'}
     try:
         body=json.loads(raw)
         code=body.get('code')if type(body)is dict else None
@@ -83,5 +97,8 @@ def repair_provider_rejection(worker,row,progress,item,store,error):
     try:feedback['operation_help']=read_surface.context_feedback(store['platform'],item['operation'],'HTTP_'+str(error.status))
     except Exception:pass
     progress.update(pending=None,feedback=feedback)
+    # Keep the rejected decision and safe diagnostics visible after discovery or
+    # another local validation error; otherwise the model loses the repair input.
+    progress.setdefault('read_rejections',[]).append({'request':read_surface.sanitize(item),'feedback':feedback})
     progress.setdefault('events',[]).append({'decision':{'action':'read','operation':item['operation']},'validation':'PROVIDER_REJECTED','http':error.status,'request_hash':key})
     worker.repo.reschedule(row['id'],row['owner'],progress)

@@ -199,8 +199,8 @@ class HTTPTransport:
                     # status or manufactures a network-unknown/retry decision.
                     pass
             if status in (400,422) and is_read:
-                from model_recovery import provider_feedback
-                try:feedback=provider_feedback(exc.read(16385),request.body.get('params',{}),meta)
+                from model_recovery import provider_feedback,catalog_parameter_names
+                try:feedback=provider_feedback(exc.read(16385),request.body.get('params',{}),meta,catalog_parameter_names(store['platform']))
                 except Exception:feedback={'reason_hints':[],'mentioned_parameters':[]}
             exc.close()
             raise CallError(code,status=status,retry_at=retry_at,feedback=feedback) from None
