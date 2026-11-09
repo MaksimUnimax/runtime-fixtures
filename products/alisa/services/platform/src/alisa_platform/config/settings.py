@@ -177,6 +177,27 @@ try:
 except (ValueError, TypeError):
     raise ImproperlyConfigured('Invalid Alice account-link configuration') from None
 
+# Runtime authority is separate from browser, skill and owner-data service tokens.
+RUNTIME_AUTHORITY_ENABLED = os.environ.get('ALISA_RUNTIME_AUTHORITY_ENABLED', '0') == '1'
+RUNTIME_AUTHORITY_TOKEN = os.environ.get('ALISA_RUNTIME_AUTHORITY_TOKEN', '')
+RUNTIME_BINDINGS_PATH = os.environ.get('ALISA_RUNTIME_BINDINGS_PATH', '')
+RUNTIME_SERVICE_ID = os.environ.get('ALISA_RUNTIME_SERVICE_ID', '')
+RUNTIME_CATALOG_RELEASE_ID = os.environ.get('ALISA_RUNTIME_CATALOG_RELEASE_ID', '')
+if os.environ.get('ALISA_RUNTIME_AUTHORITY_ENABLED', '0') not in {'0', '1'}:
+    raise ImproperlyConfigured('Invalid runtime authority mode')
+if RUNTIME_AUTHORITY_ENABLED:
+    import hmac
+    import re
+    if (not (ACCOUNTS_ENABLED and STORES_ENABLED and ENTITLEMENTS_ENABLED)
+        or not re.fullmatch(r'[A-Za-z0-9_-]{43,128}', RUNTIME_AUTHORITY_TOKEN)
+        or not RUNTIME_BINDINGS_PATH.startswith('/') or '..' in RUNTIME_BINDINGS_PATH.split('/')
+        or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}', RUNTIME_SERVICE_ID)
+        or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}', RUNTIME_CATALOG_RELEASE_ID)
+        or any(value and hmac.compare_digest(RUNTIME_AUTHORITY_TOKEN, value) for value in
+               [SERVICE_TOKEN, AUTH_SERVICE_TOKEN, STAFF_SERVICE_TOKEN, ALICE_CLIENT_SECRET,
+                os.environ.get('ALISA_OWNER_RUNTIME_AUTH_TOKEN', '')])):
+        raise ImproperlyConfigured('Invalid runtime authority boundary')
+
 # Owner-data entry remains separate from analytical execution and authentication.
 OWNER_DATA_ENABLED = os.environ.get("ALISA_OWNER_DATA_ENABLED", "0") == "1"
 OWNER_RUNTIME_ENABLED = os.environ.get("ALISA_OWNER_RUNTIME_ENABLED", "0") == "1"

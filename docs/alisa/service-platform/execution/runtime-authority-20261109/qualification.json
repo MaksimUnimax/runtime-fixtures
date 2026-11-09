@@ -1,0 +1,75 @@
+{
+  "status": "SOURCE_QUALIFIED_NOT_INSTALLED",
+  "base": "779956a01d41b7aa8fcb638aabfb33b3eddbde65",
+  "author_qualification": {
+    "postgresql": "16.15",
+    "authority": {
+      "passed": 43,
+      "failed": 0
+    },
+    "pinned_rt_job_r01_1_unix_roundtrip": {
+      "passed": 8,
+      "failed": 0
+    },
+    "migrations_and_model_consistency": "PASS",
+    "append_only_runtime_role": "PASS",
+    "owned_database_and_role_cleanup": true,
+    "runtime_client": {
+      "passed": 26,
+      "failed": 0
+    }
+  },
+  "checks_in_new_ci": "43 authority PostgreSQL tests; 26 client and 8 roundtrip tests qualified separately on pinned original RT-JOB",
+  "runtime_input": {
+    "zip_sha256": "d5db0d7220048af0cea155e80a4af638ec4e60d21a5c07baf685bd14a40341d3",
+    "manifest_sha256": "41229162f2d886cfea4300e4b33d8f72e57fc31d586e30312923471a945773da"
+  },
+  "source_sha256": {
+    "products/alisa/services/platform/src/alisa_platform/config/settings.py": "2b87784279ee3d470799426bcedff23b832aaa0b7d41aae359c265c48baf87f2",
+    "products/alisa/services/platform/src/alisa_platform/config/urls.py": "f06cc2aa7c5819775f3d9431786f90e6678900bcff8d9126dfe0534300c55f2a",
+    "products/alisa/services/platform/src/alisa_platform/runtime_adapter/authority_rpc.py": "e49b7bac6cbab8898c8cf222a9879aac73049fbbb19b7a9751d9237fb9db52cf",
+    "products/alisa/services/platform/src/alisa_platform/runtime_adapter/authority.py": "0c1edd7135ff5fcda4bd3f3e6905504e70757525f6b1f063cb5c99f773a9fb1c",
+    "products/alisa/services/platform/src/alisa_platform/runtime_adapter/bindings.py": "baf68b85c84d09398d6f113f6ebbaf0e759da99731740e59d91a00112f2bb688",
+    "products/alisa/tests/runtime_authority/checks.py": "dc4bdc3e6a5563b0021aa3ec4ed9598ca5e27de258a2ab17f4d5d40c73a93b63",
+    "products/alisa/tests/runtime_authority/roundtrip.py": "aecbd6f48977ec7fd7cbcc0abf7e7933f5d91cff63b2e85aa13f2790685bc9b1",
+    "products/alisa/tests/integration/qualify_runtime_authority.py": "0bcfcca05ba9a4fc1662ed1ef5a27b59d22f472ff5400856162b98a9ccc336f1"
+  },
+  "external_network_in_test": "FORBIDDEN; only owned loopback PostgreSQL and local Unix",
+  "provider": "SYNTHETIC; no real marketplace or model calls",
+  "independent_review": "SOL61_CHANGES_REQUIRED_ON_PRIOR_SOURCE_CORRECTIONS_PENDING_REREVIEW",
+  "installed": "NOT_RUN",
+  "live_owner": "NOT_RUN",
+  "production": "NOT_RUN",
+  "regression_evidence": {
+    "skill_client_change_before_fix": "FAILED: old grant and ticket accepted",
+    "skill_client_change_after_fix": "PASS: both denied",
+    "checks_after_fix": 46
+  },
+  "review_corrections": {
+    "original_head": "ceae67335619690d1dc7d55f76e8ba49eef0d815",
+    "findings": {
+      "P2": 3,
+      "P3": 1
+    },
+    "parent_reproduced_all": true,
+    "database_deadlock_reproduced_on_postgresql_16_15": true,
+    "regressions_before": {
+      "postgres_tests": 43,
+      "failures": 4,
+      "errors": 1,
+      "client_tests": 26,
+      "client_failures": 6
+    },
+    "after": {
+      "postgres_passed": 43,
+      "client_passed": 26,
+      "roundtrip_passed": 8
+    },
+    "changes": [
+      "FOR NO KEY UPDATE on Customer/Tenant, retaining serialized state but compatible FK KEY SHARE",
+      "UNKNOWN for ambiguous mutating dependency error envelopes",
+      "result TTL rechecked after final authorization",
+      "dependency failures preserved through verify/prepare/current/client"
+    ]
+  }
+}
