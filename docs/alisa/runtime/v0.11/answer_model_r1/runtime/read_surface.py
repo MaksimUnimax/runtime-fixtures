@@ -94,7 +94,11 @@ def build(platform,operation,params):
     except (OSError,ValueError,subprocess.TimeoutExpired):raise Rejected('READ_BUILDER_UNAVAILABLE')from None
     if response.get('ok')is not True:
         code=response.get('error','READ_REQUEST_INVALID')
-        need(False,code if re.fullmatch(r'[A-Z][A-Z0-9_]{0,90}',str(code))else'READ_REQUEST_INVALID')
+        error=Rejected(code if re.fullmatch(r'[A-Z][A-Z0-9_]{0,90}',str(code))else'READ_REQUEST_INVALID')
+        field=response.get('field');kind=response.get('expected_type')
+        if type(field)is str and re.fullmatch(r'params(?:\.[A-Za-z_][A-Za-z0-9_]*|\[[0-9]+\]){1,12}',field)and kind in('string','integer','boolean','array','object'):
+            error.contract_feedback={'field':field,'expected_json_type':kind,'source':'original_request_validator','request_executed':False}
+        raise error
     request=response['request'];url=urlsplit(request['url'])
     allowed=CATALOG['providers'][platform]['hosts']
     need(url.scheme=='https'and not url.username and not url.password and not url.fragment and 'https://'+url.netloc in allowed,'READ_FIXED_ORIGIN')

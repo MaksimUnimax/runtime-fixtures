@@ -4,7 +4,7 @@ from pathlib import Path
 
 ROOT=Path('/root/alice-lab-evidence/answer-model-20261109')
 CANDIDATE=Path('/dev/shm/alisa-answer-model-20261109')
-BASE=Path('/opt/alice-market/releases/alisa-answer-model-r3-20261109')
+BASE=Path('/opt/alice-market/releases/alisa-paid-model-result-r4-20261109')
 OLD=BASE
 STATION=Path('/opt/alisa-station/releases/station-answer-model-r3-20261109')
 TARGET=Path('/opt/alice-market/releases/alisa-answer-model-r4-20261109')
