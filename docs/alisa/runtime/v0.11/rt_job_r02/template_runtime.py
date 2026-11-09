@@ -9,8 +9,8 @@ from datetime import date,datetime,timezone
 from copy import deepcopy
 import re,json,hashlib
 from semantics import Scope,Store,Rejected,canonical_json,strict_json,fingerprint,normalize
-from template_catalog import CATALOG,TEMPLATES,HASH,MODE,TEXT,CODE,TemplateGap,discovery,compile_selection,verified,INPUT_CONTRACT
-from template_protocol import SELECT_SYSTEM,VERIFY_SYSTEM,payload as model_payload
+from template_catalog import CATALOG,TEMPLATES,HASH,MODE,TEXT,CODE,TemplateGap,discovery,compile_selection,dependencies,INPUT_CONTRACT
+from template_protocol import SELECT_SYSTEM,payload as model_payload
 from model_answer import API_DATA,PENDING,ORIGINAL_QUESTION
 
 SCHEMA='alice-template-execution/v1'
@@ -109,12 +109,31 @@ def gap_result(engine,row):
     if not authorized(engine,strict_json(row['plan'])):return None
     return r['model_result']
 
+def _compile_and_save_selection(worker,row,plan,progress,decision):
+    # Validate the selected registered recipes locally. No extra model call.
+    progress['selection']=deepcopy(decision)
+    fragments=compile_selection(worker.engine,plan,decision)
+    progress['fragments']=fragments
+    progress['preview']=[{'template_ids':f['template_ids'],'invocation_ids':f['invocation_ids'],'input':f['draft'],'kind':f['kind']}for f in fragments]
+    progress['verification']={'method':'local_template_compilation'}
+    newplan=deepcopy(plan);newplan.update(selection=decision,fragments=fragments,selection_verified=True)
+    newplan['execution_digest']=fingerprint({'selection':newplan['selection'],'fragments':fragments,'catalog':HASH})
+    if not authorized(worker.engine,newplan):raise Rejected('SOURCE_ACCESS')
+    progress.update({STATE:'execute','fragment_index':0,'fragment_progress':None,'completed_fragments':[]})
+    with worker.repo.connection(True)as c:
+        worker.repo._owned(c,row['id'],row['owner'])
+        c.execute('UPDATE jobs SET plan=?WHERE id=?',(canonical_json(newplan),row['id']))
+        _save(worker.repo,row,progress)
+
 def worker_step(worker,row,plan):
     if not authorized(worker.engine,plan):raise Rejected('SOURCE_ACCESS')
     progress=strict_json(row['progress'])if row['progress']else{STATE:'select',TRACE:[]}
     state=progress.get(STATE)
     try:
-        if state in('select','verify'):
+        if state=='verify':
+            # Resume old persisted checkpoints through the same local checks.
+            _compile_and_save_selection(worker,row,plan,progress,progress['selection']);return
+        if state=='select':
             scope=Scope(plan['tenant'],plan['access_revision'],tuple(Store(**s)for s in plan['stores']))
             settings=progress.get('planning_settings')
             if settings is None:
@@ -123,8 +142,7 @@ def worker_step(worker,row,plan):
             ctx={'original_question':plan['question'],'clarifications':strict_json(row['draft']).get('question_clarifications',[]),
                  'server_date':plan['calendar_date'],'timezone':plan['timezone'],'allowed_stores':[{'id':s.id,'platform':s.platform}for s in scope.stores],
                  'templates':discovery(worker.engine,scope),'input_contract':INPUT_CONTRACT,'temporary_mode':MODE}
-            if state=='verify':ctx.update(selection=progress['selection'],compiled_templates=progress['preview'])
-            op='template_select'if state=='select'else'template_verify';body={'system':SELECT_SYSTEM if state=='select'else VERIFY_SYSTEM,'instruction':progress['planning_settings']['request_planning_prompt'],'context':ctx}
+            op='template_select';body={'system':SELECT_SYSTEM,'instruction':progress['planning_settings']['request_planning_prompt'],'context':ctx}
             index=_snapshot(worker.repo,row,progress,op,body)
             from providers import Request
             req=Request(op,getattr(worker.transport,'model_source','model:deepseek-flash'),'',body,0,None)
@@ -134,21 +152,7 @@ def worker_step(worker,row,plan):
                     if response.get('finish_reason')!='stop':raise TemplateGap('MODEL_SELECTION_INCOMPLETE')
                     try:decision=strict_json(response.get('content',''))
                     except (Rejected,TypeError):raise TemplateGap('MODEL_SELECTION_INVALID')from None
-                    if state=='select':
-                        progress['selection']=decision
-                        fragments=compile_selection(worker.engine,plan,decision)
-                        progress['fragments']=fragments
-                        progress['preview']=[{'template_ids':f['template_ids'],'invocation_ids':f['invocation_ids'],'input':f['draft'],'kind':f['kind']}for f in fragments]
-                        progress[STATE]='verify';_save(worker.repo,row,progress)
-                    else:
-                        progress['verification']=decision;verified(decision,progress['selection'])
-                        newplan=deepcopy(plan);newplan.update(selection=progress['selection'],fragments=progress['fragments'],selection_verified=True)
-                        newplan['execution_digest']=fingerprint({'selection':newplan['selection'],'fragments':newplan['fragments'],'catalog':HASH})
-                        if not authorized(worker.engine,newplan):raise Rejected('SOURCE_ACCESS')
-                        with worker.repo.connection(True)as c:
-                            worker.repo._owned(c,row['id'],row['owner']);c.execute('UPDATE jobs SET plan=?WHERE id=?',(canonical_json(newplan),row['id']))
-                        progress.update({STATE:'execute','fragment_index':0,'fragment_progress':None,'completed_fragments':[]})
-                        _save(worker.repo,row,progress)
+                    _compile_and_save_selection(worker,row,plan,progress,decision)
                 except TemplateGap as error:_gap(worker,row,plan,progress,error)
             worker._call(row,req,on_received=received)
             return
@@ -169,7 +173,16 @@ def _finish_fragment(worker,row,plan,progress,data):
     if progress['fragment_index']==len(plan['fragments']):
         # Existing final-answer stage receives the original question and all full
         # captured API responses. This call performs no model/network operation.
-        worker.repo.stage_answer(row['id'],row['owner'],{'data':{'templates':progress['completed_fragments']},'fetched_at':datetime.fromtimestamp(worker.repo.clock(),timezone.utc).strftime('%Y-%m-%d %H:%M UTC')})
+        result_data={'templates':progress['completed_fragments']}
+        context={}
+        for completed in progress['completed_fragments']:
+            for template_id in completed['template_ids']:
+                for tid in dependencies(template_id):
+                    template=TEMPLATES[tid]
+                    if template.get('notes'):
+                        context[tid]={'template_id':tid,'version':template['version'],'purpose':template['purpose'],'notes':deepcopy(template['notes'])}
+        if context:result_data['template_context']=list(context.values())
+        worker.repo.stage_answer(row['id'],row['owner'],{'data':result_data,'fetched_at':datetime.fromtimestamp(worker.repo.clock(),timezone.utc).strftime('%Y-%m-%d %H:%M UTC')})
     else:_save(worker.repo,row,progress)
 
 class _FragmentRepo:

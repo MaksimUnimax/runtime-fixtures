@@ -65,10 +65,10 @@ class Pilot(unittest.TestCase):
   saved=GapStore(self.root/'template-gaps.sqlite3').get('A',result['model_result']['case_id']);return row,result,saved
  def test_simple_template_existing_source_and_normal_answer(self):
   row=self.finish(self.ask());self.assertEqual(row['state'],'READY',row['error']);self.assertEqual(row['error'],None)
-  self.assertEqual([r.operation for r in self.transport.calls],['template_select','template_verify','ozon_orders','model_answer'])
+  self.assertEqual([r.operation for r in self.transport.calls],['template_select','ozon_orders','model_answer'])
   self.assertEqual(strict_json(row['result'])['pages'],[self.transport.answer])
  def test_two_templates_same_source_coalesce(self):
-  self.transport.selection=selection(['B01.ordered_units','B01.ordered_revenue']);row=self.finish(self.ask());self.assertEqual(row['state'],'READY',row['error']);self.assertEqual([r.operation for r in self.transport.calls].count('ozon_orders'),1)
+  self.transport.selection=selection(['B01.ordered_units','B01.ordered_revenue']);row=self.finish(self.ask());self.assertEqual(row['state'],'READY',row['error']);self.assertEqual([r.operation for r in self.transport.calls].count('ozon_orders'),1);self.assertEqual(sum(x.source.startswith('model:')for x in self.transport.calls),2)
  def test_two_periods_are_two_fragments_one_job(self):
   self.transport.selection=selection(['B01.ordered_units','B01.ordered_revenue']);self.transport.selection['invocations'][1]['input']['period']={'from':'2026-11-01','to':'2026-11-01'}
   row=self.finish(self.ask());self.assertEqual(row['state'],'READY',row['error']);self.assertEqual([r.operation for r in self.transport.calls].count('ozon_orders'),2)
@@ -84,10 +84,24 @@ class Pilot(unittest.TestCase):
  def test_unknown_template(self):self.transport.selection=selection(['invented-template']);self.gap()
  def test_empty_template_list(self):self.transport.selection['invocations']=[];self.gap()
  def test_partial_composition_not_executed(self):self.transport.selection['complete']=False;self.transport.selection['missing']=['profit'];self.gap()
- def test_independent_verifier_catches_omitted_requirement(self):
-  self.transport.verification={'approved':False,'missing':['нет расходов'],'requirement_ids':[]};self.gap();self.assertEqual(len(self.transport.calls),2)
- def test_verifier_missing_id_not_accepted(self):self.transport.verification={'approved':True,'missing':[],'requirement_ids':[]};self.gap()
- def test_verifier_duplicate_id_not_accepted(self):self.transport.verification={'approved':True,'missing':[],'requirement_ids':['r0','r0']};self.gap()
+ def test_only_two_actual_model_dispatches_for_success(self):
+  import model_usage
+  row=self.finish(self.ask());self.assertEqual(row['state'],'READY',row['error'])
+  self.assertEqual(model_usage.summary(self.repo)['attempts'],2)
+  self.assertNotIn('template_verify',[x.operation for x in self.transport.calls])
+ def legacy_verify_checkpoint(self):
+  a=self.ask();self.worker.step();row=self.repo.get('A',a['job_id']);plan=strict_json(row['plan']);progress=strict_json(row['progress'])
+  plan.update(selection_verified=False,fragments=[]);plan.pop('execution_digest',None)
+  progress[tr.STATE]='verify';progress['fragments']=[{'stale':'must be recompiled'}]
+  with self.repo.connection(True)as c:c.execute('UPDATE jobs SET plan=?,progress=?WHERE id=?',(json.dumps(plan),json.dumps(progress),a['job_id']))
+  return a
+ def test_legacy_verify_checkpoint_recompiles_without_extra_model(self):
+  a=self.legacy_verify_checkpoint();self.repo=Repository(self.root/'state.sqlite3',self.clock);self.engine=Engine(self.repo,lambda t:self.scope,answer_settings=self.settings,template_mode=True);self.worker=Worker(self.engine,self.transport)
+  row=self.finish(a);self.assertEqual(row['state'],'READY',row['error'])
+  self.assertEqual([r.operation for r in self.transport.calls],['template_select','ozon_orders','model_answer'])
+ def test_revoked_scope_blocks_legacy_checkpoint_before_io(self):
+  a=self.legacy_verify_checkpoint();self.scope=replace(self.scope,revision='revoked');row=self.finish(a)
+  self.assertEqual(row['state'],'FAILED');self.assertEqual([r.operation for r in self.transport.calls],['template_select'])
  def test_planner_receives_actual_input_contract(self):
   self.transport.selection={'action':'unsupported','reason':'no','missing':['x'],'reply':TEXT};self.gap();ctx=self.transport.calls[0].body['context'];self.assertEqual(ctx['input_contract']['group_by']['enum'],['marketplace','total']);self.assertFalse(ctx['input_contract']['group_by']['null_allowed'])
  def test_null_grouping_is_not_silently_rewritten(self):
@@ -131,7 +145,7 @@ class Pilot(unittest.TestCase):
  def test_schema_mistake_does_not_destroy_original_question(self):self.transport.selection=[];_,_,s=self.gap();self.assertEqual(s['original_question'],'Сколько товаров заказали и на какую сумму вчера на Озоне?')
  def test_model_503_retry_uses_same_payload_and_no_provider(self):
   self.transport.selection={'action':'unsupported','reason':'no','missing':['x'],'reply':TEXT};self.transport.network_failure=CallError('HTTP_503',status=503);self.gap();self.assertEqual(self.transport.calls[0].body,self.transport.calls[1].body)
- def test_restart_between_selection_and_verification(self):
+ def test_restart_between_selection_and_api(self):
   a=self.ask();self.worker.step();self.repo=Repository(self.root/'state.sqlite3',self.clock);self.engine=Engine(self.repo,lambda t:self.scope,answer_settings=self.settings,template_mode=True);self.worker=Worker(self.engine,self.transport);r=self.finish(a);self.assertEqual(r['state'],'READY',r['error'])
  def test_final_answer_retry_does_not_repeat_source(self):
   a=self.ask()
@@ -139,7 +153,7 @@ class Pilot(unittest.TestCase):
    r=self.repo.get('A',a['job_id']);p=strict_json(r['progress'])if r['progress']else{}
    if '_answer_pending'in p:break
    self.clock.advance(1);self.worker.step()
-  self.transport.network_failure=CallError('HTTP_503',status=503);r=self.finish(a);self.assertEqual(r['state'],'READY',r['error']);self.assertEqual(sum(x.operation=='ozon_orders'for x in self.transport.calls),1)
+  self.transport.network_failure=CallError('HTTP_503',status=503);r=self.finish(a);self.assertEqual(r['state'],'READY',r['error']);self.assertEqual(sum(x.operation=='ozon_orders'for x in self.transport.calls),1);self.assertEqual(sum(x.source.startswith('model:')for x in self.transport.calls),3)
  def test_original_question_not_replaced_by_template_name_in_answer(self):
   q='Заказы за вчера на Ozon';r=self.finish(self.ask(q));self.assertEqual(r['state'],'READY',r['error']);answer=next(x for x in self.transport.calls if x.operation=='model_answer');self.assertEqual(answer.body['messages'][1]['content'],q)
  def test_source_rights_revoked_before_execution(self):
@@ -151,7 +165,42 @@ class Pilot(unittest.TestCase):
  def test_help_is_template_and_not_network_read(self):
   self.transport.selection=selection(['H00'],inputs={'period':None});r=self.finish(self.ask('Что умеет сервис?'));self.assertEqual(r['state'],'READY',r['error']);self.assertEqual(sum(bool(x.store_id)for x in self.transport.calls),0)
 
+ def test_selected_template_notes_reach_final_model_with_unchanged_api_data(self):
+  self.transport.selection=selection(['B01.ordered_units'])
+  note='Подтвержденное деловое значение выбранного показателя.'
+  with patch.dict(tc.TEMPLATES['B01.ordered_units'],{'notes':[note]}):row=self.finish(self.ask())
+  self.assertEqual(row['state'],'READY',row['error'])
+  answer=next(x for x in self.transport.calls if x.operation=='model_answer')
+  data=json.loads(answer.body['messages'][-1]['content'].split('\n',1)[1])
+  self.assertEqual(data['template_context'],[{'template_id':'B01.ordered_units','version':1,'purpose':tc.TEMPLATES['B01.ordered_units']['purpose'],'notes':[note]}])
+  self.assertTrue(data['responses']);self.assertIn('ozon_orders',json.dumps(data['responses']))
+  self.assertNotIn('B06.finance_storage_cost',json.dumps(data['template_context']))
+  self.assertEqual(sum(x.source.startswith('model:')for x in self.transport.calls),2)
+ def test_compound_inherits_notes_of_used_dependency_once(self):
+  note='Пояснение используемого вложенного шаблона.'
+  with patch.dict(tc.TEMPLATES['B01.ordered_units'],{'notes':[note]}):row=self.finish(self.ask())
+  self.assertEqual(row['state'],'READY',row['error'])
+  body=next(x for x in self.transport.calls if x.operation=='model_answer').body
+  data=json.loads(body['messages'][-1]['content'].split('\n',1)[1])
+  self.assertEqual(sum(x['template_id']=='B01.ordered_units'for x in data['template_context']),1)
+  self.assertIn(note,json.dumps(data,ensure_ascii=False))
+ def test_template_note_snapshot_survives_final_retry_without_rereading_api(self):
+  original='Исходное пояснение выбранного шаблона.'
+  with patch.dict(tc.TEMPLATES['B01.ordered_units'],{'notes':[original]}):
+   a=self.ask()
+   for _ in range(10):
+    row=self.repo.get('A',a['job_id']);p=strict_json(row['progress'])if row['progress']else{}
+    if '_answer_pending'in p:break
+    self.clock.advance(1);self.worker.step()
+   self.transport.network_failure=CallError('HTTP_503',status=503);self.clock.advance(1);self.worker.step()
+  with patch.dict(tc.TEMPLATES['B01.ordered_units'],{'notes':['Новое пояснение']}):row=self.finish(a)
+  self.assertEqual(row['state'],'READY',row['error'])
+  calls=[x for x in self.transport.calls if x.operation=='model_answer'];self.assertEqual(len(calls),2);self.assertEqual(calls[0].body,calls[1].body)
+  self.assertIn(original,json.dumps(calls[0].body,ensure_ascii=False));self.assertEqual(sum(x.operation=='ozon_orders'for x in self.transport.calls),1)
+
 class Catalogue(unittest.TestCase):
+ def test_storage_note_explains_ozon_source_terminology(self):
+  template=tc.TEMPLATES['B06.finance_storage_cost'];self.assertEqual(template['version'],2);self.assertIn('Размещение товаров на складах Ozon',' '.join(template['notes']))
  def test_all_85_ids_migrated(self):self.assertEqual(len(tc.TEMPLATES),85)
  def test_no_speech_fields_anywhere(self):tc.validate_catalog()
  def test_no_dataset_phrase_field(self):

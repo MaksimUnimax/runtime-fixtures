@@ -96,7 +96,12 @@ def step(worker, row, plan, progress):
         with worker.repo.connection(True) as connection:
             worker.repo._owned(connection, row['id'], row['owner'])
             connection.execute('UPDATE jobs SET progress=? WHERE id=?', (canonical_json(progress), row['id']))
-    body = {'messages': messages(draft['original_question'], progress[API_DATA],
+    api_data = progress[API_DATA]
+    result_data = progress[PENDING].get('data')
+    template_context = result_data.get('template_context') if type(result_data) is dict else None
+    if template_context:
+        api_data = {'responses': api_data, 'template_context': template_context}
+    body = {'messages': messages(draft['original_question'], api_data,
                                 progress['_answer_instruction_snapshot']['answer_extra_instruction'], draft.get('question_clarifications', []),
                                 progress['_answer_instruction_snapshot']['answer_prompt'])}
     request = Request('model_answer', worker.transport.model_source, '', body, 0, None)

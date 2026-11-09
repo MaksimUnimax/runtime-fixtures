@@ -61,7 +61,7 @@ class MixedExecution(unittest.TestCase):
   self.fail('unfinished')
  def test_scalar_plus_dataset_same_job_full_api_data(self):
   self.transport.selection=selection(['B01.ordered_units','product_registry']);self.transport.selection['invocations'][1]['input']['period']=None
-  r=self.run_request('Количество заказанных товаров и справочник товаров');self.assertEqual(r['state'],'READY',r['error']);self.assertIsNone(r['error']);ops=[x.operation for x in self.transport.calls];self.assertEqual(ops,['template_select','template_verify','ozon_orders','ds_ozon_products','model_answer'])
+  r=self.run_request('Количество заказанных товаров и справочник товаров');self.assertEqual(r['state'],'READY',r['error']);self.assertIsNone(r['error']);ops=[x.operation for x in self.transport.calls];self.assertEqual(ops,['template_select','ozon_orders','ds_ozon_products','model_answer'])
   body=self.transport.calls[-1].body['messages'][-1]['content'];self.assertIn('ozon_orders',body);self.assertIn('ds_ozon_products',body)
  def test_dataset_per_day_workflow_all_dates(self):
   self.transport.selection=selection(['accrual_days'],inputs={**deepcopy(INPUT),'period':{'from':'2026-11-01','to':'2026-11-02'}})
@@ -79,7 +79,7 @@ class GuardedPilot(Setup):
  def test_port_executes_templates_without_legacy_scope(self):
   def denied(_):raise AssertionError('legacy scope used')
   self.engine.scope_for=denied
-  _,r=self.submit();value=self.finish(r);self.assertEqual(value['pages'],[self.transport.answer]);self.assertEqual([c.operation for c in self.transport.calls],['template_select','template_verify','ozon_orders','model_answer'])
+  _,r=self.submit();value=self.finish(r);self.assertEqual(value['pages'],[self.transport.answer]);self.assertEqual([c.operation for c in self.transport.calls],['template_select','ozon_orders','model_answer'])
  def test_port_missing_template_returns_exact_text_and_model_result(self):
   self.transport.selection={'action':'unsupported','reason':'missing','missing':['x'],'reply':TEXT};_,r=self.submit('Неизвестный показатель');value=self.finish(r);self.assertEqual(value['pages'],[TEXT]);self.assertEqual(value['model_result']['status'],'TEMPLATE_NOT_FOUND');self.assertEqual(sum(bool(c.store_id)for c in self.transport.calls),0)
  def test_port_revocation_after_selection_stops_next_call(self):

@@ -111,6 +111,21 @@ class Documents(unittest.TestCase):
         self.assertTrue(any(r.store_id for r in self.transport.calls))
         self.assertEqual(self.reports(),[])
 
+    def test_lease_expiring_in_final_external_authority_rolls_back_archive(self):
+        original=document;authorized=self.engine.authorized;checks=[0]
+        def external(plan):
+            result=authorized(plan);checks[0]+=1
+            if checks[0]==2:self.clock.advance(self.repo.lease+1)
+            return result
+        def render(*args):
+            value=original(*args);self.engine.authorized=external;return value
+        with patch('report_archive.document',render):
+            self.ask()
+            for _ in range(6):
+                self.clock.advance(1);self.worker.step()
+                if any(r.store_id for r in self.transport.calls):break
+        self.assertEqual(checks[0],2);self.assertEqual(self.reports(),[])
+
     def test_sparse_rows_use_complete_json_before_rectangular_expansion(self):
         value=[{'column_'+str(i):i} for i in range(2000)]
         raw,mime,_=document(value,'Sparse','op','now',{})

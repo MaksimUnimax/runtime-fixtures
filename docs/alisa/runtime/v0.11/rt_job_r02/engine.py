@@ -21,9 +21,10 @@ HELP = ('Доступны заказы, расход рекламы и ДРР о
         'Для получения отчета: результат. Для обновления: обнови и исходный запрос.')
 
 class CallError(Exception):
-    def __init__(self,code,status=None,unknown=False,retry_at=None,feedback=None):
+    def __init__(self,code,status=None,unknown=False,retry_at=None,feedback=None,model_usage=None):
         self.code,self.status,self.unknown,self.retry_at = code,status,unknown,retry_at
         self.feedback=feedback
+        self.model_usage=model_usage
         super().__init__(code)
 
 def validate_model_budget(value):
@@ -417,6 +418,9 @@ class Worker:
             else:self.repo.failed_call(event,unknown=False,code=exc.code)
             raise
         except CallError as exc:
+            if request.source.startswith('model:'):
+                import model_usage
+                model_usage.record(self.repo,event,exc.model_usage)
             repaired=False
             with self.repo.connection(True):
                 self.repo.failed_call(event,exc.status,exc.unknown,exc.code)
@@ -437,6 +441,9 @@ class Worker:
         except Exception:
             self.repo.failed_call(event,unknown=True,code='UNEXPECTED_TRANSPORT_OUTCOME')
             raise CallError('UNEXPECTED_TRANSPORT_OUTCOME',unknown=True) from None
+        if request.source.startswith('model:'):
+            import model_usage
+            model_usage.record(self.repo,event,meta.get('model_usage'))
         # Local persistence errors are not an uncertain network outcome.
         with self.repo.connection(True):
             self.repo.received(event,meta)

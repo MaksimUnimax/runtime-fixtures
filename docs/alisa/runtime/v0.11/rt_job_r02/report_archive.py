@@ -318,8 +318,9 @@ def capture(engine, row, event, request, store, value, meta):
         calls = {v['id']:v for v in plan['selection']['invocations']}
         from template_catalog import TEMPLATES
         def authorize():
-            engine.repo._owned(c,row['id'],row['owner'])
             need(engine.authorized(plan),'SOURCE_ACCESS')
+            # External authority may consume the remainder of the worker lease.
+            engine.repo._owned(c,row['id'],row['owner'])
         stamp = datetime.fromtimestamp(engine.repo.clock(),timezone.utc).isoformat()
         for ident in fragment['invocation_ids']:
             call = calls[ident]; template = TEMPLATES[call['template_id']]

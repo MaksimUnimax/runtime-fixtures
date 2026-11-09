@@ -279,9 +279,11 @@ class HTTPTransport:
                 # validation error is definitive, never UNKNOWN or blind retry.
                 raise CallError(error.code,status=status)from None
         if operation in ('deepseek_parse','deepseek_read_plan','model_answer','template_select','template_verify'):
+            from model_usage import receipt
+            meta['model_usage']=receipt(data,payload['model'])
             try:
                 choice=data['choices'][0];data={'content':choice['message']['content'],'finish_reason':choice['finish_reason']}
-            except (KeyError,TypeError,IndexError):raise CallError('MODEL_ENVELOPE',status=status) from None
+            except (KeyError,TypeError,IndexError):raise CallError('MODEL_ENVELOPE',status=status,model_usage=meta['model_usage']) from None
         if operation=='model_answer' and (type(data['content'])is not str or not data['content'].strip()):
-            raise CallError('MODEL_ENVELOPE',status=status)
+            raise CallError('MODEL_ENVELOPE',status=status,model_usage=meta['model_usage'])
         return data,meta
