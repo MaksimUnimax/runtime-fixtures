@@ -1,0 +1,62 @@
+{
+  "template_id": "B08.finance_accrued",
+  "expected_base_sha256": "0aed94774a303dbc9383f7914887ae5bb8bc0dbb7e2b69fe43216fc29aedca30",
+  "expected_new_sha256": "2ac4184cd61490074afa192ff5f9e9548a4cbfd83049d3f5be0d195d1c848a1c",
+  "new_entry": {
+    "id": "B08.finance_accrued",
+    "version": 3,
+    "purpose": "итого начислено по финансовому балансу",
+    "platforms": [
+      "ozon"
+    ],
+    "kind": "scalar",
+    "input_policy": {
+      "time_axis": "financial_period",
+      "snapshot": false,
+      "period_required": true,
+      "comparison_supported": true,
+      "filters_supported": false
+    },
+    "steps": [
+      {
+        "id": "ozon_source",
+        "platform": "ozon",
+        "operation": "ozon_finance",
+        "source_registry": "scalar_source_catalog",
+        "recipe": "ozon_finance",
+        "params": {
+          "date_from": {
+            "$path": [
+              "period",
+              "from"
+            ]
+          },
+          "date_to": {
+            "$path": [
+              "period",
+              "to"
+            ]
+          }
+        },
+        "bind": {
+          "period": "input.period",
+          "filters": "input.filters",
+          "metrics": [
+            "finance_accrued"
+          ],
+          "fields": {
+            "finance_accrued": "finance_accrued"
+          }
+        },
+        "workflow": null
+      }
+    ],
+    "qualification": "existing_source_requirements",
+    "notes": [
+      "Кратко назови итог финансовых начислений продавцу за период с учётом возвратов и услуг, отражённых в отчёте. Обычный ответ — одно предложение с суммой и периодом. Подробности о банковских выплатах и прочие пояснения добавляй только по вопросу пользователя."
+    ],
+    "metrics": [
+      "finance_accrued"
+    ]
+  }
+}
