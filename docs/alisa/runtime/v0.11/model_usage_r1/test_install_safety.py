@@ -9,7 +9,7 @@ class InstallationSafety(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);calls=[];created=[]
             receipt={'config_sha256':'config','source_hashes':{'runtime/engine.py':'source'},'source_commit':'fixture','old_pin':'old','new_pin':'new'}
-            (root/'PREPARED_R6.json').write_text(json.dumps(receipt))
+            (root/'PREPARED_R7.json').write_text(json.dumps(receipt))
             def digest(path):return 'config' if str(path).startswith('/etc/')else ('drift' if drift else 'source')
             def override(unit,text):
                 p=root/(unit+'.conf');p.write_text(text);created.append(p);return p
@@ -37,7 +37,7 @@ class InstallationSafety(unittest.TestCase):
                 self.assertEqual(created,[]);self.assertEqual(calls,[])
             else:
                 self.assertIn(('systemctl','restart','alisa-station.service'),calls)
-                record=json.loads((root/'ROLLED_BACK_R6.json').read_text())
+                record=json.loads((root/'ROLLED_BACK_R7.json').read_text())
                 self.assertEqual(record['state'],'ROLLBACK_FAILED' if fail_rollback else 'ROLLED_BACK')
                 self.assertFalse(created[0].exists());self.assertFalse(created[1].exists())
                 self.assertTrue(created[2].exists())

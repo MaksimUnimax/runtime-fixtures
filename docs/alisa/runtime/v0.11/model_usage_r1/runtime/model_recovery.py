@@ -12,6 +12,15 @@ class DecisionRepaired(Exception):
 def request_key(item):
     return fingerprint({key:item[key] for key in ('store_id','operation','params')})
 
+def compiler_declines(response):
+    from semantics import strict_json,Rejected
+    raw=response.get('content')
+    if response.get('finish_reason')!='stop'or type(raw)is not str or len(raw)>24000:return False
+    try:value=strict_json(raw)
+    except (Rejected,RecursionError):return False
+    return (type(value)is dict and set(value)=={'expressions','fully_understood','unsupported'}
+        and value['expressions']==[] and value['fully_understood']is True and value['unsupported']is True)
+
 def catalog_parameter_names(platform):
     import read_surface
     names=set()

@@ -3,12 +3,12 @@ import hashlib, json, shutil, subprocess
 from pathlib import Path
 
 ROOT=Path('/root/alice-lab-evidence/model-usage-20261109')
-CANDIDATE=Path('/dev/shm/alisa-model-usage-20261109/model-feedback-final')
-BASE=Path('/opt/alice-market/releases/alisa-model-usage-r5-repair-20261109')
+CANDIDATE=Path('/dev/shm/alisa-model-usage-20261109/typed-first-final')
+BASE=Path('/opt/alice-market/releases/alisa-model-usage-r6-feedback-20261109')
 OLD=BASE
-STATION=Path('/opt/alisa-station/releases/station-auto-r8-model-usage-r5')
-TARGET=Path('/opt/alice-market/releases/alisa-model-usage-r6-feedback-20261109')
-STARGET=Path('/opt/alisa-station/releases/station-auto-r8-model-usage-r6')
+STATION=Path('/opt/alisa-station/releases/station-auto-r8-model-usage-r6')
+TARGET=Path('/opt/alice-market/releases/alisa-model-usage-r7-typed-first-20261109')
+STARGET=Path('/opt/alisa-station/releases/station-auto-r8-model-usage-r7')
 SOURCE=None
 
 def show(unit, prop):
@@ -64,7 +64,7 @@ def main():
     finally:Path(temporary).unlink(missing_ok=True)
     receipt=dict(state='PREPARED',source_commit=SOURCE,runtime=str(TARGET),station=str(STARGET),base=str(BASE),
         config_sha256=digest(config),old_pin=old_pin,new_pin=new_pin,source_hashes=expected)
-    (ROOT/'PREPARED_R6.json').write_text(json.dumps(receipt,indent=2))
+    (ROOT/'PREPARED_R7.json').write_text(json.dumps(receipt,indent=2))
     Path('/opt/alice-market/.model-usage-7d-owner.lock').write_text(json.dumps(dict(owner='controller-model-usage-20261109',status='PREPARED',
         scope='Dispatch marker, seven-day accounting, OWNER UI; preserve active read-r5 and all matrices',runtime=str(TARGET),evidence=str(ROOT)),indent=2))
     print(json.dumps(dict(state='PREPARED',source=SOURCE,files=len(expected),bytes=need)))

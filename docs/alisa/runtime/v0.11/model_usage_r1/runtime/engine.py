@@ -76,6 +76,15 @@ class Engine:
         except (Rejected,KeyError,TypeError,OSError):
             return False
 
+    def scope_current(self,frozen):
+        """Before compilation only the accepted identity/scope is knowable."""
+        try:
+            current=self.scope_for(frozen.tenant)
+            stores={store.id:asdict(store)for store in current.stores}
+            return (current.tenant==frozen.tenant and current.revision==frozen.revision and bool(frozen.stores)
+                and all(stores.get(store.id)==asdict(store)for store in frozen.stores))
+        except (Rejected,KeyError,TypeError,OSError):return False
+
     def submit(self,tenant,command,request_id,body_hash,today: date,conversation_id=None,message_id=None):
         if conversation_id is not None or message_id is not None:
             from dialogue import submit as dialogue_submit
@@ -93,6 +102,7 @@ class Engine:
     def _submit(self,tenant,command,request_id,body_hash,today: date,clarification=None):
         try:return self._submit_standard(tenant,command,request_id,body_hash,today,clarification)
         except Rejected as error:
+            if error.context and error.context.get('fallback_allowed')is False:raise
             codes={'PROMOTION_PARTICIPATION_NOT_ENABLED','OPERATION_NOT_ENABLED','PLATFORM_METRIC_NOT_ENABLED','PERIOD_REQUIRED','STORE_ALIAS'}
             if self.read_surface is None or error.code not in codes:raise
             if error.code=='PERIOD_REQUIRED':
@@ -127,8 +137,6 @@ class Engine:
             tab=parse_table(command,today)
             if tab is not None:return self._submit_table(scope,tab,request_id,body_hash,clarification)
         draft = parse(command,today)
-        if draft['route']=='P2'and self.read_surface is not None:
-            return self.read_surface.submit(self,scope,command,request_id,body_hash,today)
         if draft['route']=='P0':
             return self.control_once(tenant,draft['command'],request_id,body_hash)
         if clarification is not None:draft['clarification']=clarification
@@ -137,9 +145,11 @@ class Engine:
         draft['compiler_pin']={'language':LANGUAGE,'projection':PROJECTION,'registry_hash':REGISTRY_HASH}
         if draft.get('snapshot'):draft['snapshot_slot']=int(self.repo.clock()//300)
         selected = scope.select(draft['platforms'])
+        if re.search(r'\bрубл\w*\b',command,re.I)and any(store.currency!='RUB'for store in selected):
+            raise Rejected('CURRENCY_UNCONFIRMED')
         frozen = Scope(scope.tenant,scope.revision,selected)
-        pre = make_composed_plan(frozen,draft,metrics=draft['metrics']) if draft['metrics'] else make_plan(frozen,draft,['stock_fbo_units'] if draft.get('snapshot') else ['ordered_units'])
-        if not self.authorized(pre): raise Rejected('SOURCE_ACCESS')
+        pre = make_composed_plan(frozen,draft,metrics=draft['metrics']) if draft['metrics'] else None
+        if not (self.authorized(pre)if pre is not None else self.scope_current(frozen)):raise Rejected('SOURCE_ACCESS')
         draft['scope_snapshot'] = asdict(frozen)
         plan = pre if draft['metrics'] else None
         if plan is not None:validate_request_basis(draft, plan)
@@ -290,13 +300,22 @@ class Worker:
                 if draft.get('compiler_pin')!={'language':LANGUAGE,'projection':PROJECTION,'registry_hash':REGISTRY_HASH}:raise Rejected('PENDING_PLAN_VERSION_CHANGED')
                 snapshot=draft['scope_snapshot']
                 frozen=Scope(snapshot['tenant'],snapshot['revision'],tuple(Store(**s) for s in snapshot['stores']))
-                pre=make_plan(frozen,draft,['stock_fbo_units'] if draft.get('snapshot') else ['ordered_units'])
-                if not self.engine.authorized(pre): raise Rejected('SOURCE_ACCESS')
+                if not self.engine.scope_current(frozen):raise Rejected('SOURCE_ACCESS')
                 request=providers.Request('deepseek_parse','model:deepseek-flash','',{'question':draft['question'],'catalog':draft.get('catalog_pin',self.engine.catalog),'slots':{k:draft.get(k) for k in ('period','comparison','filters','platforms','group_by','snapshot')}},self.engine.model_budget['min_interval_seconds'],self.engine.model_budget['daily_calls'])
                 from request_recovery import compiler_decision
                 progress=strict_json(row['progress']) if row['progress'] else {}
                 if progress.get('compiler_feedback'):request.body['repair']=progress['compiler_feedback']
                 response=self._call(row,request)
+                from model_recovery import compiler_declines
+                if self.engine.read_surface is not None and compiler_declines(response):
+                    # The typed metric vocabulary declined the WHOLE question.
+                    # Discover methods in the same job, before any business IO.
+                    universal=self.engine.read_surface.plan(frozen,draft['question'],date.fromisoformat(draft['calendar_date']),row['created'])
+                    universal['request_contract']={key:draft.get(key)for key in ('period','comparison','filters','platforms','group_by','snapshot','calendar_date','timezone')}
+                    if not self.engine.authorized(universal):raise Rejected('SOURCE_ACCESS')
+                    resolved=self.repo.resolve(jid,owner,universal)
+                    if resolved['id']==jid:self.repo.reschedule(jid,owner)
+                    return True
                 expressions=compiler_decision(response,draft,progress)
                 if expressions is None:
                     self.repo.reschedule(jid,owner,progress);return True
