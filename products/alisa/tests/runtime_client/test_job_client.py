@@ -107,6 +107,23 @@ class ClientTests(Setup):
     def accepted(self, **ids):
         return self.client.submit('сводка заказов за октябрь 2026 на озоне', **(ids or self.ids()))
 
+    def test_plain_answer_line_breaks_are_preserved_but_control_characters_are_denied(self):
+        receipt = self.accepted(); self.finish(receipt)
+        original = self.port.read_result(receipt['job_ref'], self.ctx, self.peer)
+        page = 'Ответ { и [ допустимы.\n\nВторая строка.\r\n\tС отступом.'
+        answer = deepcopy(original); answer['pages'] = [page]
+        self.replace_server(lambda request: self.actual_reply(request) if request['operation'] != 'read_result'
+                            else {'ok': True, 'data': answer})
+        self.assertEqual(self.client.read_result(receipt['job_ref'])['pages'], [page])
+        for invalid in ('\x00', '\x1b', '\ud800'):
+            with self.subTest(character=repr(invalid)):
+                answer['pages'] = ['Ответ' + invalid]
+                self.failure('DEPENDENCY_UNAVAILABLE', lambda: self.client.read_result(receipt['job_ref']))
+
+    def test_multiline_permissions_do_not_apply_to_request_text_or_identifiers(self):
+        self.failure('VALIDATION_FAILED', lambda: self.client.submit('Вопрос\nещё', **self.ids()))
+        self.failure('VALIDATION_FAILED', lambda: self.client.status(uid() + '\n'))
+
     def replace_server(self, callback):
         self.server.shutdown(); self.server.server_close(); self.thread.join(timeout=2)
         self.path.unlink()

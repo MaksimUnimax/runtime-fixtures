@@ -250,5 +250,7 @@ def worker_step(worker,row,plan):
   done.append({'store_id':store['id'],'datasets':progress['datasets'],'complete':True});progress.update(datasets={},rows=[],stage_index=0,task_index=0,page=None)
  if len(canonical_json(progress).encode())>CATALOG['max_bytes']:fail('DATASET_CAPACITY')
  if len(done)==len(plan['stores']):
-  stamp=datetime.fromtimestamp(repo.clock(),timezone.utc).strftime('%Y-%m-%d %H:%M UTC');repo.complete(jid,owner,render(plan,done,stamp))
+  stamp=datetime.fromtimestamp(repo.clock(),timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+  if strict_json(row['draft']).get('answer_by_model'):repo.stage_answer(jid,owner,{'data':done,'fetched_at':stamp})
+  else:repo.complete(jid,owner,render(plan,done,stamp))
  else:repo.reschedule(jid,owner,progress)

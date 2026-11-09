@@ -210,6 +210,23 @@ class RoundtripChecks(AuthorityFixture):
         with self.repo.connection() as conn:
             self.assertEqual(conn.execute('SELECT count(*) FROM jobs').fetchone()[0], 1)
 
+    def test_model_answer_is_shared_by_session_and_alice_without_recompute(self):
+        from model_answer import Settings
+        from test_model_answer import Transport
+        import model_usage
+        self.engine.answer_settings = Settings(Path(self.socket_dir.name) / 'answer-settings.json')
+        self.repo.answer_settings = self.engine.answer_settings
+        self.transport = Transport(); self.worker = Worker(self.engine, self.transport)
+        question = 'сводка заказов за октябрь 2026 на озоне'
+        receipt = self.submit(question); self.finish(receipt)
+        result = self.client.read_result(receipt['job_ref'])
+        self.client.authorizer, _, _, _ = self.issue_alice()
+        self.assertEqual(self.client.read_result(receipt['job_ref']), result)
+        self.assertEqual(''.join(result['pages']), self.transport.answer)
+        self.assertEqual(self.transport.answer_calls[0].body['messages'][1]['content'], question)
+        self.assertEqual(len(self.transport.answer_calls), 1)
+        self.assertEqual(model_usage.summary(self.repo)['attempts'], 1)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--output', type=Path, required=True)

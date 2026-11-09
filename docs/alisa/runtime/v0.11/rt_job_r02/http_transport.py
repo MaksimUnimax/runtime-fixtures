@@ -28,6 +28,7 @@ ENDPOINTS['deepseek_parse']='https://api.deepseek.com/chat/completions'
 from shared_http import NoRedirect,read_response
 
 class HTTPTransport:
+    model_source = 'model:deepseek-flash'
     def __init__(self,credential_directory,bindings,qualifications,enabled=False,qualification_provider=None,read_surface_policy=None):
         self.directory=Path(credential_directory);self.bindings=dict(bindings)
         self.qualifications=dict(qualifications);self.enabled=enabled;self._tokens={}
@@ -132,7 +133,7 @@ class HTTPTransport:
         operation=request.operation
         if not self.enabled:raise CallError('LIVE_DISABLED')
         is_read=operation.startswith('read.')
-        if operation not in ENDPOINTS and operation!='deepseek_read_plan'and not is_read:raise CallError('ENDPOINT_NOT_ALLOWED')
+        if operation not in ENDPOINTS and operation not in ('deepseek_read_plan','model_answer')and not is_read:raise CallError('ENDPOINT_NOT_ALLOWED')
         specification=None
         if is_read:
             built,meta=self._read_request(request,store)
@@ -150,10 +151,14 @@ class HTTPTransport:
             elif private_mode=='wb-service':headers=self._completion_credentials(meta,store)
             else:headers={name:str(credentials[field])for name,field in meta['credential_headers'].items()}
             method=built['method'];url=built['url'];payload=strict_json(built['body'])if built.get('body')is not None else None
+        elif operation=='model_answer':
+            payload={'model':'deepseek-flash','thinking':{'type':'disabled'},'messages':request.body['messages']}
+            method='POST';url=ENDPOINTS['deepseek_parse'];headers={'Authorization':'Bearer '+self._credential('deepseek')}
         elif operation=='deepseek_read_plan':
-            from universal_reads import SYSTEM
-            if request.body.get('system')!=SYSTEM:raise CallError('MODEL_POLICY_CHANGED')
-            payload={'model':'deepseek-flash','thinking':{'type':'disabled'},'temperature':0,'max_tokens':3500,'response_format':{'type':'json_object'},'messages':[{'role':'system','content':SYSTEM},{'role':'user','content':json.dumps(request.body['context'],ensure_ascii=False)}]}
+            from universal_reads import SYSTEM, COLLECTION_SYSTEM
+            system=request.body.get('system')
+            if system not in (SYSTEM,COLLECTION_SYSTEM):raise CallError('MODEL_POLICY_CHANGED')
+            payload={'model':'deepseek-flash','thinking':{'type':'disabled'},'temperature':0,'max_tokens':3500,'response_format':{'type':'json_object'},'messages':[{'role':'system','content':system},{'role':'user','content':json.dumps(request.body['context'],ensure_ascii=False)}]}
             method='POST';url=ENDPOINTS['deepseek_parse'];headers={'Authorization':'Bearer '+self._credential('deepseek')}
         elif operation=='deepseek_parse':
             payload={'model':'deepseek-flash','thinking':{'type':'disabled'},'temperature':0,'max_tokens':1800,'response_format':{'type':'json_object'},
@@ -172,6 +177,8 @@ class HTTPTransport:
                 ephemeral={'token':cached[0]}
             try:method,url,headers,payload=matrix.http(operation,request.body,store,credentials,ephemeral)
             except MatrixError as exc:raise CallError(exc.code) from None
+        if operation in ('deepseek_parse','deepseek_read_plan') and request.body.get('instruction','').strip():
+            payload['messages'].insert(1,{'role':'system','content':request.body['instruction']})
         encoded=None if payload is None else json.dumps(payload,ensure_ascii=False,allow_nan=False).encode()
         request_http=urllib.request.Request(url,data=encoded,headers={**headers,'Content-Type':'application/json'},method=method)
         start=time.monotonic()
@@ -194,6 +201,7 @@ class HTTPTransport:
                     diagnosis=diagnose_denial(operation,url,status,body)
                     print(json.dumps(diagnosis,ensure_ascii=False),flush=True)
                     code=diagnosis.get('tier_public_code',diagnosis['public_code'])
+                    if diagnosis.get('model_response')is not None:feedback={'model_response':diagnosis['model_response']}
                 except Exception:
                     # Failure to inspect the received body never erases its HTTP
                     # status or manufactures a network-unknown/retry decision.
@@ -240,6 +248,7 @@ class HTTPTransport:
                 if len(self._tokens)>=128:self._tokens.pop(min(self._tokens,key=lambda k:self._tokens[k][1]))
                 self._tokens[self._cache_key(store,name)]=(token,now+ttl)
             data={'authorized':True}
+            meta['authentication_only']=True
         if is_read:
             import read_surface
             try:data=read_surface.sanitize(read_surface.project_response(store['platform'],request.operation.split('.',2)[2],data))
@@ -248,8 +257,10 @@ class HTTPTransport:
                 # HTTPS completed and its body was received. A local projection
                 # validation error is definitive, never UNKNOWN or blind retry.
                 raise CallError(error.code,status=status)from None
-        if operation in ('deepseek_parse','deepseek_read_plan'):
+        if operation in ('deepseek_parse','deepseek_read_plan','model_answer'):
             try:
                 choice=data['choices'][0];data={'content':choice['message']['content'],'finish_reason':choice['finish_reason']}
             except (KeyError,TypeError,IndexError):raise CallError('MODEL_ENVELOPE',status=status) from None
+        if operation=='model_answer' and (type(data['content'])is not str or not data['content'].strip()):
+            raise CallError('MODEL_ENVELOPE',status=status)
         return data,meta

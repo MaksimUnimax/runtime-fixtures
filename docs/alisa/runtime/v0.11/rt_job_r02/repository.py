@@ -5,7 +5,7 @@ import sqlite3
 import time
 import threading
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 import providers
 from contextlib import contextmanager
 from pathlib import Path
@@ -23,6 +23,7 @@ class Repository:
         self.path, self.clock, self.ttl, self.lease = str(path), clock, ttl, lease
         self.execution_authorizer=None
         self._transaction = threading.local()
+        self.answer_settings = None
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         with self.connection() as c:
             c.execute('PRAGMA journal_mode=WAL')
@@ -161,8 +162,17 @@ class Repository:
     def enqueue(self,tenant,rid,body_hash,draft,plan,scope_signature,*,update_pointer=True):
         self.validate_ingress(tenant, rid, body_hash)
         if plan and plan.get('tenant') != tenant: raise Rejected('TENANT_DENIED')
+        if self.answer_settings is not None and not (plan or {}).get('direct_read'):
+            from model_answer import ORIGINAL_QUESTION
+            original = ORIGINAL_QUESTION.get() or draft.get('question', '')
+            context = original if type(original) is dict else {'question': original}
+            draft = dict(draft, answer_by_model=True, original_question=context['question'],
+                         question_clarifications=context.get('clarifications', []),
+                         answer_settings_revision=self.answer_settings.read()['revision'])
         canonical = plan is not None
         key = ('p:'+fingerprint(plan)) if canonical else 'u:'+fingerprint({'draft':draft,'scope':scope_signature})
+        if draft.get('answer_by_model'):
+            key += ':answer:' + fingerprint([draft['original_question'], draft.get('question_clarifications', []), draft['answer_settings_revision']])
         with self.connection(True) as c:
             if c.execute('SELECT 1 FROM control_inbox WHERE tenant=? AND rid=?',(tenant,rid)).fetchone():
                 raise Rejected('CHANGED_REPLAY')
@@ -234,18 +244,27 @@ class Repository:
             r = self._owned(c,jid,owner)
             if plan.get('tenant') != r['tenant']: raise Rejected('TENANT_DENIED')
             draft = strict_json(r['draft'])
+            if draft.get('answer_by_model'):
+                key += ':answer:' + fingerprint([draft['original_question'], draft.get('question_clarifications', []), draft['answer_settings_revision']])
             slot = c.execute('SELECT jid FROM slots WHERE tenant=? AND key=?',(r['tenant'],key)).fetchone()
             other = self._expired(c,self._row(c,slot['jid'],r['tenant'])) if slot else None
             if other and other['id']!=jid and self._reusable(other,draft['refresh'],True):
                 c.execute("UPDATE jobs SET state='ALIASED',alias=?,plan=?,owner=NULL,lease=NULL,updated=? WHERE id=?",(other['id'],canonical_json(plan),self.clock(),jid))
                 return other
-            c.execute('UPDATE jobs SET plan=?,key=?,progress=NULL,updated=? WHERE id=?',(canonical_json(plan),key,self.clock(),jid))
+            from model_answer import API_DATA
+            saved = strict_json(r['progress']) if r['progress'] else {}
+            retained = {API_DATA:saved[API_DATA]} if API_DATA in saved else None
+            c.execute('UPDATE jobs SET plan=?,key=?,progress=?,updated=? WHERE id=?',(canonical_json(plan),key,canonical_json(retained) if retained else None,self.clock(),jid))
             c.execute('INSERT OR REPLACE INTO slots VALUES(?,?,?)',(r['tenant'],key,jid))
             return self._row(c,jid,r['tenant'])
 
     def reschedule(self,jid,owner,progress=None,until=None):
         with self.connection(True) as c:
             row = self._owned(c,jid,owner)
+            if progress is not None:
+                from model_answer import API_DATA, PENDING
+                saved = strict_json(row['progress']) if row['progress'] else {}
+                if API_DATA in saved and PENDING not in progress:progress = dict(progress, **{API_DATA: saved[API_DATA]})
             c.execute("UPDATE jobs SET state='QUEUED',progress=?,due=?,owner=NULL,lease=NULL,updated=? WHERE id=?",
                       (canonical_json(progress) if progress is not None else row['progress'],until or self.clock(),self.clock(),jid))
 
@@ -272,7 +291,50 @@ class Repository:
             c.execute('UPDATE jobs SET plan=?,updated=?WHERE id=?',(canonical_json(plan),self.clock(),jid))
             return True
 
+    def capture_api_answer(self, row, event, request, value):
+        if not strict_json(row['draft']).get('answer_by_model'):
+            return
+        from model_answer import API_DATA
+        from read_surface import sanitize
+        with self.connection(True) as c:
+            current = self._owned(c, row['id'], row['owner'])
+            progress = strict_json(current['progress']) if current['progress'] else {}
+            saved = progress.setdefault(API_DATA, [])
+            if not any(item['receipt'] == event for item in saved):
+                saved.append({'receipt': event, 'operation': request.operation,
+                              'store': request.store_id, 'params':sanitize(request.body), 'received_at':datetime.fromtimestamp(self.clock(),timezone.utc).isoformat(), 'data': sanitize(value)})
+            c.execute('UPDATE jobs SET progress=? WHERE id=?', (canonical_json(progress), row['id']))
+
+    def stage_answer(self, jid, owner, result, progress=None):
+        from model_answer import API_DATA, PENDING
+        with self.connection(True) as c:
+            row = self._owned(c, jid, owner)
+            current = strict_json(row['progress']) if row['progress'] else {}
+            data = current.get(API_DATA, [])
+            if progress is not None:
+                data = [{'operation': item['operation'], 'store': item['store_id'], 'params': item['params'], 'data': item['data']}
+                        for item in progress.get('calls', [])]
+            pending = {'data': result['data'], 'fetched_at': result['fetched_at']}
+            for key in ('join_coverage', 'enrichment_complete'):
+                if key in result:pending[key] = result[key]
+            self.reschedule(jid, owner, {API_DATA: data, PENDING: pending})
+
+    def complete_answer(self, jid, owner, result):
+        with self.connection(True) as c:
+            row = self._owned(c, jid, owner)
+            if self.execution_authorizer is not None:self.execution_authorizer(row)
+            plan = strict_json(row['plan'])
+            failure=result.get('failure_code')
+            c.execute("UPDATE jobs SET state=?,result=?,progress=NULL,error=?,expires=?,updated=?,owner=NULL,lease=NULL WHERE id=?",
+                      ('READY',canonical_json(result),failure,self.clock()+min(self.ttl, plan.get('freshness_seconds', self.ttl)),self.clock(),jid))
+
     def complete(self,jid,owner,result):
+        with self.connection(True) as c:
+            row = self._owned(c, jid, owner)
+            if self.execution_authorizer is not None:self.execution_authorizer(row)
+            if strict_json(row['draft']).get('answer_by_model'):
+                self.stage_answer(jid, owner, result)
+                return
         if not isinstance(result,dict) or result.get('complete') is not True or not isinstance(result.get('pages'),list) or not result['pages'] or not all(isinstance(x,str) and 0<len(x)<=900 for x in result['pages']):
             raise Rejected('INCOMPLETE_RESULT')
         with self.connection(True) as c:

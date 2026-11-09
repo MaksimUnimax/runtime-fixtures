@@ -41,6 +41,16 @@ class Handler(socketserver.StreamRequestHandler):
                 if set(value)!={'op'}:raise Rejected('IPC_SCHEMA')
                 import model_usage
                 result=model_usage.summary(self.server.engine.repo)
+            elif isinstance(value,dict) and value.get('op') in ('answer_settings','answer_settings_save'):
+                settings=self.server.engine.answer_settings
+                if settings is None:raise Rejected('ANSWER_SETTINGS_UNAVAILABLE')
+                if value['op']=='answer_settings':
+                    if set(value)!={'op'}:raise Rejected('IPC_SCHEMA')
+                    result=settings.read()
+                else:
+                    from model_answer import DEFAULTS
+                    if set(value)!={'op','revision',*DEFAULTS}:raise Rejected('IPC_SCHEMA')
+                    result=settings.save(value['revision'],**{k:value[k] for k in DEFAULTS})
             elif isinstance(value,dict)and value.get('op')=='read_artifact':
                 from protected_reads import chunk
                 result=chunk(self.server.engine,value)

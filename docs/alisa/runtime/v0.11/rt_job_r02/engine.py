@@ -1,5 +1,6 @@
 """Network-free ingress facade and one-step worker with injectable transport."""
 from __future__ import annotations
+from model_recovery import DecisionRepaired
 import re
 import copy
 from dataclasses import asdict
@@ -35,11 +36,13 @@ def validate_model_budget(value):
     return dict(value)
 
 class Engine:
-    def __init__(self,repository: Repository,scope_for: Callable[[str], Scope],catalog=None,table_capabilities=None,dataset_capabilities=None,read_surface=None,execution_policy=None):
+    def __init__(self,repository: Repository,scope_for: Callable[[str], Scope],catalog=None,table_capabilities=None,dataset_capabilities=None,read_surface=None,answer_settings=None,execution_policy=None):
         self.repo,self.scope_for = repository,scope_for
         self.execution_policy=execution_policy
         self.repo.execution_authorizer=self.authorize_job
         self.read_surface=read_surface
+        self.answer_settings=answer_settings
+        self.repo.answer_settings=answer_settings
         self.table_capabilities=table_capabilities
         self.dataset_capabilities=dataset_capabilities
         self.catalog=validate_catalog_typed(catalog or EXPRESSION_CATALOG)
@@ -102,7 +105,7 @@ class Engine:
         if plan is not None and plan.get('runtime_guard')!=guard:raise Rejected('PERMISSION_DENIED')
         if guard is not None:
             self.execution_scope(guard,row['tenant'])
-            if plan is not None and not self.authorized(plan):raise Rejected('PERMISSION_DENIED')
+            if plan is not None and not self.output_authorized(row):raise Rejected('PERMISSION_DENIED')
 
     def scope_current(self,frozen,guard=None):
         """Before compilation only the accepted identity/scope is knowable."""
@@ -117,10 +120,15 @@ class Engine:
         except (KeyError,TypeError,OSError):return False
 
     def submit(self,tenant,command,request_id,body_hash,today: date,conversation_id=None,message_id=None):
-        if conversation_id is not None or message_id is not None:
-            from dialogue import submit as dialogue_submit
-            return dialogue_submit(self,tenant,command,request_id,body_hash,today,conversation_id,message_id)
-        return self._submit(tenant,command,request_id,body_hash,today)
+        from model_answer import ORIGINAL_QUESTION
+        token=ORIGINAL_QUESTION.set(command)
+        try:
+            if conversation_id is not None or message_id is not None:
+                from dialogue import submit as dialogue_submit
+                return dialogue_submit(self,tenant,command,request_id,body_hash,today,conversation_id,message_id)
+            return self._submit(tenant,command,request_id,body_hash,today)
+        finally:
+            ORIGINAL_QUESTION.reset(token)
 
     def submit_method(self,tenant,store_id,operation,params,request_id,today,conversation):
         if self.read_surface is None:raise Rejected('READ_SURFACE_DISABLED')
@@ -226,16 +234,38 @@ class Engine:
             plan=strict_json(row['plan'])
             if plan['tenant']!=row['tenant']:return None
             frozen=Scope(plan['tenant'],plan['access_revision'],tuple(Store(**store)for store in plan['stores']))
-            if not self.scope_current(frozen):return None
+            if not self.scope_current(frozen,plan.get('runtime_guard')):return None
             return explain(code)['text']
         except (Rejected,KeyError,TypeError,ValueError,OSError):return None
+
+    def output_authorized(self,row):
+        from provider_failure import permission_notice, notice_authorized
+        if permission_notice(row) is not None:return notice_authorized(self,row)
+        return not row['plan'] or self.authorized(strict_json(row['plan']))
+
+    def delivery_plan(self,row):
+        from provider_failure import permission_notice
+        notice=permission_notice(row)
+        if notice is not None:
+            return {'schema':'alice-error-delivery/v1','tenant':row['tenant'],'job_id':row['id'],'receipt':notice['failure_receipt']}
+        return strict_json(row['plan']) if row['plan'] else None
+
+    def delivery_authorized(self,plan):
+        if plan.get('schema')=='alice-error-delivery/v1':
+            if set(plan)!={'schema','tenant','job_id','receipt'}:return False
+            row=self.repo.get(plan['tenant'],plan['job_id'])
+            if not row or row['id']!=plan['job_id']:return False
+            from provider_failure import permission_notice,notice_authorized
+            notice=permission_notice(row)
+            return notice is not None and notice['failure_receipt']==plan['receipt'] and notice_authorized(self,row)
+        return self.authorized(plan)
 
     def describe(self,tenant,row,deliver=False,next_page=False):
         if not row: return HELP
         if row['tenant'] != tenant: raise Rejected('TENANT_DENIED')
         failure_notice=self.access_failure_notice(row)
         if failure_notice is not None:return failure_notice
-        if row['plan'] and not self.authorized(strict_json(row['plan'])):
+        if not self.output_authorized(row):
             return 'Доступ к источнику изменился. Сохраненные цифры не выдаю.'
         state = row['state']
         if state=='READY':
@@ -265,13 +295,14 @@ class Engine:
             public = command in ('помощь','помощь аналитики','что ты умеешь','диагностика аналитики','отмени отчет')
             row = None if public else self.repo.get(tenant)
             reply = self.control(tenant,command)
-            plan = strict_json(row['plan']) if row and row['plan'] else None
-            if plan and not self.authorized(plan):
-                # A denial is not a cached financial response.
-                plan = None
+            plan = self.delivery_plan(row) if row else None
+            if plan and not self.delivery_authorized(plan):
+                # Rights may have changed after control() produced the text.
+                # Never cache or return that text as an unprotected reply.
+                raise Rejected('SOURCE_ACCESS')
             expires = row['expires'] if plan and row['state']=='READY' else None
             return reply,plan,expires
-        return self.repo.control_reply(tenant,request_id,body_hash,action,self.authorized)
+        return self.repo.control_reply(tenant,request_id,body_hash,action,self.delivery_authorized)
 
     def control(self,tenant,command):
         if command in ('помощь','помощь аналитики','что ты умеешь'):
@@ -316,7 +347,7 @@ class Worker:
     def __init__(self,engine: Engine,transport):
         self.engine,self.repo,self.transport=engine,engine.repo,transport
 
-    def _call(self,row,request,store=None,*,on_rejection=None):
+    def _call(self,row,request,store=None,*,on_rejection=None,on_received=None):
         def authorize_dispatch():
             if strict_json(row['draft']).get('runtime_guard') is None:
                 self.engine.authorize_job(row)
@@ -351,8 +382,6 @@ class Worker:
                 value,meta=observed(request,store,dispatched)
             else:
                 value,meta=self.transport.execute(request,store)
-            self.repo.received(event,meta)
-            return value
         except Rejected as exc:
             self.repo.failed_call(event,unknown=False,code=exc.code)
             raise
@@ -360,21 +389,30 @@ class Worker:
             repaired=False
             with self.repo.connection(True):
                 self.repo.failed_call(event,exc.status,exc.unknown,exc.code)
-                if on_rejection is not None:repaired=on_rejection(exc)
+                due = retry_due(self.repo, row, request, exc, safe)
+                if due is None:
+                    if store and exc.status in (401,403):self.repo.deny(request.source,store['access_revision'])
+                    from provider_failure import stage
+                    repaired=stage(self,row,request,exc,event)
+                    if not repaired and on_rejection is not None:repaired=on_rejection(exc)
             if repaired:
                 from model_recovery import DecisionRepaired
                 raise DecisionRepaired() from None
-            due = retry_due(self.repo, row, request, exc, safe)
             if due is not None:
                 self.repo.defer_source(request.source, due)
                 print(canonical_json({'event':'request_recovering','job_hash':fingerprint(row['id'])[:16],'operation':request.operation,'code':exc.code,'retry_at':due}),flush=True)
                 raise Deferred(due) from None
-            if store and exc.status in (401,403):
-                self.repo.deny(request.source,store['access_revision'])
             raise
         except Exception:
             self.repo.failed_call(event,unknown=True,code='UNEXPECTED_TRANSPORT_OUTCOME')
             raise CallError('UNEXPECTED_TRANSPORT_OUTCOME',unknown=True) from None
+        # Local persistence errors are not an uncertain network outcome.
+        with self.repo.connection(True):
+            self.repo.received(event,meta)
+            if store is not None and not request.operation.startswith('read.') and not meta.get('authentication_only'):
+                self.repo.capture_api_answer(row,event,request,value)
+            if on_received is not None:on_received(value)
+        return value
 
     def step(self):
         row=self.repo.claim()
@@ -383,6 +421,11 @@ class Worker:
         try:
             self.engine.authorize_job(row)
             draft=strict_json(row['draft'])
+            from model_answer import PENDING, step as answer_step
+            saved=strict_json(row['progress']) if row['progress'] else {}
+            if PENDING in saved:
+                answer_step(self,row,strict_json(row['plan']),saved)
+                return True
             if not row['plan']:
                 if draft.get('compiler_pin')!={'language':LANGUAGE,'projection':PROJECTION,'registry_hash':REGISTRY_HASH}:raise Rejected('PENDING_PLAN_VERSION_CHANGED')
                 snapshot=draft['scope_snapshot']
@@ -392,6 +435,9 @@ class Worker:
                 from request_recovery import compiler_decision
                 progress=strict_json(row['progress']) if row['progress'] else {}
                 if progress.get('compiler_feedback'):request.body['repair']=progress['compiler_feedback']
+                from model_answer import planning_prompt
+                prompt=planning_prompt(self,row)
+                if prompt is not None:request.body['instruction']=prompt
                 response=self._call(row,request)
                 from model_recovery import compiler_declines
                 if self.engine.read_surface is not None and compiler_declines(response):
@@ -465,9 +511,12 @@ class Worker:
             else:progress['page']=result['progress']
             if len(done)==len(plan['stores']):
                 stamp=datetime.fromtimestamp(self.repo.clock(),timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
-                report=providers.render(plan,done,stamp)
-                self.repo.complete(jid,owner,report)
+                if draft.get('answer_by_model'):
+                    self.repo.stage_answer(jid,owner,{'data':done,'fetched_at':stamp})
+                else:self.repo.complete(jid,owner,providers.render(plan,done,stamp))
             else:self.repo.reschedule(jid,owner,progress)
+        except DecisionRepaired:
+            pass
         except Deferred as exc:
             self.repo.reschedule(jid,owner,until=exc.until)
         except CallError as exc:

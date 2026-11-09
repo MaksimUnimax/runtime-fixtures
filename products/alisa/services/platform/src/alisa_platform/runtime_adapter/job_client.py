@@ -69,9 +69,9 @@ def exact(value, fields):
     need(type(value) is dict and set(value) == fields)
 
 
-def text(value, limit, *, empty=False):
+def text(value, limit, *, empty=False, multiline=False):
     need(type(value) is str and (0 if empty else 1) <= len(value) <= limit
-         and all(ord(c) >= 32 for c in value))
+         and all(ord(c) >= 32 or (multiline and c in '\n\r\t') for c in value))
     try:
         value.encode('utf-8')
     except UnicodeError:
@@ -304,7 +304,7 @@ class RuntimeClient:
             need(value['schema_version'] == 'runtime_result_v1' and value['state'] == 'READY'
                  and value['complete'] is True and timestamp(value['result_expires_at']) > self.clock()
                  and type(value['pages']) is list and 1 <= len(value['pages']) <= 1000)
-            for page in value['pages']: text(page, 900)
+            for page in value['pages']: text(page, 900, multiline=True)
             # R01 preserves the core's existing minute-precision display stamp.
             # Admission/status times above use a separate RFC3339 wire format.
             stamp = text(value['fetched_at'], 20)

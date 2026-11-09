@@ -28,10 +28,18 @@ def diagnose_denial(operation: str, url: str, status: int, body: bytes) -> dict[
     text=message.casefold().replace('_',' ').replace('-',' ')
     from subscription_access import explicit_denial_products
     if code==7 and explicit_denial_products(message) and re.search(r'subscription|подписк|premium|управлени[ея]\s+отзывами',text):
-        result.update(reason='OZON_PAID_SUBSCRIPTION_REQUIREMENT',public_code='HTTP_403_OZON_SUBSCRIPTION_REQUIRED')
+        result.update(reason='OZON_PAID_SUBSCRIPTION_REQUIREMENT',public_code='HTTP_403_OZON_SUBSCRIPTION_REQUIRED',provider_required_products=explicit_denial_products(message))
     elif code==7 and re.search(r'(?:invalid|missing|insufficient|not enough|недостаточн|отсутств)\w*.*(?:permission|role|прав|роль)',text):
         result.update(reason='OZON_METHOD_PERMISSION_REQUIREMENT',public_code='HTTP_403_OZON_METHOD_PERMISSION')
     elif code==7 and re.search(r'access denied|permissiondenied|permission denied|доступ запрещ',text):
         result['reason']='OZON_ACCESS_DENIED_UNSPECIFIED'
     from subscription_access import enrich_denial
-    return enrich_denial(result,'POST',url,code,message)
+    result=enrich_denial(result,'POST',url,code,message)
+    if result.get('provider_required_products'):
+        result['provider_requirement_relation']='ANY_OF'if re.search(r'\bor\b|\bили\b',message,re.I)else'UNRESOLVED'
+    from provider_access_result import build,safe_provider_message
+    response=build(result)
+    if response is not None:result['model_response']=response
+    safe=safe_provider_message(message)
+    if safe is not None:result['provider_message_verified_literal']=safe
+    return result

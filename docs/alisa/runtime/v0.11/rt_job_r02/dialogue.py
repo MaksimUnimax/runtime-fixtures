@@ -179,11 +179,11 @@ def _submit_scoped(engine, tenant, command, rid, body_hash, today, conversation,
             if previous['rid'] != rid or previous['message_seq'] != message_seq or previous['body_hash'] != body_hash:
                 raise Rejected('CHANGED_REPLAY')
             if previous['scope_hash'] != scope_hash: raise Rejected('SOURCE_ACCESS')
-            if previous['plan'] and not engine.authorized(strict_json(previous['plan'])):
+            if previous['plan'] and not engine.delivery_authorized(strict_json(previous['plan'])):
                 raise Rejected('SOURCE_ACCESS')
             if previous['jid']:
                 job = repo.get(tenant, previous['jid'])
-                if job and job['plan'] and not engine.authorized(strict_json(job['plan'])):
+                if job and not engine.output_authorized(job):
                     raise Rejected('SOURCE_ACCESS')
             if previous['created']+retention.PAYLOAD_TTL<=now or (previous['expires'] is not None and previous['expires'] <= now):
                 raise Rejected('RESULT_EXPIRED', 'Сохранённый ответ устарел. Повторите вопрос новым сообщением.')
@@ -247,13 +247,14 @@ def _submit_scoped(engine, tenant, command, rid, body_hash, today, conversation,
                 # A full new request replaces pending; never concatenate unrelated topics.
                 p = None; anchor = today
             else:
+                p.setdefault('answers', []).append(command)
                 p['turns'] += 1
                 if p['turns'] > 8:
                     p = None; reply = _reply('Слишком много неоднозначных уточнений. Сформулируйте запрос целиком.', 'CLARIFICATION_LIMIT')
                 elif reply is None:
                     p['query'] = query
                     metadata = {'original_question': p['original_question'], 'basis': p['choice'],
-                                'answer': text, 'anchor_date': p['anchor_date'],
+                                'answer': command, 'answers': p['answers'], 'anchor_date': p['anchor_date'],
                                 'normalizations': p['normalizations'], 'resolved_question': query}
         elif short or text in ('по дате заказа', 'по дате выкупа') or _short_date(query,today):
             reply = _reply(('Срок уточнения истёк. ' if expired else 'В этой беседе нет сохранённого уточнения. ')
@@ -262,22 +263,26 @@ def _submit_scoped(engine, tenant, command, rid, body_hash, today, conversation,
             try:
                 # Rejected() must not leave a partially enqueued request behind.
                 c.execute('SAVEPOINT dialogue_action')
-                reply = engine._submit(tenant, query, inner_rid, body_hash, anchor, clarification=metadata)
+                from model_answer import ORIGINAL_QUESTION
+                original = {'question':metadata['original_question'], 'clarifications':metadata['answers']} if metadata else command
+                token = ORIGINAL_QUESTION.set(original)
+                try:reply = engine._submit(tenant, query, inner_rid, body_hash, anchor, clarification=metadata)
+                finally:ORIGINAL_QUESTION.reset(token)
                 c.execute('RELEASE dialogue_action')
                 p = None
             except Rejected as exc:
                 c.execute('ROLLBACK TO dialogue_action'); c.execute('RELEASE dialogue_action')
                 if exc.code=='OZON_EVENT_SOURCE_UNAVAILABLE' and engine.table_capabilities is not None:
-                    if p is None:p=_context(engine,scope_hash,text,query,changes,anchor,now,exc)
+                    if p is None:p=_context(engine,scope_hash,command,query,changes,anchor,now,exc)
                     p['query']=query;p['need']='event_platform';p['choice']='event'
                     reply=_prompt(p)
                 elif exc.code=='COHORT_REQUIRED' and _event_axis(query):
-                    p=_context(engine,scope_hash,text,query,changes,anchor,now,exc)
+                    p=_context(engine,scope_hash,command,query,changes,anchor,now,exc)
                     p['need']='event_unavailable';p['choice']='event'
                     reply=_event_unavailable(p)
                 elif _clarifiable(query, exc):
                     if p is None:
-                        p = _context(engine, scope_hash, text, query, changes, anchor, now, exc)
+                        p = _context(engine, scope_hash, command, query, changes, anchor, now, exc)
                     else:
                         p['need'] = 'basis' if exc.code == 'METRIC_AMBIGUOUS' else 'period'
                     reply = _prompt(p)
@@ -291,7 +296,7 @@ def _submit_scoped(engine, tenant, command, rid, body_hash, today, conversation,
         if not row and not p and text in PENDING_CONTROLS:
             row = repo.get(tenant)
         if row and row['plan']:
-            protected_plan = row['plan']
+            protected_plan = canonical_json(engine.delivery_plan(row))
             if row['state'] == 'READY': expires = row['expires']
         expires=min(expires if expires is not None else now+TTL,now+TTL,p['expires_at'] if p else now+TTL)
         c.execute('INSERT OR REPLACE INTO dialogue_context VALUES(?,?,?,?,?)',

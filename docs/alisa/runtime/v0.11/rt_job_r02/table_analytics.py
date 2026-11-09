@@ -306,7 +306,9 @@ def worker_step(worker,row,plan):
     else:progress['page']=decoded['progress']
     if len(done)==len(plan['stores']):
         from datetime import timezone
-        stamp=datetime.fromtimestamp(repo.clock(),timezone.utc).strftime('%Y-%m-%d %H:%M UTC');repo.complete(jid,owner,render(plan,done,stamp))
+        stamp=datetime.fromtimestamp(repo.clock(),timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+        if strict_json(row['draft']).get('answer_by_model'):repo.stage_answer(jid,owner,{'data':done,'fetched_at':stamp})
+        else:repo.complete(jid,owner,render(plan,done,stamp))
     else:
         if len(canonical_json(progress).encode())>CATALOG['max_bytes']:fail('TABLE_CAPACITY')
         repo.reschedule(jid,owner,progress)

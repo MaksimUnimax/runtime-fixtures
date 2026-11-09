@@ -6,7 +6,7 @@ TRANSIENT_CODES = {'NETWORK_OUTCOME_UNKNOWN', 'RESPONSE_JSON', 'MODEL_ENVELOPE'}
 
 
 def repeat_safe(request):
-    if request.operation in ('deepseek_parse', 'deepseek_read_plan'):
+    if request.operation in ('deepseek_parse', 'deepseek_read_plan', 'model_answer'):
         return True
     if request.operation.startswith('read.'):
         from read_surface import method, available

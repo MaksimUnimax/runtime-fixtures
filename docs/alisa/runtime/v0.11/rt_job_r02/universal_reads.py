@@ -44,6 +44,21 @@ discover выдаёт методы/требуемые параметры и пр
 Не делай необязательные вызовы. Внутренних лимитов числа решений модели и чтений нет. Заверши, когда получен ответ; не повторяй действия без изменения данных. В finish label — понятное русское название, без технических имён API, цифр и утверждения участия; вычисляемое значение задаётся expr. Если данные уже отвечают вопросу, finish.
 '''
 
+COLLECTION_SYSTEM = r'''Собери данные API для исходного вопроса. Ты выбираешь только чтение данных; окончательный ответ напишет отдельный вызов модели по исходному вопросу и полным полученным данным.
+Выбирай зарегистрированные методы из каталога, соблюдай allowed_stores, параметры и ограничения метода. Не используй примеры ID как настоящие: сначала получи реальные ID из списка или вопроса. Не изменяй кабинет. Не придумывай данные.
+Действия сбора:
+{"action":"discover","platform":"ozon","cluster":null,"query":"акции","offset":0}
+{"action":"read","store_id":"разрешённый ID","operation":"alias из каталога","params":{}}
+Для параметров из полученных данных допускается params_expr по expression_language вместо params. Не вычисляй итоговый ответ и не составляй facts/expr для ответа.
+Когда необходимые данные собраны: {"action":"data_ready"}. Это завершение сбора, не аналитический ответ.
+Если вопрос требует уточнения: {"action":"clarify","question":"Текст уточнения"}.
+Одно действие за вызов, один JSON-объект. Это внутреннее управление чтением; окончательный ответ не имеет обязательного формата.
+Для Ozon params — тело запроса. Для WB params — предусмотренные методом path/query/body. Используй документацию discovery.items, response_fields, scope_note, related_read_methods и alternative_operations. При ошибке параметров учитывай provider_rejections и feedback, не повторяй отклонённые параметры.
+Для полного списка получай следующие страницы согласно признакам продолжения и курсорам. calls[].data в контексте планирования может быть выборкой; исходные ответы сохранены полностью. Не повторяй уже выполненный запрос. Не делай лишних чтений.
+Отличай доступные акции, кандидатов и реальное участие товара. Для фактического участия нужны соответствующие поля или состав акции. Различай действующие, будущие и завершённые акции по датам.
+Подписки: учитывай subscription_access и фактические ответы API. Не считай любой 403 отсутствием подписки. Не подменяй требуемые данные другим показателем.
+'''
+
 def need(ok,code):
     if not ok:raise Rejected(code)
 
@@ -307,6 +322,9 @@ def model_decision(response,progress,row):
         progress.setdefault('model_repairs',[]).append({**shape,'content_sha256':content_hash})
         progress['feedback']={**shape,'provider_request_executed':False,'repair_instruction':'Данные API уже сохранены. Верните один корректный JSON без обрамления и комментариев. Исправьте только формат ответа; не повторяйте выполненные read-запросы. Сократите выражение, если вывод оборвался.',
              'expected_finish':{'action':'finish','facts':[{'label':'Название показателя','expr':{'$path':['calls',0,'data']}}],'coverage':'selected'}}
+        if 'draft' in row.keys() and strict_json(row['draft']).get('answer_by_model'):
+            progress['feedback'].pop('expected_finish',None)
+            progress['feedback']['repair_instruction']='Исправьте только действие сбора данных. Не повторяйте полученные API-запросы. Если сбор завершён, верните {"action":"data_ready"}; итоговый ответ и вычисляемые выражения здесь не нужны.'
         print(canonical_json({'event':'model_format_repair','job_hash':fingerprint(row['id'])[:16],**shape}),flush=True)
         return None
 
@@ -343,16 +361,23 @@ def worker_step(worker,row,plan):
                 current=connection.execute('SELECT state,owner FROM jobs WHERE id=?',(row['id'],)).fetchone()
                 if not current or current['state']!='RUNNING' or current['owner']!=row['owner']:return False
             repair_provider_rejection(worker,row,progress,item,store,error);return True
-        try:answer=worker._call(row,request,store,on_rejection=repair)
+        def received(answer):
+            need(worker.engine.authorized(plan),'SOURCE_ACCESS')
+            from protected_reads import finalize
+            answer=finalize(worker.engine,row,store['id'],item['operation'],answer,item['params'])
+            progress['calls'].append({'operation':item['operation'],'store_id':item['store_id'],'params':item['params'],'data':answer})
+            need(len(canonical_json(progress['calls']).encode())<=MAX_RESPONSES_BYTES,'READ_RESULT_CAPACITY')
+            progress.update(pending=None,feedback=None)
+            worker.repo.reschedule(row['id'],row['owner'],progress)
+        try:worker._call(row,request,store,on_rejection=repair,on_received=received)
         except DecisionRepaired:return
-        need(worker.engine.authorized(plan),'SOURCE_ACCESS')
-        from protected_reads import finalize
-        answer=finalize(worker.engine,row,store['id'],item['operation'],answer,item['params'])
-        progress['calls'].append({'operation':item['operation'],'store_id':item['store_id'],'params':item['params'],'data':answer})
-        need(len(canonical_json(progress['calls']).encode())<=MAX_RESPONSES_BYTES,'READ_RESULT_CAPACITY')
-        progress.update(pending=None,feedback=None)
-        worker.repo.reschedule(row['id'],row['owner'],progress);return
-    request=Request('deepseek_read_plan','model:deepseek-flash','',{'system':SYSTEM,'context':planner_context(plan,progress)},worker.engine.model_budget['min_interval_seconds'],worker.engine.model_budget['daily_calls'])
+        return
+    answer_by_model=strict_json(row['draft']).get('answer_by_model')
+    system=COLLECTION_SYSTEM if answer_by_model else SYSTEM
+    request=Request('deepseek_read_plan','model:deepseek-flash','',{'system':system,'context':planner_context(plan,progress)},worker.engine.model_budget['min_interval_seconds'],worker.engine.model_budget['daily_calls'])
+    from model_answer import planning_prompt
+    prompt=planning_prompt(worker,row)
+    if prompt is not None:request.body['instruction']=prompt
     response=worker._call(row,request)
     decision=model_decision(response,progress,row)
     if decision is None:
@@ -364,6 +389,10 @@ def worker_step(worker,row,plan):
     seen.append(state_key)
     try:
         action=decision.get('action')
+        if answer_by_model and action in ('data_ready','finish','clarify'):
+            need(worker.engine.authorized(plan),'SOURCE_ACCESS')
+            from model_answer import stage_universal
+            stage_universal(worker,row,progress);return
         if action=='discover':
             need({'action','platform'}<=set(decision)<= {'action','platform','cluster','query','offset'},'READ_PLANNER_SCHEMA')
             decision={'cluster':None,'query':'','offset':0,**decision}
@@ -408,7 +437,8 @@ def worker_step(worker,row,plan):
             'expected_finish_fact':{'label':'Краткое название без цифр','expr':{'$path':['calls',0,'data','result']}},
             'expected_discovery_keys':['action','platform','cluster','query','offset'],'provider_request_executed':False,
             'parameter_help':'ID следует брать из полученных данных. Для массивов используйте JSON-массив или params_expr с $map, а не придуманные числа.'}
-        if decision.get('action')=='finish':progress['feedback']['expression_language']=expression_contract()
+        if answer_by_model:progress['feedback'].pop('expected_finish_fact',None)
+        elif decision.get('action')=='finish':progress['feedback']['expression_language']=expression_contract()
         if decision.get('action')=='read'and type(decision.get('operation'))is str:
             selected=next((x for x in plan['stores']if x['id']==decision.get('store_id')),None)
             if selected is not None:
