@@ -1,0 +1,9 @@
+{
+  "base_runtime": "alisa-runtime-read-completion-r2-20261109",
+  "files": {
+    "runtime/http_transport.py": "4c33136fbf3e7396575587b8418e0efa75a0d40d30b93050c90f533d998396f7",
+    "runtime/csv_transport.py": "74701b0415804eb0778ddf2cfd2c0b43a45e840899613cf64ed3e41067b61b26",
+    "runtime/tests/test_csv_transport.py": "20f88e390f36aede3c27211991e0a852b878ec6fe5180a9b2511dcded6fbf8c1"
+  },
+  "rule": "Copy entire base; overlay only these three runtime files. Other files in this directory are earlier checkpoints, not a substitute for the current base."
+}

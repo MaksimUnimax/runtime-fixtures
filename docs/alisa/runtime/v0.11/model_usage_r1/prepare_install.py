@@ -3,12 +3,12 @@ import hashlib, json, shutil, subprocess
 from pathlib import Path
 
 ROOT=Path('/root/alice-lab-evidence/model-usage-20261109')
-CANDIDATE=Path('/dev/shm/alisa-model-usage-20261109/csv-fix')
-BASE=Path('/opt/alice-market/releases/alisa-model-usage-r2-20261109')
+CANDIDATE=Path('/dev/shm/alisa-model-usage-20261109/csv-completion-merge')
+BASE=Path('/opt/alice-market/releases/alisa-runtime-read-completion-r2-20261109')
 OLD=BASE
 STATION=Path('/opt/alisa-station/releases/station-auto-r8-model-usage-r2')
-TARGET=Path('/opt/alice-market/releases/alisa-model-usage-r3-csv-20261109')
-STARGET=Path('/opt/alisa-station/releases/station-auto-r8-model-usage-r3')
+TARGET=Path('/opt/alice-market/releases/alisa-model-usage-r4-csv-20261109')
+STARGET=Path('/opt/alisa-station/releases/station-auto-r8-model-usage-r4')
 SOURCE=None
 
 def show(unit, prop):
@@ -55,7 +55,7 @@ def main():
     subprocess.run(['runuser','-u','alice-market','--','/usr/bin/python3','-B','/opt/alice-market/releases/runtime-policy-guard-20261108/check.py','--release',str(TARGET),'--config','/etc/alice-market/market-runtime.json'],check=True)
     receipt=dict(state='PREPARED',source_commit=SOURCE,runtime=str(TARGET),station=str(STARGET),base=str(BASE),
         config_sha256=digest(Path('/etc/alice-market/market-runtime.json')),source_hashes=expected)
-    (ROOT/'PREPARED_R3.json').write_text(json.dumps(receipt,indent=2))
+    (ROOT/'PREPARED_R4.json').write_text(json.dumps(receipt,indent=2))
     Path('/opt/alice-market/.model-usage-7d-owner.lock').write_text(json.dumps(dict(owner='controller-model-usage-20261109',status='PREPARED',
         scope='Dispatch marker, seven-day accounting, OWNER UI; preserve active read-r5 and all matrices',runtime=str(TARGET),evidence=str(ROOT)),indent=2))
     print(json.dumps(dict(state='PREPARED',source=SOURCE,files=len(expected),bytes=need)))

@@ -82,8 +82,18 @@ class HTTPTransport:
         self._scope(request,store)
         try:prefix,platform,operation=request.operation.split('.',2)
         except ValueError:raise CallError('READ_METHOD_SCHEMA')from None
-        if prefix!='read'or platform!=store['platform']or set(request.body)!={'params'}:raise CallError('CREDENTIAL_PLATFORM')
+        if prefix!='read'or platform!=store['platform']or set(request.body)not in ({'params'},{'params','resolved_resource'}):raise CallError('CREDENTIAL_PLATFORM')
+        if 'resolved_resource'in request.body and reads.method(platform,operation).get('completion',{}).get('mode')!='opaque-file':raise CallError('CREDENTIAL_PLATFORM')
         return reads.build(platform,operation,request.body['params']),reads.method(platform,operation)
+
+    def _completion_credentials(self,meta,store):
+        if meta.get('completion',{}).get('mode')!='wb-service':return None
+        credentials=strict_json(self._credential(self.bindings[store['id']]))
+        if (not isinstance(credentials.get('wb_service_token'),str)or not credentials['wb_service_token']
+            or credentials.get('wb_service_verified_identity')!=store['identity']
+            or credentials.get('wb_service_verified_access_revision')!=store['access_revision']):
+            raise CallError('WB_SERVICE_CREDENTIAL_REQUIRED')
+        return {'Authorization':credentials['wb_service_token']}
 
     def _read_profile(self,meta):
         dependency=meta.get('transient_auth_operation')
@@ -95,6 +105,8 @@ class HTTPTransport:
     def prepare(self,request,store):
         if request.operation.startswith('read.'):
             built,meta=self._read_request(request,store);profile=self._read_profile(meta)
+            if meta.get('completion',{}).get('mode')=='opaque-file':return None
+            self._completion_credentials(meta,store)
             if profile is None:return None
             settings=SCALARS.auth[profile];cached=self._tokens.get(self._cache_key(store,profile))
             if cached and cached[1]>time.time()+settings['refresh_margin']:return None
@@ -124,12 +136,18 @@ class HTTPTransport:
         specification=None
         if is_read:
             built,meta=self._read_request(request,store)
-            credentials=strict_json(self._credential(self.bindings[store['id']]))
+            private_mode=meta.get('completion',{}).get('mode')
+            credentials={}if private_mode=='opaque-file'else strict_json(self._credential(self.bindings[store['id']]))
             profile=self._read_profile(meta)
             if profile is not None:
                 cached=self._tokens.get(self._cache_key(store,profile))
                 if not cached or cached[1]<=time.time():raise CallError('PERFORMANCE_TOKEN_REQUIRED')
                 headers={'Authorization':'Bearer '+cached[0]}
+            elif private_mode=='opaque-file':
+                from protected_reads import validate_url
+                if set(request.body)!={'params','resolved_resource'}:raise CallError('READ_FILE_PROVENANCE_REQUIRED')
+                built['url']=validate_url(request.body['resolved_resource']);headers={}
+            elif private_mode=='wb-service':headers=self._completion_credentials(meta,store)
             else:headers={name:str(credentials[field])for name,field in meta['credential_headers'].items()}
             method=built['method'];url=built['url'];payload=strict_json(built['body'])if built.get('body')is not None else None
         elif operation=='deepseek_read_plan':
@@ -183,6 +201,14 @@ class HTTPTransport:
         except (urllib.error.URLError,TimeoutError,ConnectionError,OSError,http.client.HTTPException):
             raise CallError('NETWORK_OUTCOME_UNKNOWN',unknown=True) from None
         if len(raw)>12000000:raise CallError('RESPONSE_SIZE',status=status)
+        completion=meta.get('completion',{})if is_read else{}
+        if completion.get('mode')in('ozon-protected','wb-protected','opaque-file'):
+            from protected_reads import ProtectedPayload,protected_json,sniff
+            raw_format=sniff(raw)
+            if raw_format=='application/octet-stream'and raw.lstrip().startswith((b'{',b'[')):
+                private=protected_json(raw)
+            else:private=ProtectedPayload({'document_received':True,'content_scope':'AUTHORIZED_OWNER_ONLY','content_extracted':False},raw,raw_format)
+            return private,{'status':status,'elapsed_ms':int((time.monotonic()-start)*1000),'bytes':len(raw)}
         if is_read and built.get('response_style',built.get('response_mode','json'))=='binary':
             import csv,io,hashlib
             if 'text/csv'in built.get('response_content_types',[]):
