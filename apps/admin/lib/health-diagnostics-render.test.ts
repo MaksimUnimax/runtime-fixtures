@@ -86,6 +86,34 @@ afterEach(() => {
   response.allowed = true;
 });
 
+describe("Health diagnostics notification state counts", () => {
+  it.each([
+    [0, 0, 0, 0, 0, 0],
+    [11, 0, 0, 0, 0, 0],
+    [0, 7, 0, 0, 0, 0],
+    [0, 0, 5, 0, 0, 0],
+    [0, 0, 0, 9, 0, 0],
+    [0, 0, 0, 0, 3, 0],
+    [0, 0, 0, 0, 0, 2],
+    [1, 2, 3, 4, 5, 6],
+  ])("shows all six returned state counts: %s / %s / %s / %s / %s / %s", (pending, claimed, retryableFailures, terminalFailures, suppressed, delivered) => {
+    const data = summary({});
+    data.notification = {
+      ...data.notification,
+      pending, claimed, retryableFailures, terminalFailures, suppressed, delivered,
+    };
+    response.summary = data;
+    const html = renderToStaticMarkup(createElement(HealthDiagnosticsPage));
+    expect(html).toContain(`${pending} pending`);
+    expect(html).toContain(`${claimed} claimed`);
+    expect(html).toContain(`${retryableFailures} retryable`);
+    expect(html).toContain(`${terminalFailures} terminal failures`);
+    expect(html).toContain(`${suppressed} suppressed`);
+    expect(html).toContain(`${delivered} delivered`);
+    expect(html).toContain("UNKNOWN (OBSERVED)");
+  });
+});
+
 describe("Health diagnostics scheduler visibility", () => {
   it.each([
     [success, failure, 3, 2],

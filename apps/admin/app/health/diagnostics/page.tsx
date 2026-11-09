@@ -142,7 +142,9 @@ export default function HealthDiagnosticsPage() {
             />
             <p className="muted">
               Notification queue: {summary.data.notification.pending} pending ·{" "}
+              {summary.data.notification.claimed} claimed ·{" "}
               {summary.data.notification.retryableFailures} retryable ·{" "}
+              {summary.data.notification.terminalFailures} terminal failures ·{" "}
               {summary.data.notification.suppressed} suppressed ·{" "}
               {summary.data.notification.delivered} delivered. Scheduler failure
               is shown separately from Health state.
