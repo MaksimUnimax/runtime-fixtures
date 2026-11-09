@@ -29,9 +29,12 @@ def dispatch(port,peer,value):
         return port.versions_for(peer)
     if op=='submit':return port.submit(payload,peer)
     expected={'capabilities':{'context'},'status':{'job_ref','context'},
-              'read_result':{'job_ref','context'},'cancel':{'job_ref','context','request_id'}}
+              'read_result':{'job_ref','context'},'cancel':{'job_ref','context','request_id'},
+              'list_reports':{'context','cursor'},'read_report':{'context','file_id','offset'}}
     if op not in expected:raise Rejected('CAPABILITY_UNAVAILABLE')
     if set(payload)!=expected[op]:raise Rejected('VALIDATION_FAILED')
+    if op=='list_reports':return port.list_reports(payload['context'],peer,payload['cursor'])
+    if op=='read_report':return port.read_report(payload['file_id'],payload['offset'],payload['context'],peer)
     if op=='capabilities':return port.capabilities(payload['context'],peer)
     if op=='status':return port.status(payload['job_ref'],payload['context'],peer)
     if op=='read_result':return port.read_result(payload['job_ref'],payload['context'],peer)

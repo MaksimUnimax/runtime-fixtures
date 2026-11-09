@@ -186,7 +186,7 @@ def _read_body(response, budget, limit):
     return bytes(chunks)
 
 
-def read_response(request, *, timeout=25, limit=12000000, deadline=None, ssl_context=None, on_dispatch=None):
+def read_response(request, *, timeout=25, limit=12000000, deadline=None, ssl_context=None, on_dispatch=None, response_headers=None):
     started = time.monotonic()
     if timeout <= 0 or limit < 0:
         raise ValueError('HTTP_LIMIT')
@@ -214,9 +214,11 @@ def read_response(request, *, timeout=25, limit=12000000, deadline=None, ssl_con
             budget.remaining()
             with opener.open(request, timeout=budget.remaining()) as response:
                 result = (_read_body(response, budget, limit), response.status)
+                headers = {k: response.headers.get(k,'') for k in ('Content-Type','Content-Disposition')} if response_headers is not None else {}
             with result_lock:
                 if time.monotonic() < deadline:
                     outcome['result'] = result
+                    outcome['headers'] = headers
         except BaseException as exc:
             if isinstance(exc, urllib.error.HTTPError):
                 # Preserve status and Retry-After, never transfer a live response
@@ -255,6 +257,7 @@ def read_response(request, *, timeout=25, limit=12000000, deadline=None, ssl_con
         raise TimeoutError('HTTP_DEADLINE')
     if error is not None:
         raise error
+    if response_headers is not None: response_headers.update(outcome.get('headers',{}))
     return result
 
 

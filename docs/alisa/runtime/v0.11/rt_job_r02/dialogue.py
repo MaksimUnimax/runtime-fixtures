@@ -128,6 +128,9 @@ def _prompt(p):
 
 
 def _pin(engine):
+    if getattr(engine,'template_mode',False):
+        from template_catalog import HASH
+        return fingerprint({'template_catalog':HASH,'mode':'TEMPORARY_TEMPLATE_ONLY_PILOT'})
     table_pin=None
     if engine.table_capabilities is not None:
         from table_analytics import HASH

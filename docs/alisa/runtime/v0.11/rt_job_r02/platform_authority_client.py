@@ -26,7 +26,7 @@ MAX_HEADERS = 8192
 ERRORS = {'AUTH_REQUIRED', 'PERMISSION_DENIED', 'NOT_FOUND', 'VALIDATION_FAILED',
           'ACCESS_REQUIRED', 'ACCOUNT_BLOCKED', 'CREDENTIAL_REVOKED',
           'CAPABILITY_UNAVAILABLE', 'CATALOG_INCOMPATIBLE', 'DEPENDENCY_UNAVAILABLE'}
-ACTIONS = {'capabilities', 'submit', 'status', 'read_result', 'cancel', 'execute'}
+ACTIONS = {'capabilities', 'submit', 'status', 'read_result', 'cancel', 'execute', 'list_reports', 'read_report'}
 
 
 def need(value):

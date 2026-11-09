@@ -28,6 +28,29 @@ class TemplateRecovery(unittest.TestCase):
   self.submit();self.transport.failure=CallError('HTTP_429',status=429);self.worker.step()
   self.transport.failure=None;second=self.submit('сводка заказов за вчера на озоне');self.worker.step()
   self.assertEqual(len(self.transport.calls),1);self.assertGreater(self.repo.get('A',second['job_id'])['due'],self.clock())
+ def test_repeated_429_waits_twenty_seconds_each_time_and_keeps_same_job(self):
+  # Model calls have no separate marketplace pacing interval.
+  a=self.submit('Каков объем заказанных единиц за октябрь на озоне');self.transport.failure=CallError('HTTP_429',status=429)
+  for attempt in range(3):
+   self.worker.step();row=self.repo.get('A',a['job_id'])
+   self.assertEqual(row['state'],'QUEUED');self.assertEqual(row['due']-self.clock(),20)
+   count=len(self.transport.calls);self.clock.advance(19);self.assertFalse(self.worker.step());self.assertEqual(len(self.transport.calls),count)
+   self.clock.advance(1)
+  self.transport.failure=None;self.worker.step();self.worker.step();self.assertEqual(self.repo.get('A',a['job_id'])['state'],'READY')
+  self.assertEqual(sum(x.operation=='deepseek_parse'for x in self.transport.calls),4);self.assertEqual(sum(x.operation=='ozon_orders'for x in self.transport.calls),1)
+ def test_429_retry_after_can_require_a_longer_wait(self):
+  a=self.submit();self.transport.failure=CallError('HTTP_429',status=429,retry_at=self.clock()+121)
+  now=self.clock();self.worker.step();self.assertEqual(self.repo.get('A',a['job_id'])['due'],now+121)
+ def test_429_common_policy_for_ozon_wb_and_model_sources(self):
+  from request_recovery import retry_due
+  from types import SimpleNamespace
+  a=self.submit();row=self.repo.claim()
+  for source in ['ozon:fixture:read','wb:fixture:read','model:fixture']:
+   with self.subTest(source=source):
+    request=SimpleNamespace(source=source,interval=0)
+    self.assertEqual(retry_due(self.repo,row,request,CallError('HTTP_429',status=429),True),self.clock()+20)
+    self.assertIsNone(retry_due(self.repo,row,request,CallError('HTTP_429',status=429),False))
+  self.assertEqual(retry_due(self.repo,row,SimpleNamespace(source='ozon:fixture:read',interval=30),CallError('HTTP_429',status=429),True),self.clock()+30)
  def test_failed_new_question_gets_new_job_same_receipt_stays(self):
   a=self.submit(rid='receipt');self.transport.failure=CallError('HTTP_400',status=400);self.worker.step()
   self.assertEqual(self.submit(rid='receipt')['job_id'],a['job_id'])

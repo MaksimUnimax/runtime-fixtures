@@ -173,6 +173,8 @@ def maintain(path, batch=BATCH):
             totals[name] = totals.get(name,0)+count
         if not any(counts.values()):
             break
+    from report_archive import prune_for
+    totals['expired_marketplace_documents'] = prune_for(repo,batch)
     stats, checkpoint = compact(repo)
     return {'utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),
             'removed_or_redacted':totals,'passes':passes,'database':stats,

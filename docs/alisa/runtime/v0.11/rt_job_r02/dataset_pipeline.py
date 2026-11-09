@@ -23,10 +23,10 @@ def validate_catalog(c):
  if not isinstance(c['version'],str) or not 1<=len(c['version'])<=100 or type(c['queries'])is not dict or not 1<=len(c['queries'])<=100:fail('DATASET_CATALOG')
  phrases=set()
  for qid,q in c['queries'].items():
-  if not re.fullmatch(r'[a-z][a-z0-9_]{0,79}',qid) or type(q)is not dict or not {'phrases','snapshot','max_days','flows','columns','group_by','aggregates','notes','output_stage'}<=set(q) or set(q)-{'phrases','snapshot','max_days','flows','columns','group_by','aggregates','notes','output_stage','relations'}:fail('DATASET_QUERY_SCHEMA')
+  if not re.fullmatch(r'[a-z][a-z0-9_]{0,79}',qid) or type(q)is not dict or not {'snapshot','max_days','flows','columns','group_by','aggregates','notes','output_stage'}<=set(q) or set(q)-{'phrases','snapshot','max_days','flows','columns','group_by','aggregates','notes','output_stage','relations'}:fail('DATASET_QUERY_SCHEMA')
   if type(q['snapshot'])is not bool or type(q['max_days'])is not int or not 1<=q['max_days']<=365:fail('DATASET_PERIOD_SCHEMA')
-  if not isinstance(q['phrases'],list) or not 1<=len(q['phrases'])<=50:fail('DATASET_PHRASES')
-  for p in q['phrases']:
+  if 'phrases'in q and (not isinstance(q['phrases'],list) or not 1<=len(q['phrases'])<=50):fail('DATASET_PHRASES')
+  for p in q.get('phrases',[]):
    if not isinstance(p,str) or not 1<=len(p)<=200 or normalize(p)!=p or p in phrases:fail('DATASET_PHRASES')
    phrases.add(p)
   if type(q['flows'])is not dict or not q['flows']:fail('DATASET_FLOWS')
@@ -62,7 +62,7 @@ def parse_request(command,today):
  visible=re.sub(r'"[^"\n]*"|«[^»\n]*»',' ',text)
  found=[]
  for qid,q in CATALOG['queries'].items():
-  for phrase in q['phrases']:
+  for phrase in q.get('phrases',strict_json((ROOT/'speech_catalog.json').read_text()).get('legacy_dataset_phrases',{}).get(qid,[])):
    m=re.search(r'(?<!\w)'+re.escape(phrase)+r'(?!\w)',visible)
    if m:found.append((m.end()-m.start(),qid,phrase,m.start(),m.end()))
  if not found:return None

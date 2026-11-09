@@ -3,10 +3,11 @@ from semantics import fingerprint, Rejected
 
 TRANSIENT_STATUS = {408, 425, 429, 500, 502, 503, 504}
 TRANSIENT_CODES = {'NETWORK_OUTCOME_UNKNOWN', 'RESPONSE_JSON', 'MODEL_ENVELOPE'}
+RATE_LIMIT_RETRY_SECONDS = 20
 
 
 def repeat_safe(request):
-    if request.operation in ('deepseek_parse', 'deepseek_read_plan', 'model_answer'):
+    if request.operation in ('deepseek_parse', 'deepseek_read_plan', 'model_answer','template_select','template_verify'):
         return True
     if request.operation.startswith('read.'):
         from read_surface import method, available
@@ -22,11 +23,12 @@ def retry_due(repo, row, request, error, safe):
     transient = error.status in TRANSIENT_STATUS or error.code in TRANSIENT_CODES
     if not safe or not transient:
         return None
+    if error.status == 429:
+        return max(error.retry_at or 0, repo.clock()+max(request.interval, RATE_LIMIT_RETRY_SECONDS))
     with repo.connection() as c:
         last_ok = c.execute("SELECT COALESCE(MAX(id),0) FROM calls WHERE jid=? AND source=? AND state='RECEIVED'", (row['id'], request.source)).fetchone()[0]
         failures = c.execute('SELECT COUNT(*) FROM calls WHERE jid=? AND source=? AND id>?', (row['id'], request.source, last_ok)).fetchone()[0]
-    base = 90 if error.status == 429 else 2
-    delay = min(base * 2 ** min(max(failures-1, 0), 9), 900 if error.status == 429 else 60)
+    delay = min(2 * 2 ** min(max(failures-1, 0), 9), 60)
     return max(error.retry_at or 0, repo.clock()+max(request.interval, delay))
 
 
