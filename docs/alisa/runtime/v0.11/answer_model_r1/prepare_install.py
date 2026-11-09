@@ -26,7 +26,7 @@ def main():
     selected=['engine.py','repository.py','http_transport.py','shared_http.py','retention.py','local_gateway.py','runtime.py']
     base_manifest=json.loads((BASE/'manifest.json').read_text())
     assert all(digest(BASE/n)==h for n,h in base_manifest['files'].items()),'BASE_MANIFEST_CHANGED'
-    need=sum(p.stat().st_size for p in CANDIDATE.rglob('*')if p.is_file())
+    need=sum(p.stat().st_size for part in ('runtime','station') for p in (CANDIDATE/part).rglob('*') if p.is_file() and '__pycache__'not in p.parts)
     assert shutil.disk_usage('/').free-need>3072*1024**2,'DISK_RESERVE'
     import os
     assert os.statvfs('/').f_favail>200000,'INODE_RESERVE'

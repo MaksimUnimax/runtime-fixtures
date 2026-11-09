@@ -1,5 +1,6 @@
 """Network-free ingress facade and one-step worker with injectable transport."""
 from __future__ import annotations
+from model_recovery import DecisionRepaired
 import re
 from dataclasses import asdict
 from datetime import date, datetime, timezone
@@ -447,7 +448,7 @@ class Worker:
                     self.repo.stage_answer(jid,owner,{'data':done,'fetched_at':stamp})
                 else:self.repo.complete(jid,owner,providers.render(plan,done,stamp))
             else:self.repo.reschedule(jid,owner,progress)
-        except __import__('model_recovery').DecisionRepaired:
+        except DecisionRepaired:
             pass
         except Deferred as exc:
             self.repo.reschedule(jid,owner,until=exc.until)

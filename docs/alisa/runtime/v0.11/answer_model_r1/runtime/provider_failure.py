@@ -67,8 +67,10 @@ def stage(worker, row, request, error, receipt):
 
 def permission_notice(row):
     from model_answer import PENDING
-    value = strict_json(row['result']) if row['result'] and row['state']=='READY' else (
-        strict_json(row['progress']).get(PENDING,{}) if row['progress'] else {})
+    result=row['result'] if 'result' in row.keys() else None
+    progress=row['progress'] if 'progress' in row.keys() else None
+    value = strict_json(result) if result and row['state']=='READY' else (
+        strict_json(progress).get(PENDING,{}) if progress else {})
     return value if value.get('permission_notice') is True else None
 
 
