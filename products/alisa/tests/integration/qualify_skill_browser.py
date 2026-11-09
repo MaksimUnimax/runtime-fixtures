@@ -46,6 +46,9 @@ def run(*, context, second_context, db, check, web_origin, client_id, client_sec
         check('s06_pending_consent_cannot_move_to_another_account',not any(c['name']=='__Host-alisa_alice' for c in second_context.cookies(web_origin)))
         foreign.close()
         page.get_by_role('button',name='Разрешить подключение',exact=True).click()
+        # click() can return while the intercepted real POST is still in flight.
+        # Observe its delivered broker page before reading callback/cookie state.
+        expect(page.get_by_text('Owned test broker boundary',exact=True)).to_be_visible()
         check('s06_actual_consent_form_preserves_exact_site_origin',consent_origins==[web_origin])
         check('s06_real_consent_post_returns_fixed_external_303',len(callbacks)==1)
         check('s06_consent_mirrors_state_client_and_scope_to_fixed_broker',len(callbacks)==1 and callbacks[0]['state']==[state] and callbacks[0]['client_id']==[client_id] and callbacks[0]['scope']==['reports:read'])
@@ -90,6 +93,7 @@ def run(*, context, second_context, db, check, web_origin, client_id, client_sec
             expect(login.get_by_role('heading',name='Подключить аккаунт к Алисе',exact=True)).to_be_visible()
             check('s06_fresh_native_password_email_login_returns_to_skill_consent',urlsplit(login.url).path=='/app/alice/connect')
             login.get_by_role('button',name='Отмена',exact=True).click()
+            expect(login.get_by_text('Owned test broker boundary',exact=True)).to_be_visible()
             check('s06_consent_denial_has_no_code_and_clears_pending_cookie',callbacks[-1].get('error')==['access_denied'] and 'code' not in callbacks[-1] and not any(c['name']=='__Host-alisa_alice' for c in fresh.cookies(web_origin)))
             profile=fresh.request.get(web_origin+'/api/account/me').json()['profile']
             check('s06_same_oidc_subject_keeps_customer_tenant_and_access',all(profile[k]==before[k] for k in ['customer_id','tenant_id','access_status']))
