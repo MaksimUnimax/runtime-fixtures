@@ -911,8 +911,52 @@ describe.sequential(
       expect(called).toBe(true);
     });
     it("DB-44 reconciliation success repairs a lost event", async () => {
+      const providerStatusAt = new Date(clock);
+      // Independent Gregorian oracle for the fixture's MONTH/1 interval.
+      const year = providerStatusAt.getUTCFullYear();
+      const nextYear = year + Number(providerStatusAt.getUTCMonth() === 11);
+      const nextMonth = (providerStatusAt.getUTCMonth() + 1) % 12;
+      const leap =
+        nextYear % 4 === 0 && (nextYear % 100 !== 0 || nextYear % 400 === 0);
+      const monthDays = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+      const expectedPeriodEnd = new Date(
+        Date.UTC(
+          nextYear,
+          nextMonth,
+          Math.min(providerStatusAt.getUTCDate(), monthDays[nextMonth]!),
+          providerStatusAt.getUTCHours(),
+          providerStatusAt.getUTCMinutes(),
+          providerStatusAt.getUTCSeconds(),
+          providerStatusAt.getUTCMilliseconds(),
+        ),
+      );
       const f = await fixture();
+      const other = await fixture();
       const c = await checkoutWithSimulator(f);
+      const paymentBefore = (
+        await q<{ createdAt: Date }>(
+          'SELECT id,account_id AS "accountId",state,subscription_id AS "subscriptionId",created_at AS "createdAt" FROM payments WHERE id=$1',
+          [c.paymentId],
+        )
+      ).rows[0];
+      if (!paymentBefore) throw new Error("payment fixture missing");
+      expect(paymentBefore).toEqual({
+        id: c.paymentId,
+        accountId: f.accountId,
+        state: "PENDING",
+        subscriptionId: null,
+        createdAt: expect.any(Date),
+      });
+      expect(c.result).toMatchObject({
+        kind: "READY",
+        planRevisionId: f.planRevisionId,
+        priceRevisionId: f.priceRevisionId,
+        amountMinor: 1900,
+        currency: "RUB",
+      });
+      expect((await q("SELECT id FROM subscriptions")).rows).toEqual([]);
+      // No verified-event service/webhook is invoked for this recovery fixture.
+      expect((await q("SELECT id FROM billing_events")).rows).toEqual([]);
       await q(
         "UPDATE billing_reconciliation_jobs SET state='READY',next_attempt_at=$2,lease_token=NULL,lease_until=NULL WHERE payment_id=$1",
         [c.paymentId, clock],
@@ -923,25 +967,346 @@ describe.sequential(
         state: "SUCCEEDED",
         amountMinor: 1900,
         currency: "RUB",
-        statusAt: clock,
+        statusAt: providerStatusAt,
       });
       const repo = createP5ReconciliationRepository(db, { now: () => clock });
-      const claim = (
-        await repo.claimDue({ now: clock, leaseMs: 60_000, batchSize: 1 })
-      )[0]!;
-      const result = await createBillingReconciliationService({
+      const claims = await repo.claimDue({
+        now: clock,
+        leaseMs: 60_000,
+        batchSize: 1,
+      });
+      expect(claims).toHaveLength(1);
+      const claim = claims[0];
+      if (!claim) throw new Error("reconciliation claim missing");
+      expect(claim).toMatchObject({
+        paymentId: c.paymentId,
+        accountId: f.accountId,
+        priceRevisionId: f.priceRevisionId,
+        provider: "simulator",
+        providerPaymentId: c.providerPaymentId,
+        paymentState: "PENDING",
+        amountMinor: 1900,
+        currency: "RUB",
+      });
+      expect(claim.createdAt.getTime()).toBeLessThanOrEqual(
+        providerStatusAt.getTime(),
+      );
+      expect(providerStatusAt.getTime()).toBeLessThanOrEqual(clock.getTime());
+      const expectedPayload = createHash("sha256")
+        .update(
+          `product-control-plane/billing-reconciliation/payload/v1\npaymentId=${c.paymentId}\nprovider=simulator\nproviderPaymentId=${c.providerPaymentId}\nstate=SUCCEEDED\namountMinor=1900\ncurrency=RUB\nstatusAt=${providerStatusAt.toISOString()}`,
+        )
+        .digest("hex");
+      const expectedIdentity = `recon_v1_${createHash("sha256")
+        .update(
+          `product-control-plane/billing-reconciliation/event-identity/v1\npaymentId=${c.paymentId}\nattempt=${claim.attemptCount}\nstate=SUCCEEDED\nstatusAt=${providerStatusAt.toISOString()}\npayloadSha256=${expectedPayload}`,
+        )
+        .digest("hex")}`;
+      const correlationId = id();
+      const service = createBillingReconciliationService({
         repository: repo,
         statusPort: simulator,
         now: () => clock,
-      }).processClaim(claim, id());
-      expect(result.kind).toBe("APPLIED");
+      });
+      const result = await service.processClaim(claim, correlationId);
+      expect(result).toMatchObject({
+        kind: "APPLIED",
+        paymentId: c.paymentId,
+        billingEventId: expect.any(String),
+      });
+      const subscriptions = await q<{ id: string }>(
+        'SELECT id,account_id AS "accountId",state,state_revision AS "stateRevision",current_plan_revision_id AS "planRevisionId",bound_price_revision_id AS "priceRevisionId",started_at AS "startedAt",current_period_start AS "periodStart",current_period_end AS "periodEnd",grace_until AS "graceUntil",cancel_at_period_end AS "cancelAtPeriodEnd" FROM subscriptions ORDER BY id',
+      );
+      expect(subscriptions.rows).toHaveLength(1);
+      const subscription = subscriptions.rows[0];
+      if (!subscription) throw new Error("recovered subscription missing");
+      expect(subscription).toEqual({
+        id: expect.any(String),
+        accountId: f.accountId,
+        state: "ACTIVE",
+        stateRevision: 1,
+        planRevisionId: f.planRevisionId,
+        priceRevisionId: f.priceRevisionId,
+        startedAt: providerStatusAt,
+        periodStart: providerStatusAt,
+        periodEnd: expectedPeriodEnd,
+        graceUntil: null,
+        cancelAtPeriodEnd: false,
+      });
       expect(
         (
-          await q("SELECT source FROM billing_events WHERE payment_id=$1", [
-            c.paymentId,
-          ])
-        ).rows[0]?.source,
-      ).toBe("RECONCILIATION");
+          await q(
+            'SELECT id,account_id AS "accountId",state,price_revision_id AS "priceRevisionId",amount_minor::text AS "amountMinor",currency,subscription_id AS "subscriptionId",confirmed_at AS "confirmedAt" FROM payments ORDER BY id',
+          )
+        ).rows,
+      ).toEqual([
+        {
+          id: c.paymentId,
+          accountId: f.accountId,
+          state: "SUCCEEDED",
+          priceRevisionId: f.priceRevisionId,
+          amountMinor: "1900",
+          currency: "RUB",
+          subscriptionId: subscription.id,
+          confirmedAt: providerStatusAt,
+        },
+      ]);
+      const transitions = await q<{ id: string }>(
+        'SELECT id,subscription_id AS "subscriptionId",transition_revision AS "revision",from_state AS "fromState",to_state AS "toState",source,source_event_id AS "sourceEventId",actor_type AS "actorType",actor_id AS "actorId",reason,occurred_at AS "occurredAt" FROM subscription_transitions ORDER BY id',
+      );
+      expect(transitions.rows).toHaveLength(1);
+      const transition = transitions.rows[0];
+      if (!transition) throw new Error("recovery transition missing");
+      expect(transition).toEqual({
+        id: expect.any(String),
+        subscriptionId: subscription.id,
+        revision: 1,
+        fromState: null,
+        toState: "ACTIVE",
+        source: "RECONCILIATION",
+        sourceEventId: expectedIdentity,
+        actorType: "SYSTEM",
+        actorId: null,
+        reason: "BILLING_RECONCILIATION_SUCCEEDED",
+        occurredAt: providerStatusAt,
+      });
+      expect(
+        (
+          await q(
+            'SELECT id,provider,source,event_identity AS "identity",event_type AS "eventType",payload_sha256 AS "payloadSha256",processing_state AS "state",payment_id AS "paymentId",subscription_id AS "subscriptionId",subscription_transition_id AS "transitionId",received_at AS "receivedAt",verified_at AS "verifiedAt",processed_at AS "processedAt",failure_code AS "failureCode" FROM billing_events ORDER BY id',
+          )
+        ).rows,
+      ).toEqual([
+        {
+          id: result.kind === "APPLIED" ? result.billingEventId : undefined,
+          provider: "simulator",
+          source: "RECONCILIATION",
+          identity: expectedIdentity,
+          eventType: "payment.succeeded",
+          payloadSha256: expectedPayload,
+          state: "APPLIED",
+          paymentId: c.paymentId,
+          subscriptionId: subscription.id,
+          transitionId: transition.id,
+          receivedAt: clock,
+          verifiedAt: clock,
+          processedAt: clock,
+          failureCode: null,
+        },
+      ]);
+      expect(
+        (
+          await q(
+            'SELECT payment_id AS "paymentId",state,attempt_count AS "attemptCount",lease_token AS "leaseToken",lease_until AS "leaseUntil",next_attempt_at AS "nextAttemptAt",last_result_code AS "lastResultCode" FROM billing_reconciliation_jobs ORDER BY payment_id',
+          )
+        ).rows,
+      ).toEqual([
+        {
+          paymentId: c.paymentId,
+          state: "SETTLED",
+          attemptCount: claim.attemptCount,
+          leaseToken: null,
+          leaseUntil: null,
+          nextAttemptAt: null,
+          lastResultCode: null,
+        },
+      ]);
+      expect(
+        (
+          await q(
+            'SELECT actor_type AS "actorType",actor_id AS "actorId",action,target_type AS "targetType",target_id AS "targetId",correlation_id AS "correlationId",reason,safe_metadata AS "metadata" FROM audit_events WHERE correlation_id=$1 ORDER BY action,id',
+            [correlationId],
+          )
+        ).rows,
+      ).toEqual([
+        {
+          actorType: "SYSTEM",
+          actorId: null,
+          action: "PAYMENT_RECONCILED",
+          targetType: "PAYMENT",
+          targetId: c.paymentId,
+          correlationId,
+          reason: "BILLING_RECONCILIATION",
+          metadata: {
+            paymentId: c.paymentId,
+            provider: "simulator",
+            oldState: "PENDING",
+            newState: "SUCCEEDED",
+            subscriptionId: subscription.id,
+            priceRevisionId: f.priceRevisionId,
+          },
+        },
+        {
+          actorType: "SYSTEM",
+          actorId: null,
+          action: "SUBSCRIPTION_ACTIVATED",
+          targetType: "SUBSCRIPTION",
+          targetId: subscription.id,
+          correlationId,
+          reason: "BILLING_RECONCILIATION",
+          metadata: {
+            subscriptionId: subscription.id,
+            state: "ACTIVE",
+            stateRevision: 1,
+            transitionRevision: 1,
+          },
+        },
+      ]);
+      const access = await commercial(f);
+      expect(await access.resolve(f.accountId, clock)).toMatchObject({
+        kind: "OK",
+        value: {
+          currentSubscription: { id: subscription.id, stateRevision: 1 },
+          access: { kind: "ELIGIBLE", subscriptionId: subscription.id },
+          planRevisionId: f.planRevisionId,
+          entitlements: { "device.max_active": 2, "feature.analytics": true },
+        },
+      });
+      const portal = new (
+        await import("../../../packages/server/commercial-access/src/index.js")
+      ).CommercialPortalService(
+        createP5CommercialPortalRepository(db),
+        access,
+        () => clock,
+      );
+      const ownerSubscription = await portal.readSubscription(
+        f.userId,
+        f.accountId,
+      );
+      expect(ownerSubscription).toEqual({
+        kind: "OK",
+        value: {
+          accountId: f.accountId,
+          accessBasis: "COMMERCIAL",
+          access: { status: "ELIGIBLE", reason: null },
+          subscription: {
+            id: subscription.id,
+            accountId: f.accountId,
+            state: "ACTIVE",
+            stateRevision: 1,
+            currentPeriodStart: providerStatusAt,
+            currentPeriodEnd: expectedPeriodEnd,
+            graceUntil: null,
+            cancelAtPeriodEnd: false,
+            plan: {
+              planRevisionId: f.planRevisionId,
+              planCode: `p57-${f.planId.slice(0, 8)}`,
+              planRevision: 1,
+              displayName: "P5.7 final plan",
+            },
+            price: {
+              priceRevisionId: f.priceRevisionId,
+              amountMinor: 1900,
+              currency: "RUB",
+              billingIntervalUnit: "MONTH",
+              billingIntervalCount: 1,
+            },
+          },
+          deviceAllowance: {
+            maxActive: 2,
+            activeCount: 0,
+            remaining: 2,
+            overLimit: false,
+          },
+          billing: {
+            purchaseStatus: "UNAVAILABLE",
+            reason: "PAYMENT_GO_LIVE_DEFERRED",
+          },
+        },
+      });
+      const ownerHistory = await portal.listPayments(f.userId, f.accountId, 10);
+      expect(ownerHistory).toEqual({
+        kind: "OK",
+        payments: [
+          {
+            id: c.paymentId,
+            state: "SUCCEEDED",
+            amountMinor: 1900,
+            currency: "RUB",
+            priceRevisionId: f.priceRevisionId,
+            plan: {
+              planCode: `p57-${f.planId.slice(0, 8)}`,
+              planRevision: 1,
+              displayName: "P5.7 final plan",
+            },
+            billingInterval: { unit: "MONTH", count: 1 },
+            createdAt: paymentBefore.createdAt,
+            confirmedAt: providerStatusAt,
+            subscriptionLinked: true,
+          },
+        ],
+      });
+      expect(JSON.stringify([ownerSubscription, ownerHistory])).not.toMatch(
+        /provider|idempotency|checkoutReference|billingEvent|leaseToken|stateReason/,
+      );
+      for (const [userId, accountId] of [
+        [other.userId, f.accountId],
+        [f.userId, other.accountId],
+      ] as const) {
+        expect(await portal.readSubscription(userId, accountId)).toEqual({
+          kind: "ACCOUNT_FORBIDDEN",
+        });
+        expect(await portal.listPayments(userId, accountId, 10)).toEqual({
+          kind: "ACCOUNT_FORBIDDEN",
+        });
+      }
+      const otherSubscription = await portal.readSubscription(
+        other.userId,
+        other.accountId,
+      );
+      expect(otherSubscription).toMatchObject({
+        kind: "OK",
+        value: {
+          accountId: other.accountId,
+          accessBasis: "NONE",
+          access: { status: "INELIGIBLE", reason: "NO_CURRENT_SUBSCRIPTION" },
+          subscription: null,
+        },
+      });
+      expect(await portal.listPayments(other.userId, other.accountId, 10)).toEqual({
+        kind: "OK",
+        payments: [],
+      });
+      expect(
+        await portal.listPayments(other.userId, other.accountId, 10, c.paymentId),
+      ).toEqual({ kind: "INVALID_CURSOR" });
+      // The existing set-once payment link must reject clearing, not only replay.
+      await expect(
+        q("UPDATE payments SET subscription_id=NULL WHERE id=$1", [c.paymentId]),
+      ).rejects.toThrow();
+      const canonicalState = async () => ({
+        subscriptions: (await q("SELECT * FROM subscriptions ORDER BY id")).rows,
+        payments: (await q("SELECT * FROM payments ORDER BY id")).rows,
+        transitions: (
+          await q("SELECT * FROM subscription_transitions ORDER BY id")
+        ).rows,
+        events: (await q("SELECT * FROM billing_events ORDER BY id")).rows,
+        jobs: (
+          await q("SELECT * FROM billing_reconciliation_jobs ORDER BY payment_id")
+        ).rows,
+        checkouts: (await q("SELECT * FROM checkout_intents ORDER BY id")).rows,
+        audits: (await q("SELECT * FROM audit_events ORDER BY id")).rows,
+      });
+      const beforeReplay = await canonicalState();
+      // processClaim may look up status before the repository detects staleness.
+      expect(await service.processClaim(claim, id())).toEqual({
+        kind: "STALE_LEASE",
+        paymentId: c.paymentId,
+      });
+      expect(await canonicalState()).toEqual(beforeReplay);
+      expect(await portal.readSubscription(f.userId, f.accountId)).toEqual(
+        ownerSubscription,
+      );
+      expect(await portal.listPayments(f.userId, f.accountId, 10)).toEqual(
+        ownerHistory,
+      );
+      expect(
+        await portal.readSubscription(other.userId, other.accountId),
+      ).toEqual(otherSubscription);
+      expect(await portal.listPayments(other.userId, other.accountId, 10)).toEqual({
+        kind: "OK",
+        payments: [],
+      });
     });
     it("DB-45 reconciliation failed status corrects a pending payment", async () => {
       const f = await fixture();
