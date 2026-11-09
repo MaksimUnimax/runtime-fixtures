@@ -1,10 +1,10 @@
 name: Alisa platform source checks
 on:
   pull_request:
-    paths: ['products/alisa/**', 'docs/alisa/runtime/v0.11/rt_check_r01/**', '.github/workflows/alisa-platform-ci.yml']
+    paths: ['products/alisa/**', 'docs/alisa/runtime/v0.11/rt_check_r01/**', 'docs/alisa/runtime/v0.11/rt_job_r02/**', '.github/workflows/alisa-platform-ci.yml']
   push:
     branches: ['feat/alisa-platform-foundation-v05', 'feat/alisa-site-funnel-v05']
-    paths: ['products/alisa/**', 'docs/alisa/runtime/v0.11/rt_check_r01/**', '.github/workflows/alisa-platform-ci.yml']
+    paths: ['products/alisa/**', 'docs/alisa/runtime/v0.11/rt_check_r01/**', 'docs/alisa/runtime/v0.11/rt_job_r02/**', '.github/workflows/alisa-platform-ci.yml']
 permissions:
   contents: read
 jobs:
@@ -54,6 +54,8 @@ jobs:
           python run_checks.py --output ../dist/runtime-qualification.json
           python build_package.py --source "$ALISA_SOURCE_SHA" --output ../dist
       - name: Locked source checks and UI build (not stage acceptance)
+        # The S07 port carries the frozen current core, its full original
+        # regression and new guard/consumer/reader tests in a separate source.
         working-directory: products/alisa
         run: |
           ./bin/alisa bootstrap --locked
@@ -84,7 +86,13 @@ jobs:
       - name: Runtime authority, current access and signed tickets on isolated PostgreSQL
         working-directory: products/alisa
         run: |
-          .venv/bin/python tests/integration/qualify_runtime_authority.py --output dist/s07-authority-qualification.json
+          .venv/bin/python tests/integration/qualify_runtime_authority.py \
+            --output dist/s07-authority-qualification.json \
+            --current-core-source "$GITHUB_WORKSPACE/docs/alisa/runtime/v0.11/rt_job_r02"
+      - name: Current-core RuntimePort, reader isolation and seven-day model accounting
+        working-directory: docs/alisa/runtime/v0.11/rt_job_r02
+        run: |
+          python run_checks.py --output "$GITHUB_WORKSPACE/products/alisa/dist/s07-current-core-qualification.json"
       - name: Real PostgreSQL and packaged browser qualification (not stage acceptance)
         working-directory: products/alisa
         run: |

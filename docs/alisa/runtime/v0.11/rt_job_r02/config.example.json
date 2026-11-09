@@ -1,0 +1,35 @@
+{
+  "execution_enabled": false,
+  "database": "/var/lib/alice-market/state.sqlite3",
+  "socket": "/run/alice-market/gateway.sock",
+  "web_user": "alice-lab",
+  "accounts": {
+    "demo-a": {
+      "active": true,
+      "revision": "owner-lab-access-v1",
+      "stores": [
+        {
+          "id": "owner-ozon",
+          "platform": "ozon",
+          "identity": "owner-ozon-cabinet-1",
+          "access_revision": "credential-r1",
+          "source_revision": "example-decoder-v08",
+          "currency": null
+        },
+        {
+          "id": "owner-wb",
+          "platform": "wb",
+          "identity": "owner-wb-cabinet-1",
+          "access_revision": "credential-r1",
+          "source_revision": "example-decoder-v08",
+          "currency": null
+        }
+      ]
+    }
+  },
+  "credential_bindings": {
+    "owner-ozon": "ozon",
+    "owner-wb": "wb"
+  },
+  "qualifications": {}
+}

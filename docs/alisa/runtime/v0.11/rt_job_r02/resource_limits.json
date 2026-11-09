@@ -1,0 +1,5 @@
+{
+  "schema": "alice-model-budget/v2",
+  "daily_calls": null,
+  "min_interval_seconds": 0
+}
