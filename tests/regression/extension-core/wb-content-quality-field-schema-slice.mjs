@@ -123,7 +123,8 @@ function summarizeErrorPages(pages) {
         !batch.batchUUID ||
         !Array.isArray(batch.vendorCodes) ||
         typeof batch.errors !== "object" ||
-        !batch.errors
+        !batch.errors ||
+        Array.isArray(batch.errors)
       )
         return { status: "INCOMPLETE", reason: "ERROR_BATCH_INVALID" };
       if (seenBatches.has(batch.batchUUID))
@@ -172,6 +173,65 @@ assert.deepEqual(
   summarizeErrorPages(c.incompletePagination.pages),
   c.incompletePagination.expected,
 );
+
+// The captured errors map is a JSON object, including a legitimately empty map.
+// An array must not become a successful zero or an indexed vendor-code count.
+assert.equal(errors.batchFields.errors.unit, "map_text_to_string_array");
+{
+  const invalid = { status: "INCOMPLETE", reason: "ERROR_BATCH_INVALID" };
+  const page = (map, vendorCodes = [], batchUUID = "b") => ({
+    batches: [{ batchUUID, vendorCodes, errors: map }],
+    cursor: { next: false },
+  });
+  const pass = (batchCount, vendorCodesWithErrors, officialErrorOccurrences) => ({
+    status: "PASS",
+    batchCount,
+    vendorCodesWithErrors,
+    officialErrorOccurrences,
+  });
+  const cases = [
+    ["empty array", [page([])], invalid],
+    ["indexed array", [page([["E"]], ["0"])], invalid],
+    ["unused array entries", [page([["E"]])], invalid],
+    ["empty map", [page({})], pass(1, 0, 0)],
+    ["numeric text article", [page({ "0": ["E"] }, ["0"])], pass(1, 1, 1)],
+    ["empty message list", [page({ A: [] }, ["A"])], pass(1, 0, 0)],
+    ["repeated message occurrences", [page({ A: ["E", "E"] }, ["A"])], pass(1, 1, 2)],
+    ["retained complete batches", c.completeBatches.pages, c.completeBatches.expected],
+    ["retained duplicate batch", c.duplicateBatch.pages, c.duplicateBatch.expected],
+    ["retained nonterminal page", c.incompletePagination.pages, c.incompletePagination.expected],
+    ["null map", [page(null)], invalid],
+    ["missing map", [page(undefined)], invalid],
+    ["missing messages", [page({}, ["A"])], { status: "INCOMPLETE", reason: "ERROR_MESSAGES_MISSING" }],
+    ["invalid message", [page({ A: [""] }, ["A"])], { status: "INCOMPLETE", reason: "ERROR_MESSAGE_INVALID" }],
+    ["invalid vendor", [page({}, [1])], { status: "INCOMPLETE", reason: "VENDOR_CODE_INVALID" }],
+    ["page before array", [null, page([])], { status: "INCOMPLETE", reason: "ERROR_PAGE_INVALID" }],
+    ["array before later page", [page([]), null], invalid],
+    ["array before invalid vendor", [page([], [1])], invalid],
+    ["array before duplicate", [page({}), page([])], invalid],
+    ["array before nonterminal", [{ ...page([]), cursor: { next: true } }], invalid],
+    ["message before later array", [page({ A: [""] }, ["A"], "a"), page([])], { status: "INCOMPLETE", reason: "ERROR_MESSAGE_INVALID" }],
+    ["duplicate before later array", [page({}, [], "a"), page({}, [], "a"), page([])], { status: "INCOMPLETE", reason: "DUPLICATE_ERROR_BATCH_UUID" }],
+  ];
+  const freeze = (value) => {
+    if (value && typeof value === "object") {
+      Object.values(value).forEach(freeze);
+      Object.freeze(value);
+    }
+    return value;
+  };
+  for (const [label, pages, expected] of cases) {
+    const input = freeze(structuredClone(pages));
+    const before = JSON.stringify(input);
+    const actual = summarizeErrorPages(input);
+    assert.deepEqual(actual, expected, label + " raw DTO");
+    assert.equal(JSON.stringify(actual), JSON.stringify(expected), label + " JSON");
+    assert.equal(JSON.stringify(input), before, label + " input unchanged");
+    actual.status = "MUTATED";
+    actual.extra = "consumer mutation";
+    assert.deepEqual(summarizeErrorPages(input), expected, label + " detached output");
+  }
+}
 
 function joinVendorCodeToNmId(vendorCode, activeCards) {
   const matched = activeCards.filter((card) => card.vendorCode === vendorCode);
