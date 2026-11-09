@@ -1,0 +1,16 @@
+{
+  "state": "INSTALLED",
+  "source_commit": "f527f33b37b23eeda4fe933628c7ce9c44ba4c2e",
+  "base": "/opt/alice-market/releases/alisa-model-token-cost-r1-20261109",
+  "runtime": "/opt/alice-market/releases/alisa-accrual-note-r1-20261109",
+  "changed": [
+    "template_catalog.json"
+  ],
+  "hashes": {
+    "template_catalog.json": "0aed94774a303dbc9383f7914887ae5bb8bc0dbb7e2b69fe43216fc29aedca30"
+  },
+  "base_unchanged": true,
+  "at": 1794229424.4729452,
+  "tests": 70,
+  "targeted_tests": 70
+}
