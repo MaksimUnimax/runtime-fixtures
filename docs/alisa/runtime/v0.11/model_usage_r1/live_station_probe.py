@@ -2,7 +2,7 @@
 import http.cookiejar,json,os,sys,time,uuid
 from pathlib import Path
 from cryptography.fernet import Fernet
-sys.path.insert(0,'/opt/alisa-station/releases/station-auto-r8-model-usage-r5')
+sys.path.insert(0,'/opt/alisa-station/releases/station-auto-r8-model-usage-r8')
 from transport import Yandex,payload,Fault
 ROOT=Path('/dev/shm/alisa-model-usage-20261109/live')
 
@@ -15,22 +15,24 @@ def main():
     assert len(candidates)==1,'UNAMBIGUOUS_CONNECTED_STATION_REQUIRED'
     path,state=candidates[0]
     assert state.get('selected')and not state.get('uncertain'),'STATION_NOT_READY'
-    assert (state.get('job')or{}).get('delivery')not in ('sending','pending'),'ACTIVE_DELIVERY'
+    assert (state.get('job')or{}).get('delivery')not in ('sending','pending','waiting','accepted_waiting_skill'),'ACTIVE_DELIVERY'
     cipher=Fernet(Path('/run/credentials/alisa-station.service/station-key').read_bytes())
     client=Yandex()
     for cookie in json.loads(cipher.decrypt((path.parent/'session.enc').read_bytes())):
         client.jar.set_cookie(http.cookiejar.Cookie(**cookie))
     report={'started_at':time.time(),'stage':'ready','acoustic_confirmation':False}
-    out=ROOT/'STATION_PROBE_PRIVATE.json'
+    out=ROOT/'STATION_PROBE_R8_SHORT_PRIVATE.json'
     def save():out.write_text(json.dumps(report,ensure_ascii=False,indent=2))
     previous=(state.get('job')or{}).get('jid');sid=None
     try:
         report['stage']='creating_scenario';save()
         body=payload('Октопорт проверка учёта 20261109','октопорт проверка '+uuid.uuid4().hex,state['selected']['id'],
-            'спроси навык Октопорт маркет обнови сводка заказов за вчера на Озоне',mode='skill')
+            'спроси навык Октопорт маркет обнови расходы рекламы на заказанную единицу вчера озон',mode='skill')
         answer=client.api('POST','/m/v4/user/scenarios',body)
         sid=answer.get('scenario_id');assert isinstance(sid,str)and sid,'SCENARIO_ID_MISSING'
         report.update(scenario_id=sid,stage='launching');save()
+        current=json.loads(path.read_text())
+        assert (current.get('job')or{}).get('jid')==previous and not current.get('uncertain'),'STATION_CHANGED_BEFORE_LAUNCH'
         client.api('POST','/m/user/scenarios/'+sid+'/actions')
         report.update(launch_acknowledged=True,stage='observing');save()
         deadline=time.monotonic()+150
