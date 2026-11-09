@@ -1,0 +1,22 @@
+{
+  "schema": "alisa-runtime-client-qualification/v1",
+  "scope": "SOURCE_SYNTHETIC_UNIX_IPC",
+  "runtime_zip_sha256": "d5db0d7220048af0cea155e80a4af638ec4e60d21a5c07baf685bd14a40341d3",
+  "tests": 26,
+  "seconds": 2.534,
+  "passed": true,
+  "client_sha256": "3378c9e34270d5315cbd32417837148546c3ec7baa96ec22d5abe8fd869ba9b2",
+  "test_sha256": "c48e2d29a498f2f90092d88be76e4f4b934342244483d5ea9ee50ed0269bbe65",
+  "external_network_allowed": false,
+  "real_unix_socket": true,
+  "real_queue_and_sqlite": true,
+  "authority": "SYNTHETIC",
+  "provider": "SYNTHETIC",
+  "installed": false,
+  "independent_review": "SOL61_CHANGES_REQUIRED_ON_PRIOR_SOURCE_CORRECTIONS_PENDING_REREVIEW",
+  "review_regressions": [
+    "durable submit/cancel error envelope remains UNKNOWN",
+    "TTL checked after final authority check",
+    "dependency failures remain DEPENDENCY_UNAVAILABLE before/after calls"
+  ]
+}
