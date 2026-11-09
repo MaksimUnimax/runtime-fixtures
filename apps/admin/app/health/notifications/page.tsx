@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { formatHealthNotificationSchedule } from "../../../lib/health-notification-ui";
+import {
+  formatHealthNotificationResult,
+  formatHealthNotificationSchedule,
+} from "../../../lib/health-notification-ui";
 import {
   Cursor,
   has,
@@ -96,7 +99,7 @@ export default function HealthNotificationsPage() {
               </Link>,
               `${item.provider} / ${item.surface}`,
               `${item.groupCount} observations; cooldown until ${item.cooldownUntil}`,
-              `${item.attemptCount} attempts; ${item.lastProviderResultCode ?? "Not attempted"}; ${formatHealthNotificationSchedule(item.state, item.nextAttemptAt)}`,
+              `${item.attemptCount} attempts; ${formatHealthNotificationResult(item.lastProviderResultCode, item.attemptCount)}; ${formatHealthNotificationSchedule(item.state, item.nextAttemptAt)}`,
               item.suppressionReason ?? "—",
             ])}
           />

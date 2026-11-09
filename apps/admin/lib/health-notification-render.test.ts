@@ -4,7 +4,7 @@ import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import HealthNotificationsPage from "../app/health/notifications/page";
 import HealthNotificationDetailPage from "../app/health/notifications/[id]/page";
-import { formatHealthNotificationSchedule } from "./health-notification-ui";
+import { formatHealthNotificationResult, formatHealthNotificationSchedule } from "./health-notification-ui";
 
 const response = vi.hoisted(() => ({
   data: null as unknown,
@@ -20,6 +20,39 @@ vi.mock("next/link", async () => {
     default: ({ href, children }: { href: string; children: ReactNode }) =>
       createElement("a", { href }, children),
   };
+});
+
+describe("Health notification missing provider result", () => {
+  it.each([0, 1, 3])("both consumers distinguish absent result at attempt count %s", (attemptCount) => {
+    const item = {
+      ...notification("CLAIMED"),
+      attemptCount,
+      lastProviderResultCode: null,
+      deliveredAt: null,
+    };
+    const label = attemptCount === 0 ? "Not attempted" : "Result not recorded";
+    response.data = { items: [item], nextCursor: null };
+    const list = renderToStaticMarkup(createElement(HealthNotificationsPage));
+    expect(list).toContain(`${attemptCount} attempts; ${label};`);
+    expect(list).toContain("CLAIMED / INFO");
+    response.data = item;
+    const detail = renderToStaticMarkup(createElement(HealthNotificationDetailPage));
+    expect(detail).toContain(`<td>${label}</td>`);
+    expect(detail).toContain("<td>CLAIMED</td>");
+    expect(detail).toContain("Not delivered");
+    if (attemptCount > 0) {
+      expect(list).not.toContain("Not attempted");
+      expect(detail).not.toContain("Not attempted");
+    }
+  });
+
+  it.each([
+    "DELIVERED", "TRANSIENT_PROVIDER_FAILURE", "RATE_LIMIT", "CONFIGURATION_ERROR",
+    "PERMANENT_PROVIDER_REJECTION", "DISABLED_ROUTE", "UNKNOWN",
+  ])("preserves recorded result %s independently of attempt count", (code) => {
+    expect(formatHealthNotificationResult(code, 0)).toBe(code);
+    expect(formatHealthNotificationResult(code, 3)).toBe(code);
+  });
 });
 vi.mock("../app/admin-ui", async (importOriginal) => {
   const original = await importOriginal<typeof import("../app/admin-ui")>();

@@ -21,3 +21,11 @@ export function formatHealthNotificationSchedule(
       return "Schedule unavailable";
   }
 }
+
+export function formatHealthNotificationResult(
+  lastProviderResultCode: string | null,
+  attemptCount: number,
+): string {
+  return lastProviderResultCode ??
+    (attemptCount === 0 ? "Not attempted" : "Result not recorded");
+}

@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { formatHealthNotificationSchedule } from "../../../../lib/health-notification-ui";
+import {
+  formatHealthNotificationResult,
+  formatHealthNotificationSchedule,
+} from "../../../../lib/health-notification-ui";
 import {
   has,
   LoadState,
@@ -110,7 +113,7 @@ export default function HealthNotificationDetailPage() {
                   result.data.routeKey,
                   `${result.data.provider} / ${result.data.surface}`,
                   result.data.providerSink ?? "Not selected",
-                  result.data.lastProviderResultCode ?? "Not attempted",
+                  formatHealthNotificationResult(result.data.lastProviderResultCode, result.data.attemptCount),
                 ],
               ]}
             />
