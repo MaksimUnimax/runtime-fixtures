@@ -30,3 +30,6 @@ urlpatterns += [path("api/v1/account/owner-products", owner_data.owner_products)
 
 from alisa_platform.runtime_adapter import authority_rpc
 urlpatterns += [path('internal/runtime/authority', authority_rpc.check)]
+
+from alisa_platform.queries import views as queries
+urlpatterns += [path('api/v1/account/queries', queries.queries)]

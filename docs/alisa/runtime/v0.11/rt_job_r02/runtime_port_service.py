@@ -4,6 +4,7 @@ from pathlib import Path
 import pwd
 import re
 import stat
+import struct
 from semantics import Rejected
 from platform_authority_client import PlatformAuthorityClient
 from runtime_port import RuntimePort
@@ -11,6 +12,33 @@ from runtime_port_ipc import Gateway
 
 FIELDS = {'enabled', 'socket', 'allowed_user', 'service_id', 'catalog_release_id',
           'authority_socket', 'authority_user', 'authority_credential'}
+
+
+def private_credential(path):
+    """Accept owner-only files and the exact read-only systemd per-user ACL.
+
+    In systemd's credential mount, 0440 includes the ACL mask, while the owning
+    group has no access. Only root and this service UID can read that file.
+    """
+    try:
+        info = path.lstat()
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid not in {0, os.getuid()}
+            or info.st_size > 257): return False
+        if not info.st_mode & 0o077: return True
+        if (info.st_uid != 0 or info.st_gid != 0 or stat.S_IMODE(info.st_mode) != 0o440
+            or os.getuid() == 0 or '..' in path.parts or path.parent.parent != Path('/run/credentials')
+            or not os.statvfs(path).f_flag & os.ST_RDONLY): return False
+        for parent in path.parents:
+            metadata = parent.lstat()
+            if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0
+                or metadata.st_mode & 0o022): return False
+        nobody = 0xffffffff
+        entries = [(1, 4, nobody), (2, 4, os.getuid()), (4, 0, nobody),
+                   (16, 4, nobody), (32, 0, nobody)]
+        expected = struct.pack('<I', 2) + b''.join(struct.pack('<HHI', *row) for row in entries)
+        return os.getxattr(path, 'system.posix_acl_access') == expected
+    except (OSError, ValueError, TypeError):
+        return False
 
 
 def validate(configuration):
@@ -43,9 +71,7 @@ def attach(engine, configuration, credentials_directory):
     if (not stat.S_ISDIR(parent.st_mode) or parent.st_uid not in {0, os.getuid()}
         or parent.st_mode & 0o022):raise Rejected('RUNTIME_PORT_CONFIG')
     credential = Path(credentials_directory) / value['authority_credential']
-    info = credential.lstat()
-    if (not stat.S_ISREG(info.st_mode) or info.st_uid not in {0, os.getuid()}
-        or info.st_mode & 0o077 or info.st_size > 257):raise Rejected('RUNTIME_PORT_CONFIG')
+    if not private_credential(credential):raise Rejected('RUNTIME_PORT_CONFIG')
     authority = PlatformAuthorityClient(value['authority_socket'],
         expected_uid=pwd.getpwnam(value['authority_user']).pw_uid,
         service_token=credential.read_text().strip(), service_id=value['service_id'])

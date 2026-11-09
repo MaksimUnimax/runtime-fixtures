@@ -193,6 +193,13 @@ def webhook(data):
         if not link.confirmed_at:
             link.confirmed_at = timezone.now()
             link.save(update_fields=['confirmed_at'])
+    if getattr(settings, 'QUERIES_ENABLED', False):
+        from alisa_platform.queries.voice import handle as query_voice
+        from alisa_platform.runtime_adapter.job_client import RuntimeFailure
+        try:
+            return reply({'skill_response': query_voice(token, payload)})
+        except RuntimeFailure as error:
+            return reply({'code': error.code}, error.http_status)
     return reply({'skill_response': {'version': '1.0', 'response': {
         'text': 'Аккаунт кабинета подключён. Настройки подключения доступны на сайте Алиса Маркет.',
         'end_session': False}}})

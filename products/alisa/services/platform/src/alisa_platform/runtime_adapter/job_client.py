@@ -88,6 +88,15 @@ def identifier(value):
     return value
 
 
+def template_gap_result(value):
+    """Exact negative result of the owner-installed temporary template-only mode."""
+    exact(value, {'ok', 'status', 'message', 'data', 'retryable', 'temporary_mode', 'case_id'})
+    need(value['ok'] is False and value['status'] == 'TEMPLATE_NOT_FOUND' and value['data'] is None
+         and value['retryable'] is False and value['temporary_mode'] is True
+         and value['message'] == 'Извините, данный запрос не поддерживается')
+    need(re.fullmatch(r'tgap_[a-f0-9]{32}', text(value['case_id'], 37)))
+
+
 def provider_result(value):
     """Bounded negative tool metadata; never a financial dataset or a retry grant."""
     exact(value, {'schema', 'ok', 'provider', 'operation', 'status', 'http_status',
@@ -335,7 +344,14 @@ class RuntimeClient:
                 need(value['result_kind'] in {'DATA', 'PROVIDER_REFUSAL'})
             if 'model_result' in value:
                 need(value.get('result_kind') == 'PROVIDER_REFUSAL')
-                provider_result(value['model_result'])
+                if type(value['model_result']) is dict and value['model_result'].get('status') == 'TEMPLATE_NOT_FOUND':
+                    template_gap_result(value['model_result'])
+                    need(value.get('pages') == [value['model_result']['message']])
+                    # The installed temporary core uses its generic failure label.
+                    # Normalize only this exact bounded negative shape for consumers.
+                    result['result_kind'] = 'UNSUPPORTED_QUERY'
+                else:
+                    provider_result(value['model_result'])
             need(value['schema_version'] == 'runtime_result_v1' and value['state'] == 'READY'
                  and value['complete'] is True and timestamp(value['result_expires_at']) > self.clock()
                  and type(value['pages']) is list and 1 <= len(value['pages']) <= 1000)
