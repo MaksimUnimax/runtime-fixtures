@@ -1,19 +1,41 @@
-# Model answers and editable prompts — 2026-11-09
+# Обработчик API и обычный ответ модели — 09.11.2026
 
-Status: implemented and independently source-reviewed; full regression and rollout are in progress. This file is not an installation receipt.
+Задача поставки: три редактируемых промпта, передача исходного вопроса и фактических API-данных модели, общий порядок обработки ошибок и сохранность задания. Наполнение и настройка шаблонов выделены владельцем в отдельную работу.
 
-Owner contract: `docs/alisa/architecture/ANSWER_MODEL_CONTRACT_20261109.md`.
+Исходный код R3: `b1c84af9e4400b74275af1fd119ea0e66bcee548`. База — весь установленный `alisa-paid-model-result-r2-20261109`, включая параллельные изменения обработки подписок; station-base — `station-answer-model-r2-20261109`. Статус установки и live-проверки см. `VERIFICATION_20261109.md`; этот README сам по себе не является квитанцией установки.
 
-Runtime base: `alisa-ozon-subscription-access-r1-20261109`.
-Station base: `station-auto-r8-model-usage-r8`.
-Copy the entire installed base, then overlay only the files in `source-hashes.json`; do not install a historical partial runtime directory as a complete package.
+## Работа запроса
 
-Three OWNER settings: `request_planning_prompt`, `answer_prompt`, `answer_extra_instruction` (empty by default). Original user text and clarification turns remain intact. Final generation receives permitted full API responses with operation/store/request parameters; no final JSON, DSL, facts or acknowledgement format.
+1. Если готовый шаблон выбран однозначно, сервер использует его. При модельном разборе передаёт `request_planning_prompt`; значение фиксируется для задания.
+2. Все чтения выполняет существующий worker. Полученные бизнес-данные сохраняются в том же задании. Авторизационные токены не попадают в данные для модели.
+3. При ошибке применяется общая политика: известный безопасный повтор раньше любого модельного пояснения. 429 учитывает Retry-After и увеличивает задержку; 408/425/500/502/503/504 и временные сетевые ошибки повторяют допустимое чтение. Завершённые стадии сохраняются.
+4. Если автоматического решения нет, модель получает исходный вопрос и подтверждённые сведения об отказе. Подписка определяется по фактическому ответу Ozon; generic403 не превращается в Premium. После 401/403 ранее полученные бизнес-данные не включаются в пояснение.
+5. Для итогового ответа передаются `answer_prompt`, исходный вопрос, уточнения пользователя и все разрешённые полученные API-данные с происхождением. `answer_extra_instruction` добавляется только при непустом значении. Ответ модели — обычный текст, без обязательной структуры и без серверного переписывания.
+6. Ответ сохраняется; доставка, повтор входящего сообщения и «дальше» используют сохранённый результат. Повтор финального вызова модели не повторяет успешные API-чтения.
 
-Successful reads and final generation use the same durable job and call ledger. Retryable API failures use the shared queue/backoff first; unresolved responses become data for the model. Confirmed 401/403 notices contain only safe refusal details and are bound to the same job's received HTTP error receipt. They never permit another API read. Delivery, replay, expiry, pagination and tenant/store revocation remain enforced.
+## Админка
 
-Provider denial classification reuses the parallel paid-response work (`provider_denial.py`, `provider_access_result.py`); its JSON model-acknowledgement/fixed-server-answer path is not part of this overlay, because the owner's new contract requires ordinary model text. No files in the parallel executor's candidate were changed.
+https://alisa-admin.octoport.ru/admin/station/
 
-Verified so far: 20 focused whole-job tests, 46 station/admin tests, 6 installer fault tests; one further revocation-race test and one cold-auth test are included in the full regression now running. Source review APPROVE; installed/live verification pending.
+| Поле | Значение по умолчанию |
+|---|---|
+| request_planning_prompt | Разбери запрос пользователя и подбери нужные шаблоны для получения данных, необходимых для ответа. Сохрани все условия исходного вопроса. |
+| answer_prompt | Ответь на вопрос пользователя, используя эти данные. |
+| answer_extra_instruction | Пусто; сообщение с уточнением отсутствует в отправке. |
 
-Limits: ordinary model text can contain factual or arithmetic mistakes. Full source sets may exceed a provider context window; they are not silently sampled. Existing structured collection/planning remains separate from final text generation. A deterministic preselected template does not incur an extra model planning call.
+Поля доступны только OWNER. Сохранение атомарное, с номером версии; устаревшая форма не затирает более новое значение. Непустые переносы строк сохраняются, пробельное значение очищается. Настройки сохраняются после рестарта. Для начавшегося финального вызова фиксируется снимок двух промптов; повтор использует его же.
+
+## Что исправлено в логике
+
+- Финальная генерация больше не проходит через старый интерпретатор выражений/формат аналитических команд.
+- После локальной ошибки параметров модель получает описание выбранного зарегистрированного метода. Точное имя метода приоритетнее похожих результатов. Это не изменение шаблонов или запросов API.
+- Повтор поиска A → B → A возвращает описание A.
+- Адаптер не принуждает финальную генерацию к отключённому рассуждению. Провайдер/модель не заменены; финальный сетевой срок 90 с согласован с арендой 120 с и остановкой службы 120 с.
+- Квитанция отказа и переход к формированию пояснения записываются вместе. Проверяются принадлежность задания, действующий доступ, отмена и срок выдачи. FAILED-метаданные недоступны с 900-йсекунды даже до физической очистки.
+- Реальная отправка модели, включая ошибку/повтор, входит в недельный счётчик. Ожидание пула, ошибка до отправки и повтор доставки не увеличивают его. Метрика не хранит вопросы/ответы или идентификаторы клиентов; записи старше 7 дней удаляются.
+
+## Почему общий механизм
+
+Классификация отказа и выбор следующей стадии находятся в общем worker/recovery, а особенности HTTP и подписок — в адаптерах площадок. Нет веток под формулировки контрольных вопросов, подмены результата запасным серверным ответом или исполнения текста модели. Используются существующие очередь, журнал попыток и транзакции; второй независимый цикл исполнения не создан.
+
+Ограничения: обычный текст модели может ошибаться в смысле и арифметике. Это фиксируется отдельными результатами live-проверки; успешные технические тесты не доказывают правильность любого ответа. Внутреннее управление чтением по зарегистрированному каталогу остаётся структурированным. Если полный набор данных превышает контекст провайдера, он не подменяется незаметной выборкой. Вечное отсутствие восстановления внешнего API не может быть устранено обещанием отсутствия ошибок.
