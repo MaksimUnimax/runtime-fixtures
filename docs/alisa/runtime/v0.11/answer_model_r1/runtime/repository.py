@@ -352,12 +352,17 @@ class Repository:
             c.execute("UPDATE jobs SET state='READY',result=?,progress=NULL,error=NULL,expires=?,updated=?,owner=NULL,lease=NULL WHERE id=?",
                       (canonical_json(result),self.clock()+min(self.ttl,plan.get('freshness_seconds',self.ttl)),self.clock(),jid))
 
-    def fail(self,jid,owner,code,unknown=False):
+    def fail(self,jid,owner,code,unknown=False,*,model_response=None):
+        if model_response is not None:
+            from provider_access_result import validate
+            if unknown or validate(model_response)is None:raise Rejected('MODEL_ACCESS_RESULT_SCHEMA')
         with self.connection(True) as c:
             try: self._owned(c,jid,owner)
             except Rejected: return False
             c.execute('UPDATE jobs SET state=?,error=?,updated=?,owner=NULL,lease=NULL WHERE id=?',
                       ('UNKNOWN' if unknown else 'FAILED',code,self.clock(),jid))
+            if model_response is not None:
+                c.execute('UPDATE jobs SET result=? WHERE id=?',(canonical_json({'model_result':model_response}),jid))
             return True
 
     def reader_scope(self,tenant,conversation):

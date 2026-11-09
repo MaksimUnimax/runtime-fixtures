@@ -35,7 +35,7 @@ def set_pin(expected,replacement):
     return digest(CONFIG)
 
 def main():
-    receipt=json.loads((ROOT/'PREPARED_ANSWER_R2.json').read_text())
+    receipt=json.loads((ROOT/'PREPARED_ANSWER_R3.json').read_text())
     assert show('alice-market.service','WorkingDirectory')==str(BASE),'ACTIVE_BASE_CHANGED'
     assert show('alisa-station.service','WorkingDirectory')==str(STATION),'STATION_BASE_CHANGED'
     assert receipt['config_sha256']==digest(Path('/etc/alice-market/market-runtime.json')),'CONFIG_CHANGED'
@@ -53,7 +53,7 @@ def main():
         app_overrides.append(override('alisa-station.service',f'WorkingDirectory={STARGET}\nExecStart=\nExecStart=/usr/bin/python3 -B {STARGET}/service.py --state /var/lib/alisa-station --key /run/credentials/alisa-station.service/station-key\n'))
         maintenance=override('alice-market-retention.service',f'ExecStart=\nExecStart=/usr/bin/python3 -B {TARGET}/retention.py --database /var/lib/alice-market/state.sqlite3 --status-file /var/lib/alice-market/retention-status.json\n')
         receipt['app_overrides']=[str(p)for p in app_overrides];receipt['maintenance_override']=str(maintenance)
-        (ROOT/'ACTIVATING_ANSWER_R2.json').write_text(json.dumps(receipt,indent=2))
+        (ROOT/'ACTIVATING_ANSWER_R3.json').write_text(json.dumps(receipt,indent=2))
         command('systemctl','stop','alice-market.service')
         with sqlite3.connect('file:/var/lib/alice-market/state.sqlite3?mode=ro',uri=True)as c:
             assert c.execute("SELECT COUNT(*) FROM jobs WHERE state IN ('QUEUED','RUNNING')").fetchone()[0]==0,'POST_STOP_ACTIVE_JOBS_RESUME_OLD_BASE'
@@ -74,7 +74,7 @@ def main():
             prefix,name=n.split('/',1);path=(TARGET if prefix=='runtime'else STARGET)/name
             assert digest(path)==h,'INSTALLED_SOURCE_MISMATCH'
         receipt['state']='INSTALLED';receipt['at']=time.time()
-        (ROOT/'INSTALLED_ANSWER_R2.json').write_text(json.dumps(receipt,indent=2))
+        (ROOT/'INSTALLED_ANSWER_R3.json').write_text(json.dumps(receipt,indent=2))
         print(json.dumps(dict(state='INSTALLED',runtime=TARGET.name,station=STARGET.name,source=receipt['source_commit'])))
     except BaseException as error:
         # Each recovery is attempted even if another recovery step fails.
@@ -101,7 +101,7 @@ def main():
             try:restored[unit]=show(unit,'ActiveState')=='active' and show(unit,'WorkingDirectory')==str(base)
             except Exception:restored[unit]=False
         state='ROLLED_BACK' if all(restored.values()) and not recovery_errors else 'ROLLBACK_FAILED'
-        (ROOT/'ROLLED_BACK_ANSWER_R2.json').write_text(json.dumps(dict(state=state,error=type(error).__name__,recovery_errors=recovery_errors,restored=restored)))
+        (ROOT/'ROLLED_BACK_ANSWER_R3.json').write_text(json.dumps(dict(state=state,error=type(error).__name__,recovery_errors=recovery_errors,restored=restored)))
         raise
 
 if __name__=='__main__':

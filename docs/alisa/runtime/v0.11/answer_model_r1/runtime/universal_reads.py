@@ -413,6 +413,9 @@ def worker_step(worker,row,plan):
         elif action=='read':
             need(set(decision)in ({'action','store_id','operation','params'},{'action','store_id','operation','params_expr'}),'READ_PLANNER_SCHEMA')
             store=next((s for s in plan['stores']if s['id']==decision['store_id']),None);need(store is not None,'SOURCE_ACCESS')
+            # Keep the selected method's actual catalogue contract in context,
+            # including when its local parameter check rejects this attempt.
+            progress['discovery']=surface.discover(store['platform'],decision['operation'],None,0)
             params=surface.normalize_params(store['platform'],decision['operation'],resolve_params(decision,plan,progress['calls']))
             decision={'action':'read','store_id':decision['store_id'],'operation':decision['operation'],'params':params}
             identifier_provenance(decision['params'],plan['question'],[call for call in progress['calls']if call['store_id']==store['id']])

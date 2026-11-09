@@ -19,8 +19,7 @@ def detail(request, error):
     from provider_access_result import from_error
     access = from_error(error)
     if access is not None:
-        return {k:access[k] for k in ('provider','operation','status','http_status',
-                'required_subscriptions','subscription_relation','message','data','retryable')}
+        return access
     reasons = {
         400:'Площадка отклонила параметры запроса.',
         401:'Площадка не приняла авторизацию запроса. Требуется проверить подключение магазина.',
@@ -56,10 +55,15 @@ def stage(worker, row, request, error, receipt):
         # disclosing earlier source contents or attempting another source read.
         denied = error.status in (401,403)
         data = [] if denied else progress.get(API_DATA,progress.get('calls',[]))
-        data = [*data, {'operation':request.operation,'store':request.store_id,'error':failure}]
+        item={'operation':request.operation,'store':request.store_id,'error':failure}
+        from provider_access_result import validate
+        access=validate(failure)
+        if access is not None:item['model_result']=access
+        data=[*data,item]
         stamp=datetime.fromtimestamp(worker.repo.clock(),timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
         pending={'data':{'provider_error':failure},'provider_error':failure,
                  'fetched_at':stamp,'failure_code':error.code,'permission_notice':denied,'failure_receipt':receipt}
+        if access is not None:pending['model_result']=access
         # Do not retain the acquisition pending command after a terminal refusal.
         worker.repo.reschedule(row['id'],row['owner'],{API_DATA:data,PENDING:pending})
     return True

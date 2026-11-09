@@ -57,4 +57,8 @@ def status(engine, value):
                 c.execute('UPDATE reader_cursors SET delivered=? WHERE tenant=? AND conversation=? AND jid=?',
                           (int(len(pages) == 1), tenant, target, jid))
             # A retry returns page zero without resetting a reader that already advanced.
-    return {'state': state, 'text': text, 'tts': text}
+    result={'state':state,'text':text,'tts':text}
+    if state in ('FAILED','READY'):
+        model_result=engine.access_failure_result(row)
+        if model_result is not None:result['model_result']=model_result
+    return result

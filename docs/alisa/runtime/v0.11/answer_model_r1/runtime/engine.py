@@ -190,12 +190,26 @@ class Engine:
             code=row['error']
             allowed=code in CATALOG['entries']and (code in ('HTTP_401','HTTP_403')or code.startswith('HTTP_403_OZON_')or code=='HTTP_403_READ_RESOURCE_DENIED')
             if row['state']!='FAILED'or not allowed or not row['plan']:return None
+            from retention import PAYLOAD_TTL
+            if row['updated']+PAYLOAD_TTL<=self.repo.clock():return None
             plan=strict_json(row['plan'])
             if plan['tenant']!=row['tenant']:return None
             frozen=Scope(plan['tenant'],plan['access_revision'],tuple(Store(**store)for store in plan['stores']))
             if not self.scope_current(frozen):return None
-            return explain(code)['text']
+            from provider_access_result import stored
+            value=stored(row)
+            return value['message']if value is not None else explain(code)['text']
         except (Rejected,KeyError,TypeError,ValueError,OSError):return None
+
+    def access_failure_result(self,row):
+        from provider_access_result import stored
+        if row['state']=='FAILED':
+            if self.access_failure_notice(row)is None:return None
+        elif row['state']=='READY':
+            from provider_failure import notice_authorized
+            if not notice_authorized(self,row)or(row['expires']or 0)<=self.repo.clock():return None
+        else:return None
+        return stored(row)
 
     def output_authorized(self,row):
         from provider_failure import permission_notice, notice_authorized
@@ -453,7 +467,8 @@ class Worker:
         except Deferred as exc:
             self.repo.reschedule(jid,owner,until=exc.until)
         except CallError as exc:
-            self.repo.fail(jid,owner,exc.code,exc.unknown)
+            from provider_access_result import from_error
+            self.repo.fail(jid,owner,exc.code,exc.unknown,model_response=from_error(exc))
         except (Rejected,MatrixError) as exc:
             # A known response failed deterministic schema/math/projection checks.
             # Do not misclassify it as an uncertain provider outcome.

@@ -239,6 +239,32 @@ class AnswerFlow(unittest.TestCase):
         self.assertEqual(plans[3].body['context']['discovery']['request']['cluster'],'marketplace')
         self.assertIn({'operation':'calendar_promotions','cluster':'calendar'},plans[0].body['context']['method_index']['wb'])
 
+    def test_selected_method_contract_is_visible_after_parameter_form_error(self):
+        self.transport.decisions=[
+            {'action':'read','store_id':'wb1','operation':'calendar_promotions','params':{'query':{'startDateTime':'2026-11-03T00:00:00+03:00','endDateTime':'2026-11-03T23:59:59+03:00','allPromo':False}}},
+            {'action':'read','store_id':'wb1','operation':'calendar_promotion_details','params':{'promotionIDs':[777]}},
+            {'action':'read','store_id':'wb1','operation':'calendar_promotion_details','params':{'query':{'promotionIDs':[777]}}},
+            {'action':'data_ready'}]
+        self.transport.data={'data':{'promotions':[{'id':777,'type':'regular','name':'Акция'}]}}
+        r=self.run_job(self.ask('В каких акциях участвуют товары на Вайлдберриз'))
+        self.assertEqual(r['state'],'READY',r['error'])
+        plans=[x for x in self.transport.calls if x.operation=='deepseek_read_plan']
+        self.assertEqual(plans[2].body['context']['feedback']['code'],'READ_PARAMETER_FORM_REQUIRED')
+        meta=next(x for x in plans[2].body['context']['discovery']['items']if x['operation']=='calendar_promotion_details')
+        self.assertEqual(meta['parameter_forms'],[{'path':['query','promotionIDs'],'kind':'positive_integer_list'}])
+        self.assertEqual([x.operation for x in self.transport.calls].count('read.wb.calendar_promotion_details'),1)
+
+    def test_exact_selected_method_is_first_among_more_than_one_discovery_page(self):
+        from copy import deepcopy
+        catalogue=deepcopy(read_surface.CATALOG)
+        methods=catalogue['providers']['wb']['operations']
+        for i in range(27):methods[f'aaa_calendar_promotion_details_{i}']=deepcopy(methods['calendar_promotion_details'])
+        with patch.object(read_surface,'CATALOG',catalogue):
+            discovery=read_surface.discover('wb','calendar_promotion_details')
+        self.assertGreater(discovery['total'],25)
+        self.assertEqual(discovery['items'][0]['operation'],'calendar_promotion_details')
+        self.assertEqual(discovery['items'][0]['parameter_forms'],[{'path':['query','promotionIDs'],'kind':'positive_integer_list'}])
+
 class Adapter(unittest.TestCase):
     def test_payload_is_plain_text_without_output_schema(self):
         from http_transport import HTTPTransport
