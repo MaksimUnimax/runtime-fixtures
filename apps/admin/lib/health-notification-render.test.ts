@@ -112,6 +112,25 @@ afterEach(() => {
   response.error = null;
 });
 
+describe("Health notification public sink identification", () => {
+  it.each(["PENDING", "CLAIMED", "DELIVERED"])("does not infer no sink selection from a null public category in %s", (state) => {
+    response.data = { ...notification(state), providerSink: null };
+    const html = renderToStaticMarkup(createElement(HealthNotificationDetailPage));
+    expect(html).toContain("<td>Not identified</td>");
+    expect(html).not.toContain("Not selected");
+  });
+
+  it.each([
+    ["DELIVERED", "DETERMINISTIC_TEST_SINK"],
+    ["SUPPRESSED", "DISABLED_SINK"],
+  ])("preserves the recorded public sink category for %s", (state, providerSink) => {
+    response.data = { ...notification(state), providerSink };
+    const html = renderToStaticMarkup(createElement(HealthNotificationDetailPage));
+    expect(html).toContain(`<td>${providerSink}</td>`);
+    expect(html).not.toContain("Not identified");
+  });
+});
+
 describe("Health notification attempt schedule visibility", () => {
   it.each(cases)("list uses persisted %s to qualify the retained date", (state, label) => {
     const item = notification(state);

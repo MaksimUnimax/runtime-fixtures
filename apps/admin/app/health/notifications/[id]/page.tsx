@@ -112,7 +112,7 @@ export default function HealthNotificationDetailPage() {
                   result.data.state,
                   result.data.routeKey,
                   `${result.data.provider} / ${result.data.surface}`,
-                  result.data.providerSink ?? "Not selected",
+                  result.data.providerSink ?? "Not identified",
                   formatHealthNotificationResult(result.data.lastProviderResultCode, result.data.attemptCount),
                 ],
               ]}
