@@ -970,8 +970,9 @@ describe.sequential(
         statusAt: providerStatusAt,
       });
       const repo = createP5ReconciliationRepository(db, { now: () => clock });
+      const claimedAt = new Date(clock);
       const claims = await repo.claimDue({
-        now: clock,
+        now: claimedAt,
         leaseMs: 60_000,
         batchSize: 1,
       });
@@ -988,10 +989,18 @@ describe.sequential(
         amountMinor: 1900,
         currency: "RUB",
       });
+      // Distinguish provider business time from later receipt/processing time.
+      const processingAt = new Date(providerStatusAt.getTime() + 5_000);
+      clock = new Date(processingAt);
+      expect(paymentBefore.createdAt.getTime()).toBeLessThanOrEqual(
+        providerStatusAt.getTime(),
+      );
       expect(claim.createdAt.getTime()).toBeLessThanOrEqual(
         providerStatusAt.getTime(),
       );
-      expect(providerStatusAt.getTime()).toBeLessThanOrEqual(clock.getTime());
+      expect(providerStatusAt.getTime()).toBeLessThan(processingAt.getTime());
+      expect(processingAt.getTime()).toBeLessThan(claimedAt.getTime() + 60_000);
+      expect(processingAt.getTime()).toBeLessThan(expectedPeriodEnd.getTime());
       const expectedPayload = createHash("sha256")
         .update(
           `product-control-plane/billing-reconciliation/payload/v1\npaymentId=${c.paymentId}\nprovider=simulator\nproviderPaymentId=${c.providerPaymentId}\nstate=SUCCEEDED\namountMinor=1900\ncurrency=RUB\nstatusAt=${providerStatusAt.toISOString()}`,
@@ -1088,9 +1097,9 @@ describe.sequential(
           paymentId: c.paymentId,
           subscriptionId: subscription.id,
           transitionId: transition.id,
-          receivedAt: clock,
-          verifiedAt: clock,
-          processedAt: clock,
+          receivedAt: processingAt,
+          verifiedAt: processingAt,
+          processedAt: processingAt,
           failureCode: null,
         },
       ]);
