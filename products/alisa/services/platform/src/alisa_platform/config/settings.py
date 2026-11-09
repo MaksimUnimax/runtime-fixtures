@@ -208,3 +208,16 @@ if OWNER_DATA_ENABLED and not (ACCOUNTS_ENABLED and STORES_ENABLED and ENTITLEME
     raise RuntimeError("Owner data requires accounts, stores and entitlements")
 if OWNER_RUNTIME_ENABLED and not OWNER_DATA_ENABLED:
     raise RuntimeError("Owner runtime requires owner data")
+
+INSTALLED_APPS += ['alisa_platform.queries']
+QUERIES_ENABLED = os.environ.get('ALISA_QUERIES_ENABLED', '0') == '1'
+RUNTIME_VERSIONS_PATH = os.environ.get('ALISA_RUNTIME_VERSIONS_PATH', '')
+RUNTIME_JOB_SOCKET = os.environ.get('ALISA_RUNTIME_JOB_SOCKET', '')
+try:
+    RUNTIME_JOB_UID = int(os.environ.get('ALISA_RUNTIME_JOB_UID', '-1'))
+except ValueError:
+    raise ImproperlyConfigured('Invalid runtime UID') from None
+if os.environ.get('ALISA_QUERIES_ENABLED', '0') not in {'0', '1'} or (QUERIES_ENABLED and
+        (not RUNTIME_AUTHORITY_ENABLED or RUNTIME_JOB_UID < 0 or
+         not RUNTIME_VERSIONS_PATH.startswith('/') or not RUNTIME_JOB_SOCKET.startswith('/'))):
+    raise ImproperlyConfigured('Invalid query runtime configuration')

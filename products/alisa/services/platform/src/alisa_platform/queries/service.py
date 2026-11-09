@@ -1,0 +1,138 @@
+"""Receipt metadata only. IPC happens outside DB locks, never on a worker queue.
+
+An ambiguous submit is retained under the original ID. Only an explicit recovery
+with the identical question may repeat that ID; ordinary status/list never submit.
+"""
+from datetime import timedelta
+import hashlib
+import uuid
+from django.conf import settings
+from django.db import transaction
+from django.utils import timezone
+from alisa_platform.accounts.models import Membership
+from alisa_platform.runtime_adapter.authority_rpc import configured_authority
+from alisa_platform.runtime_adapter.client import configured_client
+from alisa_platform.runtime_adapter.job_client import RuntimeFailure, encode, identifier, need, text, timestamp
+from .models import Query
+
+
+def enabled():
+    need(getattr(settings, 'QUERIES_ENABLED', False) is True, 'CAPABILITY_UNAVAILABLE')
+
+
+def actor(principal):
+    customer, tenant, _, _ = principal.current()
+    need(Membership.objects.filter(customer_id=customer, tenant_id=tenant, role='OWNER_CLIENT').exists(),
+         'PERMISSION_DENIED')
+    return customer, tenant
+
+
+def receipt(row):
+    return {'id': str(row.pk), 'state': row.state, 'store_ids': row.store_ids,
+            'created_at': row.created_at.isoformat(), 'expires_at': row.expires_at.isoformat(),
+            'checked_at': row.checked_at.isoformat() if row.checked_at else None,
+            'submission_confirmed': row.runtime_job_ref is not None}
+
+
+def owned(principal, query_id, *, lock=False):
+    customer, tenant = actor(principal)
+    identifier(query_id)
+    rows = Query.objects.select_for_update() if lock else Query.objects
+    row = rows.filter(pk=query_id, customer_id=customer, tenant_id=tenant).first()
+    need(row is not None, 'NOT_FOUND')
+    need(row.expires_at > timezone.now(), 'RESULT_EXPIRED')
+    return row
+
+
+def client(principal, stores):
+    from alisa_platform.runtime_adapter.authority import PlatformAuthorizer
+    return configured_client(PlatformAuthorizer(configured_authority(), principal, stores))
+
+
+def list_queries(principal):
+    enabled(); customer, tenant = actor(principal)
+    rows = Query.objects.filter(customer_id=customer, tenant_id=tenant,
+                                expires_at__gt=timezone.now()).order_by('-created_at')[:50]
+    result = [receipt(row) for row in rows]
+    need(actor(principal) == (customer, tenant), 'AUTH_REQUIRED')
+    return {'items': result}
+
+
+def submit(principal, query_id, stores, utterance, *, recover=False, channel='WEB', voice_session_hash=''):
+    enabled(); identifier(query_id); text(utterance, 1200); need(utterance.strip())
+    need(type(recover) is bool and channel in {'WEB', 'ALICE'})
+    need(type(stores) is list and 1 <= len(stores) <= 1000)
+    stores = sorted(identifier(s) for s in stores); need(len(set(stores)) == len(stores))
+    customer, tenant = actor(principal)
+    api = client(principal, stores)
+    # Validate access/mapping before persisting a receipt, without holding our row lock.
+    api.authorizer.prepare('submit')
+    mark = hashlib.sha256(encode({'stores': stores, 'utterance': utterance})).hexdigest()
+    now = timezone.now(); attempt = uuid.uuid4()
+    with transaction.atomic():
+        row, created = Query.objects.get_or_create(pk=query_id, defaults={
+            'customer_id': customer, 'tenant_id': tenant, 'store_ids': stores,
+            'input_hash': mark, 'channel': channel, 'voice_session_hash': voice_session_hash,
+            'created_at': now, 'expires_at': now + timedelta(days=1)})
+        row = owned(principal, query_id, lock=True)
+        need(row.input_hash == mark, 'IDEMPOTENCY_CONFLICT')
+        if row.runtime_job_ref or (not created and not recover) or (row.lease_until and row.lease_until > now):
+            return {'query': receipt(row)}, 200 if row.runtime_job_ref else 202
+        row.attempt = attempt; row.lease_until = now + timedelta(seconds=30)
+        row.save(update_fields=['attempt', 'lease_until'])
+        trace_id = str(row.trace_id)
+    try:
+        accepted = api.submit(utterance, request_id=query_id, logical_query_id=query_id, trace_id=trace_id)
+    except RuntimeFailure as error:
+        # No result, question, tokens or raw provider errors are journalled here.
+        with transaction.atomic():
+            row = Query.objects.select_for_update().get(pk=query_id)
+            if row.attempt == attempt:
+                row.state = 'UNKNOWN'; row.attempt = None; row.lease_until = None
+                row.save(update_fields=['state', 'attempt', 'lease_until'])
+        if error.outcome == 'UNKNOWN':
+            owned(principal, query_id)
+            return {'query': receipt(row), 'code': 'UNKNOWN_OUTCOME'}, 202
+        raise
+    with transaction.atomic():
+        row = owned(principal, query_id, lock=True)
+        if row.attempt == attempt:
+            row.runtime_job_ref = accepted['job_ref']; row.state = 'QUEUED'
+            row.attempt = None; row.lease_until = None; row.checked_at = timezone.now()
+            row.save(update_fields=['runtime_job_ref', 'state', 'attempt', 'lease_until', 'checked_at'])
+    return {'query': receipt(row)}, 201
+
+
+def read(principal, query_id, *, result=False):
+    enabled(); row = owned(principal, query_id)
+    if row.runtime_job_ref is None:
+        return {'query': receipt(row), 'code': 'UNKNOWN_OUTCOME'}
+    api = client(principal, row.store_ids)
+    operation = 'read_result' if result else 'status'
+    context = api.authorizer.prepare(operation)
+    value = api.read_result(str(row.runtime_job_ref)) if result else api.status(str(row.runtime_job_ref))
+    # Runtime has already rechecked live rights and TTL; recheck the web/OAuth principal too.
+    current = owned(principal, query_id)
+    if result:
+        need(timestamp(value['result_expires_at']) > timezone.now().timestamp(), 'RESULT_EXPIRED')
+        if value.get('result_kind', 'DATA') == 'DATA':
+            from alisa_platform.leads.views import event
+            event('query.first_useful_ready', subject=current.customer_id)
+    Query.objects.filter(pk=row.pk).update(state=value['state'], checked_at=timezone.now())
+    current.state = value['state']; current.checked_at = timezone.now()
+    need(api.authorizer.current(context, operation) is True, 'PERMISSION_DENIED')
+    need(current.expires_at > timezone.now(), 'RESULT_EXPIRED')
+    if result:
+        need(timestamp(value['result_expires_at']) > timezone.now().timestamp(), 'RESULT_EXPIRED')
+    return {'query': receipt(current), 'result' if result else 'status': value}
+
+
+def cancel(principal, query_id, request_id):
+    enabled(); identifier(request_id); row = owned(principal, query_id)
+    if row.runtime_job_ref is None:
+        return {'query': receipt(row), 'code': 'UNKNOWN_OUTCOME'}
+    value = client(principal, row.store_ids).cancel(str(row.runtime_job_ref), request_id=request_id)
+    current = owned(principal, query_id)
+    Query.objects.filter(pk=row.pk).update(state=value['state'], checked_at=timezone.now())
+    current.state = value['state']; current.checked_at = timezone.now()
+    return {'query': receipt(current), 'status': value}

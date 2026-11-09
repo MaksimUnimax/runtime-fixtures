@@ -101,6 +101,7 @@ def main():
                 runtime['ALISA_RT_JOB_TEST_SOURCE']=str(source)
                 runtime['ALISA_RT_JOB_MANIFEST_SHA256']=hashlib.sha256((source/'CURRENT_CORE_MANIFEST.json').read_bytes()).hexdigest()
                 cases.append(('current_core_roundtrip', ROOT / 'tests/runtime_authority/current_core_roundtrip.py'))
+                cases.append(('query_roundtrip', ROOT / 'tests/runtime_authority/query_roundtrip.py'))
             for label, script in cases:
                 output = temp / (label + '.json')
                 result = subprocess.run([sys.executable, str(script), '--output', str(output)],
