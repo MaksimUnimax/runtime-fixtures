@@ -108,6 +108,8 @@ class AnswerFlow(unittest.TestCase):
         self.assertEqual([c.operation for c in self.transport.calls].count('read.ozon.ozon_actions_list'),1)
         self.assertIn('Акция 39',self.transport.answer_calls[0].body['messages'][-1]['content'])
         self.assertEqual(next(c for c in self.transport.calls if c.operation=='deepseek_read_plan').body['system'],COLLECTION_SYSTEM)
+        index=next(c for c in self.transport.calls if c.operation=='deepseek_read_plan').body['context']['method_index']
+        self.assertTrue(any(x['operation']=='ozon_actions_list' for x in index['ozon']))
     def test_access_revoked_before_final_model(self):
         a=self.ask();self.worker.step();self.scope=replace(self.scope,revision='revoked');r=self.run_job(a)
         self.assertEqual(r['error'],'SOURCE_ACCESS');self.assertFalse(self.transport.answer_calls)
@@ -225,6 +227,18 @@ class AnswerFlow(unittest.TestCase):
         context=self.transport.answer_calls[-1].body['messages'][-1]['content']
         self.assertNotIn('authorized',context);self.assertIn('participating_products_count',context)
 
+    def test_revisited_discovery_returns_requested_cluster_after_different_search(self):
+        self.transport.decisions=[
+            {'action':'discover','platform':'wb','cluster':'marketplace','query':'акции','offset':0},
+            {'action':'discover','platform':'wb','cluster':'prices','query':'акции','offset':0},
+            {'action':'discover','platform':'wb','cluster':'marketplace','query':'акции','offset':0},
+            {'action':'clarify','question':'Уточните интересующие акции'}]
+        r=self.run_job(self.ask('Какие акции доступны сейчас на Вайлдберриз'))
+        self.assertEqual(r['state'],'READY',r['error'])
+        plans=[x for x in self.transport.calls if x.operation=='deepseek_read_plan']
+        self.assertEqual(plans[3].body['context']['discovery']['request']['cluster'],'marketplace')
+        self.assertIn({'operation':'calendar_promotions','cluster':'calendar'},plans[0].body['context']['method_index']['wb'])
+
 class Adapter(unittest.TestCase):
     def test_payload_is_plain_text_without_output_schema(self):
         from http_transport import HTTPTransport
@@ -236,6 +250,6 @@ class Adapter(unittest.TestCase):
         transport=HTTPTransport('/unused',{}, {},enabled=True)
         with patch.object(transport,'_credential',return_value='synthetic-provider-key'),patch('http_transport.read_response',side_effect=http):
             value,meta=transport.execute(Request('model_answer','model:fixture','',{'messages':messages('Вопрос',{'rows':[1,2]})},0,None),None)
-        self.assertEqual(value['content'],'Обычный текст { без JSON');self.assertNotIn('response_format',seen[0]);self.assertNotIn('tools',seen[0]);self.assertEqual(len(seen[0]['messages']),3)
+        self.assertEqual(value['content'],'Обычный текст { без JSON');self.assertNotIn('response_format',seen[0]);self.assertNotIn('thinking',seen[0]);self.assertNotIn('tools',seen[0]);self.assertEqual(len(seen[0]['messages']),3)
 
 if __name__=='__main__':unittest.main()

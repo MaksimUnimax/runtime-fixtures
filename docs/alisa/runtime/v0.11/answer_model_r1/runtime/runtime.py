@@ -96,7 +96,7 @@ def main(argv=None):
     try:
         gateway.serve_forever(poll_interval=.25)
     finally:
-        stop.set();thread.join(timeout=30);gateway.server_close()
+        stop.set();thread.join(timeout=transport.max_request_seconds+10);gateway.server_close()
         try:Path(socket_path).unlink()
         except FileNotFoundError:pass
     return 0
