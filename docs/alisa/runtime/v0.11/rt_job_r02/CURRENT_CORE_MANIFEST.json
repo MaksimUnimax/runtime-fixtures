@@ -3,7 +3,7 @@
   "base_source_sha256": "aca9b07277f0d513c3a7a477756fcf01d4b2e9b77eb95ae800167d8cee788bac",
   "files": {
     "BASE_INSTALLED_MANIFEST.json": "170fc0c331b588615451c7073862f4a93b2a55729808a2d1dca642936a8af439",
-    "SOURCE_SNAPSHOT.json": "47cb7d80462b7ffeaf62f36e5e625fb7e959665fb0ac33fe135c3daca24503eb",
+    "SOURCE_SNAPSHOT.json": "99482e283735a4f51a4186e843e37186d2b3bf54e37f15789b78fe21bf0934cc",
     "alice_bridge.py": "889705eebd7e080f87bf155c8c3351e1d604dfc431b6e7defb8c44a8ca25c202",
     "architecture_gate.py": "03c3b1e896e87f638aadf3120240192146206a0567c8e7f743ab9339d6127c58",
     "artifact_retention.py": "ba49f1b5e35d6536588291ba32f8f8d7ad66a5ce2c18b887bd1261d2cf3ffca0",
