@@ -83,6 +83,7 @@ describe("Health target evaluation scope authority", () => {
       expect(value?.latestHealthState).toBe("UNKNOWN");
       expect(value?.latestSchedulerState).toBe("FAILED_RETRYABLE");
       expect(value?.evaluations[0]?.currentAuthority).toBe(true);
+      expect(value?.recommendation).toBe(view);
       expect(value?.healthRecommendation).toMatchObject({
         recommendation: view,
         reasonCode: `H5_${source}`,
@@ -146,6 +147,51 @@ describe("Health target evaluation scope authority", () => {
       expect(value?.healthRecommendation?.issuedAt).toBe(at);
     },
   );
+
+  it("clears a stale-only broad recommendation after hydration", async () => {
+    const { repository } = fixture(
+      [evaluation({ browserVersion: "121.0.0.0", recommendation: "RESTRICT" })],
+      target({ h5_recommendation: "RESTRICT" }),
+    );
+    const value = await repository.getTarget(targetId);
+    expect(value?.evaluations[0]?.currentAuthority).toBe(false);
+    expect(value?.healthRecommendation).toBeNull();
+    expect(value?.recommendation).toBeNull();
+  });
+
+  it.each([false, true])(
+    "uses the selected current recommendation despite newer stale input (reverse=%s)",
+    async (reverse) => {
+      const rows = [
+        evaluation({
+          id: "00000000-0000-4000-8000-000000000003",
+          browserVersion: "121.0.0.0",
+          recommendation: "RESTRICT",
+          latestEvaluatedAt: "2030-01-02T00:00:00.000Z",
+        }),
+        evaluation(),
+      ];
+      const { repository } = fixture(
+        reverse ? rows.reverse() : rows,
+        target({ h5_recommendation: "RESTRICT" }),
+      );
+      const value = await repository.getTarget(targetId);
+      expect(value?.healthRecommendation).toMatchObject({
+        recommendation: "NO_RESTRICTION_SIGNAL",
+        browserVersionScope: "120.0.0.0",
+        executionAuthority: false,
+      });
+      expect(value?.recommendation).toBe("NO_RESTRICTION_SIGNAL");
+      expect(value?.latestHealthState).toBe("UNKNOWN");
+    },
+  );
+
+  it("clears a broad signal when no current recommendation was read", async () => {
+    const { repository } = fixture([], target({ h5_recommendation: "RESTRICT" }));
+    const value = await repository.getTarget(targetId);
+    expect(value?.healthRecommendation).toBeNull();
+    expect(value?.recommendation).toBeNull();
+  });
 
   it(
     "keeps missing evaluations empty and never fabricates a healthy result",

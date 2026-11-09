@@ -474,6 +474,7 @@ async function hydrateTarget(runtime: DatabaseRuntime, row: Row) {
       )[0]?.recommendationView ?? null;
   return HealthAdminTargetDetailSchema.parse({
     ...target,
+    recommendation: latestRecommendation?.recommendation ?? null,
     contourStatuses: contourRows.rows.map((value) => ({
       contourKey: value.contourKey,
       outcome: value.result?.outcome ?? "UNKNOWN",
