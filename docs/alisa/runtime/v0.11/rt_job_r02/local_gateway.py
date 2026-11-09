@@ -70,6 +70,11 @@ class Handler(socketserver.StreamRequestHandler):
                     raise Rejected('IPC_SCHEMA')
                 today=datetime.now(ZoneInfo('Europe/Moscow')).date()
                 result=self.server.engine.safe_submit(value['tenant'],value['command'],value['request_id'],value['body_hash'],today,conversation_id=value.get('conversation_id'),message_id=value.get('message_id'))
+            if type(result)is dict and result.get('state')in('FAILED','READY')and result.get('job_id')and value.get('tenant'):
+                row=self.server.engine.repo.get(value['tenant'],result['job_id'])
+                if row:
+                    model_result=self.server.engine.access_failure_result(row)
+                    if model_result is not None:result['model_result']=model_result
         except Rejected as exc:
             result={'text':exc.message,'tts':exc.message,'error':exc.code}
         except Exception:

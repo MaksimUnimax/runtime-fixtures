@@ -115,11 +115,11 @@ def explicit_denial_products(text):
     """Only an explicit requirement, never arbitrary mentioning of an active plan."""
     value=text.casefold().replace('_',' ').replace('-',' ')
     if re.search(r'not\s+required|does\s+not\s+require|no\s+subscription\s+required|не\s+требует|не\s+нужн|не\s+связан.*подпис',value):return []
-    if not re.search(r'requir|\bonly\b|\bneed\b|missing|not active|no subscription|необходим|требуе|только|отсутств',value):return []
+    if not re.search(r'requir|\bonly\b|\bneed\b|missing|not active|no subscription|необходим|требуе|только|отсутств|(?:method|endpoint|function|api)\s+(?:is\s+)?available\s+(?:only\s+)?with\s+premium',value):return []
     found=[]
     for clause in re.split(r'[;\n.]',value):
         if re.search(r'(?<!not )\b(?:is )?active\b|подписка\s+активна',clause)and not re.search(r'not active|не\s+активн',clause):continue
-        if not re.search(r'requir|\bonly\b|\bneed\b|missing|not active|no subscription|необходим|требуе|только|отсутств',clause):continue
+        if not re.search(r'requir|\bonly\b|\bneed\b|missing|not active|no subscription|необходим|требуе|только|отсутств|(?:method|endpoint|function|api)\s+(?:is\s+)?available\s+(?:only\s+)?with\s+premium',clause):continue
         for match in re.finditer(r'(?<![a-z])premium(?:\s*(plus|pro|lite|плюс|про))?(?![a-z])',clause):
             suffix=match.group(1);product={'plus':'PREMIUM_PLUS','плюс':'PREMIUM_PLUS','pro':'PREMIUM_PRO','про':'PREMIUM_PRO','lite':'PREMIUM_LITE',None:'PREMIUM'}[suffix]
             if product not in found:found.append(product)

@@ -54,6 +54,7 @@ COLLECTION_SYSTEM = r'''Собери данные API для исходного 
 Если вопрос требует уточнения: {"action":"clarify","question":"Текст уточнения"}.
 Одно действие за вызов, один JSON-объект. Это внутреннее управление чтением; окончательный ответ не имеет обязательного формата.
 Для Ozon params — тело запроса. Для WB params — предусмотренные методом path/query/body. Используй документацию discovery.items, response_fields, scope_note, related_read_methods и alternative_operations. При ошибке параметров учитывай provider_rejections и feedback, не повторяй отклонённые параметры.
+method_index перечисляет зарегистрированные методы и их разделы. Выбирай раздел по подходящему alias из этого указателя, а не по догадке о названии раздела. Если русский поиск не совпал, используй alias метода. Для текущего состояния используй текущий метод; если нужен календарный период, выбери текущий день в Europe/Moscow из server_date.
 Для полного списка получай следующие страницы согласно признакам продолжения и курсорам. calls[].data в контексте планирования может быть выборкой; исходные ответы сохранены полностью. Не повторяй уже выполненный запрос. Не делай лишних чтений.
 Отличай доступные акции, кандидатов и реальное участие товара. Для фактического участия нужны соответствующие поля или состав акции. Различай действующие, будущие и завершённые акции по датам.
 Подписки: учитывай subscription_access и фактические ответы API. Не считай любой 403 отсутствием подписки. Не подменяй требуемые данные другим показателем.
@@ -375,6 +376,10 @@ def worker_step(worker,row,plan):
     answer_by_model=strict_json(row['draft']).get('answer_by_model')
     system=COLLECTION_SYSTEM if answer_by_model else SYSTEM
     request=Request('deepseek_read_plan','model:deepseek-flash','',{'system':system,'context':planner_context(plan,progress)},worker.engine.model_budget['min_interval_seconds'],worker.engine.model_budget['daily_calls'])
+    if answer_by_model:
+        request.body['context']['method_index']={platform:[{'operation':name,'cluster':meta['cluster']}
+            for name,meta in surface.CATALOG['providers'][platform]['operations'].items() if surface.available(meta)]
+            for platform in {s['platform']for s in plan['stores']}}
     from model_answer import planning_prompt
     prompt=planning_prompt(worker,row)
     if prompt is not None:request.body['instruction']=prompt
@@ -400,6 +405,9 @@ def worker_step(worker,row,plan):
             need(decision['platform']in {s['platform']for s in plan['stores']},'SOURCE_ACCESS')
             repeated=any(x.get('decision')==decision for x in progress['events'])
             if repeated:
+                # Return the catalogue for the repeated request, not whichever
+                # unrelated cluster happened to be searched last. No API IO.
+                progress['discovery']=surface.discover(decision['platform'],decision['query'],decision['cluster'],decision['offset'])
                 progress['feedback']={'code':'READ_DISCOVERY_ALREADY_SHOWN','instruction':'Choose an operation from discovery.items or change the cluster/query; no network request was made.'}
             else:
                 progress['discovery']=surface.discover(decision['platform'],decision['query'],decision['cluster'],decision['offset'])
@@ -408,6 +416,9 @@ def worker_step(worker,row,plan):
         elif action=='read':
             need(set(decision)in ({'action','store_id','operation','params'},{'action','store_id','operation','params_expr'}),'READ_PLANNER_SCHEMA')
             store=next((s for s in plan['stores']if s['id']==decision['store_id']),None);need(store is not None,'SOURCE_ACCESS')
+            # Keep the selected method's actual catalogue contract in context,
+            # including when its local parameter check rejects this attempt.
+            progress['discovery']=surface.discover(store['platform'],decision['operation'],None,0)
             params=surface.normalize_params(store['platform'],decision['operation'],resolve_params(decision,plan,progress['calls']))
             decision={'action':'read','store_id':decision['store_id'],'operation':decision['operation'],'params':params}
             identifier_provenance(decision['params'],plan['question'],[call for call in progress['calls']if call['store_id']==store['id']])
@@ -433,7 +444,9 @@ def worker_step(worker,row,plan):
             if fallback is not None:
                 need(worker.engine.authorized(plan),'SOURCE_ACCESS')
                 worker.repo.complete(row['id'],row['owner'],fallback);return
-        progress['feedback']={'code':exc.code,'rejected_action':decision.get('action'),'received_keys':sorted(decision)[:12],
+        try:rejected_attempt=surface.sanitize(decision)
+        except Rejected:rejected_attempt={'omitted':True}  # Diagnostics must not replace the original failure.
+        progress['feedback']={'code':exc.code,'rejected_action':decision.get('action'),'rejected_attempt':rejected_attempt,'received_keys':sorted(decision)[:12],
             'expected_finish_fact':{'label':'Краткое название без цифр','expr':{'$path':['calls',0,'data','result']}},
             'expected_discovery_keys':['action','platform','cluster','query','offset'],'provider_request_executed':False,
             'parameter_help':'ID следует брать из полученных данных. Для массивов используйте JSON-массив или params_expr с $map, а не придуманные числа.'}

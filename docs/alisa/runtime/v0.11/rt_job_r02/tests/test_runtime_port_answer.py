@@ -170,3 +170,52 @@ class AnswerPort(Setup):
         self.assertEqual(row['state'], 'READY', row['error'])
         self.assertEqual(len(self.transport.answer_calls), 1)
         self.assertIn('runtime_guard', strict_json(row['plan']))
+
+    def paid_pending(self, message=None):
+        import test_paid_model_result as paid
+        diagnosis = paid.diagnose(message or paid.PRO)
+        def deny(request):
+            if request.operation == 'ozon_orders':raise paid.error(diagnosis)
+        self.transport.on_call = deny
+        _, receipt = self.submit(); self.worker.step(); self.clock.advance(3)
+        self.transport.on_call = None
+        return receipt, diagnosis['model_response']
+
+    def test_paid_model_result_survives_port_and_ready_means_explanation(self):
+        receipt, expected = self.paid_pending()
+        row = self.run_until_terminal(receipt)
+        self.assertEqual(row['state'], 'READY', row['error'])
+        response = self.port.read_result(receipt['job_ref'], self.ctx, self.peer)
+        self.assertEqual(response['result_kind'], 'PROVIDER_REFUSAL')
+        self.assertEqual(response['model_result'], expected)
+        self.assertIsNone(response['model_result']['data'])
+        before = len(self.transport.calls)
+        self.assertEqual(self.port.read_result(receipt['job_ref'], self.ctx, self.peer), response)
+        self.assertEqual(len(self.transport.calls), before)
+        self.assertEqual([r.operation for r in self.transport.calls].count('ozon_orders'), 1)
+        self.assertEqual(len(self.transport.answer_calls), 1)
+        self.assertNotIn('123.45', self.transport.answer_calls[0].body['messages'][-1]['content'])
+
+    def test_generic_refusal_never_inherits_premium_from_catalog(self):
+        receipt, expected = self.paid_pending('Forbidden')
+        self.assertEqual(self.run_until_terminal(receipt)['state'], 'READY')
+        value = self.port.read_result(receipt['job_ref'], self.ctx, self.peer)['model_result']
+        self.assertEqual(value['status'], 'ACCESS_DENIED')
+        self.assertEqual(value['required_subscriptions'], [])
+
+    def test_revocation_blocks_paid_metadata_delivery(self):
+        receipt, _ = self.paid_pending()
+        self.assertEqual(self.run_until_terminal(receipt)['state'], 'READY')
+        self.auth.revoked = True
+        self.reject('ACCESS_REQUIRED', lambda: self.port.read_result(receipt['job_ref'], self.ctx, self.peer))
+
+    def test_metadata_authorization_cannot_cross_final_ttl(self):
+        receipt, _ = self.paid_pending()
+        row = self.run_until_terminal(receipt)
+        original = self.engine.access_failure_result
+        def slow(current):
+            result = original(current)
+            self.clock.advance(row['expires'] - self.clock() + 1)
+            return result
+        with patch.object(self.engine, 'access_failure_result', slow):
+            self.reject('RESULT_EXPIRED', lambda: self.port.read_result(receipt['job_ref'], self.ctx, self.peer))
