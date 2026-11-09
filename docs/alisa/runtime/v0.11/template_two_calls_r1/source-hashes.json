@@ -1,0 +1,5 @@
+{
+  "template_runtime.py": "c756fcfc92a13a88f196f552005112ee2a8e621c30523f0a00090159ab226392",
+  "tests/test_template_integration.py": "26cab638d989c958420c5e999b8b43e078c17b839b23bcc98f8c942efc5c6ad9",
+  "tests/test_template_only.py": "18c08a126fed28e60ec6dffeb663fa60bafa874aa518ae0b4690958e7ad55511"
+}
