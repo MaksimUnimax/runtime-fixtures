@@ -184,6 +184,8 @@ class HTTPTransport:
             except (ValueError,TypeError):
                 try:retry_at=parsedate_to_datetime(retry).timestamp()
                 except (ValueError,TypeError,OverflowError):pass
+            if is_read and meta.get('completion',{}).get('mode')=='opaque-file'and exc.code==403:
+                exc.close();raise CallError('HTTP_403_READ_RESOURCE_DENIED',status=403)from None
             status=exc.code;code='HTTP_'+str(status);feedback=None
             if status==403:
                 try:

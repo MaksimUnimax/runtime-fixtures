@@ -3,8 +3,8 @@ import hashlib, json, shutil, subprocess
 from pathlib import Path
 
 ROOT=Path('/root/alice-lab-evidence/model-usage-20261109')
-CANDIDATE=Path('/dev/shm/alisa-model-usage-20261109/model-repair-v2')
-BASE=Path('/opt/alice-market/releases/alisa-model-usage-r4-csv-20261109')
+CANDIDATE=Path('/dev/shm/alisa-model-usage-20261109/model-repair-v3')
+BASE=Path('/opt/alice-market/releases/alisa-read-completion-resume-r1-20261109')
 OLD=BASE
 STATION=Path('/opt/alisa-station/releases/station-auto-r8-model-usage-r4')
 TARGET=Path('/opt/alice-market/releases/alisa-model-usage-r5-repair-20261109')

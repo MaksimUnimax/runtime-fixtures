@@ -319,10 +319,9 @@ def worker_step(worker,row,plan):
         item=progress['pending'];store=next((s for s in plan['stores']if s['id']==item['store_id']),None);need(store is not None,'SOURCE_ACCESS')
         request=surface.request_for(store,item['operation'],item['params'])
         if surface.method(store['platform'],item['operation']).get('completion',{}).get('mode')=='opaque-file':
-            from protected_reads import resolve_url
-            from dataclasses import replace
+            from protected_reads import resolve_url,bind_resource_request
             url=resolve_url(worker.engine,row,store['id'],item['params']['file_ref'])
-            request=replace(request,body={**request.body,'resolved_resource':url})
+            request=bind_resource_request(request,url,repository=worker.repo,access_revision=store['access_revision'])
         need(not worker.repo.denied(request.source,store['access_revision']),'SOURCE_ACCESS')
         if pin_read_source(worker,row,plan,progress,request,store):return
         prerequisite=worker.transport.prepare(request,store)
