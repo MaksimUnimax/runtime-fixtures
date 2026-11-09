@@ -127,11 +127,12 @@ export async function observeLlmHealthFailureInTransaction(
 
   const existing = await q.query<{
     id: string;
+    eventKind: LlmHealthNotificationEvent["eventKind"];
     severity: LlmHealthNotificationSeverity;
     latestObservedAt: Date;
     cooldownUntil: Date;
   }>(
-    `SELECT id,severity,latest_observed_at AS "latestObservedAt",cooldown_until AS "cooldownUntil"
+    `SELECT id,event_kind AS "eventKind",severity,latest_observed_at AS "latestObservedAt",cooldown_until AS "cooldownUntil"
      FROM health_notification_intents
      WHERE incident_id=$1 AND event_kind IN ('INCIDENT_OPENED','INCIDENT_ESCALATED')
      ORDER BY CASE severity WHEN 'CRITICAL' THEN 2 WHEN 'WARNING' THEN 1 ELSE 0 END DESC,
@@ -168,7 +169,10 @@ export async function observeLlmHealthFailureInTransaction(
       input.observedAt,
       openedEvent.cooldownUntil,
       input.healthRunId,
-      JSON.stringify(openedEvent.payload),
+      JSON.stringify({
+        ...openedEvent.payload,
+        eventKind: current.eventKind,
+      }),
       withinCooldown,
     ],
   );
