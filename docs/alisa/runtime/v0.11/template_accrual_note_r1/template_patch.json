@@ -1,0 +1,62 @@
+{
+  "template_id": "B08.finance_accrued",
+  "expected_base_sha256": "0590541678b1d1c8ecd22fad950adb975acc48148347fc35de7fc32fa1c248ae",
+  "expected_new_sha256": "0aed94774a303dbc9383f7914887ae5bb8bc0dbb7e2b69fe43216fc29aedca30",
+  "new_entry": {
+    "id": "B08.finance_accrued",
+    "version": 2,
+    "purpose": "итого начислено по финансовому балансу",
+    "platforms": [
+      "ozon"
+    ],
+    "kind": "scalar",
+    "input_policy": {
+      "time_axis": "financial_period",
+      "snapshot": false,
+      "period_required": true,
+      "comparison_supported": true,
+      "filters_supported": false
+    },
+    "steps": [
+      {
+        "id": "ozon_source",
+        "platform": "ozon",
+        "operation": "ozon_finance",
+        "source_registry": "scalar_source_catalog",
+        "recipe": "ozon_finance",
+        "params": {
+          "date_from": {
+            "$path": [
+              "period",
+              "from"
+            ]
+          },
+          "date_to": {
+            "$path": [
+              "period",
+              "to"
+            ]
+          }
+        },
+        "bind": {
+          "period": "input.period",
+          "filters": "input.filters",
+          "metrics": [
+            "finance_accrued"
+          ],
+          "fields": {
+            "finance_accrued": "finance_accrued"
+          }
+        },
+        "workflow": null
+      }
+    ],
+    "qualification": "existing_source_requirements",
+    "notes": [
+      "«Начислено Ozon» в этом шаблоне — итоговая сумма финансовых начислений продавцу за выбранный период по отчёту «Баланс» Ozon, поле total.accrued. Это итог взаиморасчётов магазина с Ozon по отражённым за период финансовым операциям. В ответе коротко поясни, что сумма учтена на финансовом балансе продавца внутри Ozon; перечисляй продажи, возвраты, вознаграждение и услуги только в соответствии с данными, которые присутствуют в ответе API. Эта сумма сама по себе не подтверждает перевод на банковский счёт. Выплаты total.payments и остаток closing_balance — отдельные показатели. Не называй эту сумму оборотом заказов или чистой прибылью."
+    ],
+    "metrics": [
+      "finance_accrued"
+    ]
+  }
+}
