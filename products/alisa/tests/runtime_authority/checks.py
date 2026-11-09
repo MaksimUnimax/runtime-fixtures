@@ -24,7 +24,10 @@ sys.path.insert(0, str(ROOT / 'services/platform/src'))
 from django.conf import settings
 if settings.configured:
     raise RuntimeError('Separate authority qualification process required')
-TEMP = tempfile.TemporaryDirectory(prefix='s07-authority-', dir=ROOT)
+# BindingFile deliberately requires every ancestor to be owned by root or the
+# declared fixture uid. The CI browser qualifier runs as root from a runner-owned
+# checkout, so its private fixture files must use a root-owned ancestor chain.
+TEMP = tempfile.TemporaryDirectory(prefix='s07-authority-', dir=Path.home() if os.geteuid()==0 else ROOT)
 PRIVATE = Path(TEMP.name)
 if (os.environ.get('ALISA_AUTHORITY_CORE_TEST_ALLOW') != '1' or
         os.environ.get('ALISA_DB_NAME') != 'alisa_s07_authority_platform' or
