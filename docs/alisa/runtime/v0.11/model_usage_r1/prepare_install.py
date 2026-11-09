@@ -51,9 +51,19 @@ def main():
         manifest=dict(artifact_id=dst.name,source_commit=SOURCE,base_artifact=BASE.name if dst==TARGET else STATION.name,
             files={str(p.relative_to(dst)):digest(p)for p in sorted(dst.rglob('*'))if p.is_file()and p.name!='manifest.json'})
         (dst/'manifest.json').write_text(json.dumps(manifest,indent=2))
-    subprocess.run(['runuser','-u','alice-market','--','/usr/bin/python3','-B','/opt/alice-market/releases/runtime-policy-guard-20261108/check.py','--release',str(TARGET),'--config','/etc/alice-market/market-runtime.json'],check=True)
+    config=Path('/etc/alice-market/market-runtime.json')
+    original=json.loads(config.read_text());old_pin=original['read_surface']['pin']
+    new_pin=subprocess.check_output(['/usr/bin/python3','-B','-c','import read_surface;print(read_surface.PIN)'],cwd=TARGET,text=True).strip()
+    original['read_surface']['pin']=new_pin
+    import tempfile
+    fd,temporary=tempfile.mkstemp(prefix='model-usage-policy-',dir='/dev/shm')
+    try:
+        os.fchmod(fd,0o640);os.fchown(fd,0,__import__('grp').getgrnam('alice-lab').gr_gid)
+        with os.fdopen(fd,'w')as stream:json.dump(original,stream)
+        subprocess.run(['runuser','-u','alice-market','--','/usr/bin/python3','-B','/opt/alice-market/releases/runtime-policy-guard-20261108/check.py','--release',str(TARGET),'--config',temporary],check=True)
+    finally:Path(temporary).unlink(missing_ok=True)
     receipt=dict(state='PREPARED',source_commit=SOURCE,runtime=str(TARGET),station=str(STARGET),base=str(BASE),
-        config_sha256=digest(Path('/etc/alice-market/market-runtime.json')),source_hashes=expected)
+        config_sha256=digest(config),old_pin=old_pin,new_pin=new_pin,source_hashes=expected)
     (ROOT/'PREPARED_R5.json').write_text(json.dumps(receipt,indent=2))
     Path('/opt/alice-market/.model-usage-7d-owner.lock').write_text(json.dumps(dict(owner='controller-model-usage-20261109',status='PREPARED',
         scope='Dispatch marker, seven-day accounting, OWNER UI; preserve active read-r5 and all matrices',runtime=str(TARGET),evidence=str(ROOT)),indent=2))
