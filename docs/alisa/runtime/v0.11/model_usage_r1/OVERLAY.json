@@ -1,11 +1,7 @@
 {
-  "base_runtime": "alisa-model-usage-r6-feedback-20261109",
+  "base_runtime": "alisa-model-usage-r7-typed-first-20261109",
   "files": {
-    "runtime/engine.py": "b25cb15b15009fde42ebb516e6bacc140c54bfc495f548666349b6db81a92db9",
-    "runtime/model_recovery.py": "a37bd265f38ca39cc67b8d14097bea99ab71ccb75fdeeee4e098929c37d39072",
-    "runtime/semantics.py": "51dfc1b7ef8392a2c3118950e4df7d85ea25d42032571284dc614aef348f3998",
-    "runtime/universal_reads.py": "2339cf35b99accd449756c03a8a6d851796892f2c2adb5f3d7d79c3e51b8731f",
-    "runtime/tests/test_typed_first.py": "ca48f6fa373695220efec357b89a81a656b0f4dba39f915a2af27dddd830b172"
+    "runtime/query_program.py": "7fd92f8d90e7c5ece3a1d79cb86defc569b74a25880b82a31796ebcf9d2c7b96"
   },
   "rule": "Copy the entire immutable base; overlay only these five files. Preserve all protected-read, token-boundary, artifact and retention code from the base."
 }
