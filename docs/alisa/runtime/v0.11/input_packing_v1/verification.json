@@ -1,8 +1,10 @@
 {
   "status": "PASS",
-  "base_source": "67a65d14feed9279040bbd936a958b5816c6b681",
-  "runtime_tests": 1992,
-  "focused_tests_subset": 60,
+  "base_source": "b87c1de8ac34b44f5061b67ae94d133b24d273e6",
+  "base_runtime": "alisa-selector-prefix-cache-r3-20261110",
+  "runtime_tests": 2035,
+  "focused_tests_subset": 103,
+  "previous_base_runtime_tests": 1992,
   "installer_tests": 3,
   "failures": 0,
   "errors": 0,
@@ -10,7 +12,7 @@
   "offline_external_network_attempts": 0,
   "independent_roundtrip_cases": 500,
   "independent_review": "PASS",
-  "tested_tree_sha256": "adb1b8a51c60744cd1a08aa33d60409ce7035027a87fd2a161bcb2623fc48fae",
+  "tested_tree_sha256": "645a21ed62f0bbe55eef902fb5cde11fd781d6223972a0ced68705716645026d",
   "live_synthetic_model_calls": 2,
   "live_owner_data_calls": 0,
   "station_calls": 0

@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 import time
 
-BASE = Path('/opt/alice-market/releases/alisa-wb-buyout-date-v2-20261110')
+BASE = Path('/opt/alice-market/releases/alisa-selector-prefix-cache-r3-20261110')
 TARGET = Path('/opt/alice-market/releases/alisa-input-packing-v1-20261110')
 CANDIDATE = Path('/dev/shm/alisa-input-packing-v1-20261110')
 RECEIPT = Path('/root/alice-lab-evidence/answer-model-20261109/INPUT_PACKING_V1_INSTALLED.json')
