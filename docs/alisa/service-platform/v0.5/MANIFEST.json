@@ -131,8 +131,8 @@
     },
     {
       "path": "QUERY_INSIGHTS.md",
-      "size_bytes": 14549,
-      "sha256": "406ed5d90fd7ee76ec0a516b96d3457c0795c6794af989506b9dd3f5101e6cac"
+      "size_bytes": 14863,
+      "sha256": "827f2e46675178d4bba6214bdb8022d780434e8284cf88d635455f0790b812ae"
     },
     {
       "path": "QUERY_INSIGHTS_AND_CATALOG.md",
@@ -146,8 +146,8 @@
     },
     {
       "path": "ROADMAP.md",
-      "size_bytes": 96157,
-      "sha256": "eb69048c7b449b1c6767fbdad66eef3914e11dfdc1d5b51d327a77496e5ccf24"
+      "size_bytes": 96166,
+      "sha256": "e32202476fe394c5362dfb87f91bf03891363da129be3c8ed25facd49a237f2f"
     },
     {
       "path": "ROADMAP_GUIDE.docx",
