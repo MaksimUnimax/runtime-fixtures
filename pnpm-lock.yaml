@@ -207,6 +207,9 @@ importers:
 
   apps/portal:
     dependencies:
+      '@product/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       next:
         specifier: 15.5.21
         version: 15.5.21(@playwright/test@1.62.1)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)

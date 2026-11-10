@@ -1,3 +1,8 @@
+import {
+  acw1HttpBoundary,
+  type Acw1HttpReadIntent,
+} from "@product/contracts/account-code-http";
+
 const allowed = new Set([
   "POST /v1/auth/otp/request",
   "POST /v1/auth/otp/verify",
@@ -15,7 +20,19 @@ const allowed = new Set([
   "POST /v1/support/cases",
 ]);
 
-export function allowedRoute(method: string, path: string): string | undefined {
+/** Framework params/search describe the forwarded target, not original HTTP bytes. */
+export function accountCodeReadIntent(
+  method: string,
+  path: string,
+  search: string,
+): Acw1HttpReadIntent | undefined {
+  const result = acw1HttpBoundary(method, path + search);
+  return result.kind === "METADATA_READ" ? result.read : undefined;
+}
+
+export function allowedRoute(method: string, path: string, search = ""): string | undefined {
+  if (accountCodeReadIntent(method, path, search))
+    return "/v1/accounts/:id/connection-code";
   const normalized = path.replace(/\/[0-9a-f-]{36}(?=\/|$)/gi, "/:id");
   return allowed.has(`${method} ${normalized}`) ? normalized : undefined;
 }

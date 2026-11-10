@@ -6,6 +6,72 @@ import {
   controlPlaneOrigin,
 } from "../../../../lib/control-plane-route.js";
 import config from "../../../../next.config.js";
+import * as responseConsumer from "@product/contracts/account-code-http-response";
+import { readFileSync } from "node:fs";
+
+describe("ACW1 connected GET proxy DATA", () => {
+  const id = "11112233-4455-4677-8899-aabbccddeeff";
+  const other = "22112233-4455-4677-8899-aabbccddeeff";
+  const operationId = "77112233-4455-4677-8899-aabbccddeeff";
+  const fixture = JSON.parse(readFileSync(new URL("../../../../../../packages/contracts/src/account-code-wire.fixture.json", import.meta.url), "utf8"));
+  // Public structural fixture only, not authority/MAC verification.
+  const payload = { profile:"ACW1", kind:"write", keyVersion:1, operation:"issue", operationId,
+    accountId:id, baseRevision:0, portalBinding:fixture.positive.P03.portalBinding, issuedAt:0, notAfter:600000 };
+  const canon = (x: Record<string, unknown>) => JSON.stringify(x, Object.keys(x).sort());
+  const permit = { profile:"ACW1", metadata:{accountId:id,codeRevision:0,state:"ABSENT",createdAt:null},
+    writePermit:{operationId,ticket:Buffer.from(canon(payload)).toString("base64url")+"."+Buffer.alloc(32).toString("base64url"),issuedAt:0,notAfter:600000} };
+  const context = () => ({ params:Promise.resolve({path:["v1","accounts",id,"connection-code"]}) });
+  const request = (query="?action=issue", method="GET") => new NextRequest(
+    "https://portal.example.test/api/control-plane/v1/accounts/"+id+"/connection-code"+query,
+    {method,headers:{cookie:"public_session=synthetic","x-unapproved-header":"__PUBLIC_MARKER__"}},
+  );
+  afterEach(() => {vi.unstubAllGlobals();vi.unstubAllEnvs();vi.restoreAllMocks();});
+  function upstream(raw: Uint8Array, headers: Record<string,string> = {}) {
+    return new Response(new ReadableStream<Uint8Array>({start(c){c.enqueue(raw);c.close();}}),{
+      status:200,headers:{"content-type":"application/json","cache-control":"public,max-age=9999",...headers},
+    });
+  }
+  it("calls the real metadata consumer from the existing GET entry and overrides cache headers", async () => {
+    vi.stubEnv("CONTROL_PLANE_API_ORIGIN","https://upstream.invalid");
+    const spy=vi.spyOn(responseConsumer,"consumeAcw1HttpMetadataResponse");
+    const fetcher=vi.fn(async()=>upstream(new TextEncoder().encode(JSON.stringify(permit)),{"set-cookie":"public_upstream=synthetic; Path=/"}));
+    vi.stubGlobal("fetch",fetcher);
+    const response=await GET(request(),context());
+    expect(response.status).toBe(200);expect(await response.json()).toEqual(permit);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.getSetCookie()).toEqual(["public_upstream=synthetic; Path=/"]);
+    expect(fetcher).toHaveBeenCalledTimes(1);expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]).toBe("issue");expect(spy.mock.calls[0]?.[3]).toEqual({accountId:id});
+  });
+  it.each(["", "?action=issue&action=rotate", "?action=issue&debug=x"])("rejects query before upstream %s",async(query)=>{
+    vi.stubEnv("CONTROL_PLANE_API_ORIGIN","https://upstream.invalid");const f=vi.fn();vi.stubGlobal("fetch",f);
+    const r=await GET(request(query),context());expect(r.status).toBe(404);expect(r.headers.get("cache-control")).toBe("no-store");expect(f).not.toHaveBeenCalled();
+  });
+  it("keeps POST/attempts unexposed",async()=>{
+    vi.stubEnv("CONTROL_PLANE_API_ORIGIN","https://upstream.invalid");const f=vi.fn();vi.stubGlobal("fetch",f);
+    const r=await POST(request("?action=issue","POST"),context());expect(r.status).toBe(404);expect(r.headers.get("cache-control")).toBe("no-store");expect(f).not.toHaveBeenCalled();
+  });
+  it.each([
+    () => JSON.stringify({...permit,metadata:{...permit.metadata,accountId:other}}),
+    () => JSON.stringify({...permit,debug:"__PUBLIC_MARKER__"}),
+    () => JSON.stringify(permit).replace('"codeRevision":0','"codeRevision":-0'),
+    () => JSON.stringify(permit).slice(0,-1)+',"profile":"ACW1"}',
+    () => "\ufeff"+JSON.stringify(permit),
+  ])("returns bounded fixed fallback for raw/schema/context failures",async(raw)=>{
+    vi.stubEnv("CONTROL_PLANE_API_ORIGIN","https://upstream.invalid");vi.stubGlobal("fetch",vi.fn(async()=>upstream(new TextEncoder().encode(raw()))));
+    const r=await GET(request(),context());expect(r.status).toBe(503);expect(r.headers.get("cache-control")).toBe("no-store");
+    expect(await r.json()).toEqual({error:{code:"SERVICE_UNAVAILABLE",message:"Service unavailable"}});
+  });
+  it.each([16384,16385])("bounds raw full-response bytes at %s",async(size)=>{
+    const raw=JSON.stringify(permit);vi.stubEnv("CONTROL_PLANE_API_ORIGIN","https://upstream.invalid");
+    vi.stubGlobal("fetch",vi.fn(async()=>upstream(new TextEncoder().encode(" ".repeat(size-Buffer.byteLength(raw))+raw))));
+    const r=await GET(request(),context());expect(r.status).toBe(size===16384?200:503);expect(r.headers.get("cache-control")).toBe("no-store");
+  });
+  it("does not reflect fetch exception or retry",async()=>{
+    vi.stubEnv("CONTROL_PLANE_API_ORIGIN","https://upstream.invalid");const f=vi.fn(async()=>{throw new Error("__PUBLIC_MARKER__");});vi.stubGlobal("fetch",f);
+    const r=await GET(request(),context());expect(r.status).toBe(503);expect(await r.text()).not.toContain("__PUBLIC_MARKER__");expect(f).toHaveBeenCalledTimes(1);expect(r.headers.get("cache-control")).toBe("no-store");
+  });
+});
 
 describe("portal control-plane BFF boundary", () => {
   const id = "123e4567-e89b-42d3-a456-426614174000";
