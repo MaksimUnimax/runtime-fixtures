@@ -1,0 +1,305 @@
+{
+  "base_catalog_sha256": "0b0c04f4b44303f959bd673e943665d43d03e5d206b1b4428655686a26836389",
+  "new_catalog_sha256": "a1c5ce2f2a150d85458e523bb1aec2c5b70996775c99de84c0446e1b4d524a1f",
+  "entries": {
+    "B02.wb_events": {
+      "id": "B02.wb_events",
+      "version": 4,
+      "purpose": "Фактические выкупы (продажи) WB по дате выкупа, независимо от даты заказа: количество и сумма. Для выкупов за дату без явного условия «из заказов, оформленных…».",
+      "platforms": [
+        "wb"
+      ],
+      "kind": "event",
+      "input_policy": {
+        "time_axis": "event_date",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": false,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "id": "events",
+          "platform": "wb",
+          "operation": "wb_event_sales",
+          "source_registry": "source_matrix",
+          "params": {
+            "period": {
+              "$path": [
+                "input",
+                "period"
+              ]
+            }
+          }
+        }
+      ],
+      "qualification": "existing_source_requirements",
+      "notes": [
+        "Оперативная статистика WB; в полном отчёте продажи и возвраты разделены.",
+        "Для суммы выкупов WB озвучь три итога отдельно: priceWithDisc — в ценах продавца; finishedPrice — по покупательским ценам; forPay — к перечислению продавцу. Для вопроса только о количестве суммы не добавляй."
+      ],
+      "metrics": [
+        "event_buyout_units",
+        "event_buyout_amount",
+        "event_return_units",
+        "event_return_amount"
+      ],
+      "table_request": {
+        "family": "events",
+        "view": "totals",
+        "top": null,
+        "sort": "revenue",
+        "direction": "desc",
+        "sku_filters": {}
+      }
+    },
+    "B04.buyout_units_cohort": {
+      "id": "B04.buyout_units_cohort",
+      "version": 3,
+      "purpose": "Количество выкупов из заказов WB. Только при явном условии «из заказов, оформленных за период». Обычные выкупы за дату — B02.wb_events.",
+      "platforms": [
+        "wb"
+      ],
+      "kind": "scalar",
+      "input_policy": {
+        "time_axis": "order_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": true
+      },
+      "steps": [
+        {
+          "id": "wb_source",
+          "platform": "wb",
+          "operation": "wb_orders",
+          "source_registry": "scalar_source_catalog",
+          "recipe": "wb",
+          "params": {
+            "$fn": [
+              "merge",
+              {
+                "selectedPeriod": {
+                  "start": {
+                    "$path": [
+                      "period",
+                      "from"
+                    ]
+                  },
+                  "end": {
+                    "$path": [
+                      "period",
+                      "to"
+                    ]
+                  }
+                },
+                "nmIds": {
+                  "$path": [
+                    "filters",
+                    "nm_ids"
+                  ],
+                  "default": []
+                },
+                "brandNames": [],
+                "subjectIds": [],
+                "tagIds": [],
+                "skipDeletedNm": false,
+                "orderBy": {
+                  "field": "orderSum",
+                  "mode": "desc"
+                },
+                "limit": 1000,
+                "offset": {
+                  "$path": [
+                    "progress",
+                    "offset"
+                  ],
+                  "default": 0
+                }
+              },
+              {
+                "$if": [
+                  {
+                    "$fn": [
+                      "ne",
+                      {
+                        "$path": [
+                          "params",
+                          "comparison"
+                        ],
+                        "default": null
+                      },
+                      null
+                    ]
+                  },
+                  {
+                    "pastPeriod": {
+                      "start": {
+                        "$path": [
+                          "params",
+                          "comparison",
+                          "from"
+                        ]
+                      },
+                      "end": {
+                        "$path": [
+                          "params",
+                          "comparison",
+                          "to"
+                        ]
+                      }
+                    }
+                  },
+                  {}
+                ]
+              }
+            ]
+          },
+          "bind": {
+            "period": "input.period",
+            "filters": "input.filters",
+            "metrics": [
+              "buyout_units_cohort"
+            ],
+            "fields": {
+              "buyout_units_cohort": "buyoutCount"
+            }
+          },
+          "workflow": null
+        }
+      ],
+      "qualification": "existing_source_requirements",
+      "notes": [],
+      "metrics": [
+        "buyout_units_cohort"
+      ]
+    },
+    "B04.buyout_revenue_cohort": {
+      "id": "B04.buyout_revenue_cohort",
+      "version": 2,
+      "purpose": "Сумма выкупов из заказов WB. Только при явном условии о дате оформления заказа. Обычная сумма выкупов за дату — B02.wb_events.",
+      "platforms": [
+        "wb"
+      ],
+      "kind": "scalar",
+      "input_policy": {
+        "time_axis": "order_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": true
+      },
+      "steps": [
+        {
+          "id": "wb_source",
+          "platform": "wb",
+          "operation": "wb_orders",
+          "source_registry": "scalar_source_catalog",
+          "recipe": "wb",
+          "params": {
+            "$fn": [
+              "merge",
+              {
+                "selectedPeriod": {
+                  "start": {
+                    "$path": [
+                      "period",
+                      "from"
+                    ]
+                  },
+                  "end": {
+                    "$path": [
+                      "period",
+                      "to"
+                    ]
+                  }
+                },
+                "nmIds": {
+                  "$path": [
+                    "filters",
+                    "nm_ids"
+                  ],
+                  "default": []
+                },
+                "brandNames": [],
+                "subjectIds": [],
+                "tagIds": [],
+                "skipDeletedNm": false,
+                "orderBy": {
+                  "field": "orderSum",
+                  "mode": "desc"
+                },
+                "limit": 1000,
+                "offset": {
+                  "$path": [
+                    "progress",
+                    "offset"
+                  ],
+                  "default": 0
+                }
+              },
+              {
+                "$if": [
+                  {
+                    "$fn": [
+                      "ne",
+                      {
+                        "$path": [
+                          "params",
+                          "comparison"
+                        ],
+                        "default": null
+                      },
+                      null
+                    ]
+                  },
+                  {
+                    "pastPeriod": {
+                      "start": {
+                        "$path": [
+                          "params",
+                          "comparison",
+                          "from"
+                        ]
+                      },
+                      "end": {
+                        "$path": [
+                          "params",
+                          "comparison",
+                          "to"
+                        ]
+                      }
+                    }
+                  },
+                  {}
+                ]
+              }
+            ]
+          },
+          "bind": {
+            "period": "input.period",
+            "filters": "input.filters",
+            "metrics": [
+              "buyout_revenue_cohort"
+            ],
+            "fields": {
+              "buyout_revenue_cohort": "buyoutSum"
+            }
+          },
+          "workflow": null
+        }
+      ],
+      "qualification": "existing_source_requirements",
+      "notes": [],
+      "metrics": [
+        "buyout_revenue_cohort"
+      ]
+    }
+  },
+  "base_runtime": "/opt/alice-market/releases/alisa-wb-returns-brief-20261110",
+  "purpose_updates": {
+    "B02.wb_events": "Фактические выкупы (продажи) WB по дате выкупа, независимо от даты заказа: количество и сумма. Для выкупов за дату без явного условия «из заказов, оформленных…».",
+    "B04.buyout_units_cohort": "Количество выкупов из заказов WB. Только при явном условии «из заказов, оформленных за период». Обычные выкупы за дату — B02.wb_events.",
+    "B04.buyout_revenue_cohort": "Сумма выкупов из заказов WB. Только при явном условии о дате оформления заказа. Обычная сумма выкупов за дату — B02.wb_events."
+  }
+}
