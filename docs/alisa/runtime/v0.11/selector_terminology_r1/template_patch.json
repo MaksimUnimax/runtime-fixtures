@@ -1,0 +1,103 @@
+{
+  "base_catalog_sha256": "8af8e0b52b66e1354e3dcac823bc9296730f54b620ddd4fcecd4b67852b77e5e",
+  "new_catalog_sha256": "7748b6d3d5444508d3115ad422a0217db431f92d7c87f17e163e3bba0da3ea26",
+  "entries": {
+    "B08.finance_sales": {
+      "id": "B08.finance_sales",
+      "version": 4,
+      "purpose": "Продажи до удержаний. Ozon: товарные начисления в цене продавца, с баллами за скидки и партнёрскими начислениями. WB: сумма продаж финансового отчёта. Не сумма оформленных заказов и не итог начислений.",
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "kind": "scalar",
+      "input_policy": {
+        "time_axis": "financial_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "id": "ozon_source",
+          "platform": "ozon",
+          "operation": "ozon_finance",
+          "source_registry": "scalar_source_catalog",
+          "recipe": "ozon_finance",
+          "params": {
+            "date_from": {
+              "$path": [
+                "period",
+                "from"
+              ]
+            },
+            "date_to": {
+              "$path": [
+                "period",
+                "to"
+              ]
+            }
+          },
+          "bind": {
+            "period": "input.period",
+            "filters": "input.filters",
+            "metrics": [
+              "finance_sales"
+            ],
+            "fields": {
+              "finance_sales": "finance_sales"
+            }
+          },
+          "workflow": null
+        },
+        {
+          "id": "wb_source",
+          "platform": "wb",
+          "operation": "wb_finance",
+          "source_registry": "scalar_source_catalog",
+          "recipe": "wb_finance",
+          "params": {
+            "dateFrom": {
+              "$path": [
+                "period",
+                "from"
+              ]
+            },
+            "dateTo": {
+              "$path": [
+                "period",
+                "to"
+              ]
+            },
+            "period": "daily",
+            "limit": 1000,
+            "offset": {
+              "$path": [
+                "progress",
+                "offset"
+              ],
+              "default": 0
+            }
+          },
+          "bind": {
+            "period": "input.period",
+            "filters": "input.filters",
+            "metrics": [
+              "finance_sales"
+            ],
+            "fields": {
+              "finance_sales": "retailAmountSum"
+            }
+          },
+          "workflow": null
+        }
+      ],
+      "qualification": "existing_source_requirements",
+      "notes": [],
+      "metrics": [
+        "finance_sales"
+      ]
+    }
+  }
+}
