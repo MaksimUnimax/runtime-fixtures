@@ -1,0 +1,380 @@
+--- a/engine.py
++++ b/engine.py
+@@ -37,10 +37,11 @@
+     return dict(value)
+ 
+ class Engine:
+-    def __init__(self,repository: Repository,scope_for: Callable[[str], Scope],catalog=None,table_capabilities=None,dataset_capabilities=None,read_surface=None,answer_settings=None,execution_policy=None,template_mode=False,report_archive=None):
++    def __init__(self,repository: Repository,scope_for: Callable[[str], Scope],catalog=None,table_capabilities=None,dataset_capabilities=None,read_surface=None,answer_settings=None,execution_policy=None,template_mode=False,report_archive=None,selector_policy=None):
+         self.repo,self.scope_for = repository,scope_for
+         self.execution_policy=execution_policy
+         self.template_mode=bool(template_mode)
++        self.selector_policy=selector_policy
+         self.report_archive=report_archive
+         self.repo.execution_authorizer=self.authorize_job
+         self.read_surface=read_surface
+@@ -408,7 +409,7 @@
+                     authorize_dispatch()
+                     if request.source.startswith('model:'):
+                         import model_usage
+-                        model_usage.dispatched(self.repo,event)
++                        model_usage.dispatched(self.repo,event,context=model_usage.dispatch_context(request))
+                         return lambda:model_usage.undispatched(self.repo,event)
+                 from report_archive import observe
+                 value,meta=observe(self.engine,row,event,request,store,lambda:observed(request,store,dispatched))
+--- a/model_usage.py
++++ b/model_usage.py
+@@ -22,6 +22,8 @@
+             c.execute('ALTER TABLE calls ADD COLUMN error_code TEXT')
+         if 'model_usage' not in columns:
+             c.execute('ALTER TABLE calls ADD COLUMN model_usage TEXT')
++        if 'model_context' not in columns:
++            c.execute('ALTER TABLE calls ADD COLUMN model_context TEXT')
+         c.execute('CREATE INDEX IF NOT EXISTS model_dispatch_time ON calls(dispatched)')
+         c.execute('CREATE INDEX IF NOT EXISTS model_ledger_expiry ON calls(COALESCE(dispatched,at))')
+         c.execute('CREATE TABLE IF NOT EXISTS model_usage_requests(request_key TEXT PRIMARY KEY, at REAL NOT NULL)')
+@@ -43,9 +45,39 @@
+     c.execute('INSERT OR IGNORE INTO model_usage_requests VALUES(?,?)', (key, now))
+ 
+ 
+-def dispatched(repo, event_id):
+-    with repo.connection(True) as c:
+-        count = c.execute("UPDATE calls SET dispatched=? WHERE id=? AND source LIKE 'model:%' AND dispatched IS NULL", (repo.clock(), event_id)).rowcount
++def dispatch_context(request):
++    """Only server-known stage and hashes. Never prompts, tenant IDs or tokens."""
++    stage=request.operation
++    if type(stage)is not str or re.fullmatch(r'[a-z][a-z0-9_]{0,63}',stage)is None:
++        stage='unknown'
++    result={'schema':'alisa-model-attempt-context/v1','stage':stage}
++    if stage in('template_select','template_verify'):
++        from template_protocol import request_metadata
++        try:result.update(request_metadata(stage,request.body))
++        except (ValueError,KeyError,TypeError):pass
++    return result
++
++
++def _context(value):
++    if value is None:return None
++    allowed={'schema','stage','prompt_layout','selector_view_sha256','prefix_sha256',
++             'instruction_profile_sha256','request_payload_sha256','requested_model','isolation_policy'}
++    if type(value)is not dict or set(value)-allowed or value.get('schema')!='alisa-model-attempt-context/v1':
++        raise ValueError('MODEL_ATTEMPT_CONTEXT_INVALID')
++    if type(value.get('stage'))is not str or re.fullmatch(r'[a-z][a-z0-9_]{0,63}',value['stage'])is None:
++        raise ValueError('MODEL_ATTEMPT_CONTEXT_INVALID')
++    for k,v in value.items():
++        if k.endswith('_sha256')and(type(v)is not str or re.fullmatch(r'[0-9a-f]{64}',v)is None):raise ValueError('MODEL_ATTEMPT_CONTEXT_INVALID')
++    if 'prompt_layout'in value and value['prompt_layout']not in('legacy_v1','catalog_prefix_v2'):raise ValueError('MODEL_ATTEMPT_CONTEXT_INVALID')
++    if 'isolation_policy'in value and value['isolation_policy']not in('legacy_none','tenant_v1'):raise ValueError('MODEL_ATTEMPT_CONTEXT_INVALID')
++    if 'requested_model'in value and(type(value['requested_model'])is not str or re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}',value['requested_model'])is None):raise ValueError('MODEL_ATTEMPT_CONTEXT_INVALID')
++    return json.dumps(value,ensure_ascii=False,separators=(',',':'))
++
++
++def dispatched(repo, event_id, *, context=None):
++    metadata=_context(context)
++    with repo.connection(True) as c:
++        count = c.execute("UPDATE calls SET dispatched=?,model_context=? WHERE id=? AND source LIKE 'model:%' AND dispatched IS NULL", (repo.clock(),metadata,event_id)).rowcount
+         if count != 1:
+             raise RuntimeError('MODEL_DISPATCH_RECEIPT_INVALID')
+ 
+@@ -56,7 +88,7 @@
+         # The caller can already have recorded UNKNOWN while its I/O thread
+         # finishes this proven pre-send abort. A received response must never
+         # lose its stamp; no-send may retire a pending or failed reservation.
+-        count=c.execute("UPDATE calls SET dispatched=NULL WHERE id=? AND source LIKE 'model:%' AND state IN ('SENDING','HTTP_ERROR','UNKNOWN') AND dispatched IS NOT NULL",(event_id,)).rowcount
++        count=c.execute("UPDATE calls SET dispatched=NULL,model_context=NULL WHERE id=? AND source LIKE 'model:%' AND state IN ('SENDING','HTTP_ERROR','UNKNOWN') AND dispatched IS NOT NULL",(event_id,)).rowcount
+         if count!=1:raise RuntimeError('MODEL_DISPATCH_ABORT_INVALID')
+ 
+ 
+@@ -79,7 +111,8 @@
+                 received=by_state.get('RECEIVED', 0),
+                 failed=by_state.get('HTTP_ERROR', 0),
+                 unknown=by_state.get('UNKNOWN', 0),
+-                pending=by_state.get('SENDING', 0), by_model=by_model)
++                pending=by_state.get('SENDING', 0), by_model=by_model,
++                cache_by_stage=stage_summary(repo)['groups'])
+ 
+ 
+ def receipt(envelope, requested_model):
+@@ -124,12 +157,13 @@
+ def job_attempts(repo, job_id):
+     """All real attempts, including unknown costs; historical gaps stay unknown."""
+     with repo.connection() as c:
+-        rows = c.execute("SELECT id,source,dispatched,state,http,model_usage FROM calls "
++        rows = c.execute("SELECT id,source,dispatched,state,http,model_usage,model_context FROM calls "
+                          "WHERE jid=? AND source LIKE 'model:%' AND dispatched>? "
+                          "ORDER BY id", (job_id, repo.clock()-WINDOW_SECONDS)).fetchall()
+     return [dict(id=r['id'], source=r['source'], dispatched=r['dispatched'],
+                  state=r['state'], http=r['http'],
+-                 receipt=json.loads(r['model_usage']) if r['model_usage'] else None)
++                 receipt=json.loads(r['model_usage']) if r['model_usage'] else None,
++                  context=json.loads(r['model_context']) if r['model_context'] else None)
+             for r in rows]
+ 
+ 
+@@ -161,3 +195,53 @@
+         raise ValueError('MODEL_COST_RATES')
+     amount = (hit*cached + miss*uncached + completion*out) / Decimal(1000000)
+     return {'currency_amount': str(amount), 'rub': str(amount*fx)}
++
++
++def stage_summary(repo, *, rates_by_model=None):
++    """Seven-day measured tokens by actual stage/layout, including failed attempts.
++
++    Optional rates are caller-supplied dated *normalization* quotes, not invoices.
++    Missing/inconsistent usage remains unknown, never a zero-cost attempt.
++    Grouping is bounded by stage/layout/model identities; no full catalogue hashes
++    or user IDs are copied into the public summary. Per-attempt metadata retains
++    those non-personal hashes in the existing seven-day calls ledger.
++    """
++    now=repo.clock();groups={}
++    with repo.connection() as c:
++        rows=c.execute("SELECT model_context,model_usage,state FROM calls WHERE source LIKE 'model:%' AND dispatched>? AND dispatched<=? ORDER BY id",(now-WINDOW_SECONDS,now)).fetchall()
++    for row in rows:
++        ctx=json.loads(row['model_context'])if row['model_context']else{}
++        receipt=json.loads(row['model_usage'])if row['model_usage']else{}
++        stage=ctx.get('stage','unknown');layout=ctx.get('prompt_layout','not_applicable'if stage!='unknown'else'unknown')
++        requested=receipt.get('requested_model',ctx.get('requested_model','unknown'));served=receipt.get('model','unknown')
++        key=(stage,layout,requested,served)
++        if key not in groups:
++            groups[key]={'stage':stage,'prompt_layout':layout,'requested_model':requested,'served_model':served,
++              'attempts':0,'complete_receipts':0,'incomplete_receipts':0,'prompt_tokens':0,'cache_hit_tokens':0,
++              'cache_miss_tokens':0,'completion_tokens':0,'quoted_attempts':0,'unquoted_attempts':0,
++              '_quoted':Decimal(0),'_quoted_rub':Decimal(0)}
++        g=groups[key];g['attempts']+=1
++        # Reuse the existing consistency checks, including hit+miss and totals.
++        valid=price_attempt(receipt,input_cached=0,input_uncached=0,output=0,rub_per_currency=1)
++        if valid is None:g['incomplete_receipts']+=1
++        else:
++            u=receipt['usage'];hit=u.get('prompt_cache_hit_tokens',u.get('prompt_tokens_details',{}).get('cached_tokens'))
++            g['complete_receipts']+=1;g['prompt_tokens']+=u['prompt_tokens'];g['cache_hit_tokens']+=hit
++            g['cache_miss_tokens']+=u.get('prompt_cache_miss_tokens',u['prompt_tokens']-hit);g['completion_tokens']+=u['completion_tokens']
++        rates=(rates_by_model or{}).get(served)
++        if rates is None:rates=(rates_by_model or{}).get(requested)
++        quote=price_attempt(receipt,**rates)if rates is not None else None
++        if quote is None:g['unquoted_attempts']+=1
++        else:
++            g['quoted_attempts']+=1;g['_quoted']+=Decimal(quote['currency_amount']);g['_quoted_rub']+=Decimal(quote['rub'])
++    output=[]
++    for _,g in sorted(groups.items()):
++        g['cache_hit_ratio']=g['cache_hit_tokens']/g['prompt_tokens']if g['prompt_tokens']else None
++        g['receipt_coverage']=g['complete_receipts']/g['attempts']
++        quoted=g.pop('_quoted');rub=g.pop('_quoted_rub')
++        g['known_cost_at_supplied_rates']=str(quoted)if g['quoted_attempts']else None
++        g['known_rub_at_supplied_rates']=str(rub)if g['quoted_attempts']else None
++        g['all_attempts_priced']=g['quoted_attempts']==g['attempts']
++        output.append(g)
++    return {'schema':'alisa-model-cache-stages/v1','window_seconds':WINDOW_SECONDS,'generated_at':now,
++            'cost_basis':'caller_supplied_rates_not_invoice'if rates_by_model else'not_quoted','groups':output}
+--- a/runtime.py
++++ b/runtime.py
+@@ -29,6 +29,8 @@
+         a=d.get('report_archive')
+         if a is not None and (type(a)is not dict or set(a)-{'enabled','max_bytes'} or type(a.get('enabled'))is not bool or type(a.get('max_bytes',256*1024*1024))is not int or not 16*1024*1024<=a.get('max_bytes',256*1024*1024)<=1024*1024*1024):
+             raise Rejected('CONFIG_SCHEMA')
++        from selector_policy import validate as validate_selector_policy
++        validate_selector_policy(d.get('selector_prompt'))
+         return d
+     def scope(self,tenant):
+         d=self.read();account=d['accounts'].get(tenant)
+@@ -82,7 +84,7 @@
+     if archive is not None:
+         from protected_reads import key
+         key(repo)  # Validate encryption before accepting any paid provider work.
+-    engine=Engine(repo,config.scope,template_mode=True,report_archive=archive,answer_settings=answer_settings,read_surface=reads,table_capabilities=(lambda:config.read().get('table_capabilities',{})) if 'table_capabilities' in d else None,dataset_capabilities=(lambda:config.read().get('dataset_capabilities',{})) if 'dataset_capabilities' in d else None)
++    engine=Engine(repo,config.scope,template_mode=True,selector_policy=lambda:config.read().get('selector_prompt'),report_archive=archive,answer_settings=answer_settings,read_surface=reads,table_capabilities=(lambda:config.read().get('table_capabilities',{})) if 'table_capabilities' in d else None,dataset_capabilities=(lambda:config.read().get('dataset_capabilities',{})) if 'dataset_capabilities' in d else None)
+     transport=HTTPTransport(directory,d['credential_bindings'],d['qualifications'],enabled=True,qualification_provider=lambda:config.read()['qualifications'],read_surface_policy=lambda:config.read().get('read_surface',{}))
+     worker=Worker(engine,transport)
+     from runtime_port_service import attach as attach_port,close as close_port
+--- a/selector_policy.py
++++ b/selector_policy.py
+@@ -0,0 +1,33 @@
++"""Server-owned prompt-layout policy. No response cache, quotas or extra calls.
++
++This is deliberately not a multi-version catalogue executor. Old jobs without
++this field keep legacy payloads; a rollout still requires the existing safe gate.
++"""
++from copy import deepcopy
++import hashlib
++from semantics import Rejected
++
++LEGACY='legacy_v1'
++PREFIX='catalog_prefix_v2'
++DEFAULT={'layout':LEGACY,'isolation':'legacy_none'}
++
++def validate(value=None):
++    if value is None or value=={}:return dict(DEFAULT)
++    if type(value)is not dict or set(value)!={'layout','isolation'}:
++        raise Rejected('SELECTOR_POLICY_INVALID')
++    if value['layout']not in(LEGACY,PREFIX)or value['isolation']not in('legacy_none','tenant_v1'):
++        raise Rejected('SELECTOR_POLICY_INVALID')
++    return dict(value)
++
++def for_new_job(engine):
++    source=getattr(engine,'selector_policy',None)
++    return validate(source()if source is not None else None)
++
++def apply(body,policy,tenant):
++    """Tenant comes from the authenticated server scope, never model content."""
++    rule=validate(policy)
++    if type(tenant)is not str or not tenant:raise Rejected('TENANT_DENIED')
++    result=deepcopy(body);result['_prompt_layout']=rule['layout']
++    if rule['isolation']=='tenant_v1':
++        result['_selector_user_id']='alisa_t_'+hashlib.sha256(('alisa-selector-cache-tenant-v1\0'+tenant).encode()).hexdigest()
++    return result
+--- a/template_catalog.py
++++ b/template_catalog.py
+@@ -101,11 +101,25 @@
+         return engine.table_capabilities().get(store.id,{}).get('wb_event_sales',{}).get('table_hash')==TH
+     return True
+ 
++def selector_catalog():
++    """Only model-visible semantics; no notes, store IDs or execution hashes.
++
++    Preserve catalogue and dependency order here. Prefix serialization alone
++    imposes stable ID order; meaningful dependency order is never rewritten.
++    """
++    return [{'id':tid,'purpose':t['purpose'],'kind':t['kind'],'input_policy':deepcopy(t['input_policy']),
++             'platforms':deepcopy(t['platforms']),'dependencies':dependencies(tid)[0:-1],
++             'metrics':deepcopy(t['metrics'])}for tid,t in TEMPLATES.items()]
++
++def selector_availability(engine,scope):
++    return {tid:[s.id for s in scope.stores if _availability(engine,t,s)]for tid,t in TEMPLATES.items()}
++
+ def discovery(engine,scope):
+-    return [{'id':tid,'purpose':t['purpose'],'kind':t['kind'],'input_policy':t['input_policy'],
+-             'platforms':t['platforms'],'available_stores':[s.id for s in scope.stores if _availability(engine,t,s)],
+-             'dependencies':dependencies(tid)[0:-1],'metrics':t['metrics']}
+-            for tid,t in TEMPLATES.items()]
++    # Keep every key and its insertion order identical for legacy_v1.
++    access=selector_availability(engine,scope)
++    return [{'id':t['id'],'purpose':t['purpose'],'kind':t['kind'],'input_policy':t['input_policy'],
++             'platforms':t['platforms'],'available_stores':access[t['id']],
++             'dependencies':t['dependencies'],'metrics':t['metrics']}for t in selector_catalog()]
+ 
+ def shape(selection):
+     need(type(selection)is dict,'MODEL_SELECTION_INVALID')
+--- a/template_protocol.py
++++ b/template_protocol.py
+@@ -1,5 +1,8 @@
+ """Closed template-selection commands; never an arbitrary API planner."""
+ import json
++import hashlib,re
++from copy import deepcopy
++from selector_policy import LEGACY,PREFIX
+ SELECT_SYSTEM='''Ты выбираешь только зарегистрированные шаблоны из templates для ВСЕГО исходного вопроса. Временный режим обкатки: универсальные read/discover и произвольные API запрещены. Шаблон не содержит голосовой фразы; выбирай по смыслу purpose, данным и условиям. Один вопрос остаётся одним заданием.
+ Сначала перечисли все требуемые части. Для каждой подбери шаблоны и укажи точные разрешённые store_id и входные параметры. Не подменяй показатель похожим, не отбрасывай период, площадку, товар, сравнение, группировку или любую часть вопроса. Шаблон с available=false использовать нельзя. Нельзя писать operation или вызывать API вне шаблона. Период дат from/to включительно; сегодня и часовой пояс даны сервером. Текущий snapshot не имеет исторического периода. Все суммы/ID только из исходного вопроса или разрешённого контекста.
+ Если шаблон не найден, выключен, не подходит под условия либо не покрывает ХОТЯ БЫ ОДНУ ЧАСТЬ составного запроса, верни:
+@@ -10,10 +13,64 @@
+ VERIFY_SYSTEM='''Независимо проверь покрытие исходного вопроса предложенным набором зарегистрированных шаблонов. Ничего не выполняй и не выбирай произвольные API. Сравни каждую часть исходного вопроса, площадки, периоды, метрики, фильтры, сравнения и разрезы с selection и compiled_templates. Наличие complete=true у первого планировщика НЕ доказательство. Если первая модель пропустила часть вопроса или подменила смысл/условие, верни approved=false и перечисли missing. Если всё действительно покрыто, верни approved=true,missing=[],requirement_ids со ВСЕМИ id требований из selection.
+ Строгий JSON: {"approved":true,"missing":[],"requirement_ids":["r1"]}. При неполноте: {"approved":false,"missing":["непокрытая часть"],"requirement_ids":[]}. Ни ответ пользователю, ни финансовые цифры не вычисляй. Не делай вывод о наличии платной подписки по статической метке.'''
+ 
++def _json(value):
++    return json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':'),allow_nan=False)
++
++def _hash(value):return hashlib.sha256(value.encode()).hexdigest()
++
++def partition(context):
++    """Lossless split of the current discovery contract; reject silent losses."""
++    if type(context)is not dict or not all(k in context for k in('templates','input_contract','temporary_mode')):
++        raise ValueError('SELECTOR_CONTEXT_SCHEMA')
++    rows=context['templates']
++    if type(rows)is not list:raise ValueError('SELECTOR_CONTEXT_SCHEMA')
++    fields={'id','purpose','kind','input_policy','platforms','dependencies','metrics','available_stores'}
++    templates=[];availability={}
++    for row in rows:
++        if type(row)is not dict or set(row)!=fields or type(row['id'])is not str or row['id']in availability:
++            raise ValueError('SELECTOR_CATALOG_SCHEMA')
++        if type(row['available_stores'])is not list or any(type(v)is not str for v in row['available_stores']):
++            raise ValueError('SELECTOR_AVAILABILITY_SCHEMA')
++        templates.append({k:deepcopy(v)for k,v in row.items()if k!='available_stores'})
++        availability[row['id']]=deepcopy(row['available_stores'])
++    static={'templates':sorted(templates,key=lambda r:r['id']),
++            'input_contract':deepcopy(context['input_contract']),'temporary_mode':context['temporary_mode']}
++    dynamic={k:deepcopy(v)for k,v in context.items()if k not in static}
++    if 'template_availability'in dynamic:raise ValueError('SELECTOR_CONTEXT_COLLISION')
++    dynamic['template_availability']=availability
++    return static,dynamic
++
++def _content(context):
++    static,dynamic=partition(context)
++    # Fixed labels only. No changing version/hash/time before the catalogue.
++    prefix='CATALOG_DATA\n'+_json(static)+'\nREQUEST_DATA\n'
++    return prefix+_json(dynamic),prefix,static
++
+ def payload(operation,body):
+     system={'template_select':SELECT_SYSTEM,'template_verify':VERIFY_SYSTEM}.get(operation)
+     if system is None or body.get('system')!=system:raise ValueError('TEMPLATE_MODEL_POLICY')
++    layout=body.get('_prompt_layout',LEGACY)
++    if layout not in(LEGACY,PREFIX)or(operation!='template_select'and layout!=LEGACY):
++        raise ValueError('SELECTOR_LAYOUT_INVALID')
+     messages=[{'role':'system','content':system}]
+     if body.get('instruction','').strip():messages.append({'role':'system','content':body['instruction']})
+-    messages.append({'role':'user','content':json.dumps(body['context'],ensure_ascii=False,allow_nan=False)})
+-    return {'model':'deepseek-flash','thinking':{'type':'disabled'},'temperature':0,'max_tokens':6000,'response_format':{'type':'json_object'},'messages':messages}
++    # With no layout field this remains byte-for-byte the previous builder.
++    content=json.dumps(body['context'],ensure_ascii=False,allow_nan=False)if layout==LEGACY else _content(body['context'])[0]
++    messages.append({'role':'user','content':content})
++    result={'model':'deepseek-flash','thinking':{'type':'disabled'},'temperature':0,'max_tokens':6000,'response_format':{'type':'json_object'},'messages':messages}
++    user=body.get('_selector_user_id')
++    if user is not None:
++        if type(user)is not str or not re.fullmatch(r'alisa_t_[0-9a-f]{64}',user):raise ValueError('SELECTOR_ISOLATION_INVALID')
++        result['user_id']=user
++    return result
++
++def request_metadata(operation,body):
++    """Hashes are diagnostics outside messages, not provider cache instructions."""
++    wire=payload(operation,body);layout=body.get('_prompt_layout',LEGACY)
++    profile=_json(wire['messages'][:-1]);static,_=partition(body['context'])
++    prefix=_content(body['context'])[1]if layout==PREFIX else ''
++    return {'stage':operation,'prompt_layout':layout,'selector_view_sha256':_hash(_json(static)),
++            'prefix_sha256':_hash(profile+'\0'+prefix),'instruction_profile_sha256':_hash(profile),
++            'request_payload_sha256':_hash(json.dumps(wire,ensure_ascii=False,allow_nan=False)),
++            'requested_model':wire['model'],
++            'isolation_policy':'tenant_v1'if 'user_id'in wire else'legacy_none'}
+--- a/template_runtime.py
++++ b/template_runtime.py
+@@ -50,6 +50,8 @@
+           'template_execution':{'catalog_hash':HASH,'mode':MODE},'selection_verified':False,
+           'freshness_seconds':300,'request_identity':fingerprint([rid,body_hash]),'fragments':[]}
+     draft={'route':'TEMPLATE_ONLY','question':command,'original_question':context['question'],'question_clarifications':context.get('clarifications',[]),'calendar_date':today.isoformat(),'refresh':False}
++    from selector_policy import for_new_job
++    draft['selector_prompt']=for_new_job(engine)
+     if clarification is not None:draft['clarification']=clarification
+     engine.pin_execution(plan,execution_context);engine.pin_execution(draft,execution_context)
+     if not authorized(engine,plan):raise Rejected('SOURCE_ACCESS')
+@@ -74,6 +76,8 @@
+     full=model_payload(operation,body)
+     entry={'operation':operation,'prepared_at':datetime.fromtimestamp(repo.clock(),timezone.utc).isoformat(),
+            'request_payload':full,'request_payload_sha256':hashlib.sha256(json.dumps(full,ensure_ascii=False,allow_nan=False).encode()).hexdigest()}
++    from template_protocol import request_metadata
++    entry['request_metadata']=request_metadata(operation,body)
+     progress.setdefault(TRACE,[]).append(entry)
+     with repo.connection(True)as c:
+         repo._owned(c,row['id'],row['owner'])
+@@ -149,7 +153,25 @@
+             ctx={'original_question':plan['question'],'clarifications':strict_json(row['draft']).get('question_clarifications',[]),
+                  'server_date':plan['calendar_date'],'timezone':plan['timezone'],'allowed_stores':[{'id':s.id,'platform':s.platform}for s in scope.stores],
+                  'templates':discovery(worker.engine,scope),'input_contract':INPUT_CONTRACT,'temporary_mode':MODE}
+-            op='template_select';body={'system':SELECT_SYSTEM,'instruction':progress['planning_settings']['request_planning_prompt'],'context':ctx}
++            op='template_select'
++            from selector_policy import apply,validate
++            rule=validate(strict_json(row['draft']).get('selector_prompt'))
++            prepared=progress.get('_selector_prepared')
++            if prepared is None:
++                body=apply({'system':SELECT_SYSTEM,'instruction':progress['planning_settings']['request_planning_prompt'],'context':ctx},rule,plan['tenant'])
++                # JSON text preserves insertion order across the canonical JSON
++                # persistence layer, so a transport retry sends identical bytes.
++                encoded=json.dumps(body,ensure_ascii=False,allow_nan=False)
++                prepared={'body_json':encoded,'sha256':hashlib.sha256(encoded.encode()).hexdigest(),'policy':rule,'catalog_hash':HASH}
++                progress['_selector_prepared']=prepared
++            else:
++                if (prepared.get('policy')!=rule or prepared.get('catalog_hash')!=HASH
++                    or hashlib.sha256(prepared.get('body_json','').encode()).hexdigest()!=prepared.get('sha256')):
++                    raise Rejected('SELECTOR_REQUEST_PIN_CHANGED')
++                body=strict_json(prepared['body_json'])
++                if body['context'].get('original_question')!=plan['question']:raise Rejected('SELECTOR_REQUEST_PIN_CHANGED')
++                # This is not an access cache: authorized() and compile_selection
++                # above/below still resolve current server rights and source proof.
+             index=_snapshot(worker.repo,row,progress,op,body)
+             from providers import Request
+             req=Request(op,getattr(worker.transport,'model_source','model:deepseek-flash'),'',body,0,None)
