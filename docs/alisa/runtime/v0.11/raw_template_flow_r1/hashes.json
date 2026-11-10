@@ -1,0 +1,17 @@
+{
+  "station/local_gateway.py": "73ecba5f1d9a48a275ed4279475c984e1f585643e2e011b0549fb51f66301605",
+  "station/station_client.py": "46869ad571a7e6a24a41f9890d25f6742938dfb8c4775394a22d6f0384ea4f0c",
+  "station/alice_lab.py": "b33686666b30a1fa40b67a4ba1a39124ed514c6c309468efb3fa1825d9e66efd",
+  "station/voice_protocol.py": "82fb4873a6a638d47783a74f5df254285f5ad0563649e4bc2b209392ab63a4d1",
+  "station/service.py": "bc17ef8094feffce6bf406dd4897cc1670a9ed73e34f44e202b6b22d7b7ed4e9",
+  "station/alice_bridge.py": "4b2a3ab5cc8d64f298b704b782203fc76ce68b7615dd433df5a9b99e0c8ffd02",
+  "station/test_raw_voice_flow.py": "7e79dd0ce6ddbee008f3674ff9114576c795c4bbd3be19ca63ac865c71805115",
+  "core/template_runtime.py": "f8cae2620aedf3b2cb9fe4e562a2b970eb3a39c8508fa672caf0b4052e005fd6",
+  "core/template_catalog.py": "9c2eb0f0b938ff13fe2ff9cdce8364007d3ea342514799125720a5bde3df2055",
+  "core/engine.py": "328411b4b8627d92585057a8ae2de19e0f6d1a04f8a734cb0e9a41a3ae040f0c",
+  "core/dialogue.py": "37227fdc8e1cf31e77bc89c108a41aba2f180d2051cbf4d159705f6b15d57b9d",
+  "core/alice_bridge.py": "dcbac4d80eda43e7010c718c1bbb04dc37513a86e54b1926c8a1d2400b3598ff",
+  "core/failure_catalog.json": "6205bc8a88af10379f9199412fa7c0d90e949ade3a38aad1d303b48bf1a40dd8",
+  "core/tests/test_template_only.py": "c97c2bfb788ed3ea1d6faf80a1336a17f1fa69c1fd51d6b8b334015b531465f0",
+  "core/tests/test_raw_template_flow.py": "248e26dd7afcc484d25f736d1901ddc84f99eaf3d8ad394bb5112db7932c71e6"
+}

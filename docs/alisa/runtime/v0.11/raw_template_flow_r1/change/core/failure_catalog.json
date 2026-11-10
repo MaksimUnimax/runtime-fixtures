@@ -1,0 +1,377 @@
+{
+  "schema": "alice-failure-catalog/v1",
+  "version": "20261109-tier-aware-access-r1",
+  "fallback": "UNSPECIFIED",
+  "entries": {
+    "UNSPECIFIED": {
+      "reason": "Полный отчёт не получен; точная причина пока не установлена. Частичные суммы не выдаю.",
+      "next_action": "Нужно проверить сохранённое задание и доступность источников; повтор автоматически не запускаю.",
+      "cause_status": "UNKNOWN"
+    },
+    "ADS_EMPTY_UNCONFIRMED": {
+      "reason": "Источник рекламы вернул пустой ответ. Это не подтверждает нулевые расходы; внутренняя причина ответа площадки неизвестна.",
+      "next_action": "Нужно проверить охват дневного рекламного отчёта за тот же период. Пока расходы и юнит-экономику как полные не сохраняю.",
+      "cause_status": "PROVIDER_CAUSE_UNKNOWN"
+    },
+    "DATASET_CAMPAIGN_COVERAGE": {
+      "reason": "Статистика покрывает не все запрошенные рекламные кампании. Итог всего кабинета пока не подтверждён.",
+      "next_action": "Нужно проверить отсутствующие кампании и период; неполные данные не заменяю нулями.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "INCOMPLETE_RESULT": {
+      "reason": "Не все необходимые данные получены и проверены. Полный результат не готов.",
+      "next_action": "Нужно завершить выборку и проверить её полноту; частичные суммы не выдаю как полный отчёт.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "REPORT_REQUIRED_COMPONENT_MISSING": {
+      "reason": "Не получен обязательный компонент расчёта. Итог нельзя считать пригодным к использованию.",
+      "next_action": "Нужно получить и проверить все обязательные источники, включая рекламу для юнит-экономики.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "REPORT_OVERLAP_UNRESOLVED": {
+      "reason": "Не подтверждено, что статьи расходов не пересекаются. Один расход может попасть в итог дважды.",
+      "next_action": "Нужно сверить рекламные списания с финансовыми и отделить контрольные итоги от слагаемых.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "REPORT_SCOPE_MISMATCH": {
+      "reason": "Данные относятся к разным магазинам, периодам или валютам и не подходят для этого расчёта.",
+      "next_action": "Нужно получить совместимые данные в исходном разрешённом объёме, не меняя смысл запроса.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "SOURCE_PROOF_REQUIRED": {
+      "reason": "Для источника нет действующего подтверждения пригодности в выбранном объёме.",
+      "next_action": "Нужно проверить источник для этого магазина и периода; до этого новый расчёт не запускаю.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "SOURCE_PROOF_EXPIRED": {
+      "reason": "Срок подтверждения источника истёк. Прежние доказательства не дают допуска к новому расчёту.",
+      "next_action": "Нужно обновить квалификацию источника; существующие ограничения доступа не обхожу.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "SOURCE_PROOF_PERIOD": {
+      "reason": "Источник ещё не подтверждён для запрошенного периода.",
+      "next_action": "Нужно квалифицировать этот период; другой период молча не подставляю.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "SOURCE_PROOF_SCOPE": {
+      "reason": "Подтверждение источника относится к другому магазину или версии доступа.",
+      "next_action": "Нужно получить актуальное подтверждение для выбранного магазина.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "SOURCE_PROOF_VERSION": {
+      "reason": "Описание источника изменилось после проверки.",
+      "next_action": "Нужно проверить точную новую версию матрицы до её использования.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "SOURCE_PROOF_REQUIREMENTS": {
+      "reason": "Не выполнены обязательные условия пригодности источника.",
+      "next_action": "Нужно подтвердить заявленный охват данных и остальные условия матрицы.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "HTTP_400": {
+      "reason": "Площадка отклонила параметры запроса. Точное внутреннее объяснение в этой квитанции отсутствует.",
+      "next_action": "Нужно сверить параметры с текущим контрактом API; данные и ключи наугад не меняю.",
+      "cause_status": "PROVIDER_CAUSE_UNKNOWN"
+    },
+    "HTTP_401": {
+      "reason": "Площадка не приняла авторизацию запроса.",
+      "next_action": "Нужно проверить срок и действительность доступа; конкретную причину без диагностики не утверждаю.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "HTTP_403": {
+      "reason": "Площадка запретила обращение к источнику.",
+      "next_action": "Нужно проверить права и доступность метода для кабинета; сменой источника запрет не обхожу.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "HTTP_429_RETRY_EXHAUSTED": {
+      "reason": "Площадка ограничила частоту обращений; разрешённые повторные попытки исчерпаны.",
+      "next_action": "Нужно дождаться допустимого интервала и проверить задание; счётчики и лимиты не обнуляю.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "SOURCE_QUOTA": {
+      "reason": "Достигнут действующий лимит обращений к источнику.",
+      "next_action": "Нужно дождаться освобождения квоты; новый идентификатор запроса не используется для обхода лимита.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "NETWORK_OUTCOME_UNKNOWN": {
+      "reason": "Исход обращения неизвестен: соединение прервалось до подтверждённого результата.",
+      "next_action": "Нужно проверить исход исходного задания; автоматически повторять неопределённое действие не буду.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "LLM_CLARIFY": {
+      "reason": "Не удалось построить однозначный поддержанный план этого вопроса; точная причина пока не подтверждена.",
+      "next_action": "Уточните показатель и период. Заказами, начислениями или другим показателем исходный смысл не заменяю.",
+      "cause_status": "UNKNOWN"
+    },
+    "FINANCIAL_REPORT_NOT_READY": {
+      "reason": "Полные финансовые данные выбранного периода ещё не подтверждены.",
+      "next_action": "Нужно проверить готовность и все страницы отчёта. Отсутствующие значения не считаю нулями.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "MISSING_COST_BASIS": {
+      "reason": "Полная юнит-экономика по этому запросу ещё не подключена.",
+      "next_action": "Для будущего отчёта реклама обязательна; отсутствующие себестоимость и налог будут показаны как не включённые, а не как нули.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "SOURCE_ACCESS": {
+      "reason": "Доступ к необходимому источнику изменился или отсутствует.",
+      "next_action": "Нужно восстановить подтверждённый доступ. Сохранённые цифры без актуальных прав не выдаю.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "DATASET_CURSOR": {
+      "reason": "Источник вернул повторный или некорректный указатель следующей страницы. Полнота не подтверждена.",
+      "next_action": "Нужно проверить пагинацию и исходное задание; уже полученные страницы не выдаю как весь отчёт.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "DATASET_DUPLICATE": {
+      "reason": "В выборке обнаружены повторяющиеся записи. Итог может быть завышен.",
+      "next_action": "Нужно проверить идентификаторы и страницы до подсчёта полного результата.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "SOURCE_CURRENCY_MISMATCH": {
+      "reason": "В источниках обнаружены несовместимые валюты или денежные поля.",
+      "next_action": "Нужно подтвердить валюту и формат; автоматическое преобразование по предположению не выполняю.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "CAPABILITY_UNAVAILABLE": {
+      "reason": "Эта возможность ещё не подключена для выбранного запроса.",
+      "next_action": "Можно проверить поддерживаемые возможности командой «что ты умеешь». Другой показатель молча не подставляю.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "RESULT_EXPIRED": {
+      "reason": "Срок хранения результата истёк. Старые данные больше не выдаются.",
+      "next_action": "Для нового расчёта требуется отдельный исходный запрос; чтение само его не создаёт.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "SOURCE_PERIOD_NOT_COMPLETED": {
+      "reason": "Запрошенный период ещё не завершён; неполные данные не выдаю за окончательный отчёт.",
+      "next_action": "Укажите завершённые календарные дни.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "SOURCE_PROOF_UNAVAILABLE": {
+      "reason": "Не удалось подтвердить актуальный допуск источника. Запрос к площадке не отправлен.",
+      "next_action": "Нужно восстановить проверку допуска; ключи и данные повторно передавать не требуется.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "DATASET_NOT_QUALIFIED": {
+      "reason": "Этот набор данных ещё не включён для выбранного магазина: его полнота и условия доступа должны быть проверены.",
+      "next_action": "Спросите «что ты умеешь», чтобы выбрать доступный отчёт; для этого источника нужна отдельная проверка.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "DATASET_PLATFORM_UNAVAILABLE": {
+      "reason": "Этот набор пока не поддерживается для всех выбранных площадок; одну площадку молча не исключаю.",
+      "next_action": "Укажите одну поддерживаемую площадку или выберите другой доступный отчёт.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "DATASET_UNSUPPORTED_CONDITION": {
+      "reason": "Этот фильтр, сравнение или группировка пока не поддерживаются выбранным набором данных; условия не отбрасываю.",
+      "next_action": "Уточните запрос без неподдержанного условия либо выберите другой отчёт, который его поддерживает.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "DATASET_PERIOD_LIMIT": {
+      "reason": "Указанный период превышает проверенное ограничение этого набора данных.",
+      "next_action": "Укажите более короткий период; полный отчёт за неподдержанный интервал не сформирован.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "DATASET_TIME_AXIS": {
+      "reason": "Запрошенная дата не соответствует этому источнику: текущий снимок нельзя выдать за исторический отчёт.",
+      "next_action": "Для текущего состояния скажите «сейчас»; для истории нужен источник с нужной датой события.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "DATASET_TOKEN_POLICY": {
+      "reason": "Для выбранного набора не подтверждён требуемый тип доступа к источнику.",
+      "next_action": "Проверьте подключение магазина и разрешения источника; другой набор данных вместо него не подставляю.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "HISTORICAL_SNAPSHOT": {
+      "reason": "Запрос «{subject}» относится к текущему снимку. Исторические значения за выбранный период этим источником не восстанавливаются.",
+      "next_action": "Для текущего состояния скажите «сейчас»; для истории нужен отдельный источник именно запрошенного показателя.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "OPERATION_NOT_ENABLED": {
+      "reason": "Для «{subject}» выбранный фильтр или разрез пока не поддерживается. Условие не отбрасываю и другую площадку не подставляю.",
+      "next_action": "Проверьте доступные возможности командой «что ты умеешь» или явно измените неподдержанное условие исходного запроса.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "JOIN_RIGHT_DUPLICATE": {
+      "reason": "Метаданные содержат повторяющийся ключ сопоставления. Соединение могло бы умножить сумму.",
+      "next_action": "Нужно устранить повтор в источниках и подтвердить единственное соответствие; частичный итог не выдаю.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "JOIN_ITEM_MISMATCH": {
+      "reason": "Отправление найдено, но товарный ключ не совпал. Его нельзя считать отсутствующей меткой оплаты.",
+      "next_action": "Нужно проверить соответствие SKU внутри отправления; другой товар не подставляю.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "JOIN_QUANTITY_EXCEEDED": {
+      "reason": "Количество целевых товаров превышает количество в подтверждённых метаданных.",
+      "next_action": "Нужно сверить строки начислений и состав отправления до группировки.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "JOIN_UNMATCHED": {
+      "reason": "Для части целевых строк нет подтверждённого соответствия, а выбранный отчёт требует полного покрытия.",
+      "next_action": "Нужно дополнить проверенные метаданные; строки не удаляю и не считаю оплатой без карты.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "JOIN_FIELD_COLLISION": {
+      "reason": "Соединение пытается заменить исходное поле результата вместо добавления метаданных.",
+      "next_action": "Нужно исправить определение матрицы; исходные суммы и количества не перезаписываю.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "NUMBER_RANGE": {
+      "reason": "Источник вернул число за пределами безопасной точности или размера. Полный отчёт не сформирован; частичные суммы не выдаю.",
+      "next_action": "Нужно проверить формат поля источника. Автоматический повтор этого ответа не выполняю.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "TABLE_RESPONSE_SCHEMA": {
+      "reason": "Полученные данные не соответствуют ожидаемой структуре источника. Полный отчёт не сформирован; частичные суммы не выдаю.",
+      "next_action": "Нужно сверить поля ответа с проверенной схемой источника. Автоматически повторять запрос не буду.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "PROMOTION_PARTICIPATION_NOT_ENABLED": {
+      "reason": "Понял вопрос об участии товаров в акциях. Этот источник ещё не подключён к навыку, поэтому список участников сейчас получить не могу.",
+      "next_action": "Для проверки текущего участия даты не нужны. Это недостающая функция сервиса, а не ошибка вашего вопроса; продажами или рекламными кампаниями её не заменяю.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "READ_NO_PROGRESS": {
+      "reason": "Планировщик повторил то же действие без новых данных и остановился, чтобы не повторять бессмысленные вызовы.",
+      "next_action": "Это ошибка обработки запроса, а не лимит количества обращений.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "HTTP_403_OZON_SUBSCRIPTION_REQUIRED": {
+      "reason": "Ozon отклонил этот метод и указал требование платной подписки в ответе API.",
+      "next_action": "Для этого раздела проверьте условия подписки в кабинете Ozon. Другие методы не считаю недоступными; оплату и изменение подписки автоматически не выполняю.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "HTTP_403_OZON_METHOD_PERMISSION": {
+      "reason": "Ozon отклонил этот метод и указал недостаточность прав в ответе API.",
+      "next_action": "Нужна проверка разрешений текущего подключения для этого метода. Запрет не обхожу сменой ключа или источника.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "WB_SERVICE_CREDENTIAL_REQUIRED": {
+      "reason": "Для этого метода Wildberries нужен сервисный токен, подтверждённый для этого магазина.",
+      "next_action": "Обычный токен не подменяется сервисным; остальные методы магазина продолжают работать.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "READ_METHOD_REPLACED": {
+      "reason": "Старый метод отключён площадкой.",
+      "next_action": "Использую актуальные методы из каталога; старый ответ не подменяется новой финансовой схемой.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "READ_RESOURCE_EXPIRED": {
+      "reason": "Срок доступа к защищённому файлу истёк.",
+      "next_action": "Нужно получить новый файл из действующего источника.",
+      "cause_status": "KNOWN_LIMITATION"
+    },
+    "HTTP_403_READ_RESOURCE_DENIED": {
+      "reason": "Сервер файла отклонил доступ к этой ссылке.",
+      "next_action": "Это отказ конкретного файла; отсутствие подписки или прав ко всему магазину по нему не устанавливается. Нужна действующая ссылка из источника.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "HTTP_403_OZON_PREMIUM_REQUIRED": {
+      "reason": "Ozon отклонил запрос и прямо указал требование подписки «Premium».",
+      "next_action": "Это не ошибка шаблона. Проверяется доступ именно к этому методу; ключи, подписки и покупки автоматически не меняются.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "HTTP_403_OZON_PREMIUM_LITE_REQUIRED": {
+      "reason": "Ozon отклонил запрос и прямо указал требование подписки «Premium Lite».",
+      "next_action": "Это не ошибка шаблона. Проверяется доступ именно к этому методу; ключи, подписки и покупки автоматически не меняются.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "HTTP_403_OZON_PREMIUM_PLUS_REQUIRED": {
+      "reason": "Ozon отклонил запрос и прямо указал требование подписки «Premium Plus».",
+      "next_action": "Это не ошибка шаблона. Проверяется доступ именно к этому методу; ключи, подписки и покупки автоматически не меняются.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "HTTP_403_OZON_PREMIUM_PRO_REQUIRED": {
+      "reason": "Ozon отклонил запрос и прямо указал требование подписки «Premium Pro».",
+      "next_action": "Это не ошибка шаблона. Проверяется доступ именно к этому методу; ключи, подписки и покупки автоматически не меняются.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "HTTP_403_OZON_PLUS_OR_PRO_REQUIRED": {
+      "reason": "Ozon отклонил запрос и прямо указал требование подписки «Premium Plus или Premium Pro».",
+      "next_action": "Это не ошибка шаблона. Проверяется доступ именно к этому методу; ключи, подписки и покупки автоматически не меняются.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "HTTP_403_OZON_REVIEWS_REQUIRED": {
+      "reason": "Ozon отклонил запрос и прямо указал требование подписки «Управление отзывами».",
+      "next_action": "Это не ошибка шаблона. Проверяется доступ именно к этому методу; ключи, подписки и покупки автоматически не меняются.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "HTTP_403_OZON_REVIEWS_OR_PRO_REQUIRED": {
+      "reason": "Ozon отклонил запрос и прямо указал требование подписки «Управление отзывами или Premium Pro».",
+      "next_action": "Это не ошибка шаблона. Проверяется доступ именно к этому методу; ключи, подписки и покупки автоматически не меняются.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "HTTP_403_OZON_ACCESS_POLICY_CONFLICT": {
+      "reason": "Ozon указал требование подписки, но оно расходится с последними подтверждёнными условиями этого метода.",
+      "next_action": "Нужна проверка доступа у площадки. Не приписываю отказ другому тарифу и не предлагаю оплату наугад.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "TEMPLATE_NOT_FOUND": {
+      "reason": "Извините, данный запрос не поддерживается",
+      "next_action": "Временный режим обкатки шаблонов. Полный запрос и диагностические данные сохранены для разработки отсутствующего шаблона.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "TEMPLATE_EXECUTION_FAILED": {
+      "reason": "Не удалось выполнить выбранный шаблон: ошибка выбора или условий запроса.",
+      "next_action": "Сведения об ошибке сохранены для проверки.",
+      "cause_status": "OBSERVED_FAILURE"
+    },
+    "TEMPLATE_LEGACY_JOB_DISABLED": {
+      "reason": "Сохранённое задание создано прежним обработчиком и остановлено.",
+      "next_action": "Повторите исходный вопрос для выбора зарегистрированного шаблона.",
+      "cause_status": "KNOWN_LIMITATION"
+    }
+  },
+  "aliases": {
+    "HTTP_429": "HTTP_429_RETRY_EXHAUSTED",
+    "DAILY_LIMIT": "SOURCE_QUOTA",
+    "CANARY_QUOTA_WAIT": "SOURCE_QUOTA",
+    "QUOTA_EXCEEDED": "SOURCE_QUOTA",
+    "DATASET_INCOMPLETE": "INCOMPLETE_RESULT",
+    "DATASET_COVERAGE": "INCOMPLETE_RESULT",
+    "TABLE_INCOMPLETE": "INCOMPLETE_RESULT",
+    "INCOMPLETE_COMPARISON": "INCOMPLETE_RESULT",
+    "ADS_DUPLICATE": "INCOMPLETE_RESULT",
+    "ACCRUAL_DUPLICATE": "DATASET_DUPLICATE",
+    "ACCRUAL_CURSOR": "DATASET_CURSOR",
+    "CURSOR_STALLED": "DATASET_CURSOR",
+    "ADS_PERIOD": "INCOMPLETE_RESULT",
+    "ACCRUAL_DATE": "REPORT_SCOPE_MISMATCH",
+    "FINANCE_CURRENCY_CHANGED": "SOURCE_CURRENCY_MISMATCH",
+    "CURRENCY_UNCONFIRMED": "SOURCE_CURRENCY_MISMATCH",
+    "ADS_CURRENCY_CHANGED": "SOURCE_CURRENCY_MISMATCH",
+    "UNKNOWN_OUTCOME": "NETWORK_OUTCOME_UNKNOWN",
+    "WORKER_INTERNAL_UNKNOWN": "UNSPECIFIED",
+    "DEPENDENCY_UNAVAILABLE": "UNSPECIFIED",
+    "AUTH_REQUIRED": "SOURCE_ACCESS",
+    "PERMISSION_DENIED": "SOURCE_ACCESS",
+    "ADS_POSSIBLE_TRUNCATION": "INCOMPLETE_RESULT",
+    "ADS_DAILY_SCHEMA": "INCOMPLETE_RESULT",
+    "REPORT_COVERAGE_INCOMPLETE": "INCOMPLETE_RESULT",
+    "REPORT_EVIDENCE_INVALID": "INCOMPLETE_RESULT",
+    "REPORT_EVIDENCE_EXPIRED": "INCOMPLETE_RESULT",
+    "REPORT_EVIDENCE_UNTRUSTED": "INCOMPLETE_RESULT",
+    "REPORT_EVIDENCE_VERIFIER_REQUIRED": "INCOMPLETE_RESULT",
+    "REPORT_VALUE_INVALID": "INCOMPLETE_RESULT",
+    "REPORT_ZERO_UNPROVEN": "INCOMPLETE_RESULT",
+    "REPORT_EXPENSE_KEYS": "INCOMPLETE_RESULT",
+    "ADS_CURRENCY": "SOURCE_CURRENCY_MISMATCH"
+  },
+  "subjects": {
+    "default": "выбранные данные",
+    "product_registry": "справочник товаров",
+    "offer_prices": "текущие цены предложения",
+    "posting_metadata": "метаданные отправлений",
+    "wb_active_ads": "статистика активных рекламных кампаний",
+    "accrual_items": "товарные начисления по товарам",
+    "accrual_days": "товарные начисления по дням",
+    "accrual_items_days": "товарные начисления по товарам и дням",
+    "realization_payment_lines": "строки реализаций по способам оплаты",
+    "realization_payment_totals": "реализации по способам оплаты",
+    "realization_payment_days": "реализации по дням и способам оплаты",
+    "realization_payment_items": "реализации по товарам и способам оплаты",
+    "realization_payment_items_days": "реализации по товарам дням и способам оплаты"
+  }
+}
