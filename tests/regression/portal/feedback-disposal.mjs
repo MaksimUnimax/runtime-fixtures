@@ -282,11 +282,11 @@ await test("list refresh invalidates old reply and its finally cannot unlock new
   await h.handlers.showSupportReply(id); noNewCalls(h);
   current.resolve(response(detail)); await fresh; assert.equal(h.slots[10].state, "ready"); h.clean();
 });
-await test("safe diagnostic opt-in and exact payload remain unchanged", async () => {
+await test("safe diagnostic opt-in preserves consent and current contract payload", async () => {
   const h = await harness().boot(); h.draft(); await h.handlers.submit(event());
   assert.deepEqual(JSON.parse(h.calls[0].body), { accountId: otherId, category: "OTHER", description: "Synthetic draft" });
   h.render(); h.draft(); h.handlers.setDiagnostics(true); h.render(); h.reset(); await h.handlers.submit(event());
-  assert.deepEqual(JSON.parse(h.calls[0].body).diagnostics, { portalVersion: "0.1.0" }); h.clean();
+  assert.deepEqual(JSON.parse(h.calls[0].body), { accountId: otherId, category: "OTHER", description: "Synthetic draft", portalVersion: "0.1.0" }); h.clean();
 });
 const passed = results.filter((x) => x.pass).length;
 console.log(JSON.stringify({ kind: "PORTAL_FEEDBACK_DISPOSAL_SOURCE_PORT_V1", startedAt,

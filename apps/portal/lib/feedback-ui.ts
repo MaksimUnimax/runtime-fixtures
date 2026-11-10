@@ -29,7 +29,7 @@ export function buildFeedbackPayload(input: {
     category: input.category,
     description: input.description,
     ...(input.includeDiagnostics
-      ? { diagnostics: { portalVersion: "0.1.0" } }
+      ? { portalVersion: "0.1.0" }
       : {}),
   };
 }

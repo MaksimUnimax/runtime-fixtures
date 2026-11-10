@@ -31,7 +31,7 @@ describe("B2 portal feedback form", () => {
       accountId: "a",
       category: "AUTH",
       description: "x",
-      diagnostics: { portalVersion: "0.1.0" },
+      portalVersion: "0.1.0",
     });
   });
 });
