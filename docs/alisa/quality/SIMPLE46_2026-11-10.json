@@ -1,0 +1,52 @@
+{
+  "question": "Сколько раз открывали карточки Вайлдберриз восьмого ноября?",
+  "runtime": "alisa-wb-buyout-choice-v3-20261110",
+  "job_seconds": 39.57,
+  "deepseek_attempts": 2,
+  "model_cost": {
+    "rub": "1.7394472395456",
+    "known_rub": "1.7394472395456",
+    "complete": true,
+    "priced_attempts": 2,
+    "total_attempts": 2,
+    "prompt_tokens_known": 46485,
+    "completion_tokens_known": 8153,
+    "fx_rate": "82.7536",
+    "fx_rate_date": "2026-11-10",
+    "tariff_currency": "USD",
+    "tariff_period": "peak",
+    "tariff_checked_date": "2026-11-10"
+  },
+  "stage_usage": [
+    {
+      "stage": "template_select",
+      "input_tokens": 10647,
+      "cached_tokens": 9216,
+      "output_tokens": 111,
+      "reasoning_tokens": null
+    },
+    {
+      "stage": "model_answer",
+      "input_tokens": 35838,
+      "cached_tokens": 0,
+      "output_tokens": 8042,
+      "reasoning_tokens": 8011
+    }
+  ],
+  "template_ids": [
+    "B14.card_views"
+  ],
+  "new_template_clarifications": [],
+  "data_check": {
+    "raw_api_sum_verified": true,
+    "source_operation": "wb_orders",
+    "field": "statistic.selected.openCount",
+    "scope": "all_card_openings_not_ad_clicks",
+    "all_periods_match": true
+  },
+  "admission_status": "Ожидает комментария владельца после пояснения смысла переходов в карточки",
+  "case": "simple-46",
+  "delivery": "responded_to_skill",
+  "business_answer_redacted": true,
+  "owner_acoustic_confirmation": false
+}
