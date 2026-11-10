@@ -1,0 +1,42 @@
+- id: session-log-deepseek
+  config:
+    enabled: false
+- id: plugin-package-inventory-deepseek
+  disabled: true
+- id: compaction-basic
+  disabled: true
+- id: image-offload
+  disabled: true
+- id: llm-retry
+  disabled: true
+- id: persistent-bash
+  disabled: true
+- id: persistent-pwsh
+  disabled: true
+- id: tool-working-directory
+  disabled: true
+- id: tool-fs
+  disabled: true
+- id: tools
+  config:
+    mode: ptc
+    maxParallelSubCalls: 1
+- id: llm-deepseek
+  config:
+    apiKeyEnv: DEEPSEEK_API_KEY
+    defaultContextWindow: 1000000
+    reasoningEffort: high
+    maxTokens: 16384
+    streamIdleTimeoutMs: 180000
+- insert:
+    - id: ptc-runtime-node
+      name: '@deepseek-ai/dsh-ptc-runtime-node'
+      config:
+        executionMode: per-call
+        timeoutMs: 30000
+        maxTimeoutMs: 30000
+        maxOutputBytes: 65536
+        maxMessageBytes: 1048576
+        maxOldGenerationSizeMb: 128
+        maxPendingCalls: 8
+        graceMs: 1000

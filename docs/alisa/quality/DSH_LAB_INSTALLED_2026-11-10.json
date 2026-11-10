@@ -1,0 +1,152 @@
+{
+  "status": "INSTALLED_ISOLATED_LAB_NOT_PRODUCTION",
+  "runtime": "0.2.1rc2",
+  "source_tag": "dsh-v0.2.1-rc.2",
+  "runtime_wheel_sha256": "0a0a4eb85a22cd9339972e6a5ced77a27ec791353a5b220e3e10b8cdbbdeca39",
+  "scenario": "WB one-day card openings final stage",
+  "baseline": {
+    "calls": 1,
+    "input_total": 35993,
+    "input_cached": 128,
+    "output_total_including_thinking": 9367,
+    "actual_rub": "1.8206344794048",
+    "normalized_all_input_uncached_rub": "1.82374866288",
+    "elapsed_seconds": 37.95
+  },
+  "successful_harness": {
+    "calls": 2,
+    "input_total": 11073,
+    "input_cached": 2432,
+    "output_total_including_thinking": 466,
+    "actual_rub": "0.2620055109312",
+    "normalized_all_input_uncached_rub": "0.32117499696",
+    "elapsed_seconds": 7.312
+  },
+  "initial_failed_harness": {
+    "calls": 3,
+    "input_total": 8013,
+    "input_cached": 5120,
+    "output_total_including_thinking": 547,
+    "actual_rub": "0.1286835030720",
+    "normalized_all_input_uncached_rub": "0.25325084208"
+  },
+  "all_paid_dispatches": 6,
+  "all_model_cost_rub": "2.2113234934080",
+  "actual_final_stage_reduction_percent": "85.60910968703313917559230474",
+  "normalized_final_stage_reduction_percent": "82.38929500006806332611862076",
+  "attempts": [
+    {
+      "attempt": 1,
+      "phase": "baseline",
+      "input_total": 35993,
+      "input_uncached": 35865,
+      "input_cached": 128,
+      "output_total_including_thinking": 9367,
+      "actual_rub": "1.8206344794048",
+      "normalized_all_input_uncached_rub": "1.82374866288",
+      "elapsed_seconds": 37.915
+    },
+    {
+      "attempt": 2,
+      "phase": "initial_failed_harness",
+      "input_total": 2422,
+      "input_uncached": 2422,
+      "input_cached": 0,
+      "output_total_including_thinking": 95,
+      "actual_rub": "0.06956267616",
+      "normalized_all_input_uncached_rub": "0.06956267616",
+      "elapsed_seconds": 1.332
+    },
+    {
+      "attempt": 3,
+      "phase": "initial_failed_harness",
+      "input_total": 2535,
+      "input_uncached": 231,
+      "input_cached": 2304,
+      "output_total_including_thinking": 315,
+      "actual_rub": "0.0381596710464",
+      "normalized_all_input_uncached_rub": "0.0942149736",
+      "elapsed_seconds": 2.255
+    },
+    {
+      "attempt": 4,
+      "phase": "initial_failed_harness",
+      "input_total": 3056,
+      "input_uncached": 240,
+      "input_cached": 2816,
+      "output_total_including_thinking": 137,
+      "actual_rub": "0.0209611558656",
+      "normalized_all_input_uncached_rub": "0.08947319232",
+      "elapsed_seconds": 1.851
+    },
+    {
+      "attempt": 5,
+      "phase": "successful_harness",
+      "input_total": 2284,
+      "input_uncached": 2284,
+      "input_cached": 0,
+      "output_total_including_thinking": 213,
+      "actual_rub": "0.07785458688",
+      "normalized_all_input_uncached_rub": "0.07785458688",
+      "elapsed_seconds": 1.674
+    },
+    {
+      "attempt": 6,
+      "phase": "successful_harness",
+      "input_total": 8789,
+      "input_uncached": 6357,
+      "input_cached": 2432,
+      "output_total_including_thinking": 253,
+      "actual_rub": "0.1841509240512",
+      "normalized_all_input_uncached_rub": "0.24332041008",
+      "elapsed_seconds": 3.182
+    }
+  ],
+  "quality": {
+    "mathematics": "PASS_INDEPENDENT_DECIMAL_REVIEW",
+    "full_source_identity": "PASS",
+    "all_rows_and_requested_period": "PASS",
+    "speech": "NOT_APPROVED_LONG_RESPONSE_AND_CASE_INFLECTION",
+    "voice_test": "NOT_RUN",
+    "sample_size": 1
+  },
+  "offline": {
+    "large_single_line_json": "PASS",
+    "immutable_input_bind": "PASS",
+    "production_paths_hidden": "PASS",
+    "credentials_hidden": "PASS",
+    "foreign_job_hidden": "PASS",
+    "other_network_services_denied": "PASS",
+    "gateway_and_usage_checks": 7,
+    "latest_smoke": "smoke-091414",
+    "smoke_home_removed_after_completion": true
+  },
+  "selector_calls": 0,
+  "marketplace_calls": 0,
+  "station_calls": 0,
+  "production_db_writes": 0,
+  "pricing": {
+    "date": "2026-11-10",
+    "currency": "USD",
+    "fx_rub_per_usd": "82.7536",
+    "per_million": {
+      "uncached": ".30",
+      "cached": ".006",
+      "output": "1.20"
+    },
+    "period": "peak"
+  },
+  "limitations": [
+    "One integer calculation only",
+    "Input mechanism and API protocol differ; this is a whole-workflow comparison",
+    "Selector cost is excluded",
+    "Separate reasoning tokens are not supplied by Messages receipts",
+    "First failed trial remains failed and its cost is included"
+  ],
+  "resources": {
+    "installed_prefix_mib": 318,
+    "free_root_mib_after_cleanup": 3437,
+    "completed_job_directories": 0,
+    "free_root_mib_at_final_inspection": 3411
+  }
+}
