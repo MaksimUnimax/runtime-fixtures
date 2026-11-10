@@ -1,0 +1,14 @@
+{
+  "runtime": "alisa-selector-terminology-r1-20261110",
+  "source_commit": "7f5af81dc6567f2ad30fb319adf4a528ad31eaad",
+  "method": "Synthetic in-memory edits of B08.finance_sales; discovery minus available_stores; compact ensure_ascii=false JSON; character common-prefix comparison of SELECT_SYSTEM plus catalogue with and without leading SHA256. Original dictionary restored before process exit.",
+  "static_definition_count": 85,
+  "speech_note_and_version_edit_preserves_selector_view": true,
+  "speech_note_edit_changes_current_execution_hash": true,
+  "selector_purpose_edit_changes_selector_view": true,
+  "unchanged_prefix_characters_without_leading_hash": 8789,
+  "unchanged_prefix_characters_with_leading_hash": 2104,
+  "units": "characters_not_tokens_or_billed_savings",
+  "live_model_calls": 0,
+  "production_files_changed": false
+}

@@ -1,0 +1,11 @@
+{
+  "state": "INSTALLED",
+  "source_commit": "7f5af81dc6567f2ad30fb319adf4a528ad31eaad",
+  "runtime": "/opt/alice-market/releases/alisa-selector-terminology-r1-20261110",
+  "base": "/opt/alice-market/releases/alisa-raw-template-flow-r1-20261110",
+  "changed": ["template_catalog.json"],
+  "base_unchanged": true,
+  "execution_files_unchanged": true,
+  "tests": 76,
+  "at": 1794277770.020325
+}
