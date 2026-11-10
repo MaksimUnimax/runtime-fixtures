@@ -1,0 +1,6 @@
+{
+  "engine.py": "062de21dc7b98739f1c5f5878aad17dbcc9d1c9f724ae2ac58b8f5517362f27e",
+  "template_catalog.py": "6c6d983b3112aeafb4e8f0b0b9f6d85671b03e0cd5b80244d6bdf61b5540a754",
+  "template_catalog.json": "8af8e0b52b66e1354e3dcac823bc9296730f54b620ddd4fcecd4b67852b77e5e",
+  "tests/test_template_integration.py": "6aa9580a7707b19f74f1c478fcf8a68a6db6d9904ca6a9d5939909ece046f356"
+}
