@@ -21,3 +21,15 @@ class Query(models.Model):
 
     class Meta:
         indexes = [models.Index(fields=['customer', '-created_at'], name='query_customer_created')]
+
+
+class VoiceDialogue(models.Model):
+    """One encrypted pending question per owner/skill/session; never a job queue."""
+    id = models.CharField(primary_key=True, max_length=64)
+    customer = models.ForeignKey('accounts.Customer', on_delete=models.CASCADE)
+    tenant = models.ForeignKey('accounts.Tenant', on_delete=models.CASCADE)
+    last_message_id = models.PositiveIntegerField()
+    input_hash = models.CharField(max_length=64)
+    encrypted_payload = models.TextField(blank=True)
+    expires_at = models.DateTimeField(db_index=True)
+    retire_at = models.DateTimeField(db_index=True)

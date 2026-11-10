@@ -8,8 +8,7 @@ from alisa_platform.accounts.models import Customer
 from alisa_platform.alice_link.oauth import server, SCOPE
 from alisa_platform.runtime_adapter.authority import AlicePrincipal
 from alisa_platform.runtime_adapter.job_client import RuntimeFailure, need, text
-from alisa_platform.stores.models import Store
-from . import service
+from . import service, voice_dialogue
 from .models import Query
 
 NAMESPACE = uuid.UUID('a54db138-f38d-4b7d-ac23-aaf12768b9c5')
@@ -22,6 +21,7 @@ MESSAGES = {
     'RESULT_NOT_READY': 'Расчёт ещё идёт. Спросите: готово?',
     'UNKNOWN_OUTCOME': 'Отправка не подтверждена. Откройте задание в кабинете. Новый расчёт автоматически не запущен.',
     'IDEMPOTENCY_CONFLICT': 'Это сообщение уже обработано с другим содержимым. Задайте новый вопрос.',
+    'SELECTION_CHANGED': 'Подключение выбранного магазина изменилось. Задайте вопрос заново, чтобы подтвердить новый состав.',
 }
 
 
@@ -33,6 +33,7 @@ def response(token, customer, message, *, pages=None, result_kind='DATA', delive
         valid, request = server().verify_request('https://alisa.octoport.ru/alice/oauth/token',
             http_method='POST', headers={'Authorization': 'Bearer ' + token}, scopes=[SCOPE])
         need(valid and str(request.user.customer_id) == customer, 'AUTH_REQUIRED')
+        need(service.actor(AlicePrincipal(token))[0] == customer, 'AUTH_REQUIRED')
         if pages is not None:
             need(isinstance(delivery_guard, service.DeliveryGuard), 'PERMISSION_DENIED')
             delivery_guard.check()
@@ -57,6 +58,19 @@ def handle(token, payload):
     rid = str(uuid.uuid5(NAMESPACE, dialogue + ':' + str(mid)))
     command = utterance.strip().lower().rstrip('?!.,')
     try:
+        turn = voice_dialogue.advance(principal, session_hash, mid, rid, utterance)
+        if turn is not None:
+            if 'message' in turn:
+                return response(token, customer, turn['message'])
+            frozen = turn['submit']
+            try:
+                value, _ = service.submit(principal, frozen['query_id'],
+                    [row['id'] for row in frozen['stores']], frozen['question'],
+                    channel='ALICE', voice_session_hash=session_hash, store_snapshot=frozen['stores'])
+            finally:
+                voice_dialogue.complete(principal, session_hash, frozen['query_id'])
+            return response(token, customer, MESSAGES['UNKNOWN_OUTCOME'] if not value['query']['submission_confirmed']
+                            else voice_dialogue.ACCEPTED)
         if not command:
             return response(token, customer, 'Какой отчёт подготовить? Например: сколько заказов на Озон за вчера?')
         if command in {'готово', 'статус', 'ответ', 'повтори', 'отмена', 'отмени'}:
@@ -83,17 +97,6 @@ def handle(token, payload):
                        'UNKNOWN': MESSAGES['UNKNOWN_OUTCOME'], 'EXPIRED': MESSAGES['RESULT_EXPIRED']}.get(
                            state, 'Расчёт ещё идёт. Спросите: готово?')
             return response(token, customer, message)
-        # Explicit provider selection is allowed; ambiguous shops are never picked by order/name coincidence.
-        stores = Store.objects.filter(tenant_id=tenant, product_id='alisa_market', status='ACTIVE',
-                                      verified_identity__isnull=False)
-        if 'озон' in command or 'ozon' in command: stores = stores.filter(provider='OZON')
-        elif 'вайлдберриз' in command or 'wildberries' in command: stores = stores.filter(provider='WB')
-        ids = [str(x) for x in stores.values_list('id', flat=True)[:2]]
-        if len(ids) != 1:
-            return response(token, customer, 'Выберите магазин и задайте вопрос в разделе «Задания» в кабинете.')
-        value, _ = service.submit(principal, rid, ids, utterance, channel='ALICE', voice_session_hash=session_hash)
-        return response(token, customer, MESSAGES['UNKNOWN_OUTCOME'] if not value['query']['submission_confirmed']
-                        else 'Задание принято. Спросите: готово? Отчёт также появится в кабинете.')
     except RuntimeFailure as error:
         return response(token, customer, MESSAGES.get(error.code,
                         'Сейчас не удалось проверить отчёт. Откройте раздел «Задания» в кабинете.'))
