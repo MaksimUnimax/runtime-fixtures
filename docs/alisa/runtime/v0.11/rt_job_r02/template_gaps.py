@@ -29,7 +29,9 @@ def _key(path):
     finally:os.close(fd)
 
 class GapStore:
-    def __init__(self,path):
+    def __init__(self,path,*,internal_test=False):
+        if type(internal_test)is not bool:raise ValueError('Boolean internal-test provenance required')
+        self.internal_test=internal_test
         self.path=Path(path);self.path.parent.mkdir(parents=True,exist_ok=True)
         self.key=_key(self.path)
         # File is private before sqlite creates pages. Refuse symbolic links.
@@ -46,11 +48,15 @@ class GapStore:
              payload_sha256 TEXT NOT NULL,nonce BLOB NOT NULL,payload BLOB NOT NULL,
              review_state TEXT NOT NULL DEFAULT 'OPEN',review_note TEXT,
              UNIQUE(tenant,jid))''')
+            from query_gap_outbox import install
+            install(c)
     @contextmanager
-    def connection(self):
+    def connection(self,write=False):
         c=sqlite3.connect(str(self.path),timeout=10);c.row_factory=sqlite3.Row
         try:
-            c.execute('PRAGMA synchronous=FULL');c.execute('PRAGMA secure_delete=ON');yield c;c.commit()
+            c.execute('PRAGMA synchronous=FULL');c.execute('PRAGMA secure_delete=ON')
+            if write:c.execute('BEGIN IMMEDIATE')
+            yield c;c.commit()
         except BaseException:c.rollback();raise
         finally:c.close()
     @staticmethod
@@ -59,13 +65,20 @@ class GapStore:
         raw=canonical_json(payload).encode();ident='tgap_'+hashlib.sha256((tenant+'\0'+jid).encode()).hexdigest()[:32]
         row={'id':ident,'tenant':tenant,'jid':jid,'created':created,'reason':reason,'catalog_hash':catalog_hash,'payload_sha256':hashlib.sha256(raw).hexdigest()}
         nonce=secrets.token_bytes(12);cipher=AESGCM(self.key).encrypt(nonce,raw,self.aad(row))
-        with self.connection()as c:
+        with self.connection(True)as c:
             old=c.execute('SELECT *FROM cases WHERE tenant=?AND jid=?',(tenant,jid)).fetchone()
             if old:
                 # Replayed terminal step must not create a second case or silently
                 # replace evidence. Read/decrypt validates the original bytes.
                 self._decode(old);return old['id']
             c.execute('INSERT INTO cases(id,tenant,jid,created,reason,catalog_hash,payload_sha256,nonce,payload) VALUES(?,?,?,?,?,?,?,?,?)',tuple(row[k]for k in ['id','tenant','jid','created','reason','catalog_hash','payload_sha256'])+(nonce,cipher))
+            from query_gap_outbox import enqueue
+            c.execute('SAVEPOINT safe_gap_event')
+            try:enqueue(c,self.key,tenant,jid,created,reason,catalog_hash,payload,internal_test=self.internal_test)
+            except (sqlite3.Error,ValueError,TypeError,KeyError,OverflowError):
+                c.execute('ROLLBACK TO safe_gap_event')
+                c.execute("UPDATE gap_event_health SET dropped=dropped+1,last_error='OUTBOX_STORAGE'WHERE singleton=1")
+            finally:c.execute('RELEASE safe_gap_event')
         return ident
     def _decode(self,row):
         try:raw=AESGCM(self.key).decrypt(row['nonce'],row['payload'],self.aad(row))

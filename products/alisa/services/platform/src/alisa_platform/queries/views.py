@@ -29,6 +29,10 @@ def queries(request, data):
         if action == 'cancel':
             exact(command, {'action', 'id', 'request_id'})
             return reply(service.cancel(principal, command['id'], command['request_id']))
+        if action=='feedback':
+            exact(command,{'action','id'})
+            from alisa_platform.query_insights.service import wrong_semantics
+            return reply(wrong_semantics(principal,command['id']))
         raise ValueError()
     except RuntimeFailure as error:
         return reply({'code': error.code, 'outcome': error.outcome}, error.http_status)

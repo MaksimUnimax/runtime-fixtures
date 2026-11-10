@@ -76,6 +76,7 @@ def main():
             'ALISA_ALICE_CLIENT_SECRET': secrets.token_urlsafe(40),
             'ALISA_ALICE_SKILL_ID': 'e1c48501-7b1f-47fe-87d7-e6bec9c45673',
             'ALISA_ALICE_DATA_KEYS': Fernet.generate_key().decode(), 'ALISA_RUNTIME_AUTHORITY_ENABLED': '1',
+            'ALISA_QUERY_INSIGHTS_ENABLED': '1',
             'ALISA_RUNTIME_AUTHORITY_TOKEN': secrets.token_urlsafe(40),
             'ALISA_RUNTIME_SERVICE_ID': 'fixture-platform', 'ALISA_RUNTIME_CATALOG_RELEASE_ID': 'fixture-catalog',
             'ALISA_RUNTIME_BINDINGS_PATH': '/fixture-not-used-by-test-injection',
@@ -107,6 +108,7 @@ def main():
                 cases.append(('current_core_roundtrip', ROOT / 'tests/runtime_authority/current_core_roundtrip.py'))
                 cases.append(('query_roundtrip', ROOT / 'tests/runtime_authority/query_roundtrip.py'))
                 cases.append(('report_roundtrip', ROOT / 'tests/runtime_authority/report_roundtrip.py'))
+                cases.append(('query_insights', ROOT / 'tests/runtime_authority/query_insights.py'))
             for label, script in cases:
                 output = temp / (label + '.json')
                 result = subprocess.run([sys.executable, str(script), '--output', str(output)],

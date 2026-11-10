@@ -167,3 +167,7 @@ class PlatformAuthorityClient:
     def resolve(self, pins, action):
         if action not in ACTIONS: raise Rejected('VALIDATION_FAILED')
         return scope_shape(self._call('resolve', {'pins': pins, 'action': action}))
+
+    def publish_query_gaps(self,batch):
+        """Only the already-clean outbox; no report, ticket or customer scope."""
+        return self._call('gap_ingest',batch)

@@ -46,12 +46,16 @@ def check(request):
         exact(body, {'schema', 'request_id', 'service_id', 'operation', 'payload'})
         request_id = identifier(body['request_id'])
         need(body['schema'] == 'runtime_authority_v1' and body['service_id'] == settings.RUNTIME_SERVICE_ID)
-        authority = configured_authority()
-        if body['operation'] == 'verify':
+        if body['operation']=='gap_ingest':
+            from alisa_platform.query_insights.service import ingest
+            data=ingest(body['payload'])
+        elif body['operation'] == 'verify':
+            authority=configured_authority()
             exact(body['payload'], {'ticket'})
             data = authority.verify(body['payload']['ticket'], body['service_id'])
         else:
             need(body['operation'] == 'resolve')
+            authority=configured_authority()
             exact(body['payload'], {'pins', 'action'})
             data = authority.resolve(body['payload']['pins'], body['payload']['action'])
         result = {'schema': 'runtime_authority_v1', 'product_id': PRODUCT,

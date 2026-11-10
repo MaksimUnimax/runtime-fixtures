@@ -18,7 +18,8 @@ RELEASE = required("ALISA_RELEASE")
 DEBUG = False
 ALLOWED_HOSTS = required("ALISA_ALLOWED_HOSTS").split(",")
 FOUNDATION_PROBE_ENABLED = ALISA_ENV in {"dev", "stage"} and os.environ.get("FOUNDATION_PROBE_ENABLED") == "1"
-INSTALLED_APPS = ["alisa_platform.foundation", "alisa_platform.leads", "alisa_platform.funnel", "alisa_platform.accounts", "alisa_platform.staff", "alisa_platform.entitlements", "alisa_platform.stores", "alisa_platform.owner_data", "alisa_platform.alice_link"]
+INSTALLED_APPS = ["alisa_platform.foundation", "alisa_platform.leads", "alisa_platform.funnel", "alisa_platform.accounts", "alisa_platform.staff", "alisa_platform.entitlements", "alisa_platform.stores", "alisa_platform.owner_data", "alisa_platform.alice_link", "alisa_platform.query_insights"]
+QUERY_INSIGHTS_ENABLED=os.environ.get('ALISA_QUERY_INSIGHTS_ENABLED')=='1'
 MIDDLEWARE = ["django.middleware.security.SecurityMiddleware", "django.middleware.common.CommonMiddleware"]
 ROOT_URLCONF = "alisa_platform.config.urls"
 WSGI_APPLICATION = "alisa_platform.config.wsgi.application"

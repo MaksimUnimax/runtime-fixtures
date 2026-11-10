@@ -130,6 +130,11 @@
       "sha256": "3420e40d92c9b032835cfd02bcb12d0b3fe9459bedddd2631a21bf49abce9e14"
     },
     {
+      "path": "QUERY_INSIGHTS.md",
+      "size_bytes": 13996,
+      "sha256": "e7f940961448604f1a607fa4e946e07d6789c0215e046752ffd319e58a7f5c3a"
+    },
+    {
       "path": "QUERY_INSIGHTS_AND_CATALOG.md",
       "size_bytes": 12349,
       "sha256": "00454d66fcca02e1a89c0d9a742df98331b073ee0b0923216c17b0c1bd2b7ada"
@@ -141,8 +146,8 @@
     },
     {
       "path": "ROADMAP.md",
-      "size_bytes": 94810,
-      "sha256": "e910d152f46b6c5b7b965ebaa56932c8f2a8dec584c2cf2048a02239f6b926ba"
+      "size_bytes": 96157,
+      "sha256": "eb69048c7b449b1c6767fbdad66eef3914e11dfdc1d5b51d327a77496e5ccf24"
     },
     {
       "path": "ROADMAP_GUIDE.docx",
@@ -391,8 +396,8 @@
     },
     {
       "path": "schemas/query_gap_v1.schema.json",
-      "size_bytes": 4677,
-      "sha256": "3bd5f3b96fed369687ee0bc804ab96cbc5fe9d12c5282827a90be0d885f2e493"
+      "size_bytes": 4795,
+      "sha256": "7f57706ed72cbf706606f83819de5c50fa07e59147e9c792a2a744cb31f563d4"
     },
     {
       "path": "schemas/runtime_task_v1.schema.json",

@@ -36,3 +36,6 @@ urlpatterns += [path('api/v1/account/queries', queries.queries)]
 
 from alisa_platform.queries.reports import reports
 urlpatterns += [path('api/v1/account/reports', reports)]
+
+from alisa_platform.query_insights.views import staff as query_insights
+urlpatterns += [path('api/v1/staff/query-insights',query_insights)]
