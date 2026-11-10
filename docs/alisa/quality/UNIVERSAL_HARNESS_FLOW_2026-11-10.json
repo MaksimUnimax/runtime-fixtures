@@ -1,0 +1,244 @@
+{
+  "status": "VERIFIED_SYNTHETIC_LAB_NOT_PRODUCTION",
+  "architecture": {
+    "orchestrator": "stock Harness model/tool/error/final turn",
+    "per_case_call_limit": null,
+    "program_rewriting": false,
+    "business_data_extraction_by_controller": false,
+    "error_specific_prompt_restrictions": false,
+    "forced_program_result_schema": false,
+    "expected_outside_worker_mounts": true
+  },
+  "actual_new_model_calls": 10,
+  "actual_new_cost_rub": "0.1291695977184",
+  "cumulative_model_calls": 22,
+  "cumulative_cost_rub": "2.5558801890336",
+  "cases": [
+    {
+      "name": "count",
+      "question": "Сколько раз открывали карточки за восьмое ноября?",
+      "expected": {
+        "opens": 1642
+      },
+      "elapsed_seconds": 7.534,
+      "calls": 3,
+      "cost_rub": "0.0314223694560",
+      "normalized_peak_rub": "0.0628447389120",
+      "answer": "За восьмое ноября карточки открывали тысячу шестьсот сорок два раза.",
+      "finish": "completed",
+      "tool_error_count": 0,
+      "math_review": "MATCHED_INDEPENDENT_ORACLE",
+      "speech_review": "PASS_INDEPENDENT_REVIEW"
+    },
+    {
+      "name": "money",
+      "question": "Сколько составили расходы на логистику за восьмое ноября?",
+      "expected": {
+        "logistics_rub": "140.37"
+      },
+      "elapsed_seconds": 7.58,
+      "calls": 3,
+      "cost_rub": "0.0291617066112",
+      "normalized_peak_rub": "0.0583234132224",
+      "answer": "За восьмое ноября две тысячи двадцать шестого года расходы на логистику составили сто сорок рублей тридцать семь копеек.",
+      "finish": "completed",
+      "tool_error_count": 0,
+      "math_review": "MATCHED_INDEPENDENT_ORACLE",
+      "speech_review": "PASS_INDEPENDENT_REVIEW"
+    },
+    {
+      "name": "composite",
+      "question": "Назови оборот заказов, расходы на рекламу и ДРР за восьмое ноября.",
+      "expected": {
+        "revenue_rub": "2500.00",
+        "ad_spend_rub": "175.00",
+        "drr_percent": "7"
+      },
+      "elapsed_seconds": 6.323,
+      "calls": 2,
+      "cost_rub": "0.0265197151776",
+      "normalized_peak_rub": "0.0530394303552",
+      "answer": "Восьмого ноября оборот заказов составил две тысячи пятьсот, расходы на рекламу — сто семьдесят пять, а ДРР — семь процентов.",
+      "finish": "completed",
+      "tool_error_count": 0,
+      "math_review": "MATCHED_INDEPENDENT_ORACLE",
+      "speech_review": "CURRENCY_UNSPECIFIED_IN_SOURCE"
+    },
+    {
+      "name": "composite_with_currency",
+      "question": "Назови оборот заказов, расходы на рекламу и ДРР за восьмое ноября.",
+      "expected": {
+        "revenue_rub": "2500.00",
+        "ad_spend_rub": "175.00",
+        "drr_percent": "7"
+      },
+      "elapsed_seconds": 6.053,
+      "calls": 2,
+      "cost_rub": "0.0420658064736",
+      "normalized_peak_rub": "0.0841316129472",
+      "answer": "Восьмого ноября оборот заказов составил две тысячи пятьсот рублей, расходы на рекламу — сто семьдесят пять рублей, а ДРР — семь процентов.",
+      "finish": "completed",
+      "tool_error_count": 0,
+      "math_review": "MATCHED_INDEPENDENT_ORACLE",
+      "speech_review": "PASS_INDEPENDENT_REVIEW"
+    }
+  ],
+  "attempts": [
+    {
+      "campaign": "short_answer_r3",
+      "number": 1,
+      "dispatched_utc": "2026-11-10T10:07:14.650366+00:00",
+      "tariff": "off_peak",
+      "input_uncached": 383,
+      "input_cached": 1280,
+      "output_including_thinking": 159,
+      "cost_rub": "0.012966661584",
+      "normalized_peak_rub": "0.025933323168",
+      "http_status": 200
+    },
+    {
+      "campaign": "short_answer_r3",
+      "number": 2,
+      "dispatched_utc": "2026-11-10T10:07:17.044126+00:00",
+      "tariff": "off_peak",
+      "input_uncached": 169,
+      "input_cached": 1792,
+      "output_including_thinking": 236,
+      "cost_rub": "0.0142605968736",
+      "normalized_peak_rub": "0.0285211937472",
+      "http_status": 200
+    },
+    {
+      "campaign": "short_answer_r3",
+      "number": 3,
+      "dispatched_utc": "2026-11-10T10:07:19.484544+00:00",
+      "tariff": "off_peak",
+      "input_uncached": 217,
+      "input_cached": 2048,
+      "output_including_thinking": 20,
+      "cost_rub": "0.0041951109984",
+      "normalized_peak_rub": "0.0083902219968",
+      "http_status": 200
+    },
+    {
+      "campaign": "short_answer_r3",
+      "number": 4,
+      "dispatched_utc": "2026-11-10T10:07:22.419929+00:00",
+      "tariff": "off_peak",
+      "input_uncached": 389,
+      "input_cached": 1280,
+      "output_including_thinking": 173,
+      "cost_rub": "0.013736270064",
+      "normalized_peak_rub": "0.027472540128",
+      "http_status": 200
+    },
+    {
+      "campaign": "short_answer_r3",
+      "number": 5,
+      "dispatched_utc": "2026-11-10T10:07:24.538481+00:00",
+      "tariff": "off_peak",
+      "input_uncached": 199,
+      "input_cached": 1664,
+      "output_including_thinking": 156,
+      "cost_rub": "0.0106290378912",
+      "normalized_peak_rub": "0.0212580757824",
+      "http_status": 200
+    },
+    {
+      "campaign": "short_answer_r3",
+      "number": 6,
+      "dispatched_utc": "2026-11-10T10:07:26.469121+00:00",
+      "tariff": "off_peak",
+      "input_uncached": 212,
+      "input_cached": 1920,
+      "output_including_thinking": 34,
+      "cost_rub": "0.004796398656",
+      "normalized_peak_rub": "0.009592797312",
+      "http_status": 200
+    },
+    {
+      "campaign": "short_answer_r3",
+      "number": 7,
+      "dispatched_utc": "2026-11-10T10:07:30.168889+00:00",
+      "tariff": "off_peak",
+      "input_uncached": 431,
+      "input_cached": 1280,
+      "output_including_thinking": 202,
+      "cost_rub": "0.015697530384",
+      "normalized_peak_rub": "0.031395060768",
+      "http_status": 200
+    },
+    {
+      "campaign": "short_answer_r3",
+      "number": 8,
+      "dispatched_utc": "2026-11-10T10:07:32.382347+00:00",
+      "tariff": "off_peak",
+      "input_uncached": 148,
+      "input_cached": 1792,
+      "output_including_thinking": 172,
+      "cost_rub": "0.0108221847936",
+      "normalized_peak_rub": "0.0216443695872",
+      "http_status": 200
+    },
+    {
+      "campaign": "short_answer_r3_units",
+      "number": 1,
+      "dispatched_utc": "2026-11-10T10:10:01.196280+00:00",
+      "tariff": "off_peak",
+      "input_uncached": 1744,
+      "input_cached": 0,
+      "output_including_thinking": 262,
+      "cost_rub": "0.03465720768",
+      "normalized_peak_rub": "0.06931441536",
+      "http_status": 200
+    },
+    {
+      "campaign": "short_answer_r3_units",
+      "number": 2,
+      "dispatched_utc": "2026-11-10T10:10:03.817361+00:00",
+      "tariff": "off_peak",
+      "input_uncached": 257,
+      "input_cached": 1792,
+      "output_including_thinking": 76,
+      "cost_rub": "0.0074085987936",
+      "normalized_peak_rub": "0.0148171975872",
+      "http_status": 200
+    }
+  ],
+  "pricing": {
+    "date": "2026-11-10",
+    "actual_band": "off_peak",
+    "actual_per_million_usd": {
+      "input_uncached": ".15",
+      "input_cached": ".003",
+      "output": ".60"
+    },
+    "peak_normalization_kept_separate": true,
+    "rub_per_usd": "82.7536",
+    "source": "https://api-docs.deepseek.com/quick_start/pricing/"
+  },
+  "initial_manifest_sha256": "b8c54415500c5358f4bb2507a22a049b9903bb5e115e7833ba2cb9974a416fbb",
+  "currency_variant": {
+    "source_currency": "RUB",
+    "handler_currency_default": false,
+    "generic_instruction": "Указывай единицы измерения и валюту, когда они известны из данных; неизвестные не выдумывай.",
+    "separate_input_not_same_input_ab": true
+  },
+  "r3_tool_error_count": 0,
+  "earlier_partial_campaign_preserved": {
+    "model_calls": 6,
+    "actual_rub": "0.2153870979072"
+  },
+  "production_prompts_changed": false,
+  "production_db_writes": 0,
+  "station_calls": 0,
+  "marketplace_calls": 0,
+  "independent_review": "PASS_WITH_SOURCE_CURRENCY_LIMITATION_DOCUMENTED",
+  "limitations": [
+    "Synthetic fixtures do not establish real workload economics",
+    "No Station playback or template admission",
+    "No new error-handler implementation: existing Harness correction flow was retained",
+    "R3 had extra model checks but zero tool errors; real tool errors and model correction were observed in the preserved R2 trial",
+    "Currency variant changed source metadata and generic voice instruction together"
+  ]
+}

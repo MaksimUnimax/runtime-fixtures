@@ -34,6 +34,14 @@ that model-written code cannot append to it.
 The root directory has a minimal passwd/group map; it does not bind production
 code, production data, credentials, operator homes or other jobs.
 
+The operator controllers are root-only (mode 0600): run_smoke.py, run_live.py,
+qa_gateway.py and run_fixture_cases.py. README is root-only on the server too;
+the operator __pycache__ directory is mode 0700. This matters because the runtime
+prefix is mounted into the worker: a read-only mount alone does not hide the
+test source or its oracles. Keep worker.py and lab.patch.yml readable by the
+worker. Check effective readability as alisa-dsh-lab after copying an operator
+script or compiling it; do not expose its bytecode as an alternate oracle path.
+
 The worker starts with an empty inherited environment. Its local transport token
 is not a DeepSeek API key. The root-only QA transport resolves the existing API
 credential only for an actual upstream send, reconstructs headers, disables
@@ -110,6 +118,44 @@ or production readiness. In the existing Alisa architecture an ordinary tool
 cycle can add a model call: selector + program generation + final answer.
 Compare the complete cycle's cost and correctness, not only the last response.
 Do not enable this laboratory automatically for voice traffic.
+
+## Short-answer instruction trial
+
+answer_instruction.txt is a laboratory-only voice-answer instruction. It asks
+for a concise answer containing every requested metric, with numbers written
+out correctly. Production admin prompts and template purpose are unchanged.
+
+run_fixture_cases.py accepts a trusted operator JSON manifest and one total
+--max-calls allowance. The stock Harness owns the complete model/tool/error/
+final-answer conversation. There is no two-call limit per case and no
+case-specific retry path, code rewriting, import substitution, forced result
+schema or business-data extraction in this controller. Program errors return
+to the model with their original program and conversation context.
+
+fixtures_short_answer.py generates only public synthetic QA data and private
+expected values. Deploy the generated JSON under /var/lib/alisa-dsh-lab/cases,
+outside all worker mounts, with a root-only parent and mode 0600. The generator
+is not installed under the runtime prefix. Only the case data, original
+question, notes and structural shape enter the job; expected values stay in
+the root-side manifest and evidence.
+
+The finite R3 check is invoked manually:
+
+    /opt/alisa-dsh-lab/20261110-r1/.venv/bin/python /opt/alisa-dsh-lab/20261110-r1/run_fixture_cases.py /var/lib/alisa-dsh-lab/cases/short_answer_r3.json --max-calls 12
+
+A persistent started marker prevents accidental replay. Worker time, memory,
+CPU and output bounds remain the existing resource limits. Each completed job
+is removed before the next case. A worker completion still requires independent
+arithmetic and final-answer review; SDK completion is not a quality assertion.
+
+The earlier R2 attempt and repair remain in their separate private evidence and
+published partial report. Their per-case two-call allowance interrupted normal
+model correction before the final answer. The temporary prompt restrictions
+for static imports and scalar-only output were removed in R3. No new retry
+engine, background service or production request path was added.
+
+Synthetic costs do not estimate real marketplace workload. Keep this laboratory
+outside automatic voice traffic until the full integration is validated.
 
 Official references:
 

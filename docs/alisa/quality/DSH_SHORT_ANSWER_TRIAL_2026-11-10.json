@@ -1,0 +1,154 @@
+{
+  "status": "PARTIAL_LAB_TRIAL_NOT_PRODUCTION",
+  "synthetic_data": true,
+  "campaign_model_calls": 6,
+  "campaign_actual_cost_rub": "0.2153870979072",
+  "earlier_installation_model_calls": 6,
+  "earlier_installation_actual_cost_rub": "2.2113234934080",
+  "cumulative_model_calls": 12,
+  "cumulative_actual_cost_rub": "2.4267105913152",
+  "failed_first_count": {
+    "calls": 2,
+    "actual_cost_rub": "0.0848376666624",
+    "final_answer_completed": false,
+    "calculation_recovered_to": 21,
+    "reason": "Program output exceeded 65536 bytes; correction computed 21; finite QA allowance blocked final call"
+  },
+  "cases": [
+    {
+      "name": "count_inflection",
+      "question": "Сколько раз открывали карточки за восьмое ноября?",
+      "calls": 2,
+      "elapsed_seconds": 4.666,
+      "actual_cost_rub": "0.0368419027200",
+      "math_oracle": {
+        "opens": 1642
+      },
+      "final_answer": "За восьмое ноября две тысячи двадцать шестого года карточки открывали тысячу шестьсот сорок два раза.",
+      "finish_reason": "completed",
+      "math_quality": "MATCHED_ORACLE",
+      "answer_quality": "PASS_INDEPENDENT_REVIEW",
+      "tool_runs": [
+        {
+          "is_error": false,
+          "text": "{\n  \"date\": \"2026-11-08\",\n  \"target\": \"2026-11-08\",\n  \"sum\": 1642,\n  \"rows\": 3\n}"
+        }
+      ]
+    },
+    {
+      "name": "money_and_composite",
+      "question": "Сколько составили расходы на логистику? Назови также оборот заказов, расходы на рекламу и ДРР за восьмое ноября.",
+      "calls": 2,
+      "elapsed_seconds": 6.419,
+      "actual_cost_rub": "0.0937075285248",
+      "math_oracle": {
+        "logistics": {
+          "rub": "140.37"
+        },
+        "trade": {
+          "revenue_rub": "2500.00",
+          "ad_spend_rub": "175.00",
+          "drr_percent": "7"
+        }
+      },
+      "final_answer": "",
+      "finish_reason": "error",
+      "math_quality": "MATCHED_ORACLE",
+      "answer_quality": "NOT_COMPLETED",
+      "tool_runs": [
+        {
+          "is_error": true,
+          "text": "Error: code run failed (exception): 'import', and 'export' cannot be used outside of module code\nFile sandbox: danger-full-access."
+        },
+        {
+          "is_error": false,
+          "text": "{\n  \"date\": \"2026-11-08\",\n  \"logistics\": 140.37,\n  \"logisticsRows\": 3,\n  \"revenue\": 2500,\n  \"revenueRows\": 2,\n  \"ads\": 175,\n  \"adsRows\": 2,\n  \"drr\": 7\n}"
+        }
+      ]
+    }
+  ],
+  "attempts": [
+    {
+      "number": 1,
+      "input_uncached": 1684,
+      "input_cached": 0,
+      "output_including_thinking": 183,
+      "model_cost_rub": "0.05997980928",
+      "http_status": 200
+    },
+    {
+      "number": 2,
+      "input_uncached": 240,
+      "input_cached": 1664,
+      "output_including_thinking": 182,
+      "model_cost_rub": "0.0248578573824",
+      "http_status": 200
+    },
+    {
+      "number": 3,
+      "input_uncached": 310,
+      "input_cached": 1408,
+      "output_including_thinking": 204,
+      "model_cost_rub": "0.0286532684928",
+      "http_status": 200
+    },
+    {
+      "number": 4,
+      "input_uncached": 182,
+      "input_cached": 1792,
+      "output_including_thinking": 28,
+      "model_cost_rub": "0.0081886342272",
+      "http_status": 200
+    },
+    {
+      "number": 5,
+      "input_uncached": 570,
+      "input_cached": 1280,
+      "output_including_thinking": 366,
+      "model_cost_rub": "0.051131794368",
+      "http_status": 200
+    },
+    {
+      "number": 6,
+      "input_uncached": 210,
+      "input_cached": 2048,
+      "output_including_thinking": 366,
+      "model_cost_rub": "0.0425757341568",
+      "http_status": 200
+    }
+  ],
+  "static_import_guidance_added_after_trial": true,
+  "static_import_guidance_later_removed": true,
+  "superseded_by": "UNIVERSAL_HARNESS_FLOW_2026-11-10.md",
+  "post_trial_guidance_paid_verification": "NOT_RUN",
+  "output_limit_unchanged_bytes": 65536,
+  "production_prompts_changed": false,
+  "production_db_writes": 0,
+  "station_calls": 0,
+  "marketplace_calls": 0,
+  "controller_permissions": "root0600; operator bytecode directory0700; worker+patch readable",
+  "offline_smoke": "smoke-095109",
+  "pricing": {
+    "per_million_usd": {
+      "input_uncached": ".30",
+      "input_cached": ".006",
+      "output": "1.20"
+    },
+    "rub_per_usd": "82.7536",
+    "dated": "2026-11-10",
+    "period": "peak"
+  },
+  "limitations": [
+    "Two repair cycles, not three independent successful tests",
+    "Compound math passed but final-answer stage did not complete",
+    "Local QA budget rejections are not DeepSeek 429 responses",
+    "Count input changed from21 to1642 to exercise inflection; not a same-input A/B",
+    "Synthetic fixture costs do not estimate real marketplace workload",
+    "No new model calls after the announced six-call allowance"
+  ],
+  "independent_review": {
+    "status": "PASS_WITH_INCOMPLETE_COMPOUND",
+    "math_and_costs_confirmed": true,
+    "no_new_paid_calls": true
+  }
+}
