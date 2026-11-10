@@ -91,7 +91,7 @@ def main():
                 staff_origin='https://127.0.0.1:19441';staff_secret=secrets.token_urlsafe(40)
                 staff_service=secrets.token_urlsafe(40);staff_key=secrets.token_urlsafe(32)
                 identity_only.update({'ALISA_STAFF_ENABLED':'1','ALISA_STAFF_OIDC_CLIENT_ID':'s03_admin','ALISA_STAFF_OIDC_REDIRECT_URI':staff_origin+'/auth/callback'})
-                platform_only.update({'ALISA_STAFF_ENABLED':'1','ALISA_STAFF_OIDC_CLIENT_ID':'s03_admin','ALISA_STAFF_SERVICE_TOKEN':staff_service})
+                platform_only.update({'ALISA_STAFF_ENABLED':'1','ALISA_STAFF_OIDC_CLIENT_ID':'s03_admin','ALISA_STAFF_SERVICE_TOKEN':staff_service,'ALISA_QUERY_INSIGHTS_ENABLED':'1'})
                 client_bootstrap.update({'ALISA_STAFF_OIDC_CLIENT_ID':'s03_admin','ALISA_STAFF_OIDC_CLIENT_SECRET':staff_secret,'ALISA_STAFF_OIDC_REDIRECT_URI':staff_origin+'/auth/callback'})
             if args.access:
                 if not args.staff:raise RuntimeError('Access qualification requires native staff flow')

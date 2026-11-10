@@ -161,6 +161,21 @@ class InsightsChecks(unittest.TestCase):
         answer['delivery_guard']=LateGuard()
         self.deny(lambda:service.record_feedback(self.f.principal,self.f.qid,answer),code='ACCESS_REQUIRED')
         self.assertEqual(Feedback.objects.count(),0);self.assertEqual(Episode.objects.count(),0)
+    def test_shared_job_cancelled_reader_has_own_final_outcome(self):
+        from alisa_platform.queries import service as queries
+        from importlib.util import spec_from_file_location,module_from_spec
+        store=GapStore(Path(self.f.folder.name)/'template-gaps.sqlite3');store.state_path=Path(self.f.repo.path)
+        stream=TerminalStore(self.f.repo.path,store.key,'fixture',cases=store);stream.initialize()
+        self.f.send();first=self.f.qid;self.f.qid=uid();self.f.send()
+        with self.f.repo.connection()as c:
+            self.assertEqual(c.execute('SELECT count(*)FROM jobs').fetchone()[0],1)
+            row=c.execute('SELECT id,tenant FROM jobs').fetchone();receipts=[dict(r)for r in c.execute('SELECT rid,body_hash FROM inbox')]
+        self.assertTrue(queries.cancel(self.f.principal,first,uid())['status']['cancelled'])
+        store.save(row['tenant'],row['id'],time.time(),'MODEL_NO_TEMPLATE','a'*64,{'runtime_release':'fixture','original_question':'Покажи выкупы за вчера','request_receipts':receipts})
+        with self.f.repo.connection(True)as c:c.execute("UPDATE jobs SET state='READY',result=?WHERE id=?",[json.dumps({'template_gap':True}),row['id']])
+        spec=spec_from_file_location('publisher',Path(__file__).resolve().parents[2]/'infra/query_gap_publish.py');publisher=module_from_spec(spec);spec.loader.exec_module(publisher)
+        publisher.deliver(store,self.f.bridge);publisher.deliver(stream,self.f.bridge)
+        self.assertEqual(sorted(Episode.objects.values_list('outcome',flat=True)),['CANCELED','UNSUPPORTED'])
     def test_native_detailed_outbox_and_terminal_share_one_product_episode(self):
         self.f.send();store=GapStore(Path(self.f.folder.name)/'template-gaps.sqlite3');store.state_path=Path(self.f.repo.path)
         stream=TerminalStore(self.f.repo.path,store.key,'fixture',cases=store);stream.initialize()

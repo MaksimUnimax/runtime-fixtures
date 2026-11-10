@@ -80,12 +80,16 @@ def seal(store,c,row,event):
     # Reads metadata only. No original question, plan, provider body or report.
     with sqlite3.connect('file:'+str(path)+'?mode=ro',uri=True,timeout=2)as main:
         value=main.execute("SELECT state,error,CASE WHEN json_valid(result)THEN json_extract(result,'$.template_gap')END,CASE WHEN json_valid(result)THEN json_extract(result,'$.provider_error.http_status')END FROM jobs WHERE tenant=?AND id=?",(case['tenant'],case['jid'])).fetchone()
+        from query_gap_terminal import reader_state
+        reader=reader_state(main,case['tenant'],row['rid'])
         age=main.execute('SELECT created FROM inbox_age WHERE tenant=?AND rid=?',(case['tenant'],row['rid'])).fetchone()
     if age and type(age[0])in {int,float}and math.isfinite(age[0]):
         from query_gap_events import stamp
         event['occurred_at']=stamp(age[0])
     if value:
         state,error,template_gap,http=value
+        if reader=='CANCELED':event['final_outcome']='CANCELED';return event_shape(event)
+        if reader=='UNKNOWN'and state not in {'CANCELLED','CANCELED'}:return event_shape(event)
         if state in {'CANCELLED','CANCELED'}:event['final_outcome']='CANCELED'
         elif state=='FAILED':
             event['final_outcome']='REVOKED'if error in {'CREDENTIAL_REVOKED','ACCOUNT_BLOCKED'}else'FAILED'
