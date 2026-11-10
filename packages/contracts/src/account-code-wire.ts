@@ -308,7 +308,8 @@ function resultFields(o: Obj): void {
   for (const key of commonResultKeys.slice(9)) integer(o[key]);
 }
 export function parseAcw1CredentialPlaintext(input: Acj1Input): Acw1CredentialPlaintext {
-  const c = raw(input, 8192);
+  // Decrypted C is exact ACJ1, unlike ordinary outer wire JSON.
+  const c = object(parseCanonicalAcj1(input, 8192));
   exact(c, [...commonResultKeys, "accessToken", "refreshToken"]); resultFields(c);
   str(c.accessToken); str(c.refreshToken); // Existing issuer syntax/auth is external.
   return c as unknown as Acw1CredentialPlaintext;

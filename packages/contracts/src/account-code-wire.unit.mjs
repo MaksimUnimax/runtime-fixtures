@@ -195,6 +195,12 @@ test("literal C and E parse structurally; cryptographic verification is outside 
   rejects(() => parseAcw1Envelope({ ...envelope, tag: "AA" }));
   rejects(() => parseAcw1Envelope({ ...envelope, extra: true }));
 });
+test("decrypted credential plaintext requires exact ACJ1 bytes before any token use", () => {
+  rejects(() => parseAcw1CredentialPlaintext(" " + p.P05.plaintextCanonicalUTF8));
+  rejects(() => parseAcw1CredentialPlaintext(p.P05.plaintextCanonicalUTF8 + "\n"));
+  const reversed = Object.fromEntries(Object.entries(credential).reverse());
+  rejects(() => parseAcw1CredentialPlaintext(json(reversed)));
+});
 test("structural cap is distinct from crypto framing authentication", () => {
   const combined = Buffer.concat([Buffer.from(p.P05.ciphertext,"base64url"),Buffer.from(p.P05.tag,"base64url")]).toString("base64url");
   // Within caps, combined-tag semantic failure belongs to the later AEAD consumer.
