@@ -4,7 +4,7 @@ export default function PortalPage() {
       <h1>Product Control Plane Portal</h1>
       <p>
         <a href="/login">Sign in</a> · <a href="/devices">Devices</a> ·{" "}
-        <a href="/feedback">Feedback</a>
+        <a href="/feedback">Feedback</a> · <a href="/logout">Sign out</a>
       </p>
     </main>
   );
