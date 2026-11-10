@@ -1,0 +1,146 @@
+[
+  {
+    "question": "Сколько товаров выкупили на Вайлдберриз восьмого ноября?",
+    "job_seconds": 7.56,
+    "deepseek_attempts": 2,
+    "model_cost": {
+      "rub": "0.175172820480",
+      "known_rub": "0.175172820480",
+      "complete": true,
+      "priced_attempts": 2,
+      "total_attempts": 2,
+      "prompt_tokens_known": 12200,
+      "completion_tokens_known": 478,
+      "fx_rate": "82.7536",
+      "fx_rate_date": "2026-11-10",
+      "tariff_currency": "USD",
+      "tariff_period": "off-peak",
+      "tariff_checked_date": "2026-11-10"
+    },
+    "template_ids": [
+      "B02.wb_events"
+    ],
+    "admission_status": "Допущен в непрерывном режиме; на момент перехода замечаний владельца нет",
+    "stage_usage": [
+      {
+        "stage": "template_select",
+        "input_tokens": 10605,
+        "cached_tokens": 0,
+        "uncached_tokens": 10605,
+        "output_tokens": 125
+      },
+      {
+        "stage": "model_answer",
+        "input_tokens": 1595,
+        "cached_tokens": 0,
+        "uncached_tokens": 1595,
+        "output_tokens": 353
+      }
+    ],
+    "runtime": "alisa-input-packing-v1-20261110",
+    "new_template_clarifications": [],
+    "case": "simple-33",
+    "delivery": "responded_to_skill",
+    "model_answer_redacted": true,
+    "numeric_business_values_omitted": true,
+    "technical_data_check_passed": true,
+    "arithmetic_error": false,
+    "semantic_basis_unstated": false
+  },
+  {
+    "question": "Сколько товаров вернули на Вайлдберриз восьмого ноября?",
+    "job_seconds": 8.25,
+    "deepseek_attempts": 2,
+    "model_cost": {
+      "rub": "0.0706272184704",
+      "known_rub": "0.0706272184704",
+      "complete": true,
+      "priced_attempts": 2,
+      "total_attempts": 2,
+      "prompt_tokens_known": 12188,
+      "completion_tokens_known": 602,
+      "fx_rate": "82.7536",
+      "fx_rate_date": "2026-11-10",
+      "tariff_currency": "USD",
+      "tariff_period": "off-peak",
+      "tariff_checked_date": "2026-11-10"
+    },
+    "template_ids": [
+      "B03.wb_events"
+    ],
+    "admission_status": "Допущен в непрерывном режиме; на момент перехода замечаний владельца нет",
+    "stage_usage": [
+      {
+        "stage": "template_select",
+        "input_tokens": 10615,
+        "cached_tokens": 9088,
+        "uncached_tokens": 1527,
+        "output_tokens": 111
+      },
+      {
+        "stage": "model_answer",
+        "input_tokens": 1573,
+        "cached_tokens": 0,
+        "uncached_tokens": 1573,
+        "output_tokens": 491
+      }
+    ],
+    "runtime": "alisa-input-packing-v1-20261110",
+    "new_template_clarifications": [],
+    "case": "simple-34",
+    "delivery": "responded_to_skill",
+    "model_answer_redacted": true,
+    "numeric_business_values_omitted": true,
+    "technical_data_check_passed": true,
+    "arithmetic_error": false,
+    "semantic_basis_unstated": false
+  },
+  {
+    "question": "На какую сумму выкупили товары на Вайлдберриз восьмого ноября?",
+    "job_seconds": 35.86,
+    "deepseek_attempts": 2,
+    "model_cost": {
+      "rub": "0.1055644643328",
+      "known_rub": "0.1055644643328",
+      "complete": true,
+      "priced_attempts": 2,
+      "total_attempts": 2,
+      "prompt_tokens_known": 12228,
+      "completion_tokens_known": 1327,
+      "fx_rate": "82.7536",
+      "fx_rate_date": "2026-11-10",
+      "tariff_currency": "USD",
+      "tariff_period": "off-peak",
+      "tariff_checked_date": "2026-11-10"
+    },
+    "template_ids": [
+      "B02.wb_events"
+    ],
+    "admission_status": "Не допущен: в озвучке не указана денежная база; арифметика finishedPrice верна",
+    "stage_usage": [
+      {
+        "stage": "template_select",
+        "input_tokens": 10619,
+        "cached_tokens": 9216,
+        "uncached_tokens": 1403,
+        "output_tokens": 113
+      },
+      {
+        "stage": "model_answer",
+        "input_tokens": 1609,
+        "cached_tokens": 0,
+        "uncached_tokens": 1609,
+        "output_tokens": 1214
+      }
+    ],
+    "runtime": "alisa-input-packing-v1-20261110",
+    "new_template_clarifications": [],
+    "case": "simple-35",
+    "delivery": "responded_to_skill",
+    "model_answer_redacted": true,
+    "numeric_business_values_omitted": true,
+    "technical_data_check_passed": false,
+    "arithmetic_error": false,
+    "semantic_basis_unstated": true
+  }
+]
