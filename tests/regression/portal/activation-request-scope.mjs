@@ -174,6 +174,91 @@ check("preview JSON rejection is caught and unavailable", async () => {
   const before = unhandled.length; const f = await boot(async () => ({ ok: true, status: 200, json: async () => { throw Error("fixture JSON"); } })); await new Promise(done => setImmediate(done)); assert.equal(unhandled.length, before); assert.match(f.view().message, /unavailable/i);
 });
 
+// ACT-01: successful status without the documented200 receipt is unconfirmed.
+// These are synthetic source-port outcomes, not an authoritative API reload.
+for (const status of [201, 202, 204, 206, 205, 207, 226, 299]) {
+  for (const kind of ["approve", "deny"]) {
+    check(`ACT-01 status${status}/${kind} stays closed until authoritative reload`, async () => {
+      const observedStatuses = [];
+      const f = await boot(async (url, init) => {
+        if (!init) return json(preview(A));
+        const response = new Response(null, { status });
+        observedStatuses.push(response.status);
+        return response;
+      });
+      await f.input();
+      const readsBefore = f.calls.filter(call => !call.init?.method).length;
+      await f.view().act(kind);
+      await f.flush();
+      assert.equal(posts(f).length, 1, "no automatic mutation retry");
+      // Both subsequent explicit clicks must be inert on the old preview.
+      await f.view().act(kind);
+      await f.view().act(kind === "approve" ? "deny" : "approve");
+      await f.flush();
+      assert.equal(posts(f).length, 1, "old preview cannot authorize a second POST");
+      assert.deepEqual(observedStatuses, [status], "fixture returned the intended HTTP status");
+      assert.equal(f.view().closed, true);
+      assert.equal(f.view().ready, false);
+      assert.match(f.view().message, /not be confirmed.*Reload/i);
+      assert.equal(f.calls.filter(call => !call.init?.method).length, readsBefore,
+        "no fresh GET/reload is fabricated by the closed outcome");
+      assert.equal(f.redirects.length, 0);
+    });
+  }
+}
+
+for (const status of [400, 401, 403, 409, 429, 503]) {
+  for (const kind of ["approve", "deny"]) {
+    check(`ACT-01 preserves documented rejection${status}/${kind}`, async () => {
+      const f = await boot(async (url, init) => init ? new Response(null, { status }) : json(preview(A)));
+      await f.input();
+      await f.view().act(kind);
+      await f.flush();
+      assert.equal(f.view().message, "Request could not be completed.");
+      assert.equal(f.view().closed, false);
+      assert.equal(f.view().ready, true);
+      assert.equal(posts(f).length, 1, "known failure sends no automatic retry");
+      await f.view().act(kind);
+      assert.equal(posts(f).length, 2, "preexisting explicit rejection behavior retained");
+      assert.equal(f.redirects.length, 0);
+    });
+  }
+}
+
+check("ACT-01 new instance requires actual source GET responses before another action", async () => {
+  const requests = [];
+  let unexpected = true;
+  const send = (url, init) => {
+    requests.push({ url, method: init?.method ?? "GET" });
+    if (url === "/v1/accounts") return json({ accounts });
+    if (!init) return json(preview(A));
+    return unexpected ? new Response(null, { status: 202 }) : json(receipt(A, "approve"));
+  };
+  const old = mount(send);
+  await old.flush(); await old.input(); await old.view().act("approve");
+  await old.flush();
+  assert.equal(old.view().ready, false);
+  const getCount = requests.filter(call => call.method === "GET").length;
+  await old.view().act("deny");
+  assert.equal(requests.filter(call => call.method === "POST").length, 1);
+  assert.equal(requests.filter(call => call.method === "GET").length, getCount);
+  old.dispose();
+  unexpected = false;
+  const fresh = mount(send);
+  // Before receiving a new preview, the newly mounted handler is also inert.
+  fresh.view().setUserCode("ABCD-EFGH");
+  fresh.view().setAccountId(account);
+  await fresh.view().act("approve");
+  assert.equal(requests.filter(call => call.method === "POST").length, 1);
+  await fresh.flush(); await fresh.input();
+  assert.equal(fresh.view().preview.authorizationId, A);
+  assert.equal(requests.filter(call => call.method === "GET").length, getCount + 2);
+  await fresh.view().act("approve");
+  assert.equal(requests.filter(call => call.method === "POST").length, 2);
+  assert.match(fresh.view().message, /^Device approved/);
+});
+
+
 const results = [];
 for (const test of cases) {
   try { await test.run(); results.push({ id: test.id, pass: true }); }

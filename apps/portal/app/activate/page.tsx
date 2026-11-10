@@ -122,6 +122,8 @@ function ActivationRequest({ id }: { id: string | null }) {
       });
       if (!isCurrent()) return;
       if (r.status !== 200) {
+        if (r.status >= 200 && r.status < 300)
+          throw new Error("Unconfirmed receipt");
         setMessage("Request could not be completed.");
         return;
       }
