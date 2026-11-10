@@ -1,0 +1,26 @@
+{
+  "state": "INSTALLED",
+  "source_commit": "d07d5ce6226e6fb84cebcc6098ee91f19187c683",
+  "station": "/opt/alisa-station/releases/station-ack-eta-r2-20261110",
+  "web_wrapper": "/opt/alice-lab/releases/20261110-ack-eta-r2",
+  "changed_station_files": [
+    "test_eta.py",
+    "service.py"
+  ],
+  "hashes": {
+    "test_eta.py": "81cb0ee6e45582f586f9dac191816d1b5507481b53d28be0998255e7705490dd",
+    "service.py": "4d08b6328bc3a4187fdb540103bb518470bcfed2ab73a99bca1b0d5e46ad2fac"
+  },
+  "tests": 60,
+  "at": 1794288146.356907,
+  "core_unchanged": "/opt/alice-market/releases/alisa-wb-buyout-choice-v3-20261110",
+  "bases_unchanged": true,
+  "auth_permissions_unchanged": true,
+  "credentials_and_saved_state_not_rewritten": true,
+  "only_original_station_sentence_removed": true,
+  "eta_algorithm_unchanged": true,
+  "model_calls_after_owner_stop": 0,
+  "voice_tests_resumed": false,
+  "independent_review": "PASS_NO_BLOCKERS",
+  "owner_test_mode": "STOPPED_BY_OWNER"
+}
