@@ -1,0 +1,11 @@
+..............PASS: initial ETA, seven 10s updates with remaining time, READY immediately, persisted observations
+PASS: short acknowledgement with a thirty-second estimate
+PASS webhook -> end_session -> READY -> second-session callback -> exact report, one analytics job
+station ingress failure Fault voice_revoked
+...........................................{"event": "station_auth_unavailable", "sqlite_code": "SQLITE_READONLY_DIRECTORY"}
+.{"event": "station_auth_unavailable", "sqlite_code": "SQLITE_ERROR"}
+..
+----------------------------------------------------------------------
+Ran 60 tests in 7.802s
+
+OK
