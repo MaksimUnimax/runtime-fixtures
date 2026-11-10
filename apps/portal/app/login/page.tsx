@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { controlPlane } from "../../lib/control-plane";
 import {
@@ -18,21 +18,35 @@ function LoginContent() {
     verifyAttempt = useRef<OtpVerifyAttempt | undefined>(undefined),
     [error, setError] = useState(""),
     inFlight = useRef(false),
-    [pending, setPending] = useState(false);
-  const runOnce = async (action: () => Promise<void>) => {
+    [pending, setPending] = useState(false),
+    activeScope = useRef<object | undefined>(undefined);
+  useEffect(() => {
+    const scope = {};
+    activeScope.current = scope;
+    return () => {
+      activeScope.current = undefined;
+      inFlight.current = false;
+      verifyAttempt.current = undefined;
+    };
+  }, []);
+  const runOnce = async (action: (isCurrent: () => boolean) => Promise<void>) => {
     // A ref also blocks two submissions before React paints disabled controls.
-    if (inFlight.current) return;
+    const scope = activeScope.current;
+    if (!scope || inFlight.current) return;
+    const isCurrent = () => activeScope.current === scope;
     inFlight.current = true;
     setPending(true);
     try {
-      await action();
+      await action(isCurrent);
     } finally {
-      inFlight.current = false;
-      setPending(false);
+      if (isCurrent()) {
+        inFlight.current = false;
+        setPending(false);
+      }
     }
   };
   const request = () =>
-    runOnce(async () => {
+    runOnce(async (isCurrent) => {
       setError("");
       const result = await requestOtpChallenge(() =>
         controlPlane("/v1/auth/otp/request", {
@@ -41,6 +55,7 @@ function LoginContent() {
           body: JSON.stringify({ email }),
         }),
       );
+      if (!isCurrent()) return;
       if (result.kind !== "READY") {
         const messages = {
           UNAVAILABLE: "Нет связи с сервером входа. Повторите попытку позже.",
@@ -59,7 +74,7 @@ function LoginContent() {
       setChallenge(result.challengeId);
     });
   const verify = () =>
-    runOnce(async () => {
+    runOnce(async (isCurrent) => {
       if (!challenge) return;
       setError("");
       const attempt = selectOtpVerifyAttempt(
@@ -79,6 +94,7 @@ function LoginContent() {
           body: JSON.stringify({ challengeId: challenge, code }),
         }),
       );
+      if (!isCurrent()) return;
       if (result.kind !== "VERIFIED") {
         const messages = {
           UNAVAILABLE:
