@@ -1,0 +1,22 @@
+{
+  "state": "INSTALLED",
+  "source_commit": "c90ff5e0017f6ed0ca9a15140e6606126213ec3c",
+  "base": "/opt/alice-market/releases/alisa-selector-hints-r1-20261109",
+  "runtime": "/opt/alice-market/releases/alisa-template-basis-r1-20261110",
+  "changed": [
+    "engine.py",
+    "template_catalog.py",
+    "template_catalog.json",
+    "tests/test_template_integration.py"
+  ],
+  "hashes": {
+    "engine.py": "062de21dc7b98739f1c5f5878aad17dbcc9d1c9f724ae2ac58b8f5517362f27e",
+    "template_catalog.py": "6c6d983b3112aeafb4e8f0b0b9f6d85671b03e0cd5b80244d6bdf61b5540a754",
+    "template_catalog.json": "8af8e0b52b66e1354e3dcac823bc9296730f54b620ddd4fcecd4b67852b77e5e",
+    "tests/test_template_integration.py": "6aa9580a7707b19f74f1c478fcf8a68a6db6d9904ca6a9d5939909ece046f356"
+  },
+  "base_unchanged": true,
+  "at": 1794275356.0193014,
+  "tests": 1974,
+  "targeted_tests": 76
+}
