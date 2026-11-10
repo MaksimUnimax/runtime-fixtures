@@ -1,0 +1,74 @@
+{
+  "case": "simple-46",
+  "requested_period": {
+    "to": "2026-11-08",
+    "from": "2026-11-08"
+  },
+  "comparison_requested": null,
+  "response_selected_periods": [
+    {
+      "end": "2026-11-08",
+      "start": "2026-11-08"
+    }
+  ],
+  "response_past_periods": [
+    {
+      "end": "2026-11-07",
+      "start": "2026-11-07"
+    }
+  ],
+  "stages": [
+    {
+      "stage": "template_select",
+      "requested_model": "deepseek-flash",
+      "served_model": "deepseek-flash",
+      "input_tokens": 10647,
+      "cached_tokens": 9216,
+      "uncached_tokens": 1431,
+      "output_tokens": 111,
+      "reasoning_tokens": 0,
+      "other_output_tokens": 111,
+      "http": 200,
+      "elapsed_ms": 1704,
+      "rub_components": {
+        "input_cached": "0.0045759430656",
+        "input_uncached": "0.03552612048",
+        "reasoning": "0.000000",
+        "other_output": "0.01102277952"
+      },
+      "total_rub": "0.0511248430656"
+    },
+    {
+      "stage": "model_answer",
+      "requested_model": "deepseek-flash",
+      "served_model": "deepseek-flash",
+      "input_tokens": 35838,
+      "cached_tokens": 0,
+      "uncached_tokens": 35838,
+      "output_tokens": 8042,
+      "reasoning_tokens": 8011,
+      "other_output_tokens": 31,
+      "http": 200,
+      "elapsed_ms": 34719,
+      "rub_components": {
+        "input_cached": "0E-7",
+        "input_uncached": "0.88971705504",
+        "reasoning": "0.79552690752",
+        "other_output": "0.00307843392"
+      },
+      "total_rub": "1.68832239648"
+    }
+  ],
+  "encoding": {
+    "case": "simple-46",
+    "encoding_version": 1,
+    "original_characters": 179867,
+    "sent_characters": 56866,
+    "saved_characters": 123001,
+    "extra_model_calls": 0
+  },
+  "total_rub": "1.7394472395456",
+  "new_model_calls_for_audit": 0,
+  "new_marketplace_calls_for_audit": 0,
+  "new_voice_tests_for_audit": 0
+}
