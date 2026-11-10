@@ -1,0 +1,30 @@
+{
+  "state": "INSTALLED",
+  "source_commit": "6ae53c9d84e34faec0f2d39ff19d83f84a5067e0",
+  "station": "/opt/alisa-station/releases/station-raw-template-flow-r1-20261110",
+  "web_wrapper": "/opt/alice-lab/releases/20261110-raw-template-flow-r1",
+  "changed_station_files": [
+    "local_gateway.py",
+    "station_client.py",
+    "alice_lab.py",
+    "voice_protocol.py",
+    "service.py",
+    "alice_bridge.py",
+    "test_raw_voice_flow.py"
+  ],
+  "hashes": {
+    "local_gateway.py": "73ecba5f1d9a48a275ed4279475c984e1f585643e2e011b0549fb51f66301605",
+    "station_client.py": "46869ad571a7e6a24a41f9890d25f6742938dfb8c4775394a22d6f0384ea4f0c",
+    "alice_lab.py": "b33686666b30a1fa40b67a4ba1a39124ed514c6c309468efb3fa1825d9e66efd",
+    "voice_protocol.py": "82fb4873a6a638d47783a74f5df254285f5ad0563649e4bc2b209392ab63a4d1",
+    "service.py": "bc17ef8094feffce6bf406dd4897cc1670a9ed73e34f44e202b6b22d7b7ed4e9",
+    "alice_bridge.py": "4b2a3ab5cc8d64f298b704b782203fc76ce68b7615dd433df5a9b99e0c8ffd02",
+    "test_raw_voice_flow.py": "7e79dd0ce6ddbee008f3674ff9114576c795c4bbd3be19ca63ac865c71805115"
+  },
+  "tests": 60,
+  "at": 1794276819.3877826,
+  "core_unchanged": "/opt/alice-market/releases/alisa-raw-template-flow-r1-20261110",
+  "bases_unchanged": true,
+  "auth_permissions_unchanged": true,
+  "credentials_and_saved_state_not_rewritten": true
+}

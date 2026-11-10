@@ -1,0 +1,24 @@
+{
+  "state": "INSTALLED_AND_VERIFIED",
+  "source_commit": "6ae53c9d84e34faec0f2d39ff19d83f84a5067e0",
+  "core": "/opt/alice-market/releases/alisa-raw-template-flow-r1-20261110",
+  "station": "/opt/alisa-station/releases/station-raw-template-flow-r1-20261110",
+  "web_wrapper": "/opt/alice-lab/releases/20261110-raw-template-flow-r1",
+  "tests": {
+    "full": 1895,
+    "datasets": 87,
+    "station-full": 60,
+    "installed-core": 8,
+    "installed-flow": 7
+  },
+  "installed_rechecks": 15,
+  "new_rechecks_are_included_in_suite": true,
+  "services_active": true,
+  "manifests_verified": true,
+  "paid_calls": 0,
+  "speaker_playback": false,
+  "voice_tests_paused": true,
+  "admission_simple25": "NOT_ADMITTED_PENDING_OWNER_LISTENING",
+  "at_utc": "2026-11-10T02:16:05.002221+00:00",
+  "suite_checks_total": 2042
+}

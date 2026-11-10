@@ -1,0 +1,30 @@
+{
+  "state": "INSTALLED",
+  "source_commit": "6ae53c9d84e34faec0f2d39ff19d83f84a5067e0",
+  "base": "/opt/alice-market/releases/alisa-template-basis-r1-20261110",
+  "runtime": "/opt/alice-market/releases/alisa-raw-template-flow-r1-20261110",
+  "changed": [
+    "template_runtime.py",
+    "template_catalog.py",
+    "engine.py",
+    "dialogue.py",
+    "alice_bridge.py",
+    "failure_catalog.json",
+    "tests/test_template_only.py",
+    "tests/test_raw_template_flow.py"
+  ],
+  "hashes": {
+    "template_runtime.py": "f8cae2620aedf3b2cb9fe4e562a2b970eb3a39c8508fa672caf0b4052e005fd6",
+    "template_catalog.py": "9c2eb0f0b938ff13fe2ff9cdce8364007d3ea342514799125720a5bde3df2055",
+    "engine.py": "328411b4b8627d92585057a8ae2de19e0f6d1a04f8a734cb0e9a41a3ae040f0c",
+    "dialogue.py": "37227fdc8e1cf31e77bc89c108a41aba2f180d2051cbf4d159705f6b15d57b9d",
+    "alice_bridge.py": "dcbac4d80eda43e7010c718c1bbb04dc37513a86e54b1926c8a1d2400b3598ff",
+    "failure_catalog.json": "6205bc8a88af10379f9199412fa7c0d90e949ade3a38aad1d303b48bf1a40dd8",
+    "tests/test_template_only.py": "c97c2bfb788ed3ea1d6faf80a1336a17f1fa69c1fd51d6b8b334015b531465f0",
+    "tests/test_raw_template_flow.py": "248e26dd7afcc484d25f736d1901ddc84f99eaf3d8ad394bb5112db7932c71e6"
+  },
+  "base_unchanged": true,
+  "at": 1794276811.3826473,
+  "tests": 1982,
+  "scope": "all_reported_active_routing_findings"
+}
