@@ -198,6 +198,37 @@ class VoiceChecks(QueryChecks):
             self.assertIn('принято', pending.result(timeout=10))
         self.assertEqual(Query.objects.filter(customer=self.actor).count(), 1)
 
+    def test_new_question_during_dispatch_cannot_erase_cancellation_intent(self):
+        self.question(); original = service.submit
+        def pending(*args, **kwargs):
+            self.assertIn('не подтверждена', self.say('отмена', 2))
+            self.assertIn('предыдущего вопроса', self.say(QUESTION + ' новый вопрос', 3))
+            return original(*args, **kwargs)
+        with patch.object(service, 'submit', pending):
+            self.assertIn('отменено', self.say('все', 1))
+        self.assertEqual(Query.objects.filter(customer=self.actor).count(), 1)
+        self.assertEqual(Query.objects.get(customer=self.actor).state, 'CANCELLED')
+
+    def test_cancel_after_receipt_before_complete_has_one_sender_even_on_unknown(self):
+        self.question(); original = dialogue.complete; observed = []
+        def before_complete(*args, **kwargs):
+            self.assertIsNotNone(Query.objects.get(customer=self.actor).runtime_job_ref)
+            observed.append(self.say('отмена', 2))
+            return original(*args, **kwargs)
+        with patch.object(dialogue, 'complete', before_complete), patch.object(service, 'cancel',
+                side_effect=RuntimeFailure('UNKNOWN_OUTCOME', outcome='UNKNOWN')) as cancel:
+            self.assertIn('не подтверждена', self.say('все', 1))
+            self.assertEqual(cancel.call_count, 1)
+            self.say('отмена', 2)
+            self.assertEqual(cancel.call_count, 1)
+        self.assertIn('не подтверждена', observed[0])
+
+    def test_new_question_after_completed_state_ttl_is_accepted_normally(self):
+        self.question(); self.say('все', 1)
+        row = VoiceDialogue.objects.get(customer=self.actor)
+        row.expires_at = timezone.now() - timedelta(seconds=1); row.save()
+        self.assertIn('Уточните', self.say(QUESTION, 2))
+
     def test_unknown_after_accept_never_automatically_resubmits(self):
         self.question(); original = RuntimeClient.submit
         def lose(api, *args, **kwargs):

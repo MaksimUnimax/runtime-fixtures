@@ -34,5 +34,6 @@ class VoiceDialogue(models.Model):
     phase = models.CharField(max_length=12, default='CHOOSE')
     query_id = models.UUIDField(null=True)
     cancel_id = models.UUIDField(null=True)
+    cancel_started = models.BooleanField(default=False)
     expires_at = models.DateTimeField(db_index=True)
     retire_at = models.DateTimeField(db_index=True)

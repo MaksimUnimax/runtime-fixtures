@@ -192,15 +192,23 @@ def advance(principal, session_hash, mid, query_id, utterance):
                 need(row.input_hash == mark, 'IDEMPOTENCY_CONFLICT')
             if command in CONTROL and row.phase in {'SUBMITTING', 'SENT'}:
                 if command in CANCEL:
+                    if row.cancel_started:
+                        return {'message': 'Отмена уже запрошена. Проверьте состояние: готово?'}
                     if row.cancel_id is None:
                         row.cancel_id = query_id
                     row.last_message_id, row.input_hash = mid, mark
-                    row.save(update_fields=['cancel_id', 'last_message_id', 'input_hash'])
+                    if row.phase == 'SENT':
+                        row.cancel_started = True
+                    row.save(update_fields=['cancel_id', 'cancel_started', 'last_message_id', 'input_hash'])
+                    if row.phase == 'SUBMITTING':
+                        return {'message': 'Запрос на отмену принят. Остановка ещё не подтверждена.'}
                 return {'query_id': str(row.query_id), 'cancel_id': str(row.cancel_id) if row.cancel_id else None}
+            if row.phase == 'SUBMITTING':
+                return {'message': 'Отправка предыдущего вопроса ещё не подтверждена. Дождитесь подтверждения или скажите: отмена.'}
             if command in CONTROL and (row.expires_at <= now or row.phase in {'EXPIRED', 'CANCELLED'}):
                 row.encrypted_payload = ''; row.save(update_fields=['encrypted_payload'])
                 return {'message': EXPIRED if row.phase != 'CANCELLED' else 'Вопрос отменён. Он не отправлен на расчёт.'}
-            if row.expires_at <= now and mid > row.last_message_id and command not in CONTROL:
+            if row.phase == 'CHOOSE' and row.expires_at <= now and mid > row.last_message_id and command not in CONTROL:
                 row.last_message_id, row.input_hash = mid, mark
                 row.expires_at = now + LIFETIME
                 save(row, {'auth': binding, 'phase': 'EXPIRED'})
@@ -253,6 +261,7 @@ def advance(principal, session_hash, mid, query_id, utterance):
             row = VoiceDialogue(id=session_hash, customer_id=customer, tenant_id=tenant)
         row.last_message_id, row.input_hash = mid, mark
         row.cancel_id = None
+        row.cancel_started = False
         row.expires_at, row.retire_at = now + LIFETIME, now + timedelta(days=1)
         if len(stores) == 1 or all_stores(utterance):
             state['phase'] = 'SUBMITTING'
@@ -270,5 +279,8 @@ def complete(principal, session_hash, query_id):
                                                                tenant_id=tenant).first()
         if row and str(row.query_id) == query_id:
             row.phase, row.encrypted_payload = 'SENT', ''
-            row.save(update_fields=['phase', 'encrypted_payload'])
-            return str(row.cancel_id) if row.cancel_id else None
+            cancellation = str(row.cancel_id) if row.cancel_id and not row.cancel_started else None
+            if cancellation:
+                row.cancel_started = True
+            row.save(update_fields=['phase', 'encrypted_payload', 'cancel_started'])
+            return cancellation
