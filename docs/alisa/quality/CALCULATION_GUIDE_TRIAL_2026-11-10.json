@@ -1,0 +1,93 @@
+{
+  "status": "COMPLETE_NOT_INSTALLED",
+  "model": "deepseek-flash",
+  "input_encoding": 1,
+  "started_utc": "2026-11-10T07:28:39.680763+00:00",
+  "finished_utc": "2026-11-10T07:31:45.039199+00:00",
+  "source_core_commit": "a2d20c84ba3b1bd94aebf53b2f9b890a00927f1a",
+  "calls": [
+    {
+      "case": "card_views",
+      "variant": "baseline",
+      "template_id": "B14.card_views",
+      "prompt_tokens": 35807,
+      "cache_hit_tokens": 0,
+      "completion_tokens": 8188,
+      "reasoning_tokens": 8160,
+      "actual_cost_rub": "1.70205121872",
+      "normalized_peak_all_input_uncached_rub": "1.70205121872",
+      "elapsed_seconds": 36.825,
+      "quality": "PASS_INDEPENDENT_DECIMAL_REVIEW"
+    },
+    {
+      "case": "card_views",
+      "variant": "guided",
+      "template_id": "B14.card_views",
+      "prompt_tokens": 35987,
+      "cache_hit_tokens": 128,
+      "completion_tokens": 9876,
+      "reasoning_tokens": 9848,
+      "actual_cost_rub": "1.8710314218048",
+      "normalized_peak_all_input_uncached_rub": "1.87414560528",
+      "elapsed_seconds": 44.08,
+      "quality": "PASS_INDEPENDENT_DECIMAL_REVIEW"
+    },
+    {
+      "case": "drr_ordered",
+      "variant": "guided",
+      "template_id": "drr_ordered",
+      "prompt_tokens": 37244,
+      "cache_hit_tokens": 0,
+      "completion_tokens": 11567,
+      "reasoning_tokens": 11532,
+      "actual_cost_rub": "2.07327559296",
+      "normalized_peak_all_input_uncached_rub": "2.07327559296",
+      "elapsed_seconds": 56.503,
+      "quality": "PASS_INDEPENDENT_DECIMAL_REVIEW"
+    },
+    {
+      "case": "drr_ordered",
+      "variant": "baseline",
+      "template_id": "drr_ordered",
+      "prompt_tokens": 37059,
+      "cache_hit_tokens": 36480,
+      "completion_tokens": 10785,
+      "reasoning_tokens": 10753,
+      "actual_cost_rub": "1.103484499488",
+      "normalized_peak_all_input_uncached_rub": "1.99102678992",
+      "elapsed_seconds": 47.82,
+      "quality": "PASS_INDEPENDENT_DECIMAL_REVIEW"
+    }
+  ],
+  "guides": {
+    "card_views": "При работе с этим ответом API следуй проверенному порядку расчёта. Для каждого запрошенного магазина и периода итог открытий N = сумма statistic.selected.openCount по всем строкам data.products, с соблюдением условий исходного вопроса. Поля past и comparison не прибавляй к текущему итогу; если запрошено сравнение, считай периоды отдельно. Каждую строку учитывай один раз, нулевые значения допустимы. В ответе назови итог и период, формулу не озвучивай.",
+    "drr_ordered": "При работе с этими ответами API следуй проверенной формуле: ДРР по заказам = рекламные расходы / сумма оформленных заказов × 100 процентов. Для WB рекламные расходы A = сумма updSum в ответе wb_expense; сумма заказов O = сумма statistic.selected.orderSum по data.products в ответе wb_orders. Используй одинаковые магазин, период и условия вопроса для A и O. Данные past и comparison не прибавляй к текущим суммам. Рассчитай A и O по одному разу, затем A/O×100. Округляй только итог, не подменяй заказы выкупами или начислениями. Ответь кратко по вопросу, формулу и порядок действий не озвучивай."
+  },
+  "actual_total_qa_rub": "6.7498427329728",
+  "comparison": "peak tariff, all prompt tokens priced uncached, same FX 82.7536 RUB/USD",
+  "tariff_usd_per_million": {
+    "cached": "0.006",
+    "uncached": "0.30",
+    "output": "1.20"
+  },
+  "per_scenario_pairs": 1,
+  "live_station_calls": 0,
+  "live_marketplace_calls": 0,
+  "selector_calls": 0,
+  "production_db_writes": 0,
+  "independent_review": {
+    "reviewer": "review_formula_trial",
+    "result": "NO_BLOCKERS_FOR_NEGATIVE_RESULT_REPORT",
+    "fixture_sha_matched": true,
+    "request_sha_reproduced": 4,
+    "lossless_input_roundtrip": true,
+    "actual_and_normalized_price_recomputed": true,
+    "new_paid_calls": 0,
+    "limitations": [
+      "one pair per scenario",
+      "views notes also activates normal template_context wrapper",
+      "QA final calls exclude selector"
+    ]
+  },
+  "decision": "NO_PRODUCTION_INSTALL_ECONOMY_NOT_CONFIRMED"
+}
