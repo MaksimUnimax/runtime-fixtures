@@ -91,7 +91,7 @@ def main():
                 staff_origin='https://127.0.0.1:19441';staff_secret=secrets.token_urlsafe(40)
                 staff_service=secrets.token_urlsafe(40);staff_key=secrets.token_urlsafe(32)
                 identity_only.update({'ALISA_STAFF_ENABLED':'1','ALISA_STAFF_OIDC_CLIENT_ID':'s03_admin','ALISA_STAFF_OIDC_REDIRECT_URI':staff_origin+'/auth/callback'})
-                platform_only.update({'ALISA_STAFF_ENABLED':'1','ALISA_STAFF_OIDC_CLIENT_ID':'s03_admin','ALISA_STAFF_SERVICE_TOKEN':staff_service})
+                platform_only.update({'ALISA_STAFF_ENABLED':'1','ALISA_STAFF_OIDC_CLIENT_ID':'s03_admin','ALISA_STAFF_SERVICE_TOKEN':staff_service,'ALISA_QUERY_INSIGHTS_ENABLED':'1'})
                 client_bootstrap.update({'ALISA_STAFF_OIDC_CLIENT_ID':'s03_admin','ALISA_STAFF_OIDC_CLIENT_SECRET':staff_secret,'ALISA_STAFF_OIDC_REDIRECT_URI':staff_origin+'/auth/callback'})
             if args.access:
                 if not args.staff:raise RuntimeError('Access qualification requires native staff flow')
@@ -260,6 +260,7 @@ def main():
             checked_theme_pages=set()
             def verify_identity_theme(page,label):
                 if label in checked_theme_pages:return
+                expect(page.locator('.stage-notice')).to_be_visible()
                 page.evaluate('document.fonts.ready')
                 check('s02_identity_'+label+'_theme',page.evaluate('getComputedStyle(document.body).backgroundColor')=='rgb(13, 25, 41)')
                 check('s02_identity_'+label+'_test_mail_notice',page.locator('.stage-notice').is_visible() and ('логин и пароль' if args.open_registration else 'example.invalid') in page.locator('.stage-notice').inner_text().lower())
@@ -277,6 +278,8 @@ def main():
                 open_identity(page)
                 verify_identity_theme(page,'login')
                 page.locator('a[href*="/accounts/signup/"]').first.click()
+                page.wait_for_url(re.compile(re.escape(ISSUER)+r'/accounts/signup/'))
+                expect(page.locator('input[name=password1]')).to_be_visible()
                 verify_identity_theme(page,'signup')
                 page.locator('input[name=email]').fill(email);page.locator('input[name=password1]').fill(customer_password);page.locator('input[name=password2]').fill(customer_password);page.locator('input[name=privacy]').check();page.locator('input[name=service]').check()
                 page.locator('form').filter(has=page.locator('input[name=email]')).locator('button[type=submit]').first.click()
@@ -674,7 +677,7 @@ def main():
         tb=exc.__traceback__
         while tb:
             if Path(tb.tb_frame.f_code.co_filename).name=='qualify_identity.py':record['qualification_line']=tb.tb_lineno
-            if Path(tb.tb_frame.f_code.co_filename).name in {'qualify_identity.py','qualify_staff_browser.py','qualify_access_browser.py','qualify_stores_browser.py','qualify_skill_browser.py'}:record['source_error_location']={'file':Path(tb.tb_frame.f_code.co_filename).name,'line':tb.tb_lineno}
+            if Path(tb.tb_frame.f_code.co_filename).name in {'qualify_identity.py','qualify_staff_browser.py','qualify_query_insights_browser.py','qualify_access_browser.py','qualify_stores_browser.py','qualify_skill_browser.py'}:record['source_error_location']={'file':Path(tb.tb_frame.f_code.co_filename).name,'line':tb.tb_lineno}
             if not tb.tb_next:break
             tb=tb.tb_next
         if tb:record['error_location']={'file':Path(tb.tb_frame.f_code.co_filename).name,'line':tb.tb_lineno}

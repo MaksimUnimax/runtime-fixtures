@@ -123,7 +123,7 @@ def submit(principal, query_id, stores, utterance, *, recover=False, channel='WE
     return {'query': receipt(row)}, 201
 
 
-def read(principal, query_id, *, result=False, with_delivery_guard=False):
+def read(principal, query_id, *, result=False, with_delivery_guard=False,record_useful=True):
     need(not with_delivery_guard or result)
     enabled(); row = owned(principal, query_id)
     if row.runtime_job_ref is None:
@@ -136,7 +136,7 @@ def read(principal, query_id, *, result=False, with_delivery_guard=False):
     current = owned(principal, query_id)
     if result:
         need(timestamp(value['result_expires_at']) > timezone.now().timestamp(), 'RESULT_EXPIRED')
-        if value.get('result_kind', 'DATA') == 'DATA':
+        if record_useful and value.get('result_kind', 'DATA') == 'DATA':
             from alisa_platform.leads.views import event
             event('query.first_useful_ready', subject=current.customer_id)
     Query.objects.filter(pk=row.pk).update(state=value['state'], checked_at=timezone.now())

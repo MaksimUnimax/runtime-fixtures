@@ -117,6 +117,8 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
     expect(owner_page.get_by_role('button',name=owner_label,exact=True)).to_be_visible()
     expect(owner_page.get_by_role('button',name=reader_email,exact=True)).to_be_visible()
     check('s03_owner_browser_lists_both_real_s02_customers',True)
+    from qualify_query_insights_browser import run as query_journal
+    query_journal(owner_page,origin,db,check,record)
     cookies = context.cookies()
     staff_cookie = next(c for c in cookies if c['name']=='__Host-alisa_staff')
     private_values.append(staff_cookie['value'])

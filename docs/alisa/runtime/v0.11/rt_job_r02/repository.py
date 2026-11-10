@@ -201,6 +201,8 @@ class Repository:
             if update_pointer:
                 from reader_state import bind
                 bind(self,c,tenant,jid)
+                from query_gap_terminal import remember_reader
+                remember_reader(c,self,tenant,rid,jid)
             return self._row(c,jid,tenant), outcome
 
     def mark_resume_safe(self,jid,owner,safe):

@@ -23,6 +23,7 @@ from django.test import RequestFactory
 from alisa_platform.accounts import views as accounts
 from alisa_platform.stores import views as stores
 from alisa_platform.queries.reports import reports
+from alisa_platform.queries.views import queries
 from semantics import canonical_json
 import template_catalog
 
@@ -64,7 +65,7 @@ class Account(http.server.BaseHTTPRequestHandler):
     def log_message(self,*args):pass
     def do_POST(self):
         view={'/api/v1/account/me':accounts.me,'/api/v1/account/stores':stores.stores,
-              '/api/v1/account/reports':reports}.get(self.path)
+              '/api/v1/account/reports':reports,'/api/v1/account/queries':queries}.get(self.path)
         size=int(self.headers.get('Content-Length','0'))
         if view is None or size>32768:self.send_error(404);return
         try:
@@ -136,6 +137,8 @@ def run(case, ports):
             if result.returncode:raise AssertionError('Browser download qualification failed: '+result.stderr[-3000:])
             record=json.loads(result.stdout);case.assertEqual(record['status'],'PASS')
             case.assertEqual(len(case.transport.calls),before)
+            from alisa_platform.query_insights.models import Feedback
+            case.assertEqual(Feedback.objects.filter(query_id=case.qid).count(),1)
             return record
         finally:
             if node is not None:

@@ -10,7 +10,12 @@
       "format": "uuid"
     },
     "producer": {
-      "const": "analytics_runtime"
+      "type": "string",
+      "enum": [
+        "analytics_runtime",
+        "platform_feedback",
+        "platform_observer"
+      ]
     },
     "occurred_at": {
       "type": "string",
@@ -161,7 +166,8 @@
         "PAYMENT",
         "GIFT",
         "COMPENSATION",
-        "NONE"
+        "NONE",
+        "UNKNOWN"
       ]
     },
     "internal_test": {
