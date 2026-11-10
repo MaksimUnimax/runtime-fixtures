@@ -11,9 +11,11 @@ import json
 from pathlib import Path
 import socket
 import unittest
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
-from query_roundtrip import QueryChecks, connections, TEMP, uid, timezone
+from query_roundtrip import QueryChecks, connections, TEMP, uid, timezone, RuntimeClient, RuntimeFailure
 from checks import Store, VaultSecret, CredentialRevision, settings, AccessAdjustment
 from alisa_platform.queries import service, voice, voice_dialogue as dialogue
 from alisa_platform.queries.models import Query, VoiceDialogue
@@ -21,7 +23,7 @@ from alisa_platform.alice_link.vault import unseal, seal
 from alisa_platform.runtime_adapter.authority import AlicePrincipal
 from django.core.management import call_command
 
-QUESTION = 'заказы за вчера, кроме товара 777 на озоне'
+QUESTION = 'сводка заказов за октябрь 2026 на озоне'
 
 
 class VoiceChecks(QueryChecks):
@@ -69,7 +71,7 @@ class VoiceChecks(QueryChecks):
         query = Query.objects.get(pk=qid)
         self.assertEqual(query.store_ids, sorted([str(self.store.pk), str(self.second.pk)]))
         self.assertEqual(self.transport.calls, [])
-        self.assertNotIn('question', self.state()[1])
+        self.assertEqual(VoiceDialogue.objects.get(customer=self.actor).encrypted_payload, '')
 
     def test_exact_alias_selects_one(self):
         self.question(); self.assertIn('принято', self.say('озон два', 1))
@@ -104,6 +106,26 @@ class VoiceChecks(QueryChecks):
         self.assertIn('изменилось', self.say('все', 1))
         self.assertFalse(Query.objects.filter(customer=self.actor).exists())
 
+    def test_changed_runtime_mapping_without_database_revision_stops_dispatch(self):
+        self.question()
+        self.document['tenants'][0]['stores'][0]['runtime_store']['source_revision'] = 'changed'
+        self.write()
+        self.assertIn('изменилось', self.say('все', 1))
+        self.assertFalse(Query.objects.filter(customer=self.actor).exists())
+
+    def test_key_change_in_second_prepare_is_checked_before_ipc(self):
+        self.question(); original = dialogue.PinnedAuthorizer.prepare; calls = []
+        def change(authorizer, operation):
+            calls.append(operation)
+            if len(calls) == 2:
+                CredentialRevision.objects.filter(store=self.second).update(status='REVOKED')
+            return original(authorizer, operation)
+        with patch.object(dialogue.PinnedAuthorizer, 'prepare', change):
+            self.assertIn('изменилось', self.say('все', 1))
+        self.assertEqual(len(calls), 2)
+        with self.repo.connection() as conn:
+            self.assertEqual(conn.execute('SELECT count(*) FROM jobs').fetchone()[0], 0)
+
     def test_revoked_access_between_turns_never_submits(self):
         self.question()
         AccessAdjustment.objects.create(id=uid(), grant=self.grant, cutoff=timezone.now(),
@@ -128,12 +150,72 @@ class VoiceChecks(QueryChecks):
 
     def test_cancel_pending_never_cancels_prior_job(self):
         # First real job, followed by another question in the same voice session.
-        self.say('заказы за вчера по всем магазинам', 0)
-        self.say(QUESTION, 1)
+        self.question(); self.say('все', 1)
+        self.assertIsNotNone(Query.objects.get(customer=self.actor).runtime_job_ref)
+        self.say(QUESTION, 2)
         with patch.object(service, 'cancel', side_effect=AssertionError('Wrong reader cancellation')):
-            self.assertIn('не отправлен', self.say('отмена', 2))
+            self.assertIn('не отправлен', self.say('отмена', 3))
         self.assertEqual(Query.objects.filter(customer=self.actor).count(), 1)
         self.assertNotIn('question', self.state()[1])
+
+    def test_empty_reply_with_one_empty_alias_never_selects(self):
+        self.second.voice_alias = ''; self.second.save()
+        self.question(); self.assertIn('Уточните', self.say('', 1))
+        self.assertFalse(Query.objects.filter(customer=self.actor).exists())
+
+    def test_expired_pending_cancel_never_targets_previous_query(self):
+        self.question(); self.say('все', 1); self.say(QUESTION, 2)
+        row = VoiceDialogue.objects.get(customer=self.actor)
+        row.expires_at = timezone.now() - timedelta(seconds=1); row.save()
+        with patch.object(service, 'cancel', side_effect=AssertionError('Cancelled previous query')):
+            self.assertIn('больше не действует', self.say('отмена', 3))
+
+    def test_cancel_during_dispatch_targets_reserved_query_after_accept(self):
+        self.question(); self.say('все', 1); previous = Query.objects.get(customer=self.actor)
+        self.say(QUESTION, 2)
+        original = service.submit; during = []
+        def cancel_before_receipt(*args, **kwargs):
+            self.assertNotEqual(args[1], str(previous.pk))
+            during.append(self.say('отмена', 4))
+            self.assertIn('не подтверждена', during[0])
+            return original(*args, **kwargs)
+        with patch.object(service, 'submit', cancel_before_receipt):
+            self.assertIn('отменено', self.say('все', 3))
+        self.assertNotEqual(Query.objects.get(pk=previous.pk).state, 'CANCELLED')
+        self.assertEqual(Query.objects.exclude(pk=previous.pk).get(customer=self.actor).state, 'CANCELLED')
+
+    def test_concurrent_duplicate_selection_has_one_dispatcher(self):
+        self.question(); entered, release = threading.Event(), threading.Event(); original = service.submit
+        def wait(*args, **kwargs):
+            entered.set(); self.assertTrue(release.wait(5)); return original(*args, **kwargs)
+        def first():
+            try: return self.say('все', 1)
+            finally: connections.close_all()
+        with patch.object(service, 'submit', wait), ThreadPoolExecutor(max_workers=1) as pool:
+            pending = pool.submit(first); self.assertTrue(entered.wait(5))
+            try: self.assertIn('не подтверждена', self.say('все', 1))
+            finally: release.set()
+            self.assertIn('принято', pending.result(timeout=10))
+        self.assertEqual(Query.objects.filter(customer=self.actor).count(), 1)
+
+    def test_unknown_after_accept_never_automatically_resubmits(self):
+        self.question(); original = RuntimeClient.submit
+        def lose(api, *args, **kwargs):
+            original(api, *args, **kwargs)
+            raise RuntimeFailure('UNKNOWN_OUTCOME', outcome='UNKNOWN')
+        with patch.object(RuntimeClient, 'submit', lose):
+            self.assertIn('не подтверждена', self.say('все', 1))
+        with patch.object(RuntimeClient, 'submit', side_effect=AssertionError('Implicit retry')):
+            self.say('все', 1); self.say('готово', 2)
+        with self.repo.connection() as conn:
+            self.assertEqual(conn.execute('SELECT count(*) FROM jobs').fetchone()[0], 1)
+
+    def test_exclusion_is_forwarded_verbatim_without_reinterpreting_template(self):
+        question = QUESTION + ', кроме товара 777'
+        self.say(question)
+        with patch.object(service, 'submit', wraps=service.submit) as submit:
+            self.say('все', 1)
+        self.assertEqual(submit.call_args.args[3], question)
 
     def test_status_while_choosing_never_reads_previous_job(self):
         self.question()
@@ -174,6 +256,13 @@ class VoiceChecks(QueryChecks):
     def test_tampered_ciphertext_fails_closed(self):
         self.question(); row, _ = self.state(); row.encrypted_payload = 'broken'; row.save()
         self.assertIn('больше не действует', self.say('все', 1))
+        self.assertFalse(Query.objects.filter(customer=self.actor).exists())
+
+    def test_expiry_blocks_alias_even_before_timer_and_does_not_refresh_on_prompt(self):
+        self.question(); row, _ = self.state(); deadline = row.expires_at
+        self.say('не понял', 1); row.refresh_from_db(); self.assertEqual(row.expires_at, deadline)
+        row.expires_at = timezone.now() - timedelta(seconds=1); row.save()
+        self.assertIn('больше не действует', self.say('озон два', 2))
         self.assertFalse(Query.objects.filter(customer=self.actor).exists())
 
     def test_prompt_paging_and_all_are_bounded(self):

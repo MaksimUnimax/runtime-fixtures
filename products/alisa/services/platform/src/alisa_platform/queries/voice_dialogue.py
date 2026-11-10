@@ -8,11 +8,12 @@ import hashlib
 import re
 
 from django.db import transaction
+from django.conf import settings
 from django.utils import timezone
 from alisa_platform.accounts.models import Customer
 from alisa_platform.alice_link.models import TokenFamily
 from alisa_platform.alice_link.vault import seal, unseal
-from alisa_platform.runtime_adapter.job_client import encode, need
+from alisa_platform.runtime_adapter.job_client import encode, need, RuntimeFailure
 from alisa_platform.stores.models import Store, CredentialRevision
 from .models import VoiceDialogue, Query
 
@@ -26,6 +27,11 @@ UNKNOWN = 'Отправка не подтверждена. Откройте за
 ORDINALS = {'первый': 1, 'первое': 1, 'второй': 2, 'второе': 2,
             'третий': 3, 'третье': 3, 'четвертый': 4, 'пятый': 5}
 PROVIDERS = {'OZON': {'озон', 'ozon'}, 'WB': {'вайлдберриз', 'вайлдберис', 'wildberries', 'вб', 'wb'}}
+
+
+class SelectionChanged(RuntimeFailure):
+    def __init__(self):
+        super().__init__('PERMISSION_DENIED')
 
 
 def normalized(value):
@@ -42,11 +48,21 @@ def all_stores(value):
         r'\b(?:по всем(?: магазинам)?|во всех магазинах|все магазины)\b', normalized(value)))
 
 
-def snapshot(store):
+def bindings(tenant):
+    from . import service
+    authority = service.configured_authority()
+    mapping = authority.bindings.load(environment=settings.ALISA_ENV, service_id=authority.service_id,
+                                     catalog_release_id=authority.catalog_release_id).get(tenant)
+    return mapping
+
+
+def snapshot(store, mapping):
     credentials = list(CredentialRevision.objects.filter(store=store, status='ACTIVE').order_by('kind', 'id')
                        .values('id', 'kind', 'revision', 'check_code'))
     pin = {'id': str(store.pk), 'revision': store.revision, 'provider': store.provider,
            'identity': store.verified_identity, 'status': store.status,
+           'mapping': ({key: mapping[key] for key in ('runtime_tenant', 'revision')} |
+                       {'store': mapping['stores'].get(str(store.pk))}) if mapping else None,
            'credentials': [{**row, 'id': str(row['id'])} for row in credentials]}
     return {'id': str(store.pk), 'provider': store.provider, 'name': store.name,
             'alias': store.voice_alias, 'pin': hashlib.sha256(encode(pin)).hexdigest()}
@@ -60,7 +76,8 @@ def candidates(tenant, utterance):
         rows = rows.filter(provider=next(iter(wanted)))
     rows = list(rows[:1001])
     need(len(rows) <= 1000, 'CAPABILITY_UNAVAILABLE')
-    return [snapshot(row) for row in rows]
+    mapping = bindings(tenant)
+    return [snapshot(row, mapping) for row in rows]
 
 
 class PinnedAuthorizer:
@@ -73,9 +90,11 @@ class PinnedAuthorizer:
         self.delegate, self.tenant, self.selected = delegate, tenant, selected
 
     def check(self):
+        mapping = bindings(self.tenant)
         for saved in self.selected:
             store = Store.objects.filter(pk=saved['id'], tenant_id=self.tenant, product_id='alisa_market').first()
-            need(store is not None and snapshot(store)['pin'] == saved['pin'], 'SELECTION_CHANGED')
+            if store is None or snapshot(store, mapping)['pin'] != saved['pin']:
+                raise SelectionChanged()
 
     def prepare(self, operation):
         self.check()
@@ -100,6 +119,8 @@ def prompt(state):
 def selection(state, utterance):
     command = normalized(utterance)
     rows = state['stores']
+    if not command:
+        return []
     if command in ALL:
         return rows
     index = ORDINALS.get(command)
@@ -108,7 +129,7 @@ def selection(state, utterance):
         index = int(match[1])
     if index is not None:
         return rows[index - 1:index] if 1 <= index <= len(rows) else []
-    exact = [row for row in rows if command in {normalized(row['name']), normalized(row['alias'])}]
+    exact = [row for row in rows if command in {normalized(row['name']), normalized(row['alias'])} - {''}]
     if len(exact) == 1:
         return exact
     if exact:
@@ -132,6 +153,9 @@ def auth_binding(principal):
 
 
 def save(row, state):
+    row.phase = state['phase']
+    if 'query_id' in state:
+        row.query_id = state['query_id']
     row.encrypted_payload = seal('voice-dialogue/v1', row.pk, state)
     row.save()
 
@@ -166,6 +190,16 @@ def advance(principal, session_hash, mid, query_id, utterance):
                 return {'message': 'Это сообщение уже обработано. Задайте новый вопрос или спросите: готово?'}
             if mid == row.last_message_id:
                 need(row.input_hash == mark, 'IDEMPOTENCY_CONFLICT')
+            if command in CONTROL and row.phase in {'SUBMITTING', 'SENT'}:
+                if command in CANCEL:
+                    if row.cancel_id is None:
+                        row.cancel_id = query_id
+                    row.last_message_id, row.input_hash = mid, mark
+                    row.save(update_fields=['cancel_id', 'last_message_id', 'input_hash'])
+                return {'query_id': str(row.query_id), 'cancel_id': str(row.cancel_id) if row.cancel_id else None}
+            if command in CONTROL and (row.expires_at <= now or row.phase in {'EXPIRED', 'CANCELLED'}):
+                row.encrypted_payload = ''; row.save(update_fields=['encrypted_payload'])
+                return {'message': EXPIRED if row.phase != 'CANCELLED' else 'Вопрос отменён. Он не отправлен на расчёт.'}
             if row.expires_at <= now and mid > row.last_message_id and command not in CONTROL:
                 row.last_message_id, row.input_hash = mid, mark
                 row.expires_at = now + LIFETIME
@@ -176,7 +210,8 @@ def advance(principal, session_hash, mid, query_id, utterance):
                     state = unseal('voice-dialogue/v1', row.pk, row.encrypted_payload)
                     need(state['auth'] == binding, 'AUTH_REQUIRED')
                 except (ValueError, KeyError, TypeError):
-                    row.encrypted_payload = ''; row.save(update_fields=['encrypted_payload'])
+                    row.phase, row.encrypted_payload = 'EXPIRED', ''
+                    row.save(update_fields=['phase', 'encrypted_payload'])
                     return {'message': EXPIRED}
             elif row.encrypted_payload:
                 row.encrypted_payload = ''; row.save(update_fields=['encrypted_payload'])
@@ -217,6 +252,7 @@ def advance(principal, session_hash, mid, query_id, utterance):
         if row is None:
             row = VoiceDialogue(id=session_hash, customer_id=customer, tenant_id=tenant)
         row.last_message_id, row.input_hash = mid, mark
+        row.cancel_id = None
         row.expires_at, row.retire_at = now + LIFETIME, now + timedelta(days=1)
         if len(stores) == 1 or all_stores(utterance):
             state['phase'] = 'SUBMITTING'
@@ -232,7 +268,7 @@ def complete(principal, session_hash, query_id):
         Customer.objects.select_for_update(no_key=True).get(pk=customer)
         row = VoiceDialogue.objects.select_for_update().filter(pk=session_hash, customer_id=customer,
                                                                tenant_id=tenant).first()
-        if row and row.encrypted_payload:
-            state = unseal('voice-dialogue/v1', row.pk, row.encrypted_payload)
-            if state.get('query_id') == query_id:
-                save(row, {'auth': state['auth'], 'phase': 'SENT', 'query_id': query_id})
+        if row and str(row.query_id) == query_id:
+            row.phase, row.encrypted_payload = 'SENT', ''
+            row.save(update_fields=['phase', 'encrypted_payload'])
+            return str(row.cancel_id) if row.cancel_id else None

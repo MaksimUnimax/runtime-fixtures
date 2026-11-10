@@ -31,5 +31,8 @@ class VoiceDialogue(models.Model):
     last_message_id = models.PositiveIntegerField()
     input_hash = models.CharField(max_length=64)
     encrypted_payload = models.TextField(blank=True)
+    phase = models.CharField(max_length=12, default='CHOOSE')
+    query_id = models.UUIDField(null=True)
+    cancel_id = models.UUIDField(null=True)
     expires_at = models.DateTimeField(db_index=True)
     retire_at = models.DateTimeField(db_index=True)

@@ -59,25 +59,35 @@ def handle(token, payload):
     command = utterance.strip().lower().rstrip('?!.,')
     try:
         turn = voice_dialogue.advance(principal, session_hash, mid, rid, utterance)
+        target = None
         if turn is not None:
             if 'message' in turn:
                 return response(token, customer, turn['message'])
-            frozen = turn['submit']
-            try:
-                value, _ = service.submit(principal, frozen['query_id'],
-                    [row['id'] for row in frozen['stores']], frozen['question'],
-                    channel='ALICE', voice_session_hash=session_hash, store_snapshot=frozen['stores'])
-            finally:
-                voice_dialogue.complete(principal, session_hash, frozen['query_id'])
-            return response(token, customer, MESSAGES['UNKNOWN_OUTCOME'] if not value['query']['submission_confirmed']
-                            else voice_dialogue.ACCEPTED)
+            if 'submit' in turn:
+                frozen = turn['submit']
+                try:
+                    value, _ = service.submit(principal, frozen['query_id'],
+                        [row['id'] for row in frozen['stores']], frozen['question'],
+                        channel='ALICE', voice_session_hash=session_hash, store_snapshot=frozen['stores'])
+                finally:
+                    cancellation = voice_dialogue.complete(principal, session_hash, frozen['query_id'])
+                if cancellation:
+                    cancelled = service.cancel(principal, frozen['query_id'], cancellation)
+                    return response(token, customer, 'Задание отменено.' if cancelled.get('status', {}).get('cancelled') is True
+                                    else MESSAGES['UNKNOWN_OUTCOME'])
+                return response(token, customer, MESSAGES['UNKNOWN_OUTCOME'] if not value['query']['submission_confirmed']
+                                else voice_dialogue.ACCEPTED)
+            target = turn['query_id']
+            rid = turn.get('cancel_id') or rid
         if not command:
             return response(token, customer, 'Какой отчёт подготовить? Например: сколько заказов на Озон за вчера?')
         if command in {'готово', 'статус', 'ответ', 'повтори', 'отмена', 'отмени'}:
-            row = Query.objects.filter(customer_id=customer, tenant_id=tenant, channel='ALICE',
-                voice_session_hash=session_hash, expires_at__gt=timezone.now()).order_by('-created_at').first()
+            rows = Query.objects.filter(customer_id=customer, tenant_id=tenant, channel='ALICE',
+                voice_session_hash=session_hash, expires_at__gt=timezone.now())
+            row = (rows.filter(pk=target).first() if target else rows.order_by('-created_at').first())
             if row is None:
-                return response(token, customer, 'В этой беседе пока нет задания. Задайте вопрос для отчёта.')
+                return response(token, customer, MESSAGES['UNKNOWN_OUTCOME'] if target else
+                                'В этой беседе пока нет задания. Задайте вопрос для отчёта.')
             if command in {'отмена', 'отмени'}:
                 value = service.cancel(principal, str(row.pk), rid)
                 status = value.get('status', {})
@@ -98,5 +108,7 @@ def handle(token, payload):
                            state, 'Расчёт ещё идёт. Спросите: готово?')
             return response(token, customer, message)
     except RuntimeFailure as error:
+        if isinstance(error, voice_dialogue.SelectionChanged):
+            return response(token, customer, MESSAGES['SELECTION_CHANGED'])
         return response(token, customer, MESSAGES.get(error.code,
                         'Сейчас не удалось проверить отчёт. Откройте раздел «Задания» в кабинете.'))

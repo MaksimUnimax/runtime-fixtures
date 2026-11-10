@@ -117,6 +117,19 @@ def main():
                 print(result.stdout[-20000:])
                 if output.exists(): record[label] = json.loads(output.read_text())
                 if result.returncode: raise RuntimeError('Authority qualification failed')
+            with connect(dbname=NAME) as conn:
+                receipts = conn.execute('SELECT count(*) FROM queries_query').fetchone()[0]
+            for target in ['0001', '0002']:
+                result = subprocess.run([sys.executable, str(ROOT / 'services/platform/manage.py'),
+                    'migrate', 'queries', target, '--noinput'], env=migration,
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=45)
+                if result.returncode: raise RuntimeError('Voice migration roundtrip failed')
+                with connect(dbname=NAME) as conn:
+                    if conn.execute('SELECT count(*) FROM queries_query').fetchone()[0] != receipts:
+                        raise RuntimeError('Voice migration changed query receipts')
+                    present = conn.execute("SELECT to_regclass('queries_voicedialogue') IS NOT NULL").fetchone()[0]
+                    if present != (target == '0002'): raise RuntimeError('Voice migration table boundary failed')
+            record['voice_migration_upgrade_rollback'] = 'PASS'
             with connect(dbname=NAME, user=NAME + '_runtime', password=passwords['runtime']) as conn:
                 # A fixture setup must not have weakened append-only history.
                 rights = conn.execute("SELECT has_table_privilege(current_user,'entitlements_accessgrant','UPDATE'), has_table_privilege(current_user,'entitlements_accessgrant','TRUNCATE')").fetchone()
