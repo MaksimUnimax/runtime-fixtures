@@ -1,0 +1,73 @@
+{
+  "scope": "SYNTHETIC_DATA_REAL_DEEPSEEK_NO_STATION",
+  "expected": {
+    "WB": {
+      "sales_records": 11,
+      "sales_units": 22,
+      "sales_amount": 1100,
+      "return_records": 2,
+      "return_units": 2,
+      "return_amount": 80
+    },
+    "Ozon": {
+      "sales_records": 8,
+      "sales_units": 8,
+      "sales_amount": 400,
+      "return_records": 1,
+      "return_units": 1,
+      "return_amount": 25
+    }
+  },
+  "calls": [
+    {
+      "input_encoding": 0,
+      "data_message_chars": 11059,
+      "dispatched": true,
+      "response": "За 08.11.2026:\n\n| Платформа | Продажи: записей | Продажи: единиц | Продажи: сумма, ₽ | Возвраты: записей | Возвраты: единиц | Возвраты: сумма, ₽ |\n|---|---:|---:|---:|---:|---:|---:|\n| WB | 11 | 22 | 1 100 | 2 | 2 | 80 |\n| Ozon | 8 | 8 | 400 | 1 | 1 | 25 |\n\nВозвраты показаны положительными величинами и не вычтены из продаж.",
+      "usage": {
+        "requested_model": "deepseek-flash",
+        "model": "deepseek-flash",
+        "created": 1794282225,
+        "usage": {
+          "prompt_tokens": 3400,
+          "completion_tokens": 892,
+          "total_tokens": 4292,
+          "prompt_cache_hit_tokens": 0,
+          "prompt_cache_miss_tokens": 3400,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 753
+          }
+        }
+      },
+      "elapsed_seconds": 5.51
+    },
+    {
+      "input_encoding": 1,
+      "data_message_chars": 8595,
+      "dispatched": true,
+      "response": "За 8 ноября 2026:\n\n- **WB** — продажи: 11 записей, 22 ед., 1100 ₽; возвраты: 2 записи, 2 ед., 80 ₽.\n- **Ozon** — продажи: 8 записей, 8 ед., 400 ₽; возвраты: 1 запись, 1 ед., 25 ₽.",
+      "usage": {
+        "requested_model": "deepseek-flash",
+        "model": "deepseek-flash",
+        "created": 1794282230,
+        "usage": {
+          "prompt_tokens": 3117,
+          "completion_tokens": 831,
+          "total_tokens": 3948,
+          "prompt_cache_hit_tokens": 0,
+          "prompt_cache_miss_tokens": 3117,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 736
+          }
+        }
+      },
+      "elapsed_seconds": 4.89
+    }
+  ]
+}

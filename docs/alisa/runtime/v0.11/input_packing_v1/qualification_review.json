@@ -1,0 +1,13 @@
+{
+  "status": "PASS",
+  "scope": "TWO_REAL_DEEPSEEK_CALLS_ON_SYNTHETIC_DATA_NO_STATION",
+  "review": "Both responses match all 12 expected numeric fields; repeated identical rows counted, later date excluded, returns kept separate.",
+  "runtime_files": {
+    "model_answer.py": "fd5aed454356de5268742d625d209ea4197adc149cea737161add236ea72fd04",
+    "model_input_encoding.py": "12e7d8538ebb9f4a49c189bf0b712cee0ad48dca698e8c78aa250171a7f4f5cc",
+    "http_transport.py": "88e7bd50ee9b08fa8ce3900d0cd34b948bceee0cc499dbe4158e68e397cc4413"
+  },
+  "input_tokens_before": 3400,
+  "input_tokens_after": 3117,
+  "live_results_sha256": "d0c3e3e0c6489107fa28de119f91bf33871a5d890709fe3c29b0ee52d0389128"
+}
