@@ -118,24 +118,37 @@ def main():
         record.update(status='FAILED',error_type=type(error).__name__)
         raise
     finally:
-        for unit in units:
-            subprocess.run(['systemctl','stop',unit],capture_output=True)
-            subprocess.run(['systemctl','reset-failed',unit],capture_output=True)
-        if lock_fd is not None:
-            if lock_created:
-                fcntl.flock(lock_fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
-                if lock.exists()and lock.stat().st_ino==os.fstat(lock_fd).st_ino:lock.unlink()
-            os.close(lock_fd)
-        if source.exists():shutil.rmtree(source)
-        shutil.rmtree(private)
-        for p in reversed(created):
-            try:p.rmdir()
-            except OSError:pass
-        if opt_adjusted:
-            os.chown(opt,opt_info.st_uid,opt_info.st_gid);opt.chmod(stat.S_IMODE(opt_info.st_mode))
-        record['fixture_opt_restored']=(opt.stat().st_uid,opt.stat().st_gid,stat.S_IMODE(opt.stat().st_mode))==(opt_info.st_uid,opt_info.st_gid,stat.S_IMODE(opt_info.st_mode))
-        record.update(owned_fixture_cleanup=True,units_started=len(units),checks_run=len(record['checks']))
-        args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(record,indent=2)+'\n')
+        cleanup_ok=False
+        try:
+            for unit in units:
+                subprocess.run(['systemctl','stop',unit],capture_output=True)
+                subprocess.run(['systemctl','reset-failed',unit],capture_output=True)
+            if lock_fd is not None:
+                try:
+                    if lock_created:
+                        fcntl.flock(lock_fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                        if lock.exists()and lock.stat().st_ino==os.fstat(lock_fd).st_ino:lock.unlink()
+                finally:os.close(lock_fd)
+            if source.exists():shutil.rmtree(source)
+            shutil.rmtree(private)
+            for p in reversed(created):
+                try:p.rmdir()
+                except OSError:pass
+            cleanup_ok=True
+        except Exception as error:
+            record.update(status='FAILED',cleanup_error_type=type(error).__name__)
+            raise
+        finally:
+            try:
+                if opt_adjusted:
+                    os.chown(opt,opt_info.st_uid,opt_info.st_gid);opt.chmod(stat.S_IMODE(opt_info.st_mode))
+                record['fixture_opt_restored']=(opt.stat().st_uid,opt.stat().st_gid,stat.S_IMODE(opt.stat().st_mode))==(opt_info.st_uid,opt_info.st_gid,stat.S_IMODE(opt_info.st_mode))
+            except Exception as error:
+                record.update(status='FAILED',restore_error_type=type(error).__name__)
+                raise
+            finally:
+                record.update(owned_fixture_cleanup=cleanup_ok,units_started=len(units),checks_run=len(record['checks']))
+                args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(record,indent=2)+'\n')
     print(json.dumps(record));return 0
 
 if __name__=='__main__':raise SystemExit(main())

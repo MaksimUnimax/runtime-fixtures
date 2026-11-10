@@ -49,12 +49,12 @@ def secure_path(path,owner_uid=0):
         s=parent.lstat()
         need(stat.S_ISDIR(s.st_mode)and s.st_uid in {0,owner_uid} and not s.st_mode&0o022,'UNTRUSTED_PATH')
 
-def read_file(path,limit,owner_uid=0):
+def read_file(path,limit,owner_uid=0,*,single_link=True):
     secure_path(path,owner_uid)
     fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
     try:
         s=os.fstat(fd)
-        need(stat.S_ISREG(s.st_mode)and s.st_uid==owner_uid and s.st_nlink==1
+        need(stat.S_ISREG(s.st_mode)and s.st_uid==owner_uid and (not single_link or s.st_nlink==1)
              and not s.st_mode&0o022 and 0<=s.st_size<=limit,'UNTRUSTED_FILE')
         chunks=[];size=0
         while size<=limit:
@@ -75,7 +75,7 @@ def version_shape(value):
 
 def validate_release(root,*,releases=RELEASES,owner_uid=0):
     need(root.parent==releases and root.resolve()==root,'UNTRUSTED_RELEASE')
-    raw,manifest_info=read_file(root/'manifest.json',2*1024*1024,owner_uid)
+    raw,manifest_info=read_file(root/'manifest.json',2*1024*1024,owner_uid,single_link=False)
     manifest=decode(raw)
     need(type(manifest)is dict and manifest.get('schema')=='alice-read-surface-release/v1'
          and manifest.get('artifact_id')==root.name and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,127}',root.name)
@@ -86,7 +86,9 @@ def validate_release(root,*,releases=RELEASES,owner_uid=0):
         need(type(name)is str and name and not Path(name).is_absolute()and '..'not in Path(name).parts
              and str(Path(name))==name and name!='manifest.json'
              and type(digest)is str and re.fullmatch('[a-f0-9]{64}',digest),'UNTRUSTED_RELEASE')
-        raw,s=read_file(root/name,MAX_FILE,owner_uid);total+=len(raw)
+        # Root-owned, non-writable admitted payload may share inodes across releases.
+        # Inode permissions apply to every hard link; checksums are still mandatory.
+        raw,s=read_file(root/name,MAX_FILE,owner_uid,single_link=False);total+=len(raw)
         need(total<=MAX_TOTAL and hashlib.sha256(raw).hexdigest()==digest,'SOURCE_MISMATCH')
         snapshots[name]=(s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_ctime_ns)
     # Cover the entire immutable payload, including present and future data formats.

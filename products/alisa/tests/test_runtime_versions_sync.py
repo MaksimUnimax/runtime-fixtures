@@ -88,6 +88,14 @@ class RuntimeVersions(unittest.TestCase):
         with self.assertRaises((sync.Blocked,OSError)):self.publish()
     def test_group_writable_source_is_denied(self):
         (self.source/'runtime_port.py').chmod(0o664);self.blocked('UNTRUSTED_FILE')
+    def test_admitted_read_only_hardlinked_payload_is_supported(self):
+        os.link(self.source/'template_catalog.json',self.root/'old-catalog.json')
+        self.assertEqual(self.publish()['status'],'UPDATED')
+    def test_hardlink_alias_content_change_is_still_checked(self):
+        alias=self.root/'old-catalog.json';os.link(self.source/'template_catalog.json',alias)
+        alias.write_text('{"changed":true}');self.blocked('SOURCE_MISMATCH')
+    def test_config_hardlinks_are_not_admitted(self):
+        os.link(self.config,self.root/'old-native.json');self.blocked('UNTRUSTED_FILE')
     def test_group_writable_parent_is_denied(self):
         self.source.chmod(0o770);self.blocked('UNTRUSTED_PATH')
     def test_source_change_during_computation_is_denied(self):
