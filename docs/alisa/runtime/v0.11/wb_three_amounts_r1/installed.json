@@ -1,0 +1,71 @@
+{
+  "state": "INSTALLED",
+  "source_commit": "272637b83f8333313f010fe867cf1920612d2b64",
+  "runtime": "/opt/alice-market/releases/alisa-wb-three-amounts-20261110",
+  "base": "/opt/alice-market/releases/alisa-input-packing-v1-20261110",
+  "changed": [
+    "template_catalog.json"
+  ],
+  "base_unchanged": true,
+  "execution_files_unchanged": true,
+  "tests": 163,
+  "at": 1794284588.2285404,
+  "independent_review": "PASS_NO_BLOCKERS",
+  "selector_static_unchanged": true,
+  "cache_and_input_encoding_preserved": true,
+  "live_repeat": {
+    "question": "На какую сумму выкупили товары на Вайлдберриз восьмого ноября?",
+    "job_seconds": 11.1,
+    "deepseek_attempts": 2,
+    "model_cost": {
+      "rub": "0.1040679482304",
+      "known_rub": "0.1040679482304",
+      "complete": true,
+      "priced_attempts": 2,
+      "total_attempts": 2,
+      "prompt_tokens_known": 12266,
+      "completion_tokens_known": 1256,
+      "fx_rate": "82.7536",
+      "fx_rate_date": "2026-11-10",
+      "tariff_currency": "USD",
+      "tariff_period": "off-peak",
+      "tariff_checked_date": "2026-11-10"
+    },
+    "template_ids": [
+      "B02.wb_events"
+    ],
+    "admission_status": "Ожидает комментария владельца",
+    "stage_usage": [
+      {
+        "stage": "template_select",
+        "input_tokens": 10608,
+        "cached_tokens": 9088,
+        "uncached_tokens": 1520,
+        "output_tokens": 111
+      },
+      {
+        "stage": "model_answer",
+        "input_tokens": 1658,
+        "cached_tokens": 0,
+        "uncached_tokens": 1658,
+        "output_tokens": 1145
+      }
+    ],
+    "runtime": "alisa-wb-three-amounts-20261110",
+    "new_template_clarifications": [
+      "B02.wb_events.notes: озвучивать priceWithDisc, finishedPrice и forPay раздельно при вопросе о сумме"
+    ],
+    "data_check": {
+      "three_amounts_spoken": true,
+      "seller_amount_correct": true,
+      "buyer_amount_correct": true,
+      "for_pay_amount_correct": true,
+      "basis_labels_present": true
+    },
+    "case": "simple-36",
+    "delivery": "responded_to_skill",
+    "model_answer_redacted": true,
+    "numeric_business_values_omitted": true
+  },
+  "owner_acoustic_confirmation": false
+}
