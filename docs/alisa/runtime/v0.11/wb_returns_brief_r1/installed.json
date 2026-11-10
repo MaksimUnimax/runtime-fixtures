@@ -1,0 +1,67 @@
+{
+  "public": {
+    "question": "На какую сумму вернули товары на Вайлдберриз восьмого ноября?",
+    "job_seconds": 7.5,
+    "deepseek_attempts": 2,
+    "model_cost": {
+      "rub": "0.0602568683328",
+      "known_rub": "0.0602568683328",
+      "complete": true,
+      "priced_attempts": 2,
+      "total_attempts": 2,
+      "prompt_tokens_known": 12250,
+      "completion_tokens_known": 409,
+      "fx_rate": "82.7536",
+      "fx_rate_date": "2026-11-10",
+      "tariff_currency": "USD",
+      "tariff_period": "off-peak",
+      "tariff_checked_date": "2026-11-10"
+    },
+    "template_ids": [
+      "B03.wb_events"
+    ],
+    "admission_status": "Ожидает комментария владельца",
+    "stage_usage": [
+      {
+        "stage": "template_select",
+        "input_tokens": 10618,
+        "cached_tokens": 9216,
+        "output_tokens": 112
+      },
+      {
+        "stage": "model_answer",
+        "input_tokens": 1632,
+        "cached_tokens": 0,
+        "output_tokens": 297
+      }
+    ],
+    "runtime": "alisa-wb-returns-brief-20261110",
+    "new_template_clarifications": [
+      "B03.wb_events.notes: один короткий ответ; отсутствие возвратов в полной выборке означает ноль"
+    ],
+    "data_check": {
+      "no_returns_confirmed": true,
+      "answer_matches_data": true,
+      "single_sentence": true,
+      "contradiction_removed": true
+    },
+    "case": "simple-38",
+    "delivery": "responded_to_skill",
+    "model_answer_redacted": true
+  },
+  "installed": {
+    "state": "INSTALLED",
+    "source_commit": "7c3d6397db718f9b1772d0432b8b88bd146a9bc8",
+    "runtime": "/opt/alice-market/releases/alisa-wb-returns-brief-20261110",
+    "base": "/opt/alice-market/releases/alisa-wb-three-amounts-20261110",
+    "changed": [
+      "template_catalog.json"
+    ],
+    "base_unchanged": true,
+    "execution_files_unchanged": true,
+    "tests": 46,
+    "at": 1794286059.4273896
+  },
+  "independent_review": "PASS_NO_BLOCKERS",
+  "owner_acoustic_confirmation": false
+}
