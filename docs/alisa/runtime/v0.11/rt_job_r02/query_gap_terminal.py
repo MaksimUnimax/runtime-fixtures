@@ -58,7 +58,9 @@ def install(c,now=None):
             WHERE s.revision>s.queued_revision AND NOT EXISTS(SELECT 1 FROM gap_terminal_outbox o WHERE o.tenant=s.tenant AND o.rid=s.rid AND o.revision=s.revision))WHERE singleton=1;
           UPDATE gap_terminal_seen SET queued_revision=revision WHERE(tenant,rid)IN(SELECT tenant,rid FROM('''+candidates+'''));
         END''')
-    trigger('gap_terminal_capture_v1','AFTER UPDATE OF state,result,error ON jobs',"new.state IN('READY','FAILED','CANCELLED','CANCELED')AND old.state IS NOT new.state",'jid=new.id')
+    evidence='('+field('model_result.status')+'IS NOT NULL OR '+field('provider_error.http_status')+'IS NOT NULL OR coalesce('+field('template_gap')+',0)=1)'
+    changed="new.state IN('READY','FAILED','CANCELLED','CANCELED')AND(old.state IS NOT new.state OR(old.result IS NOT new.result AND new.result IS NOT NULL AND "+evidence+'))'
+    trigger('gap_terminal_capture_v1','AFTER UPDATE OF state,result,error ON jobs',changed,'jid=new.id')
     trigger('gap_inbox_capture_v1','AFTER INSERT ON inbox','true','tenant=new.tenant AND rid=new.rid')
     trigger('gap_inbox_move_v1','AFTER UPDATE OF jid ON inbox','old.jid IS NOT new.jid','tenant=new.tenant AND rid=new.rid')
     c.execute("CREATE TRIGGER IF NOT EXISTS gap_reader_latch_v1 BEFORE UPDATE OF cancelled ON reader_cursors WHEN old.cancelled=0 AND new.cancelled=1 BEGIN UPDATE gap_request_readers SET cancelled=1 WHERE tenant=new.tenant AND jid=new.jid AND conversation=new.conversation;END")
@@ -85,10 +87,13 @@ class TerminalStore:
         with self.connection()as c:
             install(c)
             c.execute('DELETE FROM gap_request_readers WHERE(tenant,rid)IN(SELECT m.tenant,m.rid FROM gap_request_readers m WHERE NOT EXISTS(SELECT 1 FROM inbox r WHERE r.tenant=m.tenant AND r.rid=m.rid AND r.jid=m.jid)LIMIT 200)')
-            c.execute('DELETE FROM gap_terminal_seen WHERE(tenant,rid)IN(SELECT s.tenant,s.rid FROM gap_terminal_seen s WHERE NOT EXISTS(SELECT 1 FROM jobs j WHERE j.id=s.jid)LIMIT 200)')
+            c.execute('DELETE FROM gap_terminal_seen WHERE(tenant,rid)IN(SELECT s.tenant,s.rid FROM gap_terminal_seen s WHERE NOT EXISTS(SELECT 1 FROM jobs j WHERE j.id=s.jid)AND NOT EXISTS(SELECT 1 FROM gap_terminal_outbox o WHERE o.tenant=s.tenant AND o.rid=s.rid)LIMIT 200)')
     def pending(self,limit=16):
         if type(limit)is not int or not 1<=limit<=16:raise ValueError('OUTBOX_LIMIT')
         with self.connection()as c:
+            # A transaction may refine FAILED with the validated provider result.
+            # Publish its final committed revision, not an intermediate UPDATE.
+            c.execute('DELETE FROM gap_terminal_outbox AS o WHERE EXISTS(SELECT 1 FROM gap_terminal_outbox n WHERE n.tenant=o.tenant AND n.rid=o.rid AND n.jid=o.jid AND n.revision>o.revision)')
             rows=c.execute('SELECT *FROM gap_terminal_outbox ORDER BY created,tenant,rid,revision LIMIT ?',(limit,)).fetchall();h=dict(c.execute('SELECT *FROM gap_terminal_health WHERE singleton=1').fetchone())
             events=[];marks=[]
             for row in rows:
@@ -128,12 +133,12 @@ class TerminalStore:
             c.executemany('DELETE FROM gap_terminal_outbox WHERE tenant=?AND rid=?AND revision=?',marks)
 
 
-def reader_state(c,tenant,rid):
+def reader_state(c,tenant,rid,expected_jid=None):
     columns={r[1]for r in c.execute('PRAGMA table_info(inbox)')}
     if 'body_hash'not in columns:return 'UNKNOWN'
     names={r[0]for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     if not {'gap_request_readers','rt_job_refs','reader_cursors'}<=names:return 'UNKNOWN'
-    row=c.execute("SELECT CASE WHEN m.cancelled=1 OR k.cancelled=1 THEN 1 ELSE 0 END FROM inbox r LEFT JOIN gap_request_readers m ON m.tenant=r.tenant AND m.rid=r.rid AND m.jid=r.jid LEFT JOIN rt_job_refs f ON f.runtime_tenant=r.tenant AND f.jid=r.jid AND f.body_hash=r.body_hash LEFT JOIN reader_cursors k ON k.tenant=r.tenant AND k.jid=r.jid AND k.conversation=coalesce(m.conversation,'rt_'||replace(f.ref,'-','')) WHERE r.tenant=?AND r.rid=?AND(m.jid IS NOT NULL OR k.jid IS NOT NULL)",(tenant,rid)).fetchone()
+    row=c.execute("SELECT CASE WHEN m.cancelled=1 OR k.cancelled=1 THEN 1 ELSE 0 END FROM inbox r LEFT JOIN gap_request_readers m ON m.tenant=r.tenant AND m.rid=r.rid AND m.jid=r.jid LEFT JOIN rt_job_refs f ON f.runtime_tenant=r.tenant AND f.jid=r.jid AND f.body_hash=r.body_hash LEFT JOIN reader_cursors k ON k.tenant=r.tenant AND k.jid=r.jid AND k.conversation=coalesce(m.conversation,'rt_'||replace(f.ref,'-','')) WHERE r.tenant=?AND r.rid=?AND(?IS NULL OR r.jid=?)AND(m.jid IS NOT NULL OR k.jid IS NOT NULL)",(tenant,rid,expected_jid,expected_jid)).fetchone()
     return 'UNKNOWN'if row is None else'CANCELED'if row[0]else'OPEN'
 
 def remember_reader(c,repo,tenant,rid,jid):

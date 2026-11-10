@@ -161,6 +161,19 @@ class InsightsChecks(unittest.TestCase):
         answer['delivery_guard']=LateGuard()
         self.deny(lambda:service.record_feedback(self.f.principal,self.f.qid,answer),code='ACCESS_REQUIRED')
         self.assertEqual(Feedback.objects.count(),0);self.assertEqual(Episode.objects.count(),0)
+    def test_actual_failed_provider_transaction_delivers_final_reason_and_survives_cleanup(self):
+        from provider_denial import diagnose_denial
+        from importlib.util import spec_from_file_location,module_from_spec
+        store=GapStore(Path(self.f.folder.name)/'template-gaps.sqlite3');store.state_path=Path(self.f.repo.path)
+        stream=TerminalStore(self.f.repo.path,store.key,'fixture',cases=store);stream.initialize()
+        self.f.send();job=self.f.repo.claim()
+        diagnosis=diagnose_denial('read.ozon.marketplace_search_queries_top','https://api-seller.ozon.ru/v1/search-queries/top',403,b'{"code":7,"message":"Method available with Premium Pro subscription"}')
+        self.assertTrue(self.f.repo.fail(job['id'],job['owner'],'HTTP_403_OZON_SUBSCRIPTION_REQUIRED',model_response=diagnosis['model_response']))
+        spec=spec_from_file_location('publisher',Path(__file__).resolve().parents[2]/'infra/query_gap_publish.py');publisher=module_from_spec(spec);spec.loader.exec_module(publisher)
+        publisher.deliver(stream,self.f.bridge);row=Episode.objects.get()
+        self.assertEqual(row.reason,'PROVIDER_PLAN_REQUIRED');self.assertEqual(row.outcome,'FAILED');self.assertEqual(Inbox.objects.count(),1)
+        with self.f.repo.connection(True)as c:c.execute('UPDATE jobs SET result=NULL')
+        publisher.deliver(stream,self.f.bridge);self.assertEqual(Episode.objects.get().reason,'PROVIDER_PLAN_REQUIRED');self.assertEqual(Inbox.objects.count(),1)
     def test_shared_job_cancelled_reader_has_own_final_outcome(self):
         from alisa_platform.queries import service as queries
         from importlib.util import spec_from_file_location,module_from_spec

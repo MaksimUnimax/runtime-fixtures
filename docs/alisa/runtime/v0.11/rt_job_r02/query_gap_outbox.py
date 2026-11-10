@@ -81,8 +81,8 @@ def seal(store,c,row,event):
     with sqlite3.connect('file:'+str(path)+'?mode=ro',uri=True,timeout=2)as main:
         value=main.execute("SELECT state,error,CASE WHEN json_valid(result)THEN json_extract(result,'$.template_gap')END,CASE WHEN json_valid(result)THEN json_extract(result,'$.provider_error.http_status')END FROM jobs WHERE tenant=?AND id=?",(case['tenant'],case['jid'])).fetchone()
         from query_gap_terminal import reader_state
-        reader=reader_state(main,case['tenant'],row['rid'])
-        age=main.execute('SELECT created FROM inbox_age WHERE tenant=?AND rid=?',(case['tenant'],row['rid'])).fetchone()
+        reader=reader_state(main,case['tenant'],row['rid'],case['jid'])
+        age=main.execute('SELECT a.created FROM inbox_age a JOIN inbox r ON r.tenant=a.tenant AND r.rid=a.rid WHERE r.tenant=?AND r.rid=?AND r.jid=?',(case['tenant'],row['rid'],case['jid'])).fetchone()
     if age and type(age[0])in {int,float}and math.isfinite(age[0]):
         from query_gap_events import stamp
         event['occurred_at']=stamp(age[0])

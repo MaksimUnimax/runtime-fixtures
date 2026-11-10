@@ -163,5 +163,37 @@ class Events(unittest.TestCase):
         c.execute("INSERT INTO reader_cursors VALUES('t','conversation','job',0)");c.execute("INSERT INTO gap_request_readers(tenant,rid,jid,conversation)VALUES('t','old','job','conversation')")
         c.execute('UPDATE reader_cursors SET cancelled=1');c.execute('UPDATE reader_cursors SET cancelled=0');c.execute("INSERT INTO inbox(tenant,rid,jid)VALUES('t','new','job')");c.execute("INSERT INTO gap_request_readers(tenant,rid,jid,conversation)VALUES('t','new','job','conversation')")
         self.assertEqual(terminal.reader_state(c,'t','old'),'CANCELED');self.assertEqual(terminal.reader_state(c,'t','new'),'OPEN');c.close()
+    def test_actual_repository_fail_adds_provider_reason_before_delivery_then_cleanup_preserves_it(self):
+        from repository import Repository
+        from provider_denial import diagnose_denial
+        repo=Repository(self.root/'real-jobs.sqlite',clock=lambda:self.now)
+        with repo.connection(True)as c:
+            c.execute('CREATE TABLE rt_job_refs(runtime_tenant TEXT,jid TEXT,ref TEXT,body_hash TEXT)')
+            terminal.install(c,self.now)
+            c.execute("INSERT INTO jobs(id,tenant,key,state,draft,created,updated,due,owner,lease)VALUES('job','t','k','RUNNING','{}',?,?,?,?,?)",(self.now,self.now,self.now,'owner',self.now+100))
+            c.execute("INSERT INTO inbox VALUES('t','r','h','job')")
+            c.execute("INSERT INTO reader_cursors(tenant,conversation,jid,updated)VALUES('t','conversation','job',?)",(self.now,))
+            c.execute("INSERT INTO gap_request_readers(tenant,rid,jid,conversation)VALUES('t','r','job','conversation')")
+        diagnosis=diagnose_denial('read.ozon.marketplace_search_queries_top','https://api-seller.ozon.ru/v1/search-queries/top',403,b'{"code":7,"message":"Method available with Premium Pro subscription"}')
+        self.assertTrue(repo.fail('job','owner','HTTP_403_OZON_SUBSCRIPTION_REQUIRED',model_response=diagnosis['model_response']))
+        stream=terminal.TerminalStore(Path(repo.path),self.store.key,'fixture',internal_test=True)
+        packet,marks=stream.pending();self.assertEqual(len(packet['events']),1)
+        self.assertEqual(packet['events'][0]['reason_code'],'PROVIDER_PLAN_REQUIRED');self.assertEqual(packet['events'][0]['final_outcome'],'FAILED')
+        stream.acknowledge(marks)
+        with repo.connection(True)as c:c.execute('UPDATE jobs SET result=NULL')
+        self.assertEqual(stream.pending()[0]['events'],[])
+    def test_pending_old_job_receipt_does_not_collide_after_job_expiry_and_id_reuse(self):
+        c=self.main();c.execute("INSERT INTO jobs VALUES('old','t','RUNNING',NULL,NULL,?,NULL)",(self.now,));c.execute("INSERT INTO inbox(tenant,rid,jid)VALUES('t','r','old')");c.execute("UPDATE jobs SET state='FAILED',error='SOURCE_ACCESS'");c.commit();c.close()
+        stream=terminal.TerminalStore(self.root/'state.sqlite3',self.store.key,'fixture',internal_test=True)
+        with stream.connection()as c:c.execute('DELETE FROM jobs');c.execute('DELETE FROM inbox')
+        stream.initialize()
+        with stream.connection()as c:
+            c.execute("INSERT INTO jobs VALUES('new','t','RUNNING',NULL,NULL,?,NULL)",(self.now,));c.execute("INSERT INTO inbox(tenant,rid,jid)VALUES('t','r','new')");c.execute("UPDATE jobs SET state='FAILED',error='SOURCE_ACCESS'")
+        events=stream.pending()[0]['events'];self.assertEqual(len(events),2);self.assertEqual(len({e['logical_query_id']for e in events}),2)
+    def test_detailed_event_never_borrows_reused_receipt_clock_or_reader(self):
+        c=self.main();c.execute("INSERT INTO jobs VALUES('job','private-tenant','READY',?,NULL,?,NULL)",(json.dumps({'template_gap':True}),self.now));c.execute("INSERT INTO jobs VALUES('future','private-tenant','QUEUED',NULL,NULL,?,NULL)",(self.now+9999,))
+        c.execute("INSERT INTO inbox(tenant,rid,jid)VALUES('private-tenant','request','future')");c.execute("INSERT INTO inbox_age VALUES('private-tenant','request',?)",(self.now+9999,));c.commit();c.close()
+        self.save();event=self.packet()[0]['events'][0]
+        self.assertEqual(event['occurred_at'],wire.stamp(self.now));self.assertEqual(event['final_outcome'],'IN_PROGRESS')
 
 if __name__=='__main__':unittest.main()

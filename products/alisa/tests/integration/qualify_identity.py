@@ -260,6 +260,7 @@ def main():
             checked_theme_pages=set()
             def verify_identity_theme(page,label):
                 if label in checked_theme_pages:return
+                expect(page.locator('.stage-notice')).to_be_visible()
                 page.evaluate('document.fonts.ready')
                 check('s02_identity_'+label+'_theme',page.evaluate('getComputedStyle(document.body).backgroundColor')=='rgb(13, 25, 41)')
                 check('s02_identity_'+label+'_test_mail_notice',page.locator('.stage-notice').is_visible() and ('логин и пароль' if args.open_registration else 'example.invalid') in page.locator('.stage-notice').inner_text().lower())
@@ -277,6 +278,8 @@ def main():
                 open_identity(page)
                 verify_identity_theme(page,'login')
                 page.locator('a[href*="/accounts/signup/"]').first.click()
+                page.wait_for_url(re.compile(re.escape(ISSUER)+r'/accounts/signup/'))
+                expect(page.locator('input[name=password1]')).to_be_visible()
                 verify_identity_theme(page,'signup')
                 page.locator('input[name=email]').fill(email);page.locator('input[name=password1]').fill(customer_password);page.locator('input[name=password2]').fill(customer_password);page.locator('input[name=privacy]').check();page.locator('input[name=service]').check()
                 page.locator('form').filter(has=page.locator('input[name=email]')).locator('button[type=submit]').first.click()
