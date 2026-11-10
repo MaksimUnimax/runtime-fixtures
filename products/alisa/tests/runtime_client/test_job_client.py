@@ -274,14 +274,21 @@ class ClientTests(Setup):
             self.failure('DEPENDENCY_UNAVAILABLE', lambda: self.client.read_result(receipt['job_ref']))
 
     def test_dependency_after_acceptance_keeps_mutation_unknown(self):
-        checks = []
         def current(context, operation):
-            checks.append(operation)
-            if len(checks) == 2: raise RuntimeFailure('DEPENDENCY_UNAVAILABLE')
+            if self.count('jobs') == 1: raise RuntimeFailure('DEPENDENCY_UNAVAILABLE')
             return True
         with patch.object(self.authorizer, 'current', side_effect=current):
             self.failure('DEPENDENCY_UNAVAILABLE', self.accepted, outcome='UNKNOWN')
         self.assertEqual(self.count('jobs'), 1)
+
+    def test_dependency_after_metadata_before_mutation_is_not_sent(self):
+        def current(context, operation):
+            if 'current_versions' in self.server.calls: raise RuntimeFailure('DEPENDENCY_UNAVAILABLE')
+            return True
+        with patch.object(self.authorizer, 'current', side_effect=current):
+            self.failure('DEPENDENCY_UNAVAILABLE', self.accepted, outcome='NOT_SENT')
+        self.assertEqual(self.count('jobs'), 0)
+        self.assertNotIn('submit', self.server.calls)
 
     def test_unexpected_authority_outage_before_call_is_dependency_error(self):
         with patch.object(self.authorizer, 'prepare', side_effect=TimeoutError('fixture-private')):
