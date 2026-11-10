@@ -81,7 +81,7 @@ def run(case, ports):
     artifact=Path(os.environ['ALISA_REPORT_BROWSER_ARTIFACT'])
     if os.geteuid()!=0 or os.environ.get('GITHUB_ACTIONS')!='true':
         raise RuntimeError('Browser qualification requires the owned isolated CI root job')
-    network=OwnedNetwork();node=None;api=None;proxy=None;log=None;added=set()
+    network=OwnedNetwork();node=None;api=None;proxy=None;log=None;added=set();selection_stores=[]
     with tempfile.TemporaryDirectory(prefix='alisa-report-browser-')as folder:
         root=Path(folder);root.chmod(0o755)
         try:
@@ -139,6 +139,24 @@ def run(case, ports):
             case.assertEqual(len(case.transport.calls),before)
             from alisa_platform.query_insights.models import Feedback
             case.assertEqual(Feedback.objects.filter(query_id=case.qid).count(),1)
+            # Seed unbound selection-only metadata AFTER the real report and
+            # feedback checks; it must not change their authority/store scope.
+            from alisa_platform.stores.models import Store
+            for provider,name in [('OZON','Selection Ozon'),('WB','Selection WB')]:
+                selection_stores.append(Store.objects.create(tenant=case.tenant,provider=provider,
+                    name=name,verified_identity='fixture-selection:'+provider))
+            selection_script=root/'selection-client.py'
+            shutil.copy2(ROOT/'tests/runtime_authority/selection_browser_client.py',selection_script)
+            selection_script.chmod(0o644)
+            data={'origin':origin,'session':case.web_token,
+                  'selection_store_ids':sorted([str(case.store.pk),*[str(s.pk)for s in selection_stores]])}
+            selected=subprocess.run([str(py),str(selection_script)],env=child_env,
+                user=network.uid,group=network.uid,extra_groups=[],input=json.dumps(data),capture_output=True,text=True,timeout=50)
+            if selected.returncode:raise AssertionError('Browser selection qualification failed: '+selected.stderr[-3000:])
+            selection_record=json.loads(selected.stdout);case.assertEqual(selection_record['status'],'PASS')
+            case.assertEqual(len(case.transport.calls),before)
+            case.assertEqual(Feedback.objects.filter(query_id=case.qid).count(),1)
+            record['checks'].extend(selection_record['checks'])
             return record
         finally:
             if node is not None:
@@ -147,5 +165,6 @@ def run(case, ports):
                 except subprocess.TimeoutExpired:os.killpg(node.pid,signal.SIGKILL);node.wait(timeout=5)
             if proxy is not None:proxy.shutdown();proxy.server_close()
             if api is not None:api.shutdown();api.server_close()
+            for store in selection_stores:store.delete()
             network.close();ports.difference_update(added)
             if log is not None:log.close()
