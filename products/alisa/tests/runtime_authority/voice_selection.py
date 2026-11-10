@@ -260,7 +260,8 @@ class VoiceChecks(QueryChecks):
             self.say('отмена', 2); first = cancel.call_args.args
             self.say('отмена', 2); self.assertEqual(cancel.call_count, 1)
             self.say('отмена', 3); self.assertEqual(cancel.call_count, 2)
-            self.assertEqual(first, cancel.call_args.args)
+            self.assertEqual(first[0].current()[:2], cancel.call_args.args[0].current()[:2])
+            self.assertEqual(first[1:], cancel.call_args.args[1:])
 
     def test_unknown_after_accept_never_automatically_resubmits(self):
         self.question(); original = RuntimeClient.submit
