@@ -20,7 +20,8 @@ from checks import Store, VaultSecret, CredentialRevision, settings, AccessAdjus
 from alisa_platform.queries import service, voice, voice_dialogue as dialogue
 from alisa_platform.queries.models import Query, VoiceDialogue
 from alisa_platform.alice_link.vault import unseal, seal
-from alisa_platform.runtime_adapter.authority import AlicePrincipal
+from alisa_platform.runtime_adapter.authority import AlicePrincipal, PlatformAuthorizer
+from alisa_platform.runtime_adapter.job_client import timestamp
 from django.core.management import call_command
 
 QUESTION = 'сводка заказов за октябрь 2026 на озоне'
@@ -262,6 +263,55 @@ class VoiceChecks(QueryChecks):
             self.say('отмена', 3); self.assertEqual(cancel.call_count, 2)
             self.assertEqual(first[0].current()[:2], cancel.call_args.args[0].current()[:2])
             self.assertEqual(first[1:], cancel.call_args.args[1:])
+
+    def test_abandoned_during_current_check_never_dispatches(self):
+        self.question(); original = PlatformAuthorizer.current
+        def abandon(api, context, operation):
+            result = original(api, context, operation)
+            if isinstance(api.principal, dialogue.TurnPrincipal):
+                VoiceDialogue.objects.filter(customer=self.actor, phase='SUBMITTING').update(phase='ABANDONED')
+            return result
+        with patch.object(PlatformAuthorizer, 'current', abandon):
+            self.assertIn('изменилось', self.say('все', 1))
+        with self.repo.connection() as conn:
+            self.assertEqual(conn.execute('SELECT count(*) FROM jobs').fetchone()[0], 0)
+
+    def test_abandoned_during_metadata_handshake_never_dispatches(self):
+        self.question(); original = RuntimeClient.current_versions
+        def abandon(api):
+            result = original(api)
+            VoiceDialogue.objects.filter(customer=self.actor, phase='SUBMITTING').update(phase='ABANDONED')
+            return result
+        with patch.object(RuntimeClient, 'current_versions', abandon):
+            self.assertIn('изменилось', self.say('все', 1))
+        with self.repo.connection() as conn:
+            self.assertEqual(conn.execute('SELECT count(*) FROM jobs').fetchone()[0], 0)
+
+    def test_turn_deadline_is_in_real_signed_runtime_admission(self):
+        self.question(); row, _ = self.state()
+        row.expires_at = timezone.now() + timedelta(seconds=30); row.save()
+        original = RuntimeClient.submit; checked = []
+        def inspect(api, *args, **kwargs):
+            context = api.authorizer.prepare('submit')
+            self.assertLessEqual(timestamp(context['not_after']), row.expires_at.timestamp())
+            claims = api.authorizer.delegate.authority.verify(context['execution_ticket'], 'fixture-platform')
+            self.assertEqual(claims['not_after'], context['not_after']); checked.append(True)
+            return original(api, *args, **kwargs)
+        with patch.object(RuntimeClient, 'submit', inspect):
+            self.assertIn('принято', self.say('все', 1))
+        self.assertEqual(checked, [True])
+
+    def test_runtime_rejects_turn_deadline_crossed_after_final_local_check(self):
+        self.question(); row, _ = self.state()
+        row.expires_at = timezone.now() + timedelta(seconds=30); row.save()
+        original = RuntimeClient._exchange
+        def late(api, operation, *args, **kwargs):
+            if operation == 'submit': self.clock.advance(45)
+            return original(api, operation, *args, **kwargs)
+        with patch.object(RuntimeClient, '_exchange', late):
+            self.assertNotIn('принято', self.say('все', 1))
+        with self.repo.connection() as conn:
+            self.assertEqual(conn.execute('SELECT count(*) FROM jobs').fetchone()[0], 0)
 
     def test_unknown_after_accept_never_automatically_resubmits(self):
         self.question(); original = RuntimeClient.submit

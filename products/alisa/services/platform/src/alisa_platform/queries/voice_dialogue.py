@@ -80,6 +80,16 @@ def candidates(tenant, utterance):
     return [snapshot(row, mapping) for row in rows]
 
 
+class TurnPrincipal:
+    """Narrow admission lifetime; OAuth proof and all rights remain unchanged."""
+    def __init__(self, delegate, deadline):
+        self.delegate, self.deadline = delegate, deadline
+
+    def current(self):
+        customer, tenant, until, proof = self.delegate.current()
+        return customer, tenant, min(until, self.deadline), proof
+
+
 class PinnedAuthorizer:
     """Normal authority remains responsible for access; reject changed selection.
 
@@ -89,6 +99,13 @@ class PinnedAuthorizer:
     def __init__(self, delegate, customer, tenant, selected, session_hash, query_id):
         self.delegate, self.tenant, self.selected = delegate, tenant, selected
         self.customer, self.session_hash, self.query_id = customer, session_hash, query_id
+        row = VoiceDialogue.objects.filter(session_hash=session_hash, customer_id=customer,
+                    tenant_id=tenant, query_id=query_id, phase='SUBMITTING').first()
+        if row is None:
+            raise SelectionChanged()
+        # Runtime verifies this signed not_after too. Even a paused socket sender
+        # cannot admit an abandoned turn after its deadline.
+        self.delegate.principal = TurnPrincipal(self.delegate.principal, row.expires_at.timestamp())
 
     def check(self):
         # Fence a sender that resumes after its dispatch was abandoned/replaced.
@@ -110,7 +127,9 @@ class PinnedAuthorizer:
 
     def current(self, context, operation):
         self.check()
-        return self.delegate.current(context, operation)
+        result = self.delegate.current(context, operation)
+        self.check()
+        return result
 
 
 def prompt(state):

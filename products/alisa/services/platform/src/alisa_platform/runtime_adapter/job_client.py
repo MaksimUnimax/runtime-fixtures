@@ -275,6 +275,8 @@ class RuntimeClient:
 
     def _authorized(self, operation, context, payload, validate):
         if self._pid is None: self.current_versions()
+        if operation in {'submit', 'cancel'}:
+            need(self.authorizer.current(deepcopy(context), operation) is True, 'PERMISSION_DENIED')
         answer = self._exchange(operation, {**payload, 'context': context}, validate)
         try:
             current = self.authorizer.current(deepcopy(context), operation) is True
