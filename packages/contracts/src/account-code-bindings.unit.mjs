@@ -183,3 +183,48 @@ test("inputs are snapshotted before async SHA, without invoking accessors", asyn
   Object.defineProperty(bad, "accountId", { enumerable: true, get() { invoked = true; return id.accountId; } });
   await reject(() => acw1PreparedBinding(json(P), bad)); assert.equal(invoked, false);
 });
+
+// AC-BIND-01 measures ordering, not just the eventual validation error.
+// Instrumentation is local to one awaited unit and restored in finally.
+async function withShaProbe(action) {
+  const subtle = globalThis.crypto.subtle;
+  const descriptor = Object.getOwnPropertyDescriptor(subtle, "digest");
+  const original = subtle.digest;
+  const calls = [];
+  Object.defineProperty(subtle, "digest", { configurable: true, writable: true,
+    value(algorithm, data) {
+      calls.push({ marker: Buffer.from(data).includes(Buffer.from("__PUBLIC_AC_BIND01_WITHHELD__")) });
+      return original.call(this, algorithm, data);
+    } });
+  try { await action(calls); }
+  finally {
+    if (descriptor) Object.defineProperty(subtle, "digest", descriptor);
+    else delete subtle.digest;
+  }
+}
+for (const [name, change] of [
+  ["WITHHELD forbidden label", () => [{ ...P, client: { ...P.client, label: "__PUBLIC_AC_BIND01_WITHHELD__" } }, preparedContext]],
+  ["malformed P profile", () => [{ ...P, profile: "ACW2" }, preparedContext]],
+  ["expected account mismatch", () => [P, { ...preparedContext, accountId: id.resultId }]],
+  ["expected revision mismatch", () => [P, { ...preparedContext, codeRevision: P.codeRevision + 1 }]],
+  ["malformed expected digest", () => [P, preparedContext, "AA"]],
+]) {
+  test("AC-BIND-01 reject before SHA: " + name, async t => {
+    const [prepared, expected, expectedDigest] = change();
+    await withShaProbe(async calls => {
+      await reject(() => acw1PreparedBinding(json(prepared), expected, expectedDigest));
+      const marker = calls.some(c => c.marker);
+      t.diagnostic("SHA calls=" + calls.length + "; forbiddenMarkerInHash=" + marker);
+      assert.equal(calls.length, 0);
+      assert.equal(marker, false);
+    });
+  });
+}
+test("AC-BIND-01 valid P04 retains one SHA and exact digest", async t => {
+  await withShaProbe(async calls => {
+    const out = await acw1PreparedBinding(p.P04.preparedCanonicalUTF8, preparedContext, p.P04.preparedBinding);
+    t.diagnostic("SHA calls=" + calls.length + "; forbiddenMarkerInHash=" + calls.some(c => c.marker));
+    assert.equal(calls.length, 1); assert.equal(out.digest, p.P04.preparedBinding);
+    assert.equal(out.verification, "UNVERIFIED");
+  });
+});

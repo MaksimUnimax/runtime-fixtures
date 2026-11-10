@@ -121,16 +121,20 @@ export async function acw1PreparedBinding(
   input: Acj1Input, expected: Acw1PreparedExpectedContext, expectedBinding?: string,
 ): Promise<Acw1UnverifiedDigest<"prepared-binding">> {
   const p = object(parseAcj1(input)), ctx = snapshot(expected); exact(ctx, preparedContextKeys);
-  const canonical = encodeAcj1(p);
-  const result = await hash("prepared-binding", canonical);
-  // Reuse the accepted exact P schema without editing it. This wrapper is local
-  // validation data, not a response sent to a client or a PREPARED transition.
+  // Strict P/Client and consent consistency must precede fingerprinting. Reuse
+  // the accepted validator with a fixed public shape-only binding placeholder.
+  // This local envelope is never returned/published or treated as a computed
+  // binding, response, or PREPARED transition; its validation result is ignored.
   parseAcw1Response("prepare", encodeAcj1({ profile: "ACW1", operation: "prepare",
-    state: "PREPARED", attemptId: p.attemptId, prepared: p, preparedBinding: result.digest }, 16384),
+    state: "PREPARED", attemptId: p.attemptId, prepared: p,
+    preparedBinding: encodeBase64url(new Uint8Array(32)) }, 16384),
   { attemptId: str(ctx.attemptId), accountId: str(ctx.accountId) });
   for (const key of preparedContextKeys) {
     if (key.endsWith("Thumbprint")) sameDigest(p[key], ctx[key]); else same(p[key], ctx[key]);
   }
+  if (expectedBinding !== undefined) digestBytes(expectedBinding);
+  const canonical = encodeAcj1(p);
+  const result = await hash("prepared-binding", canonical);
   if (expectedBinding !== undefined) sameDigest(result.digest, expectedBinding);
   return result;
 }
