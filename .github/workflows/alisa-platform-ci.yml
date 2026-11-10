@@ -62,6 +62,11 @@ jobs:
           ./bin/alisa test --scope foundation
           ./bin/alisa build
           ./bin/alisa package --source "$ALISA_SOURCE_SHA"
+      - name: Compatible runtime versions through real systemd startup
+        working-directory: products/alisa
+        run: |
+          sudo .venv/bin/python tests/runtime_versions/qualify_startup.py \
+            --output dist/runtime-version-sync-qualification.json
       - name: Install a disposable Chromium test browser
         working-directory: products/alisa
         run: |
@@ -135,6 +140,7 @@ jobs:
             products/alisa/dist/s07-*.json
             products/alisa/dist/rt-check-*.json
             products/alisa/dist/runtime-qualification.json
+            products/alisa/dist/runtime-version-sync-qualification.json
             products/alisa/dist/s02-identity-*.png
           if-no-files-found: error
       - name: Save the qualified immutable stage package

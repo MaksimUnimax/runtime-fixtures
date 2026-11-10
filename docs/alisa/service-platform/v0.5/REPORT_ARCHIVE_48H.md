@@ -36,3 +36,5 @@ RuntimePort расширяется read-only операциями list_reports/r
 7. Настоящие PostgreSQL authority + Unix RuntimePort + BFF/browser download на синтетических данных. Авторская проверка отдельно от независимого review; live owner отдельно от обеих.
 
 Статус реализации и проверки фиксируется в execution receipt; сам этот документ не заявляет установленную/live готовность.
+
+10.11.2026: повторяющийся stale bundle hash при обновлениях шаблонов закрывается [конечным штатным шагом публикации совместимых версий](RUNTIME_VERSION_SYNC.md), без доверия первому handshake и без изменения прав клиента.
