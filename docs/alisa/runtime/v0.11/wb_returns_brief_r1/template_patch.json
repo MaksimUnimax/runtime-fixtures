@@ -1,0 +1,59 @@
+{
+  "base_catalog_sha256": "81421d0f80ae20762be72868e7f1d53004e19c2a011ff67cb9a2a9264e6f5f7b",
+  "new_catalog_sha256": "0b0c04f4b44303f959bd673e943665d43d03e5d206b1b4428655686a26836389",
+  "entries": {
+    "B03.wb_events": {
+      "id": "B03.wb_events",
+      "version": 2,
+      "purpose": "События возвратов WB",
+      "platforms": [
+        "wb"
+      ],
+      "kind": "event",
+      "input_policy": {
+        "time_axis": "event_date",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": false,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "id": "events",
+          "platform": "wb",
+          "operation": "wb_event_sales",
+          "source_registry": "source_matrix",
+          "params": {
+            "period": {
+              "$path": [
+                "input",
+                "period"
+              ]
+            }
+          }
+        }
+      ],
+      "qualification": "existing_source_requirements",
+      "notes": [
+        "Оперативная статистика WB; в полном отчёте продажи и возвраты разделены.",
+        "Ответ о возвратах дай одним коротким предложением. Если в полной выборке за период возвратов нет, количество и сумма возвратов равны нулю. В этом случае не описывай строки продаж и не говори, что сумму нельзя рассчитать."
+      ],
+      "metrics": [
+        "event_buyout_units",
+        "event_buyout_amount",
+        "event_return_units",
+        "event_return_amount"
+      ],
+      "table_request": {
+        "family": "events",
+        "view": "totals",
+        "top": null,
+        "sort": "revenue",
+        "direction": "desc",
+        "sku_filters": {}
+      }
+    }
+  },
+  "base_runtime": "/opt/alice-market/releases/alisa-wb-three-amounts-20261110",
+  "new_note": "Ответ о возвратах дай одним коротким предложением. Если в полной выборке за период возвратов нет, количество и сумма возвратов равны нулю. В этом случае не описывай строки продаж и не говори, что сумму нельзя рассчитать."
+}
