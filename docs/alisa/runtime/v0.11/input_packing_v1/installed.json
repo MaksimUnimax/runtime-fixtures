@@ -1,0 +1,29 @@
+{
+  "state": "INSTALLED",
+  "source_commit": "e55cc21ea9047f95d42fb8808be291463aaa911b",
+  "runtime": "/opt/alice-market/releases/alisa-input-packing-v1-20261110",
+  "base": "/opt/alice-market/releases/alisa-selector-prefix-cache-r3-20261110",
+  "changed": [
+    "model_answer.py",
+    "model_input_encoding.py",
+    "tests/test_model_input_encoding.py"
+  ],
+  "tests": 2035,
+  "installer_tests": 3,
+  "base_unchanged": true,
+  "cache_files_preserved": true,
+  "threshold_characters": 10000,
+  "live_model_calls": 2,
+  "station_calls": 0,
+  "at": 1794282869.32811,
+  "post_install": {
+    "manifest": "PASS",
+    "configuration": "PASS",
+    "services": {
+      "core": "running",
+      "station": "running",
+      "web": "running"
+    },
+    "restarts": 0
+  }
+}
