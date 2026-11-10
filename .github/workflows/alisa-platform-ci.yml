@@ -65,7 +65,8 @@ jobs:
       - name: Compatible runtime versions through real systemd startup
         working-directory: products/alisa
         run: |
-          sudo .venv/bin/python tests/runtime_versions/qualify_startup.py \
+          sudo --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT .venv/bin/python \
+            tests/runtime_versions/qualify_startup.py --disposable-github-runner \
             --output dist/runtime-version-sync-qualification.json
       - name: Install a disposable Chromium test browser
         working-directory: products/alisa

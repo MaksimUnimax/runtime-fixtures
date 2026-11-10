@@ -9,6 +9,7 @@ from pathlib import Path
 import pwd
 import secrets
 import shutil
+import stat
 import subprocess
 import tempfile
 import time
@@ -19,14 +20,21 @@ HELPER=ROOT/'infra/runtime_versions_sync.py'
 def run(args,**kw):return subprocess.run(list(map(str,args)),check=True,capture_output=True,text=True,timeout=35,**kw)
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--output',required=True,type=Path);args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--output',required=True,type=Path)
+    parser.add_argument('--disposable-github-runner',action='store_true');args=parser.parse_args()
     if os.geteuid()!=0:raise RuntimeError('Owned root qualification required')
     if subprocess.run(['systemctl','is-active','--quiet','alice-market.service']).returncode==0:
         raise RuntimeError('Refusing qualification on a running Alice host')
+    if args.disposable_github_runner:
+        if os.environ.get('GITHUB_ACTIONS')!='true'or os.environ.get('RUNNER_ENVIRONMENT')!='github-hosted':
+            raise RuntimeError('Disposable GitHub-hosted runner required')
+        if run(['systemctl','show','alice-market.service','--value','-p','LoadState']).stdout.strip()!='not-found':
+            raise RuntimeError('Refusing fixture metadata changes on an installed Alice host')
     ident='alisa-pins-qual-'+secrets.token_hex(6);source=Path('/opt/alice-market/releases')/ident
     private=Path(tempfile.mkdtemp(prefix=ident+'-',dir='/run'));units=[];created=[];lock_created=False;lock_fd=None
     record={'scope':'DISPOSABLE_REAL_SYSTEMD_STARTUP_NO_PROVIDER_OR_OWNER_DATA','status':'RUNNING','checks':[],
             'source_helper_sha256':hashlib.sha256(HELPER.read_bytes()).hexdigest(),'marketplace_or_model_calls':0}
+    opt=Path('/opt');opt_info=opt.lstat();opt_adjusted=False
     account=pwd.getpwnam('nobody')
     versions={'runtime_contract_version':'runtime_port_v1','task_schema_version':'runtime_task_v1',
         'task_schema_sha256':'a'*64,'registry_hash':'b'*64,'catalog_bundle_hash':'c'*64,
@@ -66,6 +74,12 @@ def main():
         print(json.dumps({'case':label,**events[-1]}),flush=True)
         return events[-1]
     try:
+        # Hosted CI permits its runner to write /opt. Match the admitted production
+        # namespace for this disposable fixture, then restore the exact metadata.
+        assert stat.S_ISDIR(opt_info.st_mode)
+        record['fixture_opt_before']={'uid':opt_info.st_uid,'gid':opt_info.st_gid,'mode':oct(stat.S_IMODE(opt_info.st_mode))}
+        if args.disposable_github_runner:
+            opt_adjusted=True;os.chown(opt,0,0);opt.chmod(0o755)
         for p in [Path('/opt/alice-market'),Path('/opt/alice-market/releases')]:
             if not p.exists():p.mkdir(mode=0o755);created.append(p)
         source.mkdir(mode=0o755);(source/'read_surface_data').mkdir(mode=0o755)
@@ -117,6 +131,9 @@ def main():
         for p in reversed(created):
             try:p.rmdir()
             except OSError:pass
+        if opt_adjusted:
+            os.chown(opt,opt_info.st_uid,opt_info.st_gid);opt.chmod(stat.S_IMODE(opt_info.st_mode))
+        record['fixture_opt_restored']=(opt.stat().st_uid,opt.stat().st_gid,stat.S_IMODE(opt.stat().st_mode))==(opt_info.st_uid,opt_info.st_gid,stat.S_IMODE(opt_info.st_mode))
         record.update(owned_fixture_cleanup=True,units_started=len(units),checks_run=len(record['checks']))
         args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(record,indent=2)+'\n')
     print(json.dumps(record));return 0
