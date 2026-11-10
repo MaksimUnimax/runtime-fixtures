@@ -1,0 +1,190 @@
+{
+  "review_utc": "2026-11-10T04:05:04.249532+00:00",
+  "status": "PASS_WITH_SCOPE_LIMITS",
+  "active_release": "alisa-input-packing-v1-20261110",
+  "manifest_sha256": "76269b6b3589c45948211e60fca39676db1b4a8635369f2b5c0f44066dd61eaa",
+  "manifest_valid": true,
+  "cache_files_byte_identical": [
+    "engine.py",
+    "model_usage.py",
+    "runtime.py",
+    "selector_policy.py",
+    "template_catalog.py",
+    "template_protocol.py",
+    "template_runtime.py",
+    "tests/test_selector_prefix_cache.py"
+  ],
+  "selector_policy": {
+    "layout": "catalog_prefix_v2",
+    "isolation": "tenant_v1"
+  },
+  "catalog_sha256": "fa772804a23f06952ee309e88f7cc8737405ead94572d699d77ea0971a39bb49",
+  "runtime_port_versions_match_published": true,
+  "focused_installed_tests": {
+    "passed": 43,
+    "errors": 0,
+    "failures": 0,
+    "log_sha256": "62b3e26a3e7051775da90dcc8c9de4fe5a9ea4631a090ca24fba79b525ed9eb0"
+  },
+  "owner_test_mode": "STOPPED_BY_OWNER",
+  "saved_ab_offline_quality": [
+    {
+      "local_plans_compiled": 40,
+      "network_calls": 0,
+      "production_db_opened": false,
+      "same_paired_user_id_model_settings_and_instructions": true,
+      "saved_decisions_verified": 48,
+      "saved_wire_hashes_verified": 48,
+      "series": "MAIN",
+      "status": "PASS",
+      "unsupported_correct": 8
+    },
+    {
+      "local_plans_compiled": 14,
+      "network_calls": 0,
+      "production_db_opened": false,
+      "same_paired_user_id_model_settings_and_instructions": true,
+      "saved_decisions_verified": 16,
+      "saved_wire_hashes_verified": 16,
+      "series": "REBASE",
+      "status": "PASS",
+      "unsupported_correct": 2
+    },
+    {
+      "local_plans_compiled": 8,
+      "network_calls": 0,
+      "production_db_opened": false,
+      "same_paired_user_id_model_settings_and_instructions": true,
+      "saved_decisions_verified": 8,
+      "saved_wire_hashes_verified": 8,
+      "series": "LATEST",
+      "status": "PASS",
+      "unsupported_correct": 0
+    }
+  ],
+  "new_paid_model_calls": 0,
+  "new_marketplace_calls": 0,
+  "new_voice_queries": 0,
+  "runtime_modified": false,
+  "ab_recomputed": [
+    {
+      "series": "MAIN",
+      "pairs": 24,
+      "attempts": 48,
+      "recomputed": {
+        "legacy_v1": {
+          "attempts": 24,
+          "prompt": 270343,
+          "hit": 11776,
+          "miss": 258567,
+          "completion": 2976,
+          "cost": "0.081211956",
+          "quality_passed": 24,
+          "hit_percent": 4.355947814443133,
+          "prefix_hash_count": 1,
+          "instruction_profile_count": 1
+        },
+        "catalog_prefix_v2": {
+          "attempts": 24,
+          "prompt": 249247,
+          "hit": 209536,
+          "miss": 39711,
+          "completion": 2922,
+          "cost": "0.016676916",
+          "quality_passed": 24,
+          "hit_percent": 84.06761164627859,
+          "prefix_hash_count": 1,
+          "instruction_profile_count": 1
+        }
+      },
+      "savings_percent": 79.4649497175022,
+      "all_receipts_consistent": true,
+      "paired_question_catalog_instruction_equal": true
+    },
+    {
+      "series": "REBASE",
+      "pairs": 8,
+      "attempts": 16,
+      "recomputed": {
+        "legacy_v1": {
+          "attempts": 8,
+          "prompt": 90100,
+          "hit": 16640,
+          "miss": 73460,
+          "completion": 999,
+          "cost": "0.023336640",
+          "quality_passed": 8,
+          "hit_percent": 18.46836847946726,
+          "prefix_hash_count": 1,
+          "instruction_profile_count": 1
+        },
+        "catalog_prefix_v2": {
+          "attempts": 8,
+          "prompt": 83068,
+          "hit": 66944,
+          "miss": 16124,
+          "completion": 987,
+          "cost": "0.006423264",
+          "quality_passed": 8,
+          "hit_percent": 80.58939663889825,
+          "prefix_hash_count": 1,
+          "instruction_profile_count": 1
+        }
+      },
+      "savings_percent": 72.47562631124275,
+      "all_receipts_consistent": true,
+      "paired_question_catalog_instruction_equal": true
+    },
+    {
+      "series": "LATEST",
+      "pairs": 4,
+      "attempts": 8,
+      "recomputed": {
+        "legacy_v1": {
+          "attempts": 4,
+          "prompt": 45366,
+          "hit": 3200,
+          "miss": 42166,
+          "completion": 505,
+          "cost": "0.013275000",
+          "quality_passed": 4,
+          "hit_percent": 7.053740686857999,
+          "prefix_hash_count": 1,
+          "instruction_profile_count": 1
+        },
+        "catalog_prefix_v2": {
+          "attempts": 4,
+          "prompt": 41850,
+          "hit": 28160,
+          "miss": 13690,
+          "completion": 508,
+          "cost": "0.004885560",
+          "quality_passed": 4,
+          "hit_percent": 67.28793309438471,
+          "prefix_hash_count": 1,
+          "instruction_profile_count": 1
+        }
+      },
+      "savings_percent": 63.19728813559322,
+      "all_receipts_consistent": true,
+      "paired_question_catalog_instruction_equal": true
+    }
+  ],
+  "current_source_commit": "e55cc21ea9047f95d42fb8808be291463aaa911b",
+  "reviewed_cache_source_commit": "b87c1de8ac34b44f5061b67ae94d133b24d273e6",
+  "previously_completed_merged_regression": {
+    "tests_run": 2035,
+    "status": "PASS",
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "rerun_in_this_audit": false
+  },
+  "scope_limits": [
+    "Selection-stage normalized A/B costs, not total query cost or provider invoice.",
+    "Finite frozen synthetic QA cases with a shared QA tenant; no new production voice series measured.",
+    "Backend stage metrics exist; no new frontend screen delivered.",
+    "Provider cache residency/hit rate is not guaranteed.",
+    "Independent review did not run new paid model calls or resume owner-stopped voice tests."
+  ]
+}
