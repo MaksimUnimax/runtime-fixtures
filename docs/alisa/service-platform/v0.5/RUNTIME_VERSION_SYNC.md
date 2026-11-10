@@ -4,7 +4,7 @@
 
 `products/alisa/infra/runtime_versions_sync.py` — конечная утилита администратора выпуска, не новый исполнитель, очередь или таймер. Она:
 
-1. Проверяет root-владение, закрытость на запись, отсутствие symlinks, release namespace, artifact/source identity и каждый checksum локального immutable manifest. Недекларированные Python/read-surface файлы запрещены; состояние повторно проверяется после расчёта.
+1. Проверяет root-владение, закрытость на запись, отсутствие symlinks, release namespace, artifact/source identity и каждый checksum локального immutable manifest. Полный набор файлов выпуска должен совпадать с manifest, включая корневые JSON/JSON.GZ, вложенные данные и будущие форматы; недекларированные файлы запрещены; состояние повторно проверяется после расчёта.
 2. Вычисляет дескриптор существующим runtime_port.current_versions **как nobody**, без групп, с пустым окружением, без CREDENTIALS_DIRECTORY, секретов и запроса к listener. CPU, размер вывода и время расчёта ограничены; root не импортирует код ядра.
 3. Сравнивает весь дескриптор с закреплённым. Автоматически допустимо менять только catalog_bundle_hash. Версия протокола, schema hash, registry hash, projection, language, port_build и catalog_release_id требуют явного квалифицированного выпуска.
 4. Под существующей общей `/run/lock/alisa-stage-rollout.lock` атомарно заменяет runtime-versions.json, сохраняя owner/group/mode. Grants, bindings, ключи, сессии, OAuth и бизнес-задания не меняются.
@@ -34,7 +34,7 @@ cd /opt/alice-market/releases/ПРИНЯТЫЙ_ВЫПУСК
 
 - Совместимое изменение каталога обновляет только hash; повтор ничего не записывает.
 - Contract/schema/registry/language/projection/build/catalog binding change сохраняет прежние пины.
-- Подмена checksum, лишний Python/read-surface файл, symlink, групповая запись, изменённые manifest/source/config и занятая блокировка не публикуют новый hash.
+- Подмена checksum, любой лишний файл, в том числе корневой каталог JSON или вложенный файл нового формата, symlink, групповая запись, изменённые manifest/source/config и занятая блокировка не публикуют новый hash.
 - Режим/owner/group конфигурации сохраняются, частичного JSON не видно.
 - Реальный systemd pre-start под User=nobody и ProtectSystem/ProtectHome подтверждает root-публикацию; ошибка сохраняет основной service path и прежние пины.
 - Расчёт выполняется как nobody, не получает окружение службы/магазинов и не обращается к API/модели. Установленный readback выполняется отдельно от source/synthetic qualification.

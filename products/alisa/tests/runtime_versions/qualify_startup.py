@@ -36,7 +36,7 @@ def main():
         emitted={k:v for k,v in versions.items()if k!='catalog_release_id'};emitted.update(catalog_bundle_hash='d'*64,port_build=build)
         code="import os\nassert os.geteuid()=="+str(account.pw_uid)+"\nassert os.getgroups()==[]\nassert 'CREDENTIALS_DIRECTORY'not in os.environ\nassert not any(k.startswith('ALISA_')for k in os.environ)\ndef current_versions():return "+repr(emitted)+'\n'
         (source/'runtime_port.py').write_text(code);(source/'runtime_port.py').chmod(0o644)
-        names=['runtime_port.py','read_surface_data/schema.json']
+        names=['runtime_port.py','read_surface_data/schema.json','template_catalog.json']
         (source/'manifest.json').write_text(json.dumps({'schema':'alice-read-surface-release/v1','artifact_id':ident,
             'source_commit':'1'*40,'files':{n:hashlib.sha256((source/n).read_bytes()).hexdigest()for n in names}}))
         (source/'manifest.json').chmod(0o644)
@@ -61,12 +61,16 @@ def main():
             try:value=json.loads(line)
             except ValueError:continue
             if value.get('event')=='runtime_versions_sync':events.append(value)
-        assert events,'Missing startup sync event';return events[-1]
+        assert events,'Missing startup sync event'
+        record.setdefault('startup_events',[]).append({'case':label,**events[-1]})
+        print(json.dumps({'case':label,**events[-1]}),flush=True)
+        return events[-1]
     try:
         for p in [Path('/opt/alice-market'),Path('/opt/alice-market/releases')]:
             if not p.exists():p.mkdir(mode=0o755);created.append(p)
         source.mkdir(mode=0o755);(source/'read_surface_data').mkdir(mode=0o755)
         (source/'read_surface_data/schema.json').write_text('{}');(source/'read_surface_data/schema.json').chmod(0o644)
+        (source/'template_catalog.json').write_text('{}');(source/'template_catalog.json').chmod(0o644)
         source_version();cfg.write_text(json.dumps({'runtime_port':{'enabled':True,'catalog_release_id':'fixture-catalog'}}));cfg.chmod(0o640);reset()
         try:lock_fd=os.open(lock,os.O_RDWR|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600);lock_created=True
         except FileExistsError:lock_fd=os.open(lock,os.O_RDWR|os.O_NOFOLLOW)

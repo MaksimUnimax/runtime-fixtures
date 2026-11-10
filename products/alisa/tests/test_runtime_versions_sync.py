@@ -18,8 +18,9 @@ class RuntimeVersions(unittest.TestCase):
         self.source.mkdir(parents=True);(self.source/'read_surface_data').mkdir()
         (self.source/'runtime_port.py').write_text('def current_versions(): return {}\n')
         (self.source/'read_surface_data/catalog.json').write_text('{}')
+        (self.source/'template_catalog.json').write_text('{}')
         self.manifest={'schema':'alice-read-surface-release/v1','artifact_id':'runtime-v1','source_commit':'1'*40,
-            'files':{n:hashlib.sha256((self.source/n).read_bytes()).hexdigest()for n in ['runtime_port.py','read_surface_data/catalog.json']}}
+            'files':{n:hashlib.sha256((self.source/n).read_bytes()).hexdigest()for n in ['runtime_port.py','read_surface_data/catalog.json','template_catalog.json']}}
         self.write_manifest()
         self.config=self.root/'native.json';self.config.write_text(json.dumps({'runtime_port':{'enabled':True,'catalog_release_id':'catalog-v1'}}));self.config.chmod(0o640)
         self.versions=self.root/'versions.json'
@@ -64,6 +65,16 @@ class RuntimeVersions(unittest.TestCase):
         self.blocked('SOURCE_MISMATCH')
     def test_unlisted_read_surface_data_is_not_admitted(self):
         (self.source/'read_surface_data/new.json').write_text('{}');self.blocked('SOURCE_MISMATCH')
+    def test_omitted_root_catalog_is_not_admitted(self):
+        self.manifest['files'].pop('template_catalog.json');self.write_manifest()
+        (self.source/'template_catalog.json').write_text('{"tampered":true}')
+        self.blocked('SOURCE_MISMATCH');self.assertEqual(json.loads(self.versions.read_text()),self.old)
+    def test_unknown_nested_data_format_requires_manifest(self):
+        (self.source/'future').mkdir();(self.source/'future/input.bin').write_bytes(b'new format')
+        self.blocked('SOURCE_MISMATCH')
+    def test_unlisted_directory_symlink_is_not_followed(self):
+        (self.source/'external').symlink_to(self.root,target_is_directory=True)
+        self.blocked('SOURCE_MISMATCH')
     def test_source_outside_release_root_is_denied(self):
         self.blocked('UNTRUSTED_RELEASE',lambda:sync.validate_release(self.source,releases=self.root,owner_uid=os.getuid()))
     def test_release_identity_mismatch_is_denied(self):

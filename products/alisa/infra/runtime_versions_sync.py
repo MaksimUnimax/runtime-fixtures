@@ -89,12 +89,20 @@ def validate_release(root,*,releases=RELEASES,owner_uid=0):
         raw,s=read_file(root/name,MAX_FILE,owner_uid);total+=len(raw)
         need(total<=MAX_TOTAL and hashlib.sha256(raw).hexdigest()==digest,'SOURCE_MISMATCH')
         snapshots[name]=(s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_ctime_ns)
-    # bundle_hash loads all top-level Python and every read-surface data file.
-    required={p.name for p in root.glob('*.py')}
-    surface=root/'read_surface_data'
-    need(surface.is_dir()and not surface.is_symlink(),'SOURCE_MISMATCH')
-    required.update(str(p.relative_to(root))for p in surface.iterdir()if p.is_file()or p.is_symlink())
-    need(required<=set(files)and 'runtime_port.py'in files,'SOURCE_MISMATCH')
+    # Cover the entire immutable payload, including present and future data formats.
+    # Do not follow symlinks or traverse an unbounded, undeclared directory tree.
+    required=set();pending=[root];entries=0
+    while pending:
+        directory=pending.pop();secure_path(directory/'entry',owner_uid)
+        with os.scandir(directory)as children:
+            for child in children:
+                entries+=1;need(entries<=2000,'SOURCE_MISMATCH')
+                info=child.stat(follow_symlinks=False)
+                if stat.S_ISDIR(info.st_mode):pending.append(Path(child.path))
+                else:
+                    need(stat.S_ISREG(info.st_mode),'SOURCE_MISMATCH')
+                    required.add(str(Path(child.path).relative_to(root)))
+    need(required==set(files)|{'manifest.json'}and 'runtime_port.py'in files,'SOURCE_MISMATCH')
     return snapshots
 
 def unchanged(root,snapshots):
