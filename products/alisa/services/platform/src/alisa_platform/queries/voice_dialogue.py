@@ -86,10 +86,16 @@ class PinnedAuthorizer:
     Check on EVERY prepare, including RuntimeClient's second prepare. Its normal
     current(ticket) guard then rejects a change after prepare and before IPC.
     """
-    def __init__(self, delegate, tenant, selected):
+    def __init__(self, delegate, customer, tenant, selected, session_hash, query_id):
         self.delegate, self.tenant, self.selected = delegate, tenant, selected
+        self.customer, self.session_hash, self.query_id = customer, session_hash, query_id
 
     def check(self):
+        # Fence a sender that resumes after its dispatch was abandoned/replaced.
+        if not VoiceDialogue.objects.filter(session_hash=self.session_hash, customer_id=self.customer,
+                tenant_id=self.tenant, query_id=self.query_id, phase='SUBMITTING',
+                expires_at__gt=timezone.now()).exists():
+            raise SelectionChanged()
         mapping = bindings(self.tenant)
         for saved in self.selected:
             store = Store.objects.filter(pk=saved['id'], tenant_id=self.tenant, product_id='alisa_market').first()
@@ -182,17 +188,23 @@ def advance(principal, session_hash, mid, query_id, utterance):
         need(service.actor(principal) == (customer, tenant), 'AUTH_REQUIRED')
         binding = auth_binding(principal)
         now = timezone.now()
-        row = VoiceDialogue.objects.select_for_update().filter(pk=session_hash, customer_id=customer,
-                                                                tenant_id=tenant).first()
+        row = VoiceDialogue.objects.select_for_update().filter(session_hash=session_hash, customer_id=customer,
+                tenant_id=tenant).order_by('-last_message_id').first()
         state = None
         if row:
             if mid < row.last_message_id:
                 return {'message': 'Это сообщение уже обработано. Задайте новый вопрос или спросите: готово?'}
             if mid == row.last_message_id:
                 need(row.input_hash == mark, 'IDEMPOTENCY_CONFLICT')
+            if row.phase == 'SUBMITTING' and row.expires_at <= now:
+                row.phase, row.encrypted_payload = 'ABANDONED', ''
+                row.save(update_fields=['phase', 'encrypted_payload'])
+            if row.phase == 'ABANDONED' and command in CONTROL:
+                return ({'message': UNKNOWN} if command in CANCEL else
+                        {'query_id': str(row.query_id), 'cancel_id': None})
             if command in CONTROL and row.phase in {'SUBMITTING', 'SENT'}:
                 if command in CANCEL:
-                    if row.cancel_started:
+                    if row.cancel_started and mid == row.last_message_id:
                         return {'message': 'Отмена уже запрошена. Проверьте состояние: готово?'}
                     if row.cancel_id is None:
                         row.cancel_id = query_id
@@ -257,8 +269,8 @@ def advance(principal, session_hash, mid, query_id, utterance):
             return {'message': 'Подключите нужный магазин в кабинете и задайте вопрос заново.'}
         state = {'auth': binding, 'phase': 'CHOOSE', 'question': utterance,
                  'query_id': query_id, 'stores': stores, 'page': 0}
-        if row is None:
-            row = VoiceDialogue(id=session_hash, customer_id=customer, tenant_id=tenant)
+        row = VoiceDialogue(id=hashlib.sha256((session_hash + ':' + query_id).encode()).hexdigest(),
+                            session_hash=session_hash, customer_id=customer, tenant_id=tenant)
         row.last_message_id, row.input_hash = mid, mark
         row.cancel_id = None
         row.cancel_started = False
@@ -275,9 +287,9 @@ def complete(principal, session_hash, query_id):
     customer, tenant = service.actor(principal)
     with transaction.atomic():
         Customer.objects.select_for_update(no_key=True).get(pk=customer)
-        row = VoiceDialogue.objects.select_for_update().filter(pk=session_hash, customer_id=customer,
-                                                               tenant_id=tenant).first()
-        if row and str(row.query_id) == query_id:
+        row = VoiceDialogue.objects.select_for_update().filter(session_hash=session_hash, query_id=query_id,
+                customer_id=customer, tenant_id=tenant).first()
+        if row and row.phase == 'SUBMITTING' and row.expires_at > timezone.now():
             row.phase, row.encrypted_payload = 'SENT', ''
             cancellation = str(row.cancel_id) if row.cancel_id and not row.cancel_started else None
             if cancellation:

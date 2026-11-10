@@ -8,6 +8,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         now = timezone.now()
+        VoiceDialogue.objects.filter(expires_at__lte=now, phase='SUBMITTING').update(phase='ABANDONED')
         # A delayed timer cannot extend usable state: voice checks expires_at too.
         VoiceDialogue.objects.filter(expires_at__lte=now).exclude(encrypted_payload='').update(encrypted_payload='')
         VoiceDialogue.objects.filter(retire_at__lte=now).delete()

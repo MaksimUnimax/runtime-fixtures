@@ -54,7 +54,7 @@ class VoiceChecks(QueryChecks):
         return voice.handle(self.token, payload)['response']['text']
 
     def state(self):
-        row = VoiceDialogue.objects.get(customer=self.actor)
+        row = VoiceDialogue.objects.filter(customer=self.actor).order_by('-last_message_id').first()
         return row, unseal('voice-dialogue/v1', row.pk, row.encrypted_payload)
 
     def question(self):
@@ -71,7 +71,7 @@ class VoiceChecks(QueryChecks):
         query = Query.objects.get(pk=qid)
         self.assertEqual(query.store_ids, sorted([str(self.store.pk), str(self.second.pk)]))
         self.assertEqual(self.transport.calls, [])
-        self.assertEqual(VoiceDialogue.objects.get(customer=self.actor).encrypted_payload, '')
+        self.assertEqual(VoiceDialogue.objects.filter(customer=self.actor).order_by('-last_message_id').first().encrypted_payload, '')
 
     def test_exact_alias_selects_one(self):
         self.question(); self.assertIn('принято', self.say('озон два', 1))
@@ -165,7 +165,7 @@ class VoiceChecks(QueryChecks):
 
     def test_expired_pending_cancel_never_targets_previous_query(self):
         self.question(); self.say('все', 1); self.say(QUESTION, 2)
-        row = VoiceDialogue.objects.get(customer=self.actor)
+        row = VoiceDialogue.objects.filter(customer=self.actor).order_by('-last_message_id').first()
         row.expires_at = timezone.now() - timedelta(seconds=1); row.save()
         with patch.object(service, 'cancel', side_effect=AssertionError('Cancelled previous query')):
             self.assertIn('больше не действует', self.say('отмена', 3))
@@ -225,9 +225,42 @@ class VoiceChecks(QueryChecks):
 
     def test_new_question_after_completed_state_ttl_is_accepted_normally(self):
         self.question(); self.say('все', 1)
-        row = VoiceDialogue.objects.get(customer=self.actor)
+        row = VoiceDialogue.objects.filter(customer=self.actor).order_by('-last_message_id').first()
         row.expires_at = timezone.now() - timedelta(seconds=1); row.save()
         self.assertIn('Уточните', self.say(QUESTION, 2))
+
+    def test_orphan_dispatch_expires_without_blocking_or_late_sender(self):
+        self.question(); row, _ = self.state(); principal = AlicePrincipal(self.token)
+        frozen = dialogue.advance(principal, row.session_hash, 1, uid(), 'все')['submit']
+        dialogue.advance(principal, row.session_hash, 2, uid(), 'отмена')
+        row.refresh_from_db(); cancel_id = row.cancel_id
+        row.expires_at = timezone.now() - timedelta(seconds=1); row.save()
+        call_command('queries_cleanup', verbosity=0)
+        self.assertIn('Уточните', self.say(QUESTION, 3))
+        self.deny('PERMISSION_DENIED', lambda: service.submit(principal, frozen['query_id'],
+            [s['id'] for s in frozen['stores']], frozen['question'], channel='ALICE',
+            voice_session_hash=row.session_hash, store_snapshot=frozen['stores']))
+        self.assertIsNone(dialogue.complete(principal, row.session_hash, frozen['query_id']))
+        row.refresh_from_db(); self.assertEqual(row.phase, 'ABANDONED')
+        self.assertEqual(row.cancel_id, cancel_id); self.assertEqual(str(row.query_id), frozen['query_id'])
+        self.assertEqual(row.encrypted_payload, '')
+        self.assertFalse(Query.objects.filter(customer=self.actor).exists())
+
+    def test_orphan_dispatch_recovers_even_before_cleanup_timer(self):
+        self.question(); row, _ = self.state(); principal = AlicePrincipal(self.token)
+        dialogue.advance(principal, row.session_hash, 1, uid(), 'все')
+        row.refresh_from_db(); row.expires_at = timezone.now() - timedelta(seconds=1); row.save()
+        self.assertIn('Уточните', self.say(QUESTION, 2))
+        row.refresh_from_db(); self.assertEqual(row.phase, 'ABANDONED')
+        self.assertEqual(row.encrypted_payload, '')
+
+    def test_explicit_new_cancel_after_unknown_reuses_id_without_automatic_retry(self):
+        self.question(); self.say('все', 1)
+        with patch.object(service, 'cancel', side_effect=RuntimeFailure('UNKNOWN_OUTCOME', outcome='UNKNOWN')) as cancel:
+            self.say('отмена', 2); first = cancel.call_args.args
+            self.say('отмена', 2); self.assertEqual(cancel.call_count, 1)
+            self.say('отмена', 3); self.assertEqual(cancel.call_count, 2)
+            self.assertEqual(first, cancel.call_args.args)
 
     def test_unknown_after_accept_never_automatically_resubmits(self):
         self.question(); original = RuntimeClient.submit

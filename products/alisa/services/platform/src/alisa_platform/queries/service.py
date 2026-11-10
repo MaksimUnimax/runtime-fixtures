@@ -90,7 +90,8 @@ def submit(principal, query_id, stores, utterance, *, recover=False, channel='WE
         from .voice_dialogue import PinnedAuthorizer
         need(channel == 'ALICE' and type(store_snapshot) is list and
              sorted(row['id'] for row in store_snapshot) == stores)
-        api.authorizer = PinnedAuthorizer(api.authorizer, tenant, store_snapshot)
+        api.authorizer = PinnedAuthorizer(api.authorizer, customer, tenant, store_snapshot,
+                                          voice_session_hash, query_id)
     # Validate access/mapping before persisting a receipt, without holding our row lock.
     api.authorizer.prepare('submit')
     mark = hashlib.sha256(encode({'stores': stores, 'utterance': utterance})).hexdigest()

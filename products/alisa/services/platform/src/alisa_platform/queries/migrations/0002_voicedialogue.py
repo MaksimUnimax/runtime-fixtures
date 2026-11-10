@@ -6,6 +6,7 @@ class Migration(migrations.Migration):
     dependencies = [('queries', '0001_initial')]
     operations = [migrations.CreateModel(name='VoiceDialogue', fields=[
         ('id', models.CharField(primary_key=True, max_length=64, serialize=False)),
+        ('session_hash', models.CharField(max_length=64, db_index=True)),
         ('last_message_id', models.PositiveIntegerField()),
         ('input_hash', models.CharField(max_length=64)),
         ('encrypted_payload', models.TextField(blank=True)),

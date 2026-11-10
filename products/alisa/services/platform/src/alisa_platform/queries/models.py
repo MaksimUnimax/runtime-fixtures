@@ -24,8 +24,9 @@ class Query(models.Model):
 
 
 class VoiceDialogue(models.Model):
-    """One encrypted pending question per owner/skill/session; never a job queue."""
+    """Encrypted pending turn plus bounded replay/dispatch metadata; no queue."""
     id = models.CharField(primary_key=True, max_length=64)
+    session_hash = models.CharField(max_length=64, db_index=True)
     customer = models.ForeignKey('accounts.Customer', on_delete=models.CASCADE)
     tenant = models.ForeignKey('accounts.Tenant', on_delete=models.CASCADE)
     last_message_id = models.PositiveIntegerField()
