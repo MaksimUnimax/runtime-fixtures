@@ -1,0 +1,101 @@
+{
+  "measured_on": "2026-11-10",
+  "production_source": "67a65d14feed9279040bbd936a958b5816c6b681",
+  "tokenizer": "Official DeepSeek V4 demo tokenizer; offline estimate",
+  "toon_package": "toon-format==1.2.0",
+  "toon_wheel_sha256": "d94db4b088a281a7bbc85e75d7fbd24e6a0ec7bc110edb129285259eca6522c0",
+  "warning": "Same HTML-derived surrogate as first benchmark, not original typed API payload. Offline V4 tokenizer, no billable model calls.",
+  "cases": [
+    {
+      "name": "json",
+      "tokens": 60455,
+      "bytes": 201534,
+      "encode_ms_single_run": 0,
+      "savings_percent": 0,
+      "roundtrip": true
+    },
+    {
+      "name": "key_alias",
+      "tokens": 45288,
+      "bytes": 99722,
+      "encode_ms_single_run": 17.44,
+      "savings_percent": 25.09
+    },
+    {
+      "name": "schemas",
+      "tokens": 36857,
+      "bytes": 77623,
+      "encode_ms_single_run": 7.42,
+      "savings_percent": 39.03,
+      "roundtrip": true
+    },
+    {
+      "name": "toon_comma",
+      "tokens": 77097,
+      "bytes": 295483,
+      "encode_ms_single_run": 37.78,
+      "savings_percent": -27.53,
+      "roundtrip": true
+    },
+    {
+      "name": "toon_tab",
+      "tokens": 77098,
+      "bytes": 295484,
+      "encode_ms_single_run": 66.78,
+      "savings_percent": -27.53,
+      "roundtrip": true
+    },
+    {
+      "name": "shared_objects",
+      "tokens": 36240,
+      "bytes": 120725,
+      "encode_ms_single_run": 55.14,
+      "savings_percent": 40.05,
+      "roundtrip": true
+    },
+    {
+      "name": "schemas_and_shared",
+      "tokens": 29361,
+      "bytes": 64016,
+      "encode_ms_single_run": 76.47,
+      "savings_percent": 51.43,
+      "roundtrip": true
+    }
+  ],
+  "fixture_share_exact": true,
+  "fixture_toon_exact": true,
+  "numeric_toon_probe": [
+    {
+      "input": "1.0",
+      "output": "1",
+      "same_python_type": false,
+      "equal_value": true
+    },
+    {
+      "input": "-0.0",
+      "output": "0",
+      "same_python_type": false,
+      "equal_value": true
+    },
+    {
+      "input": "9007199254740993",
+      "output": "9007199254740993",
+      "same_python_type": true,
+      "equal_value": true
+    },
+    {
+      "input": "1.23456789012345",
+      "output": "1.23456789012345",
+      "same_python_type": true,
+      "equal_value": true
+    },
+    {
+      "input": "1e-20",
+      "output": "1e-20",
+      "same_python_type": true,
+      "equal_value": true
+    }
+  ],
+  "shared_definitions": 58,
+  "shared_references": 444
+}
