@@ -66,9 +66,14 @@ export default function FeedbackPage() {
   const detailLoading = useRef(false);
   const detailGeneration = useRef(0);
   const detailAbort = useRef<AbortController | null>(null);
+  // Each effect setup owns its work, including across StrictMode replay.
+  const activeLifecycle = useRef<object | null>(null);
+  const isCurrent = (lifecycle: object | null) =>
+    lifecycle !== null && activeLifecycle.current === lifecycle;
 
   const load = async () => {
-    if (loading.current) return;
+    const lifecycle = activeLifecycle.current;
+    if (!isCurrent(lifecycle) || loading.current) return;
     loading.current = true;
     // An in-flight old reply must neither consume the list-refresh budget nor
     // commit its payload after a newer snapshot replaces the visible rows.
@@ -84,10 +89,13 @@ export default function FeedbackPage() {
         controlPlane("/v1/accounts"),
         controlPlane("/v1/support/cases"),
       ]);
+      if (!isCurrent(lifecycle)) return;
       if (!accountResponse.ok || !caseResponse.ok)
         throw new Error("FEEDBACK_LOAD_FAILED");
       const accountData: unknown = await accountResponse.json();
+      if (!isCurrent(lifecycle)) return;
       const caseData: unknown = await caseResponse.json();
+      if (!isCurrent(lifecycle)) return;
       if (
         !isRecord(accountData) ||
         !Array.isArray(accountData.accounts) ||
@@ -107,21 +115,39 @@ export default function FeedbackPage() {
       );
       setCases(caseData.items);
     } catch {
+      if (!isCurrent(lifecycle)) return;
       setLoadError(
         "Не удалось загрузить данные обратной связи. Нажмите «Обновить», чтобы проверить обращения.",
       );
     } finally {
-      loading.current = false;
-      setBusy(false);
+      if (isCurrent(lifecycle)) {
+        loading.current = false;
+        setBusy(false);
+      }
     }
   };
 
   useEffect(() => {
+    const lifecycle = {};
+    activeLifecycle.current = lifecycle;
+    loading.current = false;
+    submitting.current = false;
+    setSending(false);
     void load();
+    return () => {
+      if (!isCurrent(lifecycle)) return;
+      activeLifecycle.current = null;
+      detailAbort.current?.abort();
+      detailAbort.current = null;
+      detailGeneration.current++;
+      detailLoading.current = false;
+    };
   }, []);
 
   const showSupportReply = async (caseId: string) => {
+    const lifecycle = activeLifecycle.current;
     if (
+      !isCurrent(lifecycle) ||
       loading.current ||
       submitting.current ||
       detailLoading.current ||
@@ -139,17 +165,18 @@ export default function FeedbackPage() {
         `/v1/support/cases/${encodeURIComponent(caseId)}`,
         { signal: requestAbort.signal },
       );
+      if (!isCurrent(lifecycle)) return;
       if (!response.ok) throw new Error("SUPPORT_DETAIL_NOT_CONFIRMED");
       const detail: unknown = await response.json();
       const projected = ownSupportResponse(detail, caseId);
       if (!projected) throw new Error("SUPPORT_DETAIL_INVALID");
-      if (requestGeneration === detailGeneration.current)
+      if (isCurrent(lifecycle) && requestGeneration === detailGeneration.current)
         setSupportDetail({ caseId, state: "ready", response: projected });
     } catch {
-      if (requestGeneration === detailGeneration.current)
+      if (isCurrent(lifecycle) && requestGeneration === detailGeneration.current)
         setSupportDetail({ caseId, state: "error" });
     } finally {
-      if (requestGeneration === detailGeneration.current) {
+      if (isCurrent(lifecycle) && requestGeneration === detailGeneration.current) {
         detailAbort.current = null;
         detailLoading.current = false;
       }
@@ -158,7 +185,9 @@ export default function FeedbackPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    const lifecycle = activeLifecycle.current;
     if (
+      !isCurrent(lifecycle) ||
       loading.current ||
       submitting.current ||
       !accountId ||
@@ -182,8 +211,10 @@ export default function FeedbackPage() {
           }),
         ),
       });
+      if (!isCurrent(lifecycle)) return;
       if (!response.ok) throw new Error("FEEDBACK_SUBMIT_UNCONFIRMED");
       const data: unknown = await response.json();
+      if (!isCurrent(lifecycle)) return;
       if (
         !isRecord(data) ||
         !isRecord(data.case) ||
@@ -199,12 +230,15 @@ export default function FeedbackPage() {
       // A failed list refresh must not turn a confirmed submission into failure.
       await load();
     } catch {
+      if (!isCurrent(lifecycle)) return;
       setMessage(
         "Не удалось подтвердить отправку. Текст сохранён. Проверьте список обращений перед повторной отправкой.",
       );
     } finally {
-      submitting.current = false;
-      setSending(false);
+      if (isCurrent(lifecycle)) {
+        submitting.current = false;
+        setSending(false);
+      }
     }
   };
 
