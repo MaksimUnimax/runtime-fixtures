@@ -12,5 +12,5 @@ export default async function Page(){
   let stores,profile;
   try{profile=await getProfile(token);stores=profile?await getStores(token):null;}catch{return <main className="site"><h1>Задания временно недоступны</h1><a href="/app">В кабинет</a></main>;}
   if(!profile)redirect('/login');
-  return <main className="site"><article className="article"><a href="/app">Мой кабинет</a><h1>Задания</h1><p>Вопросы из Алисы и кабинета. <a href="/app/reports">Документы маркетплейсов доступны для скачивания 48 часов.</a></p><Queries stores={(stores?.items||[]).filter(s=>s.status==='ACTIVE'&&s.identity_verified).map(s=>({id:s.id,name:s.name,provider:s.provider}))}/></article></main>;
+  return <main className="site"><article className="article"><a href="/app">Мой кабинет</a><h1>Задания</h1><p>Вопросы из Алисы и кабинета. <a href="/app/reports">Документы маркетплейсов доступны для скачивания 48 часов.</a></p><Queries hasMoreStores={!!stores?.next_cursor} stores={(stores?.items||[]).filter(s=>s.status==='ACTIVE'&&s.identity_verified).map(s=>({id:s.id,name:s.name,provider:s.provider}))}/></article></main>;
 }

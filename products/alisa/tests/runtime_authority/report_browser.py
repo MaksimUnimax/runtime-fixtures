@@ -81,7 +81,7 @@ def run(case, ports):
     artifact=Path(os.environ['ALISA_REPORT_BROWSER_ARTIFACT'])
     if os.geteuid()!=0 or os.environ.get('GITHUB_ACTIONS')!='true':
         raise RuntimeError('Browser qualification requires the owned isolated CI root job')
-    network=OwnedNetwork();node=None;api=None;proxy=None;log=None;added=set()
+    network=OwnedNetwork();node=None;api=None;proxy=None;log=None;added=set();selection_stores=[]
     with tempfile.TemporaryDirectory(prefix='alisa-report-browser-')as folder:
         root=Path(folder);root.chmod(0o755)
         try:
@@ -122,6 +122,12 @@ def run(case, ports):
                 except OSError:time.sleep(.1)
             else:raise AssertionError('Packaged Next server did not start')
             item=case.produce()
+            # Extra metadata exists only in this disposable PG fixture. The
+            # browser intercepts selection POSTs; these stores are never executed.
+            from alisa_platform.stores.models import Store
+            for provider,name in [('OZON','Selection Ozon'),('WB','Selection WB')]:
+                selection_stores.append(Store.objects.create(tenant=case.tenant,provider=provider,
+                    name=name,verified_identity='fixture-selection:'+provider))
             ctx,guard,scope=case.port._auth(case.client._context('submit'),case.peer,'submit')
             raw=b'%PDF-1.7\nsynthetic original marketplace document\n'
             job={'id':'browser-original-file','tenant':scope.tenant,'plan':canonical_json({'runtime_guard':guard,'template_execution':{'catalog_hash':template_catalog.HASH}})}
@@ -131,7 +137,8 @@ def run(case, ports):
                 original=case.archive.metadata(c.execute('SELECT * FROM reports WHERE id=?',(ident,)).fetchone())
             before=len(case.transport.calls)
             child_env={**clean_environment(),**browser_env,'HOME':str(home)}
-            data={'origin':origin,'session':case.web_token,'title':item['template']['name'],'files':[item,original]}
+            data={'origin':origin,'session':case.web_token,'title':item['template']['name'],'files':[item,original],
+                  'selection_store_ids':sorted([str(case.store.pk),*[str(s.pk)for s in selection_stores]])}
             result=subprocess.run([str(py),str(client_script)],env=child_env,
                 user=network.uid,group=network.uid,extra_groups=[],input=json.dumps(data),capture_output=True,text=True,timeout=50)
             if result.returncode:raise AssertionError('Browser download qualification failed: '+result.stderr[-3000:])
@@ -147,5 +154,6 @@ def run(case, ports):
                 except subprocess.TimeoutExpired:os.killpg(node.pid,signal.SIGKILL);node.wait(timeout=5)
             if proxy is not None:proxy.shutdown();proxy.server_close()
             if api is not None:api.shutdown();api.server_close()
+            for store in selection_stores:store.delete()
             network.close();ports.difference_update(added)
             if log is not None:log.close()
