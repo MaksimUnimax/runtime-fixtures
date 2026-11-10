@@ -1,4 +1,4 @@
-"""Move the selected explanation to the selector field; retain all execution code."""
+"""Install the owner-requested WB speech note; retain all execution code."""
 import argparse
 import fcntl
 import hashlib
@@ -92,8 +92,8 @@ def main(source):
             '/opt/alice-market/releases/runtime-policy-guard-20261108/check.py',
             '--release', str(TARGET), '--config', '/etc/alice-market/market-runtime.json')
     directory = Path('/etc/systemd/system/alice-market.service.d')
-    latest = max(directory.glob('*.conf'), key=lambda path: path.name)
-    override = directory / (latest.stem + 'z-wb-three-amounts.conf')
+    override = directory / ('z' * 66 + '-alisa-runtime-current.conf')
+    assert all(path.name < override.name for path in directory.glob('*.conf')), 'OVERRIDE_ORDER'
     assert not override.exists(), 'OVERRIDE_EXISTS'
     empty_queue()
     stopped = False
@@ -109,6 +109,19 @@ def main(source):
         assert show('ActiveState') == 'active' and show('WorkingDirectory') == str(TARGET), 'NEW_RUNTIME_INACTIVE'
         verify(BASE, manifest)
         verify(TARGET, updated)
+        config = json.loads(Path('/etc/alice-market/market-runtime.json').read_text())
+        port = config['runtime_port']
+        published = json.loads(Path('/etc/alisa-platform/stage/runtime-versions.json').read_text())
+        code = 'import sys,json;sys.path.insert(0,' + repr(str(TARGET)) + ');from runtime_port_ipc import request;print(json.dumps(request(' + repr(port['socket']) + ',"current_versions",{})))'
+        deadline = time.monotonic() + 15
+        while True:
+            try:
+                response = subprocess.check_output(['runuser','-u',port['allowed_user'],'--','/usr/bin/python3','-B','-c',code],text=True,timeout=3,stderr=subprocess.PIPE)
+                assert json.loads(response) == published, 'PUBLISHED_VERSIONS_MISMATCH'
+                break
+            except Exception:
+                if time.monotonic() >= deadline: raise
+                time.sleep(0.25)
         result = dict(state='INSTALLED', source_commit=source, runtime=str(TARGET), base=str(BASE),
                       changed=['template_catalog.json'], base_unchanged=True,
                       execution_files_unchanged=True, tests=gate['tests'], at=time.time())
@@ -116,9 +129,16 @@ def main(source):
         print(json.dumps(result))
     except BaseException:
         if stopped:
+            command('systemctl', 'stop', 'alice-market.service')
+            try:
+                empty_queue()
+            except Exception:
+                command('systemctl', 'daemon-reload')
+                command('systemctl', 'start', 'alice-market.service')
+                raise RuntimeError('ROLLBACK_DEFERRED_ACTIVE_WORK_SERVICE_RESTORED')
             override.unlink(missing_ok=True)
             command('systemctl', 'daemon-reload')
-            command('systemctl', 'restart', 'alice-market.service')
+            command('systemctl', 'start', 'alice-market.service')
             assert show('ActiveState') == 'active' and show('WorkingDirectory') == str(BASE), 'ROLLBACK_FAILED'
         raise
 
