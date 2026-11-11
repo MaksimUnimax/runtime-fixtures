@@ -10,6 +10,7 @@ from threading import Lock
 from urllib.error import HTTPError
 from urllib.request import Request, build_opener, HTTPRedirectHandler, ProxyHandler
 import hashlib
+import codecs
 import hmac
 import json
 import re
@@ -25,22 +26,65 @@ class NoRedirects(HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs):
         return None
 
+def usage_complete(usage, path):
+    if not isinstance(usage, dict):
+        return False
+    def integer(value):
+        return type(value) is int and value >= 0
+    if path.endswith('chat/completions'):
+        keys = ('prompt_tokens', 'completion_tokens', 'prompt_cache_hit_tokens', 'prompt_cache_miss_tokens')
+        if not all(integer(usage.get(k)) for k in keys):
+            return False
+        if usage['prompt_tokens'] != usage['prompt_cache_hit_tokens'] + usage['prompt_cache_miss_tokens']:
+            return False
+        if 'total_tokens' in usage and (not integer(usage['total_tokens']) or usage['total_tokens'] != usage['prompt_tokens'] + usage['completion_tokens']):
+            return False
+        details = usage.get('prompt_tokens_details', {})
+        output_details = usage.get('completion_tokens_details', {})
+        if not isinstance(details, dict) or not isinstance(output_details, dict): return False
+        alternate = details.get('cached_tokens')
+        reason = output_details.get('reasoning_tokens')
+        if reason is not None and (not integer(reason) or reason > usage['completion_tokens']): return False
+        return alternate is None or (integer(alternate) and alternate == usage['prompt_cache_hit_tokens'])
+    return all(integer(usage.get(k)) for k in ('input_tokens', 'cache_read_input_tokens',
+                  'cache_creation_input_tokens', 'output_tokens')) and usage['cache_creation_input_tokens'] == 0
+
 def receipts(raw, path):
     """Preserve provider usage fields without guessing absent token counts."""
     if path.endswith("chat/completions"):
         obj = json.loads(raw)
-        return {"id": obj.get("id"), "model": obj.get("model"), "usage": obj.get("usage")}
-    usage, ident, model = None, None, None
-    for line in raw.decode("utf-8").splitlines():
-        if not line.startswith("data:"):
+        if not isinstance(obj, dict): raise ValueError('Invalid provider envelope')
+        choices = obj.get("choices", [])
+        if not isinstance(choices, list) or (choices and not isinstance(choices[0], dict)):
+            raise ValueError('Invalid provider choices')
+        finish = choices[0].get("finish_reason") if choices else None
+        return {"id": obj.get("id"), "model": obj.get("model"), "usage": obj.get("usage"),
+                "usage_complete": usage_complete(obj.get('usage'), path),
+                "response_complete": finish is not None, "finish_reason": finish}
+    usage, ident, model, finish, stopped = None, None, None, None, False
+    # An SSE event can contain multiple data lines. Ignore a trailing partial
+    # frame: it has not yet been dispatched by the SSE framing protocol.
+    normalized = codecs.getincrementaldecoder('utf-8')().decode(raw, final=False).replace('\r\n', '\n').replace('\r', '\n')
+    for frame in normalized.split('\n\n')[:-1]:
+        data = '\n'.join(line[5:].removeprefix(' ') for line in frame.split('\n') if line.startswith('data:'))
+        if not data:
             continue
-        event = json.loads(line[5:].strip())
+        event = json.loads(data)
+        if not isinstance(event, dict): raise ValueError('Invalid SSE envelope')
         message = event.get("message", {})
+        if not isinstance(message, dict): raise ValueError('Invalid SSE message')
         ident = message.get("id", ident)
         model = message.get("model", model)
         if event.get("type") == "message_delta" and event.get("usage") is not None:
             usage = event["usage"]
-    return {"id": ident, "model": model, "usage": usage}
+            delta = event.get('delta', {})
+            if not isinstance(delta, dict): raise ValueError('Invalid SSE delta')
+            finish = delta.get("stop_reason")
+        if event.get("type") == "message_stop":
+            stopped = True
+    return {"id": ident, "model": model, "usage": usage,
+            "usage_complete": usage_complete(usage, path),
+            "response_complete": stopped, "finish_reason": finish}
 
 def synthetic_message(step):
     if step == 1:
@@ -83,8 +127,11 @@ return {total: data.rows.reduce((n, x) => n + x.value, 0),
 
 class Gateway(ThreadingHTTPServer):
     daemon_threads = True
-    def __init__(self, token, evidence, key_loader=None, maximum=4, initial_attempts=()):
+    def __init__(self, token, evidence, key_loader=None, maximum=4, initial_attempts=(), raw_evidence_dir=None):
         self.token, self.evidence, self.key_loader = token, Path(evidence), key_loader
+        self.raw_evidence_dir = Path(raw_evidence_dir) if raw_evidence_dir else None
+        if self.raw_evidence_dir:
+            self.raw_evidence_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.maximum, self.attempts, self.lock = maximum, list(initial_attempts), Lock()
         self.opener = build_opener(ProxyHandler({}), NoRedirects())
         super().__init__(("127.0.0.1", 33191), Handler)
@@ -146,6 +193,9 @@ class Handler(BaseHTTPRequestHandler):
                 "request_sha256": hashlib.sha256(body).hexdigest(), "request_bytes": len(body),
                 "request_fields": sorted(payload), "status": "ADMITTED"}
             gateway.attempts.append(entry)
+            if gateway.raw_evidence_dir:
+                request_file = gateway.raw_evidence_dir / (str(entry['number']) + '.request.private.json')
+                request_file.write_bytes(body)
             gateway.save()
         started = time.monotonic()
         status, raw, mime = 502, b'{"error":"QA_UPSTREAM"}', "application/json"
@@ -186,17 +236,48 @@ class Handler(BaseHTTPRequestHandler):
                     entry.update(status="DISPATCHED", dispatched_utc=datetime.now(timezone.utc).isoformat())
                     gateway.save()
                 request = Request(ROUTES[self.path], data=body, headers=headers, method="POST")
+                parts = []
+                def read_body(response):
+                    nonlocal raw
+                    try:
+                        while True:
+                            chunk = response.read1(65536)
+                            if not chunk: break
+                            parts.append(chunk)
+                    finally:
+                        raw = b''.join(parts)
                 try:
                     with gateway.opener.open(request, timeout=180) as response:
                         status, mime = response.status, response.headers.get("Content-Type", "application/json")
-                        raw = response.read()
+                        read_body(response)
                 except HTTPError as exc:
-                    status, raw = exc.code, exc.read()
-                entry["receipt"] = receipts(raw, self.path) if status == 200 else None
-                entry["status"] = "COMPLETED" if entry["receipt"] and entry["receipt"]["usage"] else "USAGE_UNKNOWN"
+                    status = exc.code
+                    read_body(exc)
+                entry['received_utc'] = datetime.now(timezone.utc).isoformat()
         except Exception as exc:
             entry.update(error_type=type(exc).__name__, status="USAGE_UNKNOWN" if entry.get("dispatched_utc") else "NOT_DISPATCHED_ERROR")
         finally:
+            if gateway.key_loader is not None and entry.get('dispatched_utc'):
+                try:
+                    entry['receipt'] = receipts(raw, self.path) if status == 200 else None
+                except (ValueError, UnicodeError, TypeError, KeyError):
+                    entry['receipt'] = None
+                if entry.get('receipt') and entry['receipt']['usage_complete']:
+                    entry['status'] = ('COMPLETED' if entry['receipt']['response_complete'] and not entry.get('error_type')
+                                       else 'INCOMPLETE_WITH_USAGE')
+                else:
+                    entry['status'] = 'USAGE_UNKNOWN'
+                # An optional archive failure must not erase an already
+                # obtained billing receipt or trigger another model call.
+                with gateway.lock:
+                    entry.update(http_status=status, elapsed_seconds=round(time.monotonic() - started, 3))
+                    gateway.save()
+                if gateway.raw_evidence_dir:
+                    try:
+                        (gateway.raw_evidence_dir / (str(entry['number']) + '.response.private.bin')).write_bytes(raw)
+                        entry['response_sha256'] = hashlib.sha256(raw).hexdigest()
+                    except OSError as exc:
+                        entry['raw_capture_error'] = type(exc).__name__
             with gateway.lock:
                 entry.update(http_status=status, elapsed_seconds=round(time.monotonic() - started, 3))
                 gateway.save()

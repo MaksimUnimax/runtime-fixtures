@@ -1,0 +1,1936 @@
+{
+  "status": "RESEARCH_PASS_WITH_LIMITATIONS_NOT_PRODUCTION",
+  "cases": [
+    {
+      "name": "ready_total",
+      "kind": "lookup",
+      "question": "Какая сумма логистики указана в итогах за восьмое ноября?",
+      "expected": {
+        "amount": "140.37",
+        "currency": "RUB"
+      },
+      "input_characters": 70,
+      "input_bytes": 70,
+      "input_sha256": "1e03a5e09ddc22ccabf85e74d906b5b43bf59ca3af44b98ced2f64d47d999acc",
+      "methods": {
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 1.602,
+          "answer": "За восьмое ноября две тысячи двадцать шестого года сумма логистики составила сто сорок рублей тридцать семь копеек.",
+          "finish": "stop",
+          "encoded_data_characters": 99,
+          "packing_used": false,
+          "calls": 1,
+          "actual_rub": "0.008605691550",
+          "normalized_rub": "0.008605691550",
+          "all_input_uncached_rub": "0.008605691550",
+          "tokens": {
+            "input": 423,
+            "miss": 423,
+            "hit": 0,
+            "out": 68
+          },
+          "campaign": "boundary_20261111_r1",
+          "attempt_numbers": [
+            1
+          ],
+          "sent_data_lossless_verified": true
+        },
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 5.145,
+          "answer": "За восьмое ноября в итогах указана сумма логистики сто сорок рублей тридцать семь копеек.",
+          "input_unchanged": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "calls": 2,
+          "actual_rub": "0.0163307546352",
+          "normalized_rub": "0.0163307546352",
+          "all_input_uncached_rub": "0.052055147160",
+          "tokens": {
+            "input": 3532,
+            "miss": 588,
+            "hit": 2944,
+            "out": 168
+          },
+          "campaign": "boundary_20261111_r1",
+          "attempt_numbers": [
+            2,
+            3
+          ],
+          "tool_calls": 1,
+          "tool_errors": 0
+        }
+      }
+    },
+    {
+      "name": "sum_10_811",
+      "kind": "arithmetic",
+      "question": "Сколько составили расходы на логистику за восьмое ноября?",
+      "expected": {
+        "amount": "333.53",
+        "currency": "RUB"
+      },
+      "input_characters": 1935,
+      "input_bytes": 2872,
+      "input_sha256": "af1606a09819ebd30930903cd17760bc791547fee43c42e8fe10f98369eabd6b",
+      "methods": {
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 8.895,
+          "answer": "Расходы на логистику за восьмое ноября две тысячи двадцать шестого года составили триста тридцать три рубля пятьдесят три копейки.",
+          "input_unchanged": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "calls": 3,
+          "actual_rub": "0.0516653526708",
+          "normalized_rub": "0.0516653526708",
+          "all_input_uncached_rub": "0.116901199890",
+          "tokens": {
+            "input": 6241,
+            "miss": 865,
+            "hit": 5376,
+            "out": 800
+          },
+          "campaign": "boundary_20261111_r1",
+          "attempt_numbers": [
+            4,
+            5,
+            6
+          ],
+          "tool_calls": 2,
+          "tool_errors": 0
+        },
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 2.001,
+          "answer": "Расходы на логистику за восьмое ноября составили триста тридцать три рубля пятьдесят три копейки.",
+          "finish": "stop",
+          "encoded_data_characters": 1964,
+          "packing_used": false,
+          "calls": 1,
+          "actual_rub": "0.0250810713324",
+          "normalized_rub": "0.0250810713324",
+          "all_input_uncached_rub": "0.026634305790",
+          "tokens": {
+            "input": 1031,
+            "miss": 903,
+            "hit": 128,
+            "out": 280
+          },
+          "campaign": "boundary_20261111_r1",
+          "attempt_numbers": [
+            7
+          ],
+          "sent_data_lossless_verified": true
+        }
+      }
+    },
+    {
+      "name": "sum_50_811",
+      "kind": "arithmetic",
+      "question": "Сколько составили расходы на логистику за восьмое ноября?",
+      "expected": {
+        "amount": "1280.11",
+        "currency": "RUB"
+      },
+      "input_characters": 9489,
+      "input_bytes": 14043,
+      "input_sha256": "aca8e348b7cc1f48bbdd4e64fc95246126810b49e48d106adc85aba9b580979b",
+      "methods": {
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 6.526,
+          "answer": "Расходы на логистику за восьмое ноября составили одну тысячу двести восемьдесят рублей одиннадцать копеек.",
+          "finish": "stop",
+          "encoded_data_characters": 9518,
+          "packing_used": false,
+          "calls": 1,
+          "actual_rub": "0.0914739197292",
+          "normalized_rub": "0.0914739197292",
+          "all_input_uncached_rub": "0.103899795390",
+          "tokens": {
+            "input": 3451,
+            "miss": 2427,
+            "hit": 1024,
+            "out": 1235
+          },
+          "campaign": "boundary_20261111_r1",
+          "attempt_numbers": [
+            8
+          ],
+          "sent_data_lossless_verified": true
+        },
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 6.148,
+          "answer": "Расходы на логистику за восьмое ноября составили одну тысячу двести восемьдесят рублей одиннадцать копеек.",
+          "input_unchanged": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "calls": 2,
+          "actual_rub": "0.0510853662072",
+          "normalized_rub": "0.0510853662072",
+          "all_input_uncached_rub": "0.09457593102",
+          "tokens": {
+            "input": 5894,
+            "miss": 2310,
+            "hit": 3584,
+            "out": 436
+          },
+          "campaign": "boundary_20261111_r1",
+          "attempt_numbers": [
+            9,
+            10
+          ],
+          "tool_calls": 1,
+          "tool_errors": 0
+        }
+      }
+    },
+    {
+      "name": "sum_200_811",
+      "kind": "arithmetic",
+      "question": "Сколько составили расходы на логистику за восьмое ноября?",
+      "expected": {
+        "amount": "5891.47",
+        "currency": "RUB"
+      },
+      "input_characters": 38004,
+      "input_bytes": 56195,
+      "input_sha256": "6f2deb78aa5b0a72e6541a01b58230dac257b3e557480a05ae571dfd116dc1e1",
+      "methods": {
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 7.09,
+          "answer": "Расходы на логистику за восьмое ноября две тысячи двадцать шестого года составили пять тысяч восемьсот девяносто один рубль сорок семь копеек.",
+          "input_unchanged": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "calls": 3,
+          "actual_rub": "0.0366857535204",
+          "normalized_rub": "0.0366857535204",
+          "all_input_uncached_rub": "0.108134538570",
+          "tokens": {
+            "input": 7077,
+            "miss": 1189,
+            "hit": 5888,
+            "out": 414
+          },
+          "campaign": "boundary_20261111_r1",
+          "attempt_numbers": [
+            11,
+            12,
+            13
+          ],
+          "tool_calls": 2,
+          "tool_errors": 0
+        },
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 24.648,
+          "answer": "Расходы на логистику за восьмое ноября составили пять тысяч восемьсот девяносто один рубль сорок семь копеек.",
+          "finish": "stop",
+          "encoded_data_characters": 31913,
+          "packing_used": true,
+          "calls": 1,
+          "actual_rub": "0.4697731861848",
+          "normalized_rub": "0.4697731861848",
+          "all_input_uncached_rub": "0.47287965510",
+          "tokens": {
+            "input": 12058,
+            "miss": 11802,
+            "hit": 256,
+            "out": 6533
+          },
+          "campaign": "boundary_20261111_r1",
+          "attempt_numbers": [
+            14
+          ],
+          "sent_data_lossless_verified": true
+        }
+      }
+    },
+    {
+      "name": "sum_800_811",
+      "kind": "arithmetic",
+      "question": "Сколько составили расходы на логистику за восьмое ноября?",
+      "expected": {
+        "amount": "24898.30",
+        "currency": "RUB"
+      },
+      "input_characters": 152315,
+      "input_bytes": 225091,
+      "input_sha256": "176ff1d6cb219f2fd4678c5572762f559881a4a317815a36a06c0aadcf2b50e9",
+      "methods": {
+        "direct": {
+          "state": "INCOMPLETE",
+          "elapsed_seconds": 51.841,
+          "answer": "",
+          "finish": "length",
+          "encoded_data_characters": 126424,
+          "packing_used": true,
+          "calls": 1,
+          "actual_rub": "1.2430397673108",
+          "normalized_rub": "1.2430397673108",
+          "all_input_uncached_rub": "1.385937337410",
+          "tokens": {
+            "input": 46393,
+            "miss": 34617,
+            "hit": 11776,
+            "out": 16384
+          },
+          "campaign": "boundary_20261111_r1",
+          "attempt_numbers": [
+            15
+          ],
+          "sent_data_lossless_verified": true
+        },
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 15.271,
+          "answer": "За восьмое ноября две тысячи двадцать шестого года расходы на логистику составили двадцать четыре тысячи восемьсот девяносто восемь рублей тридцать копеек.",
+          "input_unchanged": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "calls": 5,
+          "actual_rub": "0.1167263619552",
+          "normalized_rub": "0.1167263619552",
+          "all_input_uncached_rub": "0.26894333880",
+          "tokens": {
+            "input": 13812,
+            "miss": 1268,
+            "hit": 12544,
+            "out": 1977
+          },
+          "campaign": "boundary_20261111_r2",
+          "attempt_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "tool_calls": 4,
+          "tool_errors": 0
+        }
+      }
+    },
+    {
+      "name": "lookup_200",
+      "kind": "lookup",
+      "question": "Какая сумма логистики указана в итогах за восьмое ноября?",
+      "expected": {
+        "amount": "5891.47",
+        "currency": "RUB"
+      },
+      "input_characters": 38057,
+      "input_bytes": 56248,
+      "input_sha256": "2c27244a2baa6b6c4bef5fa79bc71bda1592b842f65458da2ef7176857eb9b06",
+      "methods": {
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 4.309,
+          "answer": "За восьмое ноября в итогах указана сумма логистики — пять тысяч восемьсот девяносто один рубль сорок семь копеек.",
+          "input_unchanged": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "calls": 2,
+          "actual_rub": "0.0275134483800",
+          "normalized_rub": "0.0275134483800",
+          "all_input_uncached_rub": "0.066344309820",
+          "tokens": {
+            "input": 4454,
+            "miss": 1254,
+            "hit": 3200,
+            "out": 226
+          },
+          "campaign": "boundary_20261111_r2",
+          "attempt_numbers": [
+            6,
+            7
+          ],
+          "tool_calls": 1,
+          "tool_errors": 0
+        },
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 2.137,
+          "answer": "За восьмое ноября сумма логистики составила пять тысяч восемьсот девяносто один рубль сорок семь копеек.",
+          "finish": "stop",
+          "encoded_data_characters": 31980,
+          "packing_used": true,
+          "calls": 1,
+          "actual_rub": "0.1561986260172",
+          "normalized_rub": "0.1561986260172",
+          "all_input_uncached_rub": "0.160858329390",
+          "tokens": {
+            "input": 12075,
+            "miss": 11691,
+            "hit": 384,
+            "out": 229
+          },
+          "campaign": "boundary_20261111_r2",
+          "attempt_numbers": [
+            8
+          ],
+          "sent_data_lossless_verified": true
+        }
+      }
+    },
+    {
+      "name": "compound_50",
+      "kind": "arithmetic",
+      "question": "Назови оборот заказов, расходы на рекламу и ДРР за восьмое ноября.",
+      "expected": {
+        "revenue": "2160.69",
+        "spend": "200.00",
+        "drr": "9.26"
+      },
+      "input_characters": 8057,
+      "input_bytes": 12570,
+      "input_sha256": "c90a451f5be763a5a1f5c93d8370dcc105b1d8ed6bee8fd16db1855b54d0e683",
+      "methods": {
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 6.358,
+          "answer": "За восьмое ноября две тысячи двадцать шестого года оборот заказов составил две тысячи сто шестьдесят рублей шестьдесят девять копеек, расходы на рекламу — двести рублей ноль копеек, а ДРР — девять целых двадцать шесть сотых процента.",
+          "finish": "stop",
+          "encoded_data_characters": 8086,
+          "packing_used": false,
+          "calls": 1,
+          "actual_rub": "0.1033371441324",
+          "normalized_rub": "0.1033371441324",
+          "all_input_uncached_rub": "0.104890378590",
+          "tokens": {
+            "input": 3139,
+            "miss": 3011,
+            "hit": 128,
+            "out": 1333
+          },
+          "campaign": "boundary_20261111_r2",
+          "attempt_numbers": [
+            9
+          ],
+          "sent_data_lossless_verified": true
+        },
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 5.089,
+          "answer": "Восьмого ноября две тысячи двадцать шестого года оборот заказов составил две тысячи сто шестьдесят рублей шестьдесят девять копеек, расходы на рекламу — двести рублей, а ДРР — девять целых двадцать шесть сотых процента.",
+          "input_unchanged": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "calls": 2,
+          "actual_rub": "0.0251746814448",
+          "normalized_rub": "0.0251746814448",
+          "all_input_uncached_rub": "0.067112011800",
+          "tokens": {
+            "input": 3872,
+            "miss": 416,
+            "hit": 3456,
+            "out": 387
+          },
+          "campaign": "boundary_20261111_r2",
+          "attempt_numbers": [
+            10,
+            11
+          ],
+          "tool_calls": 1,
+          "tool_errors": 0
+        }
+      }
+    },
+    {
+      "name": "compound_200",
+      "kind": "arithmetic",
+      "question": "Назови оборот заказов, расходы на рекламу и ДРР за восьмое ноября.",
+      "expected": {
+        "revenue": "7731.99",
+        "spend": "200.00",
+        "drr": "2.59"
+      },
+      "input_characters": 31795,
+      "input_bytes": 49874,
+      "input_sha256": "c1bda18d9344ea35ffd528476c0559de9f09eeea6477299fd5c482b8096956e1",
+      "methods": {
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 7.225,
+          "answer": "Восьмого ноября оборот заказов составил семь тысяч семьсот тридцать один рубль девяносто девять копеек, расходы на рекламу — двести рублей, а ДРР — две целых пятьдесят девять сотых процента.",
+          "input_unchanged": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "calls": 3,
+          "actual_rub": "0.0406659168180",
+          "normalized_rub": "0.0406659168180",
+          "all_input_uncached_rub": "0.110561467410",
+          "tokens": {
+            "input": 6465,
+            "miss": 705,
+            "hit": 5760,
+            "out": 616
+          },
+          "campaign": "boundary_20261111_r2",
+          "attempt_numbers": [
+            12,
+            13,
+            14
+          ],
+          "tool_calls": 2,
+          "tool_errors": 0
+        },
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 20.172,
+          "answer": "За восьмое ноября две тысячи двадцать шестого года оборот заказов составил семь тысяч семьсот тридцать один рубль девяносто девять копеек, расходы на рекламу — двести рублей ноль копеек, а ДРР — два целых пятьдесят девять сотых процента.",
+          "finish": "stop",
+          "encoded_data_characters": 28498,
+          "packing_used": true,
+          "calls": 1,
+          "actual_rub": "0.4267942575948",
+          "normalized_rub": "0.4267942575948",
+          "all_input_uncached_rub": "0.429900726510",
+          "tokens": {
+            "input": 11179,
+            "miss": 10923,
+            "hit": 256,
+            "out": 5885
+          },
+          "campaign": "boundary_20261111_r2",
+          "attempt_numbers": [
+            15
+          ],
+          "sent_data_lossless_verified": true
+        }
+      }
+    },
+    {
+      "name": "text_12",
+      "kind": "semantic",
+      "question": "Какие причины недовольства покупатели описали в отзывах? Кратко перечисли разные причины без подсчёта.",
+      "expected": {
+        "reasons": [
+          "задержка доставки",
+          "повреждённая упаковка",
+          "неисправный или повреждённый товар"
+        ],
+        "exclude": [
+          "смена решения покупателя"
+        ]
+      },
+      "input_characters": 824,
+      "input_bytes": 1316,
+      "input_sha256": "6a9d919564321f831e0ac898b42c2118344f5a11e810eeacaabe6c8b776708f5",
+      "methods": {
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 2.942,
+          "answer": "Покупатели жаловались на задержку доставки, повреждение упаковки при перевозке, неработающий товар, поздний приезд курьера и треснувшую деталь; также был отказ от покупки потому, что покупатель передумал, но это не жалоба на доставку или качество. Были и отзывы без недовольства: сроком и качеством товара покупатели довольны.",
+          "finish": "stop",
+          "encoded_data_characters": 853,
+          "packing_used": false,
+          "calls": 1,
+          "actual_rub": "0.0245733974424",
+          "normalized_rub": "0.0245733974424",
+          "all_input_uncached_rub": "0.02612663190",
+          "tokens": {
+            "input": 710,
+            "miss": 582,
+            "hit": 128,
+            "out": 350
+          },
+          "campaign": "boundary_20261111_r2",
+          "attempt_numbers": [
+            16
+          ],
+          "sent_data_lossless_verified": true
+        },
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 5.586,
+          "answer": "Жаловались на опоздание посылки относительно обещанного срока, на повреждённую при перевозке упаковку, на товар, который не включается, и на треснувшую деталь внутри при позднем приезде курьера; отмена покупки из-за смены решения жалобой не является, а часть отзывов положительная.",
+          "input_unchanged": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "calls": 2,
+          "actual_rub": "0.0234575054676",
+          "normalized_rub": "0.0234575054676",
+          "all_input_uncached_rub": "0.060735132450",
+          "tokens": {
+            "input": 3837,
+            "miss": 765,
+            "hit": 3072,
+            "out": 267
+          },
+          "campaign": "boundary_20261111_r2",
+          "attempt_numbers": [
+            17,
+            18
+          ],
+          "tool_calls": 1,
+          "tool_errors": 0
+        }
+      }
+    },
+    {
+      "name": "text_100_rare",
+      "kind": "semantic",
+      "question": "Какие причины недовольства покупатели описали в отзывах? Кратко перечисли разные причины без подсчёта.",
+      "expected": {
+        "reasons": [
+          "задержка доставки",
+          "повреждённая упаковка",
+          "неисправный или повреждённый товар",
+          "несоответствие заказанному цвету"
+        ],
+        "exclude": [
+          "смена решения покупателя"
+        ]
+      },
+      "input_characters": 6875,
+      "input_bytes": 11005,
+      "input_sha256": "c35e509df2678cadc091979879590ba5cc530689a446b94a76b120ec0fc7962a",
+      "methods": {
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 6.827,
+          "answer": "Покупатели жаловались на задержку доставки и позднее прибытие курьера, на порванную при перевозке упаковку и треснувшую деталь внутри, а также на то, что товар не включается и что вместо заказанного прислали другой цвет.",
+          "input_unchanged": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "calls": 3,
+          "actual_rub": "0.0468149620320",
+          "normalized_rub": "0.0468149620320",
+          "all_input_uncached_rub": "0.132242857200",
+          "tokens": {
+            "input": 9156,
+            "miss": 2116,
+            "hit": 7040,
+            "out": 381
+          },
+          "campaign": "boundary_20261111_r2",
+          "attempt_numbers": [
+            19,
+            20,
+            21
+          ],
+          "tool_calls": 2,
+          "tool_errors": 0
+        },
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 3.202,
+          "answer": "В отзывах жаловались на задержку доставки, повреждённую при перевозке упаковку, невключающийся товар, поздний приезд курьера, треснувшую деталь внутри и отправку не того цвета; были и довольные отзывы, а отмена покупки связана со сменой решения.",
+          "finish": "stop",
+          "encoded_data_characters": 6904,
+          "packing_used": false,
+          "calls": 1,
+          "actual_rub": "0.045106206012",
+          "normalized_rub": "0.045106206012",
+          "all_input_uncached_rub": "0.05287237830",
+          "tokens": {
+            "input": 2846,
+            "miss": 2206,
+            "hit": 640,
+            "out": 356
+          },
+          "campaign": "boundary_20261111_r2",
+          "attempt_numbers": [
+            22
+          ],
+          "sent_data_lossless_verified": true
+        }
+      }
+    },
+    {
+      "name": "sum_20_1938",
+      "kind": "arithmetic",
+      "question": "Сколько составили расходы на логистику за восьмое ноября?",
+      "expected": {
+        "amount": "362.26",
+        "currency": "RUB"
+      },
+      "input_characters": 3794,
+      "input_bytes": 5604,
+      "input_sha256": "2334932ef41db991f00da6fa853e528d11053f70d6977c51a69d874d43a7827d",
+      "methods": {
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 3.206,
+          "answer": "Расходы на логистику за восьмое ноября составили триста шестьдесят два рубля двадцать шесть копеек.",
+          "finish": "stop",
+          "encoded_data_characters": 3823,
+          "packing_used": false,
+          "calls": 1,
+          "actual_rub": "0.0797944485096",
+          "normalized_rub": "0.0398972242548",
+          "all_input_uncached_rub": "0.043003693170",
+          "tokens": {
+            "input": 1609,
+            "miss": 1353,
+            "hit": 256,
+            "out": 466
+          },
+          "campaign": "boundary_20261111_r3",
+          "attempt_numbers": [
+            1
+          ],
+          "sent_data_lossless_verified": true
+        },
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 6.477,
+          "answer": "Расходы на логистику за восьмое ноября две тысячи двадцать шестого года составили триста шестьдесят два рубля двадцать шесть копеек.",
+          "input_unchanged": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "calls": 2,
+          "actual_rub": "0.0564553177344",
+          "normalized_rub": "0.0282276588672",
+          "all_input_uncached_rub": "0.07171822368",
+          "tokens": {
+            "input": 4148,
+            "miss": 564,
+            "hit": 3584,
+            "out": 411
+          },
+          "campaign": "boundary_20261111_r3",
+          "attempt_numbers": [
+            2,
+            3
+          ],
+          "tool_calls": 1,
+          "tool_errors": 0
+        }
+      }
+    },
+    {
+      "name": "sum_30_1938",
+      "kind": "arithmetic",
+      "question": "Сколько составили расходы на логистику за восьмое ноября?",
+      "expected": {
+        "amount": "680.19",
+        "currency": "RUB"
+      },
+      "input_characters": 5684,
+      "input_bytes": 8400,
+      "input_sha256": "21d2d9bf12c81c6a7e114c7f9a38f9c23bdef4d89bcc3d3bfcb85f1299f9b7b0",
+      "methods": {
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 5.244,
+          "answer": "Расходы на логистику за восьмое ноября две тысячи двадцать шестого года составили шестьсот восемьдесят рублей девятнадцать копеек.",
+          "input_unchanged": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "calls": 2,
+          "actual_rub": "0.0320453665200",
+          "normalized_rub": "0.0160226832600",
+          "all_input_uncached_rub": "0.05485354470",
+          "tokens": {
+            "input": 3622,
+            "miss": 422,
+            "hit": 3200,
+            "out": 202
+          },
+          "campaign": "boundary_20261111_r3",
+          "attempt_numbers": [
+            4,
+            5
+          ],
+          "tool_calls": 1,
+          "tool_errors": 0
+        },
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 3.762,
+          "answer": "Расходы на логистику за восьмое ноября составили шестьсот восемьдесят рублей девятнадцать копеек.",
+          "finish": "stop",
+          "encoded_data_characters": 5713,
+          "packing_used": false,
+          "calls": 1,
+          "actual_rub": "0.0716865250176",
+          "normalized_rub": "0.0358432625088",
+          "all_input_uncached_rub": "0.054482076",
+          "tokens": {
+            "input": 2212,
+            "miss": 676,
+            "hit": 1536,
+            "out": 547
+          },
+          "campaign": "boundary_20261111_r3",
+          "attempt_numbers": [
+            6
+          ],
+          "sent_data_lossless_verified": true
+        }
+      }
+    }
+  ],
+  "attempts": [
+    {
+      "campaign": "boundary_20261111_r1",
+      "number": 1,
+      "path": "/v1/chat/completions",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "stop",
+      "dispatched_utc": "2026-11-11T00:53:40.258411+00:00",
+      "received_utc": "2026-11-11T00:53:41.828931+00:00",
+      "request_sha256": "49ee428c14801ca603ae006d4810726c792af0c868684fd72176decafc7d1f0a",
+      "response_sha256": "d1e2655cc2617548db09f2b5dbf64985da9e9ba7fbfd8bcde9c6ab689063a48e",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 423,
+        "hit": 0,
+        "out": 68,
+        "input": 423
+      },
+      "cost": "0.00010425",
+      "rub": "0.008605691550",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.00010425",
+      "normalized_no_cache_usd": "0.00010425"
+    },
+    {
+      "campaign": "boundary_20261111_r1",
+      "number": 2,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T00:53:43.523217+00:00",
+      "received_utc": "2026-11-11T00:53:44.689178+00:00",
+      "request_sha256": "d2cddb36dc0855b9ecb6a3048e86b6ccf490782305e543177a5832a73912de43",
+      "response_sha256": "6f56c52dd16a149279738510a44b9495c1cc88cafe5025ffea87f3ffc3a9d325",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 413,
+        "hit": 1280,
+        "out": 109,
+        "input": 1693
+      },
+      "cost": "0.00013119",
+      "rub": "0.010829550834",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.00013119",
+      "normalized_no_cache_usd": "0.00031935"
+    },
+    {
+      "campaign": "boundary_20261111_r1",
+      "number": 3,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "end_turn",
+      "dispatched_utc": "2026-11-11T00:53:45.270211+00:00",
+      "received_utc": "2026-11-11T00:53:46.688639+00:00",
+      "request_sha256": "2620d175709806bc0e0a3e3669b56eb3aad13ceb5c548ee62ea489076ce45ebe",
+      "response_sha256": "b7b39fc931b7d05b017a59b20085e6b0d0fe97b4fa7fcc0f520f098316a78e37",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 175,
+        "hit": 1664,
+        "out": 59,
+        "input": 1839
+      },
+      "cost": "0.000066642",
+      "rub": "0.0055012038012",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000066642",
+      "normalized_no_cache_usd": "0.00031125"
+    },
+    {
+      "campaign": "boundary_20261111_r1",
+      "number": 4,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T00:53:48.436390+00:00",
+      "received_utc": "2026-11-11T00:53:50.860524+00:00",
+      "request_sha256": "c97e535ee21d7406aa106f06ac26b9d49ce1f4991d18e569100705aabb0fab96",
+      "response_sha256": "e62db58a8ae62dfc3881efeb13f27d7a8139b799b3a85c3c6baec65378109964",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 438,
+        "hit": 1280,
+        "out": 362,
+        "input": 1718
+      },
+      "cost": "0.00028674",
+      "rub": "0.023669985564",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.00028674",
+      "normalized_no_cache_usd": "0.0004749"
+    },
+    {
+      "campaign": "boundary_20261111_r1",
+      "number": 5,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T00:53:51.442034+00:00",
+      "received_utc": "2026-11-11T00:53:53.315267+00:00",
+      "request_sha256": "ee90a181655d73aa7949bd98a66e6c850c3e91bd0b0ed8c9e48455f23c3f0b24",
+      "response_sha256": "3b881ae4adccba981a18a719576c26da0cdd3a898688cbc6f4948b8c4aa44051",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 193,
+        "hit": 1920,
+        "out": 232,
+        "input": 2113
+      },
+      "cost": "0.00017391",
+      "rub": "0.014356027026",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.00017391",
+      "normalized_no_cache_usd": "0.00045615"
+    },
+    {
+      "campaign": "boundary_20261111_r1",
+      "number": 6,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "end_turn",
+      "dispatched_utc": "2026-11-11T00:53:53.637072+00:00",
+      "received_utc": "2026-11-11T00:53:55.507783+00:00",
+      "request_sha256": "ca2a6b413cd8efbba49a49a6e24e155918a5f5ee2d626f19577007c349dacad5",
+      "response_sha256": "5d355cb21155df20cc9541d5ead984c7c0de0583d1e009c7be0d0334a8fb7102",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 234,
+        "hit": 2176,
+        "out": 206,
+        "input": 2410
+      },
+      "cost": "0.000165228",
+      "rub": "0.0136393400808",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000165228",
+      "normalized_no_cache_usd": "0.0004851"
+    },
+    {
+      "campaign": "boundary_20261111_r1",
+      "number": 7,
+      "path": "/v1/chat/completions",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "stop",
+      "dispatched_utc": "2026-11-11T00:53:55.923921+00:00",
+      "received_utc": "2026-11-11T00:53:57.895048+00:00",
+      "request_sha256": "40e20b7d7fabc151add2de8b54cdbf7a077e1d245b496a48708490d11c0f061b",
+      "response_sha256": "449bb620def51451f41b2ed2b8cb36b8860e8c86c097c1566b310ca90b6b40ef",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 903,
+        "hit": 128,
+        "out": 280,
+        "input": 1031
+      },
+      "cost": "0.000303834",
+      "rub": "0.0250810713324",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000303834",
+      "normalized_no_cache_usd": "0.00032265"
+    },
+    {
+      "campaign": "boundary_20261111_r1",
+      "number": 8,
+      "path": "/v1/chat/completions",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "stop",
+      "dispatched_utc": "2026-11-11T00:53:57.961486+00:00",
+      "received_utc": "2026-11-11T00:54:04.444586+00:00",
+      "request_sha256": "5c7438f830427181df29a960a2eadfbc06871d674b2a79edf51f9e03256be0a6",
+      "response_sha256": "2aa6f39604e630b24d6a7325533c35d3948f175e6d0e5d7c5b687a7f6fa05e73",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 2427,
+        "hit": 1024,
+        "out": 1235,
+        "input": 3451
+      },
+      "cost": "0.001108122",
+      "rub": "0.0914739197292",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.001108122",
+      "normalized_no_cache_usd": "0.00125865"
+    },
+    {
+      "campaign": "boundary_20261111_r1",
+      "number": 9,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T00:54:05.868533+00:00",
+      "received_utc": "2026-11-11T00:54:08.223952+00:00",
+      "request_sha256": "c97e535ee21d7406aa106f06ac26b9d49ce1f4991d18e569100705aabb0fab96",
+      "response_sha256": "d3127b95bc55b4bec77e90f575c01ae2a2cfd6c5b496de13834046da2bb96cec",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 182,
+        "hit": 1536,
+        "out": 350,
+        "input": 1718
+      },
+      "cost": "0.000241908",
+      "rub": "0.0199691667288",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000241908",
+      "normalized_no_cache_usd": "0.0004677"
+    },
+    {
+      "campaign": "boundary_20261111_r1",
+      "number": 10,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "end_turn",
+      "dispatched_utc": "2026-11-11T00:54:08.867140+00:00",
+      "received_utc": "2026-11-11T00:54:10.288407+00:00",
+      "request_sha256": "7b05579a24aea8994385f39dfc355c354ad3c30d5ad4070ea714587a11529166",
+      "response_sha256": "dad5d1a121e77319af6f02a9fb60ed641a25e33259633dea5bcfe225c1dc0b0c",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 2128,
+        "hit": 2048,
+        "out": 86,
+        "input": 4176
+      },
+      "cost": "0.000376944",
+      "rub": "0.0311161994784",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000376944",
+      "normalized_no_cache_usd": "0.000678"
+    },
+    {
+      "campaign": "boundary_20261111_r1",
+      "number": 11,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T00:54:12.050007+00:00",
+      "received_utc": "2026-11-11T00:54:13.700819+00:00",
+      "request_sha256": "c97e535ee21d7406aa106f06ac26b9d49ce1f4991d18e569100705aabb0fab96",
+      "response_sha256": "5c6db5301ba05d37d4caf7641dae82d05aa657941b2d5989265baa4194bcc1c7",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 182,
+        "hit": 1536,
+        "out": 148,
+        "input": 1718
+      },
+      "cost": "0.000120708",
+      "rub": "0.0099642764088",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000120708",
+      "normalized_no_cache_usd": "0.0003465"
+    },
+    {
+      "campaign": "boundary_20261111_r1",
+      "number": 12,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T00:54:14.245507+00:00",
+      "received_utc": "2026-11-11T00:54:15.839551+00:00",
+      "request_sha256": "62369279c4911c89c64dcd8ee9f8740efee9e996e2613d374a27da137a434c9d",
+      "response_sha256": "588c5bb5bd0c457bcb659bd5bd7dfd3e129123fb4ff528ec7a910c6c48b6e868",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 766,
+        "hit": 1792,
+        "out": 224,
+        "input": 2558
+      },
+      "cost": "0.000254676",
+      "rub": "0.0210231472536",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000254676",
+      "normalized_no_cache_usd": "0.0005181"
+    },
+    {
+      "campaign": "boundary_20261111_r1",
+      "number": 13,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "end_turn",
+      "dispatched_utc": "2026-11-11T00:54:16.153688+00:00",
+      "received_utc": "2026-11-11T00:54:17.367262+00:00",
+      "request_sha256": "a0b1e49cf1f05f4f49c5475a94ea88e9a56f0e3d2f5d3a02efe23994d63db169",
+      "response_sha256": "aadb4ec0af4f3be9fd5271b045c1174d41e4500963dd0815e7d3d3deb0422ebd",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 241,
+        "hit": 2560,
+        "out": 42,
+        "input": 2801
+      },
+      "cost": "0.00006903",
+      "rub": "0.005698329858",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.00006903",
+      "normalized_no_cache_usd": "0.00044535"
+    },
+    {
+      "campaign": "boundary_20261111_r1",
+      "number": 14,
+      "path": "/v1/chat/completions",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "stop",
+      "dispatched_utc": "2026-11-11T00:54:17.796693+00:00",
+      "received_utc": "2026-11-11T00:54:42.410343+00:00",
+      "request_sha256": "dc8185a26d201de300d5dae5c648c84e57fce4246919c4be2240fd9eba816bb5",
+      "response_sha256": "4178088650efd12845dbf310a004ca40803e0332e8c8cb0fb073431fa67b5ecc",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 11802,
+        "hit": 256,
+        "out": 6533,
+        "input": 12058
+      },
+      "cost": "0.005690868",
+      "rub": "0.4697731861848",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.005690868",
+      "normalized_no_cache_usd": "0.0057285"
+    },
+    {
+      "campaign": "boundary_20261111_r1",
+      "number": 15,
+      "path": "/v1/chat/completions",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "length",
+      "dispatched_utc": "2026-11-11T00:54:42.492676+00:00",
+      "received_utc": "2026-11-11T00:55:34.290555+00:00",
+      "request_sha256": "40061448acf06c3bb4f8e7d586ce21ca2da41da1aea510c3f9e5a4931fddd5a3",
+      "response_sha256": "5a518b39de16526f6f023eda434c4068bf55feb9e86ed6beec8757a02c5b4ac7",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 34617,
+        "hit": 11776,
+        "out": 16384,
+        "input": 46393
+      },
+      "cost": "0.015058278",
+      "rub": "1.2430397673108",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.015058278",
+      "normalized_no_cache_usd": "0.01678935"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 1,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T00:58:03.882187+00:00",
+      "received_utc": "2026-11-11T00:58:05.301160+00:00",
+      "request_sha256": "c97e535ee21d7406aa106f06ac26b9d49ce1f4991d18e569100705aabb0fab96",
+      "response_sha256": "a5e2a059a0dd9157191e008b96fe307c4753edc39ebcf08a906ebf736cb8768a",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 182,
+        "hit": 1536,
+        "out": 201,
+        "input": 1718
+      },
+      "cost": "0.000152508",
+      "rub": "0.0125893218888",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000152508",
+      "normalized_no_cache_usd": "0.0003783"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 2,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T00:58:05.853049+00:00",
+      "received_utc": "2026-11-11T00:58:08.323906+00:00",
+      "request_sha256": "6e9f85cda69411564bbab0ccca6cc9fb0ed05f77171e5d48d3e558eedade3b27",
+      "response_sha256": "6a0b5b3186c90bde9c0a8b0aae0499340a9ecdf8bd0a804c8588667093abbe64",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 400,
+        "hit": 1792,
+        "out": 454,
+        "input": 2192
+      },
+      "cost": "0.000337776",
+      "rub": "0.0278829359136",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000337776",
+      "normalized_no_cache_usd": "0.0006012"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 3,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T00:58:08.802941+00:00",
+      "received_utc": "2026-11-11T00:58:11.055118+00:00",
+      "request_sha256": "6a55ebfbf89de2cb58fc076a831e51884ad9e972a2a41478acdd13e776bda494",
+      "response_sha256": "078a3ee11dee1c7e38e4cb6ce90085cb4bbb3da8686a76420b6c7098d11cd393",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 248,
+        "hit": 2432,
+        "out": 354,
+        "input": 2680
+      },
+      "cost": "0.000256896",
+      "rub": "0.0212064051456",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000256896",
+      "normalized_no_cache_usd": "0.0006144"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 4,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T00:58:11.451899+00:00",
+      "received_utc": "2026-11-11T00:58:15.877523+00:00",
+      "request_sha256": "b143d133af95c4c305359c6087141957be4e13cd570726aa377a0fb1c4bf1b65",
+      "response_sha256": "680a9416c3c6e3b10c481e4a57db0e522b7b878293b76e728090967f8849fc54",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 202,
+        "hit": 2944,
+        "out": 842,
+        "input": 3146
+      },
+      "cost": "0.000544332",
+      "rub": "0.0449338445352",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000544332",
+      "normalized_no_cache_usd": "0.0009771"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 5,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "end_turn",
+      "dispatched_utc": "2026-11-11T00:58:16.176329+00:00",
+      "received_utc": "2026-11-11T00:58:17.630520+00:00",
+      "request_sha256": "d3b6c0f74f9151a596e26f80e33674ac9040fb2fbd0356991b5ea67d00ef6d9c",
+      "response_sha256": "0d789caafd7ec72dec44c18f2f0b97896500a9ee2d9be3e889f3c25be6fcb3c2",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 236,
+        "hit": 3840,
+        "out": 126,
+        "input": 4076
+      },
+      "cost": "0.00012252",
+      "rub": "0.010113854472",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.00012252",
+      "normalized_no_cache_usd": "0.000687"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 6,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T00:58:19.224443+00:00",
+      "received_utc": "2026-11-11T00:58:20.420574+00:00",
+      "request_sha256": "56ab13a4c934ce70e0eb1068e4f33e5da4699ca055c5b3a7a283e771e9643725",
+      "response_sha256": "f9c9180a02262efc1b4d09c9a27252b786b37ba1b2a474c0024393f7369c785b",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 309,
+        "hit": 1408,
+        "out": 148,
+        "input": 1717
+      },
+      "cost": "0.000139374",
+      "rub": "0.0115051285764",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000139374",
+      "normalized_no_cache_usd": "0.00034635"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 7,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "end_turn",
+      "dispatched_utc": "2026-11-11T00:58:20.977548+00:00",
+      "received_utc": "2026-11-11T00:58:21.934197+00:00",
+      "request_sha256": "7b2dc68cc34d86aaa89a0d0120bd71844225208ccb2c94270e2286843cde5c79",
+      "response_sha256": "7c86701cec30a29d19cc49ecc61d59d4c3cd62d74e7199e3cf1cd913042a50bd",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 945,
+        "hit": 1792,
+        "out": 78,
+        "input": 2737
+      },
+      "cost": "0.000193926",
+      "rub": "0.0160083198036",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000193926",
+      "normalized_no_cache_usd": "0.00045735"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 8,
+      "path": "/v1/chat/completions",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "stop",
+      "dispatched_utc": "2026-11-11T00:58:22.325357+00:00",
+      "received_utc": "2026-11-11T00:58:24.425280+00:00",
+      "request_sha256": "a817fab12781c9a6fad0fd7d25898b6d6edb7e3658459f4d8ba37666c49ff8e8",
+      "response_sha256": "e1a329353fbd4b4bef220be534a0da9b1e9ca55164e64560e13096856bb77936",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 11691,
+        "hit": 384,
+        "out": 229,
+        "input": 12075
+      },
+      "cost": "0.001892202",
+      "rub": "0.1561986260172",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.001892202",
+      "normalized_no_cache_usd": "0.00194865"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 9,
+      "path": "/v1/chat/completions",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "stop",
+      "dispatched_utc": "2026-11-11T00:58:24.489812+00:00",
+      "received_utc": "2026-11-11T00:58:30.813879+00:00",
+      "request_sha256": "720aef0bd169bd7b1015c90da76439c07e00fc202015e6e11d8a3a5c997e9155",
+      "response_sha256": "548399dadca250955cbe1eb1f4921ca777ef9d8bd2318ae2b02c6a6bd03bd41e",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 3011,
+        "hit": 128,
+        "out": 1333,
+        "input": 3139
+      },
+      "cost": "0.001251834",
+      "rub": "0.1033371441324",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.001251834",
+      "normalized_no_cache_usd": "0.00127065"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 10,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T00:58:32.161060+00:00",
+      "received_utc": "2026-11-11T00:58:33.953370+00:00",
+      "request_sha256": "f4399e35a6d161d83947b75892b19b704adae191264f8a8e13e17ddf546d074e",
+      "response_sha256": "6a4e008e00366c1d918c5ad9d182e023bcafed0e1d6d54fe247ef6f35c5e420e",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 233,
+        "hit": 1536,
+        "out": 260,
+        "input": 1769
+      },
+      "cost": "0.000195558",
+      "rub": "0.0161430391188",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000195558",
+      "normalized_no_cache_usd": "0.00042135"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 11,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "end_turn",
+      "dispatched_utc": "2026-11-11T00:58:34.478768+00:00",
+      "received_utc": "2026-11-11T00:58:35.678615+00:00",
+      "request_sha256": "a9eb9cc9c992ce3e95d08d82c5b8a1de3d7ebbbb61ad5f005f5edfa0acc837dc",
+      "response_sha256": "577008a893f2ff26b0b52d0efa034c360c095ad6fe8088d5160111832e536706",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 183,
+        "hit": 1920,
+        "out": 127,
+        "input": 2103
+      },
+      "cost": "0.00010941",
+      "rub": "0.009031642326",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.00010941",
+      "normalized_no_cache_usd": "0.00039165"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 12,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T00:58:37.325560+00:00",
+      "received_utc": "2026-11-11T00:58:38.579931+00:00",
+      "request_sha256": "f4399e35a6d161d83947b75892b19b704adae191264f8a8e13e17ddf546d074e",
+      "response_sha256": "c19392094f199cb14cef8d6631626226284a623669576966055058daf521b29c",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 233,
+        "hit": 1536,
+        "out": 177,
+        "input": 1769
+      },
+      "cost": "0.000145758",
+      "rub": "0.0120321188388",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000145758",
+      "normalized_no_cache_usd": "0.00037155"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 13,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T00:58:39.122046+00:00",
+      "received_utc": "2026-11-11T00:58:41.004827+00:00",
+      "request_sha256": "dc6c3f58b1117e01ffefaac2170b5ba17bc5d203a113a5457d84ea90cc031024",
+      "response_sha256": "0df2d5b16ff3b308d466019b50038b988fa8a95eb7e1f1f39f3b53a0c50c3117",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 266,
+        "hit": 1920,
+        "out": 274,
+        "input": 2186
+      },
+      "cost": "0.00021006",
+      "rub": "0.017340158916",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.00021006",
+      "normalized_no_cache_usd": "0.0004923"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 14,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "end_turn",
+      "dispatched_utc": "2026-11-11T00:58:41.297082+00:00",
+      "received_utc": "2026-11-11T00:58:42.724277+00:00",
+      "request_sha256": "e78172ebbaeadd57ea8615c83c9360c6ac8164959630484736102d829e42e82c",
+      "response_sha256": "9b8251e3178b691ac02d4d94f631083079eea51c92c64f5eccdeb591c9ed8ffb",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 206,
+        "hit": 2304,
+        "out": 165,
+        "input": 2510
+      },
+      "cost": "0.000136812",
+      "rub": "0.0112936390632",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000136812",
+      "normalized_no_cache_usd": "0.0004755"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 15,
+      "path": "/v1/chat/completions",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "stop",
+      "dispatched_utc": "2026-11-11T00:58:43.282625+00:00",
+      "received_utc": "2026-11-11T00:59:03.421429+00:00",
+      "request_sha256": "a7849b09be9f13e66e9c236a0cfc5654e81c270d9d11911f9661d52f4547764e",
+      "response_sha256": "18345d51678d83b61a91f94ebd8ec84f9b72ae156c1e9893b77dee95bf8b0e46",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 10923,
+        "hit": 256,
+        "out": 5885,
+        "input": 11179
+      },
+      "cost": "0.005170218",
+      "rub": "0.4267942575948",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.005170218",
+      "normalized_no_cache_usd": "0.00520785"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 16,
+      "path": "/v1/chat/completions",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "stop",
+      "dispatched_utc": "2026-11-11T00:59:03.500592+00:00",
+      "received_utc": "2026-11-11T00:59:06.402546+00:00",
+      "request_sha256": "17beaad0532fa122268ea897f737ade6820987a120daf7bf0971352f435e9a98",
+      "response_sha256": "0697716f7a17871f3f3cbc6b209a5350c163f61b3ad568c97d0de9ca011e1064",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 582,
+        "hit": 128,
+        "out": 350,
+        "input": 710
+      },
+      "cost": "0.000297684",
+      "rub": "0.0245733974424",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000297684",
+      "normalized_no_cache_usd": "0.0003165"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 17,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T00:59:07.724526+00:00",
+      "received_utc": "2026-11-11T00:59:09.382184+00:00",
+      "request_sha256": "b93fcc9d61fdf56c5f202ed738af52f96034122f3871e8b8a1be0a84b2ceffd1",
+      "response_sha256": "50b1c69117702690d616c09bbb1f8f282ab0088053ee29a80c48655fdf3635fd",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 427,
+        "hit": 1280,
+        "out": 111,
+        "input": 1707
+      },
+      "cost": "0.00013449",
+      "rub": "0.011101961214",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.00013449",
+      "normalized_no_cache_usd": "0.00032265"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 18,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "end_turn",
+      "dispatched_utc": "2026-11-11T00:59:09.977414+00:00",
+      "received_utc": "2026-11-11T00:59:11.735528+00:00",
+      "request_sha256": "f6e4116f2f0a3e8b20022c9a2289529fc6603f48a63efaa53f37f39e38894701",
+      "response_sha256": "77d1ea17baf49bd84b03f442d3d6d361a92f4efa3280a9763c4203bb26f2e1a2",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 338,
+        "hit": 1792,
+        "out": 156,
+        "input": 2130
+      },
+      "cost": "0.000149676",
+      "rub": "0.0123555442536",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000149676",
+      "normalized_no_cache_usd": "0.0004131"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 19,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T00:59:13.523284+00:00",
+      "received_utc": "2026-11-11T00:59:14.697560+00:00",
+      "request_sha256": "b93fcc9d61fdf56c5f202ed738af52f96034122f3871e8b8a1be0a84b2ceffd1",
+      "response_sha256": "662d7c38c240e19315bcfdbbba6f358dca610b26014e4df9f0a381d4728bc18b",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 171,
+        "hit": 1536,
+        "out": 105,
+        "input": 1707
+      },
+      "cost": "0.000093258",
+      "rub": "0.0076983173388",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000093258",
+      "normalized_no_cache_usd": "0.00031905"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 20,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T00:59:15.266702+00:00",
+      "received_utc": "2026-11-11T00:59:16.810329+00:00",
+      "request_sha256": "e79944cb4520b9d9a4ba020dcb32540c5e1ccd0ac643c5dbd72addb21b4ffba6",
+      "response_sha256": "ca80adee66df8209b352266316ae3460d4871e19b95221ea51bb8f6ba24be545",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 1795,
+        "hit": 1792,
+        "out": 128,
+        "input": 3587
+      },
+      "cost": "0.000351426",
+      "rub": "0.0290097243036",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000351426",
+      "normalized_no_cache_usd": "0.00061485"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 21,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "end_turn",
+      "dispatched_utc": "2026-11-11T00:59:17.076838+00:00",
+      "received_utc": "2026-11-11T00:59:18.570433+00:00",
+      "request_sha256": "b2258f6d77f9a14c5300557d301496b27ce3d587260a1b80ffe9c47b1b335127",
+      "response_sha256": "7ec5a0cba9652b704afb3cc4adc66a25fee5bf77039197dfb2ef9031e11115dd",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 150,
+        "hit": 3712,
+        "out": 148,
+        "input": 3862
+      },
+      "cost": "0.000122436",
+      "rub": "0.0101069203896",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000122436",
+      "normalized_no_cache_usd": "0.0006681"
+    },
+    {
+      "campaign": "boundary_20261111_r2",
+      "number": 22,
+      "path": "/v1/chat/completions",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "stop",
+      "dispatched_utc": "2026-11-11T00:59:19.057140+00:00",
+      "received_utc": "2026-11-11T00:59:22.212648+00:00",
+      "request_sha256": "528852c4268eb53dba91edd2742c204f3f27138aaf474d992836cebc5ea3daa6",
+      "response_sha256": "1b7b55c93fdcae2bf351e64c435e8d5c7c40ffcd624274a7ffcdb3cdedc0c663",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 2206,
+        "hit": 640,
+        "out": 356,
+        "input": 2846
+      },
+      "cost": "0.00054642",
+      "rub": "0.045106206012",
+      "band": "off_peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.00054642",
+      "normalized_no_cache_usd": "0.0006405"
+    },
+    {
+      "campaign": "boundary_20261111_r3",
+      "number": 1,
+      "path": "/v1/chat/completions",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "stop",
+      "dispatched_utc": "2026-11-11T01:00:56.719798+00:00",
+      "received_utc": "2026-11-11T01:00:59.879704+00:00",
+      "request_sha256": "cd7f2d29b1360933ee1e44e0a795ef9f6bd548cf7d831e6678c98b05e1a6e57c",
+      "response_sha256": "2d1116811e6b5785242ae86c70486425f076a66ae3cd64241b4732938fe3ee8f",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 1353,
+        "hit": 256,
+        "out": 466,
+        "input": 1609
+      },
+      "cost": "0.000966636",
+      "rub": "0.0797944485096",
+      "band": "peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000483318",
+      "normalized_no_cache_usd": "0.00052095"
+    },
+    {
+      "campaign": "boundary_20261111_r3",
+      "number": 2,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T01:01:01.182106+00:00",
+      "received_utc": "2026-11-11T01:01:03.828515+00:00",
+      "request_sha256": "c97e535ee21d7406aa106f06ac26b9d49ce1f4991d18e569100705aabb0fab96",
+      "response_sha256": "018eae4e5127a48e134d1d8c9b6261b0a7fabf5774220e5091abfa6fa195cca9",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 182,
+        "hit": 1536,
+        "out": 361,
+        "input": 1718
+      },
+      "cost": "0.000497016",
+      "rub": "0.0410279749776",
+      "band": "peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000248508",
+      "normalized_no_cache_usd": "0.0004743"
+    },
+    {
+      "campaign": "boundary_20261111_r3",
+      "number": 3,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "end_turn",
+      "dispatched_utc": "2026-11-11T01:01:04.422793+00:00",
+      "received_utc": "2026-11-11T01:01:05.977748+00:00",
+      "request_sha256": "a3a9ffdfba84884d4d270ea72d5192cbc7aa2022820c6a2c1baeb8591cba6004",
+      "response_sha256": "c4fbb3cc47c3f450afa3dee9c5e4293234eac421cea7147fc12f60fe876d8e11",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 382,
+        "hit": 2048,
+        "out": 50,
+        "input": 2430
+      },
+      "cost": "0.000186888",
+      "rub": "0.0154273427568",
+      "band": "peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000093444",
+      "normalized_no_cache_usd": "0.0003945"
+    },
+    {
+      "campaign": "boundary_20261111_r3",
+      "number": 4,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T01:01:07.588232+00:00",
+      "received_utc": "2026-11-11T01:01:09.421806+00:00",
+      "request_sha256": "c97e535ee21d7406aa106f06ac26b9d49ce1f4991d18e569100705aabb0fab96",
+      "response_sha256": "df222e0a72a41a59a637c13debaf92682c89cf35b764dad0146638f00372e3c6",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 182,
+        "hit": 1536,
+        "out": 165,
+        "input": 1718
+      },
+      "cost": "0.000261816",
+      "rub": "0.0216125442576",
+      "band": "peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000130908",
+      "normalized_no_cache_usd": "0.0003567"
+    },
+    {
+      "campaign": "boundary_20261111_r3",
+      "number": 5,
+      "path": "/v1/messages",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "end_turn",
+      "dispatched_utc": "2026-11-11T01:01:09.884432+00:00",
+      "received_utc": "2026-11-11T01:01:11.300345+00:00",
+      "request_sha256": "7e338e2ffee2163449c6f0881dc5cd5416c9d4ed0f964cee5633c7742dbb150d",
+      "response_sha256": "a1ed697bb9f2fda9dcaa347ab9d9b70dbd8fa139575bbb48439da17e4e5caa4c",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 240,
+        "hit": 1664,
+        "out": 37,
+        "input": 1904
+      },
+      "cost": "0.000126384",
+      "rub": "0.0104328222624",
+      "band": "peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000063192",
+      "normalized_no_cache_usd": "0.0003078"
+    },
+    {
+      "campaign": "boundary_20261111_r3",
+      "number": 6,
+      "path": "/v1/chat/completions",
+      "http": 200,
+      "status": "COMPLETED",
+      "response_complete": true,
+      "finish_reason": "stop",
+      "dispatched_utc": "2026-11-11T01:01:11.662403+00:00",
+      "received_utc": "2026-11-11T01:01:15.390258+00:00",
+      "request_sha256": "1126cd160b73178f85de05bdd67d6492c7dac7985e654822cc0b6db1af174080",
+      "response_sha256": "a26acc3a9a9d13c5fb78d8085cc85d5a07453641fb60d306e0956cbe636e0bdc",
+      "sent_attempt": true,
+      "tokens": {
+        "miss": 676,
+        "hit": 1536,
+        "out": 547,
+        "input": 2212
+      },
+      "cost": "0.000868416",
+      "rub": "0.0716865250176",
+      "band": "peak",
+      "boundary_ambiguous": false,
+      "normalized_usd": "0.000434208",
+      "normalized_no_cache_usd": "0.00066"
+    }
+  ],
+  "price_basis": "provider_usage_times_dated_rates_not_invoice",
+  "fx_rub_per_usd": "82.5486",
+  "comparison_rates_usd_per_million": {
+    "miss": ".15",
+    "hit": ".003",
+    "out": ".60"
+  },
+  "production_integration": false,
+  "station_calls": 0,
+  "marketplace_calls": 0,
+  "selector_calls": 0,
+  "production_writes": 0,
+  "source_audit": {
+    "gateway_sha256": "89e48c88f9333f7a49873437c9616be84bb85e6056ea3b8da4b4abe037f29713",
+    "offline_accounting_tests": 11,
+    "scope": "ISOLATED_LAB_ONLY",
+    "server_smoke": "PASS_smoke-011529_0_paid",
+    "production_settings_unchanged": true,
+    "jobs_remaining": 0,
+    "nft_table_absent": true
+  },
+  "actual_model_calls": 43,
+  "actual_new_cost_rub": "3.2700850282188",
+  "historical_calls": 22,
+  "historical_cost_rub": "2.5558801890336",
+  "cumulative_calls": 65,
+  "cumulative_cost_rub": "5.8259652172524",
+  "all_new_raw_receipts_reparsed": true,
+  "missing_usage": 0,
+  "tariff_boundary_ambiguities": 0,
+  "complete_method_runs": 23,
+  "incomplete_method_runs": 1,
+  "actual_bands": {
+    "off_peak": 37,
+    "peak": 6
+  },
+  "independent_review": {
+    "financial": "PASS_43_RAW_RECEIPTS_86_HASHES",
+    "arithmetic": "PASS_COMPLETED_NUMERIC_ANSWERS",
+    "meaning": "PASS_LAST_RARE_REVIEW_INCLUDED",
+    "speech": "MINOR_ISSUES_NO_STATION_ACCEPTANCE",
+    "historical": "22_STORED_RECEIPTS_VERIFIED_RAW_UNAVAILABLE"
+  },
+  "critical_observation": {
+    "case": "sum_800_811",
+    "intermediate_zero": true,
+    "skipped_eligible_rows": 548,
+    "tool_is_error": false,
+    "model_self_corrected": true,
+    "automatic_wrong_zero_guard": false
+  },
+  "proposed_threshold": {
+    "encoded_characters": 20000,
+    "applies_to": "verified numerical calculation or lookup templates",
+    "measured_break_even": false,
+    "installed": false
+  }
+}

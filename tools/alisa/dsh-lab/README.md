@@ -163,3 +163,25 @@ Official references:
 - https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.1-rc.2/packages/bundle/sdk-minimal/README.md
 - https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.1-rc.2/packages/core/tools/README.md
 - https://api-docs.deepseek.com/guides/anthropic_api/
+
+## Document/program boundary study, 11 November
+
+The finite synthetic study is in `boundary_research/` in the repository. Its
+operator deployment is outside worker mounts at
+`/var/lib/alisa-dsh-lab/research_20261111` (root0700), not under this runtime.
+It used43 provider calls across12 paired scenarios, including one direct
+output-limit failure. See
+`docs/alisa/quality/DOCUMENT_PROGRAM_BOUNDARY_2026-11-11.md` and its JSON receipts.
+
+Only the reviewed receipt-handling improvements in qa_gateway.py were added
+to this lab runtime. Token-count completeness and response completion are now
+separate; multiline/partial SSE and malformed envelopes are handled explicitly.
+Optional raw captures are private QA evidence; archive failure does not erase
+known billing counters. Unknown counts are not a zero-cost completion.
+Eleven offline accounting tests and the native synthetic smoke passed.
+
+No size-based production routing or automatic wrong-zero detector was added.
+The model-written800-row program temporarily skipped548 rows and returned zero
+without a tool error; the model then corrected it. This remains a quality risk,
+not a proven runtime guarantee. Production usage accounting still requires a
+per-Harness-call adapter before this lab can be integrated with voice traffic.
