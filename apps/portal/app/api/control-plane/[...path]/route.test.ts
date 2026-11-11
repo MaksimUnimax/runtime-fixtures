@@ -43,6 +43,23 @@ describe("ACW1 connected GET proxy DATA", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);expect(spy).toHaveBeenCalledTimes(1);
     expect(spy.mock.calls[0]?.[0]).toBe("issue");expect(spy.mock.calls[0]?.[3]).toEqual({accountId:id});
   });
+  it.each(["search", "method"])("captures available %s before deferred params", async (field) => {
+    vi.stubEnv("CONTROL_PLANE_API_ORIGIN", "https://upstream.invalid");
+    const fetcher = vi.fn(async () => upstream(new TextEncoder().encode(JSON.stringify(permit))));
+    vi.stubGlobal("fetch", fetcher);
+    const pendingRequest = { method: "GET", nextUrl: { search: "?action=issue" }, headers: new Headers() };
+    let resolve!: (value: { path: string[] }) => void;
+    const params = new Promise<{ path: string[] }>((done) => { resolve = done; });
+    const pending = GET(pendingRequest as unknown as NextRequest, { params });
+    if (field === "search") pendingRequest.nextUrl.search = "?action=rotate";
+    else pendingRequest.method = "POST";
+    resolve({ path: ["v1", "accounts", id, "connection-code"] });
+    expect((await pending).status).toBe(200);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    const [target, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
+    expect(target).toBe(`https://upstream.invalid/v1/accounts/${id}/connection-code?action=issue`);
+    expect(init.method).toBe("GET");
+  });
   it.each(["", "?action=issue&action=rotate", "?action=issue&debug=x"])("rejects query before upstream %s",async(query)=>{
     vi.stubEnv("CONTROL_PLANE_API_ORIGIN","https://upstream.invalid");const f=vi.fn();vi.stubGlobal("fetch",f);
     const r=await GET(request(query),context());expect(r.status).toBe(404);expect(r.headers.get("cache-control")).toBe("no-store");expect(f).not.toHaveBeenCalled();

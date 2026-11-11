@@ -49,9 +49,10 @@ async function proxy(
   request: NextRequest,
   context: { params: Promise<{ path: string[] }> },
 ) {
+  // Available request intent is fixed before params can suspend this handler.
+  const method = request.method, search = request.nextUrl.search;
   const { path } = await context.params,
     pathname = `/${path.join("/")}`;
-  const method = request.method, search = request.nextUrl.search;
   // Capture expected context before upstream await; never adopt response fields.
   const read = accountCodeReadIntent(method, pathname, search);
   const accountCodeTarget = /^\/v1\/accounts\/[^/]+\/connection-code(?:\/|$)/.test(pathname)
