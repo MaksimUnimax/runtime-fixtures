@@ -1,0 +1,166 @@
+{
+  "campaign": "full_cost_20261111_control",
+  "attempts": [
+    {
+      "campaign": "full_cost_20261111_control",
+      "number": 1,
+      "stage": "selector",
+      "path": "/v1/chat/completions",
+      "status": "COMPLETED",
+      "finish_reason": "stop",
+      "dispatched_utc": "2026-11-11T02:05:45.410442+00:00",
+      "request_sha256": "dc1ec52832a46fb2873bf4d0a0844dd808e7d06d5e1d8d49a972a44121a4e687",
+      "response_sha256": "f107b533e7a67612b7b1a102a20758817fba78382f0d704aff53b99b6abfe23f",
+      "client_request_sha256": "dc1ec52832a46fb2873bf4d0a0844dd808e7d06d5e1d8d49a972a44121a4e687",
+      "cache_namespace_sha256": "20624956b6608882db47edccca7a2f8197bf0213ac53e9bcbd93188edd1650cc",
+      "removed_client_max_tokens": null,
+      "rub": "0.26805181392",
+      "usd": "0.0032472",
+      "band": "peak",
+      "tokens": {
+        "miss": 10360,
+        "hit": 0,
+        "out": 116,
+        "input": 10360
+      }
+    },
+    {
+      "campaign": "full_cost_20261111_control",
+      "number": 2,
+      "stage": "answer",
+      "path": "/v1/chat/completions",
+      "status": "COMPLETED",
+      "finish_reason": "stop",
+      "dispatched_utc": "2026-11-11T02:05:47.491007+00:00",
+      "request_sha256": "e84cebda651b600103d381884bc1d244085e7237ae1ee5457c2bb06280b67b1c",
+      "response_sha256": "4266ab8dde16112212142f6be26a09c7e366c75ca9781610301d61978d5127d0",
+      "client_request_sha256": "3165e392e6f1e8921524cf24042c16a3d1139d96865e907bc68658abf10aeab3",
+      "cache_namespace_sha256": "20624956b6608882db47edccca7a2f8197bf0213ac53e9bcbd93188edd1650cc",
+      "removed_client_max_tokens": null,
+      "rub": "3.61379610108",
+      "usd": "0.0437778",
+      "band": "peak",
+      "tokens": {
+        "miss": 46218,
+        "hit": 0,
+        "out": 24927,
+        "input": 46218
+      }
+    },
+    {
+      "campaign": "full_cost_20261111_control",
+      "number": 3,
+      "stage": "selector",
+      "path": "/v1/chat/completions",
+      "status": "COMPLETED",
+      "finish_reason": "stop",
+      "dispatched_utc": "2026-11-11T02:07:06.335734+00:00",
+      "request_sha256": "2b7e98a045b139d810ec4aef2bb778281ed73850d1207cbb5cefc9037c218ede",
+      "response_sha256": "7f4feb80c24edf2a84e5e34d0802a02bafc325fdbd9934df2ddd738e315530ec",
+      "client_request_sha256": "2b7e98a045b139d810ec4aef2bb778281ed73850d1207cbb5cefc9037c218ede",
+      "cache_namespace_sha256": "72fc67b447b67d6f26d3d0b3add248de943ed879cc1ae8ad4c431259e7e833b9",
+      "removed_client_max_tokens": null,
+      "rub": "0.26805181392",
+      "usd": "0.0032472",
+      "band": "peak",
+      "tokens": {
+        "miss": 10360,
+        "hit": 0,
+        "out": 116,
+        "input": 10360
+      }
+    },
+    {
+      "campaign": "full_cost_20261111_control",
+      "number": 4,
+      "stage": "answer",
+      "path": "/v1/messages",
+      "status": "COMPLETED",
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T02:07:09.666699+00:00",
+      "request_sha256": "7a2c352e8ac767a192cd5ed5fe7629e8a526908dfac80802aea15ef4152f84c6",
+      "response_sha256": "7b56b237b803f04c2152f5b6ef85e8af95a4ebb9aab52834564cfd31a696a62b",
+      "client_request_sha256": "b44f0d46137215a41cd1582b4e5487420383af139be9c79266e0c4b3eb08d10b",
+      "cache_namespace_sha256": "72fc67b447b67d6f26d3d0b3add248de943ed879cc1ae8ad4c431259e7e833b9",
+      "removed_client_max_tokens": 256000,
+      "rub": "0.0490338684",
+      "usd": "0.000594",
+      "band": "peak",
+      "tokens": {
+        "miss": 1544,
+        "hit": 0,
+        "out": 109,
+        "input": 1544
+      }
+    },
+    {
+      "campaign": "full_cost_20261111_control",
+      "number": 5,
+      "stage": "answer",
+      "path": "/v1/messages",
+      "status": "COMPLETED",
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T02:07:11.549446+00:00",
+      "request_sha256": "05ed7b449979764ed99dda1bb7eff1233ec77dd037c1bf15ac7cbeead23537d0",
+      "response_sha256": "123d7eb0a991307d5fdf8fa11df379bdfa63210a519cd14c2687497d0ae00d07",
+      "client_request_sha256": "6357dd5f6ef464be411510b781c03f619887774232af8fbb7ff25677e9a1f496",
+      "cache_namespace_sha256": "72fc67b447b67d6f26d3d0b3add248de943ed879cc1ae8ad4c431259e7e833b9",
+      "removed_client_max_tokens": 256000,
+      "rub": "0.0761936785776",
+      "usd": "0.000923016",
+      "band": "peak",
+      "tokens": {
+        "miss": 446,
+        "hit": 1536,
+        "out": 650,
+        "input": 1982
+      }
+    },
+    {
+      "campaign": "full_cost_20261111_control",
+      "number": 6,
+      "stage": "answer",
+      "path": "/v1/messages",
+      "status": "COMPLETED",
+      "finish_reason": "tool_use",
+      "dispatched_utc": "2026-11-11T02:07:15.857331+00:00",
+      "request_sha256": "6be6b13347f72aa3a57c64694a46b53488f23a24748a70d4eb3be878c2760531",
+      "response_sha256": "9139a33f464238fb1ae1f48808ac40e8d78422bb8e40b75d3a2436aebd340957",
+      "client_request_sha256": "1f9b312138c0620b9409ab6aebe91273e6d9fa55b28e79fb9b741b6561d9ff62",
+      "cache_namespace_sha256": "72fc67b447b67d6f26d3d0b3add248de943ed879cc1ae8ad4c431259e7e833b9",
+      "removed_client_max_tokens": 256000,
+      "rub": "0.044209728216",
+      "usd": "0.00053556",
+      "band": "peak",
+      "tokens": {
+        "miss": 194,
+        "hit": 2560,
+        "out": 385,
+        "input": 2754
+      }
+    },
+    {
+      "campaign": "full_cost_20261111_control",
+      "number": 7,
+      "stage": "answer",
+      "path": "/v1/messages",
+      "status": "COMPLETED",
+      "finish_reason": "end_turn",
+      "dispatched_utc": "2026-11-11T02:07:19.602155+00:00",
+      "request_sha256": "ae45fe580667828694f43bf29965dccbc6bb6d217826ca0f008055468998ab7d",
+      "response_sha256": "5b04a45ed721f4cb8bf91b7dd87323758c21fa95a4603c3a9c01d327d364eae2",
+      "client_request_sha256": "e9f2e8200e7e93187f9b3e4a85cb55929d4b5fe8ec2492e8de47d55525e67ddc",
+      "cache_namespace_sha256": "72fc67b447b67d6f26d3d0b3add248de943ed879cc1ae8ad4c431259e7e833b9",
+      "removed_client_max_tokens": 256000,
+      "rub": "0.0200206770552",
+      "usd": "0.000242532",
+      "band": "peak",
+      "tokens": {
+        "miss": 135,
+        "hit": 3072,
+        "out": 153,
+        "input": 3207
+      }
+    }
+  ]
+}

@@ -1,0 +1,3018 @@
+{
+  "campaigns": [
+    "full_cost_20261111_control",
+    "full_cost_20261111_grid",
+    "full_cost_20261111_confirm50"
+  ],
+  "cases": [
+    {
+      "name": "sum_800_811",
+      "rows": 800,
+      "kind": "arithmetic",
+      "question": "Сколько составили расходы на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "24898.30",
+        "currency": "RUB"
+      },
+      "cache_sequence": "c800_v1",
+      "cache_phase": "first",
+      "input_characters": 152315,
+      "input_bytes": 225091,
+      "input_sha256": "176ff1d6cb219f2fd4678c5572762f559881a4a317815a36a06c0aadcf2b50e9",
+      "methods": {
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 80.915,
+          "selector_seconds": 2.068,
+          "answer_seconds": 78.847,
+          "answer": "Расходы на логистику Вайлдберриз за восьмое ноября составили двадцать четыре тысячи восемьсот девяносто восемь рублей тридцать копеек.",
+          "selection_correct": true,
+          "packing_used": true,
+          "encoded_data_characters": 126424,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "3.88184791500",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "3.61379610108",
+          "tokens": {
+            "input": 56578,
+            "miss": 56578,
+            "hit": 0,
+            "out": 25043
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 46218,
+            "hit": 0,
+            "out": 24927,
+            "input": 46218
+          },
+          "attempt_numbers": [
+            1,
+            2
+          ],
+          "campaign": "full_cost_20261111_control",
+          "cache_namespace_sha256": "20624956b6608882db47edccca7a2f8197bf0213ac53e9bcbd93188edd1650cc",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "24898.3"
+            ],
+            "expected": "24898.30"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 15.617,
+          "selector_seconds": 1.926,
+          "answer_seconds": 13.691,
+          "answer": "За восьмое ноября ноль ноль... точнее — восьмого ноября две тысячи двадцать шестого года расходы на логистику Вайлдберриз составили двадцать четыре тысячи восемьсот девяносто восемь рублей тридцать копеек.\n\nЭто сумма по пятистам сорока восьми строкам с услугой «логистика» за указанный день, причём тридцать из них были отрицательными (возвраты и корректировки) и учтены со знаком минус. Валюта — российский рубль.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 5,
+          "rub": "0.4575097661688",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.1894579522488",
+          "tokens": {
+            "input": 19847,
+            "miss": 12679,
+            "hit": 7168,
+            "out": 1413
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 1544,
+            "hit": 0,
+            "out": 109,
+            "input": 1544
+          },
+          "attempt_numbers": [
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "campaign": "full_cost_20261111_control",
+          "cache_namespace_sha256": "72fc67b447b67d6f26d3d0b3add248de943ed879cc1ae8ad4c431259e7e833b9",
+          "tool_calls": 3,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "24898.3"
+            ],
+            "expected": "24898.30"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "88.21412440191387559808612440"
+    },
+    {
+      "name": "sum_10_61020",
+      "rows": 10,
+      "kind": "arithmetic",
+      "question": "Сколько составили расходы на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "388.92",
+        "currency": "RUB"
+      },
+      "cache_sequence": "g_0_10",
+      "cache_phase": "first",
+      "input_characters": 1904,
+      "input_bytes": 2806,
+      "input_sha256": "7c1718962c068b5f3cebf28ba6809fc6fd5b956bac48bf0e5b0a3952f8876e84",
+      "methods": {
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 5.093,
+          "selector_seconds": 1.529,
+          "answer_seconds": 3.564,
+          "answer": "Расходы на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составили триста восемьдесят восемь рублей девяносто две копейки.",
+          "selection_correct": true,
+          "packing_used": false,
+          "encoded_data_characters": 1933,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.33942333348",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.07137151956",
+          "tokens": {
+            "input": 11210,
+            "miss": 11210,
+            "hit": 0,
+            "out": 624
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 850,
+            "hit": 0,
+            "out": 508,
+            "input": 850
+          },
+          "attempt_numbers": [
+            1,
+            2
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "345dab9b33838f544d1fda318bc47b9f72e6ecb580cb5516eefb17031a8de4c7",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "388.92"
+            ],
+            "expected": "388.92"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 16.379,
+          "selector_seconds": 1.931,
+          "answer_seconds": 14.448,
+          "answer": "Расходы на логистику Вайлдберриз за восьмое ноября составили триста восемьдесят восемь рублей девяносто две копейки.\n\nИтог получен суммированием семи строк с услугой «логистика» за этот день (87.9 + 46.89 + 31.23 + 50.07 + 15.53 + 66.96 + 90.34), расчёт вёлся в копейках без промежуточных округлений.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 6,
+          "rub": "0.4941246929904",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.2260728790704",
+          "tokens": {
+            "input": 22066,
+            "miss": 12722,
+            "hit": 9344,
+            "out": 1761
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 1544,
+            "hit": 0,
+            "out": 291,
+            "input": 1544
+          },
+          "attempt_numbers": [
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "98ddec1a435b123a3984d2b3347aef644ed872a12941d840e61c06e91d00a0e2",
+          "tool_calls": 4,
+          "tool_errors": 2,
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "388.92"
+            ],
+            "expected": "388.92"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "-45.57770319568072377061141106"
+    },
+    {
+      "name": "sum_10_61021",
+      "rows": 10,
+      "kind": "arithmetic",
+      "question": "Какова сумма расходов на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "367.37",
+        "currency": "RUB"
+      },
+      "cache_sequence": "g_0_10",
+      "cache_phase": "next",
+      "input_characters": 1906,
+      "input_bytes": 2809,
+      "input_sha256": "e6f1255a62e18ef767c2c2deaf8ee0cbc2130bef97870bf81da73f4748bc5de7",
+      "methods": {
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 9.46,
+          "selector_seconds": 1.641,
+          "answer_seconds": 7.818,
+          "answer": "За восьмое ноября две тысячи двадцать шестого года сумма расходов на логистику Вайлдберриз составила триста шестьдесят семь рублей тридцать семь копеек.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 4,
+          "rub": "0.1289174693976",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.0843828298920",
+          "tokens": {
+            "input": 16367,
+            "miss": 2031,
+            "hit": 14336,
+            "out": 722
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 390,
+            "hit": 1152,
+            "out": 172,
+            "input": 1542
+          },
+          "attempt_numbers": [
+            9,
+            10,
+            11,
+            12
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "98ddec1a435b123a3984d2b3347aef644ed872a12941d840e61c06e91d00a0e2",
+          "tool_calls": 2,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "367.37"
+            ],
+            "expected": "367.37"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 5.131,
+          "selector_seconds": 1.335,
+          "answer_seconds": 3.796,
+          "answer": "Сумма расходов на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составила триста шестьдесят семь рублей тридцать семь копеек.",
+          "selection_correct": true,
+          "packing_used": false,
+          "encoded_data_characters": 1935,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.1356682939056",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.0911336544",
+          "tokens": {
+            "input": 11210,
+            "miss": 1994,
+            "hit": 9216,
+            "out": 825
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 852,
+            "hit": 0,
+            "out": 707,
+            "input": 852
+          },
+          "attempt_numbers": [
+            13,
+            14
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "345dab9b33838f544d1fda318bc47b9f72e6ecb580cb5516eefb17031a8de4c7",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "367.37"
+            ],
+            "expected": "367.37"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "4.975978037062457103637611531"
+    },
+    {
+      "name": "sum_30_61060",
+      "rows": 30,
+      "kind": "arithmetic",
+      "question": "Сколько составили расходы на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "1196.81",
+        "currency": "RUB"
+      },
+      "cache_sequence": "g_0_30",
+      "cache_phase": "first",
+      "input_characters": 5702,
+      "input_bytes": 8437,
+      "input_sha256": "b3ba0701f0fdc07ea90f76f1c2d8834147550935fc4a07b6ca384fb3ad6e290e",
+      "methods": {
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 6.701,
+          "selector_seconds": 1.699,
+          "answer_seconds": 5.002,
+          "answer": "Расходы на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составили одна тысяча сто девяносто шесть рублей восемьдесят одна копейка.",
+          "selection_correct": true,
+          "packing_used": false,
+          "encoded_data_characters": 5731,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.41812516872",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.1500733548",
+          "tokens": {
+            "input": 12456,
+            "miss": 12456,
+            "hit": 0,
+            "out": 1107
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 2096,
+            "hit": 0,
+            "out": 991,
+            "input": 2096
+          },
+          "attempt_numbers": [
+            15,
+            16
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "e08db622d95b41816e94375c2fcca035f38be3a615c0547ca40d623d17a6e90c",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1196.81"
+            ],
+            "expected": "1196.81"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 9.116,
+          "selector_seconds": 1.454,
+          "answer_seconds": 7.662,
+          "answer": "Расходы на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составили тысячу сто девяносто шесть рублей восемьдесят одну копейку.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 4,
+          "rub": "0.3833398490688",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.1152880351488",
+          "tokens": {
+            "input": 16460,
+            "miss": 12492,
+            "hit": 3968,
+            "out": 727
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 1544,
+            "hit": 0,
+            "out": 202,
+            "input": 1544
+          },
+          "attempt_numbers": [
+            17,
+            18,
+            19,
+            20
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "415e7dc7c7cd89a8a8f73f4db26396e6e7ba2598ee2fd1e35b71f7ca735c3f53",
+          "tool_calls": 2,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1196.81"
+            ],
+            "expected": "1196.81"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "8.319355602937692489931295901"
+    },
+    {
+      "name": "sum_30_61061",
+      "rows": 30,
+      "kind": "arithmetic",
+      "question": "Какова сумма расходов на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "937.76",
+        "currency": "RUB"
+      },
+      "cache_sequence": "g_0_30",
+      "cache_phase": "next",
+      "input_characters": 5701,
+      "input_bytes": 8428,
+      "input_sha256": "34028e68cd4a1c556c64714a502b04fbef4b7cfea3c77e300310189f113aec23",
+      "methods": {
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 9.424,
+          "selector_seconds": 1.736,
+          "answer_seconds": 7.688,
+          "answer": "Сумма расходов на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составила девятьсот тридцать семь рублей семьдесят шесть копеек.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 4,
+          "rub": "0.1276544758176",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.0831198363120",
+          "tokens": {
+            "input": 16480,
+            "miss": 2144,
+            "hit": 14336,
+            "out": 681
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 390,
+            "hit": 1152,
+            "out": 194,
+            "input": 1542
+          },
+          "attempt_numbers": [
+            21,
+            22,
+            23,
+            24
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "415e7dc7c7cd89a8a8f73f4db26396e6e7ba2598ee2fd1e35b71f7ca735c3f53",
+          "tool_calls": 2,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "937.76"
+            ],
+            "expected": "937.76"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 7.326,
+          "selector_seconds": 1.422,
+          "answer_seconds": 5.904,
+          "answer": "Сумма расходов на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составила девятьсот тридцать семь рублей семьдесят шесть копеек.",
+          "selection_correct": true,
+          "packing_used": false,
+          "encoded_data_characters": 5730,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.2127109022856",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.16817626278",
+          "tokens": {
+            "input": 12381,
+            "miss": 3165,
+            "hit": 9216,
+            "out": 1310
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 2023,
+            "hit": 0,
+            "out": 1192,
+            "input": 2023
+          },
+          "attempt_numbers": [
+            25,
+            26
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "e08db622d95b41816e94375c2fcca035f38be3a615c0547ca40d623d17a6e90c",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "937.76"
+            ],
+            "expected": "937.76"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "39.98686741208850060307451579"
+    },
+    {
+      "name": "sum_100_61200",
+      "rows": 100,
+      "kind": "arithmetic",
+      "question": "Сколько составили расходы на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "3328.14",
+        "currency": "RUB"
+      },
+      "cache_sequence": "g_0_100",
+      "cache_phase": "first",
+      "input_characters": 18958,
+      "input_bytes": 28050,
+      "input_sha256": "e6fd57c620c738c69702d961df256447e0ea071601b88a599a703e8c7f8ea03c",
+      "methods": {
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 16.118,
+          "selector_seconds": 1.242,
+          "answer_seconds": 14.875,
+          "answer": "Расходы на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составили три тысячи триста двадцать восемь рублей четырнадцать копеек.",
+          "selection_correct": true,
+          "packing_used": true,
+          "encoded_data_characters": 16167,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.78387325074",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.51582143682",
+          "tokens": {
+            "input": 16477,
+            "miss": 16477,
+            "hit": 0,
+            "out": 3794
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 6117,
+            "hit": 0,
+            "out": 3678,
+            "input": 6117
+          },
+          "attempt_numbers": [
+            27,
+            28
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "390933f70407e194cd7ff07ede7b39457c5a583ad9136953638ed1c34f7cce08",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "3328.14"
+            ],
+            "expected": "3328.14"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 12.095,
+          "selector_seconds": 1.235,
+          "answer_seconds": 10.859,
+          "answer": "Расходы на логистику Вайлдберриз за восьмое ноября составили три тысячи триста двадцать восемь рублей четырнадцать копеек. Эта сумма сложена из шестидесяти восьми операций за указанный день.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 5,
+          "rub": "0.4318368213744",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.1637850074544",
+          "tokens": {
+            "input": 19506,
+            "miss": 12722,
+            "hit": 6784,
+            "out": 1145
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 1544,
+            "hit": 0,
+            "out": 213,
+            "input": 1544
+          },
+          "attempt_numbers": [
+            29,
+            30,
+            31,
+            32,
+            33
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "ce931c3649f7ac0813a553ceeff07fc18c46b836c4267e615f2e4b6ed620921f",
+          "tool_calls": 3,
+          "tool_errors": 1,
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "3328.14"
+            ],
+            "expected": "3328.14"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "44.90986636337787887404037532"
+    },
+    {
+      "name": "sum_100_61201",
+      "rows": 100,
+      "kind": "arithmetic",
+      "question": "Какова сумма расходов на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "3154.83",
+        "currency": "RUB"
+      },
+      "cache_sequence": "g_0_100",
+      "cache_phase": "next",
+      "input_characters": 18891,
+      "input_bytes": 27914,
+      "input_sha256": "1ec9f4d5976efe52374f29a86e9478ec0a44bc654f0f1f00bfbe0a58f401ef28",
+      "methods": {
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 9.101,
+          "selector_seconds": 1.466,
+          "answer_seconds": 7.635,
+          "answer": "Сумма расходов на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составила три тысячи сто пятьдесят четыре рубля восемьдесят три копейки. Учтены шестьдесят восемь операций с отрицательными суммами.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 4,
+          "rub": "0.1305628280928",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.0860281885872",
+          "tokens": {
+            "input": 16456,
+            "miss": 2248,
+            "hit": 14208,
+            "out": 685
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 390,
+            "hit": 1152,
+            "out": 216,
+            "input": 1542
+          },
+          "attempt_numbers": [
+            34,
+            35,
+            36,
+            37
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "ce931c3649f7ac0813a553ceeff07fc18c46b836c4267e615f2e4b6ed620921f",
+          "tool_calls": 2,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "3154.83"
+            ],
+            "expected": "3154.83"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 19.281,
+          "selector_seconds": 1.693,
+          "answer_seconds": 17.587,
+          "answer": "Сумма расходов на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составила три тысячи сто пятьдесят четыре рубля восемьдесят три копейки.",
+          "selection_correct": true,
+          "packing_used": true,
+          "encoded_data_characters": 16100,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.6423516007056",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.5978169612",
+          "tokens": {
+            "input": 16450,
+            "miss": 7234,
+            "hit": 9216,
+            "out": 4630
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 6092,
+            "hit": 0,
+            "out": 4512,
+            "input": 6092
+          },
+          "attempt_numbers": [
+            38,
+            39
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "390933f70407e194cd7ff07ede7b39457c5a583ad9136953638ed1c34f7cce08",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "3154.83"
+            ],
+            "expected": "3154.83"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "79.67424258780059772568153990"
+    },
+    {
+      "name": "sum_10_62020",
+      "rows": 10,
+      "kind": "arithmetic",
+      "question": "Сколько составили расходы на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "424.20",
+        "currency": "RUB"
+      },
+      "cache_sequence": "g_1_10",
+      "cache_phase": "first",
+      "input_characters": 1899,
+      "input_bytes": 2795,
+      "input_sha256": "a3ffcec0a22891c6d19e22f38d9682c004499bc5f12b680703550ac73980a304",
+      "methods": {
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 10.584,
+          "selector_seconds": 1.81,
+          "answer_seconds": 8.774,
+          "answer": "Расходы на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составили четыреста двадцать четыре рубля двадцать копеек.\n\nВ эту сумму вошли семь операций по услуге «логистика»: восемьдесят шесть рублей семьдесят пять копеек, пятьдесят девять рублей шестьдесят одна копейка, шестьдесят четыре рубля тридцать девять копеек, девяносто пять рублей шестьдесят копеек, пятьдесят девять рублей тридцать восемь копеек, сорок рублей семьдесят пять копеек и семнадцать рублей семьдесят две копейки. Отрицательных сумм среди них не было.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 4,
+          "rub": "0.4230018098136",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.1549499958936",
+          "tokens": {
+            "input": 17283,
+            "miss": 13187,
+            "hit": 4096,
+            "out": 953
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 1544,
+            "hit": 0,
+            "out": 237,
+            "input": 1544
+          },
+          "attempt_numbers": [
+            40,
+            41,
+            42,
+            43
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "ed07166be2e4a2fb0bac19ce3007eadc1f001c14dd4006b468760e64e5c4f281",
+          "tool_calls": 2,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": false,
+            "parsed_amounts": [
+              "424.2",
+              "86.75",
+              "59.61",
+              "64.39",
+              "95.6",
+              "59.38",
+              "40.75",
+              "17.72"
+            ],
+            "expected": "424.20"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 5.531,
+          "selector_seconds": 2.372,
+          "answer_seconds": 3.158,
+          "answer": "Расходы на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составили четыреста двадцать четыре рубля двадцать копеек.",
+          "selection_correct": true,
+          "packing_used": false,
+          "encoded_data_characters": 1928,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.34076062080",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.07270880688",
+          "tokens": {
+            "input": 11208,
+            "miss": 11208,
+            "hit": 0,
+            "out": 638
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 848,
+            "hit": 0,
+            "out": 522,
+            "input": 848
+          },
+          "attempt_numbers": [
+            44,
+            45
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "55df3f1260d85a3ae4f8856628d18d1e36baaae94294153f3b1ada688c8dc894",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "424.2"
+            ],
+            "expected": "424.20"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "-24.13459302325581395348837209"
+    },
+    {
+      "name": "sum_10_62021",
+      "rows": 10,
+      "kind": "arithmetic",
+      "question": "Какова сумма расходов на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "429.41",
+        "currency": "RUB"
+      },
+      "cache_sequence": "g_1_10",
+      "cache_phase": "next",
+      "input_characters": 1920,
+      "input_bytes": 2838,
+      "input_sha256": "4416ba8be5558117a5f821a589c396441e43bde8a2b617a03a0fe47b76fff70e",
+      "methods": {
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 5.348,
+          "selector_seconds": 1.765,
+          "answer_seconds": 3.582,
+          "answer": "За восьмое ноября две тысячи двадцать шестого года сумма расходов на логистику Вайлдберриз составила четыреста двадцать девять рублей сорок одна копейка.",
+          "selection_correct": true,
+          "packing_used": false,
+          "encoded_data_characters": 1949,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.1171443880656",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.07260974856",
+          "tokens": {
+            "input": 11198,
+            "miss": 1982,
+            "hit": 9216,
+            "out": 641
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 840,
+            "hit": 0,
+            "out": 523,
+            "input": 840
+          },
+          "attempt_numbers": [
+            46,
+            47
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "55df3f1260d85a3ae4f8856628d18d1e36baaae94294153f3b1ada688c8dc894",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "429.41"
+            ],
+            "expected": "429.41"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 9.55,
+          "selector_seconds": 1.383,
+          "answer_seconds": 8.167,
+          "answer": "За восьмое ноября две тысячи двадцать шестого года сумма расходов на логистику Вайлдберриз составила четыреста двадцать девять рублей сорок одну копейку. Эта сумма получена сложением семи операций.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 4,
+          "rub": "0.1483081355376",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.1037734960320",
+          "tokens": {
+            "input": 16834,
+            "miss": 2498,
+            "hit": 14336,
+            "out": 801
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 390,
+            "hit": 1152,
+            "out": 187,
+            "input": 1542
+          },
+          "attempt_numbers": [
+            48,
+            49,
+            50,
+            51
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "ed07166be2e4a2fb0bac19ce3007eadc1f001c14dd4006b468760e64e5c4f281",
+          "tool_calls": 2,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "429.41"
+            ],
+            "expected": "429.41"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "-26.60285139271761741277545705"
+    },
+    {
+      "name": "sum_30_62060",
+      "rows": 30,
+      "kind": "arithmetic",
+      "question": "Сколько составили расходы на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "1201.04",
+        "currency": "RUB"
+      },
+      "cache_sequence": "g_1_30",
+      "cache_phase": "first",
+      "input_characters": 5704,
+      "input_bytes": 8438,
+      "input_sha256": "41b0a0f6d6550755e0fed637d5fb0be3d6d5421aac517cc75c6fcd8a834b5f8f",
+      "methods": {
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 10.613,
+          "selector_seconds": 1.838,
+          "answer_seconds": 8.776,
+          "answer": "Расходы на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составили тысячу двести один рубль и четыре копейки.\n\nЭто сумма двадцати операций с типом «логистика» за этот день; отрицательных начислений среди них не было, поэтому итог сложился из одних положительных сумм. Валюта — российские рубли.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 4,
+          "rub": "0.4288462506936",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.1607944367736",
+          "tokens": {
+            "input": 17475,
+            "miss": 13379,
+            "hit": 4096,
+            "out": 964
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 1544,
+            "hit": 0,
+            "out": 203,
+            "input": 1544
+          },
+          "attempt_numbers": [
+            52,
+            53,
+            54,
+            55
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "409b152d7b7488de240c752d9f586562eb769881413329baee534477050c419e",
+          "tool_calls": 2,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1201.04"
+            ],
+            "expected": "1201.04"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 6.387,
+          "selector_seconds": 1.673,
+          "answer_seconds": 4.714,
+          "answer": "Расходы на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составили одна тысяча двести один рубль четыре копейки.",
+          "selection_correct": true,
+          "packing_used": false,
+          "encoded_data_characters": 5733,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.40383600606",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.13578419214",
+          "tokens": {
+            "input": 12427,
+            "miss": 12427,
+            "hit": 0,
+            "out": 970
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 2067,
+            "hit": 0,
+            "out": 854,
+            "input": 2067
+          },
+          "attempt_numbers": [
+            56,
+            57
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "236151e0c60140516809db962bc68c5f0ca655709c291695b486dfa05dc42922",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1201.04"
+            ],
+            "expected": "1201.04"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "-6.193168577911326424234991108"
+    },
+    {
+      "name": "sum_30_62061",
+      "rows": 30,
+      "kind": "arithmetic",
+      "question": "Какова сумма расходов на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "774.40",
+        "currency": "RUB"
+      },
+      "cache_sequence": "g_1_30",
+      "cache_phase": "next",
+      "input_characters": 5738,
+      "input_bytes": 8502,
+      "input_sha256": "aed2cacfba4f39a7cea69753ff184dcc010c565798d20f831f1a8191c45617ec",
+      "methods": {
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 5.954,
+          "selector_seconds": 1.463,
+          "answer_seconds": 4.491,
+          "answer": "Сумма расходов на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составила семьсот семьдесят четыре рубля сорок копеек.",
+          "selection_correct": true,
+          "packing_used": false,
+          "encoded_data_characters": 5767,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.1748458594656",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.13031121996",
+          "tokens": {
+            "input": 12424,
+            "miss": 3208,
+            "hit": 9216,
+            "out": 917
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 2066,
+            "hit": 0,
+            "out": 799,
+            "input": 2066
+          },
+          "attempt_numbers": [
+            58,
+            59
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "236151e0c60140516809db962bc68c5f0ca655709c291695b486dfa05dc42922",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "774.4"
+            ],
+            "expected": "774.40"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 10.987,
+          "selector_seconds": 1.83,
+          "answer_seconds": 9.156,
+          "answer": "Сумма расходов на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составляет семьсот семьдесят четыре рубля сорок копеек.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 4,
+          "rub": "0.1427390767872",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.0982044372816",
+          "tokens": {
+            "input": 16524,
+            "miss": 1932,
+            "hit": 14592,
+            "out": 885
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 390,
+            "hit": 1152,
+            "out": 472,
+            "input": 1542
+          },
+          "attempt_numbers": [
+            60,
+            61,
+            62,
+            63
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "409b152d7b7488de240c752d9f586562eb769881413329baee534477050c419e",
+          "tool_calls": 2,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "774.4"
+            ],
+            "expected": "774.40"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "18.36290706370249507104493847"
+    },
+    {
+      "name": "sum_100_62200",
+      "rows": 100,
+      "kind": "arithmetic",
+      "question": "Сколько составили расходы на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "3003.92",
+        "currency": "RUB"
+      },
+      "cache_sequence": "g_1_100",
+      "cache_phase": "first",
+      "input_characters": 19004,
+      "input_bytes": 28142,
+      "input_sha256": "f9e4ddfabdb87f187710daaaf9b7a83a6b133f827bb490ac8734db6f2d3007c3",
+      "methods": {
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 11.85,
+          "selector_seconds": 1.667,
+          "answer_seconds": 10.183,
+          "answer": "За восьмое ноября две тысячи двадцать шестого года расходы на логистику Вайлдберриз составили три тысячи три рубля девяносто две копейки.\n\nЭто сумма по шестидесяти восьми операциям с услугой «логистика» за указанный день, причём пять из них были отрицательными (возвраты и корректировки) и учтены со знаком минус.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 5,
+          "rub": "0.4393494043632",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.1712975904432",
+          "tokens": {
+            "input": 21074,
+            "miss": 13522,
+            "hit": 7552,
+            "out": 1017
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 1544,
+            "hit": 0,
+            "out": 186,
+            "input": 1544
+          },
+          "attempt_numbers": [
+            64,
+            65,
+            66,
+            67,
+            68
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "68b3b48f36ddbc40bebb5cd9c7db558bb00450079c5fa47c59e2fdd5fab302b4",
+          "tool_calls": 3,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "3003.92"
+            ],
+            "expected": "3003.92"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 17.625,
+          "selector_seconds": 1.566,
+          "answer_seconds": 16.059,
+          "answer": "За восьмое ноября две тысячи двадцать шестого года расходы на логистику Вайлдберриз составили три тысячи три рубля девяносто две копейки.",
+          "selection_correct": true,
+          "packing_used": true,
+          "encoded_data_characters": 16213,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.83788479972",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.5698329858",
+          "tokens": {
+            "input": 16494,
+            "miss": 16494,
+            "hit": 0,
+            "out": 4335
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 6134,
+            "hit": 0,
+            "out": 4219,
+            "input": 6134
+          },
+          "attempt_numbers": [
+            69,
+            70
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "7da201499cea04f6fd23d2f0f4d5f37e294a00cffc4b75dad3aab183ce91d9d1",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "3003.92"
+            ],
+            "expected": "3003.92"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "47.56446178400425607377194538"
+    },
+    {
+      "name": "sum_100_62201",
+      "rows": 100,
+      "kind": "arithmetic",
+      "question": "Какова сумма расходов на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "3198.13",
+        "currency": "RUB"
+      },
+      "cache_sequence": "g_1_100",
+      "cache_phase": "next",
+      "input_characters": 18884,
+      "input_bytes": 27899,
+      "input_sha256": "27646cb7609feba91df2575310586dc6e321f241bc348e659054fe4a10c0af7b",
+      "methods": {
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 15.679,
+          "selector_seconds": 1.649,
+          "answer_seconds": 14.03,
+          "answer": "Сумма расходов на логистику Вайлдберриз за восьмое ноября составила три тысячи сто девяносто восемь рублей тринадцать копеек.",
+          "selection_correct": true,
+          "packing_used": true,
+          "encoded_data_characters": 16093,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.5376717210456",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.49313708154",
+          "tokens": {
+            "input": 16471,
+            "miss": 7255,
+            "hit": 9216,
+            "out": 3568
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 6113,
+            "hit": 0,
+            "out": 3450,
+            "input": 6113
+          },
+          "attempt_numbers": [
+            71,
+            72
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "7da201499cea04f6fd23d2f0f4d5f37e294a00cffc4b75dad3aab183ce91d9d1",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "3198.13"
+            ],
+            "expected": "3198.13"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 12.024,
+          "selector_seconds": 1.609,
+          "answer_seconds": 10.415,
+          "answer": "Сумма расходов на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составила три тысячи сто девяносто восемь рублей тринадцать копеек.\n\nЭто итог по шестьдесят восьми операциям с видом услуги «логистика» за указанный день (отрицательные суммы, то есть возвраты, учтены со знаком минус). Результат сохранён в файл /workspace/result.json.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 5,
+          "rub": "0.1921305457224",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.1475959062168",
+          "tokens": {
+            "input": 20529,
+            "miss": 2865,
+            "hit": 17664,
+            "out": 1135
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 390,
+            "hit": 1152,
+            "out": 184,
+            "input": 1542
+          },
+          "attempt_numbers": [
+            73,
+            74,
+            75,
+            76,
+            77
+          ],
+          "campaign": "full_cost_20261111_grid",
+          "cache_namespace_sha256": "68b3b48f36ddbc40bebb5cd9c7db558bb00450079c5fa47c59e2fdd5fab302b4",
+          "tool_calls": 3,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "3198.13"
+            ],
+            "expected": "3198.13"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "64.26619846236893933671467235"
+    },
+    {
+      "name": "sum_50_71000",
+      "rows": 50,
+      "kind": "arithmetic",
+      "question": "Сколько составили расходы на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "1594.39",
+        "currency": "RUB"
+      },
+      "cache_sequence": "c50_0",
+      "cache_phase": "first",
+      "input_characters": 9473,
+      "input_bytes": 14006,
+      "input_sha256": "a6733cfb213970d6055cb7447326aa7f93d762123aad4078864799c6eaa39af0",
+      "methods": {
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 8.116,
+          "selector_seconds": 1.406,
+          "answer_seconds": 6.71,
+          "answer": "Расходы на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составили одна тысяча пятьсот девяносто четыре рубля тридцать девять копеек.",
+          "selection_correct": true,
+          "packing_used": false,
+          "encoded_data_characters": 9502,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.47545517142",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.20740335750",
+          "tokens": {
+            "input": 13635,
+            "miss": 13635,
+            "hit": 0,
+            "out": 1391
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 3275,
+            "hit": 0,
+            "out": 1275,
+            "input": 3275
+          },
+          "attempt_numbers": [
+            1,
+            2
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "dac0988923e2d6ca959c496fdfe79c5429d3ddff1bb47fd689b2890c3b03b765",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1594.39"
+            ],
+            "expected": "1594.39"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 10.002,
+          "selector_seconds": 2.157,
+          "answer_seconds": 7.845,
+          "answer": "Расходы на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составили тысячу пятьсот девяносто четыре рубля тридцать девять копеек.\n\nРасчёт: просуммированы тридцать четыре операции с типом «логистика» за этот день, включая две отрицательные суммы (минус девяносто пять копеек и минус один рубль девяносто одна копейка). Итог: одна тысяча пятьсот девяносто четыре рубля тридцать девять копеек.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 4,
+          "rub": "0.3999707504136",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.1319189364936",
+          "tokens": {
+            "input": 17041,
+            "miss": 12945,
+            "hit": 4096,
+            "out": 781
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 1544,
+            "hit": 0,
+            "out": 199,
+            "input": 1544
+          },
+          "attempt_numbers": [
+            3,
+            4,
+            5,
+            6
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "9c74c62b0e42b61b7d31308b4a92bd884ce5a0182fbf4d5d69a20e080c9e75af",
+          "tool_calls": 2,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": false,
+            "parsed_amounts": [
+              "1594.39",
+              "-1.91",
+              "1594.39"
+            ],
+            "expected": "1594.39"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "15.87624355435178915568519194"
+    },
+    {
+      "name": "sum_50_71001",
+      "rows": 50,
+      "kind": "arithmetic",
+      "question": "Какова сумма расходов на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "1501.49",
+        "currency": "RUB"
+      },
+      "cache_sequence": "c50_0",
+      "cache_phase": "next",
+      "input_characters": 9509,
+      "input_bytes": 14075,
+      "input_sha256": "3c182e73a255265b61819f709272942c59f519d1256a8f25dfe57b35dce9f8b8",
+      "methods": {
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 9.829,
+          "selector_seconds": 1.719,
+          "answer_seconds": 8.11,
+          "answer": "За восьмое ноября две тысячи двадцать шестого года сумма расходов на логистику составила одну тысячу пятьсот один рубль сорок девять копеек. Это итог по тридцати четырём операциям с типом услуги «логистика» за указанный день, отрицательные суммы учтены со знаком минус.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 4,
+          "rub": "0.1467261741672",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.1021915346616",
+          "tokens": {
+            "input": 16865,
+            "miss": 2273,
+            "hit": 14592,
+            "out": 840
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 390,
+            "hit": 1152,
+            "out": 370,
+            "input": 1542
+          },
+          "attempt_numbers": [
+            7,
+            8,
+            9,
+            10
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "9c74c62b0e42b61b7d31308b4a92bd884ce5a0182fbf4d5d69a20e080c9e75af",
+          "tool_calls": 2,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1501.49"
+            ],
+            "expected": "1501.49"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 9.031,
+          "selector_seconds": 1.523,
+          "answer_seconds": 7.508,
+          "answer": "Сумма расходов на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составила одна тысяча пятьсот один рубль сорок девять копеек.",
+          "selection_correct": true,
+          "packing_used": false,
+          "encoded_data_characters": 9538,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.2861626465656",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.24162800706",
+          "tokens": {
+            "input": 13611,
+            "miss": 4395,
+            "hit": 9216,
+            "out": 1744
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 3253,
+            "hit": 0,
+            "out": 1626,
+            "input": 3253
+          },
+          "attempt_numbers": [
+            11,
+            12
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "dac0988923e2d6ca959c496fdfe79c5429d3ddff1bb47fd689b2890c3b03b765",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1501.49"
+            ],
+            "expected": "1501.49"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "48.72630095921186085716362680"
+    },
+    {
+      "name": "sum_50_71010",
+      "rows": 50,
+      "kind": "arithmetic",
+      "question": "Сколько составили расходы на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "1351.21",
+        "currency": "RUB"
+      },
+      "cache_sequence": "c50_1",
+      "cache_phase": "first",
+      "input_characters": 9546,
+      "input_bytes": 14148,
+      "input_sha256": "2836296d773d3c20374c10002593e21ae55bb5956f1284cba18bf240de9ea47a",
+      "methods": {
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 10.603,
+          "selector_seconds": 1.97,
+          "answer_seconds": 8.632,
+          "answer": "Расходы на логистику Вайлдберриз за восьмое ноября составили одна тысяча триста пятьдесят один рубль двадцать одну копейку.\n\nВсего учтено тридцать четыре операции по услуге логистики за этот день, отрицательные суммы включены в расчёт.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 4,
+          "rub": "0.4003917482736",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.1323399343536",
+          "tokens": {
+            "input": 16546,
+            "miss": 12450,
+            "hit": 4096,
+            "out": 909
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 1544,
+            "hit": 0,
+            "out": 328,
+            "input": 1544
+          },
+          "attempt_numbers": [
+            13,
+            14,
+            15,
+            16
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "a395258b8e588d7e7c38f224b4f6a069c30e039b9e103eeb232d5f1de9f53ee2",
+          "tool_calls": 2,
+          "tool_errors": 1,
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1351.21"
+            ],
+            "expected": "1351.21"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 9.891,
+          "selector_seconds": 1.349,
+          "answer_seconds": 8.542,
+          "answer": "За восьмое ноября две тысячи двадцать шестого года расходы на логистику Вайлдберриз составили одна тысяча триста пятьдесят один рубль двадцать одна копейка.",
+          "selection_correct": true,
+          "packing_used": false,
+          "encoded_data_characters": 9575,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.53642556738",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.26837375346",
+          "tokens": {
+            "input": 13641,
+            "miss": 13641,
+            "hit": 0,
+            "out": 2005
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 3281,
+            "hit": 0,
+            "out": 1889,
+            "input": 3281
+          },
+          "attempt_numbers": [
+            17,
+            18
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "dcfcb4abf332791278290928f6e95c9555586d7fa1fd2cab3830ed8d7490d959",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1351.21"
+            ],
+            "expected": "1351.21"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "25.35930935783204838188449287"
+    },
+    {
+      "name": "sum_50_71011",
+      "rows": 50,
+      "kind": "arithmetic",
+      "question": "Какова сумма расходов на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "1783.44",
+        "currency": "RUB"
+      },
+      "cache_sequence": "c50_1",
+      "cache_phase": "next",
+      "input_characters": 9525,
+      "input_bytes": 14101,
+      "input_sha256": "984ebaf0aa4d84fca6c2e827572605db9f12a87a4eaa5dc81b10da20c446352d",
+      "methods": {
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 8.59,
+          "selector_seconds": 1.528,
+          "answer_seconds": 7.062,
+          "answer": "За восьмое ноября две тысячи двадцать шестого года сумма расходов на логистику Вайлдберриз составила одна тысяча семьсот восемьдесят три рубля сорок четыре копейки.",
+          "selection_correct": true,
+          "packing_used": false,
+          "encoded_data_characters": 9554,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.2742756481656",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.22974100866",
+          "tokens": {
+            "input": 13615,
+            "miss": 4399,
+            "hit": 9216,
+            "out": 1623
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 3257,
+            "hit": 0,
+            "out": 1505,
+            "input": 3257
+          },
+          "attempt_numbers": [
+            19,
+            20
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "dcfcb4abf332791278290928f6e95c9555586d7fa1fd2cab3830ed8d7490d959",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1783.44"
+            ],
+            "expected": "1783.44"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 10.361,
+          "selector_seconds": 1.398,
+          "answer_seconds": 8.963,
+          "answer": "Сумма расходов на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составила тысяча семьсот восемьдесят три рубля сорок четыре копейки.\n\nВ расчёт вошли тридцать четыре операции с услугами логистики за этот день, при этом четыре строки были отрицательными и учтены со знаком минус. Валюта — российский рубль.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 4,
+          "rub": "0.1576691467776",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.1131345072720",
+          "tokens": {
+            "input": 16604,
+            "miss": 2268,
+            "hit": 14336,
+            "out": 953
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 390,
+            "hit": 1152,
+            "out": 208,
+            "input": 1542
+          },
+          "attempt_numbers": [
+            21,
+            22,
+            23,
+            24
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "a395258b8e588d7e7c38f224b4f6a069c30e039b9e103eeb232d5f1de9f53ee2",
+          "tool_calls": 2,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1783.44"
+            ],
+            "expected": "1783.44"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "42.51434721524976253507799323"
+    },
+    {
+      "name": "sum_50_71020",
+      "rows": 50,
+      "kind": "arithmetic",
+      "question": "Сколько составили расходы на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "1529.58",
+        "currency": "RUB"
+      },
+      "cache_sequence": "c50_2",
+      "cache_phase": "first",
+      "input_characters": 9485,
+      "input_bytes": 14030,
+      "input_sha256": "97ebef1f9b16b6cc42244d6e3284fcdae66435a51d8ec00d88da96839534986f",
+      "methods": {
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 10.421,
+          "selector_seconds": 1.752,
+          "answer_seconds": 8.668,
+          "answer": "Расходы на логистику Вайлдберриз за восьмое ноября составили одну тысячу пятьсот двадцать девять рублей пятьдесят восемь копеек.",
+          "selection_correct": true,
+          "packing_used": false,
+          "encoded_data_characters": 9514,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.52533103554",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.25727922162",
+          "tokens": {
+            "input": 13613,
+            "miss": 13613,
+            "hit": 0,
+            "out": 1900
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 3253,
+            "hit": 0,
+            "out": 1784,
+            "input": 3253
+          },
+          "attempt_numbers": [
+            25,
+            26
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "7b90734f371c7c966d4e3aad3b59be2aaaf0cad139a854e9008332d7fc3d5293",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1529.58"
+            ],
+            "expected": "1529.58"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 10.649,
+          "selector_seconds": 1.164,
+          "answer_seconds": 9.484,
+          "answer": "**Расходы на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составили тысячу пятьсот двадцать девять рублей пятьдесят восемь копеек.**\n\nРасчёт: просуммированы все тридцать четыре строки с видом услуги «логистика» за этот день, включая отрицательные суммы (минус пять рублей, минус один рубль девяносто шесть копеек, минус один рубль девяносто две копейки и минус два рубля семьдесят восемь копеек). Валюта — российский рубль.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 4,
+          "rub": "0.4345916332536",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.1665398193336",
+          "tokens": {
+            "input": 16559,
+            "miss": 12463,
+            "hit": 4096,
+            "out": 1251
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 1544,
+            "hit": 0,
+            "out": 146,
+            "input": 1544
+          },
+          "attempt_numbers": [
+            27,
+            28,
+            29,
+            30
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "904bbc27e6d299f4498ca223a86eeae1f9450b24953e3c8e73bdc3565ddc17e2",
+          "tool_calls": 2,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": false,
+            "parsed_amounts": [
+              "1529.58",
+              "-5",
+              "-1.96",
+              "-1.92",
+              "-2.78"
+            ],
+            "expected": "1529.58"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "17.27280441238862961391599491"
+    },
+    {
+      "name": "sum_50_71021",
+      "rows": 50,
+      "kind": "arithmetic",
+      "question": "Какова сумма расходов на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "1734.93",
+        "currency": "RUB"
+      },
+      "cache_sequence": "c50_2",
+      "cache_phase": "next",
+      "input_characters": 9501,
+      "input_bytes": 14070,
+      "input_sha256": "c2e4d655d551dcbbe9a0a099b87515ee7cc7b3ef20b48874c657ab3169dab9d8",
+      "methods": {
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 10.553,
+          "selector_seconds": 1.412,
+          "answer_seconds": 9.141,
+          "answer": "Сумма расходов на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составила тысячу семьсот тридцать четыре рубля девяносто три копейки.\n\nРасчёт: просуммированы все тридцать четыре записи с сервисом «логистика» за указанную дату, включая отрицательные корректировки (минус одна целая тридцать шесть копеек и минус три рубля десять копеек); итог округлён до копеек.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 4,
+          "rub": "0.1461506453280",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.1016160058224",
+          "tokens": {
+            "input": 16096,
+            "miss": 2016,
+            "hit": 14080,
+            "out": 901
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 390,
+            "hit": 1152,
+            "out": 148,
+            "input": 1542
+          },
+          "attempt_numbers": [
+            31,
+            32,
+            33,
+            34
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "904bbc27e6d299f4498ca223a86eeae1f9450b24953e3c8e73bdc3565ddc17e2",
+          "tool_calls": 2,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": false,
+            "parsed_amounts": [
+              "1734.93",
+              "-3.1"
+            ],
+            "expected": "1734.93"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 10.303,
+          "selector_seconds": 1.287,
+          "answer_seconds": 9.016,
+          "answer": "Сумма расходов на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года — одна тысяча семьсот тридцать четыре рубля девяносто три копейки.",
+          "selection_correct": true,
+          "packing_used": false,
+          "encoded_data_characters": 9530,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.3174898402656",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.27295520076",
+          "tokens": {
+            "input": 13620,
+            "miss": 4404,
+            "hit": 9216,
+            "out": 2058
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 3262,
+            "hit": 0,
+            "out": 1940,
+            "input": 3262
+          },
+          "attempt_numbers": [
+            35,
+            36
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "7b90734f371c7c966d4e3aad3b59be2aaaf0cad139a854e9008332d7fc3d5293",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1734.93"
+            ],
+            "expected": "1734.93"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "53.96682766108802276386236849"
+    },
+    {
+      "name": "sum_50_71030",
+      "rows": 50,
+      "kind": "arithmetic",
+      "question": "Сколько составили расходы на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "1272.77",
+        "currency": "RUB"
+      },
+      "cache_sequence": "c50_3",
+      "cache_phase": "first",
+      "input_characters": 9460,
+      "input_bytes": 13977,
+      "input_sha256": "1ef20a0f37f361e0d0476fbbe42d1db960ad96f1b3f7d16bd0169f907a4a8e03",
+      "methods": {
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 9.02,
+          "selector_seconds": 1.278,
+          "answer_seconds": 7.742,
+          "answer": "За восьмое ноября две тысячи двадцать шестого года расходы на логистику Вайлдберриз составили одну тысячу двести семьдесят два рубля семьдесят семь копеек.\n\nПодробности расчёта: в файле найдено тридцать четыре строки с датой восьмое ноября две тысячи двадцать шестого года и услугой «логистика»; их суммы просуммированы с учётом отрицательных значений, итог округлён до копеек и сохранён в /workspace/result.json.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 4,
+          "rub": "0.3883640870592",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.1203122731392",
+          "tokens": {
+            "input": 16080,
+            "miss": 12368,
+            "hit": 3712,
+            "out": 810
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 1544,
+            "hit": 0,
+            "out": 156,
+            "input": 1544
+          },
+          "attempt_numbers": [
+            37,
+            38,
+            39,
+            40
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "43ee6eabd5546d8c89ce0753c186c674a83481c8c7d2a169c1a8c6bffdf50eb8",
+          "tool_calls": 2,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1272.77"
+            ],
+            "expected": "1272.77"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 11.424,
+          "selector_seconds": 1.461,
+          "answer_seconds": 9.963,
+          "answer": "Расходы на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составили одну тысячу двести семьдесят два рубля семьдесят семь копеек.",
+          "selection_correct": true,
+          "packing_used": false,
+          "encoded_data_characters": 9489,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.56302272630",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.29497091238",
+          "tokens": {
+            "input": 13615,
+            "miss": 13615,
+            "hit": 0,
+            "out": 2280
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 3255,
+            "hit": 0,
+            "out": 2164,
+            "input": 3255
+          },
+          "attempt_numbers": [
+            41,
+            42
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "9ff93faed9f425fe26ca6351ca1f270feec429ac97ff0398529540fe23b28524",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1272.77"
+            ],
+            "expected": "1272.77"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "31.02159665713657356498790411"
+    },
+    {
+      "name": "sum_50_71031",
+      "rows": 50,
+      "kind": "arithmetic",
+      "question": "Какова сумма расходов на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "1393.27",
+        "currency": "RUB"
+      },
+      "cache_sequence": "c50_3",
+      "cache_phase": "next",
+      "input_characters": 9470,
+      "input_bytes": 14000,
+      "input_sha256": "ebae4d211953c58cd37ab1d76f37153d18281ec26f4a56931fd83f728f0858d6",
+      "methods": {
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 7.736,
+          "selector_seconds": 1.846,
+          "answer_seconds": 5.889,
+          "answer": "Сумма расходов на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составила одна тысяча триста девяносто три рубля двадцать семь копеек.",
+          "selection_correct": true,
+          "packing_used": false,
+          "encoded_data_characters": 9499,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.2542658675256",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.20973122802",
+          "tokens": {
+            "input": 13583,
+            "miss": 4367,
+            "hit": 9216,
+            "out": 1429
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 3225,
+            "hit": 0,
+            "out": 1311,
+            "input": 3225
+          },
+          "attempt_numbers": [
+            43,
+            44
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "9ff93faed9f425fe26ca6351ca1f270feec429ac97ff0398529540fe23b28524",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1393.27"
+            ],
+            "expected": "1393.27"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 13.863,
+          "selector_seconds": 1.609,
+          "answer_seconds": 12.253,
+          "answer": "Сумма расходов на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составляет тысяча триста девяносто три рубля двадцать семь копеек.\n\nВ расчёт вошли тридцать четыре операции с услугами логистики за этот день, включая отрицательные суммы (минус один рубль сорок копеек и минус семьдесят семь копеек), которые были учтены со знаком минус. Валюта — рубль. Итог вычислен точно, до копейки, без накопления ошибок округления. Результат сохранён в файл /workspace/result.json.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 5,
+          "rub": "0.2116727710920",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.1671381315864",
+          "tokens": {
+            "input": 20541,
+            "miss": 2621,
+            "hit": 17920,
+            "out": 1392
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 390,
+            "hit": 1152,
+            "out": 147,
+            "input": 1542
+          },
+          "attempt_numbers": [
+            45,
+            46,
+            47,
+            48,
+            49
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "43ee6eabd5546d8c89ce0753c186c674a83481c8c7d2a169c1a8c6bffdf50eb8",
+          "tool_calls": 3,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": false,
+            "parsed_amounts": [
+              "1393.27",
+              "-1.4"
+            ],
+            "expected": "1393.27"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "16.75140153418808413490570081"
+    },
+    {
+      "name": "sum_50_71040",
+      "rows": 50,
+      "kind": "arithmetic",
+      "question": "Сколько составили расходы на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "1926.07",
+        "currency": "RUB"
+      },
+      "cache_sequence": "c50_4",
+      "cache_phase": "first",
+      "input_characters": 9498,
+      "input_bytes": 14051,
+      "input_sha256": "fec7abc6544ac49c968bc7d30480cea38dabd99cdae56597f89e239396954e76",
+      "methods": {
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 9.059,
+          "selector_seconds": 2.091,
+          "answer_seconds": 6.968,
+          "answer": "За восьмое ноября две тысячи двадцать шестого года расходы на логистику Вайлдберриз составили одна тысяча девятьсот двадцать шесть рублей семь копеек.",
+          "selection_correct": true,
+          "packing_used": false,
+          "encoded_data_characters": 9527,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.49675271022",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.22870089630",
+          "tokens": {
+            "input": 13599,
+            "miss": 13599,
+            "hit": 0,
+            "out": 1615
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 3239,
+            "hit": 0,
+            "out": 1499,
+            "input": 3239
+          },
+          "attempt_numbers": [
+            50,
+            51
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "b51ba47b7c86b1f5cda76a2e89f53991f8fb6582e1ba23b10b5163ca6ff72def",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1926.07"
+            ],
+            "expected": "1926.07"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 10.362,
+          "selector_seconds": 1.826,
+          "answer_seconds": 8.537,
+          "answer": "За восьмое ноября две тысячи двадцать шестого года расходы на логистику Вайлдберриз составили одну тысячу девятьсот двадцать шесть рублей семь копеек.\n\nИтог получен суммированием тридцати четырёх строк с услугой «логистика» за этот день (все суммы положительные, отрицательных не встретилось), расчёт вёлся точно, с округлением только итогового значения до копеек.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 4,
+          "rub": "0.3915616896288",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.1235098757088",
+          "tokens": {
+            "input": 16380,
+            "miss": 12412,
+            "hit": 3968,
+            "out": 830
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 1544,
+            "hit": 0,
+            "out": 183,
+            "input": 1544
+          },
+          "attempt_numbers": [
+            52,
+            53,
+            54,
+            55
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "1ed3e011390ca56bbf8358c7a72b36cb16606b3450afe6262001e94d9280d626",
+          "tool_calls": 2,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1926.07"
+            ],
+            "expected": "1926.07"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "21.17573159180417767585622414"
+    },
+    {
+      "name": "sum_50_71041",
+      "rows": 50,
+      "kind": "arithmetic",
+      "question": "Какова сумма расходов на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "1438.59",
+        "currency": "RUB"
+      },
+      "cache_sequence": "c50_4",
+      "cache_phase": "next",
+      "input_characters": 9465,
+      "input_bytes": 13986,
+      "input_sha256": "eeacc1d0262e3288f359fe92767a178f817334730cd8b7fa062ad28ed558aaba",
+      "methods": {
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 12.202,
+          "selector_seconds": 1.878,
+          "answer_seconds": 10.324,
+          "answer": "Сумма расходов на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шесть года составила одну тысячу четыреста тридцать восемь рублей пятьдесят девять копеек.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 5,
+          "rub": "0.1523497149936",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.1078150754880",
+          "tokens": {
+            "input": 19226,
+            "miss": 2330,
+            "hit": 16896,
+            "out": 871
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 390,
+            "hit": 1152,
+            "out": 169,
+            "input": 1542
+          },
+          "attempt_numbers": [
+            56,
+            57,
+            58,
+            59,
+            60
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "1ed3e011390ca56bbf8358c7a72b36cb16606b3450afe6262001e94d9280d626",
+          "tool_calls": 3,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1438.59"
+            ],
+            "expected": "1438.59"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 9.233,
+          "selector_seconds": 1.854,
+          "answer_seconds": 7.379,
+          "answer": "Сумма расходов на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составила одну тысячу четыреста тридцать восемь рублей пятьдесят девять копеек.",
+          "selection_correct": true,
+          "packing_used": false,
+          "encoded_data_characters": 9494,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.2741765898456",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.22964195034",
+          "tokens": {
+            "input": 13607,
+            "miss": 4391,
+            "hit": 9216,
+            "out": 1624
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 3249,
+            "hit": 0,
+            "out": 1506,
+            "input": 3249
+          },
+          "attempt_numbers": [
+            61,
+            62
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "b51ba47b7c86b1f5cda76a2e89f53991f8fb6582e1ba23b10b5163ca6ff72def",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1438.59"
+            ],
+            "expected": "1438.59"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "44.43372605976523124613867181"
+    },
+    {
+      "name": "sum_50_71050",
+      "rows": 50,
+      "kind": "arithmetic",
+      "question": "Сколько составили расходы на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "1683.61",
+        "currency": "RUB"
+      },
+      "cache_sequence": "c50_5",
+      "cache_phase": "first",
+      "input_characters": 9499,
+      "input_bytes": 14048,
+      "input_sha256": "bf66eeee66f9caafdb4b0fe5dbe57df759c2a1b0912aebd3623f7a97b79cdba5",
+      "methods": {
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 12.374,
+          "selector_seconds": 2.249,
+          "answer_seconds": 10.124,
+          "answer": "За восьмое ноября две тысячи двадцать шестого года расходы на логистику Вайлдберриз составили одну тысячу шестьсот восемьдесят три рубля шестьдесят одну копейку.\n\nЭто сумма по тридцати четырём операциям с типом услуги «логистика»; отрицательные суммы, то есть корректировки и возвраты, учтены со знаком минус.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 5,
+          "rub": "0.4076388549648",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.1395870410448",
+          "tokens": {
+            "input": 19042,
+            "miss": 12514,
+            "hit": 6528,
+            "out": 954
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 1544,
+            "hit": 0,
+            "out": 191,
+            "input": 1544
+          },
+          "attempt_numbers": [
+            63,
+            64,
+            65,
+            66,
+            67
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "810c7ad4e39ff0f8cbd9f88d43594c84ff7352df000b52cdf8971ef247d986a7",
+          "tool_calls": 3,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1683.61"
+            ],
+            "expected": "1683.61"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 12.012,
+          "selector_seconds": 2.157,
+          "answer_seconds": 9.855,
+          "answer": "За восьмое ноября две тысячи двадцать шестого года расходы на логистику Вайлдберриз составили одна тысяча шестьсот восемьдесят три рубля шестьдесят одна копейка.",
+          "selection_correct": true,
+          "packing_used": false,
+          "encoded_data_characters": 9528,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.55680681672",
+          "selector_rub": "0.26805181392",
+          "answer_rub": "0.2887550028",
+          "tokens": {
+            "input": 13616,
+            "miss": 13616,
+            "hit": 0,
+            "out": 2217
+          },
+          "selector_tokens": {
+            "miss": 10360,
+            "hit": 0,
+            "out": 116,
+            "input": 10360
+          },
+          "first_answer_tokens": {
+            "miss": 3256,
+            "hit": 0,
+            "out": 2101,
+            "input": 3256
+          },
+          "attempt_numbers": [
+            68,
+            69
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "a1a77d2459aa78d7d5da27086e9b050fa66d0808033a30949dd468960cc93ccd",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1683.61"
+            ],
+            "expected": "1683.61"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "26.78989503647037893613236079"
+    },
+    {
+      "name": "sum_50_71051",
+      "rows": 50,
+      "kind": "arithmetic",
+      "question": "Какова сумма расходов на логистику Вайлдберриз за восьмое ноября?",
+      "expected": {
+        "amount": "1693.44",
+        "currency": "RUB"
+      },
+      "cache_sequence": "c50_5",
+      "cache_phase": "next",
+      "input_characters": 9497,
+      "input_bytes": 14049,
+      "input_sha256": "863017b7d230835cf547991eaf824eb8766b0c645036c0d40133540507054787",
+      "methods": {
+        "direct": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 7.861,
+          "selector_seconds": 1.826,
+          "answer_seconds": 6.035,
+          "answer": "Сумма расходов на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составила одна тысяча шестьсот девяносто три рубля сорок четыре копейки.",
+          "selection_correct": true,
+          "packing_used": false,
+          "encoded_data_characters": 9526,
+          "finish": "stop",
+          "calls": 2,
+          "rub": "0.2533248134856",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.20879017398",
+          "tokens": {
+            "input": 13613,
+            "miss": 4397,
+            "hit": 9216,
+            "out": 1412
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 3255,
+            "hit": 0,
+            "out": 1294,
+            "input": 3255
+          },
+          "attempt_numbers": [
+            70,
+            71
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "a1a77d2459aa78d7d5da27086e9b050fa66d0808033a30949dd468960cc93ccd",
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1693.44"
+            ],
+            "expected": "1693.44"
+          },
+          "independent_main_numeric_correct": true
+        },
+        "harness": {
+          "state": "COMPLETE",
+          "elapsed_seconds": 11.168,
+          "selector_seconds": 1.596,
+          "answer_seconds": 9.572,
+          "answer": "За восьмое ноября две тысячи двадцать шестого года сумма расходов на логистику Вайлдберриз составила тысячу шестьсот девяносто три рубля сорок четыре копейки. Итог посчитан по тридцати четырём операциям, включая отрицательные суммы.",
+          "selection_correct": true,
+          "resources": "MemoryPeak=[not set]\nCPUUsageNSec=[not set]\n",
+          "input_unchanged": true,
+          "calls": 5,
+          "rub": "0.1493115963192",
+          "selector_rub": "0.0445346395056",
+          "answer_rub": "0.1047769568136",
+          "tokens": {
+            "input": 18743,
+            "miss": 2231,
+            "hit": 16512,
+            "out": 867
+          },
+          "selector_tokens": {
+            "miss": 1142,
+            "hit": 9216,
+            "out": 118,
+            "input": 10358
+          },
+          "first_answer_tokens": {
+            "miss": 390,
+            "hit": 1152,
+            "out": 121,
+            "input": 1542
+          },
+          "attempt_numbers": [
+            72,
+            73,
+            74,
+            75,
+            76
+          ],
+          "campaign": "full_cost_20261111_confirm50",
+          "cache_namespace_sha256": "810c7ad4e39ff0f8cbd9f88d43594c84ff7352df000b52cdf8971ef247d986a7",
+          "tool_calls": 3,
+          "tool_errors": 0,
+          "numeric_answer_check": {
+            "correct": true,
+            "parsed_amounts": [
+              "1693.44"
+            ],
+            "expected": "1693.44"
+          },
+          "independent_main_numeric_correct": true
+        }
+      },
+      "harness_full_cost_saving_percent": "41.05922974352156350568757259"
+    }
+  ],
+  "price_basis": "Actual provider usage at dated tariff and CBR FX; not invoice reconciliation",
+  "prior_research_calls": 65,
+  "prior_research_rub": "5.8259652172524",
+  "marketplace_calls": 0,
+  "voice_calls": 0,
+  "production_writes": 0,
+  "new_model_calls": 160,
+  "new_cost_rub": "20.9543532315264",
+  "cumulative_calls": 225,
+  "cumulative_cost_rub": "26.7803184487788",
+  "unknown_usage": 0,
+  "raw_receipts_reparsed": true,
+  "quality_summary": {
+    "correct_numeric_answers": 45,
+    "independent_main_numeric_correct": 50,
+    "independent_main_numeric_total": 50,
+    "automatic_parser_is_not_acceptance": true,
+    "whole_voice_quality": "NOT_ACCEPTED: unsupported explanations, verbosity, technical path and speech defects present",
+    "manual_main_sum_verified_cases": [
+      "sum_10_62020",
+      "sum_50_71000",
+      "sum_50_71020",
+      "sum_50_71021",
+      "sum_50_71031"
+    ],
+    "automatic_parser_flags": [
+      {
+        "case": "sum_10_62020",
+        "method": "harness",
+        "expected": "424.20",
+        "parsed": [
+          "424.2",
+          "86.75",
+          "59.61",
+          "64.39",
+          "95.6",
+          "59.38",
+          "40.75",
+          "17.72"
+        ],
+        "answer": "Расходы на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составили четыреста двадцать четыре рубля двадцать копеек.\n\nВ эту сумму вошли семь операций по услуге «логистика»: восемьдесят шесть рублей семьдесят пять копеек, пятьдесят девять рублей шестьдесят одна копейка, шестьдесят четыре рубля тридцать девять копеек, девяносто пять рублей шестьдесят копеек, пятьдесят девять рублей тридцать восемь копеек, сорок рублей семьдесят пять копеек и семнадцать рублей семьдесят две копейки. Отрицательных сумм среди них не было."
+      },
+      {
+        "case": "sum_50_71000",
+        "method": "harness",
+        "expected": "1594.39",
+        "parsed": [
+          "1594.39",
+          "-1.91",
+          "1594.39"
+        ],
+        "answer": "Расходы на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составили тысячу пятьсот девяносто четыре рубля тридцать девять копеек.\n\nРасчёт: просуммированы тридцать четыре операции с типом «логистика» за этот день, включая две отрицательные суммы (минус девяносто пять копеек и минус один рубль девяносто одна копейка). Итог: одна тысяча пятьсот девяносто четыре рубля тридцать девять копеек."
+      },
+      {
+        "case": "sum_50_71020",
+        "method": "harness",
+        "expected": "1529.58",
+        "parsed": [
+          "1529.58",
+          "-5",
+          "-1.96",
+          "-1.92",
+          "-2.78"
+        ],
+        "answer": "**Расходы на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составили тысячу пятьсот двадцать девять рублей пятьдесят восемь копеек.**\n\nРасчёт: просуммированы все тридцать четыре строки с видом услуги «логистика» за этот день, включая отрицательные суммы (минус пять рублей, минус один рубль девяносто шесть копеек, минус один рубль девяносто две копейки и минус два рубля семьдесят восемь копеек). Валюта — российский рубль."
+      },
+      {
+        "case": "sum_50_71021",
+        "method": "harness",
+        "expected": "1734.93",
+        "parsed": [
+          "1734.93",
+          "-3.1"
+        ],
+        "answer": "Сумма расходов на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составила тысячу семьсот тридцать четыре рубля девяносто три копейки.\n\nРасчёт: просуммированы все тридцать четыре записи с сервисом «логистика» за указанную дату, включая отрицательные корректировки (минус одна целая тридцать шесть копеек и минус три рубля десять копеек); итог округлён до копеек."
+      },
+      {
+        "case": "sum_50_71031",
+        "method": "harness",
+        "expected": "1393.27",
+        "parsed": [
+          "1393.27",
+          "-1.4"
+        ],
+        "answer": "Сумма расходов на логистику Вайлдберриз за восьмое ноября две тысячи двадцать шестого года составляет тысяча триста девяносто три рубля двадцать семь копеек.\n\nВ расчёт вошли тридцать четыре операции с услугами логистики за этот день, включая отрицательные суммы (минус один рубль сорок копеек и минус семьдесят семь копеек), которые были учтены со знаком минус. Валюта — рубль. Итог вычислен точно, до копейки, без накопления ошибок округления. Результат сохранён в файл /workspace/result.json."
+      }
+    ]
+  },
+  "receipt_files": [
+    "full_cost_20261111_control_receipts.json",
+    "full_cost_20261111_grid_receipts.json",
+    "full_cost_20261111_confirm50_receipts.json"
+  ],
+  "status": "RESEARCH_COMPLETE_NO_PRODUCTION_ROLLOUT",
+  "installed_size_routing": false,
+  "engineering_candidate": {
+    "raw_characters": 10000,
+    "scope": "similar structured monetary sum calculations only",
+    "exact_mathematical_crossover": false,
+    "production_ready": false,
+    "basis": "50rows,9460..9546characters,6newfirst+6nextpairs,Harnesscheaper12/12;30rowfirstquerymixed"
+  },
+  "related_previous_formula_trial": {
+    "calls": 4,
+    "rub": "6.7498427329728",
+    "included_in_harness_total": false
+  },
+  "known_two_studies_calls": 229,
+  "known_two_studies_cost_rub": "33.5301611817516"
+}

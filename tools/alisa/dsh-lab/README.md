@@ -185,3 +185,22 @@ The model-written800-row program temporarily skipped548 rows and returned zero
 without a tool error; the model then corrected it. This remains a quality risk,
 not a proven runtime guarantee. Production usage accounting still requires a
 per-Harness-call adapter before this lab can be integrated with voice traffic.
+
+## Superseding full-request research — 11 November
+
+Use `full_cost_research/` for the current study, deployed separately at
+`/var/lib/alisa-dsh-lab/full_cost_20261111`. The earlier16k experiments above
+are historical material, not the active cost conclusion. New160 paid calls
+include50 real selections and110 answer/inspection/program/correction calls.
+Answer requests use provider defaults without a QA max_tokens field. The
+existing production-selector6000 remains unchanged. Native and selector mock
+proofs preceded all paid runs.
+
+New spending20.9543532315264RUB; cumulative Harness225 calls/26.7803184487788RUB.
+The earlier separate formula trial is not included in this Harness subtotal.
+All50 main numeric answers are correct, but whole-answer voice quality FAILS.
+At about9.5k characters Harness was cheaper12/12; approximately10k is only an
+engineering candidate for similar arithmetic, not a universal exact crossover.
+No routing threshold was installed. Production/voice integration remains off.
+See `docs/alisa/quality/DOCUMENT_PROGRAM_FULL_COST_2026-11-11.md` and
+`tools/alisa/dsh-lab/full_cost_research/FULL_COST_SUMMARY.json`.
