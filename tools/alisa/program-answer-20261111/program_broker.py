@@ -11,9 +11,13 @@ def unit_name(name):return 'alisa-program-run-'+name
 def active(name):
     s=subprocess.run(['systemctl','show',unit_name(name),'-p','ActiveState','--value'],capture_output=True,text=True).stdout.strip()
     return s in {'active','activating','deactivating','reloading'}
+def remove_job(path):
+    if os.path.ismount(path):subprocess.run(['umount',str(path)],check=True)
+    shutil.rmtree(path)
+
 def sweep():
     for p in (BASE/'jobs').iterdir():
-        if len(p.name)==32 and all(c in '0123456789abcdef'for c in p.name) and time.time()-p.stat().st_mtime>3600 and not active(p.name):shutil.rmtree(p)
+        if len(p.name)==32 and all(c in '0123456789abcdef'for c in p.name) and time.time()-p.stat().st_mtime>3600 and not active(p.name):remove_job(p)
 def write(path,value,user):
     path.write_text(value);os.chown(path,user.pw_uid,user.pw_gid);path.chmod(0o600)
 def command(job,name,parent):
@@ -52,7 +56,11 @@ def serve():
     if not isinstance(value['messages'],list) or not all(type(m)is dict and set(m)=={'role','content'} and m['role']in {'system','user'} and type(m['content'])is str for m in value['messages']):raise ValueError('messages')
     if not value['user_id'].startswith('alisa_p_') or len(value['user_id'])!=72:raise ValueError('isolation')
     user=pwd.getpwnam('alisa-program');name=uuid.uuid4().hex;job=BASE/'jobs'/name
-    job.mkdir(mode=0o700);os.chown(job,user.pw_uid,user.pw_gid)
+    job.mkdir(mode=0o700)
+    try:
+        subprocess.run(['mount','-t','tmpfs','-o',f'size=256M,nodev,nosuid,mode=0700,uid={user.pw_uid},gid={user.pw_gid}','alisa-program',str(job)],check=True)
+    except BaseException:
+        job.rmdir();raise
     pending=queue.Queue();shutdown=threading.Event();token=secrets.token_hex(32)
     class Handler(BaseHTTPRequestHandler):
         def log_message(self,*args):pass
@@ -98,7 +106,7 @@ def serve():
         shutdown.set();gateway.shutdown();gateway.server_close()
         if active(name):subprocess.run(['systemctl','stop',unit_name(name)],check=True)
         if process is not None:process.wait()
-        if not active(name):shutil.rmtree(job)
+        if not active(name):remove_job(job)
     send({'kind':'complete','content':result['final_response']})
 
 if __name__=='__main__':

@@ -15,7 +15,10 @@ def synthetic(step):
 const d=JSON.parse(await fs.readFile('/workspace/input.json','utf8'));
 let writable=false;try{await fs.appendFile('/workspace/input.json','x');writable=true;}catch{}
 let keys=false;try{await fs.access('/run/credentials/alice-market.service');keys=true;}catch{}
-return {sum:d.rows.reduce((a,b)=>a+b.value,0),writable,keys};"""
+let disk_bounded=false;const h=await fs.open('/workspace/spill','w');
+try{const b=Buffer.alloc(8*1024*1024);for(let i=0;i<80;i++)await h.write(b);}catch(e){if(e.code==='ENOSPC')disk_bounded=true;else throw e;}
+finally{await h.close();await fs.rm('/workspace/spill');}
+return {sum:d.rows.reduce((a,b)=>a+b.value,0),writable,keys,disk_bounded};"""
     events=[{'type':'message_start','message':{'id':'mock_'+str(step),'type':'message','role':'assistant','model':'deepseek-flash','content':[], 'usage':{'input_tokens':100,'output_tokens':0}}}]
     block={'type':'tool_use','id':'calc','name':'run_code','input':{}}if step==1 else{'type':'text','text':''}
     delta={'type':'input_json_delta','partial_json':json.dumps({'code':code,'description':'Synthetic isolation calculation'})}if step==1 else{'type':'text_delta','text':'Двадцать один.'}
@@ -48,6 +51,7 @@ def case(mode):
             if success==2:
                 last=payload['messages'][-1];text=json.dumps(last,ensure_ascii=False)
                 assert '21'in text and 'false'in text and 'writable'in text and 'keys'in text
+                assert 'disk_bounded'in text and 'true'in text
             if mode=='cancel':
                 with repo.connection(True)as c:c.execute("UPDATE jobs SET state='CANCELLED'WHERE id=?",(jid,))
             return synthetic(success),200
