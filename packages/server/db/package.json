@@ -11,6 +11,10 @@
     "./migrations": {
       "types": "./src/migrations.ts",
       "default": "./src/migrations.ts"
+    },
+    "./account-code-read-repository": {
+      "types": "./src/account-code-read-repository.ts",
+      "default": "./src/account-code-read-repository.ts"
     }
   },
   "scripts": {
