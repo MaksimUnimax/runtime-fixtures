@@ -1,0 +1,212 @@
+# Observed: /etc/systemd/system/alice-market.service
+[Unit]
+Description=Private Alice marketplace read-only canary worker and local gateway
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=simple
+User=alice-market
+Group=alice-lab
+Environment=PYTHONUNBUFFERED=1
+RuntimeDirectory=alice-market
+RuntimeDirectoryMode=0750
+StateDirectory=alice-market
+StateDirectoryMode=0700
+UMask=0077
+LoadCredential=ozon:/etc/alice-lab/marketplaces/ozon.json
+LoadCredential=wb:/etc/alice-lab/marketplaces/wb.json
+LoadCredential=deepseek:/var/lib/alice-lab/secrets/deepseek.key
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/alice-market /run/alice-market
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryMax=256M
+TasksMax=32
+Restart=on-failure
+RestartSec=3
+[Install]
+WantedBy=multi-user.target
+# Observed: /etc/systemd/system/alice-market.service.d/20-control-replay.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/30-analytics-v07.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/40-finance-stock-v08.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/50-composable-v09.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/60-composable-v09-r2.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/61-runtime-versions.conf
+[Service]
+ExecStartPre=-+/usr/bin/python3 -I -B /usr/local/libexec/alisa/runtime_versions_sync.py
+# Observed: /etc/systemd/system/alice-market.service.d/70-composable-v09-r3.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/80-composable-v09-r4.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/90-composable-v09-r5.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/95-sales-basis-r6.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/99-dialogue-r7.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/s07-runtime-link.conf
+[Service]
+LoadCredential=platform_authority:/etc/alice-market/runtime-authority.credential
+ReadWritePaths=/run/alisa-runtime-rpc/jobs
+# Observed: /etc/systemd/system/alice-market.service.d/zz-retention-r8.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzz-matrix-scalar-r4.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzz-base-batch01.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzz-base-batch02.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzz-ads-daily-r1.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzz-completeness-merge-r2.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzz-help-errors-r3.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzz-dialogue-fixes-r1.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzz-matrix-join-r1.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzz-conversation-safety-r1.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzz-number-reason-r1.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzz-s05-store-check.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzz-audit-20261108.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzz-promotions-r1.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzz-station-r1.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzz-read-surface-r1.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzz-read-surface-r2.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzz-read-surface-r3.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzz-model-unlimited-r1.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzz-no-usage-quotas.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-429-wait-r1.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-no-quotas-integrated.conf
+[Service]
+ExecStartPre=/usr/bin/python3 -B /opt/alice-market/releases/runtime-policy-guard-20261108/check.py
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-method-semantics-r1.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-method-semantics-r2.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-method-semantics-r3.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-method-semantics-r4.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-business-read-r1.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-business-read-r2.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-request-recovery-r2.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-business-read-r4.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-fbs-money-article-r5.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-business-read-r6.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-metadata-read-r1.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-supply-read-r1.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-supply-read-r2.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-supply-read-r3.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-supply-read-r4.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-supply-read-r5.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-supply-read-r5z-model-usage.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-read-completion-r2.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-read-completion-r3.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-read-completion-r3z-model-usage.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-read-completion-resume-r1.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-read-completion-resume-r1z-model-usage.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-read-completion-resume-r1z-model-usagez-model-usage.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-read-completion-resume-r1z-model-usagez-model-usagez-model-usage.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-read-completion-resume-r1z-model-usagez-model-usagez-model-usagez-model-usage.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-ozon-subscription-access-r1.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-ozon-subscription-access-r1z-model-usage.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-ozon-subscription-access-r1z-model-usagez-model-usage.conf
+[Service]
+TimeoutStopSec=120
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-paid-model-result-r2.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-paid-model-result-r2z-model-usage.conf
+[Service]
+TimeoutStopSec=120
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-paid-model-result-r4.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-paid-model-result-r4z-model-usage.conf
+[Service]
+TimeoutStopSec=120
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-template-only-r1.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-template-only-r2.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-template-only-r2z-retry20.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-template-only-r2z-retry20z-two-model-calls.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-template-only-r2z-retry20z-two-model-callsz-template-notes.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-template-only-r2z-retry20z-two-model-callsz-template-notesz-model-token-cost.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-template-only-r2z-retry20z-two-model-callsz-template-notesz-model-token-costz-accrual-note.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-template-only-r2z-retry20z-two-model-callsz-template-notesz-model-token-costz-accrual-notez-selected-notes.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-report-archive.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-report-archivez-services-scope.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-report-archivez-services-scopez-selector-hints.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-report-archivez-services-scopez-selector-hintsz-template-basis.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-report-archivez-services-scopez-selector-hintsz-template-basisz-raw-template-flow.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-report-archivez-services-scopez-selector-hintsz-template-basisz-raw-template-flowz-selector-terminology.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-report-archivez-services-scopez-selector-hintsz-template-basisz-raw-template-flowz-selector-terminologyz-wb-sales-purpose-v5.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-report-archivez-services-scopez-selector-hintsz-template-basisz-raw-template-flowz-selector-terminologyz-wb-sales-purpose-v5z-wb-buyout-date-v2.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-report-archivez-services-scopez-selector-hintsz-template-basisz-raw-template-flowz-selector-terminologyz-wb-sales-purpose-v5z-wb-buyout-date-v2z-prefix-cache-r3.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-report-archivez-services-scopez-selector-hintsz-template-basisz-raw-template-flowz-selector-terminologyz-wb-sales-purpose-v5z-wb-buyout-date-v2z-prefix-cache-r3z-input-packing-v1.conf
+[Service]
+# Observed: /etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-alisa-runtime-current.conf
+[Service]
+[Service]
+WorkingDirectory=/opt/alice-market/releases/current
+ExecStart=
+ExecStart=/usr/bin/python3 -B /opt/alice-market/releases/current/runtime.py --config /etc/alice-market/market-runtime.json

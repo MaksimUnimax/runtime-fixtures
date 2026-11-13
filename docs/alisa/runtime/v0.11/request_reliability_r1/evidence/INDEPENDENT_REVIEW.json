@@ -1,0 +1,33 @@
+{
+  "status": "SOURCE_REVIEW_ACCEPTED",
+  "reviewer": "independent_review",
+  "scope": "candidate request reliability R1-R10",
+  "found_and_fixed": [
+    "broker persistence failure lacked recovery retry",
+    "nested calculation references unresolved",
+    "execution revocation not checked inside long session",
+    "legacy store revocation not checked inside program",
+    "result expiry measured from program start",
+    "service stop made resumable job terminal",
+    "malformed receipt overwrote valid counters"
+  ],
+  "independent_reproduction": "Legacy store revocation blocks second dispatch; no external calls",
+  "local_suite": {
+    "passed": 71,
+    "blocked_by_environment": 2,
+    "reason": "scratch AF_UNIX EPERM"
+  },
+  "required_before_install": [
+    "final isolated server regression",
+    "cleanup unit new broker",
+    "systemd hardening preservation"
+  ],
+  "limits": [
+    "No arbitrary-model arithmetic guarantee",
+    "No live provider calls",
+    "No voice acceptance"
+  ],
+  "deployment_status": "APPROVED",
+  "final_followup_tests": 5,
+  "final_results_sha256": "1bf19d8d15587efecc88a4b1cf5c2609c5731a7fc7dcf2e4f7152a9b565ae952"
+}

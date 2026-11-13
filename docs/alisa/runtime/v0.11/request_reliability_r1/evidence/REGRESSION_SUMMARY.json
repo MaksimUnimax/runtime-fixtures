@@ -1,0 +1,15 @@
+{
+  "scope": "CURRENT_RUNTIME_OFFLINE_AND_LOOPBACK_TLS_NOT_LIVE_PROVIDER",
+  "status": "PASS",
+  "tests_run": 2121,
+  "skipped": 0,
+  "forbidden_network_attempts": 0,
+  "failures": 0,
+  "errors": 0,
+  "installed": false,
+  "live_provider_calls": 0,
+  "source_sha": "candidate-request-reliability-r1",
+  "source_dirty": false,
+  "tested_tree_sha256": "0a8ae0ae579492d91fa6cf0ab9027d6b3a5ca099182680238b7be0f92fb04309",
+  "base_manifest_sha256": "719e3e6c59c8f563bc6518854d17e755b41b9bb9416c98b465c687f3ba40a5ba"
+}
