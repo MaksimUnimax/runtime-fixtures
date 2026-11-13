@@ -176,7 +176,7 @@ def run(case, ports):
                 'all_store_ids':sorted([str(case.store.pk),*[str(s.pk)for s in selection_stores if s.status=='ACTIVE']])}
             paginated=subprocess.run([str(py),str(pagination_script)],env=child_env,
                 user=network.uid,group=network.uid,extra_groups=[],input=json.dumps(data),capture_output=True,text=True,timeout=60)
-            if paginated.returncode:raise AssertionError('Browser store pagination qualification failed: '+paginated.stderr[-3000:])
+            if paginated.returncode:raise AssertionError('Browser store pagination qualification failed: '+paginated.stderr[:3000]+'\nTAIL:\n'+paginated.stderr[-1000:])
             pagination_record=json.loads(paginated.stdout);case.assertEqual(pagination_record['status'],'PASS')
             case.assertEqual(len(case.transport.calls),before)
             record['checks'].extend(pagination_record['checks'])

@@ -55,12 +55,19 @@ with sync_playwright() as p:
                 else:route.fulfill(status=200,json={'items':[],'next_cursor':parse_qs(urlsplit(route.request.url).query)['cursor'][0]})
             else:route.fallback()
         context.route(data['origin']+'/api/account/stores?cursor=*',fail_page)
-        for _ in range(3):
-            more.click();expect(page.get_by_role('region',name='Новый отчёт',exact=True).get_by_role('alert')).to_contain_text('Не удалось загрузить')
+        def page_response(response):return response.request.method=='GET' and '/api/account/stores?cursor='in response.url
+        for expected_status in [503,200,200]:
+            with page.expect_response(page_response)as received:more.click()
+            if received.value.status!=expected_status:raise AssertionError('Unexpected injected page status')
+            expect(page.get_by_role('region',name='Новый отчёт',exact=True).get_by_role('alert')).to_contain_text('Не удалось загрузить')
             expect(more).to_be_enabled();expect(chosen).to_be_checked()
             expect(group.get_by_role('checkbox')).to_have_count(50)
             expect(question).to_have_value('Keep this question while loading stores')
-        more.click();expect(group.get_by_role('checkbox')).to_have_count(len(data['all_store_ids']))
+        with page.expect_response(page_response)as received:more.click()
+        if received.value.status!=200:raise AssertionError('Real final cursor page HTTP '+str(received.value.status))
+        payload=received.value.json()
+        if len(payload.get('items',[]))!=len(data['all_store_ids'])-50:raise AssertionError('Real final page row count differs')
+        expect(group.get_by_role('checkbox')).to_have_count(len(data['all_store_ids']))
         expect(more).to_have_count(0);expect(chosen).to_be_checked()
         expect(group.locator('input:checked')).to_have_count(1)
         expect(question).to_have_value('Keep this question while loading stores')
