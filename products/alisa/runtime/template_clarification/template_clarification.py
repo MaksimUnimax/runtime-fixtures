@@ -39,6 +39,7 @@ def pending(row):
 def pause(worker, row, plan, progress, decision):
     from template_catalog import TemplateGap
     try:
+        need(type(plan.get('runtime_guard')) is dict)
         need(type(decision) is dict and set(decision) == {'action', 'question', 'missing'})
         need(decision['action'] == 'clarify')
         question = checked_text(decision['question'], 400)

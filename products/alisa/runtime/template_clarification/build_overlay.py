@@ -19,13 +19,23 @@ def sources(root):
               'tests/test_template_clarification_extension.py': (ROOT / 'checks.py').read_text()}
     text = (root / 'template_runtime.py').read_text()
     text = base.replace_once(text, '    # Validate the selected registered recipes locally. No extra model call.',
-        "    if type(decision)is dict and decision.get('action')=='clarify':\n"
+        "    if type(decision)is dict and decision.get('action')=='clarify' and type(plan.get('runtime_guard'))is dict:\n"
         "        from template_clarification import pause\n"
         "        return pause(worker,row,plan,progress,decision)\n"
         '    # Validate the selected registered recipes locally. No extra model call.')
+    text = base.replace_once(text, 'from template_protocol import SELECT_SYSTEM,payload as model_payload',
+        'from template_protocol import SELECT_SYSTEM,selection_system,payload as model_payload')
+    text = base.replace_once(text, "            op='template_select';body={'system':SELECT_SYSTEM,",
+        "            if type(plan.get('runtime_guard'))is dict:ctx['clarification_supported']=True\n"
+        "            op='template_select';body={'system':selection_system(ctx),")
     result['template_runtime.py'] = text
     text = (root / 'template_protocol.py').read_text()
-    text = base.replace_once(text, 'VERIFY_SYSTEM=', 'SELECT_SYSTEM += ' + repr(POLICY) + '\nVERIFY_SYSTEM=')
+    text = base.replace_once(text, 'VERIFY_SYSTEM=', 'CLARIFY_SELECT_SYSTEM = SELECT_SYSTEM + ' + repr(POLICY) +
+        "\ndef selection_system(context):\n"
+        "    return CLARIFY_SELECT_SYSTEM if type(context)is dict and context.get('clarification_supported')is True else SELECT_SYSTEM\n"
+        'VERIFY_SYSTEM=')
+    text = base.replace_once(text, "'template_select':SELECT_SYSTEM,",
+        "'template_select':selection_system(body.get('context')),")
     result['template_protocol.py'] = text
     text = (root / 'runtime_port.py').read_text()
     text = base.replace_once(text,

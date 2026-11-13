@@ -4,10 +4,10 @@ import unittest
 from unittest.mock import patch
 
 from test_runtime_port_r01_contract import Setup, uid, utc
-from test_template_only import Transport, selection
+from test_template_only import Transport, selection, TODAY
 from engine import Worker
 from model_answer import Settings
-from semantics import strict_json
+from semantics import strict_json, fingerprint
 import model_usage
 
 
@@ -44,6 +44,29 @@ class ClarificationChecks(Setup):
         self.assertEqual(self.count('jobs'), 1); self.assertEqual(self.count('inbox'), 1)
         self.assertEqual(value['pages'], [value['clarification']['question']])
         self.assertFalse(strict_json(self.row(receipt)['result']).get('template_gap'))
+
+    def test_legacy_station_has_original_policy_and_no_unanswerable_pending_job(self):
+        from template_protocol import SELECT_SYSTEM
+        question = 'Сколько товаров заказали вчера на Озоне?'
+        value = self.engine.safe_submit('A', question, uid(), fingerprint(question), TODAY,
+            conversation_id='legacy-station-session', message_id=0)
+        self.worker.step(); row = self.repo.get('A', value['job_id'])
+        self.assertEqual(self.transport.calls[0].body['system'], SELECT_SYSTEM)
+        self.assertNotIn('clarification_supported', self.transport.calls[0].body['context'])
+        self.assertNotIn('clarification', strict_json(row['result']))
+        self.assertEqual(strict_json(row['result'])['failure_code'], 'TEMPLATE_NOT_FOUND')
+        self.assertEqual(self.count('rt_job_refs'), 0)
+        self.assertEqual([c.operation for c in self.transport.calls], ['template_select'])
+
+    def test_extended_selector_policy_requires_server_continuation_capability(self):
+        from template_protocol import payload, SELECT_SYSTEM
+        self.ask(); body = self.transport.calls[0].body
+        self.assertTrue(body['context']['clarification_supported'])
+        self.assertNotEqual(body['system'], SELECT_SYSTEM)
+        payload('template_select', body)
+        altered = deepcopy(body); altered['context'].pop('clarification_supported')
+        with self.assertRaisesRegex(ValueError, 'TEMPLATE_MODEL_POLICY'):
+            payload('template_select', altered)
 
     def test_answer_preserves_original_date_scope_and_job(self):
         original = 'Покажи заказы за вчера по магазину, исключая товар Z'
