@@ -1,0 +1,50 @@
+{
+  "schema": "alisa-independent-review/v1",
+  "reviewer": "independent_review",
+  "status": "APPROVED",
+  "reviewed_at_utc": "2026-11-13T07:07:38.751198+00:00",
+  "scope": "Two B15 stock speech notes and finite template-only installer",
+  "base_catalog_sha256": "81857d17303305e3b1b3b133fe4db13ac6c9e3436e01538c381a6206b4d48dd6",
+  "candidate_catalog_sha256": "7e46df39744da9f204e5c68ec95d81faedd5735136d07a1b9be8c3ca629a80a3",
+  "installer_sha256": "73bad9a3e8a2664ccffc52a1f62d4552468c90cd69a8b8306c1059a5722a00fd",
+  "changed_templates": [
+    "B15.stock_to_customer",
+    "B15.stock_return_transit"
+  ],
+  "changed_template_fields": [
+    "notes",
+    "version"
+  ],
+  "findings": [],
+  "checks": {
+    "exact_two_template_delta": "PASS",
+    "catalog_validation": "PASS",
+    "short_requested_quantity_and_direction": "PASS",
+    "numbers_as_words": "PASS",
+    "material_incompleteness_disclosure": "PASS",
+    "partial_total_not_full_total": "PASS",
+    "sources_calculations_and_access_unchanged": "PASS",
+    "installer_syntax": "PASS",
+    "copy_base_replace_only_catalog": "PASS",
+    "atomic_pointer_and_rollback": "PASS",
+    "queue_quiesce_before_and_after_stop": "PASS",
+    "config_digest_preserved": "PASS",
+    "pid_physical_release_check": "PASS",
+    "installer_test_count_only_delta": "PASS"
+  },
+  "runtime_tests": {
+    "observed_by_reviewer": false,
+    "reported_by_main_executor": {
+      "tests_run": 102,
+      "result": "OK",
+      "elapsed_seconds": 37.837,
+      "log": "/opt/alice-market/candidates/stock-speech-tests-20261113/focused-final.log"
+    },
+    "installer_requires": "102 tests with OK in focused-final.log"
+  },
+  "limitations": [
+    "Source and installer review only; regression result of 102 tests is reported by main executor, not independently read by reviewer. Installed behavior and actual voice response must be checked by main executor."
+  ],
+  "live_provider_calls": 0,
+  "production_mutations_by_reviewer": 0
+}
