@@ -1,0 +1,32 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "scope": "SUMMARY.50 selector purpose, concise answer notes and explicit canonical four-metric financial context; existing safe immutable one-catalog rollout.",
+  "files_sha256": {
+    "template_catalog.base.json": "c6e5f066625495c96c0cd5f57bb81cb7e0e4afa1251f8915890eaf05a845e5fa",
+    "template_catalog.json": "91c8e30018eb1ec1e70f9082a5c3e000223fb2d45e9a25a87c4ee2cbc5e448be",
+    "patch.json": "f9e6dfba0f28844317169bbdbed100241fa119f5d8e1d86372968e09dc07308a",
+    "install.py": "0e39504a57eeab7a536c5a6b814fe6163ba405f0893e67faa5ae98ea4efae714"
+  },
+  "findings": [],
+  "checks": [
+    "Exact diff changes only SUMMARY.50 version (1 to 2), purpose, notes and calculation_contract. Other templates and all existing dependencies, metrics, input policies, workflows, API schema/requests and source bindings are unchanged.",
+    "Purpose explicitly covers the four existing supported metrics and interprets before/after as the start/end of the requested period, not an arbitrary event or the current account balance.",
+    "Actual canonical source expressions match the direct amount/currency paths total.opening_balance, total.closing_balance and total.accrued. Payments match sum_values of total.payments[].value with each currency_code checked.",
+    "All four canonical registry definitions use currency units, signed values and financial_period semantics. Contract forbids sign inversion, absolute value, reconstruction from selected components or current-balance substitution.",
+    "Empty payments yield zero only for a complete verified report. Missing fields or an incomplete document are not zeros, and one unavailable measure must remain visibly unknown rather than disappear.",
+    "Notes request all explicitly requested values with the four appropriate labels and number words; no unconditional restriction suppresses additional explicitly requested measures.",
+    "Independent canonical path/currency extraction, unit/sign/time-axis checks, unchanged dependency order, exact scope, patch consistency, validate_catalog and Python compilation pass.",
+    "Installer delta from approved Ozon fee installer is limited to release identity, immutable pins and metadata. Only template_catalog.json may differ, preserving safe hardlinks, changed-inode replacement, atomic manifest, full base hashes, no-active-jobs guard, native preflight, process cwd verification, config equality and rollback."
+  ],
+  "verification": {
+    "independent_local": "Exact scope; all four actual canonical field/currency expressions; currency/signed/financial_period definitions; dependency order; patch; validate_catalog; compile PASS.",
+    "server_suite": "Fresh complete 107-test run required by installer gate; server result not independently observed at review time.",
+    "new_test_files_written": 0,
+    "paid_or_live_calls_by_reviewer": 0
+  },
+  "limitations": [
+    "Selector support recognition and final four-value answer require the planned exact-question live acceptance retest; metadata correctness alone does not guarantee model selection.",
+    "Unchanged hardlinked release payloads must remain immutable; later changes must replace destination inodes."
+  ]
+}
