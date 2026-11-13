@@ -1,0 +1,125 @@
+{
+  "review_date": "2026-11-13",
+  "core_release": "alisa-program-answer-r1-20261111",
+  "core_source_commit": "282f29c2c533c5d1009fb4a46221325a989dceb4",
+  "executor_source_commit": "96415bba8ad1b1998fbf934a3f751b6eca6cd792",
+  "core_regression": {
+    "tests": 1951,
+    "status": "PASS",
+    "seconds": 227.795
+  },
+  "station_regression": {
+    "tests": 60,
+    "status": "PASS",
+    "seconds": 6.533,
+    "user": "alice-lab",
+    "skipped": 0
+  },
+  "native_scenarios": [
+    {
+      "mode": "normal",
+      "passed": true,
+      "synthetic_dispatches": 2,
+      "paid_calls": 0,
+      "retry_seconds": null
+    },
+    {
+      "mode": "429",
+      "passed": true,
+      "synthetic_dispatches": 3,
+      "paid_calls": 0,
+      "retry_seconds": 20.021
+    },
+    {
+      "mode": "unknown",
+      "passed": true,
+      "synthetic_dispatches": 1,
+      "paid_calls": 0,
+      "retry_seconds": null
+    },
+    {
+      "mode": "cancel",
+      "passed": true,
+      "synthetic_dispatches": 1,
+      "paid_calls": 0,
+      "retry_seconds": null
+    }
+  ],
+  "probes": {
+    "provider_tool": {
+      "unapproved_server_tool_passed_to_wire": true,
+      "server_tool_usage_discarded": true
+    },
+    "receipt_then_timeout": {
+      "terminal_usage_sent_before_timeout": true,
+      "preserved_usage": false,
+      "actual_exception": "AttributeError",
+      "detail": "'Request' object has no attribute 'client'",
+      "cause": "local http Request shadows imported http module in exception handler"
+    },
+    "dead_peer_retry": {
+      "synthetic_attempts": 2,
+      "attempt_after_peer_disconnected": true
+    },
+    "template_scenarios": {
+      "400": {
+        "state": "READY",
+        "error": "HTTP_400",
+        "operations": [
+          "template_select",
+          "ozon_orders",
+          "model_answer"
+        ]
+      },
+      "403": {
+        "state": "READY",
+        "error": "HTTP_403",
+        "operations": [
+          "template_select",
+          "ozon_orders",
+          "model_answer"
+        ]
+      },
+      "422": {
+        "state": "READY",
+        "error": "HTTP_422",
+        "operations": [
+          "template_select",
+          "ozon_orders",
+          "model_answer"
+        ]
+      },
+      "429": {
+        "state": "READY",
+        "error": null,
+        "operations": [
+          "template_select",
+          "ozon_orders",
+          "ozon_orders",
+          "model_answer"
+        ]
+      },
+      "selection_hint_in_final_prompt": {
+        "purpose_field_present": true,
+        "ready": true
+      },
+      "selector_length_finish": {
+        "state": "READY",
+        "error": "TEMPLATE_EXECUTION_FAILED",
+        "operations": [
+          "template_select"
+        ]
+      }
+    },
+    "paid_calls": 0
+  },
+  "paid_model_calls": 0,
+  "station_live_playback": false,
+  "production_code_changed": false,
+  "executor_jobs_remaining": 0,
+  "current_services": {
+    "alice-market": "active",
+    "alisa-station": "active",
+    "alisa-program.socket": "active"
+  }
+}
