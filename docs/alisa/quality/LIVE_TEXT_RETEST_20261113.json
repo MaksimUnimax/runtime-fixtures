@@ -1,0 +1,77 @@
+{
+  "date": "2026-11-13",
+  "status": "LIVE_TEXT_NUMERIC_PASS_WITH_WORDING_NOTE",
+  "cases": 5,
+  "numeric_checks_passed": 5,
+  "calls": 15,
+  "estimated_cost_rub": "0.8287830061524",
+  "receipts_complete": true,
+  "voice_calls": 0,
+  "wording_notes": 1,
+  "runtime": "alisa-store-enrollment-592cc8bb006a4991",
+  "source": "592cc8bb006a4991a876c875cd497701791a5593",
+  "code_changed": false,
+  "scope": "Installed core through existing authorized IPC; no browser/enrollment/voice acceptance",
+  "checks": [
+    {
+      "case": "card_views",
+      "templates": [
+        "B14.card_views"
+      ],
+      "numeric_match": true,
+      "route": "program_v2",
+      "calls": 7,
+      "seconds": 24.11,
+      "estimated_rub": "0.3693058166772",
+      "wording_note": true
+    },
+    {
+      "case": "wb_buyouts",
+      "templates": [
+        "B02.wb_events"
+      ],
+      "numeric_match": true,
+      "route": "direct_v1",
+      "calls": 2,
+      "seconds": 8.854,
+      "estimated_rub": "0.1074259644588",
+      "wording_note": false
+    },
+    {
+      "case": "ozon_orders",
+      "templates": [
+        "B01.ordered_units"
+      ],
+      "numeric_match": true,
+      "route": "direct_v1",
+      "calls": 2,
+      "seconds": 10.701,
+      "estimated_rub": "0.0746653420188",
+      "wording_note": false
+    },
+    {
+      "case": "wb_returns",
+      "templates": [
+        "B03.wb_events"
+      ],
+      "numeric_match": true,
+      "route": "direct_v1",
+      "calls": 2,
+      "seconds": 6.875,
+      "estimated_rub": "0.1161388959588",
+      "wording_note": false
+    },
+    {
+      "case": "wb_amounts",
+      "templates": [
+        "B02.wb_events"
+      ],
+      "numeric_match": true,
+      "route": "direct_v1",
+      "calls": 2,
+      "seconds": 8.976,
+      "estimated_rub": "0.1612469870388",
+      "wording_note": false
+    }
+  ]
+}
