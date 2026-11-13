@@ -1,0 +1,15 @@
+{
+  "source": "81579c18d4725c7f0a6603c8abbf703668863e36",
+  "manifests": {
+    "/opt/alisa-platform/stage/releases/alisa-template-clarification-81579c18d4725c7f": "c6c6d929489b3e37cf7d758ecd17a3bf7530e18467963e6f5c024d3b28df1020",
+    "/opt/alice-market/releases/alisa-template-clarification-81579c18d4725c7f": "c9b106a2e70fd07a86e3b12ececf9ce85569de8cbe1c22758719c294229d03ea",
+    "/opt/alisa-platform/stage/releases/alisa-cabinet-clarification-81579c18d4725c7f": "1c883accf04afcb8ddd00804a60b6caeb9b42da95f3fb3e23549cbe9fc7243ad"
+  },
+  "budget_bytes": 30094162,
+  "live_database_changes": false,
+  "live_service_changes": false,
+  "dependency_bases": [
+    "/opt/alisa-platform/stage/releases/alisa-store-enrollment-592cc8bb006a4991/.venv",
+    "/opt/alisa-platform/stage/releases/alisa-cabinet-multi-store-b481fbe9480ef13e/.venv"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "phase": "MIGRATION_PREFLIGHT",
+  "target": [
+    "queries",
+    "0004_query_continuation"
+  ],
+  "plan": [
+    [
+      "queries",
+      "0004_query_continuation",
+      false
+    ]
+  ],
+  "column": "continuation jsonb NOT NULL DEFAULT empty-object",
+  "privileges_unchanged": true,
+  "grants": [],
+  "live_db_changes": false,
+  "rollback": "retain additive column and DB default while rolling application code back"
+}

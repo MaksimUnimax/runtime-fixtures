@@ -1,4 +1,4 @@
-"""Finite deduplication of two inactive, byte-identical owned dependency copies."""
+"""Finite deduplication of inactive, byte-identical owned dependency copies."""
 import fcntl
 import hashlib
 import json
@@ -13,6 +13,7 @@ ROOT = Path('/root/alisa-s09-clarification-install-20261113-d11a9f2a')
 BASE = Path('/opt/alisa-platform/stage/releases/alisa-store-enrollment-592cc8bb006a4991')
 BASE_SHA = '9373ffa589af852e2fef523fbd76d2d5d2e502eaa07720806d10a37f1cc71206'
 OLD = {
+    BASE.parent / 'alisa-store-default-a6d5e19a87577d87': '21019b2345102f6324070513921291f78650dd3393e775b3383fa91d85f558dd',
     BASE.parent / 'alisa-voice-selection-ac5557cd456ab364': '4069054526175c134692c6458e3ccf25694271f3472710b4002ae2ec7b86a5e5',
     BASE.parent / 'alisa-voice-selection-be0995ebb00e4649': 'fef0d541d42e1ca3b36c0a74f86d8f151d15bc52eb4a541a2d189dd655c346e7',
 }

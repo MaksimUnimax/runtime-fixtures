@@ -1,0 +1,22 @@
+{
+  "status": "OWN_INACTIVE_DEPENDENCIES_SHARED",
+  "rows": [
+    {
+      "release": "alisa-voice-selection-ac5557cd456ab364",
+      "manifest_unchanged": true,
+      "dependency_reference": "/opt/alisa-platform/stage/releases/alisa-store-enrollment-592cc8bb006a4991/.venv"
+    },
+    {
+      "release": "alisa-voice-selection-be0995ebb00e4649",
+      "manifest_unchanged": true,
+      "dependency_reference": "/opt/alisa-platform/stage/releases/alisa-store-enrollment-592cc8bb006a4991/.venv"
+    }
+  ],
+  "dependency_tree_sha256": "29845d304e95b2b58096f0516bcebb7a85435a5d71c18cffda3e7aa43edacc3d",
+  "entries": 12298,
+  "freed_bytes": 28585984,
+  "free_bytes": 3252215808,
+  "source_and_manifests_preserved": true,
+  "service_restarts": 0,
+  "database_changes": false
+}
