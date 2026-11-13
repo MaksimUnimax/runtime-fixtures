@@ -65,9 +65,30 @@ def sources(root):
     result['runtime_port_ipc.py'] = base.replace_once(text, "    if op=='submit':return port.submit(payload,peer)",
         "    if op=='submit':return port.submit(payload,peer)\n"
         "    if op=='clarify':return port.clarify(payload,peer)")
+    result.update(regression_sources(root))
     for name, text in result.items():
         if name.endswith('.py'):
             compile(text, name, 'exec')
+    return result
+
+
+def regression_sources(root):
+    """Repair two fixture assumptions without changing any production behavior."""
+    result = {}
+    name = 'tests/test_retention.py'
+    text = (root / name).read_text()
+    result[name] = base.replace_once(text, '  before=self.path.stat().st_size\n',
+        "  self.assertEqual(c.execute('PRAGMA wal_checkpoint(TRUNCATE)').fetchone()[0],0);c.close()\n"
+        '  before=self.path.stat().st_size\n')
+    # This later installed-source suite is absent from the immutable R02 base.
+    # The exact four published contracts are independent expected fixture data.
+    name = 'tests/test_request_reliability.py'
+    if (root / name).is_file():
+        text = (root / name).read_text()
+        result[name] = base.replace_once(text,
+            "self.assertEqual(set(contracts),{'finance_storage_logistics','finance_storage_logistics_share'})",
+            "self.assertEqual(set(contracts),{'finance_storage_logistics','finance_storage_logistics_share',"
+            "'B06.finance_logistics_cost','B06.finance_storage_cost'})")
     return result
 
 
