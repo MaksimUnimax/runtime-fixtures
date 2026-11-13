@@ -6,6 +6,8 @@ import json
 import os
 from pathlib import Path
 import shutil
+import socket
+import struct
 import subprocess
 import sys
 import time
@@ -173,10 +175,40 @@ def projection_data():
     return data
 
 
+def native_cwd(pid):return Path('/proc/'+str(pid)+'/cwd').resolve()
+
+
+def native_peer(path):
+    with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)as peer:
+        peer.settimeout(.5);peer.connect(path)
+        pid,uid,_=struct.unpack('3i',peer.getsockopt(socket.SOL_SOCKET,socket.SO_PEERCRED,12))
+        return pid,uid
+
+
+def wait_native_generation(module,expected_uid):
+    config=module.root_json(Path('/etc/alice-market/market-runtime.json'),1048576)
+    path=config['runtime_port']['socket']
+    need(type(path)is str and path.startswith('/run/'),'NATIVE_SOCKET_SCOPE')
+    target=CURRENT.resolve();need(target in [NATIVE,NATIVE_BASE],'NATIVE_MOVED')
+    # Type=simple reports the fork before exec/credential setup is complete.
+    # Require the final UID, selected executable cwd, and the new socket's PID.
+    for _ in range(40):
+        try:
+            pid=int(prop(NATIVE_UNIT,'MainPID'))
+            if prop(NATIVE_UNIT,'ActiveState')=='active':
+                generation=module.process_generation(pid)
+                if (generation['uid']==expected_uid and native_cwd(pid)==target and
+                        native_peer(path)==(pid,expected_uid) and
+                        module.process_generation(pid)==generation):
+                    return generation
+        except (OSError,ValueError,KeyError,RuntimeError):pass
+        time.sleep(.25)
+    raise RuntimeError('NATIVE_NOT_READY')
+
+
 def refresh_projection(original,on_write=None):
     module=native_module();data=json.loads(json.dumps(original))
-    generation=module.process_generation(int(prop(NATIVE_UNIT,'MainPID')))
-    need(generation['uid']==original['native_generation']['uid'],'NATIVE_UID_CHANGED')
+    generation=wait_native_generation(module,original['native_generation']['uid'])
     data['native_generation']=generation
     config=module.root_json(Path('/etc/alice-market/market-runtime.json'),1048576)
     for row in data['bindings']:

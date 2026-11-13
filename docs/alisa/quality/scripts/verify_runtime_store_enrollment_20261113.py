@@ -46,9 +46,16 @@ def verify():
         prior=json.loads((ROOT/'MIGRATED.json').read_text())
         need(prior['protected_runtime_privileges_unchanged']is True,'PROTECTED_RIGHTS')
     connection.close()
-    code="import django,json;django.setup();from alisa_platform.runtime_adapter.client import configured_client;print(json.dumps(configured_client(None).current_versions()))"
+    code="""import django,json
+django.setup()
+from alisa_platform.runtime_adapter.client import configured_client
+class MetadataOnly:
+ def prepare(self,*args):raise AssertionError('OWNER_ADMISSION_FORBIDDEN_IN_METADATA_CHECK')
+ def current(self,*args):raise AssertionError('OWNER_ADMISSION_FORBIDDEN_IN_METADATA_CHECK')
+print(json.dumps(configured_client(MetadataOnly()).current_versions()))
+"""
     result=subprocess.run([str(APP/'.venv/bin/python'),'-B','-c',code],env={**env,'PYTHONPATH':str(APP/'services/platform/src')},
-        user=uid,group=gid,extra_groups=groups,capture_output=True,text=True,timeout=12)
+        cwd=APP,user=uid,group=gid,extra_groups=groups,capture_output=True,text=True,timeout=12)
     need(result.returncode==0,'REAL_SERVICE_UID_RUNTIME_HANDSHAKE')
     versions=json.loads(result.stdout)
     need(versions==json.loads(Path(settings.RUNTIME_VERSIONS_PATH).read_text()),'VERSION_PIN_MISMATCH')

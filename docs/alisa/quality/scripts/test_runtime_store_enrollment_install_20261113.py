@@ -38,7 +38,7 @@ class RolloutChecks(unittest.TestCase):
             'bindings':[{'credential_name':'ozon','source_hmac':mac(None,None,{'material':'old','generation':old})}]}
         module=SimpleNamespace(process_generation=lambda pid:new,root_json=lambda path,limit:'config'if str(path).endswith('market-runtime.json')else'changed',
             native_context=context,mac=mac,hmac=hmac)
-        with patch.object(install,'native_module',return_value=module),patch.object(install,'prop',return_value='101'),\
+        with patch.object(install,'native_module',return_value=module),patch.object(install,'wait_native_generation',return_value=new),\
                 patch.object(install,'atomic')as write,patch.object(install,'run')as command:
             with self.assertRaisesRegex(RuntimeError,'OWNER_PAIR_CHANGED_DURING_RESTART'):install.refresh_projection(original)
             write.assert_not_called();command.assert_not_called()
@@ -53,7 +53,7 @@ class RolloutChecks(unittest.TestCase):
         with tempfile.TemporaryDirectory()as folder:
             projection=Path(folder)/'scope.json';projection.write_text(json.dumps(original));before=projection.read_bytes()
             with patch.object(install,'PROJECTION',projection),patch.object(install,'native_module',return_value=module),\
-                    patch.object(install,'prop',return_value='101'),patch.object(install,'run')as command:
+                    patch.object(install,'wait_native_generation',return_value=new),patch.object(install,'run')as command:
                 install.refresh_projection(original)
                 command.assert_called_once_with('systemctl','restart',install.CHECK_UNIT)
             self.assertEqual(original['native_generation'],old)
@@ -69,7 +69,7 @@ class RolloutChecks(unittest.TestCase):
         with tempfile.TemporaryDirectory()as folder:
             path=Path(folder)/'scope.json';path.write_text('{}')
             with patch.object(install,'PROJECTION',path),patch.object(install,'native_module',return_value=module),\
-                    patch.object(install,'prop',return_value='101'),patch.object(install,'run',side_effect=RuntimeError('checker failed')):
+                    patch.object(install,'wait_native_generation',return_value=new),patch.object(install,'run',side_effect=RuntimeError('checker failed')):
                 with self.assertRaisesRegex(RuntimeError,'checker failed'):
                     install.refresh_projection(original,on_write=captured.append)
             self.assertEqual(captured,[path.read_bytes()])
@@ -89,6 +89,37 @@ class RolloutChecks(unittest.TestCase):
         self.assertIn(install.PLATFORM_UNITS[0],failures)
         self.assertIn('owner_pair_and_checker',failures)
         self.assertEqual(report.call_args.args[1]['status'],'ROLLBACK_NEEDS_ATTENTION')
+
+    def ready_fixture(self,generations,peer=(101,996)):
+        module=SimpleNamespace(root_json=lambda *a:{'runtime_port':{'socket':'/run/fixture.sock'}},
+            process_generation=unittest.mock.Mock(side_effect=generations))
+        return module
+
+    def test_simple_start_waits_for_final_uid_cwd_and_socket_generation(self):
+        final={'pid':101,'uid':996};module=self.ready_fixture([{'pid':101,'uid':0},final,final])
+        target=Path('/expected');current=SimpleNamespace(resolve=lambda:target)
+        with patch.object(install,'CURRENT',current),patch.object(install,'NATIVE',target),\
+                patch.object(install,'prop',side_effect=lambda unit,name:'101'if name=='MainPID'else'active'),\
+                patch.object(install,'native_cwd',return_value=target),\
+                patch.object(install,'native_peer',return_value=(101,996))as peer,patch.object(install.time,'sleep')as pause:
+            self.assertEqual(install.wait_native_generation(module,996),final)
+        pause.assert_called_once_with(.25);peer.assert_called_once()
+
+    def test_wrong_uid_never_reaches_projection_or_socket(self):
+        module=self.ready_fixture([{'pid':101,'uid':0}]*40);target=Path('/expected')
+        with patch.object(install,'CURRENT',SimpleNamespace(resolve=lambda:target)),patch.object(install,'NATIVE',target),\
+                patch.object(install,'prop',side_effect=lambda unit,name:'101'if name=='MainPID'else'active'),\
+                patch.object(install,'native_peer')as peer,patch.object(install.time,'sleep'):
+            with self.assertRaisesRegex(RuntimeError,'NATIVE_NOT_READY'):install.wait_native_generation(module,996)
+        peer.assert_not_called()
+
+    def test_old_socket_pid_is_not_ready_for_new_native_process(self):
+        module=self.ready_fixture([{'pid':101,'uid':996}]*40);target=Path('/expected')
+        with patch.object(install,'CURRENT',SimpleNamespace(resolve=lambda:target)),patch.object(install,'NATIVE',target),\
+                patch.object(install,'prop',side_effect=lambda unit,name:'101'if name=='MainPID'else'active'),\
+                patch.object(install,'native_cwd',return_value=target),\
+                patch.object(install,'native_peer',return_value=(100,996)),patch.object(install.time,'sleep'):
+            with self.assertRaisesRegex(RuntimeError,'NATIVE_NOT_READY'):install.wait_native_generation(module,996)
 
     def test_sync_reuses_existing_lock_descriptor(self):
         lock=SimpleNamespace(fileno=lambda:7)
