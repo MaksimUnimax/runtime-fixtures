@@ -1,0 +1,33 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "scope": "Add canonical calculation contracts and concise purpose/notes to the five remaining B05 accrual quantity/amount scalars; version increments only; immutable single-catalog installer.",
+  "files_sha256": {
+    "template_catalog.base.json": "b69ad6282557924b34ed7eb633bb464d0ea9e4f2c456f612cf15717fc8375249",
+    "template_catalog.json": "dd8f076d216aa3c5158c32b5ebf1c1db00c7b7456253595135d77a1fcd47da39",
+    "install.py": "d11db57a36ec9e8d53b8b6227888d5872e473715f13d18e27e2eba734513ad66"
+  },
+  "findings": [],
+  "checks": [
+    "Exact catalog diff changes only version, purpose, notes and calculation_contract on the five requested B05 templates; each version advances 1 to 2. Template IDs/count, existing sale_units contract, input policies, source bindings, steps, requests and formulas are unchanged.",
+    "Each new metric was independently compared with the canonical scalar_catalog field binding and the actual scalar_source_catalog expression: sign filter, sum field and final transform all match.",
+    "Reversal units use negative commission.sale_amount and sum quantity. Negative total_amount or service fees without commission are explicitly excluded as evidence of product return.",
+    "Buyer amounts sum commission.sale_price.amount; seller amounts sum commission.sale_amount.amount. Positive sale amounts use sum, reverse monetary amounts negate the signed sum. Line monetary totals are not multiplied again by quantity.",
+    "All five contracts retain accrual_date and accruals[].date, require all pages for the requested date, and preserve the existing single-day source semantics.",
+    "An empty matching subset is zero only for a complete verified report; missing documents, fields or unfinished pagination cannot be silently treated as zero. Monetary currency checking is required.",
+    "New notes are static catalog instructions for concise metric answers with explicit unknown-value preservation. Existing verified selected-root system-note trust boundary is unchanged.",
+    "validate_catalog, exact scope verification, canonical expression comparison and Python compilation pass; no new mirror test files or live calls were created.",
+    "Installer differs from approved speech-context installer only in release identity, immutable pins, metadata and the sole changed payload filename. Safe hardlink preparation, changed-inode replacement, atomic manifest, full base hash revalidation, no-active-jobs checks, policy/version checks, service verification and rollback remain intact."
+  ],
+  "verification": {
+    "independent_local": "Exact scope PASS; all five mappings match actual canonical expression trees; validate_catalog PASS; installer/preparation Python compilation PASS.",
+    "server_suite": "Fresh complete 107-test pass is required by installer gate; server result not independently observed at review time.",
+    "paid_or_live_calls_by_reviewer": 0,
+    "new_test_files_written": 0
+  },
+  "limitations": [
+    "Live model adherence must be verified by the planned same-question return retest and subsequent buyer/seller amount acceptance checks.",
+    "Reviewed metrics remain product accrual measures for the requested accrual date; service operations and same-day order cohorts are not substituted for those measures.",
+    "Immutable shared release files must remain unchanged in place; future modifications must replace destination inodes."
+  ]
+}
