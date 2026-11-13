@@ -86,6 +86,12 @@ class ClarificationChecks(Setup):
         continuation['logical_query_id'] = uid()
         self.reject('IDEMPOTENCY_CONFLICT', lambda: self.port.clarify(continuation, self.peer))
 
+    def test_whitespace_padding_cannot_bypass_native_answer_bound(self):
+        task, receipt, value = self.ask(); continuation = self.continuation(task, receipt, value)
+        continuation['answer'] = 'вчера' + ' ' * 1200
+        self.reject('VALIDATION_FAILED', lambda: self.port.clarify(continuation, self.peer))
+        self.assertEqual(len(self.transport.calls), 1)
+
     def test_revocation_prevents_answer_and_any_api_dispatch(self):
         task, receipt, value = self.ask(); continuation = self.continuation(task, receipt, value)
         self.auth.revoked = True

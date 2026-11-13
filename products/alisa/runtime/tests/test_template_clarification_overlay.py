@@ -51,7 +51,7 @@ class ClarificationOverlayChecks(unittest.TestCase):
         result = subprocess.run([sys.executable, '-m', 'unittest', 'test_template_clarification_extension', '-q'],
                                 cwd=candidate, env=environment, capture_output=True, text=True, timeout=45)
         self.assertEqual(result.returncode, 0, (result.stdout + result.stderr)[-6000:])
-        self.assertIn('Ran 15 tests', result.stderr)
+        self.assertIn('Ran 16 tests', result.stderr)
 
     def test_extended_native_keeps_the_existing_general_regression(self):
         candidate = builder.build(FROZEN, self.root / 'candidate')

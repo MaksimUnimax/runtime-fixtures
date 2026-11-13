@@ -61,7 +61,7 @@ class ClarificationFlow(VoiceChecks):
         after = Query.objects.get(pk=self.qid)
         self.assertEqual(before.runtime_job_ref, after.runtime_job_ref)
         self.assertEqual(before.input_hash, after.input_hash)
-        self.assertEqual(Query.objects.count(), 1)
+        self.assertEqual(Query.objects.filter(customer=self.actor).count(), 1)
         with self.repo.connection() as c:self.assertEqual(c.execute('SELECT count(*) FROM jobs').fetchone()[0], 1)
 
     def test_web_replay_is_confirmed_without_second_ipc(self):
@@ -108,7 +108,7 @@ class ClarificationFlow(VoiceChecks):
     def test_voice_answer_continues_the_original_query(self):
         before = self.voice_question()
         self.assertIn('Уточнение принято', self.say('за октябрь 2026', 3))
-        self.assertEqual(Query.objects.count(), 1)
+        self.assertEqual(Query.objects.filter(customer=self.actor).count(), 1)
         self.assertEqual(Query.objects.get(pk=before.pk).runtime_job_ref, before.runtime_job_ref)
         self.assertEqual(VoiceDialogue.objects.get(query_id=before.pk).encrypted_payload, '')
         self.transport.selection = selection(['B01.ordered_units'], store='native-store')
@@ -119,7 +119,7 @@ class ClarificationFlow(VoiceChecks):
         self.voice_question(); self.say('за октябрь 2026', 3)
         with patch.object(service, 'clarify', side_effect=AssertionError('duplicate answer')):
             self.say('за октябрь 2026', 3)
-        self.assertEqual(Query.objects.count(), 1)
+        self.assertEqual(Query.objects.filter(customer=self.actor).count(), 1)
 
     def test_voice_explicit_retry_keeps_the_pending_answer(self):
         self.voice_question(); original = RuntimeClient.clarify
@@ -130,7 +130,7 @@ class ClarificationFlow(VoiceChecks):
             self.assertIn('не подтверждена', self.say('за октябрь 2026', 3))
         self.assertIn('не подтверждена', self.say('другой ответ', 4))
         self.assertIn('Уточнение принято', self.say('повтори отправку', 5))
-        self.assertEqual(Query.objects.count(), 1)
+        self.assertEqual(Query.objects.filter(customer=self.actor).count(), 1)
 
     def test_voice_store_change_does_not_retarget_pending_question(self):
         row = self.voice_question()
@@ -141,7 +141,7 @@ class ClarificationFlow(VoiceChecks):
     def test_another_voice_dialogue_does_not_consume_the_answer(self):
         self.voice_question()
         self.assertNotIn('Уточнение принято', self.say('за октябрь 2026', 0, 'another-dialogue'))
-        self.assertEqual(Query.objects.count(), 2)
+        self.assertEqual(Query.objects.filter(customer=self.actor).count(), 2)
 
     def test_pending_question_cancel_sends_no_marketplace_call(self):
         self.voice_question()

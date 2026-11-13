@@ -17,9 +17,11 @@ export function Queries({stores:initialStores,nextStoreCursor=null}:{stores:Quer
   const paging=useRef(false),seenCursors=useRef(new Set<string>());
   const [stores,setStores]=useState(initialStores),[cursor,setCursor]=useState(nextStoreCursor);
   const [loadingStores,setLoadingStores]=useState(false),[storeNotice,setStoreNotice]=useState('');
-  const [answerInput,setAnswerInput]=useState(''),[answerRevision,setAnswerRevision]=useState(''),[pendingAnswer,setPendingAnswer]=useState<PendingAnswer|null>(null);
+  const [answerInput,setAnswerInput]=useState(''),[answerRevision,setAnswerRevision]=useState(''),[pendingAnswers,setPendingAnswers]=useState<Record<string,PendingAnswer>>({});
   const [feedbackFor,setFeedbackFor]=useState<string|null>(null);
   const [items,setItems]=useState<Row[]>([]),[storeIds,setStoreIds]=useState<string[]>(initialStores[0]?[initialStores[0].id]:[]),[question,setQuestion]=useState(''),[pending,setPending]=useState<Submission|null>(null),[selected,setSelected]=useState<Row|null>(null),[result,setResult]=useState<Result|null>(null),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
+  const pendingAnswer=selected?pendingAnswers[selected.id]||null:null;
+  function setPendingAnswer(value:PendingAnswer|null){const id=value?.queryId||selected?.id;if(id)setPendingAnswers(previous=>{const next={...previous};if(value)next[id]=value;else delete next[id];return next;});}
   const show=(error:unknown)=>setNotice(messages[error instanceof Error?error.message:'']||'Сервис временно недоступен. Проверьте состояние задания.');
   async function refresh(){try{setItems((await api()).items);}catch(e){show(e);}}
   async function moreStores(){
@@ -55,7 +57,7 @@ export function Queries({stores:initialStores,nextStoreCursor=null}:{stores:Quer
       setSelected(value.query);if(value.result&&value.query.id===row.id){
         setResult({...value.result,queryId:row.id});
         const revision=value.result.clarification?.revision||'';if(revision!==answerRevision){setAnswerRevision(revision);setAnswerInput('');}
-        setPendingAnswer(previous=>previous?.queryId===row.id&&previous.revision!==revision?null:previous);
+        setPendingAnswers(previous=>{if(previous[row.id]&&previous[row.id].revision!==revision){const next={...previous};delete next[row.id];return next;}return previous;});
       }else setNotice(messages.UNKNOWN_OUTCOME);
     }catch(e){if(generation===view.current)show(e);}finally{if(generation===view.current)setBusy(false);}
   }

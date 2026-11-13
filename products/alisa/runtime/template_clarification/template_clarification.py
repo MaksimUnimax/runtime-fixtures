@@ -19,7 +19,11 @@ def need(ok, code='VALIDATION_FAILED'):
 
 
 def checked_text(value, maximum):
-    need(type(value) is str and 1 <= len(value.strip()) <= maximum)
+    need(type(value) is str and 1 <= len(value) <= maximum and value.strip())
+    try:
+        value.encode('utf-8')
+    except UnicodeError:
+        raise Rejected('VALIDATION_FAILED') from None
     need(not any(ord(c) < 32 for c in value) and not SENSITIVE.search(value), 'SENSITIVE_INPUT')
     return value
 
