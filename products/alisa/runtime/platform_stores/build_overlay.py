@@ -83,7 +83,7 @@ def sources(root):
     return result
 
 
-def build(source, destination):
+def build(source, destination, *, transform=None, marker=('platform_store_overlay', 'platform-store-v1')):
     source, destination = Path(source).resolve(), Path(destination)
     if destination.exists():
         raise ValueError('OVERLAY_DESTINATION_EXISTS')
@@ -100,7 +100,7 @@ def build(source, destination):
                 any(p.is_symlink() for p in [path, *path.parents] if p != source and p.is_relative_to(source)) or
                 not path.resolve().is_relative_to(source) or hashlib.sha256(path.read_bytes()).hexdigest() != digest):
             raise ValueError('NATIVE_BASE_HASH')
-    changed = sources(source)
+    changed = (transform or sources)(source)
     destination.mkdir()
     try:
         for name in covered:
@@ -110,7 +110,7 @@ def build(source, destination):
         for name, text in changed.items():
             (destination / name).write_text(text)
             manifest['files'][name] = hashlib.sha256(text.encode()).hexdigest()
-        manifest['platform_store_overlay'] = 'platform-store-v1'
+        manifest[marker[0]] = marker[1]
         (destination / 'CURRENT_CORE_MANIFEST.json').write_text(json.dumps(manifest, indent=2) + '\n')
         return destination
     except BaseException:

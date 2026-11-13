@@ -27,6 +27,7 @@ def main():
     parser.add_argument('--current-core-source', type=Path)
     parser.add_argument('--report-browser-artifact', type=Path)
     parser.add_argument('--platform-stores-overlay', action='store_true')
+    parser.add_argument('--template-clarification-overlay', action='store_true')
     args = parser.parse_args()
     if args.runtime_source and args.current_core_source:
         parser.error('Select one pinned runtime source')
@@ -108,11 +109,19 @@ def main():
                     sys.path.insert(0, str(ROOT / 'runtime/platform_stores'))
                     from build_overlay import build
                     source = build(source, temp / 'platform-store-core')
+                if args.template_clarification_overlay:
+                    import importlib.util
+                    spec=importlib.util.spec_from_file_location('clarification_overlay',ROOT/'runtime/template_clarification/build_overlay.py')
+                    extension=importlib.util.module_from_spec(spec);spec.loader.exec_module(extension)
+                    source=extension.build(source,temp/'template-clarification-core')
+                    runtime['ALISA_TEMPLATE_CLARIFICATION_TEST']='1'
                 runtime['ALISA_RT_JOB_TEST_SOURCE']=str(source)
                 runtime['ALISA_RT_JOB_MANIFEST_SHA256']=hashlib.sha256((source/'CURRENT_CORE_MANIFEST.json').read_bytes()).hexdigest()
                 cases.append(('current_core_roundtrip', ROOT / 'tests/runtime_authority/current_core_roundtrip.py'))
                 cases.append(('query_roundtrip', ROOT / 'tests/runtime_authority/query_roundtrip.py'))
                 cases.append(('voice_selection', ROOT / 'tests/runtime_authority/voice_selection.py'))
+                if args.template_clarification_overlay:
+                    cases.append(('template_clarification', ROOT / 'tests/runtime_authority/template_clarification.py'))
                 if args.platform_stores_overlay:
                     cases.append(('store_enrollment', ROOT / 'tests/runtime_authority/store_enrollment.py'))
                 cases.append(('report_roundtrip', ROOT / 'tests/runtime_authority/report_roundtrip.py'))
@@ -126,7 +135,7 @@ def main():
                 if result.returncode: raise RuntimeError('Authority qualification failed')
             with connect(dbname=NAME) as conn:
                 receipts = conn.execute('SELECT count(*) FROM queries_query').fetchone()[0]
-            for target in ['0002', '0003', '0001', '0003']:
+            for target in ['0003', '0004', '0002', '0003', '0001', '0004']:
                 result = subprocess.run([sys.executable, str(ROOT / 'services/platform/manage.py'),
                     'migrate', 'queries', target, '--noinput'], env=migration,
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=45)
@@ -137,9 +146,12 @@ def main():
                     present = conn.execute("SELECT to_regclass('queries_voicedialogue') IS NOT NULL").fetchone()[0]
                     if present != (target != '0001'): raise RuntimeError('Voice migration table boundary failed')
                     preference = conn.execute("SELECT to_regclass('queries_voicestorepreference') IS NOT NULL").fetchone()[0]
-                    if preference != (target == '0003'): raise RuntimeError('Voice preference migration boundary failed')
+                    if preference != (target in {'0003','0004'}): raise RuntimeError('Voice preference migration boundary failed')
+                    continuation=conn.execute("SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='queries_query' AND column_name='continuation')").fetchone()[0]
+                    if continuation != (target=='0004'):raise RuntimeError('Query continuation column boundary failed')
             record['voice_migration_upgrade_rollback'] = 'PASS'
             record['voice_preference_upgrade_rollback'] = 'PASS'
+            record['query_continuation_upgrade_rollback'] = 'PASS'
             for target in ['0001', '0002']:
                 result = subprocess.run([sys.executable, str(ROOT / 'services/platform/manage.py'),
                     'migrate', 'stores', target, '--noinput'], env=migration,

@@ -35,7 +35,7 @@ ERRORS = {'AUTH_REQUIRED', 'PERMISSION_DENIED', 'NOT_FOUND', 'VALIDATION_FAILED'
           'CAPABILITY_UNAVAILABLE', 'PROVIDER_PLAN_REQUIRED', 'UNKNOWN_OUTCOME', 'RESULT_EXPIRED',
           'RESULT_NOT_READY', 'CATALOG_INCOMPATIBLE', 'DEPENDENCY_UNAVAILABLE', 'STORAGE_CAPACITY',
           'METRIC_AMBIGUOUS', 'COHORT_REQUIRED', 'PERIOD_REQUIRED'}
-STATES = {'QUEUED', 'RUNNING', 'READY', 'FAILED', 'CANCELLED', 'UNKNOWN', 'EXPIRED', 'ALIASED'}
+STATES = {'QUEUED', 'RUNNING', 'READY', 'NEEDS_INPUT', 'FAILED', 'CANCELLED', 'UNKNOWN', 'EXPIRED', 'ALIASED'}
 
 
 class RuntimeFailure(Exception):
@@ -357,6 +357,15 @@ class RuntimeClient:
 
     def submit(self, utterance, *, request_id, logical_query_id, trace_id):
         text(utterance, 1200); need(utterance.strip())
+        return self._submit_input({'kind': 'utterance', 'text': utterance}, request_id, logical_query_id, trace_id)
+
+    def clarify(self, answer, *, job_ref, expected_revision, request_id, logical_query_id, trace_id):
+        text(answer, 1200); need(answer.strip()); identifier(job_ref)
+        need(type(expected_revision) is str and re.fullmatch(r'[a-f0-9]{64}', expected_revision))
+        return self._submit_input({'kind': 'clarification', 'text': answer, 'job_ref': job_ref,
+                                  'expected_revision': expected_revision}, request_id, logical_query_id, trace_id)
+
+    def _submit_input(self, query_input, request_id, logical_query_id, trace_id):
         for value in (request_id, logical_query_id, trace_id): identifier(value)
         context = self._context('submit')
         def validate(value):
@@ -367,7 +376,7 @@ class RuntimeClient:
             return deepcopy(value)
         return self._authorized('submit', context, {'schema_version': 'runtime_task_v1',
             'request_id': request_id, 'logical_query_id': logical_query_id, 'trace_id': trace_id,
-            'query_input': {'kind': 'utterance', 'text': utterance}}, validate)
+            'query_input': query_input}, validate)
 
     def _status(self, value, job_ref, *, extra=frozenset()):
         required = {'job_ref', 'state', 'updated_at', 'retryable', 'result_expires_at'} | set(extra)
@@ -393,10 +402,23 @@ class RuntimeClient:
         identifier(job_ref)
         def validate(value):
             need(type(value) is dict)
-            metadata = {'result_kind', 'model_result'} & set(value)
+            metadata = {'result_kind', 'model_result', 'clarification'} & set(value)
             result = self._status(value, job_ref, extra={'schema_version', 'complete', 'pages', 'fetched_at'} | metadata)
             if 'result_kind' in value:
-                need(value['result_kind'] in {'DATA', 'PROVIDER_REFUSAL'})
+                need(value['result_kind'] in {'DATA', 'PROVIDER_REFUSAL', 'CLARIFICATION'})
+            if value.get('result_kind') == 'CLARIFICATION':
+                need(value.get('state') == 'NEEDS_INPUT' and 'model_result' not in value)
+                item = value.get('clarification')
+                exact(item, {'schema_version', 'revision', 'question', 'missing', 'turn'})
+                need(item['schema_version'] == 'runtime_clarification_v1')
+                need(type(item['revision']) is str and re.fullmatch(r'[a-f0-9]{64}', item['revision']))
+                text(item['question'], 400)
+                need(value.get('pages') == [item['question']] and type(item['turn']) is int and 1 <= item['turn'] <= 4)
+                need(type(item['missing']) is list and 1 <= len(item['missing']) <= 8)
+                need(all(type(s) is str and re.fullmatch(r'[a-z][a-z0-9_]{0,63}', s) for s in item['missing']))
+                need(len(set(item['missing'])) == len(item['missing']))
+            else:
+                need('clarification' not in value and value.get('state') != 'NEEDS_INPUT')
             if 'model_result' in value:
                 need(value.get('result_kind') == 'PROVIDER_REFUSAL')
                 if type(value['model_result']) is dict and value['model_result'].get('status') == 'TEMPLATE_NOT_FOUND':
@@ -407,7 +429,7 @@ class RuntimeClient:
                     result['result_kind'] = 'UNSUPPORTED_QUERY'
                 else:
                     provider_result(value['model_result'])
-            need(value['schema_version'] == 'runtime_result_v1' and value['state'] == 'READY'
+            need(value['schema_version'] == 'runtime_result_v1' and value['state'] in {'READY', 'NEEDS_INPUT'}
                  and value['complete'] is True and timestamp(value['result_expires_at']) > self.clock()
                  and type(value['pages']) is list and 1 <= len(value['pages']) <= 1000)
             for page in value['pages']: text(page, 900, multiline=True)

@@ -3,7 +3,7 @@
 Only encrypted server state is used. Yandex session_state is untrusted and has a
 1 KiB limit. No question, store ID or authority ticket is sent in session_state.
 """
-from datetime import timedelta
+from datetime import datetime, timedelta
 import hashlib
 import re
 
@@ -25,6 +25,7 @@ EXPLICIT_ALL = {'все магазины', 'по всем магазинам'}
 EXPIRED = 'Уточнение больше не действует. Задайте вопрос заново вместе с магазином.'
 ACCEPTED = 'Задание принято. Спросите: готово? Отчёт также появится в кабинете.'
 UNKNOWN = 'Отправка не подтверждена. Откройте задание в кабинете. Новый расчёт автоматически не запущен.'
+CLARIFY_UNKNOWN = 'Отправка уточнения не подтверждена. Скажите «повтори отправку», чтобы повторить то же уточнение, или проверьте: готово?'
 ORDINALS = {'первый': 1, 'первое': 1, 'второй': 2, 'второе': 2,
             'третий': 3, 'третье': 3, 'четвертый': 4, 'пятый': 5}
 PROVIDERS = {'OZON': {'озон', 'ozon'}, 'WB': {'вайлдберриз', 'вайлдберис', 'wildberries', 'вб', 'wb'}}
@@ -323,20 +324,23 @@ def advance(principal, session_hash, mid, query_id, utterance):
                 return {'message': 'Это сообщение уже обработано. Задайте новый вопрос или спросите: готово?'}
             if mid == row.last_message_id:
                 need(row.input_hash == mark, 'IDEMPOTENCY_CONFLICT')
+                if row.phase == 'SENT' and Query.objects.filter(pk=row.query_id,
+                        continuation__outcome='CONFIRMED').exists():
+                    return {'message': receipt_message(customer, tenant, str(row.query_id))}
             if row.phase == 'SUBMITTING' and row.expires_at <= now:
                 row.phase, row.encrypted_payload = 'ABANDONED', ''
                 row.save(update_fields=['phase', 'encrypted_payload'])
             if row.phase == 'ABANDONED' and command in CONTROL:
                 return ({'message': UNKNOWN} if command in CANCEL else
                         {'query_id': str(row.query_id), 'cancel_id': None})
-            if command in CONTROL and row.phase in {'SUBMITTING', 'SENT'}:
+            if command in CONTROL and row.phase in {'SUBMITTING', 'SENT', 'CLARIFY', 'CLARIFY_WAIT'}:
                 if command in CANCEL:
                     if row.cancel_started and mid == row.last_message_id:
                         return {'message': 'Отмена уже запрошена. Проверьте состояние: готово?'}
                     if row.cancel_id is None:
                         row.cancel_id = query_id
                     row.last_message_id, row.input_hash = mid, mark
-                    if row.phase == 'SENT':
+                    if row.phase != 'SUBMITTING':
                         row.cancel_started = True
                     row.save(update_fields=['cancel_id', 'cancel_started', 'last_message_id', 'input_hash'])
                     if row.phase == 'SUBMITTING':
@@ -347,7 +351,7 @@ def advance(principal, session_hash, mid, query_id, utterance):
             if command in CONTROL and (row.expires_at <= now or row.phase in {'EXPIRED', 'CANCELLED'}):
                 row.encrypted_payload = ''; row.save(update_fields=['encrypted_payload'])
                 return {'message': EXPIRED if row.phase != 'CANCELLED' else 'Вопрос отменён. Он не отправлен на расчёт.'}
-            if row.phase == 'CHOOSE' and row.expires_at <= now and mid > row.last_message_id and command not in CONTROL:
+            if row.phase in {'CHOOSE', 'CLARIFY', 'CLARIFY_WAIT'} and row.expires_at <= now and mid > row.last_message_id and command not in CONTROL:
                 row.last_message_id, row.input_hash = mid, mark
                 row.expires_at = now + LIFETIME
                 save(row, {'auth': binding, 'phase': 'EXPIRED'})
@@ -371,7 +375,26 @@ def advance(principal, session_hash, mid, query_id, utterance):
                     return {'message': receipt_message(customer, tenant, state['query_id'])}
                 if state['phase'] == 'SELECTED':
                     return {'message': state['message']}
+                if state['phase'] == 'CLARIFY':
+                    return {'query_id': state['query_id'], 'show_clarification': True}
+                if state['phase'] == 'CLARIFY_WAIT':
+                    return {'message': CLARIFY_UNKNOWN}
                 return {'message': 'Вопрос не отправлен. Задайте новый вопрос.'}
+        if state and state['phase'] in {'CLARIFY', 'CLARIFY_WAIT'}:
+            row.last_message_id, row.input_hash = mid, mark
+            if state['phase'] == 'CLARIFY_WAIT':
+                if command != 'повтори отправку':
+                    row.save(update_fields=['last_message_id', 'input_hash'])
+                    return {'message': CLARIFY_UNKNOWN}
+                state['recover'] = True
+            else:
+                if not command or switch_target(command) is not None or all_stores(utterance):
+                    row.save(update_fields=['last_message_id', 'input_hash'])
+                    return {'message': 'Сначала ответьте на уточнение или отмените его перед сменой магазина.'}
+                state.update(answer=utterance, request_id=query_id, recover=False)
+            state['phase'] = 'SUBMITTING'
+            save(row, state)
+            return {'clarify': state.copy()}
         if state and state['phase'] == 'CHOOSE':
             row.last_message_id, row.input_hash = mid, mark
             if command in CANCEL:
@@ -452,4 +475,53 @@ def complete(principal, session_hash, query_id):
             if cancellation:
                 row.cancel_started = True
             row.save(update_fields=['phase', 'encrypted_payload', 'cancel_started'])
+            return cancellation
+
+
+def await_input(principal, session_hash, mid, utterance, query_id, result):
+    """Only metadata pins live here; the native job retains the original question."""
+    from . import service
+    customer, tenant = service.actor(principal)
+    with transaction.atomic():
+        Customer.objects.select_for_update(no_key=True).get(pk=customer)
+        query = service.owned(principal, query_id, lock=True)
+        need(query.channel == 'ALICE' and query.voice_session_hash == session_hash, 'PERMISSION_DENIED')
+        metadata = query.continuation
+        binding = auth_binding(principal)
+        need(metadata.get('voice_auth') == binding and type(metadata.get('store_snapshot')) is list,
+             'PERMISSION_DENIED')
+        row = VoiceDialogue.objects.select_for_update().filter(session_hash=session_hash, customer_id=customer,
+            tenant_id=tenant, query_id=query_id).first()
+        need(row is not None and row.expires_at > timezone.now(), 'RESULT_EXPIRED')
+        if row.last_message_id > mid or row.phase == 'SUBMITTING':
+            return 'Уточнение уже отправляется. Проверьте состояние: готово?'
+        item = result['clarification']
+        if metadata.get('outcome') in {'SENDING', 'UNKNOWN'} and metadata.get('expected_revision') == item['revision']:
+            return CLARIFY_UNKNOWN
+        state = {'auth': binding, 'phase': 'CLARIFY', 'query_id': query_id,
+                 'stores': metadata['store_snapshot'], 'expected_revision': item['revision']}
+        row.last_message_id, row.input_hash = mid, hashlib.sha256(utterance.encode()).hexdigest()
+        row.expires_at = min(row.expires_at, datetime.fromtimestamp(
+            service.timestamp(result['result_expires_at']), timezone.get_default_timezone()))
+        save(row, state)
+        return item['question']
+
+
+def complete_clarification(principal, session_hash, query_id, *, unknown):
+    from . import service
+    customer, tenant = service.actor(principal)
+    with transaction.atomic():
+        Customer.objects.select_for_update(no_key=True).get(pk=customer)
+        row = VoiceDialogue.objects.select_for_update().filter(session_hash=session_hash, query_id=query_id,
+            customer_id=customer, tenant_id=tenant, phase='SUBMITTING').first()
+        if row and row.expires_at > timezone.now():
+            if unknown:
+                state = unseal('voice-dialogue/v1', row.pk, row.encrypted_payload)
+                state['phase'] = 'CLARIFY_WAIT'; save(row, state)
+            else:
+                row.phase, row.encrypted_payload = 'SENT', ''
+                row.save(update_fields=['phase', 'encrypted_payload'])
+            cancellation = str(row.cancel_id) if row.cancel_id and not row.cancel_started else None
+            if cancellation:
+                row.cancel_started = True; row.save(update_fields=['cancel_started'])
             return cancellation
