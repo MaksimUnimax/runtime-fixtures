@@ -1,0 +1,39 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "scope": "Notes and version only for the WB buyout quantity/revenue order-cohort scalars, plus the existing safe single-catalog immutable installer.",
+  "files_sha256": {
+    "template_catalog.base.json": "c2ab22d5598903166d8324647220928b12aa2a45b1073e6efad8ebdb6b99c975",
+    "template_catalog.json": "eefbbf248254e02e9c2b396e4bc820098270ef32916a21e96291e3f1c2761e38",
+    "patch.json": "39f523972f336a8c2604829284ae57b51af88d76d68c31bc48e918ee3b7f3057",
+    "install.py": "74edb90d5c24ba7e0ef0c09c3c8747304037fa4492695d657cb825d738f4a22e"
+  },
+  "findings": [],
+  "resolved_findings": [
+    {
+      "severity": "medium",
+      "issue": "Initial unconditional quantity-only speech instruction could suppress an explicitly requested revenue metric or comparison when multiple selected root notes become system instructions.",
+      "resolution": "Final notes limit the one-value example to questions asking only that measure and explicitly preserve all requested measures or comparison values."
+    }
+  ],
+  "checks": [
+    "Exact final diff changes only notes and version on B04.buyout_units_cohort (3 to 4) and B04.buyout_revenue_cohort (2 to 3). All other fields/templates remain unchanged.",
+    "Canonical scalar_catalog and registry confirm buyout_units_cohort uses buyoutCount with item units, while buyout_revenue_cohort uses buyoutSum with currency units. Existing wb_orders source and order_period axis remain intact.",
+    "Both response examples retain the order-cohort qualifier «Из этих заказов». Quantity is explicitly items, not number of orders; revenue does not imply that no buyout events happened on the calendar day.",
+    "Both notes preserve unknown values when data are incomplete and prohibit zero substitution. Explicit multi-metric questions and comparisons retain every requested value.",
+    "Current trusted selected-root note promotion remains unchanged; only static catalog notes are updated.",
+    "Final validate_catalog, exact scope, patch consistency, installer candidate hash and Python compilation pass.",
+    "Installer delta from approved WB finance installer changes only release identity, immutable pins and metadata. It permits only template_catalog.json to differ and preserves safe hardlinks, changed-inode replacement, new manifest, full base hashes before/after preparation, no-active-jobs checks, native policy/version checks, config equality and rollback."
+  ],
+  "verification": {
+    "independent_local": "Canonical field/unit/time-axis review; final exact diff, validate_catalog, patch consistency, candidate pin and compilation PASS.",
+    "server_suite": "Parent reports previous pre-clarification candidate 107/107 PASS in 37.682 seconds; a fresh final-candidate 107-test run is in progress and remains required before installation.",
+    "new_test_files_written": 0,
+    "paid_or_live_calls_by_reviewer": 0
+  },
+  "limitations": [
+    "Approval is for final catalog eefbbf248254e02e9c2b396e4bc820098270ef32916a21e96291e3f1c2761e38 and pinned installer; previous pre-clarification catalog is not the final approval target.",
+    "Live model wording and correct cohort interpretation require the planned quantity/revenue acceptance retests.",
+    "Unchanged hardlinked release payloads must remain immutable; future changes must replace destination inodes."
+  ]
+}
