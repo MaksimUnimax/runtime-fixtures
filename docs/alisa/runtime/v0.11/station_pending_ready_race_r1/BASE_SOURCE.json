@@ -1,0 +1,23 @@
+{
+  "base_release": "station-request-economics-r1-20261113",
+  "base_manifest_sha256": "c6d2dfebeed451cdb093075468dcd3b8b3328c6f3b65b3dff2aa9405f689a116",
+  "python_files": {
+    "test_raw_voice_flow.py": "7e79dd0ce6ddbee008f3674ff9114576c795c4bbd3be19ca63ac865c71805115",
+    "test_recovery.py": "430e275f2b47dd339f1f67ce76545c105df24a35c5eed2eb57f65dd2d655270e",
+    "local_gateway.py": "73ecba5f1d9a48a275ed4279475c984e1f585643e2e011b0549fb51f66301605",
+    "service.py": "4d08b6328bc3a4187fdb540103bb518470bcfed2ab73a99bca1b0d5e46ad2fac",
+    "test_eta.py": "81cb0ee6e45582f586f9dac191816d1b5507481b53d28be0998255e7705490dd",
+    "test_station_auth.py": "e7623d6531f97ea8fe067865520fef0a84e09291bf0f41d18bfb7a40dab675a3",
+    "alice_bridge.py": "4b2a3ab5cc8d64f298b704b782203fc76ce68b7615dd433df5a9b99e0c8ffd02",
+    "voice_protocol.py": "82fb4873a6a638d47783a74f5df254285f5ad0563649e4bc2b209392ab63a4d1",
+    "station_client.py": "46869ad571a7e6a24a41f9890d25f6742938dfb8c4775394a22d6f0384ea4f0c",
+    "transport.py": "aa1f89b7310dfb8dabd65614eaf9157488a1620f3f782e297e1ce54ce18417fb",
+    "station_status.py": "60e3718de1e796455eb40bb2e1e0985c6a9f8c7ff9cc65ae4c1204e208bbf039",
+    "test_lab_session.py": "49924699271a732b4e0d1bcaadea9a11b1b111fc91e53d15fd9460d6567a0c68",
+    "test_delivery.py": "c94cda70906150d10c574aac3e590dbe0fd9b80962a793808e71e3ad75471eba",
+    "alice_lab.py": "b33686666b30a1fa40b67a4ba1a39124ed514c6c309468efb3fa1825d9e66efd",
+    "test_answer_settings.py": "6e9a1de848a7abb5f6177071d7f068952d3612b5db29c7c94f4d897c1902b2af",
+    "eta.py": "45d76947eaa99c7057aca91761f21b3b51b937a9b288ac42ec3b7f96afa841de",
+    "qrcodegen.py": "f727dbf8300b16ab2ed317e227980e7259a4041f94340fb5382fdbecbda41396"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "reviewed_at_utc": "2026-11-13T13:03:31.454530+00:00",
+  "scope": "Exact Station pending-to-terminal before-launch race fix, seven boundary test methods, and finite Station-only installer. No deployment performed by reviewer.",
+  "files_sha256": {
+    "base/service.py": "4d08b6328bc3a4187fdb540103bb518470bcfed2ab73a99bca1b0d5e46ad2fac",
+    "candidate/service.py": "bd52db81254164955a119310b743e8ebd3e69a03fd400d771653b8944482d89c",
+    "tests/test_pending_ready_transition.py": "787b77cfef961e5cceb0bfff2a9293b41fc975d242eac9ff6d5d98626b2d7dd4",
+    "install.py": "bb8ed9b087d21b3da6fd2ec45795dc58af5942e77ba4690301b8ed6460fbfa43",
+    "SERVER_TEST_PROOF.json": "636b200f24ebc3ed9ef46d953ba83bf6f6f12016d9a085fb40a3c295936fc615"
+  },
+  "findings": [],
+  "checked_invariants": [
+    "Only an observed pending to READY/FAILED/UNKNOWN guard cancellation with cancelled_before_launch proof can rearm.",
+    "Same job and generation, sending state, connected selected station, local and global enablement, and no uncertain outcome remain required.",
+    "Accepted states are not widened: stale pending speech never launches. Next tick rereads status and uses existing final nonce or failure delivery path.",
+    "Pause, disconnect, revoke, replacement/manual takeover, final-to-pending regression, and unknown launch outcome do not gain retry permission.",
+    "Installer changes only service.py plus two release paths in the pinned existing drop-in; no core unit, schema, credentials or settings changes.",
+    "Hardlinked base files remain byte-identical; changed service and manifest receive separate inodes; base manifest is reverified.",
+    "Installer retains common recovery lock, idle guards before and after stop, private backup, property equality, PID/cwd verification and rollback."
+  ],
+  "independent_local_validation": {
+    "boundary_suite": {
+      "tests": 7,
+      "status": "PASS",
+      "seconds": 0.015
+    },
+    "installer_synthetic_success": "PASS",
+    "installer_synthetic_new_start_failure_rollback": "PASS",
+    "installer_probe_details": "Executed exact installer AST with only filesystem constants, fixture hashes, SOURCE and command transport adapted. All systemctl calls intercepted. Verified old base bytes/manifests, hardlink separation, unchanged settings, drop-in mode0640, backup0600, success cwd and rollback cwd/config; no success receipt on rollback."
+  },
+  "native_server_evidence": {
+    "provenance": "Primary executor report and local SERVER_TEST_PROOF.json; not independently run by reviewer",
+    "initial": {
+      "tests": 67,
+      "status": "PASS",
+      "seconds": 6.731
+    },
+    "against_current_clarification_core": {
+      "tests": 67,
+      "status": "PASS",
+      "seconds": 7.112,
+      "core_release": "alisa-template-clarification-81579c18d4725c7f",
+      "user": "alice-lab"
+    }
+  },
+  "limitations": [
+    "Local broader suites have documented AF_UNIX and absent authority DB limits shared by base and candidate.",
+    "Approval is bounded to reviewed hashes; live voice retest remains the primary executor acceptance step.",
+    "No remote, live, provider or paid calls made by reviewer."
+  ]
+}
