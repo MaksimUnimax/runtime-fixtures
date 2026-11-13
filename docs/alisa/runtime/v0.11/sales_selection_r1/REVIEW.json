@@ -1,0 +1,34 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "scope": "Disambiguate ordered quantities from Ozon positive sale accrual quantities in two scalar templates; add canonical gross-unit calculation context; update only expected B01 version in one existing test; finite two-file installer.",
+  "files_sha256": {
+    "template_catalog.base.json": "998a1b2432d0e3646fb3d3d78edff020b19315f3bea5dad70fde352b72c15820",
+    "template_catalog.json": "89dd329f0482a7edb05da8f1d0b1d4828c76bd71f5bf89e1f125e3a2f2224858",
+    "test_template_only.py": "f979e44f287e79a7ff89b1530e8dca146abc2ead146c7231032c40f36e4f43ce",
+    "install.py": "4247f81bbb7dd0e334b82fe8a6fdabbb12b633dbd59a471e0037fd4b8b8a70c9"
+  },
+  "findings": [],
+  "checks": [
+    "Exact catalog diff changes only version, purpose and notes for B01.ordered_units, plus calculation_contract for B05.accrual_sale_units; acquisition, formulas, API requests and input policies are unchanged.",
+    "B01 explicitly denotes goods in placed orders and requires the answer to identify them as ordered, not actual sales or buyouts.",
+    "B05 requires a visible accrual qualification, retains accrual_date as its time axis and does not establish sale-event date equivalence.",
+    "B05 mapping matches canonical ozon_accrual_by_day gross_units: product rows with non-null commission and positive commission.sale_amount.amount, sum quantity, no return subtraction; accruals[].date matches the canonical row-date assertion.",
+    "Contract requires requested accrual date, all pages and quantity fields; missing fields and incomplete responses cannot be silently replaced with zero.",
+    "validate_catalog passes; in-memory forwarding probe confirms selected notes for both templates and calculation context for B05 reach final-answer staging.",
+    "Exact test diff changes only B01 version expectation from 1 to 2; existing API response, context-isolation and call-count assertions remain intact; updated test passed locally.",
+    "Installer permits exactly the two pinned payload changes and verifies all base hashes before and after preparation. It hardlinks immutable unchanged files, unlinks each destination changed payload before copy2, and atomically replaces the manifest via a separate new pending file. Existing preflight, quiescence, pointer switch and rollback remain intact.",
+    "Executed the actual installer preparation AST in a synthetic local filesystem: base bytes and manifest remained unchanged, unchanged file inode was shared, both changed payloads and manifest received distinct new inodes, and final manifest hashes matched all payloads."
+  ],
+  "verification": {
+    "independent_local": "Exact scope PASS; validate_catalog PASS; notes and calculation context forwarding probe PASS; updated selected-template notes test PASS; Python compile checks PASS. Actual hardlink preparation block synthetic test PASS, including base preservation and inode separation.",
+    "server_suite": "Parent reports fresh 103/103 PASS in 48.420 seconds and all installed-base file hashes unchanged after staged testing; not independently observed by reviewer.",
+    "paid_or_live_calls_by_reviewer": 0
+  },
+  "limitations": [
+    "This fixes source selection semantics through model-visible metadata; actual live selector behavior and resulting sale-accrual quantity still require the planned same-question retest.",
+    "Approval is for an explicitly qualified accrual-date answer, not proof that accrual date equals actual sale event date.",
+    "Hardlinked unchanged release files must remain immutable in future maintenance; later changes must replace destination inodes rather than write shared inodes. Staging all-base-hash verification is reported passed by installing agent, and the reviewed installer repeats it before activation.",
+    "Only unchanged immutable payloads are shared. Config, authentication, database and source calculations are outside this change."
+  ]
+}
