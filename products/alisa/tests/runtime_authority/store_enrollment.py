@@ -44,14 +44,15 @@ class EnrollmentChecks(QueryChecks):
             'status': 'READ_ONLY_CANARY', 'registry_hash': REGISTRY_HASH,
             'scalar_hash': SCALARS.hash, 'evidence_ref': 'owned-synthetic-fixture'
         } for operation in SCALAR_SOURCES.sources}, enabled=True)
-        fixture = FakeTransport(); case = self
+        self.fixture = FakeTransport(); case = self
         class Transport:
-            calls = fixture.calls
+            @property
+            def calls(self): return case.fixture.calls
             def prepare(self, request, store):
                 return None if request.source.startswith('model:') else case.http.prepare(request, store)
             def execute_observed(self, request, store, on_dispatch):
                 if request.source.startswith('model:'):
-                    on_dispatch(); return fixture.execute(request, store)
+                    on_dispatch(); return case.fixture.execute(request, store)
                 def receive(http_request, **options):
                     # Check the actual outbound headers before counting a dispatch.
                     fields = {k.lower(): v for k, v in http_request.header_items()}
@@ -60,7 +61,7 @@ class EnrollmentChecks(QueryChecks):
                     if case.before_dispatch: case.before_dispatch()
                     options['on_dispatch']()
                     case.dispatched.append((store['id'], request.operation))
-                    value, _ = fixture.execute(request, store)
+                    value, _ = case.fixture.execute(request, store)
                     return json.dumps(value).encode(), 200
                 with patch.object(http_transport, 'read_response', side_effect=receive):
                     return case.http.execute_observed(request, store, on_dispatch)
@@ -173,6 +174,57 @@ class EnrollmentChecks(QueryChecks):
         claim, scope = self.use(store)
         self.create(suffix='second')
         self.assertEqual(self.authority.resolve(claim, 'execute')['stores'], [scope])
+
+    def test_deleted_registry_history_does_not_consume_active_store_limit(self):
+        store, _, _ = self.create(); claim, scope = self.use(store)
+        retired = Store.objects.bulk_create([Store(tenant=self.tenant, provider='WB',
+            name='Retired fixture', status='DELETED') for _ in range(1001)])
+        RuntimeStoreBinding.objects.bulk_create([RuntimeStoreBinding(store=s, tenant=self.tenant,
+            verified_identity='retired-fixture') for s in retired])
+        self.assertEqual(self.authority.resolve(claim, 'execute')['stores'], [scope])
+
+    def test_optional_verified_ad_key_is_delivered_only_for_same_store(self):
+        store, _, _ = self.create()
+        self.command(store, 'credential', kind='PERFORMANCE', credential={
+            'client_id': 'ads-client-fixture', 'client_secret': 'synthetic-ad-secret'})
+        pending = CredentialRevision.objects.get(store=store, kind='PERFORMANCE')
+        self.check(store, pending)
+        claim, scope = self.use(store)
+        material = self.bridge.credentials(claim, scope)
+        self.assertEqual(material['performance_client_secret'], 'synthetic-ad-secret')
+        self.assertEqual(material['seller_api_key'], 'synthetic-key-first')
+
+    def test_enrolled_template_report_is_downloadable_for_48_hours_without_recompute(self):
+        from types import SimpleNamespace
+        from model_answer import Settings
+        from report_archive import Archive
+        from test_template_only import Transport, selection
+        from alisa_platform.queries import reports
+        from django.conf import settings
+        store, _, binding = self.create()
+        self.fixture = Transport(); self.fixture.selection = selection(store=binding.native_id)
+        self.engine.template_mode = True
+        self.engine.answer_settings = Settings(Path(self.folder.name) / 'answer.json')
+        self.repo.answer_settings = self.engine.answer_settings
+        archive = Archive(self.repo); self.engine.report_archive = archive
+        with patch('report_archive.shutil.disk_usage', return_value=SimpleNamespace(free=10*1024**3)):
+            self.assertTrue(self.run_report(store)['complete'])
+        def api(command):
+            request = self.factory.post('/api/v1/account/reports', content_type='application/json',
+                data=json.dumps({'session_token': self.web_token, 'store_id': str(store.pk), 'command': command}),
+                HTTP_AUTHORIZATION='Bearer ' + settings.AUTH_SERVICE_TOKEN)
+            response = reports.reports(request)
+            self.assertEqual(response.status_code, 200)
+            return json.loads(response.content)
+        items = api({'action': 'list', 'cursor': None})['items']
+        self.assertEqual(len(items), 1)
+        calls = len(self.transport.calls)
+        first = api({'action': 'read', 'id': items[0]['id'], 'offset': 0})
+        self.assertEqual(first, api({'action': 'read', 'id': items[0]['id'], 'offset': 0}))
+        self.assertEqual(len(self.transport.calls), calls)
+        with archive.connection() as conn:
+            row = conn.execute('SELECT created,expires FROM reports').fetchone()
+            self.assertEqual(row['expires'] - row['created'], 172800)
 
     def test_revoke_before_worker_has_zero_provider_dispatch(self):
         store, _, _ = self.create(); self.stores = [str(store.pk)]

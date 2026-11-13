@@ -70,7 +70,14 @@ def overlay(tenant_id, legacy):
     need(not legacy or tenant.native_tenant == legacy['runtime_tenant'], 'CAPABILITY_UNAVAILABLE')
     result = deepcopy(legacy) if legacy else {'runtime_tenant': tenant.native_tenant,
         'revision': 'registry-v1:' + tenant.native_tenant, 'stores': {}}
-    rows = list(RuntimeStoreBinding.objects.filter(tenant_id=tenant_id).select_related('store')[:1001])
+    # Retired references remain for stable identity/history, but are not an
+    # ever-growing lifetime quota. Also remove their legacy fallback explicitly.
+    enrolled_legacy = RuntimeStoreBinding.objects.filter(tenant_id=tenant_id,
+        store_id__in=list(result['stores'])).values_list('store_id', flat=True)
+    for sid in enrolled_legacy:
+        result['stores'].pop(str(sid), None)
+    rows = list(RuntimeStoreBinding.objects.filter(tenant_id=tenant_id,
+        store__status='ACTIVE', store__product_id='alisa_market').select_related('store')[:1001])
     need(len(rows) <= 1000, 'CAPABILITY_UNAVAILABLE')
     for binding in rows:
         store = binding.store
