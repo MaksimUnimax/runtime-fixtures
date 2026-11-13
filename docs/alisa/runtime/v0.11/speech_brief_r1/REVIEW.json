@@ -1,0 +1,29 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "scope": "Append concise speech guidance to the existing answer_prompt through the native authenticated revision-checked settings API; no product code or API calculation changes.",
+  "change_sha256": "3072bb72dc038afef34fc628719b6cce27f8ff958c5af4f55cece4ff8b71eafe",
+  "installer_sha256": "faf89d8e19f9628e7f051480ad24439105ba4c2d0bf66af5ac5282a7cdfe3b49",
+  "expected_settings_revision": 2,
+  "expected_settings_sha256": "f470ce4bfbeff802d3e00e1cc649b06569ee9dbdd2a2917c85aebfb1234e215b",
+  "findings": [],
+  "checks": [
+    "Simple single-metric answers are concise; material incompleteness must still be disclosed and partial totals cannot be presented as complete.",
+    "Existing answer_prompt is preserved verbatim as a prefix; request_planning_prompt and answer_extra_instruction are preserved and checked.",
+    "Initial file hash and revision checks, recovery lock, active-job guard, local backup, native stale revision rejection and exact readback are present.",
+    "Uses configured allowed IPC peer without changing access; native save persists atomically with mode 0600 and fsync.",
+    "Ambiguous transport/JSON save outcome causes read-only reconciliation without a second save; explicit API errors abort.",
+    "Release pointer, manifest and config equality are checked after save.",
+    "Installer and embedded IPC client compile; IPC frame terminator is a newline."
+  ],
+  "tests": {
+    "reported_by_parent": "test_model_answer: 26/26 passed in 18.8 seconds",
+    "independently_observed": "Static source review, Python AST/compile validation and native settings/gateway contract comparison"
+  },
+  "limitations": [
+    "No live or paid calls executed by reviewer.",
+    "Current server revision/hash, installation readback and actual column response must be confirmed by installing agent.",
+    "Prompt-only behavioral improvement remains probabilistic and needs the planned column acceptance retest."
+  ],
+  "paid_calls_by_reviewer": 0
+}
