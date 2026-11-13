@@ -54,7 +54,11 @@ class ClarificationChecks(Setup):
         self.assertEqual(self.transport.calls[0].body['system'], SELECT_SYSTEM)
         self.assertNotIn('clarification_supported', self.transport.calls[0].body['context'])
         self.assertNotIn('clarification', strict_json(row['result']))
-        self.assertEqual(strict_json(row['result'])['failure_code'], 'TEMPLATE_NOT_FOUND')
+        # The pinned R02 and later native source distinguish invalid selector
+        # output differently; both retain their existing closed refusal path.
+        self.assertIn(strict_json(row['result'])['failure_code'],
+                      ('TEMPLATE_NOT_FOUND', 'TEMPLATE_EXECUTION_FAILED'))
+        self.assertIsNone(strict_json(row['result'])['data'])
         self.assertEqual(self.count('rt_job_refs'), 0)
         self.assertEqual([c.operation for c in self.transport.calls], ['template_select'])
 
