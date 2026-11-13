@@ -1,0 +1,33 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "scope": "Explicit signed expense contracts and concise selected-template notes for Ozon commission, acquiring and their SUMMARY.47 total; safe immutable single-catalog installer.",
+  "files_sha256": {
+    "template_catalog.base.json": "6b4e520dd7e0745b597e783d139871980a2500b0c7e401f9b929e8f2a6f31a7c",
+    "template_catalog.json": "c6e5f066625495c96c0cd5f57bb81cb7e0e4afa1251f8915890eaf05a845e5fa",
+    "patch.json": "b04bd64695060db2f7aca71bc9a906c2b4bbaf83fac2d70ba9d30222186f38a7",
+    "install.py": "3bdc4871a90119073cf909cf1e643709b2bcd73229939fe09107366b93a29866"
+  },
+  "findings": [],
+  "checks": [
+    "Exact diff changes only version, notes and calculation_contract on B06.finance_commission_cost (3 to 4), B06.finance_acquiring_cost (1 to 2), and SUMMARY.47 (1 to 2). Purpose, steps, metrics, source bindings, requests, formulas and input policies are unchanged.",
+    "Commission contract exactly matches canonical negate(add_numbers(sales.fee.value, returns.fee.value)) and both currency_code paths. It includes the return commission rather than omitting it or summing absolute values.",
+    "Acquiring contract exactly matches canonical negate(sum_values(amount)) for services whose name is acquiring, with amount.value/currency_code. Other service categories are excluded.",
+    "Both metrics are signed=true in the canonical registry. Refund credits reduce expense; if credits exceed debits, negative calculated expense remains negative. There is no absolute-value or zero-clamping transform.",
+    "SUMMARY.47 keeps exactly the two existing dependencies. Its nested component contracts equal the leaf contracts, and sum_components adds the two calculated expenses once without another sign inversion or extra categories.",
+    "Notes use the calculated expense sign, preserve corrections/negative outcomes, support requested breakdowns, multiple values and comparisons, and prevent unknown-value zero substitution.",
+    "Missing fee fields remain unknown; an absent acquiring subset gives zero only in a complete verified services list. Period and currency checks remain required.",
+    "Exact canonical fee path/currency extraction, acquiring category/sign comparison, component equality, dependency order, patch consistency, validate_catalog and Python compilation pass.",
+    "Installer delta from approved WB stock summary installer is limited to release identity, immutable pins and source metadata. Only template_catalog.json may differ; safe hardlinks, changed inode replacement, atomic manifest, base hash revalidation, no-active-jobs guard, native preflight, process cwd, config equality and rollback are preserved."
+  ],
+  "verification": {
+    "independent_local": "Exact scope; actual canonical expression paths and transforms; signed registry definitions; nested component equality; dependencies; patch; validate_catalog; compile PASS.",
+    "server_suite": "Fresh complete 107-test pass is required by installer gate; server result not independently observed at review time.",
+    "new_test_files_written": 0,
+    "paid_or_live_calls_by_reviewer": 0
+  },
+  "limitations": [
+    "Live model adherence and final positive expense wording require the planned exact-question acceptance retest; source review does not independently verify the live CASE108 amounts.",
+    "Unchanged hardlinked release payloads must remain immutable; future changes must replace destination inodes."
+  ]
+}
