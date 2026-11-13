@@ -1,0 +1,35 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "scope": "Owner-requested short Ozon orders/buyouts answer: add SUMMARY.58 with B01 ordered quantity plus B05 positive accrual quantity; shorten selected B05 notes; preserve source calculations; count-only existing test update; two-source Worker fixture and immutable finite installer.",
+  "files_sha256": {
+    "template_catalog.base.json": "89dd329f0482a7edb05da8f1d0b1d4828c76bd71f5bf89e1f125e3a2f2224858",
+    "template_catalog.json": "b69ad6282557924b34ed7eb633bb464d0ea9e4f2c456f612cf15717fc8375249",
+    "test_template_only.py": "45e2b393bb6866cc7a2e2d5939e7f62968d9180827ff8ea3d6c3efb1539e1c5f",
+    "test_orders_buyouts.py": "a55a96255b88b14a7e789fab4ee681c1f8140cc59c5bb0c68ba6205db94b92d3",
+    "install.py": "202425ffe726fd8442ab9f7149311f96e090fefac2e5a449fc15e993632169ec"
+  },
+  "findings": [],
+  "checks": [
+    "Catalog adds only SUMMARY.58 and changes only B05 version, purpose and notes. B01 and all existing API requests, source bindings, calculation contracts and time axes are unchanged.",
+    "SUMMARY.58 is Ozon-only, declares one-date semantics and two distinct metrics, and expands into B01.ordered_units followed by B05.accrual_sale_units.",
+    "The answer notes request one short phrase with ordered and bought-out item quantities in that order; both quantities are required, unavailable/incomplete values must be identified and cannot be invented or replaced with zero.",
+    "B05 retains canonical positive product accrual gross_units calculation and accrual_date; shortening speech follows the owner instruction and does not change arithmetic or date filtering.",
+    "The summary purpose explicitly avoids treating date-based buyouts as the cohort of orders placed that date. There is no requirement to force buyouts below orders.",
+    "New real Worker fixture passed with fake API: each source is called once, one final model call includes both documents, SUMMARY.58 notes and B05 calculation context.",
+    "Existing test file diff changes only two catalog-count expectations from 85 to 86. Original payload retention and context checks remain intact.",
+    "All 86 templates compile in the existing integration test. validate_catalog and exact-scope checks pass.",
+    "Installer delta from approved immutable sales-selection installer is limited to release names, hashes, metadata and expected test count 103 to 104. Safe hardlink preparation, changed-inode replacement, atomic new manifest, base revalidation, policy/version checks, no-active-jobs checks and rollback remain intact."
+  ],
+  "verification": {
+    "independent_local": "4 tests PASS in 2.414 seconds: two-source Worker, exact question/catalog evidence retention, catalog count, all-template compile. validate_catalog, exact semantic diff, unchanged B05 contract/time axis, dependency order, exact test diff and Python compilation PASS.",
+    "server_suite": "Fresh 104-test pass is required by installer gate; server result not independently observed at review time.",
+    "paid_or_live_calls_by_reviewer": 0
+  },
+  "limitations": [
+    "Live model selection and final speech remain to be verified on the same question after installation; fixture output does not prove live wording.",
+    "The short spoken buyout label uses the owner-requested mapping to existing positive accrual units. This review does not prove accrual date equals a physical buyout event date or the cohort of same-day orders.",
+    "Template scope is Ozon for one date, without comparison or filter support.",
+    "Unchanged hardlinked release files must remain immutable; future modifications must replace destination inodes."
+  ]
+}
