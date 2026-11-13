@@ -1,0 +1,31 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "sha256": "81857d17303305e3b1b3b133fe4db13ac6c9e3436e01538c381a6206b4d48dd6",
+  "changed_templates": 4,
+  "changed_fields": [
+    "version",
+    "notes",
+    "calculation_contract"
+  ],
+  "ozon_mapping": {
+    "stock_fbo_units": [
+      "fbo",
+      "present"
+    ],
+    "stock_fbs_units": [
+      "fbs",
+      "present"
+    ],
+    "stock_fbo_reserved": [
+      "fbo",
+      "reserved"
+    ],
+    "stock_fbs_reserved": [
+      "fbs",
+      "reserved"
+    ]
+  },
+  "sources_unchanged": true,
+  "zero_missing_distinct": true
+}
