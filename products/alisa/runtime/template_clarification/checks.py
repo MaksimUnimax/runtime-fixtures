@@ -1,8 +1,9 @@
 """Synthetic RuntimePort + real SQLite/worker; no marketplace/model network."""
 from copy import deepcopy
 import unittest
+from unittest.mock import patch
 
-from test_runtime_port_r01_contract import Setup, uid
+from test_runtime_port_r01_contract import Setup, uid, utc
 from test_template_only import Transport, selection
 from engine import Worker
 from model_answer import Settings
@@ -29,9 +30,10 @@ class ClarificationChecks(Setup):
         return task, receipt, value
 
     def continuation(self, task, receipt, value, answer='за октябрь 2026'):
-        return {**deepcopy(task), 'request_id': uid(), 'query_input': {
-            'kind': 'clarification', 'job_ref': receipt['job_ref'], 'text': answer,
-            'expected_revision': value['clarification']['revision']}}
+        return {k: deepcopy(task[k]) for k in ('context','logical_query_id','trace_id')} | {
+            'schema_version': 'runtime_clarification_task_v1', 'request_id': uid(),
+            'job_ref': receipt['job_ref'], 'answer': answer,
+            'expected_revision': value['clarification']['revision']}
 
     def row(self, receipt):
         return self.repo.get('A', self.inner_id(receipt))
@@ -48,7 +50,7 @@ class ClarificationChecks(Setup):
         task, receipt, value = self.ask(original)
         before = strict_json(self.row(receipt)['plan'])
         continuation = self.continuation(task, receipt, value, 'заказанные')
-        result = self.port.submit(continuation, self.peer)
+        result = self.port.clarify(continuation, self.peer)
         self.assertEqual(result['job_ref'], receipt['job_ref'])
         self.assertEqual(self.count('jobs'), 1); self.assertEqual(self.count('inbox'), 1)
         self.assertEqual(self.count('rt_job_refs'), 1)
@@ -63,42 +65,72 @@ class ClarificationChecks(Setup):
 
     def test_duplicate_answer_is_one_continuation(self):
         task, receipt, value = self.ask(); continuation = self.continuation(task, receipt, value)
-        first = self.port.submit(continuation, self.peer)
-        self.assertEqual(self.port.submit(continuation, self.peer), first)
+        first = self.port.clarify(continuation, self.peer)
+        self.assertEqual(self.port.clarify(continuation, self.peer), first)
         self.assertEqual(len(strict_json(self.row(receipt)['draft'])['question_clarifications']), 1)
         self.assertEqual(len(self.transport.calls), 1)
 
     def test_changed_answer_under_same_request_id_is_rejected(self):
         task, receipt, value = self.ask(); continuation = self.continuation(task, receipt, value)
-        self.port.submit(continuation, self.peer); continuation['query_input']['text'] = 'за ноябрь 2026'
-        self.reject('IDEMPOTENCY_CONFLICT', lambda: self.port.submit(continuation, self.peer))
+        self.port.clarify(continuation, self.peer); continuation['answer'] = 'за ноябрь 2026'
+        self.reject('IDEMPOTENCY_CONFLICT', lambda: self.port.clarify(continuation, self.peer))
 
     def test_stale_prompt_cannot_replace_a_later_answer(self):
         task, receipt, value = self.ask(); continuation = self.continuation(task, receipt, value)
-        self.port.submit(continuation, self.peer); self.worker.step()
+        self.port.clarify(continuation, self.peer); self.worker.step()
         continuation['request_id'] = uid()
-        self.reject('IDEMPOTENCY_CONFLICT', lambda: self.port.submit(continuation, self.peer))
+        self.reject('IDEMPOTENCY_CONFLICT', lambda: self.port.clarify(continuation, self.peer))
 
     def test_other_logical_query_is_rejected(self):
         task, receipt, value = self.ask(); continuation = self.continuation(task, receipt, value)
         continuation['logical_query_id'] = uid()
-        self.reject('IDEMPOTENCY_CONFLICT', lambda: self.port.submit(continuation, self.peer))
+        self.reject('IDEMPOTENCY_CONFLICT', lambda: self.port.clarify(continuation, self.peer))
 
     def test_revocation_prevents_answer_and_any_api_dispatch(self):
         task, receipt, value = self.ask(); continuation = self.continuation(task, receipt, value)
         self.auth.revoked = True
-        self.reject('ACCESS_REQUIRED', lambda: self.port.submit(continuation, self.peer))
+        self.reject('ACCESS_REQUIRED', lambda: self.port.clarify(continuation, self.peer))
         self.assertEqual(len(self.transport.calls), 1)
 
     def test_expired_question_is_not_resumed(self):
         task, receipt, value = self.ask(); continuation = self.continuation(task, receipt, value)
         self.clock.advance(301)
-        self.reject('RESULT_EXPIRED', lambda: self.port.submit(continuation, self.peer))
+        self.reject('RESULT_EXPIRED', lambda: self.port.clarify(continuation, self.peer))
+
+    def test_question_expiring_during_final_authorization_is_not_resumed(self):
+        task, receipt, value = self.ask(); continuation = self.continuation(task, receipt, value)
+        ctx, guard, _ = self.port._auth(self.ctx, self.peer, 'submit')
+        with self.repo.connection(True) as connection:
+            reference, row = self.port._lookup(connection, receipt['job_ref'], ctx, guard)
+        def late_authorization(_):
+            self.clock.advance(301)
+            return True
+        with patch.object(self.port, '_lookup', return_value=(reference, row)), \
+                patch.object(self.engine, 'authorized', side_effect=late_authorization):
+            self.reject('RESULT_EXPIRED', lambda: self.port.clarify(continuation, self.peer))
+        with self.repo.connection() as connection:
+            self.assertEqual(connection.execute('SELECT state FROM jobs WHERE id=?', (row['id'],)).fetchone()[0], 'READY')
+        self.assertEqual(len(self.transport.calls), 1)
 
     def test_cancel_question_prevents_continuation(self):
         task, receipt, value = self.ask(); continuation = self.continuation(task, receipt, value)
         self.assertTrue(self.port.cancel(receipt['job_ref'], self.ctx, uid(), self.peer)['cancelled'])
-        self.reject('RESULT_EXPIRED', lambda: self.port.submit(continuation, self.peer))
+        self.reject('RESULT_EXPIRED', lambda: self.port.clarify(continuation, self.peer))
+        self.assertEqual(len(self.transport.calls), 1)
+
+    def test_ticket_expiring_during_final_authorization_is_not_resumed(self):
+        task, receipt, value = self.ask(); continuation = self.continuation(task, receipt, value)
+        context = self.auth.issue({**self.ctx, 'not_after': utc(self.clock() + 1)})
+        continuation['context'] = context
+        ctx, guard, _ = self.port._auth(context, self.peer, 'submit')
+        with self.repo.connection(True) as connection:
+            reference, row = self.port._lookup(connection, receipt['job_ref'], ctx, guard)
+        def late_authorization(_):
+            self.clock.advance(2)
+            return True
+        with patch.object(self.port, '_lookup', return_value=(reference, row)), \
+                patch.object(self.engine, 'authorized', side_effect=late_authorization):
+            self.reject('AUTH_REQUIRED', lambda: self.port.clarify(continuation, self.peer))
         self.assertEqual(len(self.transport.calls), 1)
 
     def test_different_reader_cannot_be_mutated(self):
@@ -106,19 +138,19 @@ class ClarificationChecks(Setup):
         with self.repo.connection(True) as c:
             from reader_state import _attach
             _attach(self.repo, c, 'A', 'another-reader', self.inner_id(receipt), self.clock())
-        self.reject('PERMISSION_DENIED', lambda: self.port.submit(continuation, self.peer))
+        self.reject('PERMISSION_DENIED', lambda: self.port.clarify(continuation, self.peer))
 
     def test_four_questions_are_bounded(self):
         task, receipt, value = self.ask()
         for _ in range(3):
-            self.port.submit(self.continuation(task, receipt, value), self.peer)
+            self.port.clarify(self.continuation(task, receipt, value), self.peer)
             self.clock.advance(1); self.worker.step()
             value = self.port.read_result(receipt['job_ref'], self.ctx, self.peer)
         self.assertEqual(value['clarification']['turn'], 4)
 
     def test_answer_can_reach_data_without_a_new_job_or_model_request_count(self):
         task, receipt, value = self.ask('Количество заказанных товаров')
-        self.port.submit(self.continuation(task, receipt, value), self.peer)
+        self.port.clarify(self.continuation(task, receipt, value), self.peer)
         self.transport.selection = selection(['B01.ordered_units'])
         final = self.finish(receipt)
         self.assertEqual(final['result_kind'], 'DATA'); self.assertEqual(self.count('jobs'), 1)
@@ -138,7 +170,7 @@ class ClarificationChecks(Setup):
         event = first['events'][0]
         self.assertEqual(event['final_outcome'], 'NEEDS_CLARIFICATION')
         self.assertNotIn('safe_utterance', event)
-        self.port.submit(self.continuation(task, receipt, value), self.peer)
+        self.port.clarify(self.continuation(task, receipt, value), self.peer)
         self.transport.selection = selection(['B01.ordered_units']); self.finish(receipt)
         final, _ = journal.pending()
         self.assertEqual(len(final['events']), 1)

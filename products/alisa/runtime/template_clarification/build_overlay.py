@@ -1,6 +1,5 @@
 """Additive, context-checked clarification extension; frozen source is untouched."""
 import importlib.util
-import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -29,10 +28,14 @@ def sources(root):
     text = base.replace_once(text, 'VERIFY_SYSTEM=', 'SELECT_SYSTEM += ' + repr(POLICY) + '\nVERIFY_SYSTEM=')
     result['template_protocol.py'] = text
     text = (root / 'runtime_port.py').read_text()
-    text = base.replace_once(text, "        query=task['query_input']\n", "        query=task['query_input']\n"
-        "        if query['kind']=='clarification':\n"
-        "            from template_clarification import continue_task\n"
-        "            return continue_task(self,task,peer)\n")
+    text = base.replace_once(text,
+        "'operations':['submit','status','read_result','cancel','capabilities','current_versions','list_reports','read_report'],",
+        "'operations':['submit','status','read_result','cancel','capabilities','current_versions','list_reports','read_report']+(['clarify']if self.engine.template_mode else[]),")
+    text = base.replace_once(text, '    def _lookup(self,c,ref,ctx,guard):',
+        "    def clarify(self,payload,peer):\n"
+        "        from template_clarification import clarify\n"
+        "        return clarify(self,payload,peer)\n\n"
+        '    def _lookup(self,c,ref,ctx,guard):')
     text = base.replace_once(text, "        result={'job_ref':ref,'state':state,", "        from template_clarification import pending\n"
         "        if state=='READY' and pending(row):state='NEEDS_INPUT'\n"
         "        result={'job_ref':ref,'state':state,")
@@ -58,13 +61,10 @@ def sources(root):
         "            failure=result.get('failure_code')")
     result['repository.py'] = text
     result['query_gap_terminal.py'] = terminal_source(root)
-    schema = json.loads((root / 'runtime_task_v1.schema.json').read_text())
-    schema['properties']['query_input']['oneOf'].append({'type': 'object', 'additionalProperties': False,
-        'properties': {'kind': {'const': 'clarification'}, 'job_ref': {'type': 'string', 'format': 'uuid'},
-            'text': {'type': 'string', 'minLength': 1, 'maxLength': 1200},
-            'expected_revision': {'type': 'string', 'pattern': '[a-f0-9]{64}'}},
-        'required': ['kind', 'job_ref', 'text', 'expected_revision']})
-    result['runtime_task_v1.schema.json'] = json.dumps(schema, indent=2) + '\n'
+    text = (root / 'runtime_port_ipc.py').read_text()
+    result['runtime_port_ipc.py'] = base.replace_once(text, "    if op=='submit':return port.submit(payload,peer)",
+        "    if op=='submit':return port.submit(payload,peer)\n"
+        "    if op=='clarify':return port.clarify(payload,peer)")
     for name, text in result.items():
         if name.endswith('.py'):
             compile(text, name, 'exec')

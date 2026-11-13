@@ -57,7 +57,7 @@ def pause(worker, row, plan, progress, decision):
 
 
 def continue_task(port, task, peer):
-    from runtime_port_contract import utc
+    from runtime_port_contract import utc, timestamp
     query = task['query_input']
     answer = checked_text(query['text'], 1200)
     ctx, guard, _ = port._auth(task['context'], peer, 'submit')
@@ -91,6 +91,8 @@ def continue_task(port, task, peer):
         need(port.engine.authorized(plan), 'PERMISSION_DENIED')
         key = 'clarify:' + fingerprint([plan, answers])
         now = port.repo.clock()
+        need((row['expires'] or 0) > now, 'RESULT_EXPIRED')
+        need(timestamp(ctx['not_after']) > now, 'AUTH_REQUIRED')
         order = c.execute('SELECT coalesce(max(queue_order),0)+1 FROM jobs').fetchone()[0]
         c.execute('DELETE FROM slots WHERE tenant=? AND jid=?', (row['tenant'], row['id']))
         c.execute('INSERT INTO slots VALUES(?,?,?)', (row['tenant'], key, row['id']))
@@ -104,6 +106,23 @@ def continue_task(port, task, peer):
                    'accepted_at': utc(ref['created']), 'trace_id': task['trace_id']}
         port._save(c, ctx, task['request_id'], 'clarify', digest, receipt)
         return receipt
+
+
+def clarify(port, payload, peer):
+    """Separate command; the admitted runtime_task_v1 schema remains byte exact."""
+    from runtime_port_contract import uuid_text
+    need(port.engine.template_mode, 'CAPABILITY_UNAVAILABLE')
+    fields = {'schema_version', 'context', 'request_id', 'logical_query_id', 'trace_id',
+              'job_ref', 'expected_revision', 'answer'}
+    need(type(payload) is dict and set(payload) == fields)
+    need(payload['schema_version'] == 'runtime_clarification_task_v1')
+    for field in ('request_id', 'logical_query_id', 'trace_id', 'job_ref'):
+        uuid_text(payload[field])
+    need(type(payload['expected_revision']) is str and re.fullmatch(r'[a-f0-9]{64}', payload['expected_revision']))
+    task = {k: payload[k] for k in ('context', 'request_id', 'logical_query_id', 'trace_id')}
+    task['query_input'] = {'kind': 'clarification', 'job_ref': payload['job_ref'],
+                          'expected_revision': payload['expected_revision'], 'text': payload['answer']}
+    return continue_task(port, task, peer)
 
 
 def cancel_pending(port, c, ref, row):

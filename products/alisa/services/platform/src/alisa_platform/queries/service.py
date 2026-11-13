@@ -230,7 +230,9 @@ def clarify(principal, query_id, request_id, expected_revision, answer, *, recov
         row = owned(principal, query_id, lock=True)
         if row.attempt == attempt:
             row.continuation['outcome'] = 'CONFIRMED'
-            row.state = 'QUEUED'; row.attempt = None; row.lease_until = None
+            if row.state not in {'READY', 'FAILED', 'CANCELLED', 'EXPIRED'}:
+                row.state = 'QUEUED'
+            row.attempt = None; row.lease_until = None
             row.checked_at = timezone.now()
             row.save(update_fields=['continuation', 'state', 'attempt', 'lease_until', 'checked_at'])
     return {'query': receipt(row)}, 201

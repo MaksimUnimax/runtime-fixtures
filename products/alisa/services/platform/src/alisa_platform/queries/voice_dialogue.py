@@ -391,6 +391,7 @@ def advance(principal, session_hash, mid, query_id, utterance):
                 if not command or switch_target(command) is not None or all_stores(utterance):
                     row.save(update_fields=['last_message_id', 'input_hash'])
                     return {'message': 'Сначала ответьте на уточнение или отмените его перед сменой магазина.'}
+                row.cancel_id, row.cancel_started = None, False
                 state.update(answer=utterance, request_id=query_id, recover=False)
             state['phase'] = 'SUBMITTING'
             save(row, state)
@@ -420,6 +421,8 @@ def advance(principal, session_hash, mid, query_id, utterance):
             return {'message': prompt(state)}
         if command in CONTROL:
             return None
+        if command == 'повтори отправку':
+            return {'message': 'Сохранённого уточнения для повтора нет. Проверьте состояние задания в кабинете.'}
         if not command or command in ALL or command in ORDINALS or re.fullmatch(r'(?:номер )?\d{1,4}', command):
             return {'message': 'Какой отчёт подготовить? Задайте вопрос вместе с периодом.'}
         target = switch_target(command)

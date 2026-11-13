@@ -148,6 +148,18 @@ class ClarificationFlow(VoiceChecks):
         self.assertIn('отменено', self.say('отмена', 3))
         self.assertEqual([c.operation for c in self.transport.calls], ['template_select'])
 
+    def test_new_continuation_can_receive_a_new_cancel_request(self):
+        row = self.voice_question()
+        VoiceDialogue.objects.filter(query_id=row.pk).update(cancel_id=uid(), cancel_started=True)
+        original = RuntimeClient.clarify
+        def interleaved(client, *args, **kwargs):
+            self.assertIn('отмену принят', self.say('отмена', 4))
+            return original(client, *args, **kwargs)
+        with patch.object(RuntimeClient, 'clarify', interleaved):
+            self.assertIn('отменено', self.say('за октябрь 2026', 3))
+        self.assertEqual(Query.objects.get(pk=row.pk).state, 'CANCELLED')
+        self.assertEqual(len(self.transport.calls), 1)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--output', type=Path, required=True); args = parser.parse_args()

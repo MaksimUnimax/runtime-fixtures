@@ -202,7 +202,7 @@ class RuntimeClient:
         self._pid = None
 
     def _exchange(self, operation, payload, validate):
-        mutation = operation in {'submit', 'cancel'}
+        mutation = operation in {'submit', 'cancel', 'clarify'}
         sent = False
         deadline = time.monotonic() + self.timeout
         def remaining():
@@ -274,20 +274,22 @@ class RuntimeClient:
             raise RuntimeFailure('DEPENDENCY_UNAVAILABLE') from None
 
     def _authorized(self, operation, context, payload, validate):
+        policy_operation = 'submit' if operation == 'clarify' else operation
+        mutation = operation in {'submit', 'cancel', 'clarify'}
         if self._pid is None: self.current_versions()
-        if operation in {'submit', 'cancel'}:
-            need(self.authorizer.current(deepcopy(context), operation) is True, 'PERMISSION_DENIED')
+        if mutation:
+            need(self.authorizer.current(deepcopy(context), policy_operation) is True, 'PERMISSION_DENIED')
         answer = self._exchange(operation, {**payload, 'context': context}, validate)
         try:
-            current = self.authorizer.current(deepcopy(context), operation) is True
+            current = self.authorizer.current(deepcopy(context), policy_operation) is True
         except RuntimeFailure as failure:
             if failure.code == 'DEPENDENCY_UNAVAILABLE':
-                raise RuntimeFailure('DEPENDENCY_UNAVAILABLE', outcome='UNKNOWN' if operation in {'submit', 'cancel'} else 'REJECTED') from None
+                raise RuntimeFailure('DEPENDENCY_UNAVAILABLE', outcome='UNKNOWN' if mutation else 'REJECTED') from None
             current = False
         except Exception:
-            raise RuntimeFailure('DEPENDENCY_UNAVAILABLE', outcome='UNKNOWN' if operation in {'submit', 'cancel'} else 'REJECTED') from None
+            raise RuntimeFailure('DEPENDENCY_UNAVAILABLE', outcome='UNKNOWN' if mutation else 'REJECTED') from None
         if not current:
-            raise RuntimeFailure('PERMISSION_DENIED', outcome='UNKNOWN' if operation in {'submit', 'cancel'} else 'REJECTED')
+            raise RuntimeFailure('PERMISSION_DENIED', outcome='UNKNOWN' if mutation else 'REJECTED')
         return answer
 
     def capabilities(self):
@@ -295,7 +297,7 @@ class RuntimeClient:
             exact(value, VERSION_FIELDS | {'operations', 'query_input_kinds', 'utterance_max_chars',
                   'business_timezones', 'unsupported', 'replay_retention_seconds', 'read_recomputes'})
             need({key: value[key] for key in VERSION_FIELDS} == self.versions, 'CATALOG_INCOMPATIBLE')
-            need(value['operations'] in (['submit', 'status', 'read_result', 'cancel', 'capabilities', 'current_versions'], ['submit', 'status', 'read_result', 'cancel', 'capabilities', 'current_versions', 'list_reports', 'read_report'])
+            need(value['operations'] in (['submit', 'status', 'read_result', 'cancel', 'capabilities', 'current_versions'], ['submit', 'status', 'read_result', 'cancel', 'capabilities', 'current_versions', 'list_reports', 'read_report'], ['submit', 'status', 'read_result', 'cancel', 'capabilities', 'current_versions', 'list_reports', 'read_report', 'clarify'])
                  and value['query_input_kinds'] == ['utterance'] and type(value['utterance_max_chars']) is int
                  and value['utterance_max_chars'] == 1200 and value['business_timezones'] == ['Europe/Moscow']
                  and value['unsupported'] == ['template', 'revoke_scope'] and value['read_recomputes'] is False
@@ -374,6 +376,11 @@ class RuntimeClient:
                  and value['logical_query_id'] == logical_query_id)
             identifier(value['job_ref']); identifier(value['trace_id']); timestamp(value['accepted_at'])
             return deepcopy(value)
+        if query_input['kind'] == 'clarification':
+            return self._authorized('clarify', context, {'schema_version': 'runtime_clarification_task_v1',
+                'request_id': request_id, 'logical_query_id': logical_query_id, 'trace_id': trace_id,
+                'job_ref': query_input['job_ref'], 'expected_revision': query_input['expected_revision'],
+                'answer': query_input['text']}, validate)
         return self._authorized('submit', context, {'schema_version': 'runtime_task_v1',
             'request_id': request_id, 'logical_query_id': logical_query_id, 'trace_id': trace_id,
             'query_input': query_input}, validate)
