@@ -1,0 +1,14 @@
+{
+  "catalog_sha256": "b16ddc43dda52b4e5850c507c0f459aa9b96217a5743da401cee70b1b5b0e613",
+  "native_suite": {
+    "tests": 125,
+    "seconds": 37.141,
+    "status": "PASS",
+    "includes_parallel_clarification_tests": true
+  },
+  "changed_templates": [
+    "offer_prices"
+  ],
+  "source_changes": "notes, calculation_contract, version only",
+  "live_provider_calls_in_suite": 0
+}

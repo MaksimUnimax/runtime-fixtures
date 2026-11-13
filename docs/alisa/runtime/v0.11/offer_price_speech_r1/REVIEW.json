@@ -1,0 +1,46 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "reviewed_at_utc": "2026-11-13T13:05:05.947463+00:00",
+  "scope": "Exact offer_prices v1 to v2 notes and Ozon calculation context, plus final finite single-catalog installer based on current clarification release.",
+  "files_sha256": {
+    "template_catalog.base.json": "35dfe8dab86ca35b654c0b8da86b23cc86bd5772b8ce59cedd0647b9fe166978",
+    "template_catalog.json": "b16ddc43dda52b4e5850c507c0f459aa9b96217a5743da401cee70b1b5b0e613",
+    "patch.json": "88e31e82796b6b9eef6360f0e81559abf9121cf5d1b0edcb1e3ad70ccf9be459",
+    "install.py": "0c41429bf8f2a5a9dd7edf655cbff3ba5bf0f98074d4ee7dda53a70a1a4a9604",
+    "BASE_SOURCE.json": "1842b21161be8682f3f883875e8cab9cbeb51f7f72d19e806c5664fa8418e44a",
+    "SERVER_TEST_PROOF.json": "33da29823753b7b53d961250a8b36a860578ef9d687c26396b7cf6316387de38"
+  },
+  "findings": [],
+  "checks": [
+    "Exact JSON comparison: only offer_prices changes, and only version, notes and calculation_contract. All other 85 templates and top-level fields are unchanged. Patch is exactly the new template.",
+    "Dataset kind, snapshot input policy, platforms, columns, output stage, acquisition steps, source operations, requests, metrics, group_by and aggregates are unchanged.",
+    "Compared Ozon contract against canonical dataset_sources ds_ozon_prices: items[], product_id identity, price.price, price.marketing_seller_price and price.currency_code match; cursor_total and total_items/total completeness checks are represented.",
+    "Seller and marketing prices remain distinct. Numeric grouping retains currency and distinct product identity; missing fields, unknown currency and incomplete documents are not zero. Historical or personalized checkout prices are not asserted from a current snapshot.",
+    "Brief speech instructions preserve explicitly requested price types, individual-product scope and relevant limitations; unsolicited product lists, range and snapshot-date commentary are suppressed only when not requested.",
+    "Ozon mapping is explicitly platform-scoped. WB source operations, size expansion, price fields and columns are unchanged and use their own source semantics.",
+    "validate_catalog, exact patch equality and installer Python syntax pass locally; no new test files were introduced.",
+    "Installer explicitly pins installed clarification base manifest c9b106a2e70fd07a86e3b12ececf9ce85569de8cbe1c22758719c294229d03ea and candidate catalog b16ddc43dda52b4e5850c507c0f459aa9b96217a5743da401cee70b1b5b0e613. Only template_catalog.json can differ from full base manifest.",
+    "Installer retains immutable hardlinks, changed-payload unlink before copy, independent atomic manifest replacement, every-base-file revalidation, common recovery lock, configured database active-job guards, policy/version preflight, atomic current pointer, PID/cwd verification and rollback.",
+    "Manifest is loaded from actual current base before selected metadata updates, retaining existing clarification metadata. base_source_commit and parallel_source_commit record 81579c18d4725c7f0a6603c8abbf703668863e36; runtime config is hashed before/after and not written.",
+    "Final test gate and installation receipt both require/report 125 tests, incorporating the clarification module."
+  ],
+  "verification": {
+    "independent_local": "Exact source scope, patch consistency, canonical field/pagination comparison, validate_catalog, installer syntax and bounded installer diff PASS.",
+    "native_server_suite": {
+      "tests": 125,
+      "seconds": 37.141,
+      "status": "PASS",
+      "includes_parallel_clarification_tests": true,
+      "provenance": "Primary executor report and local SERVER_TEST_PROOF.json; not independently executed by reviewer"
+    },
+    "paid_live_or_remote_calls_by_reviewer": 0,
+    "new_test_files_written": 0
+  },
+  "limitations": [
+    "Model wording and price grouping require the planned exact voice acceptance retest; this review does not independently establish live prices.",
+    "Current clarification source and native-suite proof are supplied by the primary executor; local validation used the available canonical source catalogs.",
+    "Unchanged hardlinked release payloads must remain immutable; subsequent changes must replace destination inodes.",
+    "Approval covers only the recorded hashes; reviewer did not deploy."
+  ]
+}

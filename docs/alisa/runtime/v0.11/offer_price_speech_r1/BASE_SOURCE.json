@@ -1,0 +1,7 @@
+{
+  "base_release": "alisa-template-clarification-81579c18d4725c7f",
+  "base_manifest_sha256": "c9b106a2e70fd07a86e3b12ececf9ce85569de8cbe1c22758719c294229d03ea",
+  "base_source_commit": "81579c18d4725c7f0a6603c8abbf703668863e36",
+  "preserved_parallel_catalog_commit": "b52fe95e5ea150e7933b2fee2aa431e89270cfb8",
+  "catalog_sha256": "35dfe8dab86ca35b654c0b8da86b23cc86bd5772b8ce59cedd0647b9fe166978"
+}
