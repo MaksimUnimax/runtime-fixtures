@@ -57,8 +57,8 @@ def all_stores(value):
 def bindings(tenant):
     from . import service
     authority = service.configured_authority()
-    mapping = authority.bindings.load(environment=settings.ALISA_ENV, service_id=authority.service_id,
-                                     catalog_release_id=authority.catalog_release_id).get(tenant)
+    mapping = authority.bindings.for_tenant(tenant, environment=settings.ALISA_ENV, service_id=authority.service_id,
+                                           catalog_release_id=authority.catalog_release_id)
     return mapping
 
 

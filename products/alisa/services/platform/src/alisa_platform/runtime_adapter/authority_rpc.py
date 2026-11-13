@@ -1,4 +1,4 @@
-"""Private, disabled-by-default authority RPC. No browser or provider secrets."""
+"""Private authority RPC. Credential replies are restricted to the native peer."""
 import hashlib
 import hmac
 
@@ -49,6 +49,9 @@ def check(request):
         if body['operation']=='gap_ingest':
             from alisa_platform.query_insights.service import ingest
             data=ingest(body['payload'])
+        elif body['operation'] == 'credentials':
+            from .store_registry import credentials
+            data = credentials(configured_authority(), body['payload'])
         elif body['operation'] == 'verify':
             authority=configured_authority()
             exact(body['payload'], {'ticket'})

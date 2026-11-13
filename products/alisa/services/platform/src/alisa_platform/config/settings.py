@@ -180,6 +180,9 @@ except (ValueError, TypeError):
 
 # Runtime authority is separate from browser, skill and owner-data service tokens.
 RUNTIME_AUTHORITY_ENABLED = os.environ.get('ALISA_RUNTIME_AUTHORITY_ENABLED', '0') == '1'
+RUNTIME_AUTO_BINDINGS_ENABLED = os.environ.get('ALISA_RUNTIME_AUTO_BINDINGS_ENABLED', '0') == '1'
+if os.environ.get('ALISA_RUNTIME_AUTO_BINDINGS_ENABLED', '0') not in {'0', '1'} or RUNTIME_AUTO_BINDINGS_ENABLED and not RUNTIME_AUTHORITY_ENABLED:
+    raise ImproperlyConfigured('Automatic store bindings require runtime authority')
 RUNTIME_AUTHORITY_TOKEN = os.environ.get('ALISA_RUNTIME_AUTHORITY_TOKEN', '')
 RUNTIME_BINDINGS_PATH = os.environ.get('ALISA_RUNTIME_BINDINGS_PATH', '')
 RUNTIME_SERVICE_ID = os.environ.get('ALISA_RUNTIME_SERVICE_ID', '')

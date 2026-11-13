@@ -231,5 +231,8 @@ def finish(token, command_id, checked):
                        and checked.get('identity_provenance') == 'NATIVE_OWNER_CONFIGURED_PAIR' else code)
         candidate.check_code = stored_code; candidate.checked_at = now; candidate.save(update_fields=['status', 'check_code', 'checked_at'])
         store.revision += 1; store.save(update_fields=['verified_identity', 'revision'])
+        if code == 'CONNECTED':
+            from alisa_platform.runtime_adapter.store_registry import enroll
+            enroll(store)
         audit(actor, store, 'check', stored_code)
         return result(command, {'store': projection(store), 'check_code': code})

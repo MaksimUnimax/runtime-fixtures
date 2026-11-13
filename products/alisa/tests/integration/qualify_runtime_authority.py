@@ -26,6 +26,7 @@ def main():
     parser.add_argument('--runtime-source', type=Path)
     parser.add_argument('--current-core-source', type=Path)
     parser.add_argument('--report-browser-artifact', type=Path)
+    parser.add_argument('--platform-stores-overlay', action='store_true')
     args = parser.parse_args()
     if args.runtime_source and args.current_core_source:
         parser.error('Select one pinned runtime source')
@@ -103,11 +104,17 @@ def main():
                 cases.append(('runtime_roundtrip', ROOT / 'tests/runtime_authority/roundtrip.py'))
             if args.current_core_source:
                 source=args.current_core_source.resolve()
+                if args.platform_stores_overlay:
+                    sys.path.insert(0, str(ROOT / 'runtime/platform_stores'))
+                    from build_overlay import build
+                    source = build(source, temp / 'platform-store-core')
                 runtime['ALISA_RT_JOB_TEST_SOURCE']=str(source)
                 runtime['ALISA_RT_JOB_MANIFEST_SHA256']=hashlib.sha256((source/'CURRENT_CORE_MANIFEST.json').read_bytes()).hexdigest()
                 cases.append(('current_core_roundtrip', ROOT / 'tests/runtime_authority/current_core_roundtrip.py'))
                 cases.append(('query_roundtrip', ROOT / 'tests/runtime_authority/query_roundtrip.py'))
                 cases.append(('voice_selection', ROOT / 'tests/runtime_authority/voice_selection.py'))
+                if args.platform_stores_overlay:
+                    cases.append(('store_enrollment', ROOT / 'tests/runtime_authority/store_enrollment.py'))
                 cases.append(('report_roundtrip', ROOT / 'tests/runtime_authority/report_roundtrip.py'))
                 cases.append(('query_insights', ROOT / 'tests/runtime_authority/query_insights.py'))
             for label, script in cases:
@@ -133,6 +140,18 @@ def main():
                     if preference != (target == '0003'): raise RuntimeError('Voice preference migration boundary failed')
             record['voice_migration_upgrade_rollback'] = 'PASS'
             record['voice_preference_upgrade_rollback'] = 'PASS'
+            for target in ['0001', '0002']:
+                result = subprocess.run([sys.executable, str(ROOT / 'services/platform/manage.py'),
+                    'migrate', 'stores', target, '--noinput'], env=migration,
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=45)
+                if result.returncode: raise RuntimeError('Store registry migration roundtrip failed')
+                with connect(dbname=NAME) as conn:
+                    for table in ['stores_runtimetenantbinding', 'stores_runtimestorebinding']:
+                        if conn.execute('SELECT to_regclass(%s) IS NOT NULL', [table]).fetchone()[0] != (target == '0002'):
+                            raise RuntimeError('Store registry migration table boundary failed')
+                    if conn.execute('SELECT count(*) FROM queries_query').fetchone()[0] != receipts:
+                        raise RuntimeError('Store registry migration changed query receipts')
+            record['store_registry_upgrade_rollback'] = 'PASS'
             with connect(dbname=NAME, user=NAME + '_runtime', password=passwords['runtime']) as conn:
                 # A fixture setup must not have weakened append-only history.
                 rights = conn.execute("SELECT has_table_privilege(current_user,'entitlements_accessgrant','UPDATE'), has_table_privilege(current_user,'entitlements_accessgrant','TRUNCATE')").fetchone()

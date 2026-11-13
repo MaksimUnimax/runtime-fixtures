@@ -20,6 +20,10 @@ class BindingFile:
         need(type(owner_uid) is int and owner_uid >= 0)
         self.path, self.owner_uid = Path(path), owner_uid
 
+    def for_tenant(self, tenant_id, **context):
+        from .store_registry import overlay
+        return overlay(tenant_id, self.load(**context).get(tenant_id))
+
     def load(self, *, environment, service_id, catalog_release_id):
         try:
             for parent in self.path.parents:
@@ -60,13 +64,14 @@ class BindingFile:
                     need(store['provider'] in {'OZON', 'WB'})
                     text(store['verified_identity'], 160); revision(store['credential_revision'])
                     expected = {'SELLER', 'PERFORMANCE'} if store['provider'] == 'OZON' else {'WB'}
-                    need(type(store['credentials']) is list and len(store['credentials']) == len(expected))
+                    need(type(store['credentials']) is list and 1 <= len(store['credentials']) <= len(expected))
                     kinds, credential_ids = set(), set()
                     for credential in store['credentials']:
                         exact(credential, {'kind', 'id', 'revision'})
                         need(credential['kind'] in expected and credential['kind'] not in kinds)
                         kinds.add(credential['kind']); cid = identifier(credential['id'])
                         need(cid not in credential_ids); credential_ids.add(cid); revision(credential['revision'])
+                    need('SELLER' in kinds if store['provider'] == 'OZON' else kinds == {'WB'})
                     native = store['runtime_store']
                     exact(native, {'id', 'platform', 'identity', 'access_revision', 'source_revision', 'currency'})
                     for field in ('id', 'identity', 'access_revision', 'source_revision'): text(native[field], 160)
