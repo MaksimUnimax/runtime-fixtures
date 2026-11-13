@@ -1,0 +1,35 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "script_sha256": "90e388aff44aa6acbc3028b1c4de4634bff732fa2a6d8758542eb3cef3d6ad2e",
+  "reviewed_base_script_sha256": "5257bd435945300ed45a434811096d6a8fee625401263d9763a946960415e5e1",
+  "scope": "Expand the previously approved immutable-release deduplication allowlist to exactly six owned old releases; no change to deduplication behavior or resource guards.",
+  "allowed_old_releases": [
+    "alisa-finance-scope-r1-20261113",
+    "alisa-sales-selection-r1-20261113",
+    "alisa-orders-buyouts-r1-20261113",
+    "alisa-speech-context-r1-20261113",
+    "alisa-accrual-contracts-r1-20261113",
+    "alisa-wb-finance-contracts-r1-20261113"
+  ],
+  "findings": [],
+  "checks": [
+    "Previous local script SHA exactly matches its approved review pin. Text diff and AST comparison confirm that only OWN_OLD changes; executable logic is otherwise identical.",
+    "The allowlist contains only six explicitly named prior releases created in this task. Current wb-cohort release is absent; under the common lock the actual current target is resolved and each old target must differ from it.",
+    "Candidates remain limited to regular files listed with the same digest in both manifests, distinct inodes, old nlink 1, and equal device/uid/gid/mode/size.",
+    "Only an old target inode is replaced by a temporary hardlink and atomic rename. Differing files, symlinks, existing shared targets, manifests and the current release are not rewritten.",
+    "All current and old payload hashes and old manifest bytes are checked before/after processing; final current pointer equality is checked. Release paths and rollback content remain present.",
+    "No disk reserve, capacity guard, runtime config, archive content or unrelated files are modified by this script. Python compilation passes."
+  ],
+  "verification": {
+    "independent_local": "Exact text/AST allowlist-only delta and six-name bounds PASS; prior reviewed base SHA verified; compilation PASS.",
+    "behavioral_basis": "Same deduplication body previously passed a synthetic filesystem check covering identical files, different bytes/mode, symlinks, existing hardlinks and unchanged manifests; not repeated for this allowlist-only delta.",
+    "remote_or_live_calls_by_reviewer": 0,
+    "script_executed_by_reviewer": false
+  },
+  "limitations": [
+    "Actual recovered space depends on eligible distinct nlink=1 copies; already shared files produce no additional savings. Space recovery and archive capacity must be measured after execution rather than inferred from approval.",
+    "freed_bytes is total filesystem free-space delta and may include concurrent workload changes.",
+    "Shared immutable payloads must remain immutable; later modifications must replace destination inodes."
+  ]
+}
