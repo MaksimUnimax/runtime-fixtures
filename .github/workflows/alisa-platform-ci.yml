@@ -48,17 +48,19 @@ jobs:
           python qualify.py --output "$GITHUB_WORKSPACE/products/alisa/dist/rt-check-qualification.json"
           python qualify_baseline.py --output "$GITHUB_WORKSPACE/products/alisa/dist/rt-check-baseline-qualification.json"
           python build_package.py --source "$ALISA_SOURCE_SHA" --output "$GITHUB_WORKSPACE/products/alisa/dist"
+      - name: Locked toolchain dependencies before runtime extensions
+        working-directory: products/alisa
+        run: ./bin/alisa bootstrap --locked
       - name: Current runtime fairness, deadlines and offline regression
         working-directory: products/alisa/runtime
         run: |
-          python run_checks.py --output ../dist/runtime-qualification.json
-          python build_package.py --source "$ALISA_SOURCE_SHA" --output ../dist
+          ../.venv/bin/python run_checks.py --output ../dist/runtime-qualification.json
+          ../.venv/bin/python build_package.py --source "$ALISA_SOURCE_SHA" --output ../dist
       - name: Locked source checks and UI build (not stage acceptance)
         # The S07 port carries the frozen current core, its full original
         # regression and new guard/consumer/reader tests in a separate source.
         working-directory: products/alisa
         run: |
-          ./bin/alisa bootstrap --locked
           ./bin/alisa test --scope foundation
           ./bin/alisa build
           ./bin/alisa package --source "$ALISA_SOURCE_SHA"
