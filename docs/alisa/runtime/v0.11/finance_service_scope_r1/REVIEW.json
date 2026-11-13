@@ -1,0 +1,34 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "scope": "Template financial service calculation contracts for two B06 scalars, exact expected storage template version update from 2 to 3 in its existing test, forwarding integration test and finite installer.",
+  "files_sha256": {
+    "template_catalog.base.json": "7e46df39744da9f204e5c68ec95d81faedd5735136d07a1b9be8c3ca629a80a3",
+    "template_catalog.json": "998a1b2432d0e3646fb3d3d78edff020b19315f3bea5dad70fde352b72c15820",
+    "install.py": "f412313417833ba0e89aaf2561ba05b364b73a0428ab39e063df2ca94acc9203",
+    "test_finance_contract_forwarding.py": "1f84ea4c272d91bb6d42cf6d9acc760aed3ee474fd1bac4957127fa4a23411ed",
+    "test_template_only.py": "bc31481589b578e5d33d0beea1f3d931d6434ad8fa09471a3811387d2473be28"
+  },
+  "findings": [],
+  "checks": [
+    "Exact semantic diff contains only version and calculation_contract for the two requested B06 scalar templates; all existing acquisition, metrics, formulas and notes remain unchanged.",
+    "Ozon storage categories and logistics plus reverse_logistics categories exactly match scalar_source_catalog; negate follows signed summation, preserving refunds.",
+    "WB paidStorageSum and deliveryServiceSum mapping and unmodified sign exactly match scalar_catalog.",
+    "Missing services, amount fields, unknown currency and incomplete documents cannot be silently treated as zero. Empty category subsets give zero only for complete verified service lists.",
+    "The template catalog validates against existing source and formula bindings.",
+    "New integration test passed locally: SUMMARY.46, finance_storage_logistics and finance_storage_logistics_share each carry both dependency contracts through direct_v1 and program_v2, retaining input/store scope.",
+    "Installer pins and permits exactly template_catalog.json and tests/test_template_only.py as changed files; the updated test differs from the installed base only in expected storage template version 2 to 3. The terminology assertion is retained.",
+    "Installer copies the exact verified installed base and overlays only the pinned catalog and test file; native policy/version preflight, no-active-job guards, atomic pointer switch, process cwd verification, config equality and rollback remain present.",
+    "Installer, preparation script and integration test compile without running production mutations."
+  ],
+  "verification": {
+    "independent_local": "validate_catalog PASS; exact diff PASS; canonical category/sign/field mapping PASS; 1 integration test with 6 subtests PASS; Decimal sanity checks 1980.60 combined total and net 80 for -100 + 20 refund PASS. Follow-up exact test diff PASS; updated storage terminology/version test PASS; final installer compiles.",
+    "server_suite": "Initial 103-test server run exposed the stale exact version assertion; only expected 2 to 3 was corrected. A fresh 103-test passing run remains required by installer gate and has not yet been independently observed.",
+    "external_or_paid_calls": 0
+  },
+  "limitations": [
+    "Approval applies only to the pinned files and verified installed base expected by the finite installer.",
+    "Forwarding tests verify contracts reach the model, not that a live model follows them; the planned actual column retest remains necessary.",
+    "Current server pins, full focused suite, successful installation and post-install service state must be confirmed by the installing agent."
+  ]
+}
