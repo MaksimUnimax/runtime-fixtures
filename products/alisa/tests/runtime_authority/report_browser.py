@@ -154,7 +154,7 @@ def run(case, ports):
                     before=len(case.transport.calls)
                     clarify_script=root/'clarification-client.py'
                     shutil.copy2(ROOT/'tests/runtime_authority/clarification_browser_client.py',clarify_script)
-                    data={'origin':origin,'session':case.web_token,'query_id':query_id,
+                    data={'origin':origin,'ca':str(ca),'session':case.web_token,'query_id':query_id,
                           'question':prompt['clarification']['question']}
                     clarified=subprocess.run([str(py),str(clarify_script)],env=child_env,
                         user=network.uid,group=network.uid,extra_groups=[],input=json.dumps(data),capture_output=True,text=True,timeout=60)

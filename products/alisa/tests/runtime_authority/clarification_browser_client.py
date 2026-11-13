@@ -1,6 +1,9 @@
 """Real authenticated BFF/PG continuation; lose one accepted HTTP response only."""
+import http.client
 import json
+import ssl
 import sys
+from urllib.parse import urlsplit
 from playwright.sync_api import sync_playwright, expect
 
 data = json.load(sys.stdin)
@@ -18,15 +21,28 @@ with sync_playwright() as playwright:
         context.add_cookies([{'name': '__Host-alisa_session', 'value': data['session'],
             'url': data['origin'], 'httpOnly': True, 'secure': True, 'sameSite': 'Lax'}])
         endpoint = data['origin'] + '/api/v1/queries/' + data['query_id'] + '/clarify'
+        origin = urlsplit(data['origin'])
+        if origin.scheme != 'https' or origin.hostname != '127.0.0.1':
+            raise AssertionError('Expected owned loopback HTTPS origin')
+        tls = ssl.create_default_context(cafile=data['ca'])
         def lose_once(route):
             submissions.append(route.request.post_data_json)
-            response = route.fetch()
-            if response.status not in [200, 201]:
-                raise AssertionError('Real continuation was not accepted: ' + str(response.status))
+            # Chromium trusts the fixture CA through NSS. Playwright's separate
+            # Route.fetch HTTP client does not inherit that trust store.
+            # Forward the exact request with explicit CA verification; no redirects.
+            peer = http.client.HTTPSConnection(origin.hostname, origin.port, context=tls, timeout=10)
+            try:
+                peer.request('POST', urlsplit(endpoint).path,
+                    body=route.request.post_data.encode(), headers=route.request.all_headers())
+                response = peer.getresponse(); status = response.status; body = response.read(65537)
+                if status not in [200, 201] or len(body) > 65536:
+                    raise AssertionError('Real continuation was not accepted: ' + str(status))
+            finally:
+                peer.close()
             if len(submissions) == 1:
                 route.fulfill(status=503, json={'code': 'UNKNOWN_OUTCOME'})
             else:
-                route.fulfill(response=response)
+                route.fulfill(status=status, content_type='application/json', body=body)
         context.route(endpoint, lose_once)
         page = context.new_page(); page.goto(data['origin'] + '/app/queries', wait_until='networkidle')
         page.get_by_role('region', name='Мои задания').get_by_role('button').filter(has_text='Нужно уточнение').click()
