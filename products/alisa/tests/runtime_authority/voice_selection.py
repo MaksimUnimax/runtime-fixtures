@@ -121,7 +121,9 @@ class VoiceChecks(QueryChecks):
     def test_named_store_in_question_explicitly_changes_default_verbatim(self):
         self.remember_second()
         question = QUESTION + ' в магазине песок'
-        with patch.object(service, 'submit', wraps=service.submit) as submit:
+        # The installed template-only path accepts the original question intact;
+        # the legacy typed parser explicitly rejects every named-shop phrase.
+        with patch.object(self.engine, 'template_mode', True), patch.object(service, 'submit', wraps=service.submit) as submit:
             self.assertIn('принято', self.say(question, 2))
         self.assertEqual(submit.call_args.args[3], question)
         self.assertEqual(submit.call_args.args[2], [str(self.store.pk)])
