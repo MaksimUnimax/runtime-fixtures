@@ -1,0 +1,33 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "scope": "Acceptance-only question comparison helper and independent single-date accrual totals from existing archived API data. No product question rewriting, provider request or live execution. Includes the new helper import and additional same_question predicate at initial runner job-ID binding; unrelated runner mechanics are outside this follow-up.",
+  "files_sha256": {
+    "/workspace/scratch/d17054491409/voice-acceptance-20261113/voice_question_identity.py": "f666473565fc243991bbc4d50e83181b853b3b399bc17d1e955d920bb9e292eb",
+    "/workspace/scratch/d17054491409/accrual-contracts-20261113/verify_accrual_case.py": "663ae5e73d951293fb7e99436909e86342370c76c9aa6d86be82558e75a63501",
+    "/workspace/scratch/d17054491409/voice-acceptance-20261113/run_voice_current.py": "881488aca8081f5c3d6176c064bfa3cdf15c4ddfd8ee5fbf2f91687935c56ad7"
+  },
+  "findings": [],
+  "checks": [
+    "Question normalization is pure: it case-folds, normalizes ё, removes known skill-launch prefixes, maps explicit ordinal date/platform spellings and compares nonempty token sequences. It does not mutate the source question.",
+    "Locally available historical question/original_question pairs passed: 5 cases. Additional probes preserve date/platform distinctions, distinguish average-price from buyer-sum questions, and reject empty/non-string values.",
+    "Verifier imports the existing archive reader, which reads SQLite in mode=ro and verifies encrypted archive bytes. No API, model, socket or HTTP dispatch is made by the verifier.",
+    "Verifier requires a finished READY case, at least one accrual page, an empty final cursor, unique accrual IDs, one selected period with from=to, and matching row dates.",
+    "Per-product quantities and commission fields determine the totals. commission=null service rows are skipped; direction comes from sale_amount, buyer value from sale_price, seller value from sale_amount, and reverse monetary totals negate signed values without multiplying line totals by quantity.",
+    "Verifier checks positive integral quantity, RUB fields, seller_price times quantity equals sale_amount, and buyer plus bonus plus coinvestment equals seller amount. Average buyer price uses positive buyer total divided by positive quantity, with no divide-by-zero fallback.",
+    "No observed business result is hardcoded; expected_total is calculated from archived fields. The helper adds data_check to the local private case JSON and prints a summary; it is read-only toward the archive and application database, not toward that evidence JSON.",
+    "Both helpers compile; no remote/live/model calls were made during review.",
+    "Inspected current runner integration: same_question is imported, and original_question versus record.question is added with AND before initial job-ID persistence. Existing tenant/job-ID/time conditions remain unchanged; neither question is rewritten. AST comparison confirms exactly one added predicate conjunct."
+  ],
+  "verification": {
+    "independent_local": "5 historical pairs plus targeted positive/negative identity probes PASS; compilation PASS; source arithmetic reviewed against canonical B05 mappings.",
+    "reported_by_parent": "31 recorded question pairs 47–77 matched and question78 differs from79; only 5 historical pairs were available for independent local review. Cases79/80/81 subsequently bound correctly and produced independently checked values.",
+    "verifier_executed_against_production": false,
+    "runner_followup": "Current runner import/predicate source and AST delta inspected; no runner execution or new live calls."
+  },
+  "limitations": [
+    "Question text equality prevents binding a different question; it is not a unique request identifier and cannot distinguish delayed callbacks for an identical repeated question.",
+    "Verifier checks terminal cursor and row uniqueness but does not independently reconstruct a multi-page cursor chain. Current one-page cases fit this review scope; completeness of a larger archive still relies on successful source execution/archive coverage.",
+    "Verifier computes independent expected values; it does not automatically parse or grade the model spoken answer."
+  ]
+}

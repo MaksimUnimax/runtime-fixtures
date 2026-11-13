@@ -1,0 +1,31 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "script_sha256": "5257bd435945300ed45a434811096d6a8fee625401263d9763a946960415e5e1",
+  "scope": "Deduplicate identical immutable payload files in exactly alisa-stock-scope-r1-20261113 and alisa-stock-speech-r1-20261113 against the current immutable release, retaining release paths, bytes and manifests.",
+  "findings": [],
+  "resolved_findings": [
+    {
+      "severity": "low",
+      "issue": "Current release was originally resolved before acquiring the common recovery lock.",
+      "resolution": "Final script resolves CURRENT immediately after acquiring the lock and rejects any old target equal to that locked current release."
+    }
+  ],
+  "checks": [
+    "Only the two explicitly named owned old release directories are eligible; they must be directories, not symlinks, and distinct from the current release.",
+    "Current and old manifest payload hashes are checked before mutation; old manifest bytes and all old/current payload hashes are checked after mutation.",
+    "Only entries present with identical digest in both manifests are candidates. Both paths must be regular files, target inode must have nlink 1, and device, uid, gid, mode and size must match.",
+    "Each replacement creates a temporary hardlink to the immutable source and atomically replaces only the old target path. No current payload or manifest is rewritten, and differing old versions remain intact.",
+    "Exact script with only absolute paths relocated was exercised against synthetic filesystem fixtures: identical files were deduplicated, while differing bytes, differing mode, existing multiply-linked files and symlinks were skipped; every current/old byte sequence and manifest remained unchanged.",
+    "Final lock-order-only correction was independently inspected and compiled; BASE resolution is now inside the lock before manifest reads."
+  ],
+  "verification": {
+    "independent_synthetic": "PASS: two eligible files deduplicated; all ineligible cases preserved; bytes/manifests unchanged.",
+    "production_execution_by_reviewer": false,
+    "paid_or_live_calls_by_reviewer": 0
+  },
+  "limitations": [
+    "Shared source and rollback release payloads must remain immutable; later changes must replace destination inodes rather than write shared files in place.",
+    "freed_bytes is an observed total filesystem free-space delta and can include concurrent workload changes; it is not an isolated allocation accounting measurement."
+  ]
+}
