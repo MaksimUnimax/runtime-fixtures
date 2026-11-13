@@ -48,6 +48,8 @@ class EnrollmentChecks(QueryChecks):
         class Transport:
             @property
             def calls(self): return case.fixture.calls
+            @property
+            def model_source(self): return getattr(case.fixture, 'model_source', 'model:enrollment-fixture')
             def prepare(self, request, store):
                 return None if request.source.startswith('model:') else case.http.prepare(request, store)
             def execute_observed(self, request, store, on_dispatch):
