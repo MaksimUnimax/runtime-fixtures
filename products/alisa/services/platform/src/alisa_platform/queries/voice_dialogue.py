@@ -235,14 +235,27 @@ def explicit_target(state, target):
 
 def named_stores(rows, command):
     marker = r'\b(?:в магазине|из магазина|по магазину|для магазина|магазин)\s+'
-    explicit = bool(re.search(marker, command))
-    matches = []
-    for row in rows:
-        names = {normalized(row['name']).strip('«»"'), normalized(row['alias']).strip('«»"')} - {''}
-        if any(re.search(marker + r'[«"]?' + re.escape(name) + r'(?=$|[\s»",;:.!?])', command)
-               for name in names):
-            matches.append(row)
-    return explicit, matches
+    markers = list(re.finditer(marker, command))
+    if not markers:
+        return False, []
+    requested = []
+    for match in markers:
+        tail = command[match.end():].strip()
+        if tail.startswith(('«', '"')):
+            end = tail.find('»' if tail[0] == '«' else '"', 1)
+            if end < 0:
+                return True, []
+            name = tail[1:end]
+        else:
+            # A trailing unquoted name is exact too. Never guess its boundary
+            # inside an unknown longer name; use quotes for a name mid-question.
+            name = re.split(r'[,;.!?]', tail, maxsplit=1)[0]
+        requested.append(normalized(name))
+    names = {row['id']: {normalized(row['name']).strip('«»"'), normalized(row['alias']).strip('«»"')} - {''}
+             for row in rows}
+    if any(not name or not any(name in choices for choices in names.values()) for name in requested):
+        return True, []
+    return True, [row for row in rows if any(name in names[row['id']] for name in requested)]
 
 
 def preferred_store(customer, tenant, rows):
@@ -270,7 +283,7 @@ def choose(row, state, selected, customer, tenant):
     if state.get('selection_only') and len(selected) != 1:
         save(row, state)
         return {'message': 'Для магазина по умолчанию выберите один. ' + prompt(state)}
-    if len(selected) == 1:
+    if len(selected) == 1 and not state.get('all_once'):
         store = Store.objects.filter(pk=selected[0]['id'], tenant_id=tenant, status='ACTIVE',
                                      product_id='alisa_market', verified_identity__isnull=False).first()
         if store is None or snapshot(store, bindings(tenant))['pin'] != selected[0]['pin']:
@@ -373,11 +386,12 @@ def advance(principal, session_hash, mid, query_id, utterance):
             else:
                 target = switch_target(command)
                 if target is not None:
-                    state['stores'], state['page'] = candidates(tenant, ''), 0
+                    # A clarification always uses the original frozen pins.
                     selected = explicit_target(state, target) if target else []
                 else:
                     selected = selection(state, utterance)
                 if selected:
+                    state['all_once'] = command in ALL and not state.get('selection_only')
                     return choose(row, state, selected, customer, tenant)
             save(row, state)
             return {'message': prompt(state)}
@@ -408,7 +422,8 @@ def advance(principal, session_hash, mid, query_id, utterance):
             return {'message': 'Подключите нужный магазин в кабинете и задайте вопрос заново.'}
         state = {'auth': binding, 'phase': 'CHOOSE', 'question': utterance,
                  'query_id': query_id, 'stores': stores, 'page': 0,
-                 'selection_only': target is not None, 'default_unavailable': unavailable}
+                 'selection_only': target is not None, 'default_unavailable': unavailable,
+                 'all_once': target is None and not explicit and all_stores(utterance)}
         row = VoiceDialogue(id=hashlib.sha256((session_hash + ':' + query_id).encode()).hexdigest(),
                             session_hash=session_hash, customer_id=customer, tenant_id=tenant)
         row.last_message_id, row.input_hash = mid, mark

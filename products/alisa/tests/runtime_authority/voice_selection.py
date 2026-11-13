@@ -208,6 +208,43 @@ class VoiceChecks(QueryChecks):
         self.assertIn('другим содержимым', self.say('песок', 1))
         self.assertFalse(VoiceStorePreference.objects.filter(customer=self.actor).exists())
 
+    def test_one_available_store_all_request_does_not_replace_disabled_default(self):
+        self.remember_second()
+        self.second.status = 'DISABLED'; self.second.save()
+        self.assertIn('принято', self.say(QUESTION + ' по всем магазинам', 2))
+        self.assertEqual(VoiceStorePreference.objects.get(customer=self.actor).store_id, self.second.pk)
+        self.assertIn('Ранее выбранный магазин недоступен', self.say(QUESTION, 3))
+
+    def test_literal_pending_choice_does_not_refresh_changed_key_pins(self):
+        self.question(); before = self.state()[1]
+        CredentialRevision.objects.filter(store=self.second).update(revision=7)
+        self.assertIn('изменилось', self.say('магазин озон два', 1))
+        self.assertFalse(Query.objects.filter(customer=self.actor).exists())
+        self.assertFalse(VoiceStorePreference.objects.filter(customer=self.actor).exists())
+        self.assertEqual(self.state()[1], before)
+
+    def test_literal_pending_choice_does_not_refresh_changed_mapping_pins(self):
+        self.question()
+        self.document['tenants'][0]['revision'] = 'new-binding'; self.write()
+        self.assertIn('изменилось', self.say('магазин озон два', 1))
+        self.assertFalse(Query.objects.filter(customer=self.actor).exists())
+
+    def test_unknown_quoted_name_prefix_does_not_select_existing_shop(self):
+        self.assertIn('Уточните', self.say(QUESTION + ' в магазине «Северный другой»'))
+        self.assertFalse(Query.objects.filter(customer=self.actor).exists())
+        self.assertFalse(VoiceStorePreference.objects.filter(customer=self.actor).exists())
+
+    def test_unknown_unquoted_name_prefix_does_not_select_existing_shop(self):
+        self.assertIn('Уточните', self.say(QUESTION + ' в магазине Северный другой'))
+        self.assertFalse(Query.objects.filter(customer=self.actor).exists())
+
+    def test_exact_quoted_name_allows_following_question_text(self):
+        question = QUESTION + ' в магазине «Северный» сравни с прошлым периодом'
+        with patch.object(self.engine, 'template_mode', True), patch.object(service, 'submit', wraps=service.submit) as submit:
+            self.assertIn('принято', self.say(question))
+        self.assertEqual(submit.call_args.args[3], question)
+        self.assertEqual(submit.call_args.args[2], [str(self.store.pk)])
+
     def test_ordinal_uses_spoken_absolute_number(self):
         self.question(); _, state = self.state(); sid = state['stores'][1]['id']
         self.say('второй', 1)
