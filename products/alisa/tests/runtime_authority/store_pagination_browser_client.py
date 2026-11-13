@@ -36,7 +36,7 @@ with sync_playwright() as p:
                 'checked_at':None,'submission_confirmed':confirmed}
             route.fulfill(status=201 if confirmed else 202,json={'query':row})
         context.route(data['origin']+'/api/v1/queries',query)
-        question=page.get_by_label('Вопрос',exact=True)
+        question=page.get_by_role('textbox',name='Вопрос',exact=True)
         question.fill('Synthetic paginated store question')
         page.get_by_role('button',name='Подготовить отчёт',exact=True).click()
         retry=page.get_by_role('button',name='Повторить ту же отправку',exact=True)
