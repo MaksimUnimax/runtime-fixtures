@@ -1,0 +1,48 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "scope": "Two WB financial template field contracts, safe immutable single-catalog installer, and corrected acceptance-only archived WB financial verifier.",
+  "files_sha256": {
+    "template_catalog.base.json": "dd8f076d216aa3c5158c32b5ebf1c1db00c7b7456253595135d77a1fcd47da39",
+    "template_catalog.json": "c2ab22d5598903166d8324647220928b12aa2a45b1073e6efad8ebdb6b99c975",
+    "patch.json": "444d49141fb48b066c4bc697dadca85251bb68ac44340f01e7034e33cf220f12",
+    "prepare.py": "f105226dc12668ee28ffd335b00c141494b585bf7ede5099f173da883cdd04e3",
+    "install.py": "76a1aed8bf741bb511da32b5f94f615aca0a0b02aa0193ccb56f600324ee67da"
+  },
+  "helper_path": "/workspace/scratch/d17054491409/voice-acceptance-20261113/verify_wb_finance_case.py",
+  "helper_sha256": "4e68be7edd20ffb3d28aadf59310e6b2f1f8b4bdab5d3debdcbe0e10c35a0c3a",
+  "findings": [],
+  "resolved_findings": [
+    {
+      "severity": "medium",
+      "file": "/workspace/scratch/d17054491409/voice-acceptance-20261113/verify_wb_finance_case.py",
+      "issue": "The original verifier accepted an empty one-page report or missing days as a zero/partial expected total, despite canonical days_cover, and accepted rows spanning multiple days.",
+      "resolution": "Updated only the authorized helper: require dateFrom==dateTo, strict ISO daily dates, every day in the requested valid period, and finite Decimal field values. Records full_period_coverage only after those checks."
+    }
+  ],
+  "checks": [
+    "Exact catalog diff modifies only version, purpose, notes and calculation_contract of B10.finance_for_pay and B10.finance_bank_scheduled; both versions advance 1 to 2. All IDs/count, steps, API requests, formulas, source qualifications and input policies remain unchanged.",
+    "Canonical scalar_catalog maps finance_for_pay to forPaySum and finance_bank_scheduled to bankPaymentSum. Both registry metric definitions are signed=true; source decoder uses decimal and recipe sums values. New contracts match those fields and preserve signed sum semantics.",
+    "Contract and notes explicitly prohibit substituting the goods-only forPaySum for bankPaymentSum, rebuilding the reported total from selected components, taking an absolute value or replacing a negative result with zero. Spoken bank amount must retain minus.",
+    "Missing fields, unknown currency and incomplete responses cannot be treated as zero. Existing financial-period source restrictions and daily coverage qualification remain unchanged.",
+    "validate_catalog, exact scope comparison, patch consistency and Python compilation pass.",
+    "Installer delta from the prior approved accrual installer changes only release names, pins and source metadata. Only template_catalog.json may differ. Shared immutable files, changed inode replacement, new manifest, full base revalidation, quiescence checks, native preflight, process cwd verification, config equality and rollback remain intact.",
+    "Verifier uses existing authenticated archive data and read-only SQLite access, not API/model requests. It supports exactly one short page, rejects duplicate report IDs, checks RUB and requested daily coverage, and sums the selected field with Decimal while preserving its sign.",
+    "Actual corrected helper calculation block passed 3 valid probes (negative, confirmed zero and signed multi-day total) plus 5 rejection probes (empty report, missing day, spanning row, NaN and Infinity). No new test file was written."
+  ],
+  "verification": {
+    "independent_local": "Canonical fields/signed registry/source sum inspected; exact scope/patch/validate_catalog/compile PASS; corrected helper block 8 probes PASS.",
+    "server_suite": "Fresh 107-test pass required by installer gate; server result not independently observed at review time.",
+    "paid_or_live_calls_by_reviewer": 0,
+    "product_files_modified_by_reviewer": [],
+    "acceptance_files_modified_by_reviewer": [
+      "/workspace/scratch/d17054491409/voice-acceptance-20261113/verify_wb_finance_case.py"
+    ]
+  },
+  "limitations": [
+    "Live model selection and final signed bank-payment answer require the planned same-question retest after installation.",
+    "The helper writes data_check only to the existing private acceptance evidence JSON; archive and application database are read-only. It computes expected values but does not automatically grade spoken text.",
+    "Verifier deliberately rejects multi-page or full 1000-row archives rather than claiming pagination completeness.",
+    "Unchanged hardlinked release payloads must remain immutable; future changes must replace destination inodes."
+  ]
+}
