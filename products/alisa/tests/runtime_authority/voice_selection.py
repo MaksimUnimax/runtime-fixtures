@@ -217,7 +217,18 @@ class VoiceChecks(QueryChecks):
 
     def test_literal_pending_choice_does_not_refresh_changed_key_pins(self):
         self.question(); before = self.state()[1]
-        CredentialRevision.objects.filter(store=self.second).update(revision=7)
+        old = CredentialRevision.objects.get(store=self.second, kind='SELLER', status='ACTIVE')
+        secret = VaultSecret.objects.create(tenant=self.tenant, store=self.second, kind='SELLER',
+            revision=old.revision + 1, key_version='fixture', ciphertext='fixture-never-decrypted')
+        new = CredentialRevision.objects.create(tenant=self.tenant, store=self.second, kind='SELLER',
+            revision=old.revision + 1, secret=secret, status='ACTIVE', check_code='CONNECTED')
+        old.status = 'REVOKED'; old.save(update_fields=['status'])
+        for entry in self.document['tenants'][0]['stores']:
+            if entry['store_id'] == str(self.second.pk):
+                for credential in entry['credentials']:
+                    if credential['kind'] == 'SELLER':
+                        credential.update(id=str(new.pk), revision=new.revision)
+        self.write()
         self.assertIn('изменилось', self.say('магазин озон два', 1))
         self.assertFalse(Query.objects.filter(customer=self.actor).exists())
         self.assertFalse(VoiceStorePreference.objects.filter(customer=self.actor).exists())
