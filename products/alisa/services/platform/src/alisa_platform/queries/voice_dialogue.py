@@ -21,6 +21,7 @@ LIFETIME = timedelta(minutes=10)
 CONTROL = {'готово', 'статус', 'ответ', 'повтори', 'отмена', 'отмени'}
 CANCEL = {'отмена', 'отмени'}
 ALL = {'все', 'всё', 'все магазины', 'по всем', 'по всем магазинам'}
+EXPLICIT_ALL = {'все магазины', 'по всем магазинам'}
 EXPIRED = 'Уточнение больше не действует. Задайте вопрос заново вместе с магазином.'
 ACCEPTED = 'Задание принято. Спросите: готово? Отчёт также появится в кабинете.'
 UNKNOWN = 'Отправка не подтверждена. Откройте задание в кабинете. Новый расчёт автоматически не запущен.'
@@ -138,7 +139,8 @@ def prompt(state):
               for i, row in enumerate(rows) if start <= i < start + 5]
     more = ' Для продолжения списка скажите: дальше.' if start + 5 < len(rows) else ''
     return (f"Уточните магазин. В списке {len(rows)}. " + '; '.join(labels) +
-            '. Назовите номер, название или скажите: все.' + more)
+            '. Назовите номер или название; при совпадении с командой скажите: магазин, затем название. '
+            'Для всех скажите: все магазины.' + more)
 
 
 def selection(state, utterance):
@@ -146,23 +148,38 @@ def selection(state, utterance):
     rows = state['stores']
     if not command:
         return []
-    if command in ALL:
+    # Explicit grammar is stable even when a shop is named after a command.
+    if command in EXPLICIT_ALL:
         return rows
+    match = re.fullmatch(r'номер (\d{1,4})', command)
+    if match:
+        index = int(match[1])
+        return rows[index - 1:index] if 1 <= index <= len(rows) else []
+    literal = command.startswith('магазин ')
+    name = command[len('магазин '):] if literal else command
+    exact = [row for row in rows if name in {normalized(row['name']), normalized(row['alias'])} - {''}]
+    if literal or len(exact) > 1:
+        return exact if len(exact) == 1 else []
+    selected = None
+    if command in ALL:
+        selected = rows
     index = ORDINALS.get(command)
-    match = re.fullmatch(r'(?:номер )?(\d{1,4})', command)
+    match = re.fullmatch(r'(\d{1,4})', command)
     if match:
         index = int(match[1])
     if index is not None:
-        return rows[index - 1:index] if 1 <= index <= len(rows) else []
-    exact = [row for row in rows if command in {normalized(row['name']), normalized(row['alias'])} - {''}]
-    if len(exact) == 1:
-        return exact
-    if exact:
-        # Duplicate names are preserved. Their existing absolute numbers disambiguate.
-        return []
+        selected = rows[index - 1:index] if 1 <= index <= len(rows) else []
     wanted = providers(command)
     if len(wanted) == 1 and command in set().union(*PROVIDERS.values()):
         selected = [row for row in rows if row['provider'] in wanted]
+    if exact:
+        if selected is not None and {row['id'] for row in exact} != {row['id'] for row in selected}:
+            # Do not dispatch or narrow the frozen list on competing meanings.
+            return []
+        return exact
+    if selected is not None:
+        if command in ALL or index is not None:
+            return selected
         if len(selected) == 1:
             return selected
         if selected:
@@ -267,7 +284,9 @@ def advance(principal, session_hash, mid, query_id, utterance):
             if command in CANCEL:
                 save(row, {'auth': binding, 'phase': 'CANCELLED'})
                 return {'message': 'Вопрос отменён. Он не отправлен на расчёт.'}
-            if command in {'дальше', 'следующие'}:
+            if command in CONTROL:
+                pass  # Status/repeat must not become a shop selection.
+            elif command in {'дальше', 'следующие'}:
                 state['page'] = min(state['page'] + 5, ((len(state['stores']) - 1) // 5) * 5)
             elif command == 'назад':
                 state['page'] = max(0, state['page'] - 5)

@@ -30,9 +30,9 @@ QUESTION = 'сводка заказов за октябрь 2026 на озоне
 class VoiceChecks(QueryChecks):
     def setUp(self):
         super().setUp()
-        self.store.name = 'Первый'; self.store.voice_alias = 'песок'; self.store.save()
+        self.store.name = 'Северный'; self.store.voice_alias = 'песок'; self.store.save()
         _, self.link, self.family, self.token = self.issue_alice()
-        self.second = self.shop('Второй', 'OZON', 'озон два')
+        self.second = self.shop('Южный', 'OZON', 'озон два')
 
     def shop(self, name, provider, alias=''):
         row = Store.objects.create(tenant=self.tenant, name=name, voice_alias=alias,
@@ -88,6 +88,81 @@ class VoiceChecks(QueryChecks):
         self.question(); self.assertIn('Уточните', self.say('песок', 1))
         self.assertFalse(Query.objects.filter(customer=self.actor).exists())
         self.say('номер 2', 2)
+        self.assertEqual(Query.objects.filter(customer=self.actor).count(), 1)
+
+    def test_all_name_collision_keeps_question_id_snapshot_and_deadline(self):
+        self.second.name = 'Всё'; self.second.save()
+        self.question(); before, original = self.state()
+        self.assertIn('Уточните', self.say('все', 1))
+        after, pending = self.state()
+        self.assertEqual(pending, original)
+        self.assertEqual(after.expires_at, before.expires_at)
+        self.assertFalse(Query.objects.filter(customer=self.actor).exists())
+        self.assertEqual(self.transport.calls, [])
+        with patch.object(service, 'submit', wraps=service.submit) as submit:
+            self.assertIn('принято', self.say('магазин всё', 2))
+        self.assertEqual(submit.call_args.args[1], original['query_id'])
+        self.assertEqual(submit.call_args.args[3], QUESTION)
+        self.assertEqual(Query.objects.get(pk=original['query_id']).store_ids, [str(self.second.pk)])
+
+    def test_ordinal_name_collision_requires_explicit_number(self):
+        first, second = sorted([self.store, self.second], key=lambda row: str(row.pk))
+        second.name = 'Первый'; second.save()
+        self.question()
+        self.assertIn('Уточните', self.say('первый', 1))
+        self.assertFalse(Query.objects.filter(customer=self.actor).exists())
+        self.assertEqual(self.transport.calls, [])
+        self.assertIn('принято', self.say('номер 1', 2))
+        self.assertEqual(Query.objects.get(customer=self.actor).store_ids, [str(first.pk)])
+
+    def test_numeric_alias_collision_can_select_literal_alias(self):
+        first, second = sorted([self.store, self.second], key=lambda row: str(row.pk))
+        second.voice_alias = '1'; second.save()
+        self.question()
+        self.assertIn('Уточните', self.say('1', 1))
+        self.assertFalse(Query.objects.filter(customer=self.actor).exists())
+        self.assertIn('принято', self.say('магазин 1', 2))
+        self.assertEqual(Query.objects.get(customer=self.actor).store_ids, [str(second.pk)])
+
+    def test_provider_alias_collision_does_not_narrow_snapshot(self):
+        self.second.voice_alias = 'Ozon'; self.second.save()
+        self.question(); _, original = self.state()
+        self.assertIn('Уточните', self.say('озон', 1))
+        # Use the exact alias spelling to exercise the conflicting name meaning.
+        self.assertIn('Уточните', self.say('ozon', 2))
+        self.assertEqual(self.state()[1], original)
+        self.assertFalse(Query.objects.filter(customer=self.actor).exists())
+        self.assertIn('принято', self.say('магазин ozon', 3))
+        self.assertEqual(Query.objects.get(customer=self.actor).store_ids, [str(self.second.pk)])
+
+    def test_explicit_all_takes_precedence_over_literal_shop_name(self):
+        self.second.name = 'Все магазины'; self.second.save()
+        self.question()
+        self.assertIn('принято', self.say('все магазины', 1))
+        self.assertEqual(Query.objects.get(customer=self.actor).store_ids,
+                         sorted([str(self.store.pk), str(self.second.pk)]))
+
+    def test_explicit_number_takes_precedence_over_literal_shop_name(self):
+        first, second = sorted([self.store, self.second], key=lambda row: str(row.pk))
+        second.name = 'Номер 1'; second.save()
+        self.question()
+        self.assertIn('принято', self.say('номер 1', 1))
+        self.assertEqual(Query.objects.get(customer=self.actor).store_ids, [str(first.pk)])
+
+    def test_status_named_shop_still_requires_literal_selection(self):
+        self.second.name = 'Готово'; self.second.save()
+        self.question()
+        self.assertIn('Уточните', self.say('готово', 1))
+        self.assertFalse(Query.objects.filter(customer=self.actor).exists())
+        self.assertIn('принято', self.say('магазин готово', 2))
+        self.assertEqual(Query.objects.get(customer=self.actor).store_ids, [str(self.second.pk)])
+
+    def test_explicit_duplicate_alias_still_requires_number(self):
+        self.second.voice_alias = 'песок'; self.second.save()
+        self.question()
+        self.assertIn('Уточните', self.say('магазин песок', 1))
+        self.assertFalse(Query.objects.filter(customer=self.actor).exists())
+        self.assertIn('принято', self.say('номер 2', 2))
         self.assertEqual(Query.objects.filter(customer=self.actor).count(), 1)
 
     def test_new_shop_does_not_join_all(self):
