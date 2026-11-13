@@ -1,0 +1,33 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "scope": "SUMMARY.57 metadata and calculation context for all three current WB stock quantities; existing safe immutable single-catalog installer.",
+  "files_sha256": {
+    "template_catalog.base.json": "eefbbf248254e02e9c2b396e4bc820098270ef32916a21e96291e3f1c2761e38",
+    "template_catalog.json": "6b4e520dd7e0745b597e783d139871980a2500b0c7e401f9b929e8f2a6f31a7c",
+    "patch.json": "393e5f5d3b6ef48cfe8168677c3c4bad6436aabc8ed06ac47aefda9e4a37ffca",
+    "install.py": "5d3aa7814f5a3b2f6180ddf7e8257fb07e687bfeed70bf70ebf9caa9fefa0f9b"
+  },
+  "findings": [],
+  "checks": [
+    "Exact diff changes only SUMMARY.57 version (1 to 2), purpose, notes and calculation_contract. All other templates, input policy, metrics, dependency steps, sources, workflows and API requests are unchanged.",
+    "Purpose explicitly selects the complete three-metric summary when warehouse stock and both transit directions are requested. Dependency list remains B15.stock_fbo_units, B15.stock_to_customer and B15.stock_return_transit.",
+    "Each metric category was compared to actual scalar_source_catalog wb_stocks_download all_values expressions: stock_fbo_units uses exactly «Всего находится на складах», stock_to_customer «В пути до получателей», and stock_return_transit «В пути возвраты на склад WB». All sum quantity.",
+    "Contract uses only the total warehouse category for stock and explicitly excludes addition of individual warehouses or transit quantities to that total. Repeated pages and nmId products must not be counted twice.",
+    "Notes cover every explicitly requested metric, condition the three-label response on the corresponding question, preserve item quantities and number words, and require identifying an unknown metric instead of omitting it or substituting zero.",
+    "Snapshot semantics remain current stock with no historical comparison or filters. Static selected-root notes use the existing verified context trust boundary.",
+    "Exact scope, canonical category/sum-field comparison, unchanged dependency order, patch consistency, validate_catalog and Python compilation pass.",
+    "Installer delta from the approved WB cohort installer is limited to release identity, immutable pins and metadata. Only template_catalog.json may differ; safe hardlinks, changed-inode replacement, atomic manifest, full base revalidation, no-active-jobs guard, native preflight, process verification, unchanged config and rollback are preserved."
+  ],
+  "verification": {
+    "independent_local": "Exact diff, all three canonical categories, quantity sum, dependency order, patch, validate_catalog and compilation PASS.",
+    "server_suite": "Fresh complete 107-test run remains required by installer gate; server result not independently observed at review time.",
+    "new_test_files_written": 0,
+    "paid_or_live_calls_by_reviewer": 0
+  },
+  "limitations": [
+    "Selector completeness and final model wording remain probabilistic; the exact three-part live question needs the planned acceptance retest after installation.",
+    "Source approval does not establish current live totals or independently resolve the earlier STORAGE_CAPACITY incident.",
+    "Unchanged hardlinked release payloads must remain immutable; later changes must replace destination inodes."
+  ]
+}
