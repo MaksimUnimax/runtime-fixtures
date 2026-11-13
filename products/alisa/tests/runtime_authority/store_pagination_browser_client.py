@@ -56,7 +56,7 @@ with sync_playwright() as p:
             else:route.fallback()
         context.route(data['origin']+'/api/account/stores?cursor=*',fail_page)
         for _ in range(3):
-            more.click();expect(page.get_by_role('alert')).to_contain_text('Не удалось загрузить')
+            more.click();expect(page.get_by_role('region',name='Новый отчёт',exact=True).get_by_role('alert')).to_contain_text('Не удалось загрузить')
             expect(more).to_be_enabled();expect(chosen).to_be_checked()
             expect(group.get_by_role('checkbox')).to_have_count(50)
             expect(question).to_have_value('Keep this question while loading stores')
