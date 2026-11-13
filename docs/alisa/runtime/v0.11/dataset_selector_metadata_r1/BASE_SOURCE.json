@@ -1,0 +1,11 @@
+{
+  "base_release": "alisa-offer-price-speech-r1-20261113",
+  "base_manifest_sha256": "e96351d5629fd0dc1a4b84dea9622101e8343bc0ac7fe5de64bb5d7cacc3a21f",
+  "base_source_commit": "9112595562f1546979ecf7191367d3c1c2ed821c",
+  "preserved_template_clarification_source": "81579c18d4725c7f0a6603c8abbf703668863e36",
+  "changed_payload_files": {
+    "template_catalog.py": "c305877a6fe03a256dfd8a60a2b2c6ddda365fbdbdc257a2dfdacb563473aeb8",
+    "template_protocol.py": "0c3f913288cf019349992d3ab36e2d64aeaa214eb2dbb28644e776b80e645965",
+    "template_catalog.json": "7a8f48ae71cc7939df6b50a76465d52f7124b54b5b78108bb2151f3ed84c42c2"
+  }
+}

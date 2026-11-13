@@ -1,0 +1,32 @@
+{
+  "status": "PASS",
+  "native_user": "alice-lab",
+  "native_suite": {
+    "tests": 145,
+    "seconds": 31.397,
+    "status": "PASS",
+    "includes_parallel_clarification_tests": true
+  },
+  "local_suite_before_wording_revision": {
+    "tests": 145,
+    "seconds": 7.988,
+    "status": "PASS"
+  },
+  "final_local_prefix_clarification_metadata": {
+    "tests": 69,
+    "seconds": 2.588,
+    "status": "PASS"
+  },
+  "baseline_new_regressions": {
+    "tests": 8,
+    "failures": 1,
+    "errors": 4
+  },
+  "paid_provider_calls": 0,
+  "payload_sha256": {
+    "template_catalog.py": "c305877a6fe03a256dfd8a60a2b2c6ddda365fbdbdc257a2dfdacb563473aeb8",
+    "template_protocol.py": "0c3f913288cf019349992d3ab36e2d64aeaa214eb2dbb28644e776b80e645965",
+    "template_catalog.json": "7a8f48ae71cc7939df6b50a76465d52f7124b54b5b78108bb2151f3ed84c42c2"
+  },
+  "new_test_sha256": "cd3a912fd3a319ac671e4c92f6365c9463b443ff85b800f91a3a362a792faf98"
+}

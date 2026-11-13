@@ -1,0 +1,98 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "reviewed_at_utc": "2026-11-13T13:42:22.888624+00:00",
+  "scope": "Static dataset output metadata in selector discovery and strict optional prefix schema, selection instruction, catalog identity bump, eight regression tests, finite three-payload installer with preservation of live clarification continuations.",
+  "files_sha256": {
+    "base/manifest.json": "e96351d5629fd0dc1a4b84dea9622101e8343bc0ac7fe5de64bb5d7cacc3a21f",
+    "candidate/template_catalog.py": "c305877a6fe03a256dfd8a60a2b2c6ddda365fbdbdc257a2dfdacb563473aeb8",
+    "candidate/template_protocol.py": "0c3f913288cf019349992d3ab36e2d64aeaa214eb2dbb28644e776b80e645965",
+    "candidate/template_catalog.json": "7a8f48ae71cc7939df6b50a76465d52f7124b54b5b78108bb2151f3ed84c42c2",
+    "candidate/tests/test_dataset_selector_metadata.py": "cd3a912fd3a319ac671e4c92f6365c9463b443ff85b800f91a3a362a792faf98",
+    "install.py": "8482cefcdc49be67319ad3b76f36260e1e0125f7deb1c995e5ea347ae91b8a27",
+    "BASE_SOURCE.json": "35ea78e95c32fdd551b88fb243a7581fa8256de51e2a027d3ae051d32a688e3b",
+    "SERVER_TEST_PROOF.json": "7cdae9cb49094d572cba0eb000cb89a4da479ae80cc3876d374408776e28c940"
+  },
+  "findings": [],
+  "resolved_findings": [
+    {
+      "severity": "P2",
+      "location": "install.py active() and both activation guards",
+      "problem": "READY jobs containing an unexpired runtime_clarification_v1 result were invisible to QUEUED/RUNNING-only idle guard. Catalog hash change invalidates their pinned plan and continuation.",
+      "resolution": "Exact installer now includes unexpired READY clarification results in active(), read-only, before preparation and after service stop. It does not mutate or cancel pending user work.",
+      "independent_evidence": "Real ClarificationChecks fixture produced database READY/public NEEDS_INPUT, old installer active count0, authorized before simulated catalog change true and after false. Seven temporary SQLite cases verify new guard."
+    },
+    {
+      "severity": "wording",
+      "location": "candidate/template_protocol.py SELECT_SYSTEM",
+      "problem": "Already performed grouping was inaccurate for the answer_by_model path.",
+      "resolution": "Final text says grouping provided by the template, without claiming grouping has already executed."
+    }
+  ],
+  "checks": [
+    "All 174 base payload hashes match exact current manifest e96351d5629fd0dc1a4b84dea9622101e8343bc0ac7fe5de64bb5d7cacc3a21f. Candidate changes only template_catalog.py, template_protocol.py and top-level template_catalog.json version; one isolated test module added.",
+    "All 86 template definitions, formulas, input policies, source operations and API requests are unchanged. No new model-selected operations, execution steps, input filters or group_by values are authorized.",
+    "Dataset output is a static projection of stage, column field/label/kind, and output group_by. Canonical template validation already binds these values to dataset_queries. Notes, credentials, source paths and API records are excluded.",
+    "Nested metadata is deep-copied. Returned selector views cannot mutate catalog entries, including grouped datasets. Scalar and other non-dataset discovery rows are unchanged.",
+    "Optional schema accepts old discovery rows and rejects extra metadata keys, wrong scalar attachment, invalid kinds/stages, duplicate fields/groups and groups absent from exposed columns. Prefix serialization remains lossless and deterministically sorted.",
+    "Availability, allowed store IDs and original question remain in the dynamic tail; static prefix carries no tenant data. Existing retry snapshots and policy isolation remain enforced.",
+    "Legacy wire layout/builder remains unchanged; its newly generated discovery context intentionally includes dataset metadata. Prefix and clarification routes receive the same semantics. Clarification capability gating is preserved.",
+    "Instruction permits only exact simple post-read calculations supported by registered outputs and complete data, distinguishes registry counts from statistics rows, and explicitly forbids invented fields, filters or operations. Output group_by is distinguished from input.group_by.",
+    "Meaningful tests cover actual Worker/HTTP payload with fake network, old-row roundtrip, metadata privacy and copy isolation, rejected schema injection, unavailable-store separation and compiler rejection of unsupported input filters. Baseline log shows new behavior regression tests fail on old source.",
+    "Installer pins exact three payload hashes and the new test hash, requires native145 PASS, preserves immutable hardlinked base payloads using changed-inode replacement and atomic manifest creation, verifies all base hashes before and after preparation, and retains clarification81579 lineage metadata.",
+    "Common recovery lock, configured SQLite path, policy/version preflight, atomic current pointer, actual process cwd verification, unchanged runtime config and rollback remain intact. New guard prevents switching beneath an unexpired clarification."
+  ],
+  "independent_validation": {
+    "metadata_prefix_clarification_suite": {
+      "tests": 69,
+      "seconds": 2.678,
+      "status": "PASS",
+      "note": "Executed before the one-phrase grouping wording correction; final correction was inspected and parsed."
+    },
+    "base_manifest_payloads_verified": 174,
+    "clarification_hash_change_regression_probe": "PASS: reproduced READY continuation invisible to old active count and denied by new catalog hash",
+    "installer_guard_sqlite_cases": {
+      "count": 7,
+      "status": "PASS",
+      "cases": [
+        "empty",
+        "QUEUED/RUNNING",
+        "unexpired clarification",
+        "expired clarification",
+        "ordinary READY result",
+        "cancelled clarification",
+        "mixed states"
+      ],
+      "database_and_config_bytes_unchanged": true
+    },
+    "installer_guard_assertions": "Both before preparation and after stop verified at lines25 and40",
+    "paid_live_remote_calls": 0,
+    "new_test_files_written_by_reviewer": 0
+  },
+  "primary_executor_evidence": {
+    "final_native_suite": {
+      "tests": 145,
+      "seconds": 31.397,
+      "status": "PASS",
+      "user": "alice-lab",
+      "includes_clarification": true
+    },
+    "final_local_suite": {
+      "tests": 69,
+      "seconds": 2.588,
+      "status": "PASS"
+    },
+    "new_tests_on_baseline": {
+      "tests": 8,
+      "failures": 1,
+      "errors": 4
+    },
+    "provenance": "Primary executor report and local SERVER_TEST_PROOF.json; native run not independently executed by reviewer."
+  },
+  "limitations": [
+    "Metadata availability does not guarantee probabilistic selector or final-model correctness; the exact WB campaign-count voice acceptance retest remains necessary.",
+    "This review does not verify live campaign totals or authorize additional provider calls.",
+    "Installer rejects live pending clarifications rather than migrating their pinned plans; installation must wait until that guard passes.",
+    "Unchanged hardlinked release payloads must remain immutable. Approval is bounded to the recorded file hashes; reviewer did not deploy."
+  ]
+}
