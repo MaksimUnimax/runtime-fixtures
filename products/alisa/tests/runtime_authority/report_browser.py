@@ -157,6 +157,29 @@ def run(case, ports):
             case.assertEqual(len(case.transport.calls),before)
             case.assertEqual(Feedback.objects.filter(query_id=case.qid).count(),1)
             record['checks'].extend(selection_record['checks'])
+            # A separate browser traverses three REAL signed-cursor list pages.
+            # Fixed UUID extremes sort before/after every existing uuid4 card.
+            import uuid
+            for index in range(50):
+                selection_stores.append(Store.objects.create(id=uuid.UUID('00000000-0000-0000-0000-'+format(index+1,'012x')),
+                    tenant=case.tenant,provider='OZON',name='Pagination disabled '+str(index),status='DISABLED'))
+            paged=[]
+            for index in range(52):
+                store=Store.objects.create(id=uuid.UUID('ffffffff-ffff-ffff-ffff-'+format(index+1,'012x')),
+                    tenant=case.tenant,provider='OZON',name='Pagination active '+format(index,'02d'),
+                    verified_identity='fixture-pagination:'+str(index))
+                selection_stores.append(store);paged.append(store)
+            pagination_script=root/'store-pagination-client.py'
+            shutil.copy2(ROOT/'tests/runtime_authority/store_pagination_browser_client.py',pagination_script)
+            pagination_script.chmod(0o644)
+            data={'origin':origin,'session':case.web_token,'target_store_id':str(paged[0].pk),
+                'all_store_ids':sorted([str(case.store.pk),*[str(s.pk)for s in selection_stores if s.status=='ACTIVE']])}
+            paginated=subprocess.run([str(py),str(pagination_script)],env=child_env,
+                user=network.uid,group=network.uid,extra_groups=[],input=json.dumps(data),capture_output=True,text=True,timeout=60)
+            if paginated.returncode:raise AssertionError('Browser store pagination qualification failed: '+paginated.stderr[-3000:])
+            pagination_record=json.loads(paginated.stdout);case.assertEqual(pagination_record['status'],'PASS')
+            case.assertEqual(len(case.transport.calls),before)
+            record['checks'].extend(pagination_record['checks'])
             return record
         finally:
             if node is not None:
