@@ -338,7 +338,7 @@
 
 **Предыдущий:** AL-S08. **Статус:** IN_PROGRESS (10.11.2026). Выбор нескольких магазинов в кабинете и сохранение исходного состава при UNKNOWN/recover установлены: DEPLOYED_WEB, source `b481fbe9`, CI и технические проверки прошли. Сервер уже принимает список и проверяет полномочия; голосовые уточнения, полнота бизнес-итога и полная приёмка S09 этим изменением не закрываются. [Состав работы](../../quality/MULTI_STORE_SELECTION_2026-11-10.md).
 
-**Голосовой выбор (10.11):** SOURCE_APPROVED / PACKAGE_QUALIFIED / INACTIVE_PREPARED, PR416 source `94ad5354`, 40 голосовых и 158 PG-проверок PASS, CI42801033977 SUCCESS, R45/R46 approved. Серверный пакет и read-only preflight готовы; `queries.0002_voicedialogue` требует отдельного разрешения на живую БД и ещё не применена. Установленный кабинет PR415 работает; семантические уточнения и полная приёмка S09 открыты. [Контракт и проверки](../../quality/VOICE_STORE_SELECTION_2026-11-10.md).
+**Голосовой выбор (13.11):** DEPLOYED_BACKEND / INSTALLED_TECHNICAL_CHECKS_PASS, PR416 source `94ad5354`, release `alisa-voice-selection-ac5557cd456ab364`. Разрешённая владельцем `queries.0002_voicedialogue` применена; существующая минутная очистка работает. R47 APPROVE_ACTIVATION, runtime UID/SQL/Unix metadata и HTTPS проверены, 9 служб active; native/web/admin/Station и привязки сохранены. 40 голосовых / 159 PG и CI42801033977 PASS; LIVE_OWNER и семантическая полнота S09 пока открыты. [Контракт и проверки](../../quality/VOICE_STORE_SELECTION_2026-11-10.md).
 
 **Уже есть:** Есть подключённые магазины, отчёты и сбор эпизодов: шаги 05–08.
 
