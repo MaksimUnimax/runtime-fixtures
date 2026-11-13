@@ -121,9 +121,8 @@ class RuntimeAuthority:
              'ACCESS_REQUIRED')
         access = access_snapshot(tenant_id)
         need(access['status'] == 'ACTIVE' and access['active_until'], 'ACCESS_REQUIRED')
-        mappings = self.bindings.load(environment=settings.ALISA_ENV, service_id=self.service_id,
-                                      catalog_release_id=self.catalog_release_id)
-        mapping = mappings.get(tenant_id)
+        mapping = self.bindings.for_tenant(tenant_id, environment=settings.ALISA_ENV,
+            service_id=self.service_id, catalog_release_id=self.catalog_release_id)
         need(mapping is not None, 'CAPABILITY_UNAVAILABLE')
         store_pins, selected = [], []
         for sid in ids:

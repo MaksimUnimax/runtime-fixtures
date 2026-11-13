@@ -4,6 +4,10 @@ from django.db import models
 PRODUCT = 'alisa_market'
 
 
+def native_reference():
+    return 'platform-' + uuid.uuid4().hex
+
+
 class Store(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     product_id = models.CharField(max_length=40, default=PRODUCT)
@@ -102,3 +106,19 @@ class StoreAudit(models.Model):
 
     class Meta:
         constraints = [models.CheckConstraint(condition=models.Q(product_id=PRODUCT), name='store_audit_alisa_product')]
+
+
+class RuntimeTenantBinding(models.Model):
+    tenant = models.OneToOneField('accounts.Tenant', primary_key=True, on_delete=models.CASCADE)
+    native_tenant = models.CharField(max_length=128, default=native_reference)
+
+
+class RuntimeStoreBinding(models.Model):
+    store = models.OneToOneField(Store, primary_key=True, on_delete=models.CASCADE)
+    tenant = models.ForeignKey('accounts.Tenant', on_delete=models.CASCADE)
+    native_id = models.CharField(max_length=160, default=native_reference)
+    native_identity = models.CharField(max_length=160, default=native_reference)
+    verified_identity = models.CharField(max_length=160)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['tenant', 'native_id'], name='stores_runtime_native_once')]
