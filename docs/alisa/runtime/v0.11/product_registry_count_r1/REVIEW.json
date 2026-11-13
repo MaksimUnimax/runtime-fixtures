@@ -1,0 +1,34 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "scope": "Ozon catalog-card count guidance on the existing product_registry dataset template; preserve dataset acquisition and WB behavior; existing immutable single-catalog installer.",
+  "files_sha256": {
+    "template_catalog.base.json": "91c8e30018eb1ec1e70f9082a5c3e000223fb2d45e9a25a87c4ee2cbc5e448be",
+    "template_catalog.json": "35dfe8dab86ca35b654c0b8da86b23cc86bd5772b8ce59cedd0647b9fe166978",
+    "patch.json": "b2ac43919d17ed7b8ecae8beb56b108022b469d50f61d354d2c01f583d6d21dc",
+    "install.py": "edf2aac1d55f6ebf9307862eeceb55b823b21375892605ee8b8fc2cde6b6e6a4"
+  },
+  "findings": [],
+  "checks": [
+    "Exact diff changes only product_registry version (1 to 2), purpose, notes and calculation_contract. All other templates, dataset kind, metrics=[], columns, aggregates=[], output stage, steps, source maps, requests and input policies are unchanged.",
+    "Canonical dataset_sources ds_ozon_products uses visibility ALL, response result.items, positive product_id identity, cursor_total pagination and total_items with total fallback. New count_distinct contract uses those same rows, identity and total paths.",
+    "Existing source guard requiring total and total_items to agree when both are present remains unchanged; pagination total/cursor and duplicate protections remain in the existing dataset source. New instructions require all pages and count consistency and reject partial, unknown or conflicting totals as a complete count.",
+    "Count is card/product identity cardinality, not stock quantity, offer-name uniqueness, SKU count or card visits. ALL is explicitly not represented as active-only or buyer-visible-only inventory.",
+    "Calculation contract has only an Ozon platform branch. Existing cross-platform identity warning and WB deleted-card exclusion notes are preserved verbatim; WB source behavior is unchanged.",
+    "New notes are conditional on an Ozon count question, avoid listing identifiers without an explicit request, preserve unknown data and do not change the product question or server query command.",
+    "Exact scope, old-note preservation, platform isolation, canonical rows/identity/visibility/cursor/total-path checks, patch consistency, validate_catalog and Python compilation pass.",
+    "Installer delta from approved Ozon financial summary installer is limited to release identity, immutable pins and metadata. Only template_catalog.json may differ; safe hardlinks, changed-inode replacement, atomic manifest, full base hashes, no-active-jobs guard, native preflight, process cwd, config equality and rollback remain intact."
+  ],
+  "verification": {
+    "independent_local": "Exact diff; unchanged dataset structure; Ozon-only contract; actual dataset_source identity/ALL/cursor_total/total paths; preserved WB/cross-platform notes; patch; validate_catalog; compile PASS.",
+    "server_suite": "Fresh complete 107-test pass is required by installer gate; server result not independently observed at review time.",
+    "new_test_files_written": 0,
+    "paid_or_live_calls_by_reviewer": 0
+  },
+  "limitations": [
+    "Live selector support recognition, successful full dataset acquisition and final count require the planned exact-question acceptance retest.",
+    "This covers all accessible cards returned by the existing ALL source, not active-only cards or WB trash-inclusive cardinality.",
+    "Counting remains in the existing answer model using full captured data; no deterministic server aggregate is introduced.",
+    "Unchanged hardlinked release payloads must remain immutable; future changes must replace destination inodes."
+  ]
+}
