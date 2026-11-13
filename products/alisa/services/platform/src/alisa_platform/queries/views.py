@@ -26,6 +26,11 @@ def queries(request, data):
         if action in {'status', 'result'}:
             exact(command, {'action', 'id'})
             return reply(service.read(principal, command['id'], result=action == 'result'))
+        if action == 'clarify':
+            exact(command, {'action', 'id', 'request_id', 'expected_revision', 'answer'}, {'recover'})
+            value, status = service.clarify(principal, command['id'], command['request_id'],
+                command['expected_revision'], command['answer'], recover=command.get('recover', False))
+            return reply(value, status)
         if action == 'cancel':
             exact(command, {'action', 'id', 'request_id'})
             return reply(service.cancel(principal, command['id'], command['request_id']))

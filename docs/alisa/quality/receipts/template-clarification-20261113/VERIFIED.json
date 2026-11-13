@@ -1,0 +1,18 @@
+{
+  "status": "INSTALLED_TECHNICAL_CHECKS_PASS",
+  "source": "81579c18d4725c7f0a6603c8abbf703668863e36",
+  "continuation_column_and_db_default": true,
+  "runtime_crud_no_truncate": true,
+  "protected_rights_unchanged": true,
+  "actual_service_uid_runtime_versions": "PASS",
+  "owner_pair_current_generation_readonly_mounts": "PASS",
+  "unauthenticated_routes": {
+    "/api/v1/account/stores": 401,
+    "/api/v1/account/reports": 401,
+    "/api/v1/account/queries": 401
+  },
+  "marketplace_calls": 0,
+  "model_calls": 0,
+  "test_sessions_grants_jobs_created": 0,
+  "live_owner": "NOT_PERFORMED"
+}

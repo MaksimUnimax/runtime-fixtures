@@ -1,0 +1,68 @@
+{
+  "scope": "S07_DISPOSABLE_POSTGRES_AUTHORITY_NOT_INSTALLED",
+  "status": "PASS",
+  "authority": {
+    "scope": "S07_DISPOSABLE_POSTGRES_AUTHORITY_NOT_INSTALLED",
+    "status": "PASS",
+    "tests_run": 43,
+    "failures": 0,
+    "errors": 0
+  },
+  "current_core_roundtrip": {
+    "scope": "S07_CURRENT_CORE_POSTGRES_REAL_AUTHORITY_HTTP_UNIX_NOT_INSTALLED",
+    "status": "PASS",
+    "tests_run": 11,
+    "failures": 0,
+    "errors": 0
+  },
+  "query_roundtrip": {
+    "scope": "S07_QUERY_PLATFORM_PG_UNIX_SYNTHETIC_PROVIDER_MODEL",
+    "status": "PASS",
+    "tests_run": 26,
+    "failures": 0,
+    "errors": 0
+  },
+  "voice_selection": {
+    "scope": "S09_VOICE_SELECTION_PG_UNIX_SYNTHETIC",
+    "status": "PASS",
+    "tests_run": 70,
+    "failures": 0,
+    "errors": 0
+  },
+  "template_clarification": {
+    "scope": "S09_TEMPLATE_CLARIFICATION_PG_OAUTH_UNIX_SYNTHETIC",
+    "status": "PASS",
+    "tests_run": 15,
+    "failures": 0,
+    "errors": 0
+  },
+  "store_enrollment": {
+    "scope": "STORE_ENROLLMENT_PG_UNIX_SYNTHETIC_HTTPS_NOT_INSTALLED",
+    "status": "PASS",
+    "tests_run": 20,
+    "failures": 0,
+    "errors": 0
+  },
+  "report_roundtrip": {
+    "scope": "REPORT_ARCHIVE_REAL_PG_UNIX_ACCOUNT_API_SYNTHETIC_MARKETPLACE_MODEL",
+    "status": "PASS",
+    "browser_requested": true,
+    "tests_run": 15,
+    "failures": 0,
+    "errors": 0
+  },
+  "query_insights": {
+    "scope": "S08_QUERY_INSIGHTS_PG_UNIX_SYNTHETIC_PROVIDER_MODEL",
+    "status": "PASS",
+    "tests_run": 24,
+    "failures": 0,
+    "errors": 0
+  },
+  "voice_migration_upgrade_rollback": "PASS",
+  "voice_preference_upgrade_rollback": "PASS",
+  "query_continuation_upgrade_rollback": "PASS",
+  "store_registry_upgrade_rollback": "PASS",
+  "migrations_and_model_consistency": "PASS",
+  "append_only_runtime_role": "PASS",
+  "owned_database_and_role_cleanup": true
+}

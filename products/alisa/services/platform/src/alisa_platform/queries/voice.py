@@ -34,9 +34,11 @@ def response(token, customer, message, *, pages=None, result_kind='DATA', delive
             http_method='POST', headers={'Authorization': 'Bearer ' + token}, scopes=[SCOPE])
         need(valid and str(request.user.customer_id) == customer, 'AUTH_REQUIRED')
         need(service.actor(AlicePrincipal(token))[0] == customer, 'AUTH_REQUIRED')
-        if pages is not None:
+        if delivery_guard is not None:
             need(isinstance(delivery_guard, service.DeliveryGuard), 'PERMISSION_DENIED')
             delivery_guard.check()
+        if pages is not None:
+            need(isinstance(delivery_guard, service.DeliveryGuard), 'PERMISSION_DENIED')
             message = (('Запрос пока не поддерживается.' if result_kind == 'UNSUPPORTED_QUERY' else 'Подготовлено пояснение об ограничении доступа.' if result_kind == 'PROVIDER_REFUSAL'
                         else 'Отчёт готов.') + ' Откройте его в разделе «Задания» в кабинете.'
                        if request.user.voice_private else pages[0] +
@@ -63,6 +65,35 @@ def handle(token, payload):
         if turn is not None:
             if 'message' in turn:
                 return response(token, customer, turn['message'])
+            if turn.get('show_clarification'):
+                value = service.read(principal, turn['query_id'], result=True, with_delivery_guard=True,
+                                     record_useful=False)
+                if value['result'].get('result_kind') == 'CLARIFICATION':
+                    message = voice_dialogue.await_input(principal, session_hash, mid, utterance,
+                                                          turn['query_id'], value['result'])
+                    return response(token, customer, message, delivery_guard=value['delivery_guard'])
+                return response(token, customer, 'Уточнение уже принято. Проверьте состояние: готово?')
+            if 'clarify' in turn:
+                frozen = turn['clarify']; unknown = True; failure = None
+                try:
+                    value, _ = service.clarify(principal, frozen['query_id'], frozen['request_id'],
+                        frozen['expected_revision'], frozen['answer'], recover=frozen['recover'],
+                        voice_session_hash=session_hash, store_snapshot=frozen['stores'])
+                    unknown = value.get('code') == 'UNKNOWN_OUTCOME'
+                except RuntimeFailure as error:
+                    unknown = error.outcome == 'UNKNOWN'
+                    failure = error
+                finally:
+                    cancellation = voice_dialogue.complete_clarification(principal, session_hash,
+                        frozen['query_id'], unknown=unknown)
+                if cancellation:
+                    cancelled = service.cancel(principal, frozen['query_id'], cancellation)
+                    return response(token, customer, 'Задание отменено.' if cancelled.get('status', {}).get('cancelled')
+                                    else MESSAGES['UNKNOWN_OUTCOME'])
+                if failure is not None:
+                    raise failure
+                return response(token, customer, voice_dialogue.CLARIFY_UNKNOWN if unknown
+                                else 'Уточнение принято. Продолжается исходное задание.')
             if 'submit' in turn:
                 frozen = turn['submit']
                 try:
@@ -98,9 +129,12 @@ def handle(token, payload):
             value = service.read(principal, str(row.pk))
             if value.get('code'): return response(token, customer, MESSAGES['UNKNOWN_OUTCOME'])
             state = value['status']['state']
-            if state == 'READY':
+            if state in {'READY', 'NEEDS_INPUT'}:
                 value = service.read(principal, str(row.pk), result=True, with_delivery_guard=True)
                 result = value['result']
+                if result.get('result_kind') == 'CLARIFICATION':
+                    message = voice_dialogue.await_input(principal, session_hash, mid, utterance, str(row.pk), result)
+                    return response(token, customer, message, delivery_guard=value['delivery_guard'])
                 return response(token, customer, '', pages=result['pages'], result_kind=result.get('result_kind', 'DATA'),
                                 delivery_guard=value['delivery_guard'])
             message = {'CANCELLED': 'Задание отменено.', 'FAILED': 'Расчёт не завершился. Подробности доступны в кабинете.',

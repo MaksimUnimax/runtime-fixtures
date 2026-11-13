@@ -1,0 +1,23 @@
+{
+  "scope": "CURRENT_INSTALLED_SOURCE_EXTENSION_OFFLINE_NOT_DEPLOYED",
+  "status": "PASS",
+  "tests_run": 2139,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "forbidden_network_attempts": 0,
+  "source_manifest_sha256": "34742f76730749936a5e88dc8899408536ff3ce90f93a44307a9a7474fefe02a",
+  "source_files": 173,
+  "versions": {
+    "runtime_contract_version": "runtime_port_v1",
+    "task_schema_version": "runtime_task_v1",
+    "task_schema_sha256": "08b4b6c708c5ae1d5387dbd593fde7ea40c9f671efdad8b9aacbcab9bd683d34",
+    "registry_hash": "56838ce468de9db473387912bb193a9ab8d6a67c90c230cf48517c47ccb26ac7",
+    "catalog_bundle_hash": "b7a8caa47a1ab3c015f3ee10803784438587b44b327e51ceca944322be5ad03c",
+    "query_language": "alice-scalar-dag/v1",
+    "projection": "composed-voice-v3-sales-basis",
+    "port_build": "RT-JOB-R02.4"
+  },
+  "installed": false,
+  "live_provider_calls": 0
+}

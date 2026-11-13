@@ -139,6 +139,31 @@ def run(case, ports):
             case.assertEqual(len(case.transport.calls),before)
             from alisa_platform.query_insights.models import Feedback
             case.assertEqual(Feedback.objects.filter(query_id=case.qid).count(),1)
+            if os.environ.get('ALISA_TEMPLATE_CLARIFICATION_TEST')=='1':
+                from alisa_platform.queries import service as queries
+                from alisa_platform.queries.models import Query
+                from test_runtime_port_r01_contract import uid
+                saved_selection=case.transport.selection
+                try:
+                    case.transport.selection={'action':'clarify','question':'За какой период подготовить отчёт?','missing':['period']}
+                    query_id=uid()
+                    queries.submit(case.principal,query_id,case.stores,'Количество заказанных товаров')
+                    case.worker.step()
+                    prompt=queries.read(case.principal,query_id,result=True)['result']
+                    reference=Query.objects.get(pk=query_id).runtime_job_ref
+                    before=len(case.transport.calls)
+                    clarify_script=root/'clarification-client.py'
+                    shutil.copy2(ROOT/'tests/runtime_authority/clarification_browser_client.py',clarify_script)
+                    data={'origin':origin,'ca':str(ca),'session':case.web_token,'query_id':query_id,
+                          'question':prompt['clarification']['question']}
+                    clarified=subprocess.run([str(py),str(clarify_script)],env=child_env,
+                        user=network.uid,group=network.uid,extra_groups=[],input=json.dumps(data),capture_output=True,text=True,timeout=60)
+                    if clarified.returncode:raise AssertionError('Browser clarification failed: '+clarified.stderr[:3000]+'\nTAIL:\n'+clarified.stderr[-1000:])
+                    clarify_record=json.loads(clarified.stdout);case.assertEqual(clarify_record['status'],'PASS')
+                    case.assertEqual(Query.objects.get(pk=query_id).runtime_job_ref,reference)
+                    case.assertEqual(len(case.transport.calls),before)
+                    record['checks'].extend(clarify_record['checks'])
+                finally:case.transport.selection=saved_selection
             # Seed unbound selection-only metadata AFTER the real report and
             # feedback checks; it must not change their authority/store scope.
             from alisa_platform.stores.models import Store

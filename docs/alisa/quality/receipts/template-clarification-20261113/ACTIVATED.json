@@ -1,0 +1,21 @@
+{
+  "status": "INSTALLED_TECHNICAL_CHECKS_PASS",
+  "source": "81579c18d4725c7f0a6603c8abbf703668863e36",
+  "platform_release": "alisa-template-clarification-81579c18d4725c7f",
+  "native_release": "alisa-template-clarification-81579c18d4725c7f",
+  "web_release": "alisa-cabinet-clarification-81579c18d4725c7f",
+  "restarted": [
+    "alisa-runtime-authority-stage.service",
+    "alisa-platform@stage.service",
+    "alice-market.service",
+    "alisa-store-check.service",
+    "alisa-web@stage.service"
+  ],
+  "other_four_unchanged": true,
+  "live_owner": "NOT_PERFORMED",
+  "model_or_marketplace_calls": 0,
+  "migration": [
+    "queries",
+    "0004_query_continuation"
+  ]
+}

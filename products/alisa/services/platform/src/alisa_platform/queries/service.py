@@ -5,6 +5,7 @@ with the identical question may repeat that ID; ordinary status/list never submi
 """
 from datetime import timedelta
 import hashlib
+import re
 import uuid
 from django.conf import settings
 from django.db import transaction
@@ -96,11 +97,15 @@ def submit(principal, query_id, stores, utterance, *, recover=False, channel='WE
     api.authorizer.prepare('submit')
     mark = hashlib.sha256(encode({'stores': stores, 'utterance': utterance})).hexdigest()
     now = timezone.now(); attempt = uuid.uuid4()
+    continuation = {}
+    if store_snapshot is not None:
+        from .voice_dialogue import auth_binding
+        continuation = {'store_snapshot': store_snapshot, 'voice_auth': auth_binding(principal)}
     with transaction.atomic():
         row, created = Query.objects.get_or_create(pk=query_id, defaults={
             'customer_id': customer, 'tenant_id': tenant, 'store_ids': stores,
             'input_hash': mark, 'channel': channel, 'voice_session_hash': voice_session_hash,
-            'created_at': now, 'expires_at': now + timedelta(days=1)})
+            'created_at': now, 'expires_at': now + timedelta(days=1), 'continuation': continuation})
         row = owned(principal, query_id, lock=True)
         need(row.input_hash == mark, 'IDEMPOTENCY_CONFLICT')
         if row.runtime_job_ref or (not created and not recover) or (row.lease_until and row.lease_until > now):
@@ -146,7 +151,18 @@ def read(principal, query_id, *, result=False, with_delivery_guard=False,record_
         if record_useful and value.get('result_kind', 'DATA') == 'DATA':
             from alisa_platform.leads.views import event
             event('query.first_useful_ready', subject=current.customer_id)
-    Query.objects.filter(pk=row.pk).update(state=value['state'], checked_at=timezone.now())
+    # A read may confirm an answer whose acceptance response was lost. It never
+    # resends that answer. Keep a newer in-flight mutation's receipt untouched.
+    with transaction.atomic():
+        current = owned(principal, query_id, lock=True)
+        if not current.lease_until or current.lease_until <= timezone.now():
+            continuation = current.continuation
+            revision = value.get('clarification', {}).get('revision') if result else None
+            if continuation.get('outcome') in {'SENDING', 'UNKNOWN'} and (
+                    value['state'] != 'NEEDS_INPUT' or revision and revision != continuation.get('expected_revision')):
+                continuation['outcome'] = 'CONFIRMED'
+            current.state = value['state']; current.checked_at = timezone.now()
+            current.save(update_fields=['state', 'checked_at', 'continuation'])
     current.state = value['state']; current.checked_at = timezone.now()
     need(api.authorizer.current(context, operation) is True, 'PERMISSION_DENIED')
     need(current.expires_at > timezone.now(), 'RESULT_EXPIRED')
@@ -156,6 +172,70 @@ def read(principal, query_id, *, result=False, with_delivery_guard=False,record_
     if with_delivery_guard:
         answer['delivery_guard'] = DeliveryGuard(principal, api.authorizer, context, current, value['result_expires_at'])
     return answer
+
+
+def clarify(principal, query_id, request_id, expected_revision, answer, *, recover=False,
+            voice_session_hash='', store_snapshot=None):
+    """One explicit continuation, retaining its ID/hash across UNKNOWN transport."""
+    enabled(); identifier(query_id); identifier(request_id); text(answer, 1200)
+    need(answer.strip() and type(recover) is bool)
+    need(type(expected_revision) is str and re.fullmatch(r'[a-f0-9]{64}', expected_revision))
+    current = owned(principal, query_id)
+    need(current.runtime_job_ref is not None, 'UNKNOWN_OUTCOME')
+    api = client(principal, current.store_ids)
+    if store_snapshot is not None:
+        from .voice_dialogue import PinnedAuthorizer
+        need(current.channel == 'ALICE' and current.voice_session_hash == voice_session_hash
+             and sorted(row['id'] for row in store_snapshot) == current.store_ids)
+        api.authorizer = PinnedAuthorizer(api.authorizer, str(current.customer_id), str(current.tenant_id),
+                                          store_snapshot, voice_session_hash, query_id)
+    api.authorizer.prepare('submit')
+    mark = hashlib.sha256(encode({'revision': expected_revision, 'answer': answer})).hexdigest()
+    now = timezone.now(); attempt = uuid.uuid4()
+    with transaction.atomic():
+        row = owned(principal, query_id, lock=True)
+        previous = row.continuation
+        same = previous.get('request_id') == request_id
+        if same:
+            need(previous.get('input_hash') == mark, 'IDEMPOTENCY_CONFLICT')
+            if previous.get('outcome') == 'CONFIRMED':
+                return {'query': receipt(row)}, 200
+            if not recover or row.lease_until and row.lease_until > now:
+                return {'query': receipt(row), 'code': 'UNKNOWN_OUTCOME'}, 202
+        else:
+            need(previous.get('outcome') not in {'SENDING', 'UNKNOWN'}, 'UNKNOWN_OUTCOME')
+            need(not row.lease_until or row.lease_until <= now, 'UNKNOWN_OUTCOME')
+        row.continuation = {**{k: previous[k] for k in ('store_snapshot', 'voice_auth') if k in previous},
+                            'request_id': request_id, 'input_hash': mark,
+                            'expected_revision': expected_revision, 'outcome': 'SENDING'}
+        row.attempt = attempt; row.lease_until = now + timedelta(seconds=30)
+        row.save(update_fields=['continuation', 'attempt', 'lease_until'])
+        job_ref, trace_id = str(row.runtime_job_ref), str(row.trace_id)
+    try:
+        accepted = api.clarify(answer, job_ref=job_ref, expected_revision=expected_revision,
+                               request_id=request_id, logical_query_id=query_id, trace_id=trace_id)
+        if accepted['job_ref'] != job_ref:
+            raise RuntimeFailure('DEPENDENCY_UNAVAILABLE', outcome='UNKNOWN')
+    except RuntimeFailure as error:
+        with transaction.atomic():
+            row = owned(principal, query_id, lock=True)
+            if row.attempt == attempt:
+                row.continuation['outcome'] = 'UNKNOWN' if error.outcome == 'UNKNOWN' else 'REJECTED'
+                row.attempt = None; row.lease_until = None
+                row.save(update_fields=['continuation', 'attempt', 'lease_until'])
+        if error.outcome == 'UNKNOWN':
+            return {'query': receipt(row), 'code': 'UNKNOWN_OUTCOME'}, 202
+        raise
+    with transaction.atomic():
+        row = owned(principal, query_id, lock=True)
+        if row.attempt == attempt:
+            row.continuation['outcome'] = 'CONFIRMED'
+            if row.state not in {'READY', 'FAILED', 'CANCELLED', 'EXPIRED'}:
+                row.state = 'QUEUED'
+            row.attempt = None; row.lease_until = None
+            row.checked_at = timezone.now()
+            row.save(update_fields=['continuation', 'state', 'attempt', 'lease_until', 'checked_at'])
+    return {'query': receipt(row)}, 201
 
 
 def cancel(principal, query_id, request_id):

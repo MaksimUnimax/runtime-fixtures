@@ -1,0 +1,79 @@
+{
+  "status": "INSTALLED_FINAL_READBACK_PASS",
+  "source": "81579c18d4725c7f0a6603c8abbf703668863e36",
+  "manifests": [
+    {
+      "release": "alisa-template-clarification-81579c18d4725c7f",
+      "manifest_sha256": "c6c6d929489b3e37cf7d758ecd17a3bf7530e18467963e6f5c024d3b28df1020",
+      "files_verified": 4616
+    },
+    {
+      "release": "alisa-template-clarification-81579c18d4725c7f",
+      "manifest_sha256": "c9b106a2e70fd07a86e3b12ececf9ce85569de8cbe1c22758719c294229d03ea",
+      "files_verified": 174
+    },
+    {
+      "release": "alisa-cabinet-clarification-81579c18d4725c7f",
+      "manifest_sha256": "1c883accf04afcb8ddd00804a60b6caeb9b42da95f3fb3e23549cbe9fc7243ad",
+      "files_verified": 2265
+    }
+  ],
+  "services": {
+    "alisa-runtime-authority-stage.service": {
+      "ActiveState": "active",
+      "MainPID": "1314458",
+      "WorkingDirectory": "/opt/alisa-platform/stage/releases/alisa-template-clarification-81579c18d4725c7f/services/platform"
+    },
+    "alisa-platform@stage.service": {
+      "ActiveState": "active",
+      "MainPID": "1314460",
+      "WorkingDirectory": "/opt/alisa-platform/stage/releases/alisa-template-clarification-81579c18d4725c7f"
+    },
+    "alice-market.service": {
+      "ActiveState": "active",
+      "MainPID": "1314411",
+      "WorkingDirectory": "/opt/alice-market/releases/current"
+    },
+    "alisa-store-check.service": {
+      "ActiveState": "active",
+      "MainPID": "1314455",
+      "WorkingDirectory": "/opt/alice-market/checker-releases/native-pair-8e1a695d71f1004b"
+    },
+    "alisa-web@stage.service": {
+      "ActiveState": "active",
+      "MainPID": "1314466",
+      "WorkingDirectory": "/opt/alisa-platform/stage/web-current"
+    },
+    "alisa-admin@stage.service": {
+      "ActiveState": "active",
+      "MainPID": "1268952",
+      "WorkingDirectory": "/opt/alisa-platform/stage/releases/alisa-query-insights-f4127277e9c25557"
+    },
+    "alisa-identity@stage.service": {
+      "ActiveState": "active",
+      "MainPID": "1269113",
+      "WorkingDirectory": "/opt/alisa-platform/stage/identity-current"
+    },
+    "alisa-station.service": {
+      "ActiveState": "active",
+      "MainPID": "1269085",
+      "WorkingDirectory": "/opt/alisa-station/releases/station-request-economics-r1-20261113"
+    },
+    "alisa-smtp-sandbox-stage.service": {
+      "ActiveState": "active",
+      "MainPID": "1268881",
+      "WorkingDirectory": ""
+    }
+  },
+  "free_bytes": 3241271296,
+  "free_inodes": 454412,
+  "resource_floor_bytes": 3221225472,
+  "temporary_payload_removed": true,
+  "plan_and_private_rollback_preserved": true,
+  "physical_dependency_bases_retained": [
+    "/opt/alisa-platform/stage/releases/alisa-store-enrollment-592cc8bb006a4991/.venv",
+    "/opt/alisa-platform/stage/releases/alisa-cabinet-multi-store-b481fbe9480ef13e/.venv"
+  ],
+  "marketplace_or_model_calls": 0,
+  "live_owner": "NOT_PERFORMED"
+}

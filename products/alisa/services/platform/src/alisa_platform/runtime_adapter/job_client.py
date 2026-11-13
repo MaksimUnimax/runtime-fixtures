@@ -35,7 +35,7 @@ ERRORS = {'AUTH_REQUIRED', 'PERMISSION_DENIED', 'NOT_FOUND', 'VALIDATION_FAILED'
           'CAPABILITY_UNAVAILABLE', 'PROVIDER_PLAN_REQUIRED', 'UNKNOWN_OUTCOME', 'RESULT_EXPIRED',
           'RESULT_NOT_READY', 'CATALOG_INCOMPATIBLE', 'DEPENDENCY_UNAVAILABLE', 'STORAGE_CAPACITY',
           'METRIC_AMBIGUOUS', 'COHORT_REQUIRED', 'PERIOD_REQUIRED'}
-STATES = {'QUEUED', 'RUNNING', 'READY', 'FAILED', 'CANCELLED', 'UNKNOWN', 'EXPIRED', 'ALIASED'}
+STATES = {'QUEUED', 'RUNNING', 'READY', 'NEEDS_INPUT', 'FAILED', 'CANCELLED', 'UNKNOWN', 'EXPIRED', 'ALIASED'}
 
 
 class RuntimeFailure(Exception):
@@ -202,7 +202,7 @@ class RuntimeClient:
         self._pid = None
 
     def _exchange(self, operation, payload, validate):
-        mutation = operation in {'submit', 'cancel'}
+        mutation = operation in {'submit', 'cancel', 'clarify'}
         sent = False
         deadline = time.monotonic() + self.timeout
         def remaining():
@@ -274,20 +274,22 @@ class RuntimeClient:
             raise RuntimeFailure('DEPENDENCY_UNAVAILABLE') from None
 
     def _authorized(self, operation, context, payload, validate):
+        policy_operation = 'submit' if operation == 'clarify' else operation
+        mutation = operation in {'submit', 'cancel', 'clarify'}
         if self._pid is None: self.current_versions()
-        if operation in {'submit', 'cancel'}:
-            need(self.authorizer.current(deepcopy(context), operation) is True, 'PERMISSION_DENIED')
+        if mutation:
+            need(self.authorizer.current(deepcopy(context), policy_operation) is True, 'PERMISSION_DENIED')
         answer = self._exchange(operation, {**payload, 'context': context}, validate)
         try:
-            current = self.authorizer.current(deepcopy(context), operation) is True
+            current = self.authorizer.current(deepcopy(context), policy_operation) is True
         except RuntimeFailure as failure:
             if failure.code == 'DEPENDENCY_UNAVAILABLE':
-                raise RuntimeFailure('DEPENDENCY_UNAVAILABLE', outcome='UNKNOWN' if operation in {'submit', 'cancel'} else 'REJECTED') from None
+                raise RuntimeFailure('DEPENDENCY_UNAVAILABLE', outcome='UNKNOWN' if mutation else 'REJECTED') from None
             current = False
         except Exception:
-            raise RuntimeFailure('DEPENDENCY_UNAVAILABLE', outcome='UNKNOWN' if operation in {'submit', 'cancel'} else 'REJECTED') from None
+            raise RuntimeFailure('DEPENDENCY_UNAVAILABLE', outcome='UNKNOWN' if mutation else 'REJECTED') from None
         if not current:
-            raise RuntimeFailure('PERMISSION_DENIED', outcome='UNKNOWN' if operation in {'submit', 'cancel'} else 'REJECTED')
+            raise RuntimeFailure('PERMISSION_DENIED', outcome='UNKNOWN' if mutation else 'REJECTED')
         return answer
 
     def capabilities(self):
@@ -295,7 +297,7 @@ class RuntimeClient:
             exact(value, VERSION_FIELDS | {'operations', 'query_input_kinds', 'utterance_max_chars',
                   'business_timezones', 'unsupported', 'replay_retention_seconds', 'read_recomputes'})
             need({key: value[key] for key in VERSION_FIELDS} == self.versions, 'CATALOG_INCOMPATIBLE')
-            need(value['operations'] in (['submit', 'status', 'read_result', 'cancel', 'capabilities', 'current_versions'], ['submit', 'status', 'read_result', 'cancel', 'capabilities', 'current_versions', 'list_reports', 'read_report'])
+            need(value['operations'] in (['submit', 'status', 'read_result', 'cancel', 'capabilities', 'current_versions'], ['submit', 'status', 'read_result', 'cancel', 'capabilities', 'current_versions', 'list_reports', 'read_report'], ['submit', 'status', 'read_result', 'cancel', 'capabilities', 'current_versions', 'list_reports', 'read_report', 'clarify'])
                  and value['query_input_kinds'] == ['utterance'] and type(value['utterance_max_chars']) is int
                  and value['utterance_max_chars'] == 1200 and value['business_timezones'] == ['Europe/Moscow']
                  and value['unsupported'] == ['template', 'revoke_scope'] and value['read_recomputes'] is False
@@ -357,6 +359,15 @@ class RuntimeClient:
 
     def submit(self, utterance, *, request_id, logical_query_id, trace_id):
         text(utterance, 1200); need(utterance.strip())
+        return self._submit_input({'kind': 'utterance', 'text': utterance}, request_id, logical_query_id, trace_id)
+
+    def clarify(self, answer, *, job_ref, expected_revision, request_id, logical_query_id, trace_id):
+        text(answer, 1200); need(answer.strip()); identifier(job_ref)
+        need(type(expected_revision) is str and re.fullmatch(r'[a-f0-9]{64}', expected_revision))
+        return self._submit_input({'kind': 'clarification', 'text': answer, 'job_ref': job_ref,
+                                  'expected_revision': expected_revision}, request_id, logical_query_id, trace_id)
+
+    def _submit_input(self, query_input, request_id, logical_query_id, trace_id):
         for value in (request_id, logical_query_id, trace_id): identifier(value)
         context = self._context('submit')
         def validate(value):
@@ -365,9 +376,14 @@ class RuntimeClient:
                  and value['logical_query_id'] == logical_query_id)
             identifier(value['job_ref']); identifier(value['trace_id']); timestamp(value['accepted_at'])
             return deepcopy(value)
+        if query_input['kind'] == 'clarification':
+            return self._authorized('clarify', context, {'schema_version': 'runtime_clarification_task_v1',
+                'request_id': request_id, 'logical_query_id': logical_query_id, 'trace_id': trace_id,
+                'job_ref': query_input['job_ref'], 'expected_revision': query_input['expected_revision'],
+                'answer': query_input['text']}, validate)
         return self._authorized('submit', context, {'schema_version': 'runtime_task_v1',
             'request_id': request_id, 'logical_query_id': logical_query_id, 'trace_id': trace_id,
-            'query_input': {'kind': 'utterance', 'text': utterance}}, validate)
+            'query_input': query_input}, validate)
 
     def _status(self, value, job_ref, *, extra=frozenset()):
         required = {'job_ref', 'state', 'updated_at', 'retryable', 'result_expires_at'} | set(extra)
@@ -393,10 +409,23 @@ class RuntimeClient:
         identifier(job_ref)
         def validate(value):
             need(type(value) is dict)
-            metadata = {'result_kind', 'model_result'} & set(value)
+            metadata = {'result_kind', 'model_result', 'clarification'} & set(value)
             result = self._status(value, job_ref, extra={'schema_version', 'complete', 'pages', 'fetched_at'} | metadata)
             if 'result_kind' in value:
-                need(value['result_kind'] in {'DATA', 'PROVIDER_REFUSAL'})
+                need(value['result_kind'] in {'DATA', 'PROVIDER_REFUSAL', 'CLARIFICATION'})
+            if value.get('result_kind') == 'CLARIFICATION':
+                need(value.get('state') == 'NEEDS_INPUT' and 'model_result' not in value)
+                item = value.get('clarification')
+                exact(item, {'schema_version', 'revision', 'question', 'missing', 'turn'})
+                need(item['schema_version'] == 'runtime_clarification_v1')
+                need(type(item['revision']) is str and re.fullmatch(r'[a-f0-9]{64}', item['revision']))
+                text(item['question'], 400)
+                need(value.get('pages') == [item['question']] and type(item['turn']) is int and 1 <= item['turn'] <= 4)
+                need(type(item['missing']) is list and 1 <= len(item['missing']) <= 8)
+                need(all(type(s) is str and re.fullmatch(r'[a-z][a-z0-9_]{0,63}', s) for s in item['missing']))
+                need(len(set(item['missing'])) == len(item['missing']))
+            else:
+                need('clarification' not in value and value.get('state') != 'NEEDS_INPUT')
             if 'model_result' in value:
                 need(value.get('result_kind') == 'PROVIDER_REFUSAL')
                 if type(value['model_result']) is dict and value['model_result'].get('status') == 'TEMPLATE_NOT_FOUND':
@@ -407,7 +436,7 @@ class RuntimeClient:
                     result['result_kind'] = 'UNSUPPORTED_QUERY'
                 else:
                     provider_result(value['model_result'])
-            need(value['schema_version'] == 'runtime_result_v1' and value['state'] == 'READY'
+            need(value['schema_version'] == 'runtime_result_v1' and value['state'] in {'READY', 'NEEDS_INPUT'}
                  and value['complete'] is True and timestamp(value['result_expires_at']) > self.clock()
                  and type(value['pages']) is list and 1 <= len(value['pages']) <= 1000)
             for page in value['pages']: text(page, 900, multiline=True)

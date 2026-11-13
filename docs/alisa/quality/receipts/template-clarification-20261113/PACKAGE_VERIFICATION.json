@@ -1,0 +1,21 @@
+{
+  "status": "VERIFIED",
+  "source": "81579c18d4725c7f0a6603c8abbf703668863e36",
+  "files": 4620,
+  "links": 42,
+  "platform_paths": {
+    "services/platform/src/alisa_platform/queries/migrations/0004_query_continuation.py": "e785ccf9138f839ebb3e42a0aace49eec41c5f72b2cb7f322715b7837a69d592",
+    "services/platform/src/alisa_platform/queries/models.py": "ed7e02023c7d276a8e79b62224c23c6224711308c3556bb876d20205beb86847",
+    "services/platform/src/alisa_platform/queries/service.py": "da328d307fc984ac956c3abe425da302a5714d57b6880b8c07356c7a41c2712e",
+    "services/platform/src/alisa_platform/queries/views.py": "b495bcefa000286415964410d4029a54746b827a92817aaaed01945559e446dc",
+    "services/platform/src/alisa_platform/queries/voice.py": "1f302548a07f1da2df0d30fef67f9bd0e7d3e7255430b90a5b90e93993c02796",
+    "services/platform/src/alisa_platform/queries/voice_dialogue.py": "4f87bcfae4714ffc88c3b083c1a358207c027fcb76951e5cf09b18404d5b4cd7",
+    "services/platform/src/alisa_platform/runtime_adapter/job_client.py": "e3ac8f6e640a2c750490c2bba77a9f8652ec5be42b45e9b9f2fe961e0c257128"
+  },
+  "payload_files": 118,
+  "payload_bytes": 798077,
+  "main_tar_sha256": "495c2b2cb47d6a2ee54b879fe6913a937ce166164b6c9064e7fe1e53eda7ace4",
+  "ci_run": 43420514914,
+  "package_artifact": 14034995933,
+  "installed": false
+}
