@@ -1,0 +1,91 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "reviewed_at_utc": "2026-11-13T13:56:08.865626+00:00",
+  "scope": "Frozen one-read canary source and final finite activation of ds_wb_campaigns in exactly two protected configuration paths; no runtime product changes or new provider request by reviewer.",
+  "files_sha256": {
+    "qualify.py": "b468eba0ac41bce384771f81b0d61b93dfa4943f36c45ba00664c425fa718cbd",
+    "activate.py": "ba99a597823e6ae17c2a1d7241f2963abca3fb79e5353393943a505ae22e8e8c"
+  },
+  "root_cause_correction": "Cases122/123 were refused because wb_campaign_inventory had no available store: ds_wb_campaigns was NOT_QUALIFIED in both per-store dataset capabilities and transport qualification. Dataset selector metadata improved visibility but did not by itself resolve those refusals. Missing advertising credentials were not established.",
+  "findings": [],
+  "resolved_findings": [
+    {
+      "severity": "P2",
+      "problem": "CORE was resolved and imported before the shared recovery lock, permitting a parallel pointer switch to escape old-core manifest checks.",
+      "resolution": "Final activation asserts current.resolve()==CORE immediately under lock and again immediately before config replacement."
+    },
+    {
+      "severity": "scope_hardening",
+      "problem": "Original canary used any matching active account and initial activation did not bind account revision to the accepted tenant/job.",
+      "resolution": "Final activation binds the existing SIMPLE123 receipt tenant to exactly one globally matching active (tenant, store) tuple, matching every proof scope field. Config bytes must equal the exact canary snapshot. Frozen canary source already checked accepted plan revision and full store membership in an active account; global uniqueness establishes that account was the receipt tenant. No expired-job dependency or archive reader is needed."
+    }
+  ],
+  "checks": [
+    "Canary builds only the registered ds_wb_campaigns GET using SourceMatrix.http and the existing static systemd credential binding; dynamic stores are explicitly refused. No fabricated production qualification is installed to obtain the response.",
+    "One shared_http read with no automatic retry; status200, strict JSON, canonical SourceMatrix.decode and independent all/group totals plus positive distinct campaign IDs are required. Incomplete or invalid data does not create evidence.",
+    "Private canary evidence contains hashes, coverage counts, store revisions and source versions; raw API payload, tokens and HTTP headers are not persisted. Actual evidence is created exclusive mode0600.",
+    "Activation requires fresh evidence under1800 seconds, exact unchanged config bytes, operation/schema, complete successful real canary, matching totals, personal token class, registry/source/query/recipe hashes and frozen canary script hash.",
+    "The current receipt tenant must be active and the full selected store must be the sole globally matching active tenant/store for all proof scope fields. Unchanged config bytes preserve the account/store revisions checked by the frozen canary. Active QUEUED/RUNNING jobs still block activation.",
+    "Adds only qualifications.ds_wb_campaigns and dataset_capabilities[verified_store].ds_wb_campaigns. Removing exactly these additions must reconstruct the complete original config. Existing unrelated qualifications, accounts, credentials and settings are preserved.",
+    "Shared recovery lock, exclusive private backup, no-follow exclusive temporary file, fsync, original ownership/mode, pre-replace config CAS, atomic replacement and exact readback are retained. No restart or runtime code deployment is performed.",
+    "Runtime configuration providers already reload qualification/capability dictionaries dynamically; normal compiler, transport token and authorization checks remain active."
+  ],
+  "independent_synthetic_validation": {
+    "status": "PASS",
+    "preceding_activation_boundary_suite": {
+      "cases": 13,
+      "sha256": "118df858be27a360c260a5b49d91259dc2ce410a9b9c7bbc7f5c230732b58504",
+      "coverage": [
+        "success",
+        "changed config",
+        "stale proof",
+        "incomplete proof",
+        "wrong store",
+        "inactive tenant",
+        "changed account revision",
+        "missing accepted plan",
+        "active job",
+        "source hash mismatch",
+        "config CAS race",
+        "runtime changed before lock",
+        "runtime changed before replacement"
+      ],
+      "note": "Account/plan admission was subsequently replaced by the agreed unique-current-account plus exact-canary-config gate. Other activation boundaries are unchanged."
+    },
+    "final_exact_activation_suite": {
+      "cases": 5,
+      "sha256": "ba99a597823e6ae17c2a1d7241f2963abca3fb79e5353393943a505ae22e8e8c",
+      "coverage": [
+        "retained plan success",
+        "retention removed job success",
+        "foreign active owner rejected",
+        "alternate currency under same proof scope rejected",
+        "foreign inactive owner does not block"
+      ],
+      "all_pass": true
+    },
+    "method": "Executed exact activation AST with only absolute paths/SOURCE redirected and fake imported source constants. Race hooks were used in the preceding boundary suite. All fixtures were temporary; no remote/provider/model calls.",
+    "assertions": [
+      "Success changes exactly two config paths and preserves all other config values.",
+      "Final scope rejection preserves original config and creates no activation receipt.",
+      "SQLite and proof bytes remain unchanged.",
+      "Config ownership/mode and private backup/receipt protections preserved.",
+      "No archive constructor, subprocess, expired-plan requirement or additional qualification GET remains in final activation."
+    ]
+  },
+  "real_canary_evidence": {
+    "provenance": "Primary executor report; reviewer inspected canary source, did not execute or independently retrieve the remote proof.",
+    "http": 200,
+    "external_dispatches": 1,
+    "paid_model_calls": 0,
+    "complete": true
+  },
+  "limitations": [
+    "Approval remains subject to all activation guards passing; stale evidence, changed config/runtime, ambiguous active tenant/store or changed scope must reject, not be refreshed synthetically.",
+    "Reviewer made no remote/provider/model calls and did not modify runtime/config or repeat the already executed GET.",
+    "Runtime acceptance still requires the planned fresh exact question after activation; canary success alone is not final voice acceptance.",
+    "Original qualify.py has no automatic retry and remains frozen at its evidence-bound hash; this review does not authorize replaying it."
+  ],
+  "retention_design_note": "Source qualification is completed from an already successful real canary and its exact unchanged configuration snapshot. It does not resume or extend the expired question job. Uniqueness of the active tenant/store resolves the original canary any-account predicate without replaying API or fabricating evidence."
+}
