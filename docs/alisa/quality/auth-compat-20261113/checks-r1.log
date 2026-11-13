@@ -1,0 +1,50 @@
+test_a_valid_legacy_hash_does_not_authorize_another_native_account (__main__.ExistingAuthorizationCompatibility.test_a_valid_legacy_hash_does_not_authorize_another_native_account) ... ok
+test_ambiguous_saved_station_bindings_are_denied (__main__.ExistingAuthorizationCompatibility.test_ambiguous_saved_station_bindings_are_denied) ... ok
+test_an_empty_runtime_guard_is_not_an_authority_proof (__main__.ExistingAuthorizationCompatibility.test_an_empty_runtime_guard_is_not_an_authority_proof) ... ok
+test_changing_token_format_does_not_create_a_platform_oauth_family (__main__.ExistingAuthorizationCompatibility.test_changing_token_format_does_not_create_a_platform_oauth_family) ... ok
+test_clarification_reauth_failure_precedes_receipt_lookup_or_job_changes (__main__.ExistingAuthorizationCompatibility.test_clarification_reauth_failure_precedes_receipt_lookup_or_job_changes) ... ok
+test_exact_owner_and_membership_do_not_replace_the_required_ledger (__main__.ExistingAuthorizationCompatibility.test_exact_owner_and_membership_do_not_replace_the_required_ledger) ... ERROR
+test_existing_ledger_without_an_active_period_does_not_grant_new_authority (__main__.ExistingAuthorizationCompatibility.test_existing_ledger_without_an_active_period_does_not_grant_new_authority) ... ERROR
+test_existing_legacy_authorization_is_valid_without_new_platform_rows (__main__.ExistingAuthorizationCompatibility.test_existing_legacy_authorization_is_valid_without_new_platform_rows) ... ok
+test_refresh_capability_alone_is_not_access_authority (__main__.ExistingAuthorizationCompatibility.test_refresh_capability_alone_is_not_access_authority) ... ok
+test_revoked_and_expired_legacy_access_remain_denied (__main__.ExistingAuthorizationCompatibility.test_revoked_and_expired_legacy_access_remain_denied) ... ok
+test_station_identity_is_not_a_signed_runtimeport_context (__main__.ExistingAuthorizationCompatibility.test_station_identity_is_not_a_signed_runtimeport_context) ... ok
+test_station_selects_the_saved_owner_not_a_supplied_owner_field (__main__.ExistingAuthorizationCompatibility.test_station_selects_the_saved_owner_not_a_supplied_owner_field) ... ok
+test_unknown_application_does_not_acquire_a_cabinet_owner (__main__.ExistingAuthorizationCompatibility.test_unknown_application_does_not_acquire_a_cabinet_owner) ... ok
+test_valid_legacy_token_is_rejected_by_actual_new_oauth_validator (__main__.ExistingAuthorizationCompatibility.test_valid_legacy_token_is_rejected_by_actual_new_oauth_validator) ... ok
+
+======================================================================
+ERROR: test_exact_owner_and_membership_do_not_replace_the_required_ledger (__main__.ExistingAuthorizationCompatibility.test_exact_owner_and_membership_do_not_replace_the_required_ledger)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/alisa-s09-clarification-20261113-d11a9f2a/auth-compat-20261113/check_existing_auth_compat.py", line 192, in test_exact_owner_and_membership_do_not_replace_the_required_ledger
+    self.platform_gate(False, 'NOT_PROVISIONED')
+  File "/root/alisa-s09-clarification-20261113-d11a9f2a/auth-compat-20261113/check_existing_auth_compat.py", line 178, in platform_gate
+    resolver = Mock(); authority = platform_authority.RuntimeAuthority(
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/alisa-s09-clarification-20261113-d11a9f2a/auth-compat-20261113/inputs/platform/alisa_platform/runtime_adapter/authority.py", line 94, in __init__
+    need(isinstance(bindings, BindingFile))
+  File "/root/alisa-s09-clarification-20261113-d11a9f2a/auth-compat-20261113/inputs/platform/alisa_platform/runtime_adapter/job_client.py", line 67, in need
+    raise RuntimeFailure(code)
+alisa_platform.runtime_adapter.job_client.RuntimeFailure: VALIDATION_FAILED
+
+======================================================================
+ERROR: test_existing_ledger_without_an_active_period_does_not_grant_new_authority (__main__.ExistingAuthorizationCompatibility.test_existing_ledger_without_an_active_period_does_not_grant_new_authority)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/alisa-s09-clarification-20261113-d11a9f2a/auth-compat-20261113/check_existing_auth_compat.py", line 195, in test_existing_ledger_without_an_active_period_does_not_grant_new_authority
+    self.platform_gate(True, 'NOT_PROVISIONED')
+  File "/root/alisa-s09-clarification-20261113-d11a9f2a/auth-compat-20261113/check_existing_auth_compat.py", line 178, in platform_gate
+    resolver = Mock(); authority = platform_authority.RuntimeAuthority(
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/alisa-s09-clarification-20261113-d11a9f2a/auth-compat-20261113/inputs/platform/alisa_platform/runtime_adapter/authority.py", line 94, in __init__
+    need(isinstance(bindings, BindingFile))
+  File "/root/alisa-s09-clarification-20261113-d11a9f2a/auth-compat-20261113/inputs/platform/alisa_platform/runtime_adapter/job_client.py", line 67, in need
+    raise RuntimeFailure(code)
+alisa_platform.runtime_adapter.job_client.RuntimeFailure: VALIDATION_FAILED
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.341s
+
+FAILED (errors=2)
+{"scope": "CURRENT_AUTHORIZATION_BOUNDARIES_SYNTHETIC_SQLITE_AND_MODEL_DOUBLES", "status": "FAILED", "tests_run": 14, "failures": 0, "errors": 2, "skipped": 0, "network_attempts": 0, "test_sha256": "e4d7e497e9eb8971ad2060feeff08bc731879b4621d4ee7ad24606dcf81d1e57", "station_manifest_sha256": "c4f389e45398ff933ae4d3dd86c8bab8dba0802b039accc8381e37e6f027a53d", "native_manifest_sha256": "d4958f3e74c6e81575033b175b7deb67b39eae832f3a391a9b598231112da679", "source_files_unchanged": true, "django_database_connections": 0, "live_data_or_credentials_loaded": false, "product_security_code_changed": false, "compatibility_adapter_implemented": false, "live_owner": "NOT_PERFORMED"}

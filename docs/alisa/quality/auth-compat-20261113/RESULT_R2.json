@@ -1,0 +1,22 @@
+{
+  "scope": "CURRENT_AUTHORIZATION_BOUNDARIES_SYNTHETIC_SQLITE_AND_MODEL_DOUBLES",
+  "status": "PASS",
+  "tests_run": 2,
+  "failures": 0,
+  "errors": 0,
+  "selected_tests": [
+    "test_exact_owner_and_membership_do_not_replace_the_required_ledger",
+    "test_existing_ledger_without_an_active_period_does_not_grant_new_authority"
+  ],
+  "skipped": 0,
+  "network_attempts": 0,
+  "test_sha256": "5c4544c3f0bbaf74bf3ee62a929fdd5c5da0680c3f357bc8a02a878b83b6b859",
+  "station_manifest_sha256": "c4f389e45398ff933ae4d3dd86c8bab8dba0802b039accc8381e37e6f027a53d",
+  "native_manifest_sha256": "d4958f3e74c6e81575033b175b7deb67b39eae832f3a391a9b598231112da679",
+  "source_files_unchanged": true,
+  "django_database_connections": 0,
+  "live_data_or_credentials_loaded": false,
+  "product_security_code_changed": false,
+  "compatibility_adapter_implemented": false,
+  "live_owner": "NOT_PERFORMED"
+}
