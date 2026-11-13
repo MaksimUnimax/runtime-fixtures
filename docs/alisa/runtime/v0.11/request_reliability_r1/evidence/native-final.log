@@ -1,0 +1,24 @@
+{"mode": "normal", "passed": true, "paid_calls": 0, "synthetic_dispatches": 2, "retry_seconds": null}
+
+{"code":"HTTP_429","event":"request_recovering","job_hash":"be1e2e63d537a463","operation":"model_answer_program","retry_at":1794542734.184647}
+{"mode": "429", "passed": true, "paid_calls": 0, "synthetic_dispatches": 3, "retry_seconds": 20.050582736963406}
+
+{"mode": "unknown", "passed": true, "paid_calls": 0, "synthetic_dispatches": 1, "retry_seconds": null}
+
+{"mode": "cancel", "passed": true, "paid_calls": 0, "synthetic_dispatches": 1, "retry_seconds": null}
+
+{"mode": "outbox_failure", "passed": true, "paid_calls": 0, "synthetic_dispatches": 2, "retry_seconds": null}
+
+{"mode": "zero", "passed": true, "paid_calls": 0, "synthetic_dispatches": 2, "retry_seconds": null}
+
+{"mode": "missing", "passed": true, "paid_calls": 0, "synthetic_dispatches": 2, "retry_seconds": null}
+
+{"mode": "returns", "passed": true, "paid_calls": 0, "synthetic_dispatches": 2, "retry_seconds": null}
+
+{"mode": "pages", "passed": true, "paid_calls": 0, "synthetic_dispatches": 2, "retry_seconds": null}
+
+{"mode": "periods", "passed": true, "paid_calls": 0, "synthetic_dispatches": 2, "retry_seconds": null}
+
+{"mode": "incomplete", "passed": true, "paid_calls": 0, "synthetic_dispatches": 2, "retry_seconds": null}
+
+PASS: real broker/Harness; ACK, retry, unknown, cancel, outbox failure recovery, six deterministic math fixtures; no paid calls

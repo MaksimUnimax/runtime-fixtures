@@ -1,0 +1,13 @@
+{
+  "files_verified": {
+    "core": 171,
+    "executor": 6,
+    "station": 26
+  },
+  "production_model_dispatches_before": 280,
+  "production_model_dispatches_after": 280,
+  "new_paid_calls": 0,
+  "actual_socket_smoke": "PASS",
+  "core_dropins": 0,
+  "cleanup_exec": "{ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -B /opt/alisa-program/releases/20261113-reliability-r1/program_broker.py --sweep ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+}

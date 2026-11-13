@@ -1,0 +1,83 @@
+{
+  "source_commit": "65fba692b3b76715c39db21961cef2b99f4ddc45",
+  "core": "/opt/alice-market/releases/alisa-request-reliability-r1-20261113",
+  "executor": "/opt/alisa-program/releases/20261113-reliability-r1",
+  "station": "/opt/alisa-station/releases/station-request-economics-r1-20261113",
+  "station_dropin": "/etc/systemd/system/alisa-station.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-ack-eta-r2-20261110.conf",
+  "manifests": {
+    "/opt/alice-market/releases/alisa-request-reliability-r1-20261113": "afcb6c25a3ec48abba6f74fbbe6d262c89ab9de6c8168e7e5cbf6a727810b106",
+    "/opt/alisa-program/releases/20261113-reliability-r1": "7264c065e5a16db8eea4a9df316a60ba1bc90d2a56120891e8b198e0f3b32795",
+    "/opt/alisa-station/releases/station-request-economics-r1-20261113": "c6d2dfebeed451cdb093075468dcd3b8b3328c6f3b65b3dff2aa9405f689a116"
+  },
+  "config_sha256": "7bc91d508bb5f0e1cd3553efdc990d13b7c61fca214245c3b3d3d51eadc69987",
+  "unit_sha256": {
+    "/etc/systemd/system/alisa-program@.service": "47ec6e726788c2211bda80848ececcf2b1ef8f3f8751f1324573918a3825a0dd",
+    "/etc/systemd/system/alisa-program-cleanup.service": "b7efc006b8d703192f6a748e89908977eeebb6a31365dc92e29f845bcfd86c28",
+    "/etc/systemd/system/alisa-station.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-ack-eta-r2-20261110.conf": "f54e855f16463bfc86384e08c73899ab261db76c9fcb108d94dcb9f8f3529b08"
+  },
+  "security": {
+    "alice-market": {
+      "Restart": "on-failure",
+      "RestartUSec": "3s",
+      "TimeoutStopUSec": "2min",
+      "MemoryMax": "268435456",
+      "TasksMax": "32",
+      "Environment": "PYTHONUNBUFFERED=1",
+      "UMask": "0077",
+      "CapabilityBoundingSet": "cap_chown cap_dac_override cap_dac_read_search cap_fowner cap_fsetid cap_kill cap_setgid cap_setuid cap_setpcap cap_linux_immutable cap_net_bind_service cap_net_broadcast cap_net_admin cap_net_raw cap_ipc_lock cap_ipc_owner cap_sys_module cap_sys_rawio cap_sys_chroot cap_sys_ptrace cap_sys_pacct cap_sys_admin cap_sys_boot cap_sys_nice cap_sys_resource cap_sys_time cap_sys_tty_config cap_mknod cap_lease cap_audit_write cap_audit_control cap_setfcap cap_mac_override cap_mac_admin cap_syslog cap_wake_alarm cap_block_suspend cap_audit_read cap_perfmon cap_bpf cap_checkpoint_restore",
+      "User": "alice-market",
+      "Group": "alice-lab",
+      "LoadCredential": "[unprintable]",
+      "ReadWritePaths": "/var/lib/alice-market /run/alice-market /run/alisa-runtime-rpc/jobs",
+      "PrivateTmp": "yes",
+      "ProtectKernelTunables": "no",
+      "ProtectKernelModules": "no",
+      "ProtectControlGroups": "no",
+      "ProtectHome": "yes",
+      "ProtectSystem": "strict",
+      "NoNewPrivileges": "yes",
+      "LockPersonality": "yes",
+      "RestrictSUIDSGID": "yes"
+    },
+    "alisa-station": {
+      "Restart": "on-failure",
+      "RestartUSec": "3s",
+      "TimeoutStopUSec": "10s",
+      "MemoryMax": "100663296",
+      "TasksMax": "32",
+      "Environment": "",
+      "EnvironmentFiles": "/etc/alisa-station/site.env (ignore_errors=no)",
+      "UMask": "0077",
+      "CapabilityBoundingSet": "",
+      "User": "alice-lab",
+      "Group": "alice-lab",
+      "LoadCredential": "[unprintable]",
+      "ReadWritePaths": "/var/lib/alisa-station /run/alisa-station",
+      "PrivateTmp": "yes",
+      "ProtectKernelTunables": "yes",
+      "ProtectKernelModules": "yes",
+      "ProtectControlGroups": "yes",
+      "ProtectHome": "yes",
+      "ProtectSystem": "strict",
+      "NoNewPrivileges": "yes",
+      "LockPersonality": "yes",
+      "RestrictSUIDSGID": "yes"
+    }
+  },
+  "preflight": {
+    "policy": "{\"status\": \"PASS_NO_APP_USAGE_QUOTAS\", \"release\": \"alisa-request-reliability-r1-20261113\", \"manifest_verified\": true, \"provider_calls\": 0, \"database_reads\": 0}",
+    "versions": "{\"event\": \"runtime_versions_sync\", \"status\": \"UPDATE_REQUIRED\", \"changed\": [\"catalog_bundle_hash\"], \"source_files\": 172}"
+  },
+  "before": {
+    "active_jobs": 0,
+    "model_dispatches": 280
+  },
+  "installed": true,
+  "after": {
+    "active_jobs": 0,
+    "model_dispatches": 280
+  },
+  "at_utc": "2026-11-13T04:07:40Z",
+  "core_dropins_remaining": 0,
+  "hardening_preserved": true
+}

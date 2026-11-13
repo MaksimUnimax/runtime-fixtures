@@ -1,0 +1,13 @@
+{
+  "schema": "alisa-official-program-executor/v2",
+  "artifact_id": "20261113-reliability-r1",
+  "source_commit": "65fba692b3b76715c39db21961cef2b99f4ddc45",
+  "files": {
+    "INSTALLED_MANIFEST.json": "52ad8cf2aac266f7b483afd8291b4fd6b652e93861c79109bdd6c666f2f150d8",
+    "harness.patch.yml": "c401e45cc54cccdba29d33a5cf1bc65f35090f9b874a06c32711a1ae0c8b5d5f",
+    "program_broker.py": "915d9b328b87ee4acc21c052f1fb4c19c3747f921916022d0e5cabb1071a5156",
+    "program_results.py": "1bf19d8d15587efecc88a4b1cf5c2609c5731a7fc7dcf2e4f7152a9b565ae952",
+    "program_worker.py": "e9e0ca2d233f41c7bcc1e554406a6265d85c7abe2bca42b8ab80ffebdbc096fd",
+    "test_result_retention.py": "4cfeb490ab90394f899e50e69a3b490df151a4c52b6f9e97d2b80b16b1a08c4c"
+  }
+}

@@ -1,0 +1,2 @@
+{"mode": "normal", "passed": true, "paid_calls": 0, "synthetic_dispatches": 2, "retry_seconds": null}
+PASS: installed core and actual socket-activated executor; synthetic HTTP only; real paid calls zero

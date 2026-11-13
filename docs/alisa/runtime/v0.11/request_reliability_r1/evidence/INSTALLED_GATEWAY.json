@@ -1,0 +1,8 @@
+{
+  "status": "PASS",
+  "schema": "alisa-model-usage/v1",
+  "request_groups": 99,
+  "attempts": 280,
+  "window_seconds": 604800,
+  "new_model_calls": 0
+}

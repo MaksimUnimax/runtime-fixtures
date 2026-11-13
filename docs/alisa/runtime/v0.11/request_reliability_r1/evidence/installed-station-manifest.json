@@ -1,0 +1,33 @@
+{
+  "schema": "alisa-station-release/v1",
+  "artifact_id": "station-request-economics-r1-20261113",
+  "source_commit": "65fba692b3b76715c39db21961cef2b99f4ddc45",
+  "files": {
+    "README.md": "49c3da7e2ba1be800ffa6736cf49a0a9cfbbc2fd94adb069533053c7cdda8647",
+    "THIRD_PARTY.md": "7b894d8ba5f393919ac218e7d64e9c61c3368e523c6315f8c0891c99f5f4d3b9",
+    "alice_bridge.py": "4b2a3ab5cc8d64f298b704b782203fc76ce68b7615dd433df5a9b99e0c8ffd02",
+    "alice_lab.py": "b33686666b30a1fa40b67a4ba1a39124ed514c6c309468efb3fa1825d9e66efd",
+    "app-admin.js": "663bf15961cc4d01eeace9d78f1358f6470578c9c87419f1dc5965248b7286ed",
+    "app.js": "11c5c80d6dee93e3d8f051eb1387253ad4094f48b6fc422d7e4843126f359930",
+    "eta.py": "45d76947eaa99c7057aca91761f21b3b51b937a9b288ac42ec3b7f96afa841de",
+    "index-admin.html": "74813980aaf3cd497cc1656a259364dadb6c0cc6312cbd910ea6f771f471f0fe",
+    "index-site.html": "973f95dda5aeee531fb1219fcc69717c4350e077e94374fee76dde74393ae594",
+    "index.html": "e40c26f91f258d51bd0e5b41ce9d2e722a6d80ab029b1f870a8caf6e93eab3e2",
+    "local_gateway.py": "73ecba5f1d9a48a275ed4279475c984e1f585643e2e011b0549fb51f66301605",
+    "qrcodegen.py": "f727dbf8300b16ab2ed317e227980e7259a4041f94340fb5382fdbecbda41396",
+    "service.py": "4d08b6328bc3a4187fdb540103bb518470bcfed2ab73a99bca1b0d5e46ad2fac",
+    "station_client.py": "46869ad571a7e6a24a41f9890d25f6742938dfb8c4775394a22d6f0384ea4f0c",
+    "station_status.py": "60e3718de1e796455eb40bb2e1e0985c6a9f8c7ff9cc65ae4c1204e208bbf039",
+    "style.css": "82e1e08ce0e38602ed0f74d3c3a61735f3bbc228cb87d96948fc3d3b1cd22613",
+    "test_answer_settings.js": "479543163afa8bc38922e78d0fb9d2fdceaa15f9eba6fc0ad55c768f69a2c27d",
+    "test_answer_settings.py": "6e9a1de848a7abb5f6177071d7f068952d3612b5db29c7c94f4d897c1902b2af",
+    "test_delivery.py": "c94cda70906150d10c574aac3e590dbe0fd9b80962a793808e71e3ad75471eba",
+    "test_eta.py": "81cb0ee6e45582f586f9dac191816d1b5507481b53d28be0998255e7705490dd",
+    "test_lab_session.py": "49924699271a732b4e0d1bcaadea9a11b1b111fc91e53d15fd9460d6567a0c68",
+    "test_raw_voice_flow.py": "7e79dd0ce6ddbee008f3674ff9114576c795c4bbd3be19ca63ac865c71805115",
+    "test_recovery.py": "430e275f2b47dd339f1f67ce76545c105df24a35c5eed2eb57f65dd2d655270e",
+    "test_station_auth.py": "e7623d6531f97ea8fe067865520fef0a84e09291bf0f41d18bfb7a40dab675a3",
+    "transport.py": "aa1f89b7310dfb8dabd65614eaf9157488a1620f3f782e297e1ce54ce18417fb",
+    "voice_protocol.py": "82fb4873a6a638d47783a74f5df254285f5ad0563649e4bc2b209392ab63a4d1"
+  }
+}
