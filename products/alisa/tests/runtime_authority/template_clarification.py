@@ -113,7 +113,11 @@ class ClarificationFlow(VoiceChecks):
         self.assertEqual(VoiceDialogue.objects.get(query_id=before.pk).encrypted_payload, '')
         self.transport.selection = selection(['B01.ordered_units'], store='native-store')
         self.finish({'job_ref': str(before.runtime_job_ref)})
-        self.assertIn('Данные получены', self.say('готово', 4))
+        calls = len(self.transport.calls)
+        self.assertEqual(self.say('готово', 4), 'Отчёт готов. Откройте его в разделе «Задания» в кабинете.')
+        self.link.voice_private = False; self.link.save(update_fields=['voice_private'])
+        self.assertIn('Данные получены', self.say('готово', 5))
+        self.assertEqual(len(self.transport.calls), calls)
 
     def test_voice_replayed_answer_does_not_start_another_query(self):
         self.voice_question(); self.say('за октябрь 2026', 3)
