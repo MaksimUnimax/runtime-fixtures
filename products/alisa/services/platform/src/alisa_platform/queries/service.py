@@ -78,13 +78,20 @@ def list_queries(principal):
     return {'items': result}
 
 
-def submit(principal, query_id, stores, utterance, *, recover=False, channel='WEB', voice_session_hash=''):
+def submit(principal, query_id, stores, utterance, *, recover=False, channel='WEB', voice_session_hash='',
+           store_snapshot=None):
     enabled(); identifier(query_id); text(utterance, 1200); need(utterance.strip())
     need(type(recover) is bool and channel in {'WEB', 'ALICE'})
     need(type(stores) is list and 1 <= len(stores) <= 1000)
     stores = sorted(identifier(s) for s in stores); need(len(set(stores)) == len(stores))
     customer, tenant = actor(principal)
     api = client(principal, stores)
+    if store_snapshot is not None:
+        from .voice_dialogue import PinnedAuthorizer
+        need(channel == 'ALICE' and type(store_snapshot) is list and
+             sorted(row['id'] for row in store_snapshot) == stores)
+        api.authorizer = PinnedAuthorizer(api.authorizer, customer, tenant, store_snapshot,
+                                          voice_session_hash, query_id)
     # Validate access/mapping before persisting a receipt, without holding our row lock.
     api.authorizer.prepare('submit')
     mark = hashlib.sha256(encode({'stores': stores, 'utterance': utterance})).hexdigest()

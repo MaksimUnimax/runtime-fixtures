@@ -338,6 +338,12 @@
 
 **Предыдущий:** AL-S08. **Статус:** IN_PROGRESS (10.11.2026). Выбор нескольких магазинов в кабинете и сохранение исходного состава при UNKNOWN/recover установлены: DEPLOYED_WEB, source `b481fbe9`, CI и технические проверки прошли. Сервер уже принимает список и проверяет полномочия; голосовые уточнения, полнота бизнес-итога и полная приёмка S09 этим изменением не закрываются. [Состав работы](../../quality/MULTI_STORE_SELECTION_2026-11-10.md).
 
+**Голосовой выбор (13.11):** DEPLOYED_BACKEND / INSTALLED_TECHNICAL_CHECKS_PASS, PR416 source `94ad5354`, release `alisa-voice-selection-ac5557cd456ab364`. Разрешённая владельцем `queries.0002_voicedialogue` применена; существующая минутная очистка работает. R47 APPROVE_ACTIVATION, runtime UID/SQL/Unix metadata и HTTPS проверены, 9 служб active; native/web/admin/Station и привязки сохранены. 40 голосовых / 159 PG и CI42801033977 PASS; LIVE_OWNER и семантическая полнота S09 пока открыты. [Контракт и проверки](../../quality/VOICE_STORE_SELECTION_2026-11-10.md).
+
+**Дополнение 13.11:** исправлен конфликт названия магазина с командами/числами; source `be0995eb`, release `alisa-voice-selection-be0995ebb00e4649`, один изменённый backend-файл без миграций. R48 APPROVE_SOURCE, R50 APPROVE_UPDATE, CI43353384291 SUCCESS; 48 voice / 167 PG, все девять служб active. Сверка [фактического пути магазинов и матрицы](../../quality/STORE_AND_TEMPLATE_FLOW_2026-11-13.md) выявила открытые границы: runtime-привязка новых карточек/ключей пока служебная, Ozon mapping требует оба ключа несмотря на необязательную рекламу в форме, форма задания ограничена первой страницей 50 карточек. Эти переходы, семантические уточнения и LIVE_OWNER не объявляются готовыми.
+
+**Постоянный текущий магазин (13.11):** DEPLOYED_BACKEND / INSTALLED_TECHNICAL_CHECKS_PASS, source `a6d5e19a`, qualified `607fd13b`, release `alisa-store-default-a6d5e19a87577d87`. Следующий обычный вопрос и новая беседа используют сохранённый магазин до явной смены. Разовый «по всем» default не меняет; отключённый/отозванный магазин не подменяется другим. R52 APPROVE_SOURCE /R53 APPROVE_PREPARE_AND_UPDATE; 70 voice /189 PG и CI43360222751 PASS. Применена только queries.0003_voicestorepreference; runtime CRUD без TRUNCATE, девять служб active, native/Station/ключи/сессии сохранены. [Реализация, миграция и проверки](../../quality/VOICE_STORE_DEFAULT_2026-11-13.md). LIVE_OWNER и остальные границы S09 остаются открытыми.
+
 **Уже есть:** Есть подключённые магазины, отчёты и сбор эпизодов: шаги 05–08.
 
 **Создаём:**
