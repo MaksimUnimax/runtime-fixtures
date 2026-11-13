@@ -18,7 +18,7 @@ from unittest.mock import patch
 from query_roundtrip import QueryChecks, connections, TEMP, uid, timezone, RuntimeClient, RuntimeFailure
 from checks import Store, VaultSecret, CredentialRevision, settings, AccessAdjustment
 from alisa_platform.queries import service, voice, voice_dialogue as dialogue
-from alisa_platform.queries.models import Query, VoiceDialogue
+from alisa_platform.queries.models import Query, VoiceDialogue, VoiceStorePreference
 from alisa_platform.alice_link.vault import unseal, seal
 from alisa_platform.runtime_adapter.authority import AlicePrincipal, PlatformAuthorizer
 from alisa_platform.runtime_adapter.job_client import timestamp
@@ -77,6 +77,134 @@ class VoiceChecks(QueryChecks):
     def test_exact_alias_selects_one(self):
         self.question(); self.assertIn('принято', self.say('озон два', 1))
         self.assertEqual(Query.objects.get(customer=self.actor).store_ids, [str(self.second.pk)])
+
+    def remember_second(self):
+        self.question()
+        self.assertIn('принято', self.say('озон два', 1))
+        self.assertEqual(VoiceStorePreference.objects.get(customer=self.actor).store_id, self.second.pk)
+
+    def test_selected_store_is_default_for_next_question_without_prompt(self):
+        self.remember_second()
+        with patch.object(service, 'submit', wraps=service.submit) as submit:
+            self.assertIn('принято', self.say(QUESTION, 2))
+        self.assertEqual(submit.call_args.args[3], QUESTION)
+        self.assertEqual(submit.call_args.args[2], [str(self.second.pk)])
+        self.assertEqual(Query.objects.filter(customer=self.actor).count(), 2)
+
+    def test_default_survives_new_session_and_receipt_cleanup(self):
+        self.remember_second()
+        Query.objects.filter(customer=self.actor).update(expires_at=timezone.now() - timedelta(seconds=1))
+        VoiceDialogue.objects.filter(customer=self.actor).update(retire_at=timezone.now() - timedelta(seconds=1))
+        call_command('queries_cleanup', verbosity=0)
+        self.assertIn('принято', self.say(QUESTION, 0, 'new-session'))
+        self.assertEqual(Query.objects.get(customer=self.actor).store_ids, [str(self.second.pk)])
+
+    def test_explicit_switch_without_question_never_submits_and_replay_is_stable(self):
+        self.assertIn('Текущий магазин', self.say('смени магазин на песок'))
+        preference = VoiceStorePreference.objects.get(customer=self.actor)
+        self.assertEqual(preference.store_id, self.store.pk)
+        self.assertIn('Текущий магазин', self.say('смени магазин на песок'))
+        self.assertEqual(VoiceStorePreference.objects.get(customer=self.actor).updated_at, preference.updated_at)
+        self.assertFalse(Query.objects.filter(customer=self.actor).exists())
+        self.assertEqual(self.transport.calls, [])
+        self.assertIn('принято', self.say(QUESTION, 1))
+        self.assertEqual(Query.objects.get(customer=self.actor).store_ids, [str(self.store.pk)])
+
+    def test_switch_prompt_then_choice_does_not_create_a_report(self):
+        self.assertIn('Уточните', self.say('сменить магазин'))
+        self.assertIn('Текущий магазин', self.say('озон два', 1))
+        self.assertFalse(Query.objects.filter(customer=self.actor).exists())
+        self.assertEqual(self.transport.calls, [])
+        self.assertIn('принято', self.say(QUESTION, 2))
+        self.assertEqual(Query.objects.get(customer=self.actor).store_ids, [str(self.second.pk)])
+
+    def test_named_store_in_question_explicitly_changes_default_verbatim(self):
+        self.remember_second()
+        question = QUESTION + ' в магазине песок'
+        with patch.object(service, 'submit', wraps=service.submit) as submit:
+            self.assertIn('принято', self.say(question, 2))
+        self.assertEqual(submit.call_args.args[3], question)
+        self.assertEqual(submit.call_args.args[2], [str(self.store.pk)])
+        self.assertEqual(VoiceStorePreference.objects.get(customer=self.actor).store_id, self.store.pk)
+
+    def test_unknown_named_store_does_not_fall_back_to_default(self):
+        self.remember_second()
+        self.assertIn('Уточните', self.say(QUESTION + ' в магазине несуществующий', 2))
+        self.assertEqual(Query.objects.filter(customer=self.actor).count(), 1)
+        self.assertEqual(VoiceStorePreference.objects.get(customer=self.actor).store_id, self.second.pk)
+
+    def test_disabled_default_never_silently_selects_only_other_store(self):
+        self.remember_second()
+        self.second.status = 'DISABLED'; self.second.save()
+        self.assertIn('Ранее выбранный магазин недоступен', self.say(QUESTION, 2))
+        self.assertEqual(Query.objects.filter(customer=self.actor).count(), 1)
+        self.assertEqual(VoiceStorePreference.objects.get(customer=self.actor).store_id, self.second.pk)
+        self.assertIn('принято', self.say('песок', 3))
+        self.assertEqual(VoiceStorePreference.objects.get(customer=self.actor).store_id, self.store.pk)
+
+    def test_revoked_default_key_requires_choice_without_submitting(self):
+        self.remember_second()
+        CredentialRevision.objects.filter(store=self.second).update(status='REVOKED')
+        self.assertIn('Ранее выбранный магазин недоступен', self.say(QUESTION, 2))
+        self.assertEqual(Query.objects.filter(customer=self.actor).count(), 1)
+
+    def test_default_mapping_rotation_requires_current_binding(self):
+        self.remember_second()
+        self.document['tenants'][0]['stores'] = [entry for entry in self.document['tenants'][0]['stores']
+                                                if entry['store_id'] != str(self.second.pk)]
+        self.write()
+        self.assertIn('Ранее выбранный магазин недоступен', self.say(QUESTION, 2))
+        self.assertEqual(Query.objects.filter(customer=self.actor).count(), 1)
+
+    def test_default_does_not_cache_entitlement(self):
+        self.remember_second()
+        AccessAdjustment.objects.create(id=uid(), grant=self.grant, cutoff=timezone.now(), actor_id=uid(), reason='FIXTURE')
+        self.assertIn('не активен', self.say(QUESTION, 2))
+        self.assertEqual(Query.objects.filter(customer=self.actor).count(), 1)
+
+    def test_explicit_all_is_one_request_and_keeps_single_default(self):
+        self.remember_second()
+        self.assertIn('принято', self.say(QUESTION + ' по всем магазинам', 2))
+        self.assertEqual(VoiceStorePreference.objects.get(customer=self.actor).store_id, self.second.pk)
+        self.assertIn('принято', self.say(QUESTION, 3))
+        self.assertEqual(Query.objects.filter(customer=self.actor).order_by('-created_at').first().store_ids,
+                         [str(self.second.pk)])
+
+    def test_switch_cancel_preserves_default_and_never_cancels_report(self):
+        self.remember_second()
+        self.assertIn('Уточните', self.say('смени магазин', 2))
+        with patch.object(service, 'cancel', side_effect=AssertionError('Switch cancelled a report')):
+            self.assertIn('не отправлен', self.say('отмена', 3))
+        self.assertEqual(VoiceStorePreference.objects.get(customer=self.actor).store_id, self.second.pk)
+        self.assertIn('принято', self.say(QUESTION, 4))
+
+    def test_old_dialogue_replay_cannot_restore_previous_default(self):
+        self.assertIn('Текущий магазин', self.say('магазин песок', 0))
+        self.assertIn('Текущий магазин', self.say('магазин озон два', 0, 'other-session'))
+        self.assertIn('Текущий магазин', self.say('магазин песок', 0))
+        self.assertEqual(VoiceStorePreference.objects.get(customer=self.actor).store_id, self.second.pk)
+
+    def test_default_record_cannot_select_store_from_other_tenant(self):
+        from checks import Tenant
+        other = Tenant.objects.create()
+        foreign = Store.objects.create(tenant=other, name='Чужой', provider='OZON', verified_identity='ozon:foreign')
+        VoiceStorePreference.objects.create(customer=self.actor, tenant=self.tenant, store=foreign)
+        self.assertIn('Ранее выбранный магазин недоступен', self.say(QUESTION))
+        self.assertFalse(Query.objects.filter(customer=self.actor).exists())
+        self.assertNotIn(str(foreign.pk), [r['id'] for r in self.state()[1]['stores']])
+
+    def test_switch_to_all_requires_one_default_without_api_calls(self):
+        self.assertIn('Уточните', self.say('смени магазин'))
+        self.assertIn('выберите один', self.say('все магазины', 1))
+        self.assertFalse(VoiceStorePreference.objects.filter(customer=self.actor).exists())
+        self.assertFalse(Query.objects.filter(customer=self.actor).exists())
+        self.assertEqual(self.transport.calls, [])
+
+    def test_rejected_multi_default_still_records_message_identity(self):
+        self.say('смени магазин')
+        self.assertIn('выберите один', self.say('все магазины', 1))
+        self.assertIn('другим содержимым', self.say('песок', 1))
+        self.assertFalse(VoiceStorePreference.objects.filter(customer=self.actor).exists())
 
     def test_ordinal_uses_spoken_absolute_number(self):
         self.question(); _, state = self.state(); sid = state['stores'][1]['id']

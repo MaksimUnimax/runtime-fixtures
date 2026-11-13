@@ -38,3 +38,11 @@ class VoiceDialogue(models.Model):
     cancel_started = models.BooleanField(default=False)
     expires_at = models.DateTimeField(db_index=True)
     retire_at = models.DateTimeField(db_index=True)
+
+
+class VoiceStorePreference(models.Model):
+    """An owner setting, never a cached permission or a report retention row."""
+    customer = models.OneToOneField('accounts.Customer', primary_key=True, on_delete=models.CASCADE)
+    tenant = models.ForeignKey('accounts.Tenant', on_delete=models.CASCADE)
+    store = models.ForeignKey('stores.Store', on_delete=models.CASCADE)
+    updated_at = models.DateTimeField(auto_now=True)

@@ -15,7 +15,7 @@ from alisa_platform.alice_link.models import TokenFamily
 from alisa_platform.alice_link.vault import seal, unseal
 from alisa_platform.runtime_adapter.job_client import encode, need, RuntimeFailure
 from alisa_platform.stores.models import Store, CredentialRevision
-from .models import VoiceDialogue, Query
+from .models import VoiceDialogue, VoiceStorePreference, Query
 
 LIFETIME = timedelta(minutes=10)
 CONTROL = {'готово', 'статус', 'ответ', 'повтори', 'отмена', 'отмени'}
@@ -28,6 +28,11 @@ UNKNOWN = 'Отправка не подтверждена. Откройте за
 ORDINALS = {'первый': 1, 'первое': 1, 'второй': 2, 'второе': 2,
             'третий': 3, 'третье': 3, 'четвертый': 4, 'пятый': 5}
 PROVIDERS = {'OZON': {'озон', 'ozon'}, 'WB': {'вайлдберриз', 'вайлдберис', 'wildberries', 'вб', 'wb'}}
+SWITCH = {'смени магазин', 'сменить магазин', 'сменим магазин', 'выбери магазин',
+          'выбрать магазин', 'другой магазин', 'переключить магазин', 'магазины'}
+SWITCH_PREFIXES = ('смени магазин на ', 'сменить магазин на ', 'переключись на магазин ',
+                   'переключи на магазин ', 'выбери магазин ', 'выбрать магазин ',
+                   'теперь магазин ', 'смени магазин ', 'магазин ')
 
 
 class SelectionChanged(RuntimeFailure):
@@ -138,7 +143,8 @@ def prompt(state):
     labels = [f"{i + 1}. {row['name'][:80]} ({'Озон' if row['provider'] == 'OZON' else 'Вайлдберриз'})"
               for i, row in enumerate(rows) if start <= i < start + 5]
     more = ' Для продолжения списка скажите: дальше.' if start + 5 < len(rows) else ''
-    return (f"Уточните магазин. В списке {len(rows)}. " + '; '.join(labels) +
+    notice = 'Ранее выбранный магазин недоступен. Выберите другой. ' if state.get('default_unavailable') else ''
+    return (notice + f"Уточните магазин. В списке {len(rows)}. " + '; '.join(labels) +
             '. Назовите номер или название; при совпадении с командой скажите: магазин, затем название. '
             'Для всех скажите: все магазины.' + more)
 
@@ -206,6 +212,78 @@ def receipt_message(customer, tenant, query_id):
     row = Query.objects.filter(pk=query_id, customer_id=customer, tenant_id=tenant,
                                expires_at__gt=timezone.now()).first()
     return ACCEPTED if row is not None and row.runtime_job_ref else UNKNOWN
+
+
+def switch_target(command):
+    if command in SWITCH:
+        return ''
+    for prefix in SWITCH_PREFIXES:
+        if command.startswith(prefix):
+            return command[len(prefix):].strip()
+    return None
+
+
+def explicit_target(state, target):
+    # Without a displayed list a number is a literal shop name, not a position.
+    exact = selection(state, 'магазин ' + target)
+    if exact:
+        return exact
+    if target in set().union(*PROVIDERS.values()):
+        return selection(state, target)
+    return []
+
+
+def named_stores(rows, command):
+    marker = r'\b(?:в магазине|из магазина|по магазину|для магазина|магазин)\s+'
+    explicit = bool(re.search(marker, command))
+    matches = []
+    for row in rows:
+        names = {normalized(row['name']).strip('«»"'), normalized(row['alias']).strip('«»"')} - {''}
+        if any(re.search(marker + r'[«"]?' + re.escape(name) + r'(?=$|[\s»",;:.!?])', command)
+               for name in names):
+            matches.append(row)
+    return explicit, matches
+
+
+def preferred_store(customer, tenant, rows):
+    preference = VoiceStorePreference.objects.filter(customer_id=customer, tenant_id=tenant).first()
+    if preference is None:
+        return None, False
+    selected = next((row for row in rows if row['id'] == str(preference.store_id)), None)
+    if selected is None:
+        return None, True
+    # Local readiness only: ordinary authority still checks actual rights on IPC.
+    mapping = bindings(tenant)
+    entry = mapping['stores'].get(selected['id']) if mapping else None
+    store = Store.objects.get(pk=preference.store_id)
+    credentials = list(CredentialRevision.objects.filter(store=store, status='ACTIVE'))
+    actual = [{'id': str(c.pk), 'kind': c.kind, 'revision': c.revision} for c in credentials]
+    if (entry is None or entry['provider'] != store.provider or
+            entry['verified_identity'] != store.verified_identity or
+            any(c.check_code not in {'CONNECTED', 'CONNECTED_NATIVE_OWNER'} for c in credentials) or
+            sorted(actual, key=lambda c: c['kind']) != sorted(entry['credentials'], key=lambda c: c['kind'])):
+        return None, True
+    return selected, True
+
+
+def choose(row, state, selected, customer, tenant):
+    if state.get('selection_only') and len(selected) != 1:
+        save(row, state)
+        return {'message': 'Для магазина по умолчанию выберите один. ' + prompt(state)}
+    if len(selected) == 1:
+        store = Store.objects.filter(pk=selected[0]['id'], tenant_id=tenant, status='ACTIVE',
+                                     product_id='alisa_market', verified_identity__isnull=False).first()
+        if store is None or snapshot(store, bindings(tenant))['pin'] != selected[0]['pin']:
+            raise SelectionChanged()
+        VoiceStorePreference.objects.update_or_create(customer_id=customer,
+            defaults={'tenant_id': tenant, 'store_id': store.pk})
+    if state.get('selection_only'):
+        message = 'Текущий магазин: ' + selected[0]['name'][:80] + '. Задайте вопрос для отчёта.'
+        save(row, {'auth': state['auth'], 'phase': 'SELECTED', 'query_id': None, 'message': message})
+        return {'message': message}
+    state['stores'], state['phase'] = selected, 'SUBMITTING'
+    save(row, state)
+    return {'submit': state.copy()}
 
 
 def advance(principal, session_hash, mid, query_id, utterance):
@@ -278,6 +356,8 @@ def advance(principal, session_hash, mid, query_id, utterance):
                     return {'message': prompt(state)}
                 if state['phase'] in {'SUBMITTING', 'SENT'}:
                     return {'message': receipt_message(customer, tenant, state['query_id'])}
+                if state['phase'] == 'SELECTED':
+                    return {'message': state['message']}
                 return {'message': 'Вопрос не отправлен. Задайте новый вопрос.'}
         if state and state['phase'] == 'CHOOSE':
             row.last_message_id, row.input_hash = mid, mark
@@ -291,32 +371,56 @@ def advance(principal, session_hash, mid, query_id, utterance):
             elif command == 'назад':
                 state['page'] = max(0, state['page'] - 5)
             else:
-                selected = selection(state, utterance)
+                target = switch_target(command)
+                if target is not None:
+                    state['stores'], state['page'] = candidates(tenant, ''), 0
+                    selected = explicit_target(state, target) if target else []
+                else:
+                    selected = selection(state, utterance)
                 if selected:
-                    state['stores'], state['phase'] = selected, 'SUBMITTING'
-                    save(row, state)
-                    return {'submit': state.copy()}
+                    return choose(row, state, selected, customer, tenant)
             save(row, state)
             return {'message': prompt(state)}
         if command in CONTROL:
             return None
         if not command or command in ALL or command in ORDINALS or re.fullmatch(r'(?:номер )?\d{1,4}', command):
             return {'message': 'Какой отчёт подготовить? Задайте вопрос вместе с периодом.'}
-        stores = candidates(tenant, utterance)
+        target = switch_target(command)
+        all_rows = candidates(tenant, '')
+        explicit, named = named_stores(all_rows, command) if target is None else (False, [])
+        wanted = providers(command)
+        stores = all_rows if target is not None or len(wanted) != 1 else [r for r in all_rows if r['provider'] in wanted]
+        selected, unavailable = [], False
+        preference, had_preference = preferred_store(customer, tenant, all_rows)
+        if target is None:
+            if explicit:
+                stores = named or stores
+                selected = named if len(named) == 1 else []
+            elif all_stores(utterance):
+                selected = stores
+            elif preference and (len(wanted) != 1 or preference['provider'] in wanted):
+                selected = [preference]
+            elif had_preference and preference is None:
+                unavailable = True  # Never silently replace a disabled/revoked default.
+            elif len(stores) == 1:
+                selected = stores
         if not stores:
             return {'message': 'Подключите нужный магазин в кабинете и задайте вопрос заново.'}
         state = {'auth': binding, 'phase': 'CHOOSE', 'question': utterance,
-                 'query_id': query_id, 'stores': stores, 'page': 0}
+                 'query_id': query_id, 'stores': stores, 'page': 0,
+                 'selection_only': target is not None, 'default_unavailable': unavailable}
         row = VoiceDialogue(id=hashlib.sha256((session_hash + ':' + query_id).encode()).hexdigest(),
                             session_hash=session_hash, customer_id=customer, tenant_id=tenant)
         row.last_message_id, row.input_hash = mid, mark
         row.cancel_id = None
         row.cancel_started = False
         row.expires_at, row.retire_at = now + LIFETIME, now + timedelta(days=1)
-        if len(stores) == 1 or all_stores(utterance):
-            state['phase'] = 'SUBMITTING'
+        if target:
+            selected = explicit_target(state, target)
+        if selected:
+            return choose(row, state, selected, customer, tenant)
         save(row, state)
-        return {'submit': state.copy()} if state['phase'] == 'SUBMITTING' else {'message': prompt(state)}
+        return {'message': prompt(state)}
 
 
 def complete(principal, session_hash, query_id):
