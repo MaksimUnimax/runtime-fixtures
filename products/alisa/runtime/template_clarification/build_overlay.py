@@ -25,9 +25,10 @@ def sources(root):
         '    # Validate the selected registered recipes locally. No extra model call.')
     text = base.replace_once(text, 'from template_protocol import SELECT_SYSTEM,payload as model_payload',
         'from template_protocol import SELECT_SYSTEM,selection_system,payload as model_payload')
-    text = base.replace_once(text, "            op='template_select';body={'system':SELECT_SYSTEM,",
+    text = base.replace_once(text, "'system':SELECT_SYSTEM,", "'system':selection_system(ctx),")
+    text = base.replace_once(text, "            op='template_select'",
         "            if type(plan.get('runtime_guard'))is dict:ctx['clarification_supported']=True\n"
-        "            op='template_select';body={'system':selection_system(ctx),")
+        "            op='template_select'")
     result['template_runtime.py'] = text
     text = (root / 'template_protocol.py').read_text()
     text = base.replace_once(text, 'VERIFY_SYSTEM=', 'CLARIFY_SELECT_SYSTEM = SELECT_SYSTEM + ' + repr(POLICY) +
