@@ -18,7 +18,7 @@ class Query(models.Model):
     created_at = models.DateTimeField()
     expires_at = models.DateTimeField(db_index=True)
     checked_at = models.DateTimeField(null=True)
-    continuation = models.JSONField(default=dict)
+    continuation = models.JSONField(default=dict, db_default={})
 
     class Meta:
         indexes = [models.Index(fields=['customer', '-created_at'], name='query_customer_created')]

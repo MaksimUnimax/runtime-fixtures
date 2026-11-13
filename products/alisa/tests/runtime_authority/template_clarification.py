@@ -54,6 +54,23 @@ class ClarificationFlow(VoiceChecks):
         self.assertFalse(FunnelEvent.objects.filter(subject_id=self.actor.pk,
                         event_type='query.first_useful_ready').exists())
 
+    def test_legacy_insert_without_new_column_keeps_code_rollback_usable(self):
+        self.web_question(); before = len(self.transport.calls); other = uid()
+        db = connections['default']; quote = db.ops.quote_name
+        columns = [f.column for f in Query._meta.concrete_fields if f.column not in {'id', 'continuation'}]
+        names = ','.join(quote(n) for n in columns); table = quote(Query._meta.db_table)
+        try:
+            # The previous application knows none of the new column. Its INSERT
+            # must still work while the additive migration is retained on rollback.
+            with db.cursor() as cursor:
+                cursor.execute('INSERT INTO ' + table + ' (id,' + names + ') SELECT %s,' + names +
+                               ' FROM ' + table + ' WHERE id=%s', [other, self.qid])
+                self.assertEqual(cursor.rowcount, 1)
+            self.assertEqual(Query.objects.get(pk=other).continuation, {})
+            self.assertEqual(len(self.transport.calls), before)
+        finally:
+            Query.objects.filter(pk=other).delete()
+
     def test_web_answer_keeps_public_and_native_identity(self):
         value = self.web_question(); before = Query.objects.get(pk=self.qid)
         result, code = self.web_answer(value)
