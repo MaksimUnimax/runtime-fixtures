@@ -1,0 +1,175 @@
+"""Plain model answers from the original question and received API data.
+
+No answer schema, executable expressions, or model-specific result vocabulary.
+The existing worker owns network calls, accounting, access and retry policy.
+"""
+import json
+import os
+import tempfile
+import threading
+import time
+from contextvars import ContextVar
+from datetime import datetime, timezone
+from pathlib import Path
+
+from semantics import Rejected, canonical_json, strict_json
+import model_input_encoding
+
+ORIGINAL_QUESTION = ContextVar('answer_original_question', default=None)
+API_DATA = '_answer_api_data'
+PENDING = '_answer_pending'
+DEFAULTS = {
+    'request_planning_prompt': 'Разбери запрос пользователя и подбери нужные шаблоны для получения данных, необходимых для ответа. Сохрани все условия исходного вопроса.',
+    'answer_prompt': 'Ответь на вопрос пользователя, используя эти данные.',
+    'answer_extra_instruction': '',
+}
+
+
+class Settings:
+    def __init__(self, path):
+        self.path = Path(path)
+        self.lock = threading.RLock()
+
+    def read(self):
+        with self.lock:
+            if not self.path.exists():
+                return {'revision': 0, **DEFAULTS}
+            return {**DEFAULTS, **json.loads(self.path.read_text(encoding='utf-8'))}
+
+    def save(self, revision, **values):
+        if type(revision) is not int or set(values) != set(DEFAULTS) or any(type(v) is not str for v in values.values()):
+            raise Rejected('ANSWER_SETTINGS_SCHEMA')
+        with self.lock:
+            current = self.read()
+            if revision != current['revision']:
+                raise Rejected('ANSWER_SETTINGS_CHANGED_RELOAD')
+            value = {'revision': revision + 1, **{k:v if v.strip() else '' for k,v in values.items()}}
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            fd, name = tempfile.mkstemp(prefix='.answer-settings-', dir=self.path.parent)
+            try:
+                os.fchmod(fd, 0o600)
+                with os.fdopen(fd, 'w') as stream:
+                    json.dump(value, stream, ensure_ascii=False)
+                    stream.flush(); os.fsync(stream.fileno())
+                os.replace(name, self.path)
+                directory = os.open(self.path.parent, os.O_RDONLY)
+                try: os.fsync(directory)
+                finally: os.close(directory)
+            finally:
+                Path(name).unlink(missing_ok=True)
+            return value
+
+
+def messages(question, api_data, instruction='', clarifications=(), prompt=DEFAULTS['answer_prompt'], *, input_encoding=0):
+    result = []
+    if prompt.strip():result.append({'role': 'system', 'content': prompt})
+    if instruction.strip():
+        result.append({'role': 'system', 'content': instruction})
+    result.append({'role': 'user', 'content': question})
+    for clarification in clarifications:
+        result.append({'role': 'user', 'content': clarification})
+    result.append({'role': 'user', 'content': model_input_encoding.content(api_data, input_encoding)})
+    return result
+
+
+def pages(text):
+    """Only the channel's page size is applied; content is not rewritten."""
+    result = []
+    while text:
+        cut = min(850, len(text))
+        if cut < len(text):
+            space = text.rfind(' ', 0, cut)
+            if space > 0:cut = space
+        result.append(text[:cut])
+        text = text[cut:]
+    return result
+
+
+def step(worker, row, plan, progress):
+    from providers import Request
+    draft = strict_json(row['draft'])
+    from provider_failure import notice_authorized
+    def authorized():
+        return notice_authorized(worker.engine,row) if progress[PENDING].get('permission_notice') else worker.engine.authorized(plan)
+    if not authorized():raise Rejected('SOURCE_ACCESS')
+    # Snapshot immediately before the first dispatch, once for every retry.
+    if '_answer_instruction_snapshot' not in progress:
+        progress['_answer_instruction_snapshot'] = worker.engine.answer_settings.read()
+        progress['_answer_input_encoding'] = model_input_encoding.CURRENT_VERSION
+        with worker.repo.connection(True) as connection:
+            worker.repo._owned(connection, row['id'], row['owner'])
+            connection.execute('UPDATE jobs SET progress=? WHERE id=?', (canonical_json(progress), row['id']))
+    api_data = progress[API_DATA]
+    result_data = progress[PENDING].get('data')
+    template_context = result_data.get('template_context') if type(result_data) is dict else None
+    calculation_context=result_data.get('calculation_context') if type(result_data)is dict else None
+    if template_context or calculation_context:
+        api_data={'responses':api_data}
+        if template_context:api_data['template_context']=template_context
+        if calculation_context:api_data['calculation_context']=calculation_context
+    from model_program import selected, run
+    if '_answer_execution' not in progress:
+        progress['_answer_execution']='program_v2' if getattr(worker.engine,'program_answers',False) and selected(api_data) else 'direct_v1'
+        with worker.repo.connection(True) as connection:
+            worker.repo._owned(connection,row['id'],row['owner'])
+            connection.execute('UPDATE jobs SET progress=? WHERE id=?',(canonical_json(progress),row['id']))
+    program=progress['_answer_execution']in ('program_v1','program_v2')
+    if program and getattr(worker,'lane',None)=='regular':
+        worker.repo.reschedule(row['id'],row['owner'],progress)
+        return
+    # Do not construct the full packed message for a file-backed calculation.
+    prompt_messages=messages(draft['original_question'], {} if program else api_data,
+        progress['_answer_instruction_snapshot']['answer_extra_instruction'], draft.get('question_clarifications', []),
+        progress['_answer_instruction_snapshot']['answer_prompt'],
+        input_encoding=0 if program else progress.get('_answer_input_encoding', 0))
+    if program:prompt_messages.pop()
+    # This context is the persisted server-compiled template snapshot, never
+    # metadata taken from an API response. Promote only explicitly selected
+    # root notes, identically for retries and both answer routes.
+    selected_notes=[]
+    if template_context and plan.get('selection_verified') is True and type(plan.get('template_execution'))is dict:
+        selected_ids={item['template_id']for item in plan['selection']['invocations']}
+        if type(template_context)is not list:raise Rejected('TEMPLATE_CONTEXT_INVALID')
+        for item in template_context:
+            if type(item)is not dict or item.get('template_id')not in selected_ids:
+                raise Rejected('TEMPLATE_CONTEXT_INVALID')
+            notes=item.get('notes',[])
+            if type(notes)is not list or any(type(note)is not str for note in notes):
+                raise Rejected('TEMPLATE_CONTEXT_INVALID')
+            selected_notes.extend(note for note in notes if note.strip())
+    if selected_notes:
+        index=next((i for i,message in enumerate(prompt_messages)if message['role']=='user'),len(prompt_messages))
+        prompt_messages.insert(index,{'role':'system','content':'Указания выбранных шаблонов для итогового ответа:\n'+'\n'.join(selected_notes)})
+    body={'messages':prompt_messages}
+    request = Request('model_answer', worker.transport.model_source, '', body, 0, None)
+    program_started=time.monotonic()
+    def received(response):
+        if not authorized():raise Rejected('SOURCE_ACCESS')
+        result = dict(progress[PENDING], complete=True, pages=pages(response['content']))
+        with worker.repo.connection(True):
+            from model_usage import finish_request
+            finish_request(worker.repo,row,program_seconds=time.monotonic()-program_started if program else None)
+            worker.repo.complete_answer(row['id'], row['owner'], result)
+    if program:
+        run(worker,row,body['messages'],api_data,on_complete=received)
+    else:
+        worker._call(row, request, on_received=received)
+
+
+def stage_universal(worker, row, progress):
+    stamp = datetime.fromtimestamp(worker.repo.clock(), timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+    worker.repo.stage_answer(row['id'], row['owner'], {
+        'data': {'calls': progress['calls']}, 'fetched_at': stamp}, progress)
+
+
+def planning_prompt(worker, row):
+    draft = strict_json(row['draft'])
+    if not draft.get('answer_by_model'):return None
+    if 'request_planning_prompt' not in draft:
+        draft['request_planning_prompt'] = worker.engine.answer_settings.read()['request_planning_prompt']
+        with worker.repo.connection(True) as connection:
+            worker.repo._owned(connection,row['id'],row['owner'])
+            connection.execute('UPDATE jobs SET draft=? WHERE id=?',(canonical_json(draft),row['id']))
+    return draft['request_planning_prompt']
+
+

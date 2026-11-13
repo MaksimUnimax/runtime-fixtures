@@ -1,0 +1,36 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "scope": "Promote only verified selected root template notes from the persisted server answer snapshot to system instructions in both direct and program answer routes; immutable one-file installer; native answer settings revision 3 to 4 cache invalidation without prompt text changes.",
+  "files_sha256": {
+    "model_answer.base.py": "5a6351bbaf4caf0bfdff7c634413b49fd1d2b4e44e82862c60d60e076f6ee8a7",
+    "model_answer.py": "1d8e18ea98343e6929fe3ad156f3fe1ef2b6a6b619c3a13d58798f1bb1efb280",
+    "test_speech_context.py": "8de4a35f28047a8d7df65f7973e5ed60ac3b8d2bfaf254f9561e4046d3dd3a75",
+    "install.py": "df90d6f27455ae384d71bd8a22437018a09e113554b95e33c1de9f891eaa57bd",
+    "invalidate_answer_cache.py": "5d8c189910612b6c5a9161215d9e802bff3e8ca9f83b8cb08837a8f0289ba31b",
+    "change.json": "c84ac9479dc2a94a7cdb816cbccf460230b1547d4eb0e9633e51cd2f47cacf36"
+  },
+  "findings": [],
+  "checks": [
+    "The sole model_answer code delta derives notes from PENDING.data.template_context. API_DATA is not used to create system instructions.",
+    "Promotion requires selection_verified is True and template_execution is a dict, after existing authorization. Each context ID must be an explicitly selected root, and notes must be a list of strings; invalid selected context rejects before model dispatch.",
+    "Notes are read from the persisted answer snapshot, not live TEMPLATES. The original question, API payload, calculation context and final model-generated answer remain unchanged.",
+    "One system message is inserted before user messages in direct_v1 and program_v2. The existing program broker joins system messages into system_prompt, which the executor passes through DSH_SYSTEM_PROMPT.",
+    "Three targeted tests passed independently, each exercising both routes: trusted notes and API non-promotion, stable repeated messages, unverified metadata non-promotion, and rejection of unselected context before model use.",
+    "Installer pins exactly model_answer.py as the changed payload. Reviewed immutable hardlink preparation, changed inode replacement, manifest replacement, base hash checks, quiescence checks, preflight and rollback remain intact.",
+    "Cache invalidator uses the existing authenticated native settings API, checks current revision and file hash, preserves all three prompt strings, increments revision once and performs exact readback. Ambiguous transport outcomes only trigger read reconciliation, never a repeated save.",
+    "Repository answer cache identity includes answer_settings_revision, so the native revision increment separates new requests from the old cached answer.",
+    "Cache updater writes CACHE_REVISION_INSTALLED.json separately from the release installer record; Python and embedded IPC client compile and IPC framing uses LF."
+  ],
+  "verification": {
+    "independent_targeted": "3 tests with both direct and program routes PASS in 0.009 seconds. Source trust-chain, broker system-message forwarding, cache identity and updater contract inspected.",
+    "local_baseline_comparison": "Additional legacy scratch test_model_answer run produced the exact same 8 failures and 2 errors among 26 tests with both the supplied baseline and candidate. These are limitations of that older local integration environment, not a candidate-only delta; no full local-suite pass is claimed.",
+    "server_suite": "Parent reports exact current-release candidate suite 107/107 PASS in 39.080 seconds, including template/model answer and new finance/orders/speech tests, with all installed-base hashes unchanged. Not independently executed by reviewer.",
+    "paid_or_live_calls_by_reviewer": 0
+  },
+  "limitations": [
+    "Approval applies to the pinned source and scripts; the final live wording remains probabilistic and needs the planned same-question acceptance retest.",
+    "Immutable shared release files must remain unchanged in place; future modifications must replace destination inodes.",
+    "Final installation state, native revision 3 to 4 readback and actual column answer are to be verified by the installing agent."
+  ]
+}
