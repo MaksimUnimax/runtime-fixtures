@@ -1,0 +1,13 @@
+{
+  "schema": "alisa-parameter-dependency-profiles/v1",
+  "profiles": {
+    "unit_economics.ozon.v1": {
+      "provider": "OZON",
+      "description": "Bindings for current coefficients, not a complete profit formula or a registered live report.",
+      "bindings": [
+        {"slot": "loss_rate", "parameter": "loss_rate", "lookup": "consumer", "missing_scope": "store"},
+        {"slot": "delivery_mean", "parameter": "delivery_mean", "lookup": "consumer", "missing_scope": "store"}
+      ]
+    }
+  }
+}
