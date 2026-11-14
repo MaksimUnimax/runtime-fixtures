@@ -9,6 +9,27 @@ from unittest.mock import patch
 spec=importlib.util.spec_from_file_location('catalog_install',Path(__file__).with_name('install_question_catalog_20261114.py'))
 i=importlib.util.module_from_spec(spec);spec.loader.exec_module(i)
 
+class AdminCookie(unittest.TestCase):
+    def emitted(self,ttl,second=None):
+        text='function s(a,b,c){return `${a}=${b}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${c}`}'
+        text+='A.append("Set-Cookie",s(j,x,'+ttl+')),A.append("Set-Cookie",s(k,"",0))'
+        if second is not None:text+='B.append("Set-Cookie",s(j,y,'+second+'))'
+        return text.encode()
+    def test_decimal_and_minified_exponent_keep_thirty_days(self):
+        for ttl in ['2592000','2592e3','2.592e6','2592E+3']:
+            with self.subTest(ttl=ttl):self.assertTrue(i.admin_cookie_contract(self.emitted(ttl)))
+    def test_shortened_and_changed_lifetimes_are_rejected(self):
+        for ttl in ['3600','2592','2592001','0','1e999999','2592000/1']:
+            with self.subTest(ttl=ttl):self.assertFalse(i.admin_cookie_contract(self.emitted(ttl)))
+    def test_unrelated_number_does_not_satisfy_cookie_guard(self):
+        self.assertFalse(i.admin_cookie_contract(self.emitted('3600')+b';const unused=2592000;'))
+    def test_ambiguous_multiple_session_headers_are_rejected(self):
+        self.assertFalse(i.admin_cookie_contract(self.emitted('2592e3','3600')))
+    def test_cookie_security_flags_are_preserved(self):
+        self.assertFalse(i.admin_cookie_contract(self.emitted('2592e3').replace(b'HttpOnly; Secure;',b'')))
+    def test_non_utf8_is_rejected(self):
+        self.assertFalse(i.admin_cookie_contract(b'\xff'))
+
 class Rollback(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
