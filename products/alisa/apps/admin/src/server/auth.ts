@@ -42,7 +42,7 @@ export function readCookie(request:Request,name:string){return readCookieHeader(
 export function cookie(name:string,value:string,age:number){return `${name}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${age}`;}
 export function response(data:unknown,status=200){return Response.json(data,{status,headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});}
 export async function accountApi(action:string,data:Record<string,unknown>){
-  const paths:Record<string,string>={createFlow:'staff/auth/flows',consumeFlow:'staff/auth/flows/consume',createSession:'staff/auth/sessions',me:'staff/me',insights:'staff/query-insights',read:'staff/read',command:'staff/command',access:'staff/access',logout:'staff/logout'};
+  const paths:Record<string,string>={createFlow:'staff/auth/flows',consumeFlow:'staff/auth/flows/consume',createSession:'staff/auth/sessions',me:'staff/me',insights:'staff/query-insights',catalog:'staff/question-catalog',read:'staff/read',command:'staff/command',access:'staff/access',logout:'staff/logout'};
   const base=new URL(process.env.ALISA_PLATFORM_URL||''),token=process.env.ALISA_STAFF_SERVICE_TOKEN||'';
   if(!paths[action]||base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||base.pathname!=='/'||base.search||base.hash||base.username||base.password||token.length<32)throw new AuthUnavailable();
   try{
@@ -118,7 +118,7 @@ export async function callback(request:Request){
     catch{result=await accountApi('createSession',input);}
     if(result.status!==201&&!(result.status===200&&result.body.state==='ALREADY_CREATED'))throw new Error();
     const headers=new Headers({Location:c.origin+'/admin','Cache-Control':'no-store','Referrer-Policy':'no-referrer'});
-    headers.append('Set-Cookie',cookie(SESSION_COOKIE,sessionToken,3600));headers.append('Set-Cookie',cookie(FLOW_COOKIE,'',0));
+    headers.append('Set-Cookie',cookie(SESSION_COOKIE,sessionToken,2592000));headers.append('Set-Cookie',cookie(FLOW_COOKIE,'',0));
     return new Response(null,{status:303,headers});
   }catch(error){
     reportAuthFailure(error);

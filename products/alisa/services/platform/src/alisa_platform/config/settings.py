@@ -225,3 +225,7 @@ if os.environ.get('ALISA_QUERIES_ENABLED', '0') not in {'0', '1'} or (QUERIES_EN
         (not RUNTIME_AUTHORITY_ENABLED or RUNTIME_JOB_UID < 0 or
          not RUNTIME_VERSIONS_PATH.startswith('/') or not RUNTIME_JOB_SOCKET.startswith('/'))):
     raise ImproperlyConfigured('Invalid query runtime configuration')
+
+QUESTION_CATALOG_ENABLED = os.environ.get('ALISA_QUESTION_CATALOG_ENABLED', '0') == '1'
+if os.environ.get('ALISA_QUESTION_CATALOG_ENABLED', '0') not in {'0', '1'}:
+    raise ValueError('Invalid question catalogue feature flag')

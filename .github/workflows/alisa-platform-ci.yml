@@ -1,10 +1,10 @@
 name: Alisa platform source checks
 on:
   pull_request:
-    paths: ['products/alisa/**', 'docs/alisa/runtime/v0.11/rt_check_r01/**', 'docs/alisa/runtime/v0.11/rt_job_r02/**', '.github/workflows/alisa-platform-ci.yml']
+    paths: ['products/alisa/**', 'docs/alisa/runtime/v0.11/rt_check_r01/**', 'docs/alisa/runtime/v0.11/rt_job_r02/**', 'docs/alisa/runtime/v0.11/question_catalog_r1/**', 'docs/alisa/quality/scripts/*question_catalog*', '.github/workflows/alisa-platform-ci.yml']
   push:
     branches: ['feat/alisa-platform-foundation-v05', 'feat/alisa-site-funnel-v05']
-    paths: ['products/alisa/**', 'docs/alisa/runtime/v0.11/rt_check_r01/**', 'docs/alisa/runtime/v0.11/rt_job_r02/**', '.github/workflows/alisa-platform-ci.yml']
+    paths: ['products/alisa/**', 'docs/alisa/runtime/v0.11/rt_check_r01/**', 'docs/alisa/runtime/v0.11/rt_job_r02/**', 'docs/alisa/runtime/v0.11/question_catalog_r1/**', 'docs/alisa/quality/scripts/*question_catalog*', '.github/workflows/alisa-platform-ci.yml']
 permissions:
   contents: read
 jobs:
@@ -51,8 +51,15 @@ jobs:
       - name: Locked toolchain dependencies before runtime extensions
         working-directory: products/alisa
         run: ./bin/alisa bootstrap --locked
+      - name: Read-only question catalogue and selected-store draft
+        run: |
+          export PYTHONPATH="$GITHUB_WORKSPACE/products/alisa/services/platform/src:$GITHUB_WORKSPACE/docs/alisa/runtime/v0.11/question_catalog_r1:$GITHUB_WORKSPACE/products/alisa/tests/question_catalog:$GITHUB_WORKSPACE/docs/alisa/runtime/v0.11/rt_job_r02:$GITHUB_WORKSPACE/docs/alisa/runtime/v0.11/rt_job_r02/tests"
+          products/alisa/.venv/bin/python -B -m unittest test_catalog -q
+          node products/alisa/tests/question_catalog/test_draft.mjs
       - name: Legacy Station rollout and rollback boundaries on disposable files
         run: python -B -m unittest discover -s docs/alisa/quality/scripts -p test_install_legacy_voice_clarification_20261114.py -q
+      - name: Catalog rollout failure and rollback boundaries on disposable files
+        run: python -B -m unittest discover -s docs/alisa/quality/scripts -p test_install_question_catalog_20261114.py -q
       - name: Current runtime fairness, deadlines and offline regression
         working-directory: products/alisa/runtime
         run: |
@@ -77,6 +84,9 @@ jobs:
         run: |
           .venv/bin/python -m playwright install --with-deps chromium
           sudo apt-get install --no-install-recommends -y libnss3-tools
+      - name: Question catalogue in real Next and isolated browser fixture
+        working-directory: products/alisa
+        run: .venv/bin/python -B tests/question_catalog/qualify_browser.py
       - name: Native staff MFA and command policies on isolated PostgreSQL
         working-directory: products/alisa
         run: |
@@ -101,7 +111,7 @@ jobs:
             .venv/bin/python tests/integration/qualify_runtime_authority.py \
             --output dist/s07-authority-qualification.json \
             --current-core-source "$GITHUB_WORKSPACE/docs/alisa/runtime/v0.11/rt_job_r02" \
-            --platform-stores-overlay --template-clarification-overlay \
+            --platform-stores-overlay --template-clarification-overlay --question-catalog-overlay \
             --report-browser-artifact "dist/alisa-${ALISA_SOURCE_SHA:0:16}.tar.gz"
       - name: Current-core RuntimePort, reader isolation and seven-day model accounting
         working-directory: docs/alisa/runtime/v0.11/rt_job_r02
