@@ -1,0 +1,21 @@
+{
+  "utc": "2026-11-14T10:15:06.452941+00:00",
+  "status": "PREPARED_SERVER_CANDIDATE_RELEASE_APPROVED_NOT_ACTIVATED",
+  "application_source": "1d572aebf6b05b88ae5c233ae4313284add03e45",
+  "parallel_catalog_source": "d4eb0ccf798fbb45438f9742222425507867a99a",
+  "activator_sha256": "c3d1a4ebd905259ca0e917260da0d951c189e66d709e3f2acb7b5449afd4d797",
+  "activation_fault_injection_tests": 25,
+  "migration_pg_tests": 11,
+  "release_contract_tests": 23,
+  "reconciled_runtime_port_tests": 102,
+  "reconciled_catalog_tests": 23,
+  "independent_review": "APPROVE",
+  "review_scope": "activate.py and tests/test_activation.py; external pinned helpers/services/DB not independently inspected",
+  "live_migration_preflight": "PASS",
+  "live_source_flags_switch": "NOT_RUN",
+  "template_definitions_preserved": 86,
+  "candidate_templates": 88,
+  "independent_selector_overlay_review": "APPROVE",
+  "parallel_agent_selectors_unchanged": true,
+  "own_release_overlay": true
+}

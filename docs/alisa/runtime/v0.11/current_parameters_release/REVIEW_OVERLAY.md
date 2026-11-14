@@ -1,0 +1,5 @@
+**APPROVE** for the scoped selector change and rollback dependencies.
+
+The installer reads each source selector as a regular file, checks it references its expected base, and writes a separate overlay with the release path replaced. It includes source bytes in the backup/CAS snapshot and checks them again after services are stopped, before migration. Rollback does not restore or overwrite source selectors; it removes only its own overlays and gates backend restarts on the corresponding source remaining unchanged. The cleanup selector’s 81579 base is handled separately.
+
+The adjacent tests cover those paths, including a late source change before migration. I reviewed the code and test file statically; I did not run tests or execute services. [activate.py](/root/alisa-parameter-release-r6-20261114/docs/alisa/runtime/v0.11/current_parameters_release/activate.py:48) · [test_activation.py](/root/alisa-parameter-release-r6-20261114/docs/alisa/runtime/v0.11/current_parameters_release/tests/test_activation.py:193)
