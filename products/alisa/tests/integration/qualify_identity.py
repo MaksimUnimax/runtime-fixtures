@@ -350,7 +350,10 @@ def main():
             started=page.request.post(WEB+'/auth/start',form={'service':'on','privacy':'on'},headers={'Origin':WEB},max_redirects=0)
             check('s02_verified_session_post_start_reuses_cabinet_without_cookie_replacement',started.status==303 and started.headers.get('location')==WEB+'/app' and 'set-cookie' not in started.headers and next(c['value'] for c in context.cookies() if c['name']=='__Host-alisa_session')==cookie_before)
             check('s02_verified_session_start_still_rejects_foreign_origin',page.request.post(WEB+'/auth/start',form={'service':'on','privacy':'on'},headers={'Origin':'https://wrong.example.invalid'},max_redirects=0).status==403)
-            check('s02_verified_session_start_still_requires_consents',page.request.post(WEB+'/auth/start',form={},headers={'Origin':WEB},max_redirects=0).status==422)
+            ordinary=page.request.post(WEB+'/auth/start',form={},headers={'Origin':WEB},max_redirects=0)
+            check('s02_verified_session_start_reuses_cabinet_without_duplicate_consents',ordinary.status==303 and ordinary.headers.get('location')==WEB+'/app' and 'set-cookie' not in ordinary.headers and next(c['value'] for c in context.cookies() if c['name']=='__Host-alisa_session')==cookie_before)
+            for invalid in ({'service':'on'}, {'privacy':'on'}, {'service':'off','privacy':'on'}, {'unexpected':'on'}):
+                check('s02_verified_session_start_rejects_invalid_legacy_or_unknown_fields',page.request.post(WEB+'/auth/start',form=invalid,headers={'Origin':WEB},max_redirects=0).status==422)
             check('s02_verified_session_start_still_rejects_query',page.request.post(WEB+'/auth/start?next=foreign',form={'service':'on','privacy':'on'},headers={'Origin':WEB},max_redirects=0).status==422)
             with db('platform') as conn:check('s02_signed_in_navigation_creates_no_flow_or_session',conn.execute('SELECT (SELECT count(*) FROM accounts_authflow),(SELECT count(*) FROM accounts_websession)').fetchone()==navigation_before)
             with db('identity') as conn:check('s02_signed_in_navigation_sends_no_new_email',conn.execute('SELECT count(*) FROM accounts_identitymail').fetchone()[0]==mail_before)
