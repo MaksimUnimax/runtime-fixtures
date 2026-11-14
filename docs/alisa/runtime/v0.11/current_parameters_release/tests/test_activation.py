@@ -13,10 +13,12 @@ class Activation(unittest.TestCase):
   for p in self.base+self.new:p.mkdir()
   self.native=self.p/'native-current';self.native.symlink_to(self.base[1]);self.web=self.p/'web-current';self.web.symlink_to(self.base[2])
   self.selectors=[self.p/('selector'+str(i))for i in range(3)]
-  for p in self.selectors:p.write_text('WorkingDirectory='+str(self.base[0])+'\n')
+  self.source_selectors=[self.p/('source-selector'+str(i))for i in range(3)]
+  self.source_bases=[self.base[0],self.base[0],self.p/'old-cleanup-release']
+  for p,base in zip(self.source_selectors,self.source_bases):p.write_text('WorkingDirectory='+str(base)+'\n')
   self.flags=[self.p/('flag'+str(i))for i in range(3)]
   self.config=self.p/'config';self.config.write_text('OLD_CONFIG');self.versions=self.p/'versions';self.versions.write_text('OLD_VERSIONS');self.projection=self.p/'projection';self.projection.write_text('OLD_PROJECTION')
-  self.before={**{p:p.read_bytes()for p in self.selectors+[self.config,self.versions,self.projection]},**{p:None for p in self.flags}};self.events=[];self.failure=None;self.failed=False;self.busy_after_stop=False;self.snapshots=0;self.table_created=False
+  self.before={**{p:p.read_bytes()for p in [self.config,self.versions,self.projection]+self.source_selectors},**{p:None for p in self.flags+self.selectors}};self.events=[];self.failure=None;self.failed=False;self.busy_after_stop=False;self.snapshots=0;self.table_created=False
   def atomic(p,raw,mode=0o600):p.parent.mkdir(exist_ok=True,parents=True);p.write_bytes(raw);p.chmod(mode)
   def pointer(p,target):
    if p.is_symlink():p.unlink()
@@ -32,7 +34,7 @@ class Activation(unittest.TestCase):
    self.events.append('projection');self.inject('projection')
   self.pair=SimpleNamespace(VERSIONS=self.versions,PROJECTION=self.projection,sync=sync,refresh_projection=refresh,projection_data=lambda:{})
   self.patches=[]
-  values={'ROOT':self.root,'BASES':self.base,'TARGETS':self.new,'NATIVE_POINTER':self.native,'WEB_POINTER':self.web,'CONFIG':self.config,'SELECTORS':self.selectors,'FLAGS':self.flags}
+  values={'ROOT':self.root,'BASES':self.base,'TARGETS':self.new,'NATIVE_POINTER':self.native,'WEB_POINTER':self.web,'CONFIG':self.config,'SELECTORS':self.selectors,'SOURCE_SELECTORS':self.source_selectors,'SOURCE_RELEASES':self.source_bases,'FLAGS':self.flags}
   for key,value in values.items():q=patch.object(a,key,value);q.start();self.patches.append(q)
   for key,value in [('helpers',lambda:(self.core,self.pair)),('inspect',lambda c,m:({}, {'target':['owner_data','0002_current_parameter_only']},b'NEW_VERSIONS',{},b'NEW_CONFIG')),('run',self.fake_run),('snapshot',self.snapshot),('prop',lambda u,k:'OLD_PID'if k=='MainPID'else'OLD_DIR')]:
    q=patch.object(a,key,value);q.start();self.patches.append(q)
@@ -158,12 +160,12 @@ class Activation(unittest.TestCase):
   with self.assertRaises(RuntimeError):a.rollback(self.core,self.pair,self.before,ours,{},None)
   self.assertNotIn('restart:'+a.NATIVE_UNIT,self.events);self.assertIn('restart:'+a.WEB_UNIT,self.events)
  def test_write_without_correct_readback_never_restarts_backend(self):
-  self.selectors[0].write_bytes(b'OURS');ours={**self.before,self.selectors[0]:b'OURS'};original=self.core.atomic
-  def atomic(path,*args,**kwargs):
+  self.selectors[0].write_bytes(b'OURS');ours={**self.before,self.selectors[0]:b'OURS'};original=Path.unlink
+  def unlink(path,*args,**kwargs):
    if path==self.selectors[0]:return
    return original(path,*args,**kwargs)
-  self.core.atomic=atomic
-  with self.assertRaises(RuntimeError):a.rollback(self.core,self.pair,self.before,ours,{},None)
+  with patch.object(Path,'unlink',unlink):
+   with self.assertRaises(RuntimeError):a.rollback(self.core,self.pair,self.before,ours,{},None)
   self.assertNotIn('restart:'+a.BACKENDS[1],self.events);self.assertIn('restart:'+a.BACKENDS[0],self.events)
 
  def test_dangling_foreign_flag_symlink_is_preserved(self):
@@ -187,5 +189,25 @@ class Activation(unittest.TestCase):
   finally:signal.alarm(0);signal.signal(signal.SIGALRM,previous)
   self.assertTrue(self.flags[0].exists());self.assertIn('restart:'+a.WEB_UNIT,self.events)
   self.assertNotIn('restart:'+a.BACKENDS[1],self.events)
+
+ def test_s11_source_selectors_are_never_modified(self):
+  originals={p:p.read_bytes()for p in self.source_selectors};a.execute(True)
+  self.assertEqual({p:p.read_bytes()for p in self.source_selectors},originals)
+  self.assertTrue(all(str(self.new[0]).encode()in p.read_bytes()for p in self.selectors))
+ def test_rollback_removes_only_own_release_overlays(self):
+  originals={p:p.read_bytes()for p in self.source_selectors};self.failure='health'
+  with self.assertRaises(RuntimeError):a.execute(True)
+  self.assertTrue(all(not p.exists()for p in self.selectors))
+  self.assertEqual({p:p.read_bytes()for p in self.source_selectors},originals)
+ def test_late_other_agent_selector_change_prevents_migration(self):
+  snapshot=self.snapshot
+  def changed():
+   result=snapshot()
+   if self.snapshots==2:self.source_selectors[0].write_text('UNEXPECTED_LATER_RELEASE')
+   return result
+  with patch.object(a,'snapshot',changed):
+   with self.assertRaises(RuntimeError):a.execute(True)
+  self.assertFalse(self.table_created);self.assertEqual(self.source_selectors[0].read_text(),'UNEXPECTED_LATER_RELEASE')
+  self.assertNotIn('restart:'+a.BACKENDS[1],self.events);self.assertIn('restart:'+a.WEB_UNIT,self.events)
 
 if __name__=='__main__':unittest.main()

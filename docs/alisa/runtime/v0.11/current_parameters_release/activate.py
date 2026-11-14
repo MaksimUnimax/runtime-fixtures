@@ -13,7 +13,9 @@ BASES=[Path('/opt/alisa-platform/stage/releases/alisa-question-catalog-d4eb0ccf7
 TARGETS=[BASES[0].parent/('alisa-parameters-'+SOURCE[:16]),BASES[1].parent/('alisa-parameters-'+SOURCE[:16]),BASES[2].parent/('alisa-cabinet-parameters-'+SOURCE[:16])]
 NATIVE_POINTER=Path('/opt/alice-market/releases/current');WEB_POINTER=Path('/opt/alisa-platform/stage/web-current')
 CONFIG=Path('/etc/alice-market/market-runtime.json')
-SELECTORS=[Path('/etc/systemd/system/alisa-platform@stage.service.d/zzzzzzzzzzzzzzzzzzzzz-report-archive.conf'),Path('/etc/systemd/system/alisa-runtime-authority-stage.service.d/z-report-archive.conf'),Path('/etc/systemd/system/alisa-account-cleanup@stage.service.d/zzzzzzzzzzzzzzzzzzzz-alice-link-r1.conf')]
+SOURCE_SELECTORS=[Path('/etc/systemd/system')/(u+'.service.d')/('z'*64+'-question-catalog.conf')for u in ['alisa-platform@stage','alisa-runtime-authority-stage']]+[Path('/etc/systemd/system/alisa-account-cleanup@stage.service.d/zzzzzzzzzzzzzzzzzzzz-alice-link-r1.conf')]
+SOURCE_RELEASES=[BASES[0],BASES[0],Path('/opt/alisa-platform/stage/releases/alisa-template-clarification-81579c18d4725c7f')]
+SELECTORS=[Path('/etc/systemd/system')/(u+'.service.d')/('z'*72+'-parameters-r5-release.conf')for u in ['alisa-platform@stage','alisa-runtime-authority-stage','alisa-account-cleanup@stage']]
 FLAGS=[Path('/etc/systemd/system/'+u+'.service.d/zzzzzzzzzzzzzzzzzzzzzzzz-parameters-r5.conf')for u in ['alisa-platform@stage','alisa-runtime-authority-stage','alisa-web@stage']]
 FLAG_BYTES=b'[Service]\nEnvironment=ALISA_OWNER_PARAMETERS_ENABLED=1\nEnvironment=ALISA_OWNER_PARAMETER_COLLECTION_ENABLED=1\n'
 BACKENDS=['alisa-runtime-authority-stage.service','alisa-platform@stage.service'];WEB_UNIT='alisa-web@stage.service';NATIVE_UNIT='alice-market.service'
@@ -42,6 +44,17 @@ def read_managed(path):
   need(stat.S_ISREG(opened.st_mode)and(opened.st_dev,opened.st_ino)==(info.st_dev,info.st_ino),'MANAGED_PATH_NOT_REGULAR')
   with os.fdopen(fd,'rb',closefd=False)as stream:return stream.read()
  finally:os.close(fd)
+
+def selector_overlays():
+ # Read the exact active S11 definitions and the separately retained cleanup
+ # release. Publish only our own later drop-ins, never edit the other agent's.
+ originals={};result={}
+ for source,base,target in zip(SOURCE_SELECTORS,SOURCE_RELEASES,SELECTORS):
+  raw=read_managed(source)
+  need(raw is not None and str(base).encode()in raw,'SELECTOR_SOURCE_BASE_MISMATCH')
+  originals[source]=raw
+  result[target]=raw.replace(str(base).encode(),str(TARGETS[0]).encode()).replace(base.name.encode(),TARGETS[0].name.encode())
+ return originals,result
 
 def helpers():
  c=load('parameter_core',CORE_SOURCE,HELPER_HASHES['core']);m=load('parameter_pair',PAIR_SOURCE,HELPER_HASHES['pair'])
@@ -75,7 +88,8 @@ def inspect(c,m):
  need(prop(BACKENDS[1],'WorkingDirectory')==str(BASES[0])and prop(BACKENDS[0],'WorkingDirectory')==str(BASES[0]/'services/platform'),'PLATFORM_BASE_CHANGED')
  need(Path('/proc/'+prop(NATIVE_UNIT,'MainPID')+'/cwd').resolve()==BASES[1],'NATIVE_PROCESS_BASE_CHANGED')
  need(all(prop(u,'ActiveState')=='active'for u in c.ALL_UNITS),'SERVICE_INACTIVE')
- need(not any(p.exists()or p.is_symlink()for p in FLAGS),'PARAMETER_FLAGS_ALREADY_PRESENT')
+ need(not any(p.exists()or p.is_symlink()for p in FLAGS+SELECTORS),'PARAMETER_FLAGS_OR_SELECTORS_ALREADY_PRESENT')
+ selector_overlays()
  need(prop(c.CLEAN,'ActiveState')not in ['active','activating','deactivating'],'CLEANUP_BUSY')
  state=snapshot();c.reserve()
  migration=json.loads(run(str(TARGETS[0]/'.venv/bin/python'),'-B',str(ROOT/'migration.py'),'--check'));need(migration['status']=='MIGRATION_PREFLIGHT','MIGRATION_PREFLIGHT')
@@ -118,6 +132,9 @@ def rollback(c,m,before,ours,old_projection,lock):
   need(read_managed(p)==old,'RECOVERY_FILE_READBACK')
  for p,old in before.items():
   restored[p]=False
+  if p in SOURCE_SELECTORS:
+   restored[p]=p not in conflicts
+   continue
   if p==m.PROJECTION or p in conflicts:continue
   restored[p]=attempt(str(p),lambda p=p,old=old:restore(p,old))
  def pointer(path,target):
@@ -135,8 +152,8 @@ def rollback(c,m,before,ours,old_projection,lock):
   elif not native_started:skipped.append('native_restart_or_version_sync_failed')
   else:skipped.append('owner_binding_later_writer_requires_recheck')
  else:skipped.append('native_configuration_not_restored')
- for u,selector,flag in [(BACKENDS[0],SELECTORS[1],FLAGS[1]),(BACKENDS[1],SELECTORS[0],FLAGS[0])]:
-  if reload_ok and restored.get(selector,False)and restored.get(flag,False):attempt(u,lambda u=u:run('systemctl','restart',u))
+ for u,selector,flag,source in [(BACKENDS[0],SELECTORS[1],FLAGS[1],SOURCE_SELECTORS[1]),(BACKENDS[1],SELECTORS[0],FLAGS[0],SOURCE_SELECTORS[0])]:
+  if reload_ok and restored.get(selector,False)and restored.get(flag,False)and restored.get(source,False):attempt(u,lambda u=u:run('systemctl','restart',u))
   else:skipped.append(u+'_configuration_not_restored')
  if reload_ok and web_restored and restored.get(FLAGS[2],False):attempt(WEB_UNIT,lambda:run('systemctl','restart',WEB_UNIT))
  else:skipped.append('web_configuration_not_restored')
@@ -159,11 +176,12 @@ def execute(apply=False):
   record(c,'CHECKED.json',check)
   if not apply:print(json.dumps(check));return
   need(not(ROOT/'backup').exists()and not(ROOT/'ACTIVATED.json').exists(),'ALREADY_ATTEMPTED')
-  paths=[*SELECTORS,*FLAGS,m.VERSIONS,m.PROJECTION,CONFIG]
+  paths=[*SELECTORS,*FLAGS,*SOURCE_SELECTORS,m.VERSIONS,m.PROJECTION,CONFIG]
   before={p:read_managed(p)for p in paths};ours=dict(before)
-  for p in SELECTORS:
-   need(before[p]is not None and str(BASES[0]).encode()in before[p],'SELECTOR_BASE_MISMATCH')
-   ours[p]=before[p].replace(str(BASES[0]).encode(),str(TARGETS[0]).encode()).replace(BASES[0].name.encode(),TARGETS[0].name.encode())
+  source_selectors,overlays=selector_overlays()
+  need(all(before[p]==raw for p,raw in source_selectors.items()),'SOURCE_SELECTOR_RACE')
+  need(all(before[p]is None for p in SELECTORS),'OWN_SELECTOR_ALREADY_EXISTS')
+  ours.update(overlays)
   ours.update({p:FLAG_BYTES for p in FLAGS});ours[m.VERSIONS]=versions;ours[CONFIG]=newcfg
   (ROOT/'backup').mkdir(mode=0o700)
   for i,(p,value)in enumerate(before.items()):
@@ -178,6 +196,7 @@ def execute(apply=False):
    entered=True
    for u in [WEB_UNIT,BACKENDS[1],BACKENDS[0],NATIVE_UNIT]:run('systemctl','stop',u)
    snapshot()
+   need(all(read_managed(p)==raw for p,raw in source_selectors.items()),'OTHER_AGENT_SELECTOR_CHANGED')
    migrated=json.loads(run(str(TARGETS[0]/'.venv/bin/python'),'-B',str(ROOT/'migration.py'),'--apply'))
    need(migrated['status']=='MIGRATED','MIGRATION_FAILED')
    for p in SELECTORS+FLAGS+[CONFIG]:
