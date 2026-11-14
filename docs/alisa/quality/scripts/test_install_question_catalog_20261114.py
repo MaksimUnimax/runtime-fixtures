@@ -10,25 +10,34 @@ spec=importlib.util.spec_from_file_location('catalog_install',Path(__file__).wit
 i=importlib.util.module_from_spec(spec);spec.loader.exec_module(i)
 
 class AdminCookie(unittest.TestCase):
-    def emitted(self,ttl,second=None):
-        text='function s(a,b,c){return `${a}=${b}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${c}`}'
-        text+='A.append("Set-Cookie",s(j,x,'+ttl+')),A.append("Set-Cookie",s(k,"",0))'
-        if second is not None:text+='B.append("Set-Cookie",s(j,y,'+second+'))'
-        return text.encode()
-    def test_decimal_and_minified_exponent_keep_thirty_days(self):
-        for ttl in ['2592000','2592e3','2.592e6','2592E+3']:
-            with self.subTest(ttl=ttl):self.assertTrue(i.admin_cookie_contract(self.emitted(ttl)))
-    def test_shortened_and_changed_lifetimes_are_rejected(self):
-        for ttl in ['3600','2592','2592001','0','1e999999','2592000/1']:
-            with self.subTest(ttl=ttl):self.assertFalse(i.admin_cookie_contract(self.emitted(ttl)))
-    def test_unrelated_number_does_not_satisfy_cookie_guard(self):
-        self.assertFalse(i.admin_cookie_contract(self.emitted('3600')+b';const unused=2592000;'))
-    def test_ambiguous_multiple_session_headers_are_rejected(self):
-        self.assertFalse(i.admin_cookie_contract(self.emitted('2592e3','3600')))
-    def test_cookie_security_flags_are_preserved(self):
-        self.assertFalse(i.admin_cookie_contract(self.emitted('2592e3').replace(b'HttpOnly; Secure;',b'')))
-    def test_non_utf8_is_rejected(self):
-        self.assertFalse(i.admin_cookie_contract(b'\xff'))
+    def fixtures(self):
+        root=Path(__file__).with_name('fixtures')
+        return [(root/name).read_bytes() for name in
+                ['admin-callback-ci-d4eb0ccf.js','admin-callback-qualified-d4eb0ccf.js']]
+    def test_both_reviewed_builds_preserve_thirty_days(self):
+        for raw in self.fixtures():
+            with self.subTest(bytes=len(raw)):
+                self.assertTrue(i.admin_cookie_contract(raw,i.ADMIN_COOKIE_SOURCE))
+    def test_shortened_lifetime_is_rejected(self):
+        for raw in self.fixtures():
+            self.assertIn(b'2592e3',raw)
+            self.assertFalse(i.admin_cookie_contract(raw.replace(b'2592e3',b'3600'),i.ADMIN_COOKIE_SOURCE))
+    def test_security_flags_cannot_be_supplied_by_an_unrelated_comment(self):
+        for raw in self.fixtures():
+            weakened=raw.replace(b'HttpOnly; Secure; SameSite=Lax;',b'')
+            weakened+=b'/* HttpOnly; Secure; SameSite=Lax; Max-Age=${c} */'
+            self.assertFalse(i.admin_cookie_contract(weakened,i.ADMIN_COOKIE_SOURCE))
+    def test_unqualified_equivalent_bundle_requires_review(self):
+        for raw in self.fixtures():
+            self.assertFalse(i.admin_cookie_contract(raw.replace(b'2592e3',b'2592000'),i.ADMIN_COOKIE_SOURCE))
+    def test_correct_bytes_for_another_source_are_rejected(self):
+        for raw in self.fixtures():
+            self.assertFalse(i.admin_cookie_contract(raw,'0'*40))
+    def test_cookie_name_and_unrelated_text_cannot_supply_admission(self):
+        for raw in self.fixtures():
+            changed=raw.replace(b'__Host-alisa_staff',b'__Host-other_staff')
+            changed+=b'/* __Host-alisa_staff 2592000 */'
+            self.assertFalse(i.admin_cookie_contract(changed,i.ADMIN_COOKIE_SOURCE))
 
 class Rollback(unittest.TestCase):
     def setUp(self):

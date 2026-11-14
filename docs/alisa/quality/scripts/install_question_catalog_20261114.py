@@ -1,7 +1,6 @@
 """Finite catalog installation with pinned bases, shared lock and guarded rollback."""
 import fcntl,hashlib,importlib.util,json,os,re,sqlite3,subprocess,sys,time,urllib.request
 from pathlib import Path
-from decimal import Decimal,InvalidOperation
 
 ROOT=Path('/root/alisa-question-catalog-install-20261114')
 OLD=Path('/root/alisa-s09-clarification-install-20261113-d11a9f2a')
@@ -17,18 +16,17 @@ def need(ok,code):
 
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 
-def admin_cookie_contract(raw):
-    """Check the emitted session-cookie call, allowing JavaScript numeric notation."""
-    try:text=raw.decode('utf-8')
-    except UnicodeDecodeError:return False
-    ident=r'[A-Za-z_$][A-Za-z0-9_$]*'
-    number=r'[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?'
-    pattern=(r'\.append\(["\']Set-Cookie["\'],\s*'+ident+
-             r'\(\s*'+ident+r'\s*,\s*'+ident+r'\s*,\s*('+number+r')\s*\)\)')
-    values=re.findall(pattern,text)
-    if len(values)!=1 or len(values[0])>32:return False
-    try:return Decimal(values[0])==Decimal(2592000) and 'HttpOnly; Secure; SameSite=Lax; Max-Age=${' in text
-    except InvalidOperation:return False
+# This is a finite rollout for one reviewed application source, not a JS parser.
+# Whole-file pins bind TTL, cookie name and flags to the two qualified builds.
+ADMIN_COOKIE_SOURCE='d4eb0ccf798fbb45438f9742222425507867a99a'
+ADMIN_COOKIE_CALLBACKS=frozenset({
+    '20195466e79c8cfc2d6b05b46e7ac0994fad05846821fcf2afc81b15d068fcd2',
+    '40a57b81a79321ed77b34876c7958a2f413d3d2d0fedc09b3517559dcd2afc58',
+})
+
+def admin_cookie_contract(raw,source):
+    """Only the complete, reviewed callback artifacts satisfy this release contract."""
+    return source==ADMIN_COOKIE_SOURCE and hashlib.sha256(raw).hexdigest() in ADMIN_COOKIE_CALLBACKS
 
 def load(digest):
     need(re.fullmatch('[a-f0-9]{64}',digest) and sha(ROOT/'PLAN.json')==digest,'PLAN_CHANGED')
@@ -77,7 +75,7 @@ def candidates(v,m,old):
     admin_base=m.manifest(m.ADMIN_BASE)
     need(package['locks']==admin_base['locks'] and admin_base.get('preserved_admin_cookie_seconds')==2592000,'ADMIN_BASE_CONTRACT')
     callback='ui/admin/apps/admin/.next/server/app/auth/callback/route.js'
-    need(callback in package['files'] and admin_cookie_contract((m.PAYLOAD/'platform'/callback).read_bytes()),'ADMIN_COOKIE_REGRESSION')
+    need(callback in package['files'] and admin_cookie_contract((m.PAYLOAD/'platform'/callback).read_bytes(),m.SOURCE),'ADMIN_COOKIE_REGRESSION')
     allowed={'services/platform/src/alisa_platform/'+n for n in ['catalog/__init__.py','catalog/reader.py','catalog/views.py','config/settings.py','config/urls.py']}
     need(set(v['platform_files'])==allowed and v['platform_files']=={n:package['files'][n] for n in allowed},'PLATFORM_SCOPE')
     platform['files']={n:h for n,h in platform['files'].items() if not n.startswith('ui/admin/')}
