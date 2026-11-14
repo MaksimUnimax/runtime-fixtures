@@ -1,0 +1,7 @@
+# Posting count and scheme semantics in selected metadata
+
+The selector declined an ordinary posting-count question split between Ozon warehouse and seller warehouse, despite both registered posting sources being qualified with current hashes. posting_metadata already emits one ungrouped row per posting, including scheme and units, but its generic purpose did not state counting and the Russian scheme names.
+
+Only posting_metadata version, purpose, one note and calculation_contract change. The contract identifies postings[].posting_number as the nonempty identity for each scheme, canonical duplicate rejection and complete cursor pagination. Posting count is not item count; item quantity is the existing sum of products[].quantity. Requested period means the native endpoint filter, not a new event-date filter or physical shipment claim. A complete empty result can be zero; a missing or invalid result cannot. No expected live figure, new input filter, question rewrite, arithmetic implementation or API change is added. All other85 templates and existing source recipes/queries remain unchanged.
+
+The same147 isolated checks run on the candidate. The finite one-catalog installer is pinned to the current price-extrema source and preserves its lineage, SKU pronunciation setting, common lock, clarification guards, source immutability and rollback. A real identical voice retest must confirm the selector and numerical result.

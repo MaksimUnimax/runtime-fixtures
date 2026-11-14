@@ -1,0 +1,9 @@
+{
+  "base_release": "alisa-accrual-price-extrema-r1-20261114",
+  "base_source_commit": "1c3156a83d42350217da349cfb453736364150da",
+  "base_manifest_sha256": "bf6c5678bae536366ca1396a3bca6a6541a130f86958f4395bf01b6cbc254d3e",
+  "base_catalog_sha256": "6177f187e7c2fb63fc97acd5debaae3b6d7f4189c1aebef62d8271bcf6574901",
+  "new_catalog_sha256": "3b434ae383fb758a53c06bd73d0b1ab921efa478ee3b1feb09fa631c8f9621e0",
+  "preserved_pronunciation_settings_sha256": "44d82c25bafb90500bb6af7cb97bb7c276d10d2638ae50d95de4f600e78be179",
+  "preserved_clarification_source": "81579c18d4725c7f0a6603c8abbf703668863e36"
+}

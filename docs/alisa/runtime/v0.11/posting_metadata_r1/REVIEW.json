@@ -1,0 +1,62 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "reviewed_at_utc": "2026-11-14T03:34:57.070546+00:00",
+  "scope": "Exact posting_metadata counting metadata and derived finite one-catalog prepare/installer; no live client figures or private job identifiers included.",
+  "files_sha256": {
+    "template_catalog.base.json": "6177f187e7c2fb63fc97acd5debaae3b6d7f4189c1aebef62d8271bcf6574901",
+    "template_catalog.json": "3b434ae383fb758a53c06bd73d0b1ab921efa478ee3b1feb09fa631c8f9621e0",
+    "patch.json": "676f23fc3b8e34e39814772d4e9a5296280c270ce4e3e40b3a53c36b292bf6cf",
+    "BASE_SOURCE.json": "e5a9f20f16b9c684180183e68d0eaa9afabb424fc86ee1c8725d47e4ff341b25",
+    "build.py": "2cf9f7a7df434483741f58caf26b5583a0d960df834eca216ecdf4f8d5ef4dd3",
+    "prepare.py": "e209a94ee14c6bb4365d2074e2f725fac467bafebda8c47335435f448225962b",
+    "install.py": "4d05c7916cc8daa07b8b0a90473b9364fefdf71c51c830d529573d586ed910e3",
+    "README.md": "4dfe9786e5bfd5483b4f5512356a5afac7c9380e59c2156d64988931cadd50d7",
+    "SERVER_TEST_PROOF.json": "9826fab0c3fe24593fa326e30b5c91a2846bd9ecabf3a41b0637ef81441d6e86"
+  },
+  "findings": [],
+  "checks": [
+    "Only posting_metadata changes: version1 to2, purpose, one appended note and calculation_contract. All other85 templates, top-level metadata, existing notes, source commands, requests, steps, columns, output stages, group_by and aggregates remain identical to base. Patch equals the full updated template.",
+    "Both source fingerprints match canonical ds_ozon_fbo_postings and ds_ozon_fbs_postings. Both recipes have expand_rows=false, map one postings[] record to one row, use nonempty posting_number for identity/key, and reject within-page/across-page duplicates as DATASET_DUPLICATE.",
+    "Counting occurs independently in each source/scheme after completeness and uniqueness checks. Duplicate source pages cannot silently be deduplicated into a complete result. Posting count is not product-line count, quantity sum or distinct SKU count.",
+    "If item count is explicitly requested, the contract uses the existing canonical sum of products[].quantity. Russian scheme labels correctly map fbo to the Ozon warehouse and fbs to the seller warehouse. Existing unknown payment semantics remain unchanged.",
+    "Canonical query remains ungrouped with both output stages fbo and rows and whole-period source acquisition. Request filter boundaries use Europe/Moscow. The contract introduces no extra created_day/in_process_day filter and does not claim physical shipment, creation or buyout event dates.",
+    "Boolean has_next and progressing cursor follow the existing recipes. Zero is permitted only for an explicitly complete empty postings collection; missing, malformed, contradictory or incomplete source responses cannot become zero.",
+    "No expected client result, original-question rewrite, arithmetic implementation, source qualification or API/permission change is added. Existing runtime code forwards the trusted selected calculation contract.",
+    "Preparation archive has exactly the reviewed catalog and unchanged prior context test, with matching bytes and hash pins. Candidate setup retains immutable base hardlinks and replaces only the catalog inode. AST and catalog validation pass.",
+    "Compared prepare and installer with previously approved price-extrema rollout: only base/target paths, manifest/catalog pins and explicit lineage metadata change. Current pronunciation settings hash44d82c25bafb90500bb6af7cb97bb7c276d10d2638ae50d95de4f600e78be179 is checked and never modified.",
+    "Pinned base1c3156a83d42350217da349cfb453736364150da and all earlier payloads are copied exactly except catalog, preserving price-extrema, daily-speech, cardinality, selector and clarification changes. Clarification81579c18d4725c7f0a6603c8abbf703668863e36 metadata remains explicitly checked.",
+    "Shared lock, exact current/base and full source hashes, independent manifest replacement,147-test gate, active QUEUED/RUNNING and unexpired READY-clarification guards before/after stop, policy/version preflight, atomic current pointer, process cwd verification and rollback are retained. Runtime configuration and Station code are untouched."
+  ],
+  "independent_local_validation": {
+    "exact_scope_and_patch": "PASS",
+    "both_source_fingerprints_and_canonical_mapping": "PASS",
+    "whole_period_dual_source_query": "PASS",
+    "catalog_validator": "PASS",
+    "python_ast": [
+      "build.py",
+      "prepare.py",
+      "install.py"
+    ],
+    "embedded_payload_bytes_and_pins": "PASS",
+    "derived_installer_and_prepare_diff": "PASS",
+    "new_test_files_created": 0,
+    "remote_provider_or_model_calls": 0
+  },
+  "primary_executor_evidence": {
+    "source": "SERVER_TEST_PROOF.json and primary executor message; not independently rerun remotely by reviewer",
+    "server_tests": 147,
+    "server_elapsed_seconds": 30.926,
+    "prepare_exit_code": 0,
+    "verified_base_payload_files": 174,
+    "only_changed_runtime_payload": [
+      "template_catalog.json"
+    ],
+    "paid_calls": 0
+  },
+  "limitations": [
+    "Approval covers the exact static candidate and finite installer, not a completed deployment or live acceptance.",
+    "The selector rejection remains open until the exact real voice retest confirms selection and correct counts. Isolated regression tests do not guarantee model compliance with metadata.",
+    "Hardlinked releases retain the existing immutable-release assumption; external concurrent source mutation is outside the reviewed scope."
+  ]
+}

@@ -1,0 +1,105 @@
+{
+  "id": "posting_metadata",
+  "version": 2,
+  "purpose": "Количество отправлений и товаров за период по двум схемам: со склада Ozon (FBO) и со склада продавца (FBS); одна строка на отправление, также статус и метка оплаты",
+  "platforms": [
+    "ozon"
+  ],
+  "kind": "dataset",
+  "input_policy": {
+    "time_axis": "source_period",
+    "snapshot": false,
+    "period_required": true,
+    "comparison_supported": false,
+    "filters_supported": false
+  },
+  "steps": [
+    {
+      "id": "ozon_fbo",
+      "platform": "ozon",
+      "operation": "ds_ozon_fbo_postings",
+      "source_registry": "dataset_sources",
+      "params": [
+        {}
+      ],
+      "period_mode": "whole"
+    },
+    {
+      "id": "ozon_rows",
+      "platform": "ozon",
+      "operation": "ds_ozon_fbs_postings",
+      "source_registry": "dataset_sources",
+      "params": [
+        {}
+      ],
+      "period_mode": "whole"
+    }
+  ],
+  "qualification": "existing_source_requirements",
+  "notes": [
+    "Период фильтра источника отправлений; это не реализация по дате начисления и не выкупы за этот день.",
+    "Метка оплаты сохранена как сообщает Ozon; unknown не означает оплату без карты. Соединение с начислениями здесь не выполняется.",
+    "Для количества отправлений используй уникальную запись отправления, а не число товаров или товарных строк. Назови только запрошенные количества по схемам: fbo — «со склада Озона», fbs — «со склада продавца». Период соответствует фильтру источника; это не доказательство физической отгрузки или выкупа в этот день. Неполноту, противоречие или ошибку источника не скрывай."
+  ],
+  "dataset_query": "posting_metadata",
+  "metrics": [],
+  "relations": [],
+  "output_stage": [
+    "fbo",
+    "rows"
+  ],
+  "columns": [
+    {
+      "field": "scheme",
+      "label": "схема",
+      "kind": "text"
+    },
+    {
+      "field": "created_day",
+      "label": "дата создания",
+      "kind": "text"
+    },
+    {
+      "field": "in_process_day",
+      "label": "дата обработки",
+      "kind": "text"
+    },
+    {
+      "field": "status",
+      "label": "статус",
+      "kind": "text"
+    },
+    {
+      "field": "payment",
+      "label": "метка оплаты",
+      "kind": "text"
+    },
+    {
+      "field": "units",
+      "label": "товаров",
+      "kind": "number"
+    }
+  ],
+  "group_by": [],
+  "aggregates": [],
+  "calculation_contract": {
+    "schema": "alisa-posting-metadata-cardinality/v1",
+    "source_operations": {
+      "fbo": "ds_ozon_fbo_postings",
+      "fbs": "ds_ozon_fbs_postings"
+    },
+    "source_recipe_sha256": {
+      "ds_ozon_fbo_postings": "0cdef21b471ab29b9913e32fb8488f254bdeec05c9207a8a33f6e0867f4a4b91",
+      "ds_ozon_fbs_postings": "7937cd36a456fb6566683229abc1bb07d11a2bca423c411d2423a756437893a3"
+    },
+    "raw_collection": "postings[] in each registered response; the registered map creates one output row per posting",
+    "identity": "nonempty posting_number; validates unique within a source across all requested pages. Existing canonical source rejects any duplicate identity with DATASET_DUPLICATE; do not silently deduplicate invalid source pages and call them complete.",
+    "posting_count": "after validating completeness and unique identities, number of postings in each source/scheme; not length(products), not sum(quantity), not count of distinct SKU",
+    "item_count": "only when requested, use the existing canonical sum of products[].quantity in the chosen scheme; do not present item count as posting count",
+    "scheme_labels": {
+      "fbo": "со склада Озона",
+      "fbs": "со склада продавца"
+    },
+    "scope": "Requested period is the registered endpoint filter over all pages, with Europe/Moscow boundaries. Do not reinterpret it as physical shipment, creation or buyout event date, and do not add a different date-field filter. Each source must have complete pagination; has_next must be a boolean and cursor must progress according to the registered recipe. Explicitly complete empty postings can yield zero; absent/malformed/incomplete source is not zero. Existing source validation is preserved."
+  }
+}

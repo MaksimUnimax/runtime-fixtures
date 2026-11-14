@@ -1,0 +1,13 @@
+{
+  "status": "PASS",
+  "server_tests": 147,
+  "seconds": 30.926,
+  "paid_calls": 0,
+  "server_log": "/opt/alice-market/candidates/posting-metadata-tests-20261114/focused-final.log",
+  "base_payload_files": 174,
+  "only_changed_payload": [
+    "template_catalog.json"
+  ],
+  "only_changed_template": "posting_metadata",
+  "catalog_sha256": "3b434ae383fb758a53c06bd73d0b1ab921efa478ee3b1feb09fa631c8f9621e0"
+}
