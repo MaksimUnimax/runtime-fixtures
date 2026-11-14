@@ -1,0 +1,182 @@
+{
+  "schema": "alisa-parameter-producers/v1",
+  "version": "20261114-r3",
+  "timezone": "Europe/Moscow",
+  "sources": {
+    "orders": {
+      "operations": [
+        "report_postings_create",
+        "report_info",
+        "report_file_get"
+      ],
+      "axis": "in_process_at",
+      "window_months": 3,
+      "schemes": [
+        "FBO",
+        "FBS"
+      ],
+      "normalization": "ozon_postings_physical_v1",
+      "status_map": {
+        "Доставлен": "delivered",
+        "Отменён": "cancelled",
+        "Отменен": "cancelled",
+        "Доставляется": "pending",
+        "Ожидает отгрузки": "pending",
+        "Ожидает сборки": "pending",
+        "Ожидает в ПВЗ": "pending"
+      },
+      "fields": {
+        "posting": "Номер отправления_key",
+        "sku": "SKU",
+        "processed_at": "Принят в обработку",
+        "units": "Количество",
+        "status": "Статус"
+      }
+    },
+    "returns": {
+      "operations": [
+        "returns_list"
+      ],
+      "boundary_operations": {
+        "FBO": "posting_fbo_get",
+        "FBS": "posting_fbs_get"
+      },
+      "axis": "logistic_return_date",
+      "normalization": "ozon_returns_exemplars_v1",
+      "pagination": {
+        "cursor": "last_id",
+        "initial": 0,
+        "next": "returns[-1].id",
+        "terminal": "has_next=false"
+      },
+      "types": [
+        "Cancellation",
+        "ClientReturn",
+        "FullReturn",
+        "PartialReturn"
+      ],
+      "identity": [
+        "schema",
+        "posting",
+        "sku",
+        "exemplar_id"
+      ]
+    },
+    "finance": {
+      "operations": [
+        "finance_balance"
+      ],
+      "axis": "financial_accrual_date",
+      "window_months": 1,
+      "normalization": "ozon_signed_services_v1",
+      "scopes": [
+        "store"
+      ],
+      "currency": "RUB"
+    }
+  },
+  "templates": {
+    "parameter.loss_rate.v1": {
+      "parameter": "loss_rate",
+      "sources": [
+        "orders",
+        "returns"
+      ],
+      "steps": [
+        {
+          "id": "cohort",
+          "operation": "physical_outcome_union",
+          "orders": "orders",
+          "returns": "returns"
+        }
+      ],
+      "inputs": {
+        "failed_units": [
+          "cohort",
+          "failed_units"
+        ],
+        "ordered_units": [
+          "cohort",
+          "ordered_units"
+        ]
+      },
+      "evidence": {
+        "pending_units": [
+          "cohort",
+          "pending_units"
+        ],
+        "returned_units": [
+          "cohort",
+          "returned_units"
+        ],
+        "duplicate_order_rows": [
+          "cohort",
+          "duplicate_order_rows"
+        ],
+        "duplicate_return_exemplars": [
+          "cohort",
+          "duplicate_return_exemplars"
+        ]
+      },
+      "observation_sources": {
+        "ordered_physical_units": "orders",
+        "unique_failed_units": "returns"
+      },
+      "note": "Наблюдаемые потери физических единиц. Незавершённые заказы входят в исходный знаменатель и показываются отдельно; отмены и возврат того же экземпляра не складываются."
+    },
+    "parameter.delivery_mean.v1": {
+      "parameter": "delivery_mean",
+      "sources": [
+        "orders",
+        "finance"
+      ],
+      "steps": [
+        {
+          "id": "cohort",
+          "operation": "physical_cohort",
+          "orders": "orders"
+        },
+        {
+          "id": "delivery",
+          "operation": "signed_expense_components",
+          "source": "finance",
+          "components": {
+            "forward_delivery": [
+              "logistics"
+            ],
+            "last_delivery": [
+              "courier_client_reinvoice",
+              "delivery_to_handover_place_by_ozon"
+            ]
+          }
+        }
+      ],
+      "inputs": {
+        "ordered_units": [
+          "cohort",
+          "ordered_units"
+        ],
+        "forward_delivery": [
+          "delivery",
+          "forward_delivery"
+        ],
+        "last_delivery": [
+          "delivery",
+          "last_delivery"
+        ]
+      },
+      "evidence": {
+        "duplicate_order_rows": [
+          "cohort",
+          "duplicate_order_rows"
+        ]
+      },
+      "observation_sources": {
+        "ordered_physical_units": "orders",
+        "financial_forward_delivery": "finance",
+        "financial_last_delivery": "finance"
+      },
+      "note": "Расход прямой и последней доставки по дате начисления / физические единицы по дате обработки заказа. Не включает обратную логистику. Общий balance не распределяется на SKU без доказательства."
+    }
+  }
+}

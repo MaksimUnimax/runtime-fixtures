@@ -1,0 +1,54 @@
+{
+  "utc": "2026-11-14T06:11:29.242542+00:00",
+  "status": "PASS_EXACT_REDUCERS_ON_SAVED_REAL_DATA",
+  "source_transfer_sha256": "a57a011eb58061d307ab312f07358ee53261aa0e22a7d73adaa769c3347a8747",
+  "corrected_catalog_sha256": "859e184c2e4df9c4877cc1d28a9c03dcac8f59c5740e8d096c6497bf8dac20a2",
+  "delivery_mapping_corrected_against": "blood_sand ANNUAL_DELIVERY_POLICY.json at 73af24d9787508e027a799d7aa27e663736ff4c3",
+  "exact_function_source_sha256": {
+    "parameter_contract.py": "4be76de2404b4911c7a6a58b0120e3c8c032dc3f0abf7b9126862b456ef8eb54",
+    "parameter_producers.py": "08f0c69bfd424c910dbf9fb2120d8e4c29e2449aa65c0970bc00deb82f77f30b"
+  },
+  "order_report_files": 16,
+  "return_pages": 3,
+  "return_boundary_get_files": 8,
+  "balance_months": 12,
+  "raw_order_rows": 12698,
+  "return_records": 1054,
+  "loss": {
+    "ordered_units": 7761,
+    "duplicate_order_rows": 0,
+    "failed_units": 993,
+    "pending_units": 85,
+    "returned_units": 759,
+    "duplicate_return_exemplars": 0,
+    "period": {
+      "from": "2025-11-06",
+      "to": "2026-11-05"
+    },
+    "ratio": "0.12794742945496714340935446463084654039427908774642"
+  },
+  "delivery": {
+    "period": {
+      "from": "2025-11-01",
+      "to": "2026-10-31"
+    },
+    "ordered_units": 7793,
+    "forward_delivery": "719098.18",
+    "last_delivery": "72786.15",
+    "value": "101.61482484280764788913127165404850506865135377903"
+  },
+  "sku_additivity": {
+    "sku_count": 77,
+    "ordered_units_sum": 7761,
+    "failed_units_sum": 993,
+    "pending_units_sum": 85,
+    "matches_store_total": true
+  },
+  "saved_current_parameters_changed": false,
+  "new_provider_calls": 0,
+  "new_model_calls": 0,
+  "source_rows_exported": false,
+  "qualification_scope": "Exact normalization and reducers only; not a live collection/auth/worker end-to-end claim",
+  "full_qualification_sha256": "d30e102b39e4127fff49e955d17c2390746507a5b5afc4bea5ba6bb9593aa84a",
+  "source_manifest_sha256": "aa83e9bd4d08258c4e0c57e62243e41b2833bac039f559f2c56738ebaa988769"
+}

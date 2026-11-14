@@ -1,0 +1,28 @@
+{
+  "status": "PASS",
+  "plans": [
+    {
+      "parameter": "loss_rate",
+      "compiled_requests": 9,
+      "operations": [
+        "report_postings_create",
+        "returns_list"
+      ],
+      "no_provider_request_sent": true
+    },
+    {
+      "parameter": "delivery_mean",
+      "compiled_requests": 20,
+      "operations": [
+        "finance_balance",
+        "report_postings_create"
+      ],
+      "no_provider_request_sent": true
+    }
+  ],
+  "recipe_hash": "859e184c2e4df9c4877cc1d28a9c03dcac8f59c5740e8d096c6497bf8dac20a2",
+  "read_surface_catalog_hash": "9182110747f71863ff918cd1af5914a6ae5c8c3791f1c6f3ea3a520b28c1ca93",
+  "node_path_adapted_to_test_host": "/root/alisa-owner-toolchain/node-v24.22.1-linux-x64/bin/node",
+  "network_calls": 0,
+  "meaning": "Unchanged registered donor request validator accepts generated source-plan parameters; not live API or complete workflow validation"
+}

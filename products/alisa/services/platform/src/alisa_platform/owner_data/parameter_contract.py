@@ -125,7 +125,18 @@ def validate_calculation(key,envelope,target,period,now,verify_sources):
     merely the arithmetic. No verifier/no proof means no calculated write.
     """
     rule=definition(key);scope(target['scope'])
-    exact(envelope,('producer_template','inputs','coverage','source_collected_at','observed_until'))
+    need(type(envelope)is dict,'PARAMETER_SCHEMA')
+    required={'producer_template','inputs','coverage','source_collected_at','observed_until'}
+    need(required<=set(envelope)<=required|{'provenance'},'PARAMETER_SCHEMA')
+    if 'provenance'in envelope:
+        provenance=envelope['provenance'];exact(provenance,('recipe_hash','definition_hash','receipts','controls','note'))
+        need(all(type(provenance[k])is str and re.fullmatch(r'[a-f0-9]{64}',provenance[k])for k in('recipe_hash','definition_hash')),'PARAMETER_PROVENANCE')
+        need(type(provenance['receipts'])is list and type(provenance['controls'])is dict and type(provenance['note'])is str,'PARAMETER_PROVENANCE')
+        for r in provenance['receipts']:
+            exact(r,('source','receipt_hash','period'));dates(r['period'])
+            need(type(r['source'])is str and type(r['receipt_hash'])is str and re.fullmatch(r'[a-f0-9]{64}',r['receipt_hash']),'PARAMETER_PROVENANCE')
+        for value in provenance['controls'].values():number(value)
+
     need(envelope['producer_template']==rule['producer_template'],'PARAMETER_PRODUCER')
     exact(envelope['inputs'],rule['input_names']);exact(envelope['source_collected_at'],rule['required_sources'])
     exact(envelope['coverage'],('complete','actual_period','short_history','scope'))
@@ -158,5 +169,6 @@ def validate_calculation(key,envelope,target,period,now,verify_sources):
     evidence={'producer_template':rule['producer_template'],'inputs':deepcopy(envelope['inputs']),
               'source_collected_at':deepcopy(envelope['source_collected_at']),
               'observed_until':envelope['observed_until'],'coverage':deepcopy(envelope['coverage'])}
+    if 'provenance'in envelope:evidence['provenance']=deepcopy(envelope['provenance'])
     return CheckedCalculation(key,CANON(target),value,rule['unit'],collected_at,now,
           CANON(period['requested']),CANON(period['actual']),CANON(evidence),CATALOG_HASH)
