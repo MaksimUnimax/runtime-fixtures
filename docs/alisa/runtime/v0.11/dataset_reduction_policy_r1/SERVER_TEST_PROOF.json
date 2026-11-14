@@ -1,0 +1,16 @@
+{
+  "status": "PASS",
+  "tests": 176,
+  "seconds": 39.56,
+  "paid_calls": 0,
+  "server_log": "/opt/alice-market/candidates/dataset-reduction-policy-tests-20261114/focused-final.log",
+  "base_payload_files": 176,
+  "changed_payload_files": [
+    "template_catalog.json",
+    "template_protocol.py"
+  ],
+  "changed_template_bodies": 0,
+  "catalog_sha256": "345f46e5c1fa395db23642783a84416ad6da58e9808b10edc05716a70e13a720",
+  "protocol_sha256": "c5858e44eb797abf1f102c81ca7a35d747fc06162dbbb96016c59d9c708c6969",
+  "note": "Final instruction limits coarsening to exact distinct counts with preserved fields; supersedes initial broader prose test run. Model prose compliance requires exact live retest."
+}

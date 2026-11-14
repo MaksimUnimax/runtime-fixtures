@@ -1,0 +1,23 @@
+{
+  "base_release": "alisa-payment-field-context-r1-20261114",
+  "base_source_commit": "e00a9594f8a5ef7148a28aeaa05359803274602b",
+  "base_manifest_sha256": "74ce88d712f38e4a04c5eab7db4a51dccea6f017d3ce2c460a9a9dc9b37de8dd",
+  "base_catalog_sha256": "452a1c40dee4d8dd4aeeee8eca6f829c9f1e9d27e19577a4da624a58b447fdb6",
+  "new_catalog_sha256": "345f46e5c1fa395db23642783a84416ad6da58e9808b10edc05716a70e13a720",
+  "base_protocol_sha256": "0c3f913288cf019349992d3ab36e2d64aeaa214eb2dbb28644e776b80e645965",
+  "new_protocol_sha256": "c5858e44eb797abf1f102c81ca7a35d747fc06162dbbb96016c59d9c708c6969",
+  "base_payload_files": 176,
+  "changed_payload_files": [
+    "template_catalog.json",
+    "template_protocol.py"
+  ],
+  "changed_template_bodies": [],
+  "preserved_legacy_clarification_source": "5a62b45b6370adb55d8d3094f94a3777a0bc9d76",
+  "preserved_settings_revision": 6,
+  "preserved_settings_sha256": "75648da49553e35b53db0d25d2b9f8025b185bbcd9e72ed0208e9ecb7388803b",
+  "native_station_test_dependency": {
+    "path": "/opt/alisa-station/releases/station-legacy-clarification-5a62b45b6370adb5-329dd714",
+    "station_authority_sha256": "5a7aa0a465ebaf69d5f117a44eed3e7900dce6d1b19d0cc2b1823753df6d08c5",
+    "service_sha256": "ee0716ad11590c56a49be8c19a3c70b966f83358a88cfe127299a033ac1d8380"
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "reviewed_at_utc": "2026-11-14T04:42:57.814479+00:00",
+  "scope": "Generic exact dataset distinct-count selection policy, catalog top-version change and two-payload rollout. No live client figures or private job identifiers included.",
+  "files_sha256": {
+    "template_protocol.base.py": "0c3f913288cf019349992d3ab36e2d64aeaa214eb2dbb28644e776b80e645965",
+    "template_protocol.py": "c5858e44eb797abf1f102c81ca7a35d747fc06162dbbb96016c59d9c708c6969",
+    "template_catalog.base.json": "452a1c40dee4d8dd4aeeee8eca6f829c9f1e9d27e19577a4da624a58b447fdb6",
+    "template_catalog.json": "345f46e5c1fa395db23642783a84416ad6da58e9808b10edc05716a70e13a720",
+    "BASE_SOURCE.json": "3e9f1917b36a448576cedb92207a97a55c06d08641a281a4f33435cab3e5eae7",
+    "build.py": "358e42f026b0f3c19b3ab27e05bb5581fa24869c9b32bf34ba3b9d068c5f5913",
+    "prepare.py": "27fae440f717a83cb39f541de87b018577bd99d800c6bd2a7597296e4469209b",
+    "install.py": "9c48ae118a2774a21a5e34cc214a7cb611c1dabb32d2856763f70fcf91f44797",
+    "README.md": "6788a60539049ff62b855fe421e5d8a303ea434e99cd1c3313ef45089be75a71",
+    "SERVER_TEST_PROOF.json": "ca967ca824a51eac3af66744a3c29afa3f635c5a8a2c35c14e9824ff62c644fb"
+  },
+  "findings": [],
+  "resolved_review_observations": [
+    "Grouping coarsening was narrowed to this exact count with all required fields preserved. Final wording explicitly forbids recovering sums/averages from insufficient aggregates, as well as lost dimensions or individual purchases from averages."
+  ],
+  "checks": [
+    "AST comparison shows only the SELECT_SYSTEM string changes. Selection serialization, strict schemas, compiler validation, model call flow and retry behavior are unchanged. No domain/template-specific example, original question or expected result is inserted.",
+    "Complete output retaining A and B permits exact distinct A per B, including multi-field B and repeated A counted once per group. Grouped A/B pairs retain the needed information; output that has lost A does not. Final coarsening permission requires all necessary fields and excludes insufficient aggregates.",
+    "Every requested part, store availability, marketplace, period, permitted filters and completeness remain mandatory. Output dimensions do not become new input.group_by values; input remains marketplace or total. Closed-template/API restrictions remain.",
+    "CLARIFY_SELECT_SYSTEM inherits SELECT_SYSTEM. Ordinary and clarification selection therefore receive the same policy without changing legacy/prefix layout functions or clarification flow.",
+    "Catalog changes only its top-level version; all86 template bodies are equal JSON, including payment contracts. Independent calculation confirms the new version changes template catalog HASH with identical source pins. Existing template-plan/dialogue/prepared-selector pins use that hash; modified system text also changes the provider prefix content.",
+    "Exact base/new file hashes and installer information pin match. Final embedded ZIP contains precisely protocol, catalog and unchanged context test with matching bytes. Python AST and catalog validator pass.",
+    "Prepare verifies all176 current e00 base payloads and rejects unpinned physical files, then replaces only candidate protocol/catalog inodes. The real paired Station authority/service dependency remains pinned for29 legacy tests.",
+    "Installer derives from the approved payment-field rollout: exact current/base manifest, information file and both candidate payload pins; only template_catalog.json and template_protocol.py may differ;176 passing tests required. It copies the full current base manifest, preserving5a62 legacy and earlier lineage rather than replacing parallel source metadata.",
+    "Shared recovery lock, active QUEUED/RUNNING and live READY-clarification guards before/after stop, immutable hardlinks with separate replacement inodes, full base rechecks, policy/version preflight, atomic pointer, actual process cwd verification and rollback remain.",
+    "Revision6 quantity/label/SKU setting SHA75648da49553e35b53db0d25d2b9f8025b185bbcd9e72ed0208e9ecb7388803b and runtime configuration are verified unchanged. No database, source qualification or Station product write is introduced."
+  ],
+  "independent_local_validation": {
+    "only_SELECT_SYSTEM_AST_change": "PASS",
+    "all86_template_bodies_unchanged": "PASS",
+    "catalog_version_changes_fingerprint": "PASS",
+    "clarification_prefix_and_pin_review": "PASS",
+    "catalog_validator": "PASS",
+    "python_ast": [
+      "template_protocol.py",
+      "build.py",
+      "prepare.py",
+      "install.py"
+    ],
+    "final_archive_contents_and_pins": "PASS",
+    "derived_two_payload_rollout": "PASS",
+    "new_test_files_created": 0,
+    "remote_provider_or_model_calls": 0
+  },
+  "primary_executor_evidence": {
+    "source": "Final SERVER_TEST_PROOF.json and primary executor message; not independently rerun remotely by reviewer",
+    "server_tests": 176,
+    "seconds": 39.56,
+    "candidate_update_exit_code": 0,
+    "components": {
+      "existing_suite": 147,
+      "parallel_legacy_clarification": 29
+    },
+    "base_payload_files": 176,
+    "only_changed_runtime_payloads": [
+      "template_catalog.json",
+      "template_protocol.py"
+    ],
+    "paid_calls": 0,
+    "superseded_run": "Earlier176-test run preceded final coarsening wording and is not used as final validation."
+  },
+  "limitations": [
+    "Approval covers this exact static candidate and installer, not deployment or live acceptance.",
+    "The false unsupported response remains open until an exact real voice retest confirms selection and correct derived count. Passing tests do not guarantee compliance with prose.",
+    "Full current server source verification is enforced by pinned prepare/installer and native evidence. Reviewer inspected local exact artifacts and existing pin mechanisms without remote access.",
+    "Hardlinked releases retain the existing immutable-release assumption."
+  ]
+}

@@ -1,0 +1,9 @@
+# Select supported reductions over dataset output columns
+
+A distinct-ID-by-category question was falsely declined. The exact captured provider request contained both required output columns, a grouping retaining their pairs, an available store and the existing general distinct-count rule. Catalog transfer and qualification were intact; the refusal incorrectly treated a derived count as a missing named metric.
+
+Extend only the generic selector instruction: exact distinct A counts grouped by preserved B can be computed from complete dataset rows retaining A/B, including coarsening an existing grouping. Repeated A within one group counts once. Fields dropped by aggregation cannot be reconstructed, nor can individual purchases be recovered from averages. Existing store/period/filter/input-grouping limitations and all closed-template checks remain. No domain name, live question, client result, chosen template ID or retry/fallback is added.
+
+Both ordinary and clarification selector policies inherit this instruction. Catalog top-level version changes to identify the selection-semantics release and change template execution/catalog pins; all86 template bodies remain byte-for-byte equivalent JSON. Model call flow is unchanged. Final calculation still consumes original question and raw data with existing verified template contracts.
+
+Prepare and installer overlay exactly template_protocol.py and catalog version on the current e00 payment-field release, preserving full5a62 legacy clarification code, all payment field contracts, lineage and revision6 voice instructions. The same176 checks include29 legacy tests using exact paired Station test dependencies. Shared lock, active/READY clarification protection, exact source/test pins, immutable base and atomic rollback remain. Exact real retest is required to establish model compliance with the prose.
