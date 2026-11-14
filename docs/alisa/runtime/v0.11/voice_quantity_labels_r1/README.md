@@ -1,0 +1,7 @@
+# Quantity questions and literal payment-source labels
+
+A real question asking how many goods were bought out returned seller-money amounts rather than item counts. Its selected dataset had both quantities and money. The answer also narrowed the source bank label into a specific card claim without a verified source mapping.
+
+Append one instruction to the existing global answer_prompt: unqualified how-many-ordered/bought-out questions request item count, while explicit monetary requests retain money. Preserve literal payment labels. When the question asks about an Ozon card but the raw label only names Ozon Bank, report the requested measure under that label and other labels, retaining explicit monetary or price requests with a short qualification that it does not establish the particular card product. Unknown is distinct from no-card. This is a source-evidence boundary, not a claim that the bank cannot issue that card. No live answer, client number or rewritten question is inserted.
+
+The complete revision5 prompt, including SKU letter-name pronunciation and existing numeric/conciseness rules, remains a verbatim prefix. Planning and extra instructions are unchanged. The unchanged reviewed finite updater uses the existing settings IPC with revision/file/change pins, common lock, active/clarification guards, owned backup, readback and read-only ambiguous-outcome reconciliation. No restart, access change, source change or postprocessing. Existing26 native answer/settings tests are rerun without paid calls; a live identical question must confirm behavior.

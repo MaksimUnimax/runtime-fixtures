@@ -1,0 +1,50 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "reviewed_at_utc": "2026-11-14T03:46:32.284679+00:00",
+  "scope": "One quantity-default/source-label instruction appended to the existing global answer_prompt through the unchanged native revision-checked updater. No live client figures or private job identifiers included.",
+  "files_sha256": {
+    "change.json": "04a5eb94e657b3d55f5ff41595a6031c03cc21450a4f8697ffafaff887233ce4",
+    "install.py": "533bc8490b2f45668203151bcc2056f448e64081eea4d8858310f04e669a9272",
+    "README.md": "0896549bc9eca364229c9f6f05c6dcdc18076b7444560bbeec47702b9b07146a",
+    "SERVER_TEST_PROOF.json": "a7619e9bfd1b7be1f8016d9c8a15277b7b15cdc547ca82aa85e9b2c9602a553c"
+  },
+  "expected_settings_revision": 5,
+  "expected_settings_sha256": "44d82c25bafb90500bb6af7cb97bb7c276d10d2638ae50d95de4f600e78be179",
+  "findings": [],
+  "resolved_review_observations": [
+    "The initial payment-label clause unconditionally requested quantity even for an explicit monetary question. It now says requested metric, preserving explicit money/price requests while the preceding quantity default remains limited to unqualified how-many-ordered/bought-out questions."
+  ],
+  "checks": [
+    "The quantity default applies only when the question lacks an explicit request for money, amount or cost. It requests item count with an explicit goods unit and prevents replacing that count with an available monetary measure.",
+    "Payment-label clause preserves the requested measure and source evidence. It does not narrow Ozon Bank into a specific card product without a verified mapping. The short qualification states only that the label does not establish the card type, not that the bank cannot issue that card.",
+    "Unknown payment remains separate and is not interpreted as no-card. Existing canonical realization_payment_totals groups by payment_label from literal payment_raw; source maps read payment_type_group_name, with no verified bank-to-card mapping in the reviewed query.",
+    "The complete revision5 prompt is retained verbatim as a prefix, preserving the existing SKU pronunciation rule. Planning and extra instruction strings are copied unchanged and verified. No original question, calculation, data source, API, transport, final answer rewriting or Station code changes.",
+    "Exact comparison confirms installer execution logic is byte-for-byte identical to the approved SKU updater except the pinned change.json SHA. Current settings revision5 and SHA44d82c25bafb90500bb6af7cb97bb7c276d10d2638ae50d95de4f600e78be179 are guarded.",
+    "Shared recovery lock, active QUEUED/RUNNING and unexpired READY-clarification guard, configured authorized IPC peer, owned backup, native revision CAS, exact readback and immutable release/config checks remain unchanged. Ambiguous transport/process/JSON outcome triggers read-only reconciliation and never a second save. Explicit API errors abort.",
+    "No restart or paid/live call is part of the updater. Required final behavioral acceptance remains a real voice retest."
+  ],
+  "independent_local_validation": {
+    "final_text_and_canonical_payment_labels": "PASS",
+    "exact_installer_identity_except_change_pin": "PASS",
+    "python_ast": "PASS",
+    "revision_and_hash_pins": "PASS",
+    "unchanged_updater_prior_boundary_evidence": "Same execution logic passed7 independent relocated synthetic boundaries during SKU-pronunciation review: successful save, committed lost response, uncommitted timeout, stale revision, active job, live clarification, expired clarification. These unchanged tests were not redundantly rerun.",
+    "new_test_files_created": 0,
+    "remote_provider_or_model_calls": 0
+  },
+  "primary_executor_evidence": {
+    "source": "SERVER_TEST_PROOF.json; server suite was not independently rerun remotely by reviewer",
+    "suite": "test_model_answer",
+    "tests": 26,
+    "seconds": 15.767,
+    "paid_calls": 0,
+    "runtime_code_unchanged": true,
+    "test_scope": "Existing settings routing, snapshots and CAS, not model compliance with the new prose."
+  },
+  "limitations": [
+    "Approval covers this exact instruction and updater, not completed installation or voice acceptance.",
+    "Prompt behavior remains probabilistic. The original incorrect-measure/card-label response remains open until the exact live retest produces the requested measure and preserves the source-label limitation.",
+    "This instruction does not add a verified card-product mapping or make unknown payments classifiable."
+  ]
+}
