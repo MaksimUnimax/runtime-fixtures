@@ -1,0 +1,17 @@
+{
+  "utc": "2026-11-14T08:37:55.506219+00:00",
+  "status": "RELEASE_GUARDS_AND_MIGRATION_VERIFIED_TRANSFER_AWAITING_USER_RUN",
+  "application_source": "1d572aebf6b05b88ae5c233ae4313284add03e45",
+  "release_contract_tests": 23,
+  "actual_postgresql_migration_tests": 11,
+  "test_database": "owned disposable PostgreSQL16.15 network=none",
+  "external_test_connections": 0,
+  "production_database_changed": false,
+  "services_restarted": false,
+  "transfer_executed": false,
+  "public_transfer_file_created": false,
+  "tool_review_status": "awaiting_user",
+  "one_agent_confirmed_by_owner": true,
+  "full_switch_installer_executed": false,
+  "live_acceptance": "NOT_RUN"
+}
