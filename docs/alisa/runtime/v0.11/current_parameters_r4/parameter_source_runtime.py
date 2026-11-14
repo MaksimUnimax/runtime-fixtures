@@ -45,8 +45,19 @@ def enabled(engine):
     return type(policy)is dict and policy.get('enabled')is True and policy=={'enabled':True,'pin':PIN}
 
 
+def required_operations(key):
+    recipe=pp.CATALOG['templates'][pc.definition(key)['producer_template']]
+    operations=set()
+    for name in recipe['sources']:
+        source=pp.CATALOG['sources'][name]
+        operations.update(source['operations'])
+        operations.update(source.get('boundary_operations',{}).values())
+    need(operations<=OPERATIONS,'PARAMETER_OPERATION_NOT_REGISTERED')
+    return operations
+
+
 def available(engine,template,store):
-    return enabled(engine)and store.platform=='ozon'and template.get('parameter_key')in pc.CATALOG['parameters'] and all(surface.available(surface.method('ozon',op))for op in OPERATIONS)
+    return enabled(engine)and store.platform=='ozon'and template.get('parameter_key')in pc.CATALOG['parameters'] and all(surface.available(surface.method('ozon',op))for op in required_operations(template['parameter_key']))
 
 
 def input_value(call,t,today,now):
@@ -92,7 +103,7 @@ def authorized(engine,plan):
         store=plan['stores'][0];need(actual.get(store['id'])==store,'SOURCE_ACCESS');p=plan['parameter_source']
         need(p['pin']==PIN and p['target']['tenant_id']==scope.tenant and p['target']['store_id']==store['id']and store['platform']=='ozon','SOURCE_ACCESS')
         expected=pp.source_plan(p['key'],p['target'],p['period'],p['as_of']);need(expected==p['collection'],'PARAMETER_PLAN_CHANGED')
-        for op in OPERATIONS:
+        for op in required_operations(p['key']):
             src,_,_=surface.quota('ozon',op)
             need(not engine.repo.denied('ozon:'+store['identity']+':'+src,store['access_revision']),'SOURCE_ACCESS')
         if p['intent']is not None:
@@ -188,7 +199,11 @@ def _receipt(worker,row,request,state,answer):
     state['receipts'][str(ident)]={'source':request.source,'operation':request.operation,'request_hash':fingerprint(request.body['params']),
         'response_hash':hashlib.sha256(raw).hexdigest(),'received_at':stamp}
     state['event_ids'].append(ident)
-    if state['first_observed']is None:state['first_observed']=stamp
+    # Report creation/polling are control receipts, not collection of the data.
+    # The coefficient passport must not label the report-create time as the time
+    # of a successfully retrieved report or financial/returns payload.
+    if state['first_observed']is None and request.operation.rsplit('.',1)[-1]in('report_file_get','returns_list','finance_balance'):
+        state['first_observed']=stamp
     return stamp
 
 

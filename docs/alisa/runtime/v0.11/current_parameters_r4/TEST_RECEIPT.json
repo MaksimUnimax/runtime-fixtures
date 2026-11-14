@@ -1,12 +1,12 @@
 {
-  "utc": "2026-11-14T07:03:30.066263+00:00",
+  "utc": "2026-11-14T07:10:24.354331+00:00",
   "status": "EXISTING_WORKER_SOURCE_FLOW_VERIFIED_NOT_DEPLOYED",
   "base_commit": "7fe5c775a7b1814315f54ca6704bff3d7fc28de4",
   "runtime_source": "47007fc5b0e500c796d96360eb951f7ce6687e3d",
   "backend_tests": 146,
   "backend_skipped": 0,
-  "existing_worker_workflow_tests": 20,
-  "release_policy_and_preservation_tests": 7,
+  "existing_worker_workflow_tests": 23,
+  "release_policy_and_preservation_tests": 9,
   "existing_template_regression": 62,
   "question_catalog_tests": 23,
   "browser_scenarios": 29,
@@ -31,5 +31,8 @@
   "lk_start_collection_route_bound": false,
   "compound_unit_economics_parameter_binding": false,
   "independent_review": "NOT_RUN",
-  "full_project_regression": "NOT_RUN"
+  "full_project_regression": "NOT_RUN",
+  "worker_test_total": 32,
+  "only_required_sources_authorized": true,
+  "collected_at_from_actual_data_receipt": true
 }

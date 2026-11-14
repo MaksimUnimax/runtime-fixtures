@@ -93,6 +93,23 @@ class Runtime(Fixture,unittest.TestCase):
   calls=[x.operation for x in self.transport.calls];self.assertEqual(calls.count('template_select'),1);self.assertEqual(calls.count('model_answer'),1);self.assertNotIn('deepseek_read_plan',calls)
   self.assertEqual(calls.count('read.ozon.report_postings_create'),2);self.assertEqual(calls.count('read.ozon.returns_list'),2)
   with self.repo.connection()as c:self.assertEqual(c.execute('SELECT COUNT(*)FROM jobs').fetchone()[0],1)
+ def test_denied_finance_does_not_block_loss_collection(self):
+  import read_surface
+  op,_,_=read_surface.quota('ozon','finance_balance');self.repo.deny('ozon:'+self.scope.stores[0].identity+':'+op,self.scope.stores[0].access_revision)
+  r=self.finish(self.ask());self.assertIsNone(r['error']);self.assertFalse(any(c.operation=='read.ozon.finance_balance'for c in self.transport.calls))
+ def test_denied_returns_do_not_block_delivery_collection(self):
+  import read_surface
+  op,_,_=read_surface.quota('ozon','returns_list');self.repo.deny('ozon:'+self.scope.stores[0].identity+':'+op,self.scope.stores[0].access_revision)
+  self.transport.selection=selection(['parameter.delivery_mean.v1'],inputs={'period':PERIOD});r=self.finish(self.ask());self.assertIsNone(r['error'])
+ def test_collection_date_is_data_receipt_not_report_creation(self):
+  times=[]
+  self.transport.on_call=lambda request:times.append((request.operation,self.clock()))
+  r=self.finish(self.ask());self.assertIsNone(r['error'])
+  answer=next(c for c in self.transport.calls if c.operation=='model_answer')
+  context=json.loads(answer.body['messages'][-1]['content'].split('\n',1)[1]);value=context['parameter_context'][0]['result']
+  actual=min(t for op,t in times if op in('read.ozon.report_file_get','read.ozon.returns_list'))
+  started=min(t for op,t in times if op=='read.ozon.report_postings_create')
+  self.assertGreater(actual,started);self.assertEqual(value['collected_at'],datetime.fromtimestamp(actual,timezone.utc).isoformat())
  def test_missing_producer_enablement_no_data_calls(self):
   del self.engine.parameter_source_policy;r=self.finish(self.ask());self.assertTrue(r['error']);self.assertFalse(any(x.store_id for x in self.transport.calls))
  def test_staged_result_exact_loss_and_pending(self):
@@ -164,6 +181,12 @@ class ConfigurationTests(unittest.TestCase):
  def test_runtime_config_accepts_only_exact_qualified_pin(self):
   self.assertEqual(self.read_config({'enabled':True,'pin':ps.PIN})['parameter_sources']['pin'],ps.PIN)
   with self.assertRaises(Rejected):self.read_config({'enabled':True,'pin':'wrong'})
+ def test_loss_does_not_require_finance_permission(self):
+  self.assertNotIn('finance_balance',ps.required_operations('loss_rate'))
+  self.assertIn('returns_list',ps.required_operations('loss_rate'))
+ def test_delivery_does_not_require_return_list_permission(self):
+  self.assertNotIn('returns_list',ps.required_operations('delivery_mean'))
+  self.assertIn('finance_balance',ps.required_operations('delivery_mean'))
  def test_runtime_config_integer_not_a_boolean_permission(self):
   with self.assertRaises(Rejected):self.read_config({'enabled':1,'pin':ps.PIN})
  def test_existing_template_definitions_preserved(self):
