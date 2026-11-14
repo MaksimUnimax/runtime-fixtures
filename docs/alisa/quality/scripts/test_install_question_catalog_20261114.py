@@ -9,6 +9,36 @@ from unittest.mock import patch
 spec=importlib.util.spec_from_file_location('catalog_install',Path(__file__).with_name('install_question_catalog_20261114.py'))
 i=importlib.util.module_from_spec(spec);spec.loader.exec_module(i)
 
+class AdminCookie(unittest.TestCase):
+    def fixtures(self):
+        root=Path(__file__).with_name('fixtures')
+        return [(root/name).read_bytes() for name in
+                ['admin-callback-ci-d4eb0ccf.js','admin-callback-qualified-d4eb0ccf.js']]
+    def test_both_reviewed_builds_preserve_thirty_days(self):
+        for raw in self.fixtures():
+            with self.subTest(bytes=len(raw)):
+                self.assertTrue(i.admin_cookie_contract(raw,i.ADMIN_COOKIE_SOURCE))
+    def test_shortened_lifetime_is_rejected(self):
+        for raw in self.fixtures():
+            self.assertIn(b'2592e3',raw)
+            self.assertFalse(i.admin_cookie_contract(raw.replace(b'2592e3',b'3600'),i.ADMIN_COOKIE_SOURCE))
+    def test_security_flags_cannot_be_supplied_by_an_unrelated_comment(self):
+        for raw in self.fixtures():
+            weakened=raw.replace(b'HttpOnly; Secure; SameSite=Lax;',b'')
+            weakened+=b'/* HttpOnly; Secure; SameSite=Lax; Max-Age=${c} */'
+            self.assertFalse(i.admin_cookie_contract(weakened,i.ADMIN_COOKIE_SOURCE))
+    def test_unqualified_equivalent_bundle_requires_review(self):
+        for raw in self.fixtures():
+            self.assertFalse(i.admin_cookie_contract(raw.replace(b'2592e3',b'2592000'),i.ADMIN_COOKIE_SOURCE))
+    def test_correct_bytes_for_another_source_are_rejected(self):
+        for raw in self.fixtures():
+            self.assertFalse(i.admin_cookie_contract(raw,'0'*40))
+    def test_cookie_name_and_unrelated_text_cannot_supply_admission(self):
+        for raw in self.fixtures():
+            changed=raw.replace(b'__Host-alisa_staff',b'__Host-other_staff')
+            changed+=b'/* __Host-alisa_staff 2592000 */'
+            self.assertFalse(i.admin_cookie_contract(changed,i.ADMIN_COOKIE_SOURCE))
+
 class Rollback(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
