@@ -63,9 +63,9 @@ def main():
             inputs=temp/'credentials.json';inputs.write_text(json.dumps(credentials));inputs.chmod(0o600)
             subprocess.run([sys.executable,str(release/'infra/db/provision.py'),'--env','stage','--admin-dsn-file',str(dsn),'--credentials-file',str(inputs)],env=clean_environment(),check=True,stdout=logs,stderr=logs)
             # Verify the offline installation includes BOTH authority lockfiles.
-            subprocess.run([sys.executable,'-m','venv',str(release/'.venv')],check=True,stdout=logs,stderr=logs)
+            subprocess.run([sys.executable,'-m','venv',str(release/'.venv')],env=clean_environment(),check=True,stdout=logs,stderr=logs)
             py=release/'.venv/bin/python'
-            subprocess.run([str(py),'-m','pip','install','--no-index','--find-links',str(release/'wheels'),'--require-hashes','-r',str(release/'services/platform/requirements.lock'),'-r',str(release/'services/identity/requirements.lock')],check=True,stdout=logs,stderr=logs)
+            subprocess.run([str(py),'-m','pip','install','--no-index','--find-links',str(release/'wheels'),'--require-hashes','-r',str(release/'services/platform/requirements.lock'),'-r',str(release/'services/identity/requirements.lock')],env=clean_environment(),check=True,stdout=logs,stderr=logs)
             check('s02_offline_identity_dependencies_installed',True)
             ca,cert,key=certificates(temp);tls=ssl.create_default_context(cafile=ca)
             home=temp/'browser-home';nss=home/'.pki/nssdb';nss.mkdir(parents=True)
@@ -721,6 +721,7 @@ def main():
             record['safe_auth_diagnostics']=diagnostics[-10:]
             logs.seek(0);private_text=logs.read()
             record['safe_process_error_classes']=sorted(set(re.findall(r'(?m)^([A-Za-z_][A-Za-z0-9_]*(?:Error|Exception)):',private_text)))
+            record['safe_missing_module_names']=sorted(set(re.findall(r"ModuleNotFoundError: No module named '([A-Za-z0-9_.]{1,120})'",private_text)))[:10]
             record['safe_process_exit_codes']=[process.poll() for process in PROCESSES]
             record['safe_failure_categories']=[name for name,marker in {'CWD_NOT_ACCESSIBLE':"can't chdir",'SOURCE_PERMISSION_DENIED':'Permission denied','UNREGISTERED_UID':'getpwuid','WORKER_BOOT_FAILED':'Worker failed to boot','MISSING_MODULE':'ModuleNotFoundError','CONNECTION_REFUSED':'Connection refused'}.items() if marker in private_text]
     finally:
