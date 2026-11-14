@@ -1,0 +1,31 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "reviewed_at_utc": "2026-11-14T01:39:01.719040+00:00",
+  "scope": "Bounded removal of regenerable Python bytecode inside existing platform release virtual environments; source, packages, release directories and rollback paths retained.",
+  "files_sha256": {
+    "cleanup_bytecode.py": "8ee58b041b056a9925eba894fee09d7cfbcf88afb72225415ba77abb2fefb8e6"
+  },
+  "findings": [],
+  "checks": [
+    "Fixed platform release root; only regular nonsymlink *.pyc directly in __pycache__ under each .venv are candidates.",
+    "Canonical importlib.util.source_from_cache maps standard and optimized cache names to the actual corresponding source; invalid or sourceless bytecode is skipped.",
+    "Release/venv/manifest symlinks are excluded at scan; candidate/source links and inner symlink ancestors are excluded. Candidate resolved path must remain inside its virtual environment.",
+    "Before unlink, target device/inode/size/mtime, source existence/hash, inner ancestors and path containment are checked again. Changed candidates are skipped; changed manifests abort.",
+    "Manifest must not declare virtual-environment bytecode; corresponding source hashes and manifest bytes are verified unchanged after each release.",
+    "No source, package metadata, native module, database, credential, application setting, report, release directory or active tool cache is a deletion target.",
+    "Existing active relevant services must still be active after cleanup. Measured filesystem free-space delta is reported separately from unlinked allocation totals.",
+    "Final source parses successfully; no full regression suite is needed for removal of regenerable cache files."
+  ],
+  "resolved_comments": [
+    "Replaced manual filename split with canonical source_from_cache.",
+    "Added source/hash/path/manifest revalidation immediately before unlink."
+  ],
+  "limitations": [
+    "Approval assumes the existing release directories and source packages remain immutable during this maintenance; concurrent deployments moving/replacing release directory trees are outside this scope.",
+    "Service-state comparison establishes active units, not browser/UI or acoustic acceptance.",
+    "No remote execution or cleanup performed by reviewer; post-cleanup evidence remains to be collected by the executor."
+  ],
+  "remote_calls_by_reviewer": 0,
+  "product_files_modified_by_reviewer": 0
+}
