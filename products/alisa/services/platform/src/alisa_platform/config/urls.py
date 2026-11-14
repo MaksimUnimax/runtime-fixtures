@@ -43,3 +43,7 @@ urlpatterns += [path('api/v1/staff/query-insights',query_insights)]
 from alisa_platform.catalog import views as question_catalog
 urlpatterns += [path('api/v1/account/question-catalog', question_catalog.customer),
                 path('api/v1/staff/question-catalog', question_catalog.staff)]
+
+# Current parameter values share the existing account/service authentication.
+from alisa_platform.owner_data.parameter_views import parameters as current_parameters
+urlpatterns += [path("api/v1/account/parameters", current_parameters)]

@@ -229,3 +229,8 @@ if os.environ.get('ALISA_QUERIES_ENABLED', '0') not in {'0', '1'} or (QUERIES_EN
 QUESTION_CATALOG_ENABLED = os.environ.get('ALISA_QUESTION_CATALOG_ENABLED', '0') == '1'
 if os.environ.get('ALISA_QUESTION_CATALOG_ENABLED', '0') not in {'0', '1'}:
     raise ValueError('Invalid question catalogue feature flag')
+
+# Coefficient current-only storage is separately admitted after integration checks.
+OWNER_PARAMETERS_ENABLED = os.environ.get("ALISA_OWNER_PARAMETERS_ENABLED", "0") == "1"
+if os.environ.get("ALISA_OWNER_PARAMETERS_ENABLED", "0") not in {"0","1"} or OWNER_PARAMETERS_ENABLED and not OWNER_DATA_ENABLED:
+    raise ImproperlyConfigured("Current parameters require existing owner-data authority")

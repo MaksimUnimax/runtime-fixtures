@@ -1,0 +1,35 @@
+{
+  "schema": "alisa-current-parameters/v1",
+  "retention": "current_value_only",
+  "default_period_months": 12,
+  "parameters": {
+    "loss_rate": {
+      "label": "Потери заказов: отмены, невыкупы и возвраты",
+      "unit": "ratio",
+      "minimum": "0",
+      "maximum": "1",
+      "platforms": ["OZON"],
+      "scopes": ["store", "sku"],
+      "producer_template": "parameter.loss_rate.v1",
+      "required_sources": ["ordered_physical_units", "unique_failed_units"],
+      "formula": {"divide": [{"input": "failed_units"}, {"input": "ordered_units"}]},
+      "checks": [{"positive": "ordered_units"}, {"nonnegative": "failed_units"}, {"less_equal": ["failed_units", "ordered_units"]}],
+      "input_names": ["failed_units", "ordered_units"],
+      "integer_inputs": ["failed_units", "ordered_units"]
+    },
+    "delivery_mean": {
+      "label": "Прямая и последняя доставка на исходную заказанную единицу",
+      "unit": "RUB/ordered_unit",
+      "minimum": "0",
+      "maximum": null,
+      "platforms": ["OZON"],
+      "scopes": ["store", "sku"],
+      "producer_template": "parameter.delivery_mean.v1",
+      "required_sources": ["financial_forward_delivery", "financial_last_delivery", "ordered_physical_units"],
+      "formula": {"divide": [{"add": [{"input": "forward_delivery"}, {"input": "last_delivery"}]}, {"input": "ordered_units"}]},
+      "checks": [{"positive": "ordered_units"}, {"nonnegative": "forward_delivery"}, {"nonnegative": "last_delivery"}],
+      "input_names": ["forward_delivery", "last_delivery", "ordered_units"],
+      "integer_inputs": ["ordered_units"]
+    }
+  }
+}

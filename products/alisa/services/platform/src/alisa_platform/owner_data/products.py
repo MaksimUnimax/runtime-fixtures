@@ -51,4 +51,8 @@ def page(token,store_id,cursor=''):
   code=result.get('code')
   need(code=='OK',code if code in {'RATE_LIMITED','AUTH_DENIED','SCOPE_MISSING','CATALOG_INCOMPLETE','CHECK_UNAVAILABLE','TIMEOUT','PROVIDER_UNAVAILABLE','PROVIDER_PLAN_REQUIRED'}else'CATALOG_UNAVAILABLE',429 if code=='RATE_LIMITED'else 503)
   next_cursor=signing.dumps({'scope':scope,'cursor':result['cursor']},salt=SALT,compress=True)if result['cursor']else None
-  return {'items':deepcopy(result['items']),'next_cursor':next_cursor,'complete':result['complete'],'store_id':str(store2.pk),'provider':store2.provider}
+  items=deepcopy(result['items'])
+  if getattr(settings,'OWNER_PARAMETERS_ENABLED',False):
+   from .parameter_service import sku_reference
+   for item in items:item['parameter_reference']=sku_reference(actor2,store2,item['sku'])
+  return {'items':items,'next_cursor':next_cursor,'complete':result['complete'],'store_id':str(store2.pk),'provider':store2.provider}
