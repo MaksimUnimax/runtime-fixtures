@@ -12,11 +12,14 @@ import time
 import urllib.request
 import urllib.error
 
-ROOT = Path('/root/alisa-legacy-voice-install-20261114-d11a9f2a')
-PAYLOAD = Path('/run/alisa-legacy-voice-payload-d11a9f2a')
+ROOT = Path('/root/alisa-legacy-voice-install-20261114-r81-d11a9f2a')
+PAYLOAD = Path('/run/alisa-legacy-voice-payload-r81-d11a9f2a')
 OLD_ROOT = Path('/root/alisa-s09-clarification-install-20261113-d11a9f2a')
 OPS_SHA = 'f8e68d5e0ad7502c8bd31f7c859a44921ba904f3265f8607e0f4091d2e596307'
-NATIVE_BASE = Path('/opt/alice-market/releases/alisa-accrual-day-speech-r1-20261114')
+RELEASES = Path('/opt/alice-market/releases')
+REVIEWED_NATIVE_BASE = RELEASES/'alisa-accrual-day-speech-r1-20261114'
+REVIEWED_NATIVE_SHA = 'af5fdc23472211d235770472703372e767bee7c77fee0a0c940a3cddd1b8c5c0'
+NATIVE_BASE = REVIEWED_NATIVE_BASE
 STATION_BASE = Path('/opt/alisa-station/releases/station-pending-ready-race-r1-20261113')
 NATIVE_SHA = 'af5fdc23472211d235770472703372e767bee7c77fee0a0c940a3cddd1b8c5c0'
 STATION_SHA = 'c4f389e45398ff933ae4d3dd86c8bab8dba0802b039accc8381e37e6f027a53d'
@@ -49,7 +52,7 @@ def ops(source):
     module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
     module.ROOT = ROOT; module.PAYLOAD = PAYLOAD; module.SOURCE = source
     module.NATIVE_BASE = NATIVE_BASE
-    module.NATIVE = NATIVE_BASE.parent/('alisa-legacy-clarification-'+source[:16])
+    module.NATIVE = NATIVE_BASE.parent/('alisa-legacy-clarification-'+source[:16]+'-'+NATIVE_SHA[:8])
     module.BASE = module.APP = APP
     return module
 
@@ -66,11 +69,33 @@ def load_plan():
             p = PAYLOAD/kind/name
             need(not p.is_symlink() and p.resolve().is_relative_to(PAYLOAD) and sha(p) == digest,
                  'PAYLOAD_CHANGED')
+    pin_base(value)
     return value
 
 
+def compatible_base(reviewed, current):
+    need(current.get('schema') == reviewed.get('schema'), 'BASE_SCHEMA_CHANGED')
+    old, new = reviewed['files'], current['files']
+    need(set(old) == set(new) and all(new[n] == old[n] for n in old if n != 'template_catalog.json'),
+         'BASE_CODE_CHANGED')
+
+
+def pin_base(value):
+    global NATIVE_BASE, NATIVE_SHA
+    name, digest = value.get('native_base'), value.get('native_base_manifest')
+    need(type(name) is str and re.fullmatch(r'alisa-[a-zA-Z0-9_-]{1,120}', name), 'BASE_NAME')
+    need(type(digest) is str and re.fullmatch(r'[a-f0-9]{64}', digest), 'BASE_DIGEST')
+    selected = RELEASES/name
+    need(not selected.is_symlink() and selected.resolve() == selected, 'BASE_PATH')
+    need(sha(REVIEWED_NATIVE_BASE/'manifest.json') == REVIEWED_NATIVE_SHA, 'REVIEWED_BASE_CHANGED')
+    need(sha(selected/'manifest.json') == digest, 'PINNED_BASE_CHANGED')
+    compatible_base(json.loads((REVIEWED_NATIVE_BASE/'manifest.json').read_text()),
+                    json.loads((selected/'manifest.json').read_text()))
+    NATIVE_BASE, NATIVE_SHA = selected, digest
+
+
 def station_target(value):
-    return STATION_BASE.parent/('station-legacy-clarification-'+value['source'][:16])
+    return STATION_BASE.parent/('station-legacy-clarification-'+value['source'][:16]+'-'+NATIVE_SHA[:8])
 
 
 def drop_bytes(target):

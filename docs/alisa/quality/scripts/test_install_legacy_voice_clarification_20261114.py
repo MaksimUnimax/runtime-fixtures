@@ -22,7 +22,7 @@ class Checks(unittest.TestCase):
         self.patches = []
         for name, value in {
             'ROOT': root/'operator', 'PAYLOAD': root/'payload', 'OLD_ROOT': root/'old-operator',
-            'NATIVE_BASE': root/'native-old', 'STATION_BASE': root/'station-old',
+            'NATIVE_BASE': root/'native-old', 'NATIVE_SHA': 'f'*64, 'STATION_BASE': root/'station-old',
             'DROP': root/'station-override.conf', 'VERSIONS': root/'versions',
             'PROJECTION': root/'projection', 'LINK_ENV': root/'link-env'}.items():
             manager = patch.object(install, name, value); manager.start(); self.patches.append(manager)
@@ -253,6 +253,41 @@ class Checks(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'VERSION_HANDSHAKE'):
                 install.ready(self.m,self.value)
         self.assertEqual(self.sleep_calls,[])
+
+
+    def test_catalog_only_base_update_preserves_qualification(self):
+        original={'schema':'release/v1','files':{'engine.py':'e','template_catalog.json':'old','registry.json':'r'}}
+        current=json.loads(json.dumps(original));current['files']['template_catalog.json']='new'
+        install.compatible_base(original,current)
+
+    def test_base_code_change_requires_new_qualification(self):
+        original={'schema':'release/v1','files':{'engine.py':'e','template_catalog.json':'old'}}
+        current=json.loads(json.dumps(original));current['files']['engine.py']='changed'
+        with self.assertRaisesRegex(RuntimeError,'BASE_CODE_CHANGED'):
+            install.compatible_base(original,current)
+
+    def test_base_extra_file_is_not_a_catalog_update(self):
+        original={'schema':'release/v1','files':{'engine.py':'e','template_catalog.json':'old'}}
+        current=json.loads(json.dumps(original));current['files']['new_module.py']='changed'
+        with self.assertRaisesRegex(RuntimeError,'BASE_CODE_CHANGED'):
+            install.compatible_base(original,current)
+
+    def test_plan_pins_compatible_actual_base_and_rejects_changed_digest(self):
+        with patch.object(install,'RELEASES',self.root), \
+             patch.object(install,'REVIEWED_NATIVE_BASE',install.NATIVE_BASE):
+            original={'schema':'release/v1','files':{'engine.py':'e','template_catalog.json':'old'}}
+            (install.NATIVE_BASE/'manifest.json').write_text(json.dumps(original))
+            candidate=self.root/'alisa-current';candidate.mkdir()
+            current=json.loads(json.dumps(original));current['files']['template_catalog.json']='new'
+            (candidate/'manifest.json').write_text(json.dumps(current))
+            with patch.object(install,'REVIEWED_NATIVE_SHA',install.sha(install.NATIVE_BASE/'manifest.json')):
+                value={'native_base':candidate.name,'native_base_manifest':install.sha(candidate/'manifest.json')}
+                install.pin_base(value)
+                self.assertEqual(install.NATIVE_BASE,candidate)
+                (candidate/'manifest.json').write_text('changed after pin')
+                with self.assertRaisesRegex(RuntimeError,'PINNED_BASE_CHANGED'):
+                    install.pin_base(value)
+
 
 
 if __name__ == '__main__':
