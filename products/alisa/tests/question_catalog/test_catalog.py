@@ -10,7 +10,7 @@ from semantics import Rejected
 from test_runtime_port_r01_contract import Setup
 import template_catalog
 import question_catalog_extension as extension
-from alisa_platform.catalog.reader import validate, read as read_client
+from alisa_platform.catalog.reader import validate, read as read_client, preview_metadata
 from alisa_platform.runtime_adapter.job_client import RuntimeFailure
 
 
@@ -28,6 +28,29 @@ class Catalogue(Setup):
         self.assertEqual({x['id'] for x in value['items']}, set(template_catalog.TEMPLATES))
         self.assertEqual(value['template_hash'], template_catalog.HASH)
         validate(value, self.port.versions_for(self.peer), False)
+
+    def test_preview_projection_has_no_execution_rights_or_internal_sources(self):
+        value = extension.read(self.port, self.peer)
+        before = {name: self.count(name) for name in ['jobs', 'calls', 'inbox']}
+        result = preview_metadata(value, 'ozon', 'owned-store',
+            {'search':'B01.ordered_units','kind':'','offset':0})
+        self.assertTrue(result['items'])
+        for row in result['items']:
+            self.assertEqual(row['availability'], [{'store_id':'owned-store','status':'UNAVAILABLE'}])
+            self.assertNotIn('sources', row); self.assertNotIn('metrics', row)
+        self.assertEqual(before, {name:self.count(name) for name in before})
+        self.assertEqual(self.transport.calls, [])
+
+    def test_preview_search_filter_and_pagination_use_published_metadata(self):
+        value = extension.read(self.port, self.peer)
+        first = preview_metadata(value, 'ozon', 'owned-store', {'search':'','kind':'','offset':0})
+        self.assertLessEqual(len(first['items']),10)
+        self.assertEqual(first['page_offset'],0)
+        if first['next_offset'] is not None:
+            next_page=preview_metadata(value,'ozon','owned-store',{'search':'','kind':'','offset':first['next_offset']})
+            self.assertFalse({r['id']for r in first['items']} & {r['id']for r in next_page['items']})
+        empty=preview_metadata(value,'ozon','owned-store',{'search':'no-such-catalog-question-9c2a','kind':'','offset':0})
+        self.assertEqual((empty['total'],empty['items'],empty['next_offset']),(0,[],None))
 
     def test_customer_projection_has_no_execution_or_secrets(self):
         value = extension.read(self.port, self.peer, self.ctx)

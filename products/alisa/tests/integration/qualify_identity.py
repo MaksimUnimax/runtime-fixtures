@@ -63,9 +63,9 @@ def main():
             inputs=temp/'credentials.json';inputs.write_text(json.dumps(credentials));inputs.chmod(0o600)
             subprocess.run([sys.executable,str(release/'infra/db/provision.py'),'--env','stage','--admin-dsn-file',str(dsn),'--credentials-file',str(inputs)],env=clean_environment(),check=True,stdout=logs,stderr=logs)
             # Verify the offline installation includes BOTH authority lockfiles.
-            subprocess.run([sys.executable,'-m','venv',str(release/'.venv')],check=True,stdout=logs,stderr=logs)
+            subprocess.run([sys.executable,'-m','venv',str(release/'.venv')],env=clean_environment(),check=True,stdout=logs,stderr=logs)
             py=release/'.venv/bin/python'
-            subprocess.run([str(py),'-m','pip','install','--no-index','--find-links',str(release/'wheels'),'--require-hashes','-r',str(release/'services/platform/requirements.lock'),'-r',str(release/'services/identity/requirements.lock')],check=True,stdout=logs,stderr=logs)
+            subprocess.run([str(py),'-m','pip','install','--no-index','--find-links',str(release/'wheels'),'--require-hashes','-r',str(release/'services/platform/requirements.lock'),'-r',str(release/'services/identity/requirements.lock')],env=clean_environment(),check=True,stdout=logs,stderr=logs)
             check('s02_offline_identity_dependencies_installed',True)
             ca,cert,key=certificates(temp);tls=ssl.create_default_context(cafile=ca)
             home=temp/'browser-home';nss=home/'.pki/nssdb';nss.mkdir(parents=True)
@@ -250,11 +250,45 @@ def main():
             page.goto(WEB+'/app');expect(page).to_have_url(re.compile('/login'))
             check('s02_private_home_requires_own_session',True)
             check('s02_no_service_cookie_or_data_in_anonymous_html',auth_service not in page.content())
-            check('s02_start_requires_consents',request(WEB+'/auth/start','POST',{}, {'Origin':WEB})[0]==422)
+            check('s02_start_rejects_json_body',request(WEB+'/auth/start','POST',{}, {'Origin':WEB})[0]==422)
+            # Service API fixtures exercise the new-account boundary before a
+            # real browser registration. They never mint a consent receipt.
+            api_origin='http://127.0.0.1:18402/api/v1/'
+            api_headers={'Authorization':'Bearer '+auth_service}
+            status,created_flow=request(api_origin+'auth/flows','POST',{'encrypted_payload':'synthetic-consent-boundary-'+'x'*64},api_headers)
+            check('s02_login_flow_does_not_require_consent_flags',status==201)
+            private_values.append(created_flow['flow_ref'])
+            status,consumed_flow=request(api_origin+'auth/flows/consume','POST',{'flow_ref':created_flow['flow_ref']},api_headers)
+            check('s02_consent_fixture_flow_consumed',status==200)
+            fixture_session={'flow_id':consumed_flow['flow_id'],'issuer':ISSUER,'client_id':'alisa_market_stage',
+                'subject':'unaccepted-'+uuid.uuid4().hex,'email':'unaccepted@example.invalid','email_verified':True,
+                'session_hash':hashlib.sha256(secrets.token_bytes(32)).hexdigest(),'encrypted_payload':'synthetic-session-'+'x'*64}
+            # The registered dev RP id is loaded from the same BFF config.
+            fixture_session['client_id']=web_env['ALISA_WEB_OIDC_CLIENT_ID']
+            status,denied=request(api_origin+'auth/sessions','POST',fixture_session,api_headers)
+            check('s02_new_account_requires_real_registration_consents',status==403 and denied.get('code')=='CONSENT_REQUIRED')
+            valid_receipt={'version':'identity-s02-open-1','accepted_at':'2026-01-01T00:00:00+00:00'}
+            for malformed in [None,True,[],{'service':valid_receipt},
+                    {'service':valid_receipt,'privacy':{**valid_receipt,'version':'invented'}},
+                    {'service':valid_receipt,'privacy':{**valid_receipt,'accepted_at':'2099-01-01T00:00:00+00:00'}}]:
+                status,_=request(api_origin+'auth/sessions','POST',{**fixture_session,'registration_consents':malformed},api_headers)
+                check('s02_malformed_registration_consent_rejected_'+str(len(CASES)),status==422)
+            with db('platform') as conn:
+                check('s02_denied_consent_does_not_create_customer_or_receipts',conn.execute('SELECT (SELECT count(*) FROM accounts_customer),(SELECT count(*) FROM accounts_consentrecord)').fetchone()==(0,0))
             def open_identity(page):
-                page.goto(WEB);page.locator('footer a[href="/login"]').click();page.locator('input[name=service]').check();page.locator('input[name=privacy]').check()
+                page.goto(WEB);page.locator('footer a[href="/login"]').click();expect(page.locator('input[name=service],input[name=privacy]')).to_have_count(0)
                 with page.expect_response(lambda r:r.url==WEB+'/auth/start') as started:
                     page.get_by_role('button',name='Войти или создать кабинет').click()
+                if started.value.status!=303:
+                    raw=started.value.request.post_data or ''
+                    try:fields=parse_qs(raw,keep_blank_values=True,max_num_fields=8) if len(raw)<=4096 else {}
+                    except ValueError:fields={}
+                    record['safe_start_shape']={'body_bytes':len(raw.encode()),
+                        'query_present':bool(urlsplit(started.value.request.url).query),
+                        'known_field_counts':{key:len(fields.get(key,[]))for key in ['service','privacy','return_to']},
+                        'unknown_field_count':sum(key not in {'service','privacy','return_to'}for key in fields),
+                        'service_on':fields.get('service')==['on'],'privacy_on':fields.get('privacy')==['on'],
+                        'return_to_app':fields.get('return_to', ['/app'])==['/app']}
                 check('s02_bff_start_redirects_to_fixed_authority',started.value.status==303,http_status=started.value.status)
                 page.wait_for_url(re.compile(re.escape(ISSUER)+r'/accounts/'))
             checked_theme_pages=set()
@@ -316,7 +350,10 @@ def main():
             started=page.request.post(WEB+'/auth/start',form={'service':'on','privacy':'on'},headers={'Origin':WEB},max_redirects=0)
             check('s02_verified_session_post_start_reuses_cabinet_without_cookie_replacement',started.status==303 and started.headers.get('location')==WEB+'/app' and 'set-cookie' not in started.headers and next(c['value'] for c in context.cookies() if c['name']=='__Host-alisa_session')==cookie_before)
             check('s02_verified_session_start_still_rejects_foreign_origin',page.request.post(WEB+'/auth/start',form={'service':'on','privacy':'on'},headers={'Origin':'https://wrong.example.invalid'},max_redirects=0).status==403)
-            check('s02_verified_session_start_still_requires_consents',page.request.post(WEB+'/auth/start',form={},headers={'Origin':WEB},max_redirects=0).status==422)
+            ordinary=page.request.post(WEB+'/auth/start',form={},headers={'Origin':WEB},max_redirects=0)
+            check('s02_verified_session_start_reuses_cabinet_without_duplicate_consents',ordinary.status==303 and ordinary.headers.get('location')==WEB+'/app' and 'set-cookie' not in ordinary.headers and next(c['value'] for c in context.cookies() if c['name']=='__Host-alisa_session')==cookie_before)
+            for invalid in ({'service':'on'}, {'privacy':'on'}, {'service':'off','privacy':'on'}, {'unexpected':'on'}):
+                check('s02_verified_session_start_rejects_invalid_legacy_or_unknown_fields',page.request.post(WEB+'/auth/start',form=invalid,headers={'Origin':WEB},max_redirects=0).status==422)
             check('s02_verified_session_start_still_rejects_query',page.request.post(WEB+'/auth/start?next=foreign',form={'service':'on','privacy':'on'},headers={'Origin':WEB},max_redirects=0).status==422)
             with db('platform') as conn:check('s02_signed_in_navigation_creates_no_flow_or_session',conn.execute('SELECT (SELECT count(*) FROM accounts_authflow),(SELECT count(*) FROM accounts_websession)').fetchone()==navigation_before)
             with db('identity') as conn:check('s02_signed_in_navigation_sends_no_new_email',conn.execute('SELECT count(*) FROM accounts_identitymail').fetchone()[0]==mail_before)
@@ -369,8 +406,11 @@ def main():
                 first=conn.execute('SELECT customer_id,tenant_id FROM accounts_membership').fetchone()
                 check('s02_confirmed_lead_linked_only_after_verified_identity',conn.execute('SELECT count(*) FROM accounts_leadlink').fetchone()[0]==1)
                 check('s02_durable_product_consents',conn.execute('SELECT count(*) FROM accounts_consentrecord').fetchone()[0]==2)
+                product_consents=conn.execute('SELECT document,version,accepted_at FROM accounts_consentrecord ORDER BY document').fetchall()
             with db('identity') as conn:
                 check('s02_stable_uuid_person_and_identity_consents',conn.execute('SELECT count(*) FROM accounts_person').fetchone()[0]==1 and conn.execute('SELECT count(*) FROM accounts_identityconsent').fetchone()[0]==2)
+                native_consents=conn.execute('SELECT document,version,accepted_at FROM accounts_identityconsent ORDER BY document').fetchall()
+                check('s02_product_receipts_match_native_signup_versions_and_times',product_consents==native_consents)
                 check('s02_mail_payload_cleared_after_send',all(not row[0] for row in conn.execute('SELECT encrypted_payload FROM accounts_identitymail WHERE sent_at IS NOT NULL')))
             cookies=context.cookies();session=next(c for c in cookies if c['name']=='__Host-alisa_session')
             check('s02_host_only_secure_httponly_lax_product_cookie',session['domain']=='127.0.0.1' and session['secure'] and session['httpOnly'] and session['sameSite']=='Lax')
@@ -596,7 +636,7 @@ def main():
             if args.alice:
                 from qualify_skill_browser import run as run_skill_browser
                 def native_skill_login(skill_page):
-                    skill_page.locator('input[name=service]').check();skill_page.locator('input[name=privacy]').check()
+                    expect(skill_page.locator('input[name=service],input[name=privacy]')).to_have_count(0)
                     skill_page.get_by_role('button',name='Войти или создать кабинет').click()
                     field=skill_page.locator('input[name=login]').first
                     expect(field).to_be_visible();field.fill(email);skill_page.locator('input[name=password]').fill(customer_password)
@@ -694,6 +734,9 @@ def main():
             record['safe_auth_diagnostics']=diagnostics[-10:]
             logs.seek(0);private_text=logs.read()
             record['safe_process_error_classes']=sorted(set(re.findall(r'(?m)^([A-Za-z_][A-Za-z0-9_]*(?:Error|Exception)):',private_text)))
+            record['safe_missing_module_names']=sorted(set(re.findall(r"ModuleNotFoundError: No module named '([A-Za-z0-9_.]{1,120})'",private_text)))[:10]
+            failed=re.fullmatch(r'CHECK_FAILED:([A-Za-z0-9_]{1,180})',str(sys.exception()))
+            if failed:record['failed_check']=failed.group(1)
             record['safe_process_exit_codes']=[process.poll() for process in PROCESSES]
             record['safe_failure_categories']=[name for name,marker in {'CWD_NOT_ACCESSIBLE':"can't chdir",'SOURCE_PERMISSION_DENIED':'Permission denied','UNREGISTERED_UID':'getpwuid','WORKER_BOOT_FAILED':'Worker failed to boot','MISSING_MODULE':'ModuleNotFoundError','CONNECTION_REFUSED':'Connection refused'}.items() if marker in private_text]
     finally:

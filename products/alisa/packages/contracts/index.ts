@@ -19,8 +19,8 @@ export type LeadConfirmInput = {
 // Generated from contracts/auth-flow-v1.json. Do not edit.
 export type AuthFlowInput = {
   encrypted_payload: string;
-  service_consent: true;
-  privacy_consent: true;
+  service_consent?: true;
+  privacy_consent?: true;
   handoff_id?: string;
 };
 // Generated from contracts/auth-session-v1.json. Do not edit.
@@ -33,4 +33,5 @@ export type AuthSessionInput = {
   email_verified: true;
   session_hash: string;
   encrypted_payload: string;
+  registration_consents?: Record<string, unknown>;
 };

@@ -155,6 +155,7 @@ def main():
         run([python(),'-m','unittest','discover','-s',ROOT/'tests','-p','test_*.py','-v'])
         run(['node','--experimental-strip-types',ROOT/'tests/contracts/engineering-boundary.mjs'])
         run(['node','--experimental-strip-types',ROOT/'tests/contracts/auth-origins.mjs'])
+        run(['node','--experimental-strip-types',ROOT/'tests/contracts/registration-consents.mjs'])
         run(['node','--test',ROOT/'tests/contracts/report-download.mjs'])
     elif args.command=='package':package(args.source)
     elif args.command=='migrate':

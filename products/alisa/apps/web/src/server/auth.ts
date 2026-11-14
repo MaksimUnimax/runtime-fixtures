@@ -1,3 +1,4 @@
+import {registrationConsents} from './registration-consents';
 import * as oidc from 'openid-client';
 import {EncryptJWT,jwtDecrypt} from 'jose';
 import {createHash,randomBytes} from 'node:crypto';
@@ -84,12 +85,14 @@ export async function begin(request:Request){
   if(!validBrowserRequest(request,true))return response({code:'ORIGIN_DENIED'},403);
   if(new URL(request.url).search)return response({code:'INVALID_PAYLOAD'},422);
   const text=await boundedBody(request,2048);const form=new URLSearchParams(text);
-  if([...form.keys()].some(k=>!['service','privacy','return_to'].includes(k))||form.getAll('service').length!==1||form.getAll('privacy').length!==1||form.get('service')!=='on'||form.get('privacy')!=='on'||(form.get('return_to')||'/app')!=='/app')return response({code:'INVALID_PAYLOAD'},422);
+  const legacy=form.has('service')||form.has('privacy');
+  if([...form.keys()].some(k=>!['return_to','service','privacy'].includes(k))||form.getAll('return_to').length>1
+    ||(form.get('return_to')||'/app')!=='/app'||(legacy&&(form.getAll('service').length!==1||form.getAll('privacy').length!==1||form.get('service')!=='on'||form.get('privacy')!=='on')))return response({code:'INVALID_PAYLOAD'},422);
   if(await getProfile(readCookie(request,SESSION_COOKIE)))return new Response(null,{status:303,headers:{Location:siteOrigin()+await customerReturn(request),'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
   const config=await client(),state=oidc.randomState(),nonce=oidc.randomNonce(),verifier=oidc.randomPKCECodeVerifier();
   const encrypted=await seal({state,nonce,verifier,session_token:randomBytes(32).toString('base64url'),return_to:'/app'},'alisa-flow','10m');
   const handoff=readCookie(request,HANDOFF_COOKIE);
-  const input:AuthFlowInput={encrypted_payload:encrypted,service_consent:true,privacy_consent:true,...(/^[0-9a-f-]{36}$/i.test(handoff)?{handoff_id:handoff}:{})};
+  const input:AuthFlowInput={encrypted_payload:encrypted,...(/^[0-9a-f-]{36}$/i.test(handoff)?{handoff_id:handoff}:{})};
   const flow=await accountApi('createFlow',input);if(flow.status!==201||typeof flow.body.flow_ref!=='string')throw new AuthUnavailable();
   const redirect=oidc.buildAuthorizationUrl(config,{redirect_uri:configuration().origin+'/auth/callback',scope:'openid email profile',response_type:'code',prompt:'login',state,nonce,code_challenge:await oidc.calculatePKCECodeChallenge(verifier),code_challenge_method:'S256'});
   return new Response(null,{status:303,headers:{Location:redirect.href,'Set-Cookie':cookie(FLOW_COOKIE,flow.body.flow_ref,600),'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
@@ -113,10 +116,11 @@ export async function callback(request:Request){
       ||claims.acr!=='urn:octoport:customer:password-email:v1'||!Array.isArray(claims.amr)
       ||!claims.amr.includes('pwd')||!claims.amr.includes('email_otp')
       ||typeof claims.auth_time!=='number'||claims.auth_time<Date.now()/1000-300||claims.auth_time>Date.now()/1000+5)throw new Error();
+    const consents=registrationConsents(claims.alisa_consents);
     const sessionToken=payload.session_token;
     const encrypted=await seal({access_token:tokens.access_token,id_token:tokens.id_token,token_type:tokens.token_type},'alisa-tokens','1h');
     const input:AuthSessionInput={flow_id:flow.body.flow_id,issuer:c.issuer.origin,client_id:c.clientId,subject:claims.sub,email:claims.email,email_verified:true,
-      session_hash:createHash('sha256').update(sessionToken).digest('hex'),encrypted_payload:encrypted};
+      session_hash:createHash('sha256').update(sessionToken).digest('hex'),encrypted_payload:encrypted,...(consents===undefined?{}:{registration_consents:consents})};
     let result;
     try{result=await accountApi('createSession',input);}
     catch{result=await accountApi('createSession',input);}

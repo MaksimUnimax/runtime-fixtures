@@ -1,10 +1,33 @@
 {
-  "$schema":"https://json-schema.org/draft/2020-12/schema",
-  "type":"object","additionalProperties":false,
-  "required":["encrypted_payload","service_consent","privacy_consent"],
-  "properties":{
-    "encrypted_payload":{"type":"string","minLength":40,"maxLength":16000},
-    "service_consent":{"const":true},"privacy_consent":{"const":true},
-    "handoff_id":{"type":"string","format":"uuid"}
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "encrypted_payload"
+  ],
+  "properties": {
+    "encrypted_payload": {
+      "type": "string",
+      "minLength": 40,
+      "maxLength": 16000
+    },
+    "service_consent": {
+      "const": true
+    },
+    "privacy_consent": {
+      "const": true
+    },
+    "handoff_id": {
+      "type": "string",
+      "format": "uuid"
+    }
+  },
+  "dependentRequired": {
+    "service_consent": [
+      "privacy_consent"
+    ],
+    "privacy_consent": [
+      "service_consent"
+    ]
   }
 }
