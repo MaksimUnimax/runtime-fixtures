@@ -1,5 +1,30 @@
 # Единый технический план Octoport
 
+<a id="documentary-rebase-20261113"></a>
+
+## Привязка принятого плана к возобновлению 13 ноября 2026
+
+**Фактическое возобновление — 13.11.2026 01:42:41.236006 UTC /06:42:41.236006 UTC+5**, команда владельца «запускай работу», `Sentinel_e55bc9c2f59081918d19aef06d64a929`. Общая пауза Octoport снята. Отдельные safety STOP, исторические UNKNOWN, locks/WIP и пауза Яндекс Заданий сохраняются.
+
+Полностью принят [итог Анализатора 11 ноября](../../project-audits/2026-11-11-daily-plan.md), исходник [Library](library-file:libfile_bafc431439bc8191944c7347a5da350d), v0 по квитанции автора/координатора, **267999 B /1887 строк**, SHA256 `d37a455161c984c676aeaf555b4a25bafeb9e356433333751f4ad6cfd79b0864`. Полный текст, все 33 блока/216 исходных steps и expected, 21 техническое обязательство, 18 milestones, 14 baseline/14 delta и 8 dependencies сохранены без редакции. Само чтение Library вернуло version_id:null; номер v0 не выведен из null.
+
+**Окна 11.11 08:00→12.11 08:00 UTC+5 были проектом при разрешённой паузе.** Они не стали назначениями и не объявляются сорванными. Их исходные cutoff/due остаются в полном исходнике; прежние факты и обязательства до паузы не переписываются. Настоящее возобновление не переносит старые часы автоматически на 13–14 ноября и не создаёт новый ETA. Применяются порядок функций, зависимости и действующие отдельные полномочия; новые контрольные окна требуют фактического назначения и пригодных входов.
+
+[Полный документальный checkpoint/handoff возобновления](handoffs/2026-11-13-resumption.md) отделяет координаторский срез **13.11 02:28 UTC** от позднего **Reviewer readback 02:38:15.678264 UTC**:
+
+| Текущая линия | Что фактически подтверждено | Что остаётся открытым |
+|---|---|---|
+| N1 read-model 4a | B опубликовал `4a8965753bfd6fd9714206c5599b9942e2a3bc1a`, parent `964872d425b9fefa14bfe2abcea5f4f679e27686`, tree `d2619cb20f1753d906c2e033551a36d790c71efd`. Авторские direct 60/60 и TAP 60/60 — одна кампания, не 120 уникальных. Поздний независимый verdict — **REQUEST_CHANGES_SOURCE, AC-READ-01/P2**. | Противоречивые metadata/receipt snapshots возвращают LOOKUP_DATA вместо UNKNOWN/INVALID_SNAPSHOT. Один source/mock finding; actual DB дефект не доказан. Consumer B и исправление не подтверждены. |
+| Локальные 057 и 8a | `0570446863ebba8135a4d0b11d31edc9bbc6425e` — HTTP GET source, 40/40 direct и TAP. `8a6a8e730ba8b05d2703ace0fc53ae3e24f0af9f` — schema/query adapter и explicit GET composition, 39/39 direct и TAP с fake query → adapter → GET callback → настоящий consumer995. Clean own readback 02:01:25 UTC; 5 changed +24 retained pins; push 0. | Оба локальные, не опубликованные и не независимо принятые. Actual writer/co-commit receipt, query handle, применение схемы и actual DB/runtime/UI остаются отдельными границами. SQL/DDL, startup/config/migration registry не исполнялись/не менялись этим source-срезом. |
+| Передачи и review | На 02:28 B turn `01a1d2a5-9ae8-72ca-abf9-ce739811eda2` inProgress, передаёт сохранённые bytes 057/8a и продолжает свой разрешённый source scope. Reviewer проверял только опубликованный 4a; его поздний terminal передан в тот же активный B как steer. | Фактическая доставка 057/8a, consumer readback и correction outcome B не получены. Review 4a не приёмка 057/8a. |
+| T1 и actual QA | T1 completed READINESS_BLOCKED_TOOLCHAIN: 20 UI cases prepared, 0 executed. Node/Playwright доступны; React/DOM/JSX/Next не найдены в ограниченных проверенных roots. | Bounded результат не глобальное отсутствие. Actual mount требует React/DOM + настоящий JSX transform + DOM/browser target; полный Next user-path дополнительно Next. Старые Q0/28, GET67/0 и новые20/0 имеют разные scope; не суммируются. T1-fixer paused, прежний MAIN threshold не изменён. |
+
+AC-READ-01: `account-code-read-repository.ts:96–104`, exact4a. ABSENT rev0 + APPLIED rev1 и ACTIVE rev1 + APPLIED rev2 дали два FAIL. Независимые supplied60 — 60/60; собственные112 — 109 PASS /2 FAIL /1 CONTRACT_BOUNDARY для same revision + different createdAt, правило не установлено. Эти знаменатели не объединяются. REPORT 9304 B /SHA256 `9184a26e9a6734bf92e8118851aa0718cc1cb4a9ac5522f202239e159545659b`; RESULT 6542 B /SHA256 `1af73a89a260fcc06794263de0fa1bcdf5d4d6a336b712d77643ff8058fc5240` проверены координатором. Docs атрибутирует факт его адресной первичной передаче и не утверждает собственного чтения этих двух raw bodies.
+
+**Очередь:** N1–N9 → **N10 независимая неплатёжная приёмка** → P оплата и её приёмка → E браузерное расширение → I installed/integration → R business/owner/RC/release. Один основной B; Reviewer и T1 по одной очереди. N1 целиком не принят; Health PENDING_CONTRACT. Все 8 runtime dependencies OPEN, источник/остаток каждого — в handoff. I2 или неизвестный marker не blanket gate независимой source-работы.
+
+Два B1855 remote UNKNOWN, T1-fixer UNKNOWN, C tunnel, старые A locks, PREP/GET/unused consents без нового проверенного результата не закрываются и не повторяются. Исторические A/C own overlap NO не current/global guard. Эта документальная привязка не меняет acceptance/product policy, модели, роли, активные frozen задания, source/live/DB/security или расписания и не поручает работу B/Reviewer/T1. Новое полное ETA остаётся UNKNOWN без измеренного remaining, мощности и внешних входов. Существующие исторические разделы PLAN ниже сохраняются как исходные версии.
+
 <a id="nonpayment-payment-browser-order-20261110"></a>
 
 ## Неплатёжная инфраструктура затем оплата затем браузерное расширение 10 ноября 2026
