@@ -28,7 +28,10 @@ def main():
     parser.add_argument('--report-browser-artifact', type=Path)
     parser.add_argument('--platform-stores-overlay', action='store_true')
     parser.add_argument('--template-clarification-overlay', action='store_true')
+    parser.add_argument('--question-catalog-overlay', action='store_true')
     args = parser.parse_args()
+    if args.question_catalog_overlay and not args.current_core_source:
+        parser.error('--question-catalog-overlay requires --current-core-source')
     if args.runtime_source and args.current_core_source:
         parser.error('Select one pinned runtime source')
     params = psycopg.conninfo.conninfo_to_dict(os.environ.get('ALISA_TEST_PG_DSN', ''))
@@ -115,6 +118,11 @@ def main():
                     extension=importlib.util.module_from_spec(spec);spec.loader.exec_module(extension)
                     source=extension.build(source,temp/'template-clarification-core')
                     runtime['ALISA_TEMPLATE_CLARIFICATION_TEST']='1'
+                if args.question_catalog_overlay:
+                    import importlib.util
+                    spec=importlib.util.spec_from_file_location('catalog_overlay',ROOT/'runtime/question_catalog/build_overlay.py')
+                    extension=importlib.util.module_from_spec(spec);spec.loader.exec_module(extension)
+                    source=extension.build(source,temp/'question-catalog-core')
                 runtime['ALISA_RT_JOB_TEST_SOURCE']=str(source)
                 runtime['ALISA_RT_JOB_MANIFEST_SHA256']=hashlib.sha256((source/'CURRENT_CORE_MANIFEST.json').read_bytes()).hexdigest()
                 cases.append(('current_core_roundtrip', ROOT / 'tests/runtime_authority/current_core_roundtrip.py'))
@@ -122,6 +130,8 @@ def main():
                 cases.append(('voice_selection', ROOT / 'tests/runtime_authority/voice_selection.py'))
                 if args.template_clarification_overlay:
                     cases.append(('template_clarification', ROOT / 'tests/runtime_authority/template_clarification.py'))
+                if args.question_catalog_overlay:
+                    cases.append(('question_catalog', ROOT / 'tests/runtime_authority/question_catalog.py'))
                 if args.platform_stores_overlay:
                     cases.append(('store_enrollment', ROOT / 'tests/runtime_authority/store_enrollment.py'))
                 cases.append(('report_roundtrip', ROOT / 'tests/runtime_authority/report_roundtrip.py'))

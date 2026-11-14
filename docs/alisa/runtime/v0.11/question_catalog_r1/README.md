@@ -24,8 +24,9 @@ staff.manage, без добавления прав другим сотрудни
 Общий IPC timeout не увеличивается. Просмотр не создаёт job, не вызывает модель
 или marketplace transport. Права не кэшируются между пользователями/запросами.
 
-Интеграция в будущий принятый выпуск: добавить question_catalog_extension.py
-рядом с текущим runtime, вызвать install() после существующих dispatch overlays.
+Интеграция в будущий принятый выпуск: products/alisa/runtime/question_catalog/build_overlay.py
+проверяет manifest основы, добавляет question_catalog_extension.py и вызывает
+install() в штатном runtime_port_service.attach перед Gateway, сохраняя старый dispatch.
 Frozen rt_job_r02 и task schema не меняются; предыдущий dispatch сохраняется.
 Платформа и оба UI включаются ALISA_QUESTION_CATALOG_ENABLED=1 только после
 совместимой установки endpoint и обновления штатного versions pin. Пока флаг
@@ -42,3 +43,7 @@ runtime, его tests, этот каталог, platform/src и tests/question_c
 python -B -m unittest test_catalog. CI дополнительно проверяет совместимость
 с неизменяемой основой rt_job_r02. test_draft.mjs выполняет проверки выбора
 магазина из настоящего TypeScript helper, без модели/маркетплейса.
+
+CI qualifier --question-catalog-overlay --current-core-source проверяет реальную
+PostgreSQL authority, Unix IPC и production attach с synthetic credentials.
+Флаг overlay без current-core-source отклоняется. Внешняя сеть в тесте запрещена.

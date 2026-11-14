@@ -1,6 +1,6 @@
 # AL S11 каталог поддерживаемых вопросов
 
-Статус: SOURCE_REVIEWED, UI_FIXTURE_PASS, NOT_INSTALLED.
+Статус: SOURCE_REVIEWED, UI_FIXTURE_PASS, PG_UNIX_PASS, NOT_INSTALLED.
 Основа отдельной ветки: a00ea490371bd217a8eecf51ffbf0bcd83e2d763,
 feat/alisa-existing-station-clarification-20261114. Предыдущий адаптер уточнений
 уже установлен; повторная установка адаптера этим изменением не выполняется.
@@ -33,6 +33,8 @@ params API, ключи и содержимое клиентских отчёто
 | Web и admin | typegen и tsc --noEmit PASS |
 | Настоящий Next и headless Chromium | 9 UI-fixture checks PASS; собственный loopback API, synthetic cookie/service key, 0 submit и 0 внешних browser requests |
 | Латентность страницы в fixture | 10 карточек за 0,442 секунды, jobs = 0; это не production SLA |
+| PostgreSQL + Unix authority/runtime + штатный attach | 9 PASS; реальные изолированные границы; owner/session/revoke; 0 jobs, provider/model calls |
+| CI исходной версии 53d17a360b36567ed3b84b6a8031bfc2ed32808e | Documentation и Alisa platform source checks SUCCESS, run 43561942099; не заменяет CI последующих изменений |
 | Независимое review | APPROVE_SOURCE после устранения замечаний; установленная приёмка не заявлена |
 
 Browser qualifier проверил отрисовку, понятную дату начисления, выбор магазина,
@@ -68,7 +70,7 @@ installed manifest. owner_data, расчётные шаблоны/матрица
 
 ## Следующий результат
 
-Дождаться CI точного SOURCE SHA. Затем собрать совместимый кандидат поверх
+Для нового startup/PG overlay нужен CI точного SOURCE SHA. Затем собрать совместимый кандидат поверх
 свежего фактического ядра, подключить extension на старте и штатно обновить
 versions pin; проверить полный цикл через настоящий Unix/BFF/платформенный
 аккаунт и установленный UI. Только после этого включать флаг и принимать S11.

@@ -109,7 +109,7 @@ jobs:
             .venv/bin/python tests/integration/qualify_runtime_authority.py \
             --output dist/s07-authority-qualification.json \
             --current-core-source "$GITHUB_WORKSPACE/docs/alisa/runtime/v0.11/rt_job_r02" \
-            --platform-stores-overlay --template-clarification-overlay \
+            --platform-stores-overlay --template-clarification-overlay --question-catalog-overlay \
             --report-browser-artifact "dist/alisa-${ALISA_SOURCE_SHA:0:16}.tar.gz"
       - name: Current-core RuntimePort, reader isolation and seven-day model accounting
         working-directory: docs/alisa/runtime/v0.11/rt_job_r02
