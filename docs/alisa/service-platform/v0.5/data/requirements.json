@@ -1388,5 +1388,122 @@
     "execution_steps": [
       "AL-S00"
     ]
+  },
+  {
+    "id": "AL-R071",
+    "text": "Одна актуальная запись коэффициента на tenant/магазин/параметр/область; успешная замена уничтожает прежний value и паспорт сборки. Истории, before/after payload и восстановления старых переменных нет.",
+    "source_user_requirements": [
+      "U16"
+    ],
+    "origin": "DIRECT_USER_2026-11-14",
+    "features": [
+      "AL-F06",
+      "AL-F19"
+    ],
+    "status": "NOT_VERIFIED_LIVE",
+    "execution_steps": [
+      "AL-S09",
+      "AL-S15"
+    ],
+    "contract": "docs/alisa/architecture/CURRENT_PARAMETERS_CONTRACT_20261114.md",
+    "implementation_status": "ISOLATED_BACKEND_TESTED_NOT_DEPLOYED"
+  },
+  {
+    "id": "AL-R072",
+    "text": "У текущего рассчитанного коэффициента доступны collected_at, calculated_at, updated_at и период данных; ручному числу нельзя приписывать дату сбора. Чтение даты не изменяет запись и не вызывает сбор.",
+    "source_user_requirements": [
+      "U16"
+    ],
+    "origin": "DIRECT_USER_2026-11-14",
+    "features": [
+      "AL-F06",
+      "AL-F09"
+    ],
+    "status": "NOT_VERIFIED_LIVE",
+    "execution_steps": [
+      "AL-S09",
+      "AL-S11"
+    ],
+    "contract": "docs/alisa/architecture/CURRENT_PARAMETERS_CONTRACT_20261114.md",
+    "implementation_status": "ISOLATED_BACKEND_TESTED_NOT_DEPLOYED"
+  },
+  {
+    "id": "AL-R073",
+    "text": "Сохранённое число не истекает по возрасту. Производитель вызывается только при отсутствии либо прямой команде пересчёта; ноль не является отсутствием.",
+    "source_user_requirements": [
+      "U17"
+    ],
+    "origin": "DIRECT_USER_2026-11-14",
+    "features": [
+      "AL-F06",
+      "AL-F12"
+    ],
+    "status": "NOT_VERIFIED_LIVE",
+    "execution_steps": [
+      "AL-S09",
+      "AL-S13"
+    ],
+    "contract": "docs/alisa/architecture/CURRENT_PARAMETERS_CONTRACT_20261114.md",
+    "implementation_status": "ISOLATED_BACKEND_TESTED_NOT_DEPLOYED"
+  },
+  {
+    "id": "AL-R074",
+    "text": "Форма расчёта содержит год по умолчанию и позволяет менять период до отправки. При подтверждённой короткой истории применяется доступный диапазон; технический пропуск не считается короткой историей.",
+    "source_user_requirements": [
+      "U18"
+    ],
+    "origin": "DIRECT_USER_2026-11-14",
+    "features": [
+      "AL-F07",
+      "AL-F09"
+    ],
+    "status": "NOT_VERIFIED_LIVE",
+    "execution_steps": [
+      "AL-S09",
+      "AL-S11"
+    ],
+    "contract": "docs/alisa/architecture/CURRENT_PARAMETERS_CONTRACT_20261114.md",
+    "implementation_status": "ISOLATED_BACKEND_TESTED_NOT_DEPLOYED"
+  },
+  {
+    "id": "AL-R075",
+    "text": "ЛК и голос изменяют одно текущее значение; SKU наследует общее без копии. Удаление исключения очищает его число и паспорт, но не ставит ноль.",
+    "source_user_requirements": [
+      "U16",
+      "U18"
+    ],
+    "origin": "DIRECT_USER_2026-11-14",
+    "features": [
+      "AL-F06",
+      "AL-F07"
+    ],
+    "status": "NOT_VERIFIED_LIVE",
+    "execution_steps": [
+      "AL-S09",
+      "AL-S11"
+    ],
+    "contract": "docs/alisa/architecture/CURRENT_PARAMETERS_CONTRACT_20261114.md",
+    "implementation_status": "ISOLATED_BACKEND_TESTED_NOT_DEPLOYED"
+  },
+  {
+    "id": "AL-R076",
+    "text": "Запись атомарна и проверяет актуальные права/ожидаемую техническую ревизию. Ошибка или гонка оставляет единственное актуальное значение; idempotency receipt не хранит прежние числа.",
+    "source_user_requirements": [
+      "U16",
+      "U17"
+    ],
+    "origin": "DIRECT_USER_2026-11-14",
+    "features": [
+      "AL-F08",
+      "AL-F19"
+    ],
+    "status": "NOT_VERIFIED_LIVE",
+    "execution_steps": [
+      "AL-S09",
+      "AL-S13",
+      "AL-S15"
+    ],
+    "contract": "docs/alisa/architecture/CURRENT_PARAMETERS_CONTRACT_20261114.md",
+    "implementation_status": "ISOLATED_BACKEND_TESTED_NOT_DEPLOYED"
   }
 ]

@@ -86,8 +86,8 @@
     },
     {
       "path": "EXECUTOR_BRIEF.md",
-      "size_bytes": 4780,
-      "sha256": "2af36ccaaf10966067cf4376a0d42abb2f5552497f20043070fc927d0757f08d"
+      "size_bytes": 6290,
+      "sha256": "15559364257fe39948081d649b633a006e135b32c31972bce09b5f6734a90bd8"
     },
     {
       "path": "FOUNDATION_00.md",
@@ -131,8 +131,8 @@
     },
     {
       "path": "QUERY_INSIGHTS.md",
-      "size_bytes": 14863,
-      "sha256": "827f2e46675178d4bba6214bdb8022d780434e8284cf88d635455f0790b812ae"
+      "size_bytes": 14960,
+      "sha256": "a5845ecd15cc485e5dd4424e02f1177380b9dbc364f11c1d499d73de15a546fd"
     },
     {
       "path": "QUERY_INSIGHTS_AND_CATALOG.md",
@@ -145,14 +145,24 @@
       "sha256": "e2649173e70456d225e9348a97bb121578dd33341ce8007de334e7ecc19d75e1"
     },
     {
+      "path": "REPORT_ARCHIVE_48H.md",
+      "size_bytes": 8862,
+      "sha256": "bbf8c23d23e8cc9a6272fc0cb568c9da2a00feaa7706d87b2ac1dd6dc912bb6f"
+    },
+    {
       "path": "ROADMAP.md",
-      "size_bytes": 96166,
-      "sha256": "e32202476fe394c5362dfb87f91bf03891363da129be3c8ed25facd49a237f2f"
+      "size_bytes": 105215,
+      "sha256": "422e34921ed25ad0f6428c1243bb748fb57be22fc125946ff0df57724f7f5ce0"
     },
     {
       "path": "ROADMAP_GUIDE.docx",
       "size_bytes": 54107,
       "sha256": "87806d7d0ccce809756b4974ebfdee4266c659b1d7db046644cec0748e347fdc"
+    },
+    {
+      "path": "RUNTIME_VERSION_SYNC.md",
+      "size_bytes": 8781,
+      "sha256": "3061e9f908df44087b906c147ec2dbe868b7c817c032375ac5c7558f282c6d5b"
     },
     {
       "path": "SECURITY_PRIVACY_OPERATIONS.md",
@@ -171,18 +181,18 @@
     },
     {
       "path": "SPEC.md",
-      "size_bytes": 14788,
-      "sha256": "dc49c8ecaeb5d48311c4ea838d323b80276b640658be6d41c9973557f0dc3142"
+      "size_bytes": 19260,
+      "sha256": "8d6f290601d58eb48e7e21a12536eceda634cf297923ceb9a09f64fc9b42b368"
     },
     {
       "path": "START_HERE.md",
-      "size_bytes": 3392,
-      "sha256": "691faea6346066c7c15cbcf443655fe3ee298b471bc389cd93197ce78ea1ce4f"
+      "size_bytes": 4902,
+      "sha256": "80db7804ee782e2001bd6040aaf2b934666b14df7deaf4ecba47f612790de89f"
     },
     {
       "path": "TEST_PLAN.md",
-      "size_bytes": 234740,
-      "sha256": "7a03151af8aae17ce46cb19f33ff7ac5ded10258333c715eb79c638ff82c9d52"
+      "size_bytes": 235260,
+      "sha256": "a5ef247b5be66fa345b6bef1589646b0286b8f96afe09b7c983d9242b39c23eb"
     },
     {
       "path": "TOOLS_SELFTEST.json",
@@ -251,18 +261,18 @@
     },
     {
       "path": "data/owner_requirements.json",
-      "size_bytes": 4906,
-      "sha256": "7d5c4dcf3abc70213a86a0f41ff443340aa3b23fb7ba1614e98b4c0abb7c9fd3"
+      "size_bytes": 6903,
+      "sha256": "990831cd28b5d08b79d3e1e26860d6e7c9a168cb107aafaee8b161b11998c0f2"
     },
     {
       "path": "data/requirements.json",
-      "size_bytes": 37376,
-      "sha256": "533f4711ba31ae7923b7bb2e6ba35c37f4c576e374448a6af9c72412b3e99ad2"
+      "size_bytes": 41978,
+      "sha256": "0f456822bf83ff838039b8da3d0cec204489e3fa3d80adb193673100b1274c56"
     },
     {
       "path": "data/roadmap.json",
-      "size_bytes": 102848,
-      "sha256": "359efc923413c18c3c6542c81a1a1019bfecdb41fd582efbbbe5eaa82f6f4d69"
+      "size_bytes": 106011,
+      "sha256": "e940e9b6b84c2f82af40d1f879df68ce01f51e3da795f013bf258fb43b630923"
     },
     {
       "path": "fixtures/business_gold.json",
@@ -496,8 +506,8 @@
     },
     {
       "path": "tools/validate_pack.py",
-      "size_bytes": 12175,
-      "sha256": "1f9a167eb85fb20fd3325bc3621ff8332440af248a8552e596654f99f655e1d2"
+      "size_bytes": 12544,
+      "sha256": "78d68667da234f621627da56108e9694e0a6d7a4677d7ff32954570c53d873b1"
     },
     {
       "path": "tools/verify_manifest.py",
