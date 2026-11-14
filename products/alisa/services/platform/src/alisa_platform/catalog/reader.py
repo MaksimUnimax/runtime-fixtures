@@ -69,3 +69,25 @@ def read(api, *, scoped, query=None):
         need(result['page_offset'] == (query or {}).get('offset', 0), 'CATALOG_INCOMPATIBLE')
         need(api.authorizer.current(context, 'capabilities') is True, 'PERMISSION_DENIED')
     return result
+
+
+def preview_metadata(value, platform, store_id, query):
+    """Published questions only; this projection never grants collection access."""
+    fields = {'id', 'version', 'kind', 'description', 'platforms', 'input_policy',
+              'units', 'dependencies', 'columns'}
+    matching = [item for item in value['items']
+                if (not item['platforms'] or platform in item['platforms'])
+                and (not query['kind'] or item['kind'] == query['kind'])
+                and query['search'].casefold() in (item['description'] + ' ' + item['id']).casefold()]
+    start = query['offset']; end = start + 10
+    items = []
+    for item in matching[start:end]:
+        row = {key: deepcopy(item[key]) for key in fields if key in item}
+        row['availability'] = [{'store_id': store_id, 'status': 'UNAVAILABLE'}]
+        items.append(row)
+    result = {'schema': value['schema'], 'versions': value['versions'],
+              'template_hash': value['template_hash'], 'items': items,
+              'template_ids': [item['id'] for item in value['items']],
+              'total': len(matching), 'page_offset': start,
+              'next_offset': end if end < len(matching) else None}
+    return validate(result, value['versions'], True)

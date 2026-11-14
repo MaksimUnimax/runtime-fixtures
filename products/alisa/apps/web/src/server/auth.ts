@@ -85,7 +85,9 @@ export async function begin(request:Request){
   if(!validBrowserRequest(request,true))return response({code:'ORIGIN_DENIED'},403);
   if(new URL(request.url).search)return response({code:'INVALID_PAYLOAD'},422);
   const text=await boundedBody(request,2048);const form=new URLSearchParams(text);
-  if([...form.keys()].some(k=>k!=='return_to')||form.getAll('return_to').length>1||(form.get('return_to')||'/app')!=='/app')return response({code:'INVALID_PAYLOAD'},422);
+  const legacy=form.has('service')||form.has('privacy');
+  if([...form.keys()].some(k=>!['return_to','service','privacy'].includes(k))||form.getAll('return_to').length>1
+    ||(form.get('return_to')||'/app')!=='/app'||(legacy&&(form.getAll('service').length!==1||form.getAll('privacy').length!==1||form.get('service')!=='on'||form.get('privacy')!=='on')))return response({code:'INVALID_PAYLOAD'},422);
   if(await getProfile(readCookie(request,SESSION_COOKIE)))return new Response(null,{status:303,headers:{Location:siteOrigin()+await customerReturn(request),'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
   const config=await client(),state=oidc.randomState(),nonce=oidc.randomNonce(),verifier=oidc.randomPKCECodeVerifier();
   const encrypted=await seal({state,nonce,verifier,session_token:randomBytes(32).toString('base64url'),return_to:'/app'},'alisa-flow','10m');
