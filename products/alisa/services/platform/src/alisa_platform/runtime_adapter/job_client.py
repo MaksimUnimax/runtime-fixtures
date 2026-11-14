@@ -202,7 +202,7 @@ class RuntimeClient:
         self._pid = None
 
     def _exchange(self, operation, payload, validate):
-        mutation = operation in {'submit', 'cancel', 'clarify'}
+        mutation = operation in {'submit', 'cancel', 'clarify', 'parameter_submit'}
         sent = False
         deadline = time.monotonic() + self.timeout
         def remaining():
@@ -274,8 +274,8 @@ class RuntimeClient:
             raise RuntimeFailure('DEPENDENCY_UNAVAILABLE') from None
 
     def _authorized(self, operation, context, payload, validate):
-        policy_operation = 'submit' if operation == 'clarify' else operation
-        mutation = operation in {'submit', 'cancel', 'clarify'}
+        policy_operation = 'submit' if operation in {'clarify','parameter_submit'} else operation
+        mutation = operation in {'submit', 'cancel', 'clarify', 'parameter_submit'}
         if self._pid is None: self.current_versions()
         if mutation:
             need(self.authorizer.current(deepcopy(context), policy_operation) is True, 'PERMISSION_DENIED')
@@ -294,7 +294,14 @@ class RuntimeClient:
 
     def capabilities(self):
         def validate(value):
-            exact(value, VERSION_FIELDS | {'operations', 'query_input_kinds', 'utterance_max_chars',
+            extension=value.get('parameter_collection')
+            if extension is not None:
+                exact(extension,{'schema','available','producer_hash','definition_hash','pin','parameters'})
+                need(extension['schema']=='alisa-parameter-collection/v1'and type(extension['available'])is bool and type(extension['parameters'])is list,'CATALOG_INCOMPATIBLE')
+                need(all(type(extension[k])is str and re.fullmatch(r'[a-f0-9]{64}',extension[k])for k in ('producer_hash','definition_hash','pin')),'CATALOG_INCOMPATIBLE')
+                need(all(type(k)is str and re.fullmatch(r'[a-z][a-z0-9_]*',k)for k in extension['parameters']),'CATALOG_INCOMPATIBLE')
+            base={k:v for k,v in value.items()if k!='parameter_collection'}
+            exact(base, VERSION_FIELDS | {'operations', 'query_input_kinds', 'utterance_max_chars',
                   'business_timezones', 'unsupported', 'replay_retention_seconds', 'read_recomputes'})
             need({key: value[key] for key in VERSION_FIELDS} == self.versions, 'CATALOG_INCOMPATIBLE')
             need(value['operations'] in (['submit', 'status', 'read_result', 'cancel', 'capabilities', 'current_versions'], ['submit', 'status', 'read_result', 'cancel', 'capabilities', 'current_versions', 'list_reports', 'read_report'], ['submit', 'status', 'read_result', 'cancel', 'capabilities', 'current_versions', 'list_reports', 'read_report', 'clarify'])
@@ -367,7 +374,11 @@ class RuntimeClient:
         return self._submit_input({'kind': 'clarification', 'text': answer, 'job_ref': job_ref,
                                   'expected_revision': expected_revision}, request_id, logical_query_id, trace_id)
 
-    def _submit_input(self, query_input, request_id, logical_query_id, trace_id):
+    def submit_collection(self, utterance, *, request_id, logical_query_id, trace_id):
+        text(utterance,1200); need(utterance.strip())
+        return self._submit_input({'kind':'utterance','text':utterance},request_id,logical_query_id,trace_id,operation='parameter_submit')
+
+    def _submit_input(self, query_input, request_id, logical_query_id, trace_id,operation='submit'):
         for value in (request_id, logical_query_id, trace_id): identifier(value)
         context = self._context('submit')
         def validate(value):
@@ -381,7 +392,7 @@ class RuntimeClient:
                 'request_id': request_id, 'logical_query_id': logical_query_id, 'trace_id': trace_id,
                 'job_ref': query_input['job_ref'], 'expected_revision': query_input['expected_revision'],
                 'answer': query_input['text']}, validate)
-        return self._authorized('submit', context, {'schema_version': 'runtime_task_v1',
+        return self._authorized(operation, context, {'schema_version': 'runtime_task_v1',
             'request_id': request_id, 'logical_query_id': logical_query_id, 'trace_id': trace_id,
             'query_input': query_input}, validate)
 

@@ -114,7 +114,8 @@ def submit(principal, query_id, stores, utterance, *, recover=False, channel='WE
         row.save(update_fields=['attempt', 'lease_until'])
         trace_id = str(row.trace_id)
     try:
-        accepted = api.submit(utterance, request_id=query_id, logical_query_id=query_id, trace_id=trace_id)
+        sender=api.submit_collection if 'parameter_collection'in row.continuation else api.submit
+        accepted = sender(utterance, request_id=query_id, logical_query_id=query_id, trace_id=trace_id)
     except RuntimeFailure as error:
         # No result, question, tokens or raw provider errors are journalled here.
         with transaction.atomic():
@@ -240,9 +241,23 @@ def clarify(principal, query_id, request_id, expected_revision, answer, *, recov
 
 def cancel(principal, query_id, request_id):
     enabled(); identifier(request_id); row = owned(principal, query_id)
+    if 'parameter_collection'in row.continuation:
+        with transaction.atomic():
+            row=owned(principal,query_id,lock=True)
+            if row.continuation['parameter_collection'].get('write_outcome')!='COMMITTED':
+                row.continuation['parameter_collection']['cancelled']=True
+                row.save(update_fields=['continuation'])
     if row.runtime_job_ref is None:
         return {'query': receipt(row), 'code': 'UNKNOWN_OUTCOME'}
-    value = client(principal, row.store_ids).cancel(str(row.runtime_job_ref), request_id=request_id)
+    if 'parameter_collection'in row.continuation:
+        info=row.continuation['parameter_collection']
+        if info.get('write_outcome')=='COMMITTED':return {'query':receipt(row),'code':'PARAMETER_ALREADY_SAVED'}
+        try:value=client(principal,row.store_ids).cancel(str(row.runtime_job_ref),request_id=request_id)
+        except RuntimeFailure:
+            owned(principal,query_id)
+            value={'state':'CANCELLED','cancelled':True,'in_flight_may_complete':True,'write_permission_revoked':True,'runtime_stop_confirmed':False}
+    else:
+        value = client(principal, row.store_ids).cancel(str(row.runtime_job_ref), request_id=request_id)
     current = owned(principal, query_id)
     Query.objects.filter(pk=row.pk).update(state=value['state'], checked_at=timezone.now())
     current.state = value['state']; current.checked_at = timezone.now()

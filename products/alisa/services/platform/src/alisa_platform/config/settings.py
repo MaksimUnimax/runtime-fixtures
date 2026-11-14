@@ -234,3 +234,8 @@ if os.environ.get('ALISA_QUESTION_CATALOG_ENABLED', '0') not in {'0', '1'}:
 OWNER_PARAMETERS_ENABLED = os.environ.get("ALISA_OWNER_PARAMETERS_ENABLED", "0") == "1"
 if os.environ.get("ALISA_OWNER_PARAMETERS_ENABLED", "0") not in {"0","1"} or OWNER_PARAMETERS_ENABLED and not OWNER_DATA_ENABLED:
     raise ImproperlyConfigured("Current parameters require existing owner-data authority")
+
+# Explicit LK collection reuses Query and runtime authority; no OAuth expansion.
+OWNER_PARAMETER_COLLECTION_ENABLED=os.environ.get("ALISA_OWNER_PARAMETER_COLLECTION_ENABLED","0")=="1"
+if os.environ.get("ALISA_OWNER_PARAMETER_COLLECTION_ENABLED","0")not in {"0","1"} or OWNER_PARAMETER_COLLECTION_ENABLED and not(OWNER_PARAMETERS_ENABLED and QUERIES_ENABLED and RUNTIME_AUTHORITY_ENABLED):
+    raise ImproperlyConfigured("Coefficient collection requires current parameters, Query and runtime authority")

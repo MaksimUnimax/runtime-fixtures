@@ -46,7 +46,10 @@ def check(request):
         exact(body, {'schema', 'request_id', 'service_id', 'operation', 'payload'})
         request_id = identifier(body['request_id'])
         need(body['schema'] == 'runtime_authority_v1' and body['service_id'] == settings.RUNTIME_SERVICE_ID)
-        if body['operation']=='gap_ingest':
+        if body['operation']=='parameter_collection':
+            from alisa_platform.owner_data.parameter_collection import rpc
+            data=rpc(configured_authority(),body['payload'])
+        elif body['operation']=='gap_ingest':
             from alisa_platform.query_insights.service import ingest
             data=ingest(body['payload'])
         elif body['operation'] == 'credentials':

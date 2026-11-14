@@ -1,0 +1,111 @@
+{
+  "utc": "2026-11-14T08:01:11.048225+00:00",
+  "status": "PASS",
+  "checks": [
+    {
+      "case": "default_year_editable",
+      "passed": true
+    },
+    {
+      "case": "readiness_does_not_queue",
+      "passed": true
+    },
+    {
+      "case": "one_actual_query_and_job",
+      "passed": true
+    },
+    {
+      "case": "actual_worker_completed",
+      "passed": true
+    },
+    {
+      "case": "same_store_current_write",
+      "passed": true
+    },
+    {
+      "case": "no_selector_for_explicit_form",
+      "passed": true
+    },
+    {
+      "case": "dates_visible_and_stored",
+      "passed": true
+    },
+    {
+      "case": "date_read_no_recollection",
+      "passed": true
+    },
+    {
+      "case": "manual_clear_collection_passport",
+      "passed": true
+    },
+    {
+      "case": "preview_worker_completed",
+      "passed": true
+    },
+    {
+      "case": "preview_does_not_write",
+      "passed": true
+    },
+    {
+      "case": "lost_browser_ack_one_request",
+      "passed": true
+    },
+    {
+      "case": "reload_did_not_repeat_collection",
+      "passed": true
+    },
+    {
+      "case": "recovered_existing_job_completed",
+      "passed": true
+    },
+    {
+      "case": "current_only_after_replacement",
+      "passed": true
+    },
+    {
+      "case": "pending_metadata_cleaned",
+      "passed": true
+    },
+    {
+      "case": "cancel_does_not_replace_value",
+      "passed": true
+    },
+    {
+      "case": "late_cancel_does_not_revert_saved_coefficient",
+      "passed": true
+    },
+    {
+      "case": "unknown_expired_start_unblocks_without_auto_submission",
+      "passed": true
+    },
+    {
+      "case": "blocked_browser_storage_never_submits_collection",
+      "passed": true
+    },
+    {
+      "case": "concurrent_manual_edit_blocks_stale_collection",
+      "passed": true
+    },
+    {
+      "case": "manual_value_and_no_old_passport_remain",
+      "passed": true
+    },
+    {
+      "case": "no_horizontal_overflow",
+      "passed": true
+    },
+    {
+      "case": "no_browser_errors",
+      "passed": true
+    },
+    {
+      "case": "no_external_browser_requests",
+      "passed": true
+    }
+  ],
+  "count": 25,
+  "real_stack": "Next+BFF+Django+current owner authority+two Unix RPCs+Worker+SQLite+PostgreSQL",
+  "synthetic": "account/credential records, provider and model responses only",
+  "production_mutations": false,
+  "paid_calls": 0
+}

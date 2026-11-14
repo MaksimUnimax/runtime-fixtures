@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {enteredValue,shownValue,periodRequest,readPending,pendingKey,decimal,dateText} from '../../apps/web/src/app/app/parameters/model.ts';
+import {enteredValue,shownValue,periodRequest,readPending,pendingKey,decimal,dateText,readCollection} from '../../apps/web/src/app/app/parameters/model.ts';
 import {strictJson} from '../../apps/web/src/server/strict-json.ts';
 let count=0;const test=(name,fn)=>{fn();count++;};
 for(const [source,target]of[['0','0'],['8','0.08'],['12,79','0.1279'],['100','1'],['0,00000000000000000001','0.0000000000000000000001']])test('exact_percent_'+source,()=>assert.equal(enteredValue(source,'ratio'),target));
@@ -25,4 +25,9 @@ test('storage_failure',()=>assert.throws(()=>readPending({getItem(){throw Error(
 test('target_key_scope_distinct',()=>assert.notEqual(pendingKey('p',id,'loss_rate',area),pendingKey('p',id,'loss_rate',{kind:'sku',sku:'1'})));
 test('target_key_user_distinct',()=>assert.notEqual(pendingKey('p',id,'loss_rate',area),pendingKey('q',id,'loss_rate',area)));
 test('duplicate_json_denied',()=>assert.throws(()=>strictJson('{"confirmed":false,"confirmed":true}')));
+const collection={id,store:id,parameter:'loss_rate',scope:area,not_after:1234};
+test('collection_pending_metadata_only',()=>assert.deepEqual(readCollection({getItem:()=>JSON.stringify(collection)},'x'),collection));
+for(const field of['value','old_value','token','envelope','execution_ticket'])test('collection_does_not_persist_'+field,()=>assert.throws(()=>readCollection({getItem:()=>JSON.stringify({...collection,[field]:'forbidden'})},'x')));
+test('collection_missing_is_null',()=>assert.equal(readCollection({getItem:()=>null},'x'),null));
+test('collection_invalid_id_refused',()=>assert.throws(()=>readCollection({getItem:()=>JSON.stringify({...collection,id:'arbitrary'})},'x')));
 console.log(JSON.stringify({status:'PASS',tests:count,network_calls:0,actual_user_data:false}));

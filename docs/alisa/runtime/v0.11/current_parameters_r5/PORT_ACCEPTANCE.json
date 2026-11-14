@@ -1,0 +1,9 @@
+{
+  "status": "PASS",
+  "tests": 102,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "node_adapter": "/root/alisa-owner-toolchain/node-v24.22.1-linux-x64/bin/node",
+  "production_mutations": false
+}

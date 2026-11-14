@@ -1,0 +1,11 @@
+{
+  "r4_commit": "bcb41791658988b7fc7fad835495ed4cdf6be59f",
+  "files": {
+    "runtime_port.py": "f757c23c85f7c9da8516082e93dae1658776c25d7689ce8bcd72d3f228fe5aed",
+    "template_runtime.py": "a4947f975ada429598b61a878d91ec93ca71fbc777c9f77d656f11d9a200411f",
+    "platform_authority_client.py": "8ba4d8223d82d15257c9ddcee9c1a6683557e1785d13629b0b52fde2a445c335",
+    "runtime_port_service.py": "51ca01af9f0254c59c84acddc43cdb0c528c794cc82397467ec1b83be92213dc",
+    "parameter_source_runtime.py": "df577cb9c101cd81696cb41ca91335c3b172b514a20df61701fb3f1687f9d40c",
+    "runtime_port_ipc.py": "4672e62b94a56b562e0aa182cf76e1a095d92392908048767d9858cfb707461b"
+  }
+}

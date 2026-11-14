@@ -67,3 +67,19 @@ export const errors:Record<string,string>={
  NOT_FOUND:'Раздел или выбранный магазин недоступен.',
 };
 export function errorText(value:unknown):string{return typeof value==='string'&&errors[value]?errors[value]:'Операция не завершена. Сохранённые значения не заменяются нулями.';}
+
+
+export type CollectionPending={id:string;store:string;parameter:string;scope:Area;not_after:number};
+export function readCollection(storage:Pick<Storage,'getItem'>,key:string):CollectionPending|null{
+ const raw=storage.getItem(key);if(!raw)return null;const p=JSON.parse(raw)as CollectionPending;
+ if(!p||Object.keys(p).sort().join(',')!=='id,not_after,parameter,scope,store'||!UUID.test(p.id)||!UUID.test(p.store)||typeof p.parameter!=='string'||!Number.isSafeInteger(p.not_after)||!p.scope||Object.keys(p.scope).sort().join(',')!=='kind,sku'||!(p.scope.kind==='store'&&p.scope.sku===''||p.scope.kind==='sku'&&/^[1-9]\d{0,19}$/.test(p.scope.sku)))throw Error('Не удалось прочитать состояние запуска. Новый сбор не отправлен.');
+ return p;
+}
+Object.assign(errors,{
+ PARAMETER_COLLECTION_NOT_ENABLED:'Сбор коэффициентов ещё не включён. Ручной ввод доступен.',
+ PARAMETER_COLLECTION_UNAVAILABLE:'Исполнитель сбора сейчас недоступен. Текущее значение не изменено.',
+ PARAMETER_SOURCE_SCOPE_UNAVAILABLE:'Этот источник пока не позволяет обоснованно рассчитать отдельный товар. Используйте общее значение или задайте число вручную.',
+ PARAMETER_INTENT_EXPIRED:'Срок задания истёк или сбор отменён. Новое значение не записано.',
+ UNKNOWN_OUTCOME:'Приём задания не подтверждён. Проверьте запуск, не создавая новый сбор.',
+ PARAMETER_INTENT_MISMATCH:'Параметры задания не совпали с подтверждёнными. Изменение не выполнено.',
+});

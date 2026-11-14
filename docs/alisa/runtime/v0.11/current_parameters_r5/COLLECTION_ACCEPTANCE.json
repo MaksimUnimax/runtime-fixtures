@@ -1,0 +1,12 @@
+{
+  "utc": "2026-11-14T07:58:08.028053+00:00",
+  "suite": "collection",
+  "status": "PASS",
+  "tests": 25,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "external_connection_attempts": 0,
+  "elapsed_seconds": 180.557,
+  "production_changed": false
+}

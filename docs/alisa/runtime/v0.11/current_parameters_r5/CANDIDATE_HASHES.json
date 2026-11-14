@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "base": "bcb41791658988b7fc7fad835495ed4cdf6be59f",
+  "all_tested_runtime_files_identical": true,
+  "files": {
+    "runtime_port.py": "560569756de0992aebfe6e23385c992652c6f16c25b0ec6e575c1c3e229a00a9",
+    "template_runtime.py": "2c7110e73af81ac1b65ba2d09a2022a3efe8f3e4b883da449e69fe2d796a1de8",
+    "platform_authority_client.py": "6c3fe18f340f6182dec32154f883a493ef886df19b249eee2c151a6dbef01f4c",
+    "runtime_port_service.py": "51ca01af9f0254c59c84acddc43cdb0c528c794cc82397467ec1b83be92213dc",
+    "parameter_source_runtime.py": "d77575b1a3513007da7898ae02f186419492c6a4e7d7fe3942f4df204178d62e",
+    "runtime_port_ipc.py": "ac059ff23efa44516436ac20b3a567c4bb17dfe28896d49745a036e8988e02fc",
+    "parameter_collection_runtime.py": "3f6a175999196f400ae66baf26fa3810806563d13143530b7d99a21fda1be728"
+  }
+}

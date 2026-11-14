@@ -1,0 +1,125 @@
+--- a/runtime_port.py
++++ b/runtime_port.py
+@@ -69,6 +69,8 @@
+         self.catalog_release_id,self.service_id=catalog_release_id,service_id
+         self.versions=current_versions()
+         engine.execution_policy=self
++        from parameter_collection_runtime import attach
++        attach(self)
+         with self.repo.connection(True) as c:
+             c.execute('''CREATE TABLE IF NOT EXISTS rt_job_refs(
+              ref TEXT PRIMARY KEY,tenant TEXT NOT NULL,actor TEXT NOT NULL,
+@@ -146,7 +148,8 @@
+         return {**self.versions_for(peer),'operations':['submit','status','read_result','cancel','capabilities','current_versions','list_reports','read_report']+(['clarify']if self.engine.template_mode else[]),
+                 'query_input_kinds':['utterance'],'utterance_max_chars':1200,
+                 'business_timezones':['Europe/Moscow'],'unsupported':['template','revoke_scope'],
+-                'replay_retention_seconds':retention.REPLAY_TTL,'read_recomputes':False}
++                'replay_retention_seconds':retention.REPLAY_TTL,'read_recomputes':False,
++                'parameter_collection':__import__('parameter_collection_runtime').capability(self.engine)}
+ 
+     def _old(self,c,ctx,rid,action,digest):
+         old=c.execute('SELECT * FROM rt_job_receipts WHERE tenant=? AND actor=? AND rid=?',
+@@ -174,7 +177,10 @@
+         query=task['query_input']
+         if query['kind']!='utterance' or len(query['text'])>1200:raise Rejected('CAPABILITY_UNAVAILABLE')
+         request_id=task['request_id'];logical_id=task['logical_query_id']
+-        digest=fingerprint({'query':query,'logical_query_id':logical_id,'guard':guard})
++        digest_payload={'query':query,'logical_query_id':logical_id,'guard':guard}
++        from parameter_collection_runtime import mark
++        if mark()is not None:digest_payload['parameter_admission']=mark()
++        digest=fingerprint(digest_payload)
+         with self.repo.connection(True) as c:
+             old=self._old(c,ctx,request_id,'submit',digest)
+             if old:
+@@ -323,3 +329,7 @@
+             reply={**self._status(ref_id,row),'cancelled':changed,'in_flight_may_complete':True}
+             self._save(c,ctx,rid,'cancel',digest,reply)
+             return reply
++
++    def parameter_submit(self,task,peer):
++        from parameter_collection_runtime import submit
++        return submit(self,task,peer)
+--- a/template_runtime.py
++++ b/template_runtime.py
+@@ -24,6 +24,8 @@
+         if plan.get('schema')!=SCHEMA or plan['template_execution']!={'catalog_hash':HASH,'mode':MODE}:return False
+         scope=Scope(plan['tenant'],plan['access_revision'],tuple(Store(**s)for s in plan['stores']))
+         if not engine.scope_current(scope,plan.get('runtime_guard')):return False
++        from parameter_collection_runtime import authorized as admitted_parameter_current
++        if not admitted_parameter_current(engine,plan):return False
+         fragments=plan.get('fragments',[])
+         if type(fragments)is not list:return False
+         if fragments:
+@@ -56,6 +58,8 @@
+     draft['selector_prompt']=for_new_job(engine)
+     if clarification is not None:draft['clarification']=clarification
+     engine.pin_execution(plan,execution_context);engine.pin_execution(draft,execution_context)
++    from parameter_collection_runtime import pin
++    pin(plan)
+     from legacy_voice import pin
+     pin(plan,draft)
+     if not engine.authorized(plan):raise Rejected('SOURCE_ACCESS')
+@@ -155,6 +159,9 @@
+             # Resume old persisted checkpoints through the same local checks.
+             _compile_and_save_selection(worker,row,plan,progress,progress['selection']);return
+         if state=='select':
++            if plan.get('parameter_admission')is not None:
++                from parameter_collection_runtime import decision
++                _compile_and_save_selection(worker,row,plan,progress,decision(plan));return
+             scope=Scope(plan['tenant'],plan['access_revision'],tuple(Store(**s)for s in plan['stores']))
+             settings=progress.get('planning_settings')
+             if settings is None:
+--- a/platform_authority_client.py
++++ b/platform_authority_client.py
+@@ -188,3 +188,6 @@
+     def publish_query_gaps(self,batch):
+         """Only the already-clean outbox; no report, ticket or customer scope."""
+         return self._call('gap_ingest',batch)
++
++    def parameter_collection(self,payload):
++        return self._call('parameter_collection',payload)
+--- a/parameter_source_runtime.py
++++ b/parameter_source_runtime.py
+@@ -31,7 +31,9 @@
+ def _intent_call(fn,*args):
+     # Typed platform denials remain typed at the runtime boundary. A foreign
+     # Rejected class must not be misreported as WORKER_INTERNAL_UNKNOWN.
++    from repository import Deferred
+     try:return fn(*args)
++    except Deferred:raise
+     except Rejected:raise
+     except Exception as exc:
+         code=getattr(exc,'code',None)
+@@ -80,8 +82,12 @@
+     target={'tenant_id':scope.tenant,'store_id':store.id,'provider':'OZON','scope':deepcopy(draft['scope'])}
+     # Compilation is side-effect free, including a catalogue dry-run.
+     as_of=datetime.fromtimestamp(engine.repo.clock(),timezone.utc).isoformat()
++    approved=root.get('parameter_admission')
++    if approved is not None:
++        need(approved['key']==template['parameter_key']and approved['target']==target and draft['parameter_period']['actual']==approved['period']['actual'],'PARAMETER_INTENT_MISMATCH')
++        draft=deepcopy(draft);draft['parameter_period']=deepcopy(approved['period'])
+     admission=None
+-    if draft['parameter_mode']!='preview':
++    if draft['parameter_mode']!='preview'or approved is not None:
+         binder=getattr(engine,'parameter_intent_authority',None)
+         need(binder is not None,'PARAMETER_WRITE_INTENT_REQUIRED')
+         admission=_intent_call(binder.describe,root,template['parameter_key'],target,draft['parameter_period'],draft['parameter_mode'])
+@@ -253,7 +259,7 @@
+             result={'parameter':p['key'],'value':checked.value,'unit':checked.unit,'period':json.loads(checked.actual_json),
+                     'calculated_at':checked.calculated_at.isoformat(),'collected_at':checked.collected_at.isoformat(),'saved':False,'mode':'preview',
+                     'controls':json.loads(produced.proof_json)['controls']}
+-            if p['intent']is not None:
++            if p['intent']is not None and p['intent']['mode']!='preview':
+                 binder=worker.engine.parameter_intent_authority
+                 # Exact target/intent, and current authority again at atomic writer.
+                 result=_intent_call(binder.commit,p['intent'],p['target'],p['period'],envelope,produced.verify,row['id'])
+--- a/runtime_port_ipc.py
++++ b/runtime_port_ipc.py
+@@ -28,6 +28,7 @@
+         if payload:raise Rejected('VALIDATION_FAILED')
+         return port.versions_for(peer)
+     if op=='submit':return port.submit(payload,peer)
++    if op=='parameter_submit':return port.parameter_submit(payload,peer)
+     if op=='clarify':return port.clarify(payload,peer)
+     expected={'capabilities':{'context'},'status':{'job_ref','context'},
+               'read_result':{'job_ref','context'},'cancel':{'job_ref','context','request_id'},
