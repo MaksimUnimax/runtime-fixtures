@@ -129,6 +129,25 @@ class Catalogue(Setup):
         value = extension.read(self.port, self.peer); value['items'][0]['notes'] = ['private']
         with self.assertRaises(RuntimeFailure): validate(value, self.port.versions_for(self.peer), False)
 
+    def test_parameter_metadata_has_declared_unit(self):
+        value=extension.read(self.port,self.peer)
+        rows=[x for x in value['items']if x['kind']=='parameter']
+        if not rows:self.skipTest('Parameter addon not present in this standalone runtime fixture')
+        self.assertEqual({x['id']for x in rows},{'parameter.loss_rate.v1','parameter.delivery_mean.v1'})
+        self.assertTrue(all(x['units']for x in rows))
+        validate(value,self.port.versions_for(self.peer),False)
+
+    def test_parameter_catalog_dry_compile_never_collects(self):
+        import importlib.util
+        if importlib.util.find_spec('parameter_source_runtime')is None:self.skipTest('Requires qualified parameter runtime addon')
+        import parameter_source_runtime as parameters
+        self.engine.parameter_source_policy={'enabled':True,'pin':parameters.PIN}
+        before={n:self.count(n)for n in ['jobs','calls','inbox']}
+        value=extension.read(self.port,self.peer,self.ctx,{'search':'parameter.loss_rate.v1','kind':'parameter','offset':0})
+        self.assertEqual(len(value['items']),1)
+        self.assertEqual(value['items'][0]['availability'][0]['status'],'ELIGIBLE')
+        self.assertEqual(before,{n:self.count(n)for n in before});self.assertEqual(self.transport.calls,[])
+
 
 class Client(unittest.TestCase):
     def test_authority_revocation_after_read_discards_result(self):

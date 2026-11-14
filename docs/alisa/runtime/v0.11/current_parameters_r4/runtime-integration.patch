@@ -1,0 +1,225 @@
+--- a/engine.py
++++ b/engine.py
+@@ -66,6 +66,9 @@
+             return authorized(self,plan)
+         try:
+             scope = self.execution_scope(plan.get('runtime_guard'),plan['tenant'])
++            if 'parameter_source'in plan:
++                from parameter_source_runtime import authorized as parameter_authorized
++                return parameter_authorized(self,plan)
+             if 'universal_read'in plan:
+                 if self.read_surface is None or not self.read_surface.authorized(plan,scope):return False
+                 refs=plan.get('read_source_refs',[])
+--- a/template_catalog.py
++++ b/template_catalog.py
+@@ -60,13 +60,18 @@
+     datasets=strict_json((ROOT/'dataset_queries.json').read_text())['queries']
+     formulas=strict_json((ROOT/'expression_catalog.json').read_text())['formulas']
+     for t in TEMPLATES.values():
+-        if t['kind']not in('scalar','compound','formula','dataset','event','information'):raise ValueError('TEMPLATE_KIND')
++        if t['kind']not in('scalar','compound','formula','dataset','event','information','parameter'):raise ValueError('TEMPLATE_KIND')
+         if t['kind']=='scalar':
+             if len(t['metrics'])!=1 or set(x['platform']for x in t['steps'])!=set(t['platforms']):raise ValueError('TEMPLATE_SCALAR_SCHEMA')
+             for step in t['steps']:
+                 recipe=scalar[step['recipe']];source=scalar_sources[recipe['operation']]
+                 if step['operation']!=recipe['operation']or step['platform']!=recipe['platform']or step['source_registry']!='scalar_source_catalog' or step['params']!=source['request']or step['workflow']!=recipe['workflow']:raise ValueError('TEMPLATE_SOURCE_CONTRACT_DRIFT')
+                 if step['bind']['metrics']!=t['metrics']or step['bind']['fields']!={m:recipe['fields'][m]for m in t['metrics']}:raise ValueError('TEMPLATE_METRIC_BINDING')
++        if t['kind']=='parameter':
++            from parameter_support.parameter_contract import definition
++            rule=definition(t['parameter_key'])
++            expected={'id':'qualified_parameter_sources','platform':'ozon','operation':rule['producer_template'],'source_registry':'parameter_producers','params':{'period':'input.parameter_period','scope':'input.scope'}}
++            if t['id']!=rule['producer_template']or t['steps']!=[expected]or t['platforms']!=['ozon']:raise ValueError('TEMPLATE_PARAMETER_CONTRACT')
+         if t['kind']=='compound':
+             if any('template'not in step for step in t['steps']):raise ValueError('TEMPLATE_COMPOUND_STEP')
+         if t['kind']=='formula'and t['calculation_contract']!=formulas[t['id']]:raise ValueError('TEMPLATE_FORMULA_DRIFT')
+@@ -89,6 +94,9 @@
+ 
+ def _availability(engine,t,store):
+     if t['kind']=='information':return True
++    if t['kind']=='parameter':
++        from parameter_source_runtime import available
++        return available(engine,t,store)
+     if store.platform not in t['platforms']:return False
+     if t['kind']=='dataset':
+         if engine.dataset_capabilities is None:return False
+@@ -149,6 +157,9 @@
+     return selection
+ 
+ def _input(call,t,today,now):
++    if t['kind']=='parameter':
++        from parameter_source_runtime import input_value
++        return input_value(call,t,today,now)
+     value=call['input'];need(set(value)<={'period','comparison','filters','group_by'},'UNSUPPORTED_INPUT_FIELDS',{'fields':sorted(set(value)-{'period','comparison','filters','group_by'})})
+     snapshot=t['input_policy']['snapshot'];period=value.get('period')
+     if snapshot:
+@@ -169,6 +180,7 @@
+     expanded=[]
+     def expand(call,ancestors=()):
+         t=TEMPLATES[call['template_id']]
++        if t['kind']=='parameter'and ancestors:raise TemplateGap('PARAMETER_DEPENDENCY_BINDING_REQUIRED')
+         if t['kind']=='compound':
+             for step in t['steps']:expand({**deepcopy(call),'template_id':step['template']},ancestors+(t['id'],))
+         else:expanded.append((call,ancestors))
+@@ -199,6 +211,9 @@
+             elif group['kind']=='event':
+                 from table_analytics import make_table_plan
+                 draft['table_request']=deepcopy(t['table_request']);plan=make_table_plan(subscope,draft,engine.table_capabilities())
++            elif group['kind']=='parameter':
++                from parameter_source_runtime import compile_plan
++                plan=compile_plan(engine,subscope,draft,t,root)
+             else:plan=None
+             # The selected registered templates define the requested metrics.
+             # Source/period/filter/calculation validation is performed above;
+--- a/template_catalog.json
++++ b/template_catalog.json
+@@ -8195,6 +8195,74 @@
+         "ordered_units",
+         "accrual_sale_units"
+       ]
++    },
++    "parameter.loss_rate.v1": {
++      "id": "parameter.loss_rate.v1",
++      "version": 1,
++      "purpose": "Доля потерь исходно заказанных товаров: отмены, невыкупы и возвраты без повторного счёта. Отдельный расчёт за год по умолчанию или указанный период. Не фактический процент возвратов финансового дня.",
++      "platforms": [
++        "ozon"
++      ],
++      "kind": "parameter",
++      "parameter_key": "loss_rate",
++      "input_policy": {
++        "time_axis": "parameter_period",
++        "snapshot": false,
++        "period_required": false,
++        "comparison_supported": false,
++        "filters_supported": true
++      },
++      "steps": [
++        {
++          "id": "qualified_parameter_sources",
++          "platform": "ozon",
++          "operation": "parameter.loss_rate.v1",
++          "source_registry": "parameter_producers",
++          "params": {
++            "period": "input.parameter_period",
++            "scope": "input.scope"
++          }
++        }
++      ],
++      "metrics": [],
++      "qualification": "parameter_source_policy",
++      "notes": [
++        "По умолчанию это предварительный расчёт. Не утверждай, что число сохранено, если результат не содержит saved=true. Укажи период, дату расчёта и использованные коэффициенты; pending не объявляй успешными продажами."
++      ]
++    },
++    "parameter.delivery_mean.v1": {
++      "id": "parameter.delivery_mean.v1",
++      "version": 1,
++      "purpose": "Средняя прямая и последняя доставка на исходно заказанную единицу. Отдельный годовой или указанный период; общая по магазину, без обратной логистики и обработки FBS.",
++      "platforms": [
++        "ozon"
++      ],
++      "kind": "parameter",
++      "parameter_key": "delivery_mean",
++      "input_policy": {
++        "time_axis": "parameter_period",
++        "snapshot": false,
++        "period_required": false,
++        "comparison_supported": false,
++        "filters_supported": false
++      },
++      "steps": [
++        {
++          "id": "qualified_parameter_sources",
++          "platform": "ozon",
++          "operation": "parameter.delivery_mean.v1",
++          "source_registry": "parameter_producers",
++          "params": {
++            "period": "input.parameter_period",
++            "scope": "input.scope"
++          }
++        }
++      ],
++      "metrics": [],
++      "qualification": "parameter_source_policy",
++      "notes": [
++        "По умолчанию это предварительный расчёт. Не утверждай, что число сохранено, если результат не содержит saved=true. Укажи период, дату расчёта и использованные коэффициенты; pending не объявляй успешными продажами."
++      ]
+     }
+   }
+ }
+--- a/template_runtime.py
++++ b/template_runtime.py
+@@ -225,6 +225,8 @@
+         # Existing final-answer stage receives the original question and all full
+         # captured API responses. This call performs no model/network operation.
+         result_data={'templates':progress['completed_fragments']}
++        parameters=[{'template_ids':item['template_ids'],'result':item['data']}for item in progress['completed_fragments']if any(TEMPLATES[tid]['kind']=='parameter'for tid in item['template_ids'])]
++        if parameters:result_data['parameter_context']=parameters
+         context={};calculations=[]
+         # Speech notes belong only to explicit model selections. Expanded
+         # dependencies execute on the server but do not inherit speech context.
+@@ -265,6 +267,9 @@
+     def complete(self,jid,owner,result):return self.stage_answer(jid,owner,result)
+ 
+ def _run_fragment(worker,row,plan,progress,fragment):
++    if fragment['kind']=='parameter':
++        from parameter_source_runtime import step
++        return step(worker,row,plan,progress,fragment)
+     from engine import Worker
+     sub=Worker(worker.engine,worker.transport);sub.repo=_FragmentRepo(worker,row,plan,progress,fragment)
+     # All actual dispatches remain in the parent worker and current root job.
+--- a/template_protocol.py
++++ b/template_protocol.py
+@@ -101,3 +101,5 @@
+             'request_payload_sha256':_hash(json.dumps(wire,ensure_ascii=False,allow_nan=False)),
+             'requested_model':wire['model'],
+             'isolation_policy':'tenant_v1'if 'user_id'in wire else'legacy_none'}
++
++SELECT_SYSTEM += '\nДля kind=parameter period задаёт период самого коэффициента, не день отчёта. Нет явного периода — period=null (год по умолчанию). parameter_mode=preview по умолчанию; режимы fill_missing/replace_calculated допустимы только при серверном разрешении конкретного намерения. Числа и команды записи не придумывай.\n'
+--- a/model_answer.py
++++ b/model_answer.py
+@@ -103,10 +103,12 @@
+     result_data = progress[PENDING].get('data')
+     template_context = result_data.get('template_context') if type(result_data) is dict else None
+     calculation_context=result_data.get('calculation_context') if type(result_data)is dict else None
+-    if template_context or calculation_context:
++    parameter_context=result_data.get('parameter_context') if type(result_data)is dict else None
++    if template_context or calculation_context or parameter_context:
+         api_data={'responses':api_data}
+         if template_context:api_data['template_context']=template_context
+         if calculation_context:api_data['calculation_context']=calculation_context
++        if parameter_context:api_data['parameter_context']=parameter_context
+     from model_program import selected, run
+     if '_answer_execution' not in progress:
+         progress['_answer_execution']='program_v2' if getattr(worker.engine,'program_answers',False) and selected(api_data) else 'direct_v1'
+--- a/report_archive.py
++++ b/report_archive.py
+@@ -289,6 +289,7 @@
+     from scalar_runtime import MATRIX
+     operations = set()
+     for tid in dependencies(template_id):
++        if TEMPLATES[tid]['kind']=='parameter':continue
+         for step in TEMPLATES[tid]['steps']:
+             if 'template' in step or step.get('platform') != platform: continue
+             if 'recipe' in step: operations.update(MATRIX.operations_for({'recipe':step['recipe']}))
+--- a/runtime.py
++++ b/runtime.py
+@@ -31,6 +31,10 @@
+             raise Rejected('CONFIG_SCHEMA')
+         from selector_policy import validate as validate_selector_policy
+         validate_selector_policy(d.get('selector_prompt'))
++        parameter_policy=d.get('parameter_sources')
++        if parameter_policy is not None:
++            from parameter_source_runtime import PIN
++            if type(parameter_policy)is not dict or type(parameter_policy.get('enabled'))is not bool or parameter_policy not in ({'enabled':False},{'enabled':True,'pin':PIN}):raise Rejected('CONFIG_SCHEMA')
+         return d
+     def scope(self,tenant):
+         d=self.read();account=d['accounts'].get(tenant)
+@@ -85,6 +89,7 @@
+         from protected_reads import key
+         key(repo)  # Validate encryption before accepting any paid provider work.
+     engine=Engine(repo,config.scope,template_mode=True,selector_policy=lambda:config.read().get('selector_prompt'),report_archive=archive,answer_settings=answer_settings,read_surface=reads,table_capabilities=(lambda:config.read().get('table_capabilities',{})) if 'table_capabilities' in d else None,dataset_capabilities=(lambda:config.read().get('dataset_capabilities',{})) if 'dataset_capabilities' in d else None)
++    engine.parameter_source_policy=lambda:config.read().get('parameter_sources')
+     from legacy_voice import Authority
+     engine.legacy_voice_authority=Authority()
+     transport=HTTPTransport(directory,d['credential_bindings'],d['qualifications'],enabled=True,qualification_provider=lambda:config.read()['qualifications'],read_surface_policy=lambda:config.read().get('read_surface',{}))

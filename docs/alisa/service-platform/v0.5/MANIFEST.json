@@ -151,8 +151,8 @@
     },
     {
       "path": "ROADMAP.md",
-      "size_bytes": 105215,
-      "sha256": "422e34921ed25ad0f6428c1243bb748fb57be22fc125946ff0df57724f7f5ce0"
+      "size_bytes": 106305,
+      "sha256": "dd1aa6de155b8a4bf2853fc8fe9f3b85fa638b7a147968f38dd48037a5288f21"
     },
     {
       "path": "ROADMAP_GUIDE.docx",
@@ -181,8 +181,8 @@
     },
     {
       "path": "SPEC.md",
-      "size_bytes": 19260,
-      "sha256": "8d6f290601d58eb48e7e21a12536eceda634cf297923ceb9a09f64fc9b42b368"
+      "size_bytes": 20350,
+      "sha256": "06e544aa40e46cccc50b22c3dc08357bea5343a97da52f5de30fd500036cb9ec"
     },
     {
       "path": "START_HERE.md",
@@ -266,8 +266,8 @@
     },
     {
       "path": "data/requirements.json",
-      "size_bytes": 41978,
-      "sha256": "0f456822bf83ff838039b8da3d0cec204489e3fa3d80adb193673100b1274c56"
+      "size_bytes": 42584,
+      "sha256": "648e89db1db9a9d8a8f216d09414b9bc015fe5bd40f3d6b8aee7ad8dbbb52da6"
     },
     {
       "path": "data/roadmap.json",

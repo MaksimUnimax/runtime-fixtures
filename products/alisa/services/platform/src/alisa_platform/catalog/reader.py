@@ -27,7 +27,7 @@ def validate(value, versions, scoped):
         need(type(row) is dict and set(row) in (fields, fields | {'columns'}), 'CATALOG_INCOMPATIBLE')
         text(row['id'], 128); need(row['id'] not in seen, 'CATALOG_INCOMPATIBLE'); seen.add(row['id'])
         need(type(row['version']) is int and row['version'] > 0, 'CATALOG_INCOMPATIBLE')
-        need(row['kind'] in {'scalar', 'compound', 'dataset', 'formula', 'event', 'information'}, 'CATALOG_INCOMPATIBLE')
+        need(row['kind'] in {'scalar', 'compound', 'dataset', 'formula', 'event', 'information', 'parameter'}, 'CATALOG_INCOMPATIBLE')
         text(row['description'], 12000, multiline=True)
         for key in ('platforms', 'units', 'dependencies'):
             need(type(row[key]) is list and len(row[key]) <= 1000, 'CATALOG_INCOMPATIBLE')

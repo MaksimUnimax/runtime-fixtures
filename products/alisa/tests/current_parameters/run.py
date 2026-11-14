@@ -9,6 +9,11 @@ from unittest.mock import patch
 from datetime import datetime,timezone
 import os,sys,socket,json,time,hashlib
 ROOT=Path(__file__).resolve().parents[2];sys.path[:0]=[str(ROOT/'services/platform/src'),str(ROOT/'tests')]
+runtime=os.environ.get('PARAMETER_TEST_RUNTIME_ROOT')
+if runtime:
+    native=Path(runtime).resolve()
+    if '/opt/'in str(native)or not(native/'parameter_source_runtime.py').is_file():raise RuntimeError('Only an explicit isolated R4 candidate is allowed')
+    sys.path[:0]=[str(native),str(native/'tests'),str(ROOT.parents[1]/'docs/alisa/runtime/v0.11/current_parameters_r4/tests')]
 os.environ['DJANGO_SETTINGS_MODULE']='current_parameters.settings'
 assert os.environ.get('PARAMETER_TEST_SOCKET','').startswith('/dev/shm/alisa-current-parameters-pg-')
 import django

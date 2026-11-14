@@ -1,0 +1,14 @@
+{
+  "runtime_source": "47007fc5b0e500c796d96360eb951f7ce6687e3d",
+  "runtime_manifest": "da6d89c2600900ee2632f8e30598c6ac516eab258dd70420a7690175336f1482",
+  "files": {
+    "engine.py": "258c06cdc072a0ab3d3e67956a67c58dc56410d8fcdd3a8d0b9bdf2ff7a2c4a6",
+    "template_catalog.py": "c305877a6fe03a256dfd8a60a2b2c6ddda365fbdbdc257a2dfdacb563473aeb8",
+    "template_catalog.json": "345f46e5c1fa395db23642783a84416ad6da58e9808b10edc05716a70e13a720",
+    "template_runtime.py": "45378279176fd1980b9f0a9cf770ee29f3f918d776600c890037a26c4ec73d5a",
+    "template_protocol.py": "0c3f913288cf019349992d3ab36e2d64aeaa214eb2dbb28644e776b80e645965",
+    "model_answer.py": "1d8e18ea98343e6929fe3ad156f3fe1ef2b6a6b619c3a13d58798f1bb1efb280",
+    "report_archive.py": "a1087bf8dffca9f1c080c8bcfaaed8609e198e32a45a03842f4562a8502cba58",
+    "runtime.py": "112f9cdb7365153dccaea45cf26d7dd723a16e39b9794b9ca2cedb066c9b1527"
+  }
+}

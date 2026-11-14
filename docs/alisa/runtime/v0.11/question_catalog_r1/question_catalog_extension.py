@@ -26,6 +26,10 @@ def metadata(port):
                     sources.append(source)
         units = sorted({str(DEFINITIONS[m].get('unit', 'не указана'))
                         for m in template['metrics'] if m in DEFINITIONS})
+        if template['kind']=='parameter':
+            from parameter_support.parameter_contract import definition
+            unit=definition(template['parameter_key'])['unit']
+            units=[{'ratio':'доля (в ответе — проценты)','RUB/ordered_unit':'₽ на исходно заказанную единицу'}.get(unit,unit)]
         item = {'id': key, 'version': template['version'], 'kind': template['kind'],
                 'description': template['purpose'], 'platforms': deepcopy(template['platforms']),
                 'input_policy': deepcopy(template['input_policy']), 'units': units,
@@ -58,7 +62,7 @@ def read(port, peer, context=None, query=None):
     query = query if query is not None else {'search': '', 'kind': '', 'offset': 0}
     if (type(query) is not dict or set(query) != {'search', 'kind', 'offset'} or
             type(query['search']) is not str or len(query['search']) > 200 or
-            type(query['kind']) is not str or query['kind'] not in {'', 'scalar', 'compound', 'dataset', 'formula', 'event', 'information'} or
+            type(query['kind']) is not str or query['kind'] not in {'', 'scalar', 'compound', 'dataset', 'formula', 'event', 'information', 'parameter'} or
             type(query['offset']) is not int or not 0 <= query['offset'] <= 1000):
         raise Rejected('VALIDATION_FAILED')
     value['template_ids'] = [item['id'] for item in value['items']]
@@ -89,7 +93,7 @@ def read(port, peer, context=None, query=None):
             if item['platforms'] and store.platform not in item['platforms']:
                 continue
             template = TEMPLATES[item['id']]
-            inputs = {} if template['input_policy']['snapshot'] else {'period': {'from': yesterday, 'to': yesterday}}
+            inputs = {} if template['input_policy']['snapshot'] or template['kind']=='parameter' else {'period': {'from': yesterday, 'to': yesterday}}
             selection = {'action': 'plan', 'complete': True, 'missing': [],
                          'requirements': [{'id': 'catalog', 'description': 'Просмотр допуска', 'invocations': ['catalog']}],
                          'invocations': [{'id': 'catalog', 'template_id': item['id'],

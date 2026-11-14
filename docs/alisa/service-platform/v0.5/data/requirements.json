@@ -1406,7 +1406,8 @@
       "AL-S15"
     ],
     "contract": "docs/alisa/architecture/CURRENT_PARAMETERS_CONTRACT_20261114.md",
-    "implementation_status": "ISOLATED_BACKEND_TESTED_NOT_DEPLOYED"
+    "implementation_status": "PARTIAL_WORKER_CANDIDATE_VERIFIED_NOT_DEPLOYED",
+    "implementation_evidence": "docs/alisa/runtime/v0.11/current_parameters_r4/README.md"
   },
   {
     "id": "AL-R072",
@@ -1425,7 +1426,8 @@
       "AL-S11"
     ],
     "contract": "docs/alisa/architecture/CURRENT_PARAMETERS_CONTRACT_20261114.md",
-    "implementation_status": "ISOLATED_BACKEND_TESTED_NOT_DEPLOYED"
+    "implementation_status": "PARTIAL_WORKER_CANDIDATE_VERIFIED_NOT_DEPLOYED",
+    "implementation_evidence": "docs/alisa/runtime/v0.11/current_parameters_r4/README.md"
   },
   {
     "id": "AL-R073",
@@ -1444,7 +1446,8 @@
       "AL-S13"
     ],
     "contract": "docs/alisa/architecture/CURRENT_PARAMETERS_CONTRACT_20261114.md",
-    "implementation_status": "ISOLATED_BACKEND_TESTED_NOT_DEPLOYED"
+    "implementation_status": "PARTIAL_WORKER_CANDIDATE_VERIFIED_NOT_DEPLOYED",
+    "implementation_evidence": "docs/alisa/runtime/v0.11/current_parameters_r4/README.md"
   },
   {
     "id": "AL-R074",
@@ -1463,7 +1466,8 @@
       "AL-S11"
     ],
     "contract": "docs/alisa/architecture/CURRENT_PARAMETERS_CONTRACT_20261114.md",
-    "implementation_status": "ISOLATED_BACKEND_TESTED_NOT_DEPLOYED"
+    "implementation_status": "PARTIAL_WORKER_CANDIDATE_VERIFIED_NOT_DEPLOYED",
+    "implementation_evidence": "docs/alisa/runtime/v0.11/current_parameters_r4/README.md"
   },
   {
     "id": "AL-R075",
@@ -1483,7 +1487,8 @@
       "AL-S11"
     ],
     "contract": "docs/alisa/architecture/CURRENT_PARAMETERS_CONTRACT_20261114.md",
-    "implementation_status": "ISOLATED_BACKEND_TESTED_NOT_DEPLOYED"
+    "implementation_status": "PARTIAL_WORKER_CANDIDATE_VERIFIED_NOT_DEPLOYED",
+    "implementation_evidence": "docs/alisa/runtime/v0.11/current_parameters_r4/README.md"
   },
   {
     "id": "AL-R076",
@@ -1504,6 +1509,7 @@
       "AL-S15"
     ],
     "contract": "docs/alisa/architecture/CURRENT_PARAMETERS_CONTRACT_20261114.md",
-    "implementation_status": "ISOLATED_BACKEND_TESTED_NOT_DEPLOYED"
+    "implementation_status": "PARTIAL_WORKER_CANDIDATE_VERIFIED_NOT_DEPLOYED",
+    "implementation_evidence": "docs/alisa/runtime/v0.11/current_parameters_r4/README.md"
   }
 ]
