@@ -1,0 +1,56 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "reviewed_at_utc": "2026-11-14T03:11:06.143704+00:00",
+  "scope": "One pronunciation instruction appended to existing answer_prompt through the native revision-checked settings API. No live client figures or private job identifiers included.",
+  "files_sha256": {
+    "change.json": "cf2ec02010beeed42cf3921774278b8dbc5dc64b70571fb374146cfe372dac56",
+    "install.py": "fd451ad955eecb36c6344b8cf0b957852897ed87845e71d406de420e91c15375",
+    "README.md": "e5974a65445dc1303e3aefa8bd6749a3b1969b43a96ce4abc757ae6fb9a210c6",
+    "SERVER_TEST_PROOF.json": "0c8f9f87aaa7e3dde93809038570334647ffcd4591fbca33f454ecd817607d40"
+  },
+  "expected_settings_revision": 4,
+  "expected_settings_sha256": "e8bc58e1cc82de098b55c1aa3d2da058d8be2afb778591d37ee8a65e96c246d2",
+  "findings": [],
+  "checks": [
+    "The appended instruction requests exactly the owner-specified Russian letter names эс ка ю in voice text. It changes no arithmetic, source mapping, question or transport.",
+    "The complete previous answer_prompt is preserved verbatim as a prefix. request_planning_prompt and answer_extra_instruction are copied unchanged and checked after save. No product source or Station rewrite is introduced.",
+    "Installer pins the change file hash, current settings hash and revision; it acquires the shared recovery lock and refuses active QUEUED/RUNNING jobs and unexpired READY clarification objects.",
+    "Uses the configured existing authorized IPC peer. Payload is JSON terminated with an actual newline via chr(10); no permission changes or alternative access path are used.",
+    "Compared with the previously approved settings updater. Native Settings.save performs revision CAS and atomic private-file persistence; local gateway enforces the configured Unix peer and exact settings schema.",
+    "An owned pre-save backup is retained with final mode0600. No duplicate append or repeated installer attempt is accepted. Native readback and on-disk settings must exactly match the desired incremented revision and three strings.",
+    "Transport/process/JSON ambiguity after save triggers only a settings read, never a second save. Explicit API errors abort. Release pointer, manifest and runtime configuration must match their pre-save state.",
+    "No restart, live marketplace call, model call or final-answer postprocessing is part of this installer."
+  ],
+  "independent_local_validation": {
+    "python_ast": "PASS",
+    "native_settings_and_gateway_contract_review": "PASS",
+    "relocated_synthetic_boundaries": {
+      "count": 7,
+      "results": {
+        "successful_save": "PASS",
+        "committed_save_lost_response_read_only_reconciliation": "PASS",
+        "uncommitted_timeout_no_second_save": "PASS",
+        "explicit_stale_revision_error": "PASS",
+        "active_job_blocks_before_rpc": "PASS",
+        "unexpired_READY_clarification_blocks_before_rpc": "PASS",
+        "expired_clarification_does_not_block": "PASS"
+      },
+      "method": "Exact installer logic with temporary fixture paths/pins, real native Settings persistence and mocked subprocess IPC; no remote commands or sockets. Each branch asserts at most one save. Success cases verify exact retained prefix, unchanged other fields, backup contents/mode and installation receipt."
+    },
+    "reviewer_paid_or_live_calls": 0
+  },
+  "primary_executor_evidence": {
+    "source": "SERVER_TEST_PROOF.json and primary executor message; server checks were not independently rerun remotely by reviewer",
+    "suite": "test_model_answer",
+    "tests": 26,
+    "seconds": 16.389,
+    "paid_calls": 0,
+    "reported_transport_check": "Primary executor extracted the active response function and verified synthetically that text is copied into tts, including the requested Russian letter words."
+  },
+  "limitations": [
+    "This approves the exact setting change and installer, not a completed installation or voice acceptance.",
+    "Prompt compliance remains probabilistic. The next exact voice retest and its final text/tts transcript must confirm the requested spelling.",
+    "Historic outbound TTS/audio was not retained. No acoustic recording, acoustic replay or guaranteed spoken pronunciation is claimed."
+  ]
+}

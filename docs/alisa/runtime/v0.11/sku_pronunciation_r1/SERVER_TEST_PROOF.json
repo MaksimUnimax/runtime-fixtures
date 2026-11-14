@@ -1,0 +1,9 @@
+{
+  "status": "PASS",
+  "tests": 26,
+  "seconds": 16.389,
+  "suite": "test_model_answer",
+  "paid_calls": 0,
+  "runtime_changed": false,
+  "native_log": "/root/alice-lab-evidence/SKU_PRONUNCIATION_SETTINGS_TESTS_20261114.log"
+}

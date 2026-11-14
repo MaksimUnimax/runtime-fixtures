@@ -1,0 +1,11 @@
+{
+  "expected_revision": 4,
+  "expected_file_sha256": "e8bc58e1cc82de098b55c1aa3d2da058d8be2afb778591d37ee8a65e96c246d2",
+  "append_to_answer_prompt": "В голосовом ответе аббревиатуру SKU записывай раздельно русскими словами «эс ка ю», чтобы Алиса произносила названия букв. Не записывай её словом «ску» и не оставляй латиницей для озвучивания.",
+  "preserve": [
+    "request_planning_prompt",
+    "answer_extra_instruction"
+  ],
+  "target_pronunciation": "эс ка ю",
+  "scope": "One append to existing global answer_prompt; no answer rewriting, numeric substitution or transport patch."
+}
