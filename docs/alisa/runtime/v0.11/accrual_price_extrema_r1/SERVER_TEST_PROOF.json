@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "server_tests": 147,
+  "seconds": 30.647,
+  "paid_calls": 0,
+  "server_log": "/opt/alice-market/candidates/accrual-price-extrema-tests-20261114/focused-final.log",
+  "base_payload_files": 174,
+  "only_changed_payload": [
+    "template_catalog.json"
+  ],
+  "only_changed_template": "accrual_price_lines",
+  "catalog_sha256": "6177f187e7c2fb63fc97acd5debaae3b6d7f4189c1aebef62d8271bcf6574901",
+  "note": "Final sign-directed source contract; supersedes first native run on prior metadata"
+}

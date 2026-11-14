@@ -1,0 +1,10 @@
+{
+  "base_release": "alisa-accrual-day-speech-r1-20261114",
+  "base_source_commit": "1e7e2ab4b1a57cd3b046fe22481570255327c8cc",
+  "base_manifest_sha256": "af5fdc23472211d235770472703372e767bee7c77fee0a0c940a3cddd1b8c5c0",
+  "base_catalog_sha256": "e4f0c38566fc49dabe82ff9fcd3c665dbf8b66c6a72cb2758e0039de85973ff8",
+  "new_catalog_sha256": "6177f187e7c2fb63fc97acd5debaae3b6d7f4189c1aebef62d8271bcf6574901",
+  "preserved_clarification_source": "81579c18d4725c7f0a6603c8abbf703668863e36",
+  "preserved_pronunciation_settings_sha256": "44d82c25bafb90500bb6af7cb97bb7c276d10d2638ae50d95de4f600e78be179",
+  "preserved_pronunciation_source": "7d426fe3c33ce3177328052f792da4d42c203364"
+}

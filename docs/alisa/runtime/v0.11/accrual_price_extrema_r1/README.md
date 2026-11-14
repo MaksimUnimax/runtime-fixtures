@@ -1,0 +1,7 @@
+# Buyer-price extrema over ungrouped accrual lines
+
+The selector declined a supported buyer-price-extrema question because it considered the available templates to contain only totals or averages. The registered ungrouped accrual_price_lines dataset was qualified and already exposes buyer_unit_average and line_units. Its generic purpose obscured that use.
+
+Only accrual_price_lines version, purpose, one note and calculation_contract change. The selector-visible purpose identifies extrema over ungrouped line prices. The final-model contract binds the existing source recipe, buyer-line amount divided by quantity, positive realization direction and complete pages. It distinguishes exact individual-item extrema when every line has one item from extrema of line averages otherwise. Missing data is not zero; an explicitly valid zero buyer amount remains zero. Fiscal receipts/card claims remain unsupported. No expected live result, date, original-question rewrite or arithmetic implementation is added. Acquisition, canonical source formulas, dataset grouping and other85 templates remain unchanged.
+
+The existing147 isolated checks run on the candidate; new mirror tests for metadata are not added. The finite one-catalog installer pins the current daily-speech source and preserves clarification/cardinality lineage. It additionally pins and verifies the current SKU pronunciation settings without editing them. Common lock, active/clarification guard, immutable source checks and rollback are retained. A real identical voice retest is still required.

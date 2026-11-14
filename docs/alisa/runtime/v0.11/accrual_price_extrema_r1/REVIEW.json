@@ -1,0 +1,64 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "reviewed_at_utc": "2026-11-14T03:22:50.137302+00:00",
+  "scope": "Exact accrual_price_lines metadata change and finite one-catalog preparation/installer; no live client figures or private job identifiers included.",
+  "files_sha256": {
+    "template_catalog.base.json": "e4f0c38566fc49dabe82ff9fcd3c665dbf8b66c6a72cb2758e0039de85973ff8",
+    "template_catalog.json": "6177f187e7c2fb63fc97acd5debaae3b6d7f4189c1aebef62d8271bcf6574901",
+    "patch.json": "30143f81a861ebe9d63253652e99fbfde039deb52e83ff25f2e7a71677c3c8af",
+    "BASE_SOURCE.json": "6bcb491c494be2cef30459c830e1e0ba97fd84195794a42fabd5fe79387f5bb0",
+    "build.py": "cda0aca863920979001bfaabc1e98d398b1890df2626df86f7832ad661c321f7",
+    "prepare.py": "9ccd6f6d075f3370293cfa254b4525f0ed28d2289d3b750e4b178a43951fbeb5",
+    "install.py": "f79d65d0a80f45d504e6dc81ea1c69e41a5c89ff65990150e591e359c341bf5a",
+    "README.md": "f2753d22f04391066f74e1e6d4dfa24ea4c6b3d96c6fce4d1c34bfc17f749a24",
+    "SERVER_TEST_PROOF.json": "82315ddbae15873a52cfaa921b0f5d4d5150ce8f33c7bed7e9b77616cfe55dfa"
+  },
+  "findings": [],
+  "resolved_review_observations": [
+    "Replaced the initial unconditional absolute-value description with canonical direction-based sale_price/negate(sale_price), requiring nonzero sale_amount and sale_price*sale_amount>=0. Inconsistent signs are rejected; an explicit valid zero buyer amount remains valid."
+  ],
+  "checks": [
+    "Only accrual_price_lines changes: version1 to2, purpose, one appended note and calculation_contract. Other85 templates, top-level catalog metadata, prior notes, source operations, requests, steps, columns, output_stage, group_by and aggregates remain unchanged. Patch equals the complete updated template.",
+    "Canonical source fingerprint9473f038ff42b77fe7ddc2f4369b6d994221cc6c7560680acf4b84bc98cb2241 matches the local registered ds_ozon_accrual_rows recipe. Products require non-null commission; ordinary buyer-price extrema use positive-realization lines selected by sale_amount sign.",
+    "buyer_line_amount and buyer_unit_average follow the source: direction-adjusted buyer line total divided by positive validated quantity, at most10000. Seller price, seller accrual amount and current offer price are not substitutes for buyer price.",
+    "Ungrouped line identity is retained across all source pages and requested accrual dates. No SKU grouping or period-wide average precedes min/max. Reverse-direction lines are separate and used for an explicit reversal question.",
+    "Exact individual-item extrema are claimed only when every included line has quantity1. Otherwise the result must be labelled as extrema of line averages, with the necessary limitation. Empty/missing/incomplete data is not a zero price. Currency, accrual-date and non-fiscal-receipt limitations remain.",
+    "No expected live output, original-question rewrite, new arithmetic implementation, result rewriting, source qualification or access change is introduced.",
+    "Final embedded preparation ZIP contains exactly the reviewed catalog and unchanged previously reviewed context test; bytes and pins match. Python AST and catalog validation pass.",
+    "Installer derives from the previously approved daily-speech installer with only base/target/pin/lineage updates and an additional read-only pronunciation-settings hash assertion before and after rollout.",
+    "Pinned current base1e7e2ab4b1a57cd3b046fe22481570255327c8cc is copied exactly except catalog. Cardinalitycb35d89752ab6f866617278fa772b179205e9127, existing selector code and clarification81579c18d4725c7f0a6603c8abbf703668863e36 are preserved. Explicit lineage metadata is retained.",
+    "Shared recovery lock, current-base pin, full immutable base verification, hardlink copy with independent catalog and manifest inodes, successful147-test gate, active QUEUED/RUNNING and unexpired READY-clarification guards before/after stop, policy/version checks, atomic pointer, process cwd verification and rollback remain intact.",
+    "Runtime configuration and current pronunciation settings SHA44d82c25bafb90500bb6af7cb97bb7c276d10d2638ae50d95de4f600e78be179 are not modified and are verified unchanged. Station code is untouched."
+  ],
+  "independent_local_validation": {
+    "exact_scope_and_patch": "PASS",
+    "canonical_recipe_fields_signs_and_ungrouped_query": "PASS",
+    "catalog_validator": "PASS",
+    "ast": [
+      "build.py",
+      "prepare.py",
+      "install.py"
+    ],
+    "embedded_payload_exact_bytes_and_pins": "PASS",
+    "derived_installer_diff": "PASS",
+    "new_test_files_created": 0,
+    "remote_provider_or_model_calls": 0
+  },
+  "primary_executor_evidence": {
+    "source": "Final SERVER_TEST_PROOF.json and primary executor message; not independently rerun remotely by reviewer",
+    "server_tests": 147,
+    "server_elapsed_seconds": 30.647,
+    "prepare_update_exit_code": 0,
+    "verified_base_payload_files": 174,
+    "only_changed_runtime_payload": [
+      "template_catalog.json"
+    ],
+    "paid_calls": 0
+  },
+  "limitations": [
+    "Approval covers this exact static candidate and installer; it does not assert completed installation or live acceptance.",
+    "The selector rejection remains open until the exact real voice retest confirms selection and an appropriately qualified result. Passing isolated tests does not guarantee model compliance with prose metadata.",
+    "Hardlinked releases retain the existing immutable-release assumption; concurrent external source mutation is outside the reviewed scope."
+  ]
+}

@@ -1,0 +1,109 @@
+{
+  "id": "accrual_price_lines",
+  "version": 2,
+  "purpose": "Покупательские цены по отдельным строкам товарных начислений: минимум и максимум средних цен строки, без объединения SKU",
+  "platforms": [
+    "ozon"
+  ],
+  "kind": "dataset",
+  "input_policy": {
+    "time_axis": "source_period",
+    "snapshot": false,
+    "period_required": true,
+    "comparison_supported": false,
+    "filters_supported": false
+  },
+  "steps": [
+    {
+      "id": "ozon_rows",
+      "platform": "ozon",
+      "operation": "ds_ozon_accrual_rows",
+      "source_registry": "dataset_sources",
+      "params": [
+        {}
+      ],
+      "period_mode": "days"
+    }
+  ],
+  "qualification": "existing_source_requirements",
+  "notes": [
+    "Дата начисления, не дата заказа или физического выкупа; направления разделены.",
+    "Показаны только дни и товары с записями источника; отсутствие строки не заменено нулём.",
+    "Разные товарные строки одного SKU не объединены. При количестве больше одного среднее строки не доказывает цену каждой отдельной покупки.",
+    "Обратные начисления показаны отдельным направлением с модулями денежных сумм.",
+    "Для вопроса о минимальной и максимальной покупательской цене используй цены отдельных положительных реализаций, а не средние по SKU или всему периоду. Поле buyer_unit_average — покупательская сумма строки, делённая на количество. Если во всех подходящих строках количество равно одному, можно назвать минимум и максимум цен этих товаров по начислениям. Если есть строки с количеством больше одного, явно назови диапазон средних цен строк: он не доказывает минимум и максимум цен каждой отдельной покупки. Кратко назови только запрошенные границы и необходимое ограничение. Возвратные строки не являются новыми покупками; при отдельном вопросе о них используй обратное направление."
+  ],
+  "dataset_query": "accrual_price_lines",
+  "metrics": [],
+  "relations": [],
+  "output_stage": "rows",
+  "columns": [
+    {
+      "field": "day",
+      "label": "дата начисления",
+      "kind": "text"
+    },
+    {
+      "field": "product_id",
+      "label": "SKU",
+      "kind": "text"
+    },
+    {
+      "field": "direction",
+      "label": "направление",
+      "kind": "text"
+    },
+    {
+      "field": "line_units",
+      "label": "товаров в строке",
+      "kind": "number"
+    },
+    {
+      "field": "buyer_line_amount",
+      "label": "покупательская сумма строки, модуль",
+      "kind": "money"
+    },
+    {
+      "field": "buyer_unit_average",
+      "label": "среднее строки на товар",
+      "kind": "money"
+    },
+    {
+      "field": "seller_unit_price",
+      "label": "цена продавца за товар, модуль",
+      "kind": "money"
+    },
+    {
+      "field": "seller_line_amount",
+      "label": "сумма продавца строки, модуль",
+      "kind": "money"
+    },
+    {
+      "field": "currency",
+      "label": "валюта",
+      "kind": "text"
+    }
+  ],
+  "group_by": [],
+  "aggregates": [],
+  "calculation_contract": {
+    "schema": "alisa-accrual-price-lines/v1",
+    "source_operation": "ds_ozon_accrual_rows",
+    "source_recipe_sha256": "9473f038ff42b77fe7ddc2f4369b6d994221cc6c7560680acf4b84bc98cb2241",
+    "raw_collection": "accruals[].posting.products[] with non-null commission",
+    "canonical_fields": {
+      "line_units": "quantity; existing source validates positive integer, at most10000",
+      "direction": "commission.sale_amount.amount >0: реализация; <0: обратное начисление; zero is invalid source direction",
+      "buyer_line_amount": "commission.sale_price.amount when commission.sale_amount.amount >0, otherwise negate(commission.sale_price.amount), after canonical checks sale_amount !=0 and sale_price * sale_amount >=0. Reject inconsistent signs instead of silently applying abs; an explicit zero buyer amount is valid. This is the amount for the entire product line.",
+      "buyer_unit_average": "buyer_line_amount / line_units",
+      "product_id": "sku mapped by existing strict positive_integer; not an accrual ID"
+    },
+    "extrema": {
+      "ordinary_buyer_price_question": "take min and max of buyer_unit_average over all complete positive-realization lines in the requested accrual-date period",
+      "aggregation": "Do not group or average by SKU before extrema; do not use seller_price, sale_amount or current offer prices as buyer price",
+      "row_quantity_caveat": "Only if every included line has quantity1 do these line prices establish the minimum and maximum individual item prices. Otherwise identify the result as a range of line averages; do not claim individual purchase extrema.",
+      "reversal_question": "Use reverse direction only if explicitly requested; do not mix reverse rows into a range of new purchases."
+    },
+    "scope": "All complete source pages/days, preserving distinct lines even for one SKU; validate currencies and quantities. Empty/missing/incomplete data is not a zero price; an explicit valid zero buyer amount remains zero. This source is accrual-date data and not a fiscal receipt or proof of card payment."
+  }
+}
