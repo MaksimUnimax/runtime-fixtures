@@ -1,0 +1,52 @@
+{
+  "utc": "2026-11-14T12:28:10.527200+00:00",
+  "status": "ISOLATED_COMPOUND_SAVED_PARAMETER_FLOW_TESTED_NOT_DEPLOYED",
+  "base_commit": "9b2419932cd1453f0a53ec8ae34371be72486376",
+  "candidate_template": "economics.delivery_projection.v1",
+  "compound_and_actual_program_socket_scenarios": 25,
+  "pure_readset_storage_source_and_socket_regression": 228,
+  "overlap_actual_program_socket_tests": 3,
+  "unique_tests_across_these_two_runs": 250,
+  "new_r8_unique_tests": 47,
+  "r7_and_earlier_regressions": 203,
+  "new_migrations": false,
+  "native_comparison": {
+    "status": "NO_NEW_FAILURES",
+    "tests": 91,
+    "passed": 81,
+    "legacy_template_passed": 62,
+    "baseline_failures": 10,
+    "same_failure_ids": [
+      "test_429_and_503_marketplace_retry_before_model_sees_error (test_model_answer.AnswerFlow.test_429_and_503_marketplace_retry_before_model_sees_error)",
+      "test_cold_auth_dependency_is_excluded_from_universal_answer (test_model_answer.AnswerFlow.test_cold_auth_dependency_is_excluded_from_universal_answer)",
+      "test_malformed_diagnostic_attempt_does_not_break_same_job_recovery (test_model_answer.AnswerFlow.test_malformed_diagnostic_attempt_does_not_break_same_job_recovery)",
+      "test_partial_data_answer_does_not_bypass_later_source_denial (test_model_answer.AnswerFlow.test_partial_data_answer_does_not_bypass_later_source_denial)",
+      "test_premium_denial_plain_model_notice_then_revocation_blocks_delivery (test_model_answer.AnswerFlow.test_premium_denial_plain_model_notice_then_revocation_blocks_delivery)",
+      "test_prior_success_does_not_leak_in_permission_notice (test_model_answer.AnswerFlow.test_prior_success_does_not_leak_in_permission_notice)",
+      "test_revocation_between_control_text_and_receipt_never_returns_unprotected_text (test_model_answer.AnswerFlow.test_revocation_between_control_text_and_receipt_never_returns_unprotected_text)",
+      "test_selected_method_contract_is_visible_after_parameter_form_error (test_model_answer.AnswerFlow.test_selected_method_contract_is_visible_after_parameter_form_error)",
+      "test_universal_promotions_no_finish_expression_and_all_rows (test_model_answer.AnswerFlow.test_universal_promotions_no_finish_expression_and_all_rows)",
+      "test_unknown_api_error_becomes_model_data_no_repeated_read (test_model_answer.AnswerFlow.test_unknown_api_error_becomes_model_data_no_repeated_read)"
+    ],
+    "all_green": false
+  },
+  "candidate_template_count": 89,
+  "unchanged_baseline_definitions": 88,
+  "native_patch_reproducibility": "PASS",
+  "actual_private_authority_rpc_used": true,
+  "actual_program_lane_unix_socket_used": true,
+  "synthetic_components": [
+    "test accounts/permissions/credential metadata",
+    "marketplace responses",
+    "model/program-executor responses"
+  ],
+  "provider_or_paid_model_calls": 0,
+  "production_changes": false,
+  "tester_browser_or_worktree_changed": false,
+  "independent_review": "NOT_RUN",
+  "full_project_ci": "NOT_RUN",
+  "full_net_profit_template": "NOT_IMPLEMENTED",
+  "voice_binding": "NOT_IMPLEMENTED",
+  "sku_delivery": "NOT_IMPLEMENTED",
+  "live_short_history_proof": "NOT_IMPLEMENTED"
+}

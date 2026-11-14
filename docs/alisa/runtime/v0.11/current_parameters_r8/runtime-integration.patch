@@ -1,0 +1,248 @@
+--- a/template_catalog.py
++++ b/template_catalog.py
+@@ -72,6 +72,10 @@
+             rule=definition(t['parameter_key'])
+             expected={'id':'qualified_parameter_sources','platform':'ozon','operation':rule['producer_template'],'source_registry':'parameter_producers','params':{'period':'input.parameter_period','scope':'input.scope'}}
+             if t['id']!=rule['producer_template']or t['steps']!=[expected]or t['platforms']!=['ozon']:raise ValueError('TEMPLATE_PARAMETER_CONTRACT')
++        if t.get('parameter_report'):
++            from parameter_support.parameter_report_contract import definition
++            rule=definition(t['parameter_report'])
++            if t['id']!=t['parameter_report']or t['kind']!='compound'or t['steps']!=[{'id':'ordered','template':rule['base_template']}]or t['metrics']!=rule['metrics']:raise ValueError('PARAMETER_REPORT_CONTRACT')
+         if t['kind']=='compound':
+             if any('template'not in step for step in t['steps']):raise ValueError('TEMPLATE_COMPOUND_STEP')
+         if t['kind']=='formula'and t['calculation_contract']!=formulas[t['id']]:raise ValueError('TEMPLATE_FORMULA_DRIFT')
+@@ -93,6 +97,9 @@
+     visit(tid);return result
+ 
+ def _availability(engine,t,store):
++    if t.get('parameter_report'):
++        from parameter_report_runtime import available
++        return available(engine,t,store)
+     if t['kind']=='information':return True
+     if t['kind']=='parameter':
+         from parameter_source_runtime import available
+@@ -157,6 +164,9 @@
+     return selection
+ 
+ def _input(call,t,today,now):
++    if t.get('parameter_report'):
++        from parameter_report_runtime import input_value
++        return input_value(call,t,today,now)
+     if t['kind']=='parameter':
+         from parameter_source_runtime import input_value
+         return input_value(call,t,today,now)
+@@ -181,7 +191,7 @@
+     def expand(call,ancestors=()):
+         t=TEMPLATES[call['template_id']]
+         if t['kind']=='parameter'and ancestors:raise TemplateGap('PARAMETER_DEPENDENCY_BINDING_REQUIRED')
+-        if t['kind']=='compound':
++        if t['kind']=='compound'and not t.get('parameter_report'):
+             for step in t['steps']:expand({**deepcopy(call),'template_id':step['template']},ancestors+(t['id'],))
+         else:expanded.append((call,ancestors))
+     for call in selection['invocations']:expand(call)
+@@ -190,7 +200,7 @@
+         if store is None:raise Rejected('SOURCE_ACCESS')
+         need(_availability(engine,t,store),'TEMPLATE_NOT_AVAILABLE',{'template_id':t['id'],'platform':store.platform})
+         inputs=_input(call,t,root['calendar_date'],engine.repo.clock())
+-        bucket='scalar'if t['kind']in('scalar','compound','formula')else t['kind']
++        bucket='parameterized'if t.get('parameter_report')else'scalar'if t['kind']in('scalar','compound','formula')else t['kind']
+         key=fingerprint({'bucket':bucket,'store':store.id,'input':inputs,'specific':t['id']if bucket!='scalar'else None})
+         if key not in groups:groups[key]={'kind':bucket,'store':store,'input':inputs,'leaf_template':t['id'],'templates':[],'metrics':[],'invocations':[]};ordered.append(key)
+         group=groups[key]
+@@ -203,7 +213,10 @@
+         group=groups[key];store=group['store'];subscope=Scope(scope.tenant,scope.revision,(store,));draft={**group['input'],'platforms':[store.platform],'question':root['question']}
+         t=TEMPLATES[group['leaf_template']]
+         try:
+-            if group['kind']=='scalar':
++            if group['kind']=='parameterized':
++                from parameter_report_runtime import compile_plan
++                plan=compile_plan(engine,subscope,draft,t,root,group['invocations'][0])
++            elif group['kind']=='scalar':
+                 metrics=sorted(set(group['metrics']));plan=make_composed_plan(subscope,draft,metrics=metrics)
+             elif group['kind']=='dataset':
+                 from dataset_pipeline import make_dataset_plan
+--- a/template_catalog.json
++++ b/template_catalog.json
+@@ -8263,6 +8263,36 @@
+       "notes": [
+         "По умолчанию это предварительный расчёт. Не утверждай, что число сохранено, если результат не содержит saved=true. Укажи период, дату расчёта и использованные коэффициенты; pending не объявляй успешными продажами."
+       ]
++    },
++    "economics.delivery_projection.v1": {
++      "id": "economics.delivery_projection.v1",
++      "version": 1,
++      "purpose": "Оценка потерь заказов и прямой/последней доставки за период Это оценки, не прибыль и не фактические выкупы.",
++      "platforms": [
++        "ozon"
++      ],
++      "kind": "compound",
++      "parameter_report": "economics.delivery_projection.v1",
++      "input_policy": {
++        "time_axis": "order_period",
++        "snapshot": false,
++        "period_required": true,
++        "comparison_supported": false,
++        "filters_supported": false
++      },
++      "steps": [
++        {
++          "id": "ordered",
++          "template": "B01.ordered_units"
++        }
++      ],
++      "metrics": [
++        "ordered_units"
++      ],
++      "qualification": "existing_parameter_report_sources",
++      "notes": [
++        "Это оценка потерь и прямой/последней доставки по сохранённым коэффициентам, не фактический выкуп и не прибыль. Назови использованные коэффициенты, их происхождение, период и дату расчёта. Средняя доставка уже объединённая: повторно прибавлять её компоненты нельзя."
++      ]
+     }
+   }
+ }
+--- a/template_runtime.py
++++ b/template_runtime.py
+@@ -274,6 +274,9 @@
+     def complete(self,jid,owner,result):return self.stage_answer(jid,owner,result)
+ 
+ def _run_fragment(worker,row,plan,progress,fragment):
++    if fragment['kind']=='parameterized':
++        from parameter_report_runtime import step
++        return step(worker,row,plan,progress,fragment)
+     if fragment['kind']=='parameter':
+         from parameter_source_runtime import step
+         return step(worker,row,plan,progress,fragment)
+--- a/engine.py
++++ b/engine.py
+@@ -66,6 +66,9 @@
+             return authorized(self,plan)
+         try:
+             scope = self.execution_scope(plan.get('runtime_guard'),plan['tenant'])
++            if 'parameter_report'in plan:
++                from parameter_report_runtime import authorized as report_authorized
++                return report_authorized(self,plan)
+             if 'parameter_source'in plan:
+                 from parameter_source_runtime import authorized as parameter_authorized
+                 return parameter_authorized(self,plan)
+--- a/parameter_source_runtime.py
++++ b/parameter_source_runtime.py
+@@ -232,14 +232,16 @@
+             c.execute('DELETE FROM read_payloads WHERE ref=? AND tenant=? AND jid=?',(ref,row['tenant'],row['id']))
+ 
+ 
+-def step(worker,row,root,progress,fragment):
++def step(worker,row,root,progress,fragment,*,save_progress=None,on_complete=None):
+     """Called by template_runtime before the normal sub-Worker path."""
+     from template_runtime import _save,_finish_fragment
+     plan=fragment['plan'];p=plan['parameter_source'];store=plan['stores'][0]
+     need(authorized(worker.engine,plan)and worker.engine.authorized(root),'SOURCE_ACCESS')
+     packed=progress.get('fragment_progress');state=_initial(p)if packed is None else _unseal(worker.repo,row,fragment,packed)
+     def save(until=None):
+-        progress['fragment_progress']=_seal(worker.repo,row,fragment,state);return _save(worker.repo,row,progress,until)
++        progress['fragment_progress']=_seal(worker.repo,row,fragment,state)
++        if save_progress is not None:return save_progress(progress['fragment_progress'],until)
++        return _save(worker.repo,row,progress,until)
+     try:
+         if state['phase']=='next':
+             steps=p['collection']['steps']
+@@ -266,7 +268,9 @@
+                 need(type(result)is dict and result.get('saved')is True,'PARAMETER_WRITE_NOT_CONFIRMED')
+             need(worker.engine.authorized(root),'SOURCE_ACCESS')
+             _cleanup_resources(worker,row,state)
+-            _finish_fragment(worker,row,root,progress,result);return
++            if on_complete is not None:on_complete(result)
++            else:_finish_fragment(worker,row,root,progress,result)
++            return
+         if state['phase']=='boundary':
+             scheme,posting,sku=state['boundary_queue'][state['boundary_i']]
+             operation=pp.CATALOG['sources']['returns']['boundary_operations'][scheme]
+--- a/parameter_collection_runtime.py
++++ b/parameter_collection_runtime.py
+@@ -72,6 +72,8 @@
+ def attach(port):
+     if callable(getattr(port.authority,'parameter_collection',None)):
+         port.engine.parameter_intent_authority=Authority(port.authority,port.repo)
++        from parameter_report_runtime import attach as report_attach
++        report_attach(port)
+ 
+ 
+ def submit(port,task,peer):
+--- a/model_answer.py
++++ b/model_answer.py
+@@ -99,16 +99,24 @@
+         with worker.repo.connection(True) as connection:
+             worker.repo._owned(connection, row['id'], row['owner'])
+             connection.execute('UPDATE jobs SET progress=? WHERE id=?', (canonical_json(progress), row['id']))
++    from parameter_report_runtime import prepare_answer
++    compound_context,compound_fences=prepare_answer(worker,row,plan,progress)
++    if compound_context is None:return
++    from parameter_report_runtime import answer_generation
++    compound_fences,compound_generation=answer_generation(worker,row,progress,compound_fences)
++    from parameter_report_runtime import ReportWorker
++    answer_worker=ReportWorker(worker,[reference for reference,_ in compound_fences])if compound_fences else worker
+     api_data = progress[API_DATA]
+     result_data = progress[PENDING].get('data')
+     template_context = result_data.get('template_context') if type(result_data) is dict else None
+     calculation_context=result_data.get('calculation_context') if type(result_data)is dict else None
+     parameter_context=result_data.get('parameter_context') if type(result_data)is dict else None
+-    if template_context or calculation_context or parameter_context:
++    if template_context or calculation_context or parameter_context or compound_context:
+         api_data={'responses':api_data}
+         if template_context:api_data['template_context']=template_context
+         if calculation_context:api_data['calculation_context']=calculation_context
+         if parameter_context:api_data['parameter_context']=parameter_context
++        if compound_context:api_data['compound_parameter_context']=compound_context
+     from model_program import selected, run
+     if '_answer_execution' not in progress:
+         progress['_answer_execution']='program_v2' if getattr(worker.engine,'program_answers',False) and selected(api_data) else 'direct_v1'
+@@ -147,15 +155,18 @@
+     program_started=time.monotonic()
+     def received(response):
+         if not authorized():raise Rejected('SOURCE_ACCESS')
++        from parameter_report_runtime import fence_answer
++        if not fence_answer(worker,row,progress,compound_fences):return
+         result = dict(progress[PENDING], complete=True, pages=pages(response['content']))
+         with worker.repo.connection(True):
+             from model_usage import finish_request
+             finish_request(worker.repo,row,program_seconds=time.monotonic()-program_started if program else None)
+             worker.repo.complete_answer(row['id'], row['owner'], result)
+     if program:
+-        run(worker,row,body['messages'],api_data,on_complete=received)
++        if compound_generation is None:run(worker,row,body['messages'],api_data,on_complete=received)
++        else:run(answer_worker,row,body['messages'],api_data,on_complete=received,generation=compound_generation)
+     else:
+-        worker._call(row, request, on_received=received)
++        answer_worker._call(row, request, on_received=received)
+ 
+ 
+ def stage_universal(worker, row, progress):
+--- a/runtime.py
++++ b/runtime.py
+@@ -90,6 +90,7 @@
+         key(repo)  # Validate encryption before accepting any paid provider work.
+     engine=Engine(repo,config.scope,template_mode=True,selector_policy=lambda:config.read().get('selector_prompt'),report_archive=archive,answer_settings=answer_settings,read_surface=reads,table_capabilities=(lambda:config.read().get('table_capabilities',{})) if 'table_capabilities' in d else None,dataset_capabilities=(lambda:config.read().get('dataset_capabilities',{})) if 'dataset_capabilities' in d else None)
+     engine.parameter_source_policy=lambda:config.read().get('parameter_sources')
++    engine.parameter_compound_policy=lambda:config.read().get('parameter_compounds')
+     from legacy_voice import Authority
+     engine.legacy_voice_authority=Authority()
+     transport=HTTPTransport(directory,d['credential_bindings'],d['qualifications'],enabled=True,qualification_provider=lambda:config.read()['qualifications'],read_surface_policy=lambda:config.read().get('read_surface',{}))
+--- a/model_program.py
++++ b/model_program.py
+@@ -10,7 +10,7 @@
+ 
+ def selected(api_data):return len(canonical_json(api_data))>=MIN_CHARACTERS
+ 
+-def run(worker,row,messages,api_data,*,socket_path=SOCKET,on_complete=None):
++def run(worker,row,messages,api_data,*,socket_path=SOCKET,on_complete=None,generation=None):
+     from engine import CallError
+     sock=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)
+     stopped=threading.Event();lost=[];thread=None;stream=None
+@@ -63,7 +63,7 @@
+             c.execute('UPDATE jobs SET progress=?,resume_safe=1 WHERE id=?',(canonical_json(progress),row['id']))
+         stream=sock.makefile('rwb')
+         def send(value):stream.write((json.dumps(value,ensure_ascii=False)+'\n').encode());stream.flush()
+-        send({'protocol':2,'job_id':hashlib.sha256((row['tenant']+'\0'+row['id']).encode()).hexdigest(),
++        send({'protocol':2,'job_id':hashlib.sha256((row['tenant']+'\0'+row['id']+(''if generation is None else'\0parameter-revision:'+generation)).encode()).hexdigest(),
+               'resume_only':resume,'messages':messages,'document':canonical_json(api_data),
+               'model':worker.transport.model_source.removeprefix('model:'),
+               'user_id':'alisa_p_'+hashlib.sha256(('alisa-program-tenant-v1\0'+row['tenant']).encode()).hexdigest()})

@@ -97,7 +97,8 @@ def submit(principal, query_id, stores, utterance, *, recover=False, channel='WE
     api.authorizer.prepare('submit')
     mark = hashlib.sha256(encode({'stores': stores, 'utterance': utterance})).hexdigest()
     now = timezone.now(); attempt = uuid.uuid4()
-    continuation = {}
+    from alisa_platform.owner_data.parameter_report_rpc import remember
+    continuation = remember(principal, channel, utterance)
     if store_snapshot is not None:
         from .voice_dialogue import auth_binding
         continuation = {'store_snapshot': store_snapshot, 'voice_auth': auth_binding(principal)}

@@ -1,0 +1,2 @@
+from current_parameters.collection_settings import *
+OWNER_PARAMETER_COMPOUNDS_ENABLED=True
