@@ -17,6 +17,7 @@ def plan_parameter(key,current,today,*,action='use',period_request=None,
         return {'action':'current_status','parameter':key,'value':deepcopy(effective),
                 'inherited':current['inherited'],'collect':False,'persist':False}
     if action=='use'and effective is not None:
+        need(effective.get('unit')==rule['unit'],'PARAMETER_UNIT_CHANGED')
         # Zero and old collection dates stay valid; report date/age is irrelevant.
         return {'action':'use_current','parameter':key,'value':deepcopy(effective),
                 'inherited':current['inherited'],'collect':False,'persist':False}

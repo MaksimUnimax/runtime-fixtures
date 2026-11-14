@@ -77,6 +77,16 @@ def resolve_period(today,request=None,available_from=None,short_history_confirme
             actual['from']=available_from.isoformat();short=True
     return {'requested':requested,'actual':actual,'explicit':explicit,'short_history':short}
 
+def checked_period(value):
+    exact(value,('requested','actual','explicit','short_history'))
+    need(type(value['explicit'])is bool and type(value['short_history'])is bool,'PARAMETER_PERIOD')
+    a,b=dates(value['requested']);x,y=dates(value['actual'])
+    need(a<=x<=y<=b,'PARAMETER_PERIOD_MISMATCH')
+    shortened=(x,y)!=(a,b)
+    need(value['short_history']==shortened,'PARAMETER_PERIOD_MISMATCH')
+    need(not(value['explicit']and shortened),'PARAMETER_EXPLICIT_PERIOD_UNAVAILABLE')
+    return x,y
+
 def stamp(value):
     need(type(value)is str,'PARAMETER_TIMESTAMP')
     try:d=datetime.fromisoformat(value.replace('Z','+00:00'))
@@ -123,13 +133,15 @@ def validate_calculation(key,envelope,target,period,now,verify_sources):
     need(envelope['coverage']['scope']==target['scope'],'PARAMETER_SCOPE_MISMATCH')
     need(envelope['coverage']['actual_period']==period['actual'],'PARAMETER_PERIOD_MISMATCH')
     need(envelope['coverage']['short_history']is period['short_history'],'PARAMETER_PERIOD_MISMATCH')
-    dates(period['requested']);dates(period['actual'])
+    actual_from,actual_to=checked_period(period)
     need(callable(verify_sources),'PARAMETER_SOURCE_VERIFIER_REQUIRED')
     need(verify_sources(deepcopy(target),deepcopy(period),deepcopy(envelope))is True,'PARAMETER_SOURCE_UNQUALIFIED')
     need(now.tzinfo is not None,'PARAMETER_TIMESTAMP')
     observed={k:stamp(v)for k,v in envelope['source_collected_at'].items()}
     need(all(v<=now for v in observed.values()),'PARAMETER_FUTURE_COLLECTION')
     observed_until=stamp(envelope['observed_until']);need(observed_until<=now,'PARAMETER_FUTURE_COLLECTION')
+    from zoneinfo import ZoneInfo
+    need(actual_to<=observed_until.astimezone(ZoneInfo('Europe/Moscow')).date(),'PARAMETER_OBSERVATION_BEFORE_PERIOD_END')
     for name in rule['integer_inputs']:need(number(envelope['inputs'][name])%1==0,'PARAMETER_PHYSICAL_UNITS')
     for check in rule['checks']:
         k,v=next(iter(check.items()))

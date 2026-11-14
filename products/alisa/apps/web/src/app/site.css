@@ -257,7 +257,8 @@ footer p { margin-bottom: 0; }
   .banner { padding: 25px; }
   .banner h2 { font-size: 25px; }
 }
-@media (max-width: 380px) {
+/* Brand and both navigation controls must also fit common 390px screens. */
+@media (max-width: 420px) {
   .brand { gap: 7px; font-size: 17px; }
   .brand img { width: 26px; height: 26px; }
   header { gap: 8px; }

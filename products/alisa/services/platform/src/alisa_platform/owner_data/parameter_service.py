@@ -14,7 +14,7 @@ from django.utils import timezone
 from django.utils.crypto import salted_hmac
 from .models import CurrentParameter,OwnerCommand,PRODUCT
 from .service import actor_store,identifier,Rejected,need
-from .parameter_contract import (CATALOG_HASH,CANON,ParameterError,definition,scope,
+from .parameter_contract import (CATALOG,CATALOG_HASH,CANON,ParameterError,definition,scope,resolve_period,
                                 validate_value,validate_calculation)
 SKU_SALT='alisa.current-parameter.sku.v1'
 
@@ -64,7 +64,8 @@ def _read(actor,store,key,area):
         if general and general.state=='VALUE':effective=general
     return {'store_id':str(store.pk),'parameter':key,'scope':deepcopy(area),
       'revision':own.revision if own else 0,'state':own.state if own else'NOT_PROVIDED',
-      'current':_data(own),'effective':_data(effective),'inherited':bool(effective and effective.scope_kind!=area['kind'])}
+      'current':_data(own),'effective':_data(effective),'inherited':bool(effective and effective.scope_kind!=area['kind']),
+      'server_time':int(timezone.now().timestamp())}
 
 def _receipt(row,action):
     # Old command records never retain the coefficient, collection date/period,
@@ -123,15 +124,47 @@ def _write(actor,store,key,area,command,payload,action,extra=None):
 @transaction.atomic
 def execute(token,command):
     _enabled();need(type(command)is dict,'PARAMETER_SCHEMA',422)
-    action=command.get('action');need(action in('read','set_manual','use_general'),'PARAMETER_ACTION',422)
+    action=command.get('action')
+    need(action in('catalog','read','status','prepare_calculation','set_manual','use_general'),'PARAMETER_ACTION',422)
+    if action=='catalog':
+        need(set(command)=={'action','store_id'},'PARAMETER_SCHEMA',422)
+        actor,store=actor_store(token,command['store_id'])
+        definitions=[]
+        for key,rule in CATALOG['parameters'].items():
+            if store.provider in rule['platforms']:
+                definitions.append({'key':key,'label':rule['label'],'unit':rule['unit'],
+                    'minimum':rule['minimum'],'maximum':rule['maximum'],'scopes':rule['scopes'],
+                    'producer_template':rule['producer_template'],
+                    'collection':{'available':False,'code':'PARAMETER_SOURCE_NOT_QUALIFIED'}})
+        return {'schema':'alisa-parameter-console/v1','store_id':str(store.pk),
+                'definitions':definitions,'default_period':{'months':12},
+                'server_time':int(timezone.now().timestamp()),'timezone':'Europe/Moscow'}
     base={'action','store_id','parameter','scope','sku_reference'}
-    fields=base if action=='read'else base|{'command_id','expected_revision','confirmed','not_after'}
+    fields=base if action in('read','prepare_calculation')else base|{'command_id'} if action=='status'else base|{'command_id','expected_revision','confirmed','not_after'}
     if action=='set_manual':fields|={'value','unit'}
+    if action=='prepare_calculation':fields|={'period','mode'}
     need(set(command)==fields,'PARAMETER_SCHEMA',422)
     actor,store=actor_store(token,command['store_id']);key=command['parameter'];area=command['scope']
     try:
         rule=_target(actor,store,key,area,command['sku_reference'])
         if action=='read':return _read(actor,store,key,area)
+        if action=='status':
+            old=OwnerCommand.objects.filter(tenant_id=actor.tenant_id,customer_id=actor.customer_id,
+                product_id=PRODUCT,store=store,request_id=identifier(command['command_id'])).first()
+            if old:
+                need(old.security_revision==actor.customer.security_revision,'OWNER_SOURCE_AUTH_CHANGED',403)
+                need(old.result.get('parameter_command')is True and old.result.get('parameter')==key and old.result.get('scope')==area,'IDEMPOTENCY_CONFLICT')
+            current=_read(actor,store,key,area)
+            return {**current,'outcome':'DONE'if old else'NOT_FOUND',
+                    'receipt':deepcopy(old.result)if old else None,
+                    'superseded':bool(old and old.result['revision']!=current['revision'])}
+        if action=='prepare_calculation':
+            from zoneinfo import ZoneInfo
+            need(command['mode']in('preview','replace'),'PARAMETER_ACTION',422)
+            period=resolve_period(timezone.now().astimezone(ZoneInfo('Europe/Moscow')).date(),command['period'])
+            return {**_read(actor,store,key,area),'prepared':True,'dispatched':False,
+                'period':period,'mode':command['mode'],'producer_template':rule['producer_template'],
+                'collection':{'available':False,'code':'PARAMETER_SOURCE_NOT_QUALIFIED'}}
         need(command['confirmed']is True,'OWNER_CONFIRMATION_REQUIRED',422)
         if action=='set_manual':
             value=validate_value(rule,command['value'],command['unit']);state='VALUE';origin='manual'

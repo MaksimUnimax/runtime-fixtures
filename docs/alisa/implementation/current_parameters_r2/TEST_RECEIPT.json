@@ -1,0 +1,23 @@
+{
+  "utc": "2026-11-14T05:46:11.586991+00:00",
+  "status": "ISOLATED_CONSOLE_BACKEND_VERIFIED_NOT_DEPLOYED",
+  "base_commit": "1507cfeccc1f3ff5909e028079785d96c84b21aa",
+  "backend_tests": 89,
+  "frontend_model_tests": 41,
+  "browser_scenarios": 29,
+  "existing_catalog_tests": 18,
+  "typecheck": "PASS",
+  "next_build": "PASS",
+  "node_used": "24.21.0",
+  "node_required": ">=24.22.1 <25",
+  "exact_release_toolchain_verified": false,
+  "full_project_regression": "NOT_RUN",
+  "live_deployed": false,
+  "voice_write_enabled": false,
+  "live_historical_collection_enabled": false,
+  "production_changes": 0,
+  "paid_calls": 0,
+  "browser_db": "real disposable PostgreSQL16.15",
+  "synthetic_only": "identities/product/source fixtures",
+  "shared_git_base_visible_from_other_agent": true
+}

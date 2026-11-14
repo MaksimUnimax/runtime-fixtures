@@ -67,7 +67,7 @@ class Fixture:
   dt=(timezone.now()-timedelta(days=3)).replace(microsecond=0).isoformat()
   return {'producer_template':'parameter.loss_rate.v1','inputs':{'failed_units':'993','ordered_units':'7761'},
     'coverage':{'complete':True,'actual_period':deepcopy(PERIOD['actual']),'short_history':False,'scope':deepcopy(area or AREA)},
-    'source_collected_at':{'ordered_physical_units':dt,'unique_failed_units':dt},'observed_until':dt}
+    'source_collected_at':{'ordered_physical_units':dt,'unique_failed_units':dt},'observed_until':timezone.now().replace(microsecond=0).isoformat()}
  def calculated(self,revision=0,area=None,action='replace_calculated',envelope=None,command=None,verify=None):
   return s.commit_calculated(self.token,command or self.command(action,revision=revision,area=area),envelope or self.envelope(area),deepcopy(PERIOD),verify_sources=verify or(lambda t,p,e:True))
 
@@ -191,7 +191,7 @@ class Storage(Fixture,TestCase):
   current=self.read()['current'];self.assertNotIn(first,json.dumps(current));self.assertEqual(CurrentParameter.objects.count(),1)
  def test_delivery_formula_is_declarative_and_exact(self):
   q=self.command('replace_calculated');q['parameter']='delivery_mean';dt=(timezone.now()-timedelta(days=1)).replace(microsecond=0).isoformat()
-  env={'producer_template':'parameter.delivery_mean.v1','inputs':{'forward_delivery':'719098.18','last_delivery':'72786.15','ordered_units':'7793'},'coverage':{'complete':True,'actual_period':deepcopy(PERIOD['actual']),'short_history':False,'scope':deepcopy(AREA)},'source_collected_at':{k:dt for k in c.definition('delivery_mean')['required_sources']},'observed_until':dt}
+  env={'producer_template':'parameter.delivery_mean.v1','inputs':{'forward_delivery':'719098.18','last_delivery':'72786.15','ordered_units':'7793'},'coverage':{'complete':True,'actual_period':deepcopy(PERIOD['actual']),'short_history':False,'scope':deepcopy(AREA)},'source_collected_at':{k:dt for k in c.definition('delivery_mean')['required_sources']},'observed_until':timezone.now().replace(microsecond=0).isoformat()}
   r=s.commit_calculated(self.token,q,env,deepcopy(PERIOD),verify_sources=lambda *args:True)
   with localcontext()as ctx:
    ctx.prec=50;self.assertEqual(Decimal(r['current']['value']),Decimal('791884.33')/Decimal('7793'))
@@ -211,9 +211,45 @@ class Storage(Fixture,TestCase):
   with patch('django.utils.timezone.now',return_value=timezone.now()+timedelta(minutes=10)):
    with self.assertRaises(Rejected)as e:s.execute(self.token,old)
   self.assertEqual(e.exception.code,'OWNER_COMMAND_EXPIRED');self.assertEqual(self.read()['current']['value'],'0.09')
+ def test_catalog_lists_units_and_honest_collection_readiness(self):
+  r=s.execute(self.token,{'action':'catalog','store_id':str(self.store.pk)})
+  self.assertEqual(r['default_period'],{'months':12});self.assertEqual(len(r['definitions']),2)
+  self.assertTrue(all(x['collection']=={'available':False,'code':'PARAMETER_SOURCE_NOT_QUALIFIED'}for x in r['definitions']));self.assertEqual(OwnerCommand.objects.count(),0)
+ def test_status_after_write_returns_metadata_and_current(self):
+  q=self.command();s.execute(self.token,q);check={k:q[k]for k in ['store_id','parameter','scope','sku_reference','command_id']};check['action']='status'
+  r=s.execute(self.token,check);self.assertEqual(r['outcome'],'DONE');self.assertFalse(r['superseded']);self.assertNotIn('value',r['receipt'])
+ def test_status_unknown_never_repeats_write(self):
+  q=self.command('read');q.update(action='status',command_id=str(uuid.uuid4()));r=s.execute(self.token,q)
+  self.assertEqual(r['outcome'],'NOT_FOUND');self.assertEqual(CurrentParameter.objects.count(),0);self.assertEqual(OwnerCommand.objects.count(),0)
+ def test_status_old_receipt_marks_superseded_no_old_value(self):
+  q=self.command(value='0.071927');s.execute(self.token,q);self.save('0.22',1)
+  check={k:q[k]for k in ['store_id','parameter','scope','sku_reference','command_id']};check['action']='status';r=s.execute(self.token,check)
+  self.assertTrue(r['superseded']);self.assertEqual(r['current']['value'],'0.22');self.assertNotIn('0.071927',json.dumps(r))
+ def test_status_other_target_for_same_id_denied(self):
+  q=self.command();s.execute(self.token,q);check={k:q[k]for k in ['store_id','parameter','scope','sku_reference','command_id']};check.update(action='status',parameter='delivery_mean')
+  with self.assertRaises(Rejected):s.execute(self.token,check)
+ def test_prepare_default_year_without_collecting(self):
+  q=self.command('read');q.update(action='prepare_calculation',period=None,mode='replace');before=OwnerCommand.objects.count();r=s.execute(self.token,q)
+  self.assertFalse(r['period']['explicit']);self.assertTrue(r['prepared']);self.assertFalse(r['dispatched']);self.assertEqual(OwnerCommand.objects.count(),before);self.assertEqual(CurrentParameter.objects.count(),0)
+ def test_prepare_half_year_is_explicit_no_write(self):
+  self.save();before=self.read()['current'];q=self.command('read');q.update(action='prepare_calculation',period={'months':6},mode='replace');r=s.execute(self.token,q)
+  self.assertTrue(r['period']['explicit']);self.assertEqual(self.read()['current'],before)
+ def test_prepare_cannot_claim_different_scope(self):
+  q=self.command('read');q.update(action='prepare_calculation',period=None,mode='apply_all')
+  with self.assertRaises(Rejected):s.execute(self.token,q)
  def test_read_api_returns_dates(self):
   self.calculated();response=self.client.post('/parameters',data=json.dumps({'session_token':self.token,'command':self.command('read')}),content_type='application/json',HTTP_AUTHORIZATION='Bearer '+settings.AUTH_SERVICE_TOKEN)
   self.assertEqual(response.status_code,200);self.assertTrue(response.json()['current']['collected_at'])
+ def test_actual_period_outside_requested_is_rejected(self):
+  q=self.command('replace_calculated');p=deepcopy(PERIOD);p['actual']['from']='2024-01-01';env=self.envelope();env['coverage']['actual_period']=p['actual']
+  with self.assertRaises(Rejected):s.commit_calculated(self.token,q,env,p,verify_sources=lambda *a:True)
+ def test_observation_before_period_end_rejected(self):
+  env=self.envelope();env['observed_until']='2026-10-01T00:00:00Z'
+  with self.assertRaises(Rejected)as e:self.calculated(envelope=env)
+  self.assertEqual(e.exception.code,'PARAMETER_OBSERVATION_BEFORE_PERIOD_END')
+ def test_explicit_period_cannot_shrink_even_if_flag_true(self):
+  p=deepcopy(PERIOD);p['explicit']=True;p['short_history']=True;p['actual']['from']='2026-08-14';env=self.envelope();env['coverage'].update(actual_period=p['actual'],short_history=True)
+  with self.assertRaises(Rejected):s.commit_calculated(self.token,self.command('replace_calculated'),env,p,verify_sources=lambda *a:True)
  def test_no_client_calculated_write_route(self):
   q=self.command('replace_calculated');response=self.client.post('/parameters',data=json.dumps({'session_token':self.token,'command':q}),content_type='application/json',HTTP_AUTHORIZATION='Bearer '+settings.AUTH_SERVICE_TOKEN)
   self.assertEqual(response.status_code,422);self.assertEqual(CurrentParameter.objects.count(),0)
@@ -251,7 +287,7 @@ class Concurrency(Fixture,TransactionTestCase):
 class DependencyPlanning(UnitCase):
  def view(self,value='0',area=None):
   return {'parameter':'loss_rate','store_id':'synthetic-store','scope':area or deepcopy(AREA),'revision':7,
-    'inherited':False,'effective':{'value':value,'origin':'calculated','collected_at':'2023-01-01T00:00:00Z','revision':7}if value is not None else None}
+    'inherited':False,'effective':{'value':value,'unit':'ratio','origin':'calculated','collected_at':'2023-01-01T00:00:00Z','revision':7}if value is not None else None}
  def plan(self,view,**kw):
   from alisa_platform.owner_data.parameter_resolution import plan_parameter
   return plan_parameter('loss_rate',view,date(2026,11,14),**kw)
@@ -269,3 +305,12 @@ class DependencyPlanning(UnitCase):
   p=self.plan(self.view('0.1'),action='recalculate',period_request={'months':6});self.assertEqual(p['parameter_period']['actual']['from'],'2026-05-14');self.assertEqual(p['write_intent'],'replace_calculated')
  def test_unknown_action_not_implicit_recalculation(self):
   with self.assertRaises(c.ParameterError):self.plan(self.view(),action='nightly_refresh')
+
+
+class ParameterDefinitionCompatibility(UnitCase):
+ view=DependencyPlanning.view
+ plan=DependencyPlanning.plan
+ def test_changed_unit_does_not_silently_apply_or_refresh(self):
+  view=self.view('0.1');view['effective']['unit']='RUB'
+  with self.assertRaises(c.ParameterError)as e:self.plan(view)
+  self.assertEqual(e.exception.code,'PARAMETER_UNIT_CHANGED')
