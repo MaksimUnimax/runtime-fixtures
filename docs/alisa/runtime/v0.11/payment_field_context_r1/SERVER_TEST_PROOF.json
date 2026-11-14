@@ -1,0 +1,25 @@
+{
+  "status": "PASS",
+  "server_tests": 176,
+  "seconds": 38.557,
+  "paid_calls": 0,
+  "server_log": "/opt/alice-market/candidates/payment-field-context-tests-20261114/focused-final.log",
+  "base_payload_files": 176,
+  "only_changed_payload": [
+    "template_catalog.json"
+  ],
+  "changed_templates": [
+    "realization_payment_totals",
+    "realization_payment_days",
+    "realization_payment_items",
+    "realization_payment_items_days",
+    "realization_payment_lines"
+  ],
+  "catalog_sha256": "452a1c40dee4d8dd4aeeee8eca6f829c9f1e9d27e19577a4da624a58b447fdb6",
+  "native_station_dependency_pre_and_post_hashes_match": true,
+  "suite_components": {
+    "existing_template_context_and_selector": 147,
+    "parallel_legacy_clarification": 29
+  },
+  "environment_note": "Initial legacy import lacked paired Station path; final run used exact TEST_STATION_SOURCE and PYTHONPATH. No product source or access was changed to resolve import."
+}

@@ -1,0 +1,24 @@
+{
+  "base_release": "alisa-legacy-clarification-5a62b45b6370adb5-329dd714",
+  "base_source_commit": "5a62b45b6370adb55d8d3094f94a3777a0bc9d76",
+  "base_manifest_sha256": "7afaaa7574e820990f154bfb1f0d215b5314c713e4674e9235263146a258e063",
+  "base_catalog_sha256": "3b434ae383fb758a53c06bd73d0b1ab921efa478ee3b1feb09fa631c8f9621e0",
+  "new_catalog_sha256": "452a1c40dee4d8dd4aeeee8eca6f829c9f1e9d27e19577a4da624a58b447fdb6",
+  "base_payload_files": 176,
+  "preserved_legacy_clarification_source": "5a62b45b6370adb55d8d3094f94a3777a0bc9d76",
+  "preserved_catalog_source": "2709e15f6befa780f8c1571566a903e265403c49",
+  "preserved_settings_revision": 6,
+  "preserved_settings_sha256": "75648da49553e35b53db0d25d2b9f8025b185bbcd9e72ed0208e9ecb7388803b",
+  "changed_templates": [
+    "realization_payment_totals",
+    "realization_payment_days",
+    "realization_payment_items",
+    "realization_payment_items_days",
+    "realization_payment_lines"
+  ],
+  "native_station_test_dependency": {
+    "path": "/opt/alisa-station/releases/station-legacy-clarification-5a62b45b6370adb5-329dd714",
+    "station_authority_sha256": "5a7aa0a465ebaf69d5f117a44eed3e7900dce6d1b19d0cc2b1823753df6d08c5",
+    "service_sha256": "ee0716ad11590c56a49be8c19a3c70b966f83358a88cfe127299a033ac1d8380"
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "reviewed_at_utc": "2026-11-14T04:11:00.207870+00:00",
+  "scope": "Exact shared raw-field context for five realization_payment datasets and finite rollout over the current parallel legacy-clarification release. No live client figures or private job identifiers included.",
+  "files_sha256": {
+    "template_catalog.base.json": "3b434ae383fb758a53c06bd73d0b1ab921efa478ee3b1feb09fa631c8f9621e0",
+    "template_catalog.json": "452a1c40dee4d8dd4aeeee8eca6f829c9f1e9d27e19577a4da624a58b447fdb6",
+    "patch.json": "8c841b0766a04eee82382b7568fa2268efa07808f192cfeb066f90c9fb28868e",
+    "BASE_SOURCE.json": "e1b25ff53f3715ff6b490ba8b3b807ff08b43a866e531cae3a169d40ad09276f",
+    "build.py": "77e03fd9a5eaba8530d61345243957cdb2ff6879d7457f85c24e926134a71871",
+    "prepare.py": "d2bd73624413241de6ded35bf9b22b6c1e043c5b49d23e6d11ef8f6c174a437f",
+    "install.py": "6dd0e0f7a2ce5178e661715d54957f2101a724e6e67733a5ed56c25ba4834136",
+    "README.md": "d9799de77f6cf23b13fca05bd0eddeb3110de967abff6d15c9f5e0883c403821",
+    "SERVER_TEST_PROOF.json": "8d690ef7668f54cd2816f07a2cdd875e1a277a2f18c100400ccc42f8d49bd082"
+  },
+  "findings": [],
+  "resolved_review_observations": [
+    "After adding the real paired Station dependency for the legacy tests, build.py was updated to reproduce the same native_station_test_dependency metadata and installer information hash. No catalog or runtime change was required."
+  ],
+  "checks": [
+    "Only five templates change: realization_payment_lines, totals, days, items and items_days. Each version1 becomes2, retains every existing note and appends the same field-mapping note plus a calculation_contract. Other81 templates and all top-level catalog metadata remain unchanged.",
+    "All source operations, requests, steps, columns, output stages, queries, grouping and arithmetic remain unchanged. Each contract declares its own original group_by and dataset_query. Patch objects equal the full changed templates.",
+    "All three source recipe fingerprints and the common dataset query catalog hash match local canonical registered sources. Positive realization targets require non-null commission and positive raw commission.sale_amount; canonical quantity, identity, sign and currency validation are retained.",
+    "Canonical buyer sale_amount maps from raw commission.sale_price.amount; canonical seller_amount maps from raw commission.sale_amount.amount. Both are already whole-line amounts. The contract forbids replacing buyer money with seller money or multiplying line amounts by quantity again.",
+    "sale_units uses target quantity. Grouped average_price is sum of buyer amounts divided by sum of quantities, not an unweighted row average or seller measure. Single-line buyer_unit_average preserves the multi-item-line limitation.",
+    "Posting join uses accrual unit_number versus posting posting_number and the canonical strict SKU identity. Missing/empty target posting becomes null. Both FBO/FBS metadata sources use the registered bounded from-minus31-days through-to history in nonoverlapping inclusive31-day chunks.",
+    "Canonical relation rules reject duplicate right keys, parent-posting/SKU mismatch and matched quantity exceeding metadata capacity; they preserve selected target rows, units and both money measures. Payment labels remain literal; unmatched/unknown values remain separately unknown rather than no-card. Metadata completeness is distinct from enrichment coverage.",
+    "Accrual-date, complete-page and currency requirements remain. Missing/incomplete/error responses are not zero; valid explicit zero buyer money remains valid. No fiscal receipt or verified card-product mapping is claimed, and no expected answer or original-question rewrite is injected.",
+    "Final embedded and standalone archive payloads contain exactly the reviewed catalog and unchanged context test with matching bytes. Python AST, exact scope, all fingerprints, declared groupings and catalog validation pass.",
+    "Preparation clones the exact pinned current legacy release, verifies every176 manifest payload and rejects unpinned physical files. Only the candidate catalog inode is replaced. Existing147 checks and29 real legacy tests run against the paired Station dependency pinned by service/authority hashes; no product access or source is altered for imports.",
+    "Installer pins BASE_SOURCE.json, current base manifest, candidate catalog and context test; requires176 passing tests and exactly one changed runtime payload. Base source and legacy_clarification_source must match5a62b45b6370adb55d8d3094f94a3777a0bc9d76.",
+    "New manifest starts from the entire current base manifest and only updates release/source/base bookkeeping plus this change source. Existing legacy, parallel catalog2709e15f6befa780f8c1571566a903e265403c49, clarification and earlier lineage fields remain; no old parallel_source_commit is substituted.",
+    "Shared recovery lock, active QUEUED/RUNNING and live READY-clarification guards before/after stop, immutable hardlink preparation with separate catalog/manifest inodes, full base hashes before/after, policy/version preflight, atomic current pointer, actual process cwd and rollback are retained.",
+    "Current revision6 quantity/label/SKU settings are not edited and exact SHA75648da49553e35b53db0d25d2b9f8025b185bbcd9e72ed0208e9ecb7388803b is checked before/after rollout. Runtime config and Station product code are not changed."
+  ],
+  "independent_local_validation": {
+    "exact_five_template_scope_and_patches": "PASS",
+    "canonical_buyer_seller_mapping_and_relations": "PASS",
+    "three_source_recipe_fingerprints_and_query_catalog_hash": "PASS",
+    "all_declared_groupings_and_catalog_validator": "PASS",
+    "python_ast": [
+      "build.py",
+      "prepare.py",
+      "install.py"
+    ],
+    "both_final_payload_archive_contents": "PASS",
+    "final_build_dependency_and_installer_info_pin": "PASS",
+    "rollout_static_review": "PASS",
+    "new_test_files_created": 0,
+    "remote_provider_or_model_calls": 0
+  },
+  "primary_executor_evidence": {
+    "source": "Final SERVER_TEST_PROOF.json and primary executor messages; not independently rerun remotely by reviewer",
+    "server_tests": 176,
+    "components": {
+      "existing_suite": 147,
+      "parallel_legacy_clarification": 29
+    },
+    "seconds": 38.557,
+    "rerun_exit_code": 0,
+    "verified_base_payload_files": 176,
+    "only_changed_runtime_payload": [
+      "template_catalog.json"
+    ],
+    "paired_station_dependencies_pre_post_hashes_unchanged": true,
+    "paid_calls": 0,
+    "environment_note": "Initial legacy test import lacked the paired Station path. Final run supplied the real pinned Station source via TEST_STATION_SOURCE/PYTHONPATH without modifying product code or access."
+  },
+  "limitations": [
+    "Approval covers this exact static candidate and installer, not completed deployment or live buyer-money acceptance.",
+    "The incorrect buyer-money response remains open until an exact live retest confirms the corrected field selection. Isolated tests do not guarantee model compliance with metadata.",
+    "Full current server release verification is performed by the pinned prepare/installer and reported native evidence; reviewer independently inspected canonical local sources and rollout logic without remote access.",
+    "Hardlinked releases retain the existing immutable-release assumption."
+  ]
+}

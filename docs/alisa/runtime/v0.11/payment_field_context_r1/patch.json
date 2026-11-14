@@ -1,0 +1,1566 @@
+{
+  "realization_payment_totals": {
+    "id": "realization_payment_totals",
+    "version": 2,
+    "purpose": "Реализация по способам оплаты",
+    "platforms": [
+      "ozon"
+    ],
+    "kind": "dataset",
+    "input_policy": {
+      "time_axis": "source_period",
+      "snapshot": false,
+      "period_required": true,
+      "comparison_supported": false,
+      "filters_supported": false
+    },
+    "steps": [
+      {
+        "id": "ozon_target",
+        "platform": "ozon",
+        "operation": "ds_ozon_accrual_join_rows",
+        "source_registry": "dataset_sources",
+        "params": [
+          {}
+        ],
+        "period_mode": "days"
+      },
+      {
+        "id": "ozon_fbo",
+        "platform": "ozon",
+        "operation": "ds_ozon_fbo_join_items",
+        "source_registry": "dataset_sources",
+        "params": {
+          "$if": [
+            {
+              "$fn": [
+                "gt",
+                {
+                  "$fn": [
+                    "len",
+                    {
+                      "$filter": [
+                        {
+                          "$path": [
+                            "datasets",
+                            "target"
+                          ]
+                        },
+                        "target_row",
+                        {
+                          "$fn": [
+                            "gt",
+                            {
+                              "$fn": [
+                                "decimal_compare",
+                                {
+                                  "$path": [
+                                    "target_row",
+                                    "sale_units"
+                                  ]
+                                },
+                                "0"
+                              ]
+                            },
+                            0
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                0
+              ]
+            },
+            [
+              {}
+            ],
+            []
+          ]
+        },
+        "period_mode": "whole",
+        "window": {
+          "start_offset_days": -31,
+          "end_offset_days": 0,
+          "chunk_days": 31
+        }
+      },
+      {
+        "id": "ozon_fbs",
+        "platform": "ozon",
+        "operation": "ds_ozon_fbs_join_items",
+        "source_registry": "dataset_sources",
+        "params": {
+          "$if": [
+            {
+              "$fn": [
+                "gt",
+                {
+                  "$fn": [
+                    "len",
+                    {
+                      "$filter": [
+                        {
+                          "$path": [
+                            "datasets",
+                            "target"
+                          ]
+                        },
+                        "target_row",
+                        {
+                          "$fn": [
+                            "gt",
+                            {
+                              "$fn": [
+                                "decimal_compare",
+                                {
+                                  "$path": [
+                                    "target_row",
+                                    "sale_units"
+                                  ]
+                                },
+                                "0"
+                              ]
+                            },
+                            0
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                0
+              ]
+            },
+            [
+              {}
+            ],
+            []
+          ]
+        },
+        "period_mode": "whole",
+        "window": {
+          "start_offset_days": -31,
+          "end_offset_days": 0,
+          "chunk_days": 31
+        }
+      }
+    ],
+    "qualification": "existing_source_requirements",
+    "notes": [
+      "Выбраны положительные реализации по дате начисления; обратные начисления и нецелевые строки отдельно, не включены в этот отчёт.",
+      "Метаданные ищутся также за 31 день до начала периода. Это ограниченное окно, не обещание полной истории; несопоставленные строки сохраняются с неизвестной оплатой.",
+      "Метки оплаты сохранены как сообщает источник. Неизвестная метка не означает оплату без карты; bank_coinvestment для определения карты не используется.",
+      "Покупательская сумма уже относится ко всей строке. Средняя взвешена количеством; это не кассовый чек. Разность средних групп не доказывает скидку на ту же покупку.",
+      "Привязка сумм принципиальна: покупательская сумма sale_amount этого dataset берётся из commission.sale_price.amount сырой товарной строки, а сумма продавца seller_amount — из commission.sale_amount.amount. Обе суммы уже относятся ко всей строке; повторно умножать их на quantity нельзя. Для вопроса о покупательской сумме не используй сумму продавца. Количество — quantity положительных реализаций; средняя покупательская цена — сумма покупателя/количество. Сохраняй исходные метки оплаты и неизвестную оплату отдельно."
+    ],
+    "dataset_query": "realization_payment_totals",
+    "metrics": [],
+    "relations": [
+      {
+        "id": "enriched",
+        "label": "способ оплаты положительных реализаций",
+        "left": "target",
+        "right": [
+          "fbo",
+          "fbs"
+        ],
+        "on": [
+          [
+            "posting_key",
+            "posting_key"
+          ],
+          [
+            "product_id",
+            "product_id"
+          ]
+        ],
+        "parent_keys": [
+          0
+        ],
+        "left_where": {
+          "$fn": [
+            "gt",
+            {
+              "$fn": [
+                "decimal_compare",
+                {
+                  "$path": [
+                    "row",
+                    "sale_units"
+                  ]
+                },
+                "0"
+              ]
+            },
+            0
+          ]
+        },
+        "capacity": {
+          "left": "sale_units",
+          "right": "item_units",
+          "mode": "sum_le"
+        },
+        "preserve": [
+          "sale_units",
+          "sale_amount",
+          "seller_amount"
+        ],
+        "fields": {
+          "payment_label": {
+            "source": "payment_raw",
+            "unknown": "неизвестно",
+            "unknown_values": [
+              null,
+              "",
+              "unknown"
+            ]
+          }
+        },
+        "coverage_field": "join_state",
+        "missing": "report_unknown"
+      }
+    ],
+    "output_stage": "enriched",
+    "columns": [
+      {
+        "field": "payment_label",
+        "label": "метка оплаты источника",
+        "kind": "text"
+      },
+      {
+        "field": "sale_units",
+        "label": "товаров",
+        "kind": "number"
+      },
+      {
+        "field": "sale_amount",
+        "label": "покупательская сумма строк",
+        "kind": "money"
+      },
+      {
+        "field": "seller_amount",
+        "label": "сумма продавца",
+        "kind": "money"
+      },
+      {
+        "field": "average_price",
+        "label": "средняя на товар",
+        "kind": "money"
+      }
+    ],
+    "group_by": [
+      "payment_label"
+    ],
+    "aggregates": [
+      {
+        "field": "sale_units",
+        "kind": "sum",
+        "source": "sale_units",
+        "denominator": null
+      },
+      {
+        "field": "sale_amount",
+        "kind": "sum",
+        "source": "sale_amount",
+        "denominator": null
+      },
+      {
+        "field": "seller_amount",
+        "kind": "sum",
+        "source": "seller_amount",
+        "denominator": null
+      },
+      {
+        "field": "average_price",
+        "kind": "ratio_sum",
+        "source": "sale_amount",
+        "denominator": "sale_units"
+      }
+    ],
+    "calculation_contract": {
+      "schema": "alisa-realization-payment-fields/v1",
+      "source_recipe_sha256": {
+        "ds_ozon_accrual_join_rows": "25f6f58c5120c60d672154b115c1bd7a34cbe4bc722df7f154b95d751c4805fd",
+        "ds_ozon_fbo_join_items": "1c8990e8e4f5e904782be0a0e02d599e69285fe892de061021bccfb55c5096cc",
+        "ds_ozon_fbs_join_items": "7dd19d46d6c3bdac89330a551c6758e2d5352d89e3ff1fe5495a3c0731b4760f"
+      },
+      "dataset_query_hash": "0335b59cfa4f315b91c1dccfe983d68115abb4476a6f2f2e539218767bc8e59e",
+      "target": "accruals[].posting.products[] with non-null commission and positive commission.sale_amount.amount; preserve canonical quantity, identity, sign and currency validation",
+      "canonical_fields": {
+        "sale_units": "products[].quantity on the positive-realization target line",
+        "sale_amount": "products[].commission.sale_price.amount: BUYER amount for the entire line, despite this raw field being named sale_price. This is the requested покупательская сумма. Do not multiply it by quantity again.",
+        "seller_amount": "products[].commission.sale_amount.amount: SELLER amount for the entire line. The raw name sale_amount does NOT make it the buyer amount. Do not substitute it for buyer amount.",
+        "average_price": "sum(canonical sale_amount) / sum(sale_units), never seller_amount or unweighted mean of row averages",
+        "buyer_unit_average": "raw commission.sale_price.amount / quantity for a single line; for multi-item lines this is an average, not each fiscal purchase price"
+      },
+      "payment_join": {
+        "target_posting": "raw accruals[].unit_number; canonical posting_key is its hash or null when absent/empty",
+        "metadata_posting": "raw postings[].posting_number; canonical posting_key is its hash",
+        "item_identity": "exact validated SKU on both sides, using canonical positive_integer mapping",
+        "right_sources": "both registered FBO and FBS metadata stages, all complete pages in the requested from-31days through to window, chunked into inclusive31-day windows",
+        "integrity": "Reject duplicate right keys, parent-posting/SKU mismatch and sum of matched target quantities exceeding metadata product quantity. Preserve target units and both monetary measures; do not multiply or drop target rows.",
+        "payment_label": "literal analytics_data.payment_type_group_name; absent/empty/unknown value or unmatched bounded-history posting becomes неизвестно. Unknown is separate from no-card. A bank label is not a verified card-product mapping. Metadata source completeness is distinct from enrichment coverage."
+      },
+      "aggregation": "For grouped outputs, sum requested measures over the existing declared group_by; for line output preserve separate target lines. Only use the requested measure. Buyer amount always uses canonical sale_amount from raw sale_price; seller amount uses canonical seller_amount from raw sale_amount.",
+      "scope": "Target date is accrual date, not order or physical buyout date. Require all source pages and currency validation. Missing/incomplete/error data is not zero. A valid explicit zero buyer amount is preserved. These are source line amounts, not fiscal receipts or proof of a particular card product.",
+      "declared_group_by": [
+        "payment_label"
+      ],
+      "dataset_query": "realization_payment_totals"
+    }
+  },
+  "realization_payment_days": {
+    "id": "realization_payment_days",
+    "version": 2,
+    "purpose": "Реализация по дням и способам оплаты",
+    "platforms": [
+      "ozon"
+    ],
+    "kind": "dataset",
+    "input_policy": {
+      "time_axis": "source_period",
+      "snapshot": false,
+      "period_required": true,
+      "comparison_supported": false,
+      "filters_supported": false
+    },
+    "steps": [
+      {
+        "id": "ozon_target",
+        "platform": "ozon",
+        "operation": "ds_ozon_accrual_join_rows",
+        "source_registry": "dataset_sources",
+        "params": [
+          {}
+        ],
+        "period_mode": "days"
+      },
+      {
+        "id": "ozon_fbo",
+        "platform": "ozon",
+        "operation": "ds_ozon_fbo_join_items",
+        "source_registry": "dataset_sources",
+        "params": {
+          "$if": [
+            {
+              "$fn": [
+                "gt",
+                {
+                  "$fn": [
+                    "len",
+                    {
+                      "$filter": [
+                        {
+                          "$path": [
+                            "datasets",
+                            "target"
+                          ]
+                        },
+                        "target_row",
+                        {
+                          "$fn": [
+                            "gt",
+                            {
+                              "$fn": [
+                                "decimal_compare",
+                                {
+                                  "$path": [
+                                    "target_row",
+                                    "sale_units"
+                                  ]
+                                },
+                                "0"
+                              ]
+                            },
+                            0
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                0
+              ]
+            },
+            [
+              {}
+            ],
+            []
+          ]
+        },
+        "period_mode": "whole",
+        "window": {
+          "start_offset_days": -31,
+          "end_offset_days": 0,
+          "chunk_days": 31
+        }
+      },
+      {
+        "id": "ozon_fbs",
+        "platform": "ozon",
+        "operation": "ds_ozon_fbs_join_items",
+        "source_registry": "dataset_sources",
+        "params": {
+          "$if": [
+            {
+              "$fn": [
+                "gt",
+                {
+                  "$fn": [
+                    "len",
+                    {
+                      "$filter": [
+                        {
+                          "$path": [
+                            "datasets",
+                            "target"
+                          ]
+                        },
+                        "target_row",
+                        {
+                          "$fn": [
+                            "gt",
+                            {
+                              "$fn": [
+                                "decimal_compare",
+                                {
+                                  "$path": [
+                                    "target_row",
+                                    "sale_units"
+                                  ]
+                                },
+                                "0"
+                              ]
+                            },
+                            0
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                0
+              ]
+            },
+            [
+              {}
+            ],
+            []
+          ]
+        },
+        "period_mode": "whole",
+        "window": {
+          "start_offset_days": -31,
+          "end_offset_days": 0,
+          "chunk_days": 31
+        }
+      }
+    ],
+    "qualification": "existing_source_requirements",
+    "notes": [
+      "Выбраны положительные реализации по дате начисления; обратные начисления и нецелевые строки отдельно, не включены в этот отчёт.",
+      "Метаданные ищутся также за 31 день до начала периода. Это ограниченное окно, не обещание полной истории; несопоставленные строки сохраняются с неизвестной оплатой.",
+      "Метки оплаты сохранены как сообщает источник. Неизвестная метка не означает оплату без карты; bank_coinvestment для определения карты не используется.",
+      "Покупательская сумма уже относится ко всей строке. Средняя взвешена количеством; это не кассовый чек. Разность средних групп не доказывает скидку на ту же покупку.",
+      "Привязка сумм принципиальна: покупательская сумма sale_amount этого dataset берётся из commission.sale_price.amount сырой товарной строки, а сумма продавца seller_amount — из commission.sale_amount.amount. Обе суммы уже относятся ко всей строке; повторно умножать их на quantity нельзя. Для вопроса о покупательской сумме не используй сумму продавца. Количество — quantity положительных реализаций; средняя покупательская цена — сумма покупателя/количество. Сохраняй исходные метки оплаты и неизвестную оплату отдельно."
+    ],
+    "dataset_query": "realization_payment_days",
+    "metrics": [],
+    "relations": [
+      {
+        "id": "enriched",
+        "label": "способ оплаты положительных реализаций",
+        "left": "target",
+        "right": [
+          "fbo",
+          "fbs"
+        ],
+        "on": [
+          [
+            "posting_key",
+            "posting_key"
+          ],
+          [
+            "product_id",
+            "product_id"
+          ]
+        ],
+        "parent_keys": [
+          0
+        ],
+        "left_where": {
+          "$fn": [
+            "gt",
+            {
+              "$fn": [
+                "decimal_compare",
+                {
+                  "$path": [
+                    "row",
+                    "sale_units"
+                  ]
+                },
+                "0"
+              ]
+            },
+            0
+          ]
+        },
+        "capacity": {
+          "left": "sale_units",
+          "right": "item_units",
+          "mode": "sum_le"
+        },
+        "preserve": [
+          "sale_units",
+          "sale_amount",
+          "seller_amount"
+        ],
+        "fields": {
+          "payment_label": {
+            "source": "payment_raw",
+            "unknown": "неизвестно",
+            "unknown_values": [
+              null,
+              "",
+              "unknown"
+            ]
+          }
+        },
+        "coverage_field": "join_state",
+        "missing": "report_unknown"
+      }
+    ],
+    "output_stage": "enriched",
+    "columns": [
+      {
+        "field": "day",
+        "label": "дата начисления",
+        "kind": "text"
+      },
+      {
+        "field": "payment_label",
+        "label": "метка оплаты источника",
+        "kind": "text"
+      },
+      {
+        "field": "sale_units",
+        "label": "товаров",
+        "kind": "number"
+      },
+      {
+        "field": "sale_amount",
+        "label": "покупательская сумма строк",
+        "kind": "money"
+      },
+      {
+        "field": "seller_amount",
+        "label": "сумма продавца",
+        "kind": "money"
+      },
+      {
+        "field": "average_price",
+        "label": "средняя на товар",
+        "kind": "money"
+      }
+    ],
+    "group_by": [
+      "day",
+      "payment_label"
+    ],
+    "aggregates": [
+      {
+        "field": "sale_units",
+        "kind": "sum",
+        "source": "sale_units",
+        "denominator": null
+      },
+      {
+        "field": "sale_amount",
+        "kind": "sum",
+        "source": "sale_amount",
+        "denominator": null
+      },
+      {
+        "field": "seller_amount",
+        "kind": "sum",
+        "source": "seller_amount",
+        "denominator": null
+      },
+      {
+        "field": "average_price",
+        "kind": "ratio_sum",
+        "source": "sale_amount",
+        "denominator": "sale_units"
+      }
+    ],
+    "calculation_contract": {
+      "schema": "alisa-realization-payment-fields/v1",
+      "source_recipe_sha256": {
+        "ds_ozon_accrual_join_rows": "25f6f58c5120c60d672154b115c1bd7a34cbe4bc722df7f154b95d751c4805fd",
+        "ds_ozon_fbo_join_items": "1c8990e8e4f5e904782be0a0e02d599e69285fe892de061021bccfb55c5096cc",
+        "ds_ozon_fbs_join_items": "7dd19d46d6c3bdac89330a551c6758e2d5352d89e3ff1fe5495a3c0731b4760f"
+      },
+      "dataset_query_hash": "0335b59cfa4f315b91c1dccfe983d68115abb4476a6f2f2e539218767bc8e59e",
+      "target": "accruals[].posting.products[] with non-null commission and positive commission.sale_amount.amount; preserve canonical quantity, identity, sign and currency validation",
+      "canonical_fields": {
+        "sale_units": "products[].quantity on the positive-realization target line",
+        "sale_amount": "products[].commission.sale_price.amount: BUYER amount for the entire line, despite this raw field being named sale_price. This is the requested покупательская сумма. Do not multiply it by quantity again.",
+        "seller_amount": "products[].commission.sale_amount.amount: SELLER amount for the entire line. The raw name sale_amount does NOT make it the buyer amount. Do not substitute it for buyer amount.",
+        "average_price": "sum(canonical sale_amount) / sum(sale_units), never seller_amount or unweighted mean of row averages",
+        "buyer_unit_average": "raw commission.sale_price.amount / quantity for a single line; for multi-item lines this is an average, not each fiscal purchase price"
+      },
+      "payment_join": {
+        "target_posting": "raw accruals[].unit_number; canonical posting_key is its hash or null when absent/empty",
+        "metadata_posting": "raw postings[].posting_number; canonical posting_key is its hash",
+        "item_identity": "exact validated SKU on both sides, using canonical positive_integer mapping",
+        "right_sources": "both registered FBO and FBS metadata stages, all complete pages in the requested from-31days through to window, chunked into inclusive31-day windows",
+        "integrity": "Reject duplicate right keys, parent-posting/SKU mismatch and sum of matched target quantities exceeding metadata product quantity. Preserve target units and both monetary measures; do not multiply or drop target rows.",
+        "payment_label": "literal analytics_data.payment_type_group_name; absent/empty/unknown value or unmatched bounded-history posting becomes неизвестно. Unknown is separate from no-card. A bank label is not a verified card-product mapping. Metadata source completeness is distinct from enrichment coverage."
+      },
+      "aggregation": "For grouped outputs, sum requested measures over the existing declared group_by; for line output preserve separate target lines. Only use the requested measure. Buyer amount always uses canonical sale_amount from raw sale_price; seller amount uses canonical seller_amount from raw sale_amount.",
+      "scope": "Target date is accrual date, not order or physical buyout date. Require all source pages and currency validation. Missing/incomplete/error data is not zero. A valid explicit zero buyer amount is preserved. These are source line amounts, not fiscal receipts or proof of a particular card product.",
+      "declared_group_by": [
+        "day",
+        "payment_label"
+      ],
+      "dataset_query": "realization_payment_days"
+    }
+  },
+  "realization_payment_items": {
+    "id": "realization_payment_items",
+    "version": 2,
+    "purpose": "Реализация по товарам и способам оплаты",
+    "platforms": [
+      "ozon"
+    ],
+    "kind": "dataset",
+    "input_policy": {
+      "time_axis": "source_period",
+      "snapshot": false,
+      "period_required": true,
+      "comparison_supported": false,
+      "filters_supported": false
+    },
+    "steps": [
+      {
+        "id": "ozon_target",
+        "platform": "ozon",
+        "operation": "ds_ozon_accrual_join_rows",
+        "source_registry": "dataset_sources",
+        "params": [
+          {}
+        ],
+        "period_mode": "days"
+      },
+      {
+        "id": "ozon_fbo",
+        "platform": "ozon",
+        "operation": "ds_ozon_fbo_join_items",
+        "source_registry": "dataset_sources",
+        "params": {
+          "$if": [
+            {
+              "$fn": [
+                "gt",
+                {
+                  "$fn": [
+                    "len",
+                    {
+                      "$filter": [
+                        {
+                          "$path": [
+                            "datasets",
+                            "target"
+                          ]
+                        },
+                        "target_row",
+                        {
+                          "$fn": [
+                            "gt",
+                            {
+                              "$fn": [
+                                "decimal_compare",
+                                {
+                                  "$path": [
+                                    "target_row",
+                                    "sale_units"
+                                  ]
+                                },
+                                "0"
+                              ]
+                            },
+                            0
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                0
+              ]
+            },
+            [
+              {}
+            ],
+            []
+          ]
+        },
+        "period_mode": "whole",
+        "window": {
+          "start_offset_days": -31,
+          "end_offset_days": 0,
+          "chunk_days": 31
+        }
+      },
+      {
+        "id": "ozon_fbs",
+        "platform": "ozon",
+        "operation": "ds_ozon_fbs_join_items",
+        "source_registry": "dataset_sources",
+        "params": {
+          "$if": [
+            {
+              "$fn": [
+                "gt",
+                {
+                  "$fn": [
+                    "len",
+                    {
+                      "$filter": [
+                        {
+                          "$path": [
+                            "datasets",
+                            "target"
+                          ]
+                        },
+                        "target_row",
+                        {
+                          "$fn": [
+                            "gt",
+                            {
+                              "$fn": [
+                                "decimal_compare",
+                                {
+                                  "$path": [
+                                    "target_row",
+                                    "sale_units"
+                                  ]
+                                },
+                                "0"
+                              ]
+                            },
+                            0
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                0
+              ]
+            },
+            [
+              {}
+            ],
+            []
+          ]
+        },
+        "period_mode": "whole",
+        "window": {
+          "start_offset_days": -31,
+          "end_offset_days": 0,
+          "chunk_days": 31
+        }
+      }
+    ],
+    "qualification": "existing_source_requirements",
+    "notes": [
+      "Выбраны положительные реализации по дате начисления; обратные начисления и нецелевые строки отдельно, не включены в этот отчёт.",
+      "Метаданные ищутся также за 31 день до начала периода. Это ограниченное окно, не обещание полной истории; несопоставленные строки сохраняются с неизвестной оплатой.",
+      "Метки оплаты сохранены как сообщает источник. Неизвестная метка не означает оплату без карты; bank_coinvestment для определения карты не используется.",
+      "Покупательская сумма уже относится ко всей строке. Средняя взвешена количеством; это не кассовый чек. Разность средних групп не доказывает скидку на ту же покупку.",
+      "Привязка сумм принципиальна: покупательская сумма sale_amount этого dataset берётся из commission.sale_price.amount сырой товарной строки, а сумма продавца seller_amount — из commission.sale_amount.amount. Обе суммы уже относятся ко всей строке; повторно умножать их на quantity нельзя. Для вопроса о покупательской сумме не используй сумму продавца. Количество — quantity положительных реализаций; средняя покупательская цена — сумма покупателя/количество. Сохраняй исходные метки оплаты и неизвестную оплату отдельно."
+    ],
+    "dataset_query": "realization_payment_items",
+    "metrics": [],
+    "relations": [
+      {
+        "id": "enriched",
+        "label": "способ оплаты положительных реализаций",
+        "left": "target",
+        "right": [
+          "fbo",
+          "fbs"
+        ],
+        "on": [
+          [
+            "posting_key",
+            "posting_key"
+          ],
+          [
+            "product_id",
+            "product_id"
+          ]
+        ],
+        "parent_keys": [
+          0
+        ],
+        "left_where": {
+          "$fn": [
+            "gt",
+            {
+              "$fn": [
+                "decimal_compare",
+                {
+                  "$path": [
+                    "row",
+                    "sale_units"
+                  ]
+                },
+                "0"
+              ]
+            },
+            0
+          ]
+        },
+        "capacity": {
+          "left": "sale_units",
+          "right": "item_units",
+          "mode": "sum_le"
+        },
+        "preserve": [
+          "sale_units",
+          "sale_amount",
+          "seller_amount"
+        ],
+        "fields": {
+          "payment_label": {
+            "source": "payment_raw",
+            "unknown": "неизвестно",
+            "unknown_values": [
+              null,
+              "",
+              "unknown"
+            ]
+          }
+        },
+        "coverage_field": "join_state",
+        "missing": "report_unknown"
+      }
+    ],
+    "output_stage": "enriched",
+    "columns": [
+      {
+        "field": "product_id",
+        "label": "SKU",
+        "kind": "text"
+      },
+      {
+        "field": "payment_label",
+        "label": "метка оплаты источника",
+        "kind": "text"
+      },
+      {
+        "field": "sale_units",
+        "label": "товаров",
+        "kind": "number"
+      },
+      {
+        "field": "sale_amount",
+        "label": "покупательская сумма строк",
+        "kind": "money"
+      },
+      {
+        "field": "seller_amount",
+        "label": "сумма продавца",
+        "kind": "money"
+      },
+      {
+        "field": "average_price",
+        "label": "средняя на товар",
+        "kind": "money"
+      }
+    ],
+    "group_by": [
+      "product_id",
+      "payment_label"
+    ],
+    "aggregates": [
+      {
+        "field": "sale_units",
+        "kind": "sum",
+        "source": "sale_units",
+        "denominator": null
+      },
+      {
+        "field": "sale_amount",
+        "kind": "sum",
+        "source": "sale_amount",
+        "denominator": null
+      },
+      {
+        "field": "seller_amount",
+        "kind": "sum",
+        "source": "seller_amount",
+        "denominator": null
+      },
+      {
+        "field": "average_price",
+        "kind": "ratio_sum",
+        "source": "sale_amount",
+        "denominator": "sale_units"
+      }
+    ],
+    "calculation_contract": {
+      "schema": "alisa-realization-payment-fields/v1",
+      "source_recipe_sha256": {
+        "ds_ozon_accrual_join_rows": "25f6f58c5120c60d672154b115c1bd7a34cbe4bc722df7f154b95d751c4805fd",
+        "ds_ozon_fbo_join_items": "1c8990e8e4f5e904782be0a0e02d599e69285fe892de061021bccfb55c5096cc",
+        "ds_ozon_fbs_join_items": "7dd19d46d6c3bdac89330a551c6758e2d5352d89e3ff1fe5495a3c0731b4760f"
+      },
+      "dataset_query_hash": "0335b59cfa4f315b91c1dccfe983d68115abb4476a6f2f2e539218767bc8e59e",
+      "target": "accruals[].posting.products[] with non-null commission and positive commission.sale_amount.amount; preserve canonical quantity, identity, sign and currency validation",
+      "canonical_fields": {
+        "sale_units": "products[].quantity on the positive-realization target line",
+        "sale_amount": "products[].commission.sale_price.amount: BUYER amount for the entire line, despite this raw field being named sale_price. This is the requested покупательская сумма. Do not multiply it by quantity again.",
+        "seller_amount": "products[].commission.sale_amount.amount: SELLER amount for the entire line. The raw name sale_amount does NOT make it the buyer amount. Do not substitute it for buyer amount.",
+        "average_price": "sum(canonical sale_amount) / sum(sale_units), never seller_amount or unweighted mean of row averages",
+        "buyer_unit_average": "raw commission.sale_price.amount / quantity for a single line; for multi-item lines this is an average, not each fiscal purchase price"
+      },
+      "payment_join": {
+        "target_posting": "raw accruals[].unit_number; canonical posting_key is its hash or null when absent/empty",
+        "metadata_posting": "raw postings[].posting_number; canonical posting_key is its hash",
+        "item_identity": "exact validated SKU on both sides, using canonical positive_integer mapping",
+        "right_sources": "both registered FBO and FBS metadata stages, all complete pages in the requested from-31days through to window, chunked into inclusive31-day windows",
+        "integrity": "Reject duplicate right keys, parent-posting/SKU mismatch and sum of matched target quantities exceeding metadata product quantity. Preserve target units and both monetary measures; do not multiply or drop target rows.",
+        "payment_label": "literal analytics_data.payment_type_group_name; absent/empty/unknown value or unmatched bounded-history posting becomes неизвестно. Unknown is separate from no-card. A bank label is not a verified card-product mapping. Metadata source completeness is distinct from enrichment coverage."
+      },
+      "aggregation": "For grouped outputs, sum requested measures over the existing declared group_by; for line output preserve separate target lines. Only use the requested measure. Buyer amount always uses canonical sale_amount from raw sale_price; seller amount uses canonical seller_amount from raw sale_amount.",
+      "scope": "Target date is accrual date, not order or physical buyout date. Require all source pages and currency validation. Missing/incomplete/error data is not zero. A valid explicit zero buyer amount is preserved. These are source line amounts, not fiscal receipts or proof of a particular card product.",
+      "declared_group_by": [
+        "product_id",
+        "payment_label"
+      ],
+      "dataset_query": "realization_payment_items"
+    }
+  },
+  "realization_payment_items_days": {
+    "id": "realization_payment_items_days",
+    "version": 2,
+    "purpose": "Реализация по дням, товарам и способам оплаты",
+    "platforms": [
+      "ozon"
+    ],
+    "kind": "dataset",
+    "input_policy": {
+      "time_axis": "source_period",
+      "snapshot": false,
+      "period_required": true,
+      "comparison_supported": false,
+      "filters_supported": false
+    },
+    "steps": [
+      {
+        "id": "ozon_target",
+        "platform": "ozon",
+        "operation": "ds_ozon_accrual_join_rows",
+        "source_registry": "dataset_sources",
+        "params": [
+          {}
+        ],
+        "period_mode": "days"
+      },
+      {
+        "id": "ozon_fbo",
+        "platform": "ozon",
+        "operation": "ds_ozon_fbo_join_items",
+        "source_registry": "dataset_sources",
+        "params": {
+          "$if": [
+            {
+              "$fn": [
+                "gt",
+                {
+                  "$fn": [
+                    "len",
+                    {
+                      "$filter": [
+                        {
+                          "$path": [
+                            "datasets",
+                            "target"
+                          ]
+                        },
+                        "target_row",
+                        {
+                          "$fn": [
+                            "gt",
+                            {
+                              "$fn": [
+                                "decimal_compare",
+                                {
+                                  "$path": [
+                                    "target_row",
+                                    "sale_units"
+                                  ]
+                                },
+                                "0"
+                              ]
+                            },
+                            0
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                0
+              ]
+            },
+            [
+              {}
+            ],
+            []
+          ]
+        },
+        "period_mode": "whole",
+        "window": {
+          "start_offset_days": -31,
+          "end_offset_days": 0,
+          "chunk_days": 31
+        }
+      },
+      {
+        "id": "ozon_fbs",
+        "platform": "ozon",
+        "operation": "ds_ozon_fbs_join_items",
+        "source_registry": "dataset_sources",
+        "params": {
+          "$if": [
+            {
+              "$fn": [
+                "gt",
+                {
+                  "$fn": [
+                    "len",
+                    {
+                      "$filter": [
+                        {
+                          "$path": [
+                            "datasets",
+                            "target"
+                          ]
+                        },
+                        "target_row",
+                        {
+                          "$fn": [
+                            "gt",
+                            {
+                              "$fn": [
+                                "decimal_compare",
+                                {
+                                  "$path": [
+                                    "target_row",
+                                    "sale_units"
+                                  ]
+                                },
+                                "0"
+                              ]
+                            },
+                            0
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                0
+              ]
+            },
+            [
+              {}
+            ],
+            []
+          ]
+        },
+        "period_mode": "whole",
+        "window": {
+          "start_offset_days": -31,
+          "end_offset_days": 0,
+          "chunk_days": 31
+        }
+      }
+    ],
+    "qualification": "existing_source_requirements",
+    "notes": [
+      "Выбраны положительные реализации по дате начисления; обратные начисления и нецелевые строки отдельно, не включены в этот отчёт.",
+      "Метаданные ищутся также за 31 день до начала периода. Это ограниченное окно, не обещание полной истории; несопоставленные строки сохраняются с неизвестной оплатой.",
+      "Метки оплаты сохранены как сообщает источник. Неизвестная метка не означает оплату без карты; bank_coinvestment для определения карты не используется.",
+      "Покупательская сумма уже относится ко всей строке. Средняя взвешена количеством; это не кассовый чек. Разность средних групп не доказывает скидку на ту же покупку.",
+      "Привязка сумм принципиальна: покупательская сумма sale_amount этого dataset берётся из commission.sale_price.amount сырой товарной строки, а сумма продавца seller_amount — из commission.sale_amount.amount. Обе суммы уже относятся ко всей строке; повторно умножать их на quantity нельзя. Для вопроса о покупательской сумме не используй сумму продавца. Количество — quantity положительных реализаций; средняя покупательская цена — сумма покупателя/количество. Сохраняй исходные метки оплаты и неизвестную оплату отдельно."
+    ],
+    "dataset_query": "realization_payment_items_days",
+    "metrics": [],
+    "relations": [
+      {
+        "id": "enriched",
+        "label": "способ оплаты положительных реализаций",
+        "left": "target",
+        "right": [
+          "fbo",
+          "fbs"
+        ],
+        "on": [
+          [
+            "posting_key",
+            "posting_key"
+          ],
+          [
+            "product_id",
+            "product_id"
+          ]
+        ],
+        "parent_keys": [
+          0
+        ],
+        "left_where": {
+          "$fn": [
+            "gt",
+            {
+              "$fn": [
+                "decimal_compare",
+                {
+                  "$path": [
+                    "row",
+                    "sale_units"
+                  ]
+                },
+                "0"
+              ]
+            },
+            0
+          ]
+        },
+        "capacity": {
+          "left": "sale_units",
+          "right": "item_units",
+          "mode": "sum_le"
+        },
+        "preserve": [
+          "sale_units",
+          "sale_amount",
+          "seller_amount"
+        ],
+        "fields": {
+          "payment_label": {
+            "source": "payment_raw",
+            "unknown": "неизвестно",
+            "unknown_values": [
+              null,
+              "",
+              "unknown"
+            ]
+          }
+        },
+        "coverage_field": "join_state",
+        "missing": "report_unknown"
+      }
+    ],
+    "output_stage": "enriched",
+    "columns": [
+      {
+        "field": "day",
+        "label": "дата начисления",
+        "kind": "text"
+      },
+      {
+        "field": "product_id",
+        "label": "SKU",
+        "kind": "text"
+      },
+      {
+        "field": "payment_label",
+        "label": "метка оплаты источника",
+        "kind": "text"
+      },
+      {
+        "field": "sale_units",
+        "label": "товаров",
+        "kind": "number"
+      },
+      {
+        "field": "sale_amount",
+        "label": "покупательская сумма строк",
+        "kind": "money"
+      },
+      {
+        "field": "seller_amount",
+        "label": "сумма продавца",
+        "kind": "money"
+      },
+      {
+        "field": "average_price",
+        "label": "средняя на товар",
+        "kind": "money"
+      }
+    ],
+    "group_by": [
+      "day",
+      "product_id",
+      "payment_label"
+    ],
+    "aggregates": [
+      {
+        "field": "sale_units",
+        "kind": "sum",
+        "source": "sale_units",
+        "denominator": null
+      },
+      {
+        "field": "sale_amount",
+        "kind": "sum",
+        "source": "sale_amount",
+        "denominator": null
+      },
+      {
+        "field": "seller_amount",
+        "kind": "sum",
+        "source": "seller_amount",
+        "denominator": null
+      },
+      {
+        "field": "average_price",
+        "kind": "ratio_sum",
+        "source": "sale_amount",
+        "denominator": "sale_units"
+      }
+    ],
+    "calculation_contract": {
+      "schema": "alisa-realization-payment-fields/v1",
+      "source_recipe_sha256": {
+        "ds_ozon_accrual_join_rows": "25f6f58c5120c60d672154b115c1bd7a34cbe4bc722df7f154b95d751c4805fd",
+        "ds_ozon_fbo_join_items": "1c8990e8e4f5e904782be0a0e02d599e69285fe892de061021bccfb55c5096cc",
+        "ds_ozon_fbs_join_items": "7dd19d46d6c3bdac89330a551c6758e2d5352d89e3ff1fe5495a3c0731b4760f"
+      },
+      "dataset_query_hash": "0335b59cfa4f315b91c1dccfe983d68115abb4476a6f2f2e539218767bc8e59e",
+      "target": "accruals[].posting.products[] with non-null commission and positive commission.sale_amount.amount; preserve canonical quantity, identity, sign and currency validation",
+      "canonical_fields": {
+        "sale_units": "products[].quantity on the positive-realization target line",
+        "sale_amount": "products[].commission.sale_price.amount: BUYER amount for the entire line, despite this raw field being named sale_price. This is the requested покупательская сумма. Do not multiply it by quantity again.",
+        "seller_amount": "products[].commission.sale_amount.amount: SELLER amount for the entire line. The raw name sale_amount does NOT make it the buyer amount. Do not substitute it for buyer amount.",
+        "average_price": "sum(canonical sale_amount) / sum(sale_units), never seller_amount or unweighted mean of row averages",
+        "buyer_unit_average": "raw commission.sale_price.amount / quantity for a single line; for multi-item lines this is an average, not each fiscal purchase price"
+      },
+      "payment_join": {
+        "target_posting": "raw accruals[].unit_number; canonical posting_key is its hash or null when absent/empty",
+        "metadata_posting": "raw postings[].posting_number; canonical posting_key is its hash",
+        "item_identity": "exact validated SKU on both sides, using canonical positive_integer mapping",
+        "right_sources": "both registered FBO and FBS metadata stages, all complete pages in the requested from-31days through to window, chunked into inclusive31-day windows",
+        "integrity": "Reject duplicate right keys, parent-posting/SKU mismatch and sum of matched target quantities exceeding metadata product quantity. Preserve target units and both monetary measures; do not multiply or drop target rows.",
+        "payment_label": "literal analytics_data.payment_type_group_name; absent/empty/unknown value or unmatched bounded-history posting becomes неизвестно. Unknown is separate from no-card. A bank label is not a verified card-product mapping. Metadata source completeness is distinct from enrichment coverage."
+      },
+      "aggregation": "For grouped outputs, sum requested measures over the existing declared group_by; for line output preserve separate target lines. Only use the requested measure. Buyer amount always uses canonical sale_amount from raw sale_price; seller amount uses canonical seller_amount from raw sale_amount.",
+      "scope": "Target date is accrual date, not order or physical buyout date. Require all source pages and currency validation. Missing/incomplete/error data is not zero. A valid explicit zero buyer amount is preserved. These are source line amounts, not fiscal receipts or proof of a particular card product.",
+      "declared_group_by": [
+        "day",
+        "product_id",
+        "payment_label"
+      ],
+      "dataset_query": "realization_payment_items_days"
+    }
+  },
+  "realization_payment_lines": {
+    "id": "realization_payment_lines",
+    "version": 2,
+    "purpose": "Строки реализации с источниковой меткой оплаты",
+    "platforms": [
+      "ozon"
+    ],
+    "kind": "dataset",
+    "input_policy": {
+      "time_axis": "source_period",
+      "snapshot": false,
+      "period_required": true,
+      "comparison_supported": false,
+      "filters_supported": false
+    },
+    "steps": [
+      {
+        "id": "ozon_target",
+        "platform": "ozon",
+        "operation": "ds_ozon_accrual_join_rows",
+        "source_registry": "dataset_sources",
+        "params": [
+          {}
+        ],
+        "period_mode": "days"
+      },
+      {
+        "id": "ozon_fbo",
+        "platform": "ozon",
+        "operation": "ds_ozon_fbo_join_items",
+        "source_registry": "dataset_sources",
+        "params": {
+          "$if": [
+            {
+              "$fn": [
+                "gt",
+                {
+                  "$fn": [
+                    "len",
+                    {
+                      "$filter": [
+                        {
+                          "$path": [
+                            "datasets",
+                            "target"
+                          ]
+                        },
+                        "target_row",
+                        {
+                          "$fn": [
+                            "gt",
+                            {
+                              "$fn": [
+                                "decimal_compare",
+                                {
+                                  "$path": [
+                                    "target_row",
+                                    "sale_units"
+                                  ]
+                                },
+                                "0"
+                              ]
+                            },
+                            0
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                0
+              ]
+            },
+            [
+              {}
+            ],
+            []
+          ]
+        },
+        "period_mode": "whole",
+        "window": {
+          "start_offset_days": -31,
+          "end_offset_days": 0,
+          "chunk_days": 31
+        }
+      },
+      {
+        "id": "ozon_fbs",
+        "platform": "ozon",
+        "operation": "ds_ozon_fbs_join_items",
+        "source_registry": "dataset_sources",
+        "params": {
+          "$if": [
+            {
+              "$fn": [
+                "gt",
+                {
+                  "$fn": [
+                    "len",
+                    {
+                      "$filter": [
+                        {
+                          "$path": [
+                            "datasets",
+                            "target"
+                          ]
+                        },
+                        "target_row",
+                        {
+                          "$fn": [
+                            "gt",
+                            {
+                              "$fn": [
+                                "decimal_compare",
+                                {
+                                  "$path": [
+                                    "target_row",
+                                    "sale_units"
+                                  ]
+                                },
+                                "0"
+                              ]
+                            },
+                            0
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                0
+              ]
+            },
+            [
+              {}
+            ],
+            []
+          ]
+        },
+        "period_mode": "whole",
+        "window": {
+          "start_offset_days": -31,
+          "end_offset_days": 0,
+          "chunk_days": 31
+        }
+      }
+    ],
+    "qualification": "existing_source_requirements",
+    "notes": [
+      "Выбраны положительные реализации по дате начисления; обратные начисления и нецелевые строки отдельно, не включены в этот отчёт.",
+      "Метаданные ищутся также за 31 день до начала периода. Это ограниченное окно, не обещание полной истории; несопоставленные строки сохраняются с неизвестной оплатой.",
+      "Метки оплаты сохранены как сообщает источник. Неизвестная метка не означает оплату без карты; bank_coinvestment для определения карты не используется.",
+      "Покупательская сумма уже относится ко всей строке. Средняя взвешена количеством; это не кассовый чек. Разность средних групп не доказывает скидку на ту же покупку.",
+      "Привязка сумм принципиальна: покупательская сумма sale_amount этого dataset берётся из commission.sale_price.amount сырой товарной строки, а сумма продавца seller_amount — из commission.sale_amount.amount. Обе суммы уже относятся ко всей строке; повторно умножать их на quantity нельзя. Для вопроса о покупательской сумме не используй сумму продавца. Количество — quantity положительных реализаций; средняя покупательская цена — сумма покупателя/количество. Сохраняй исходные метки оплаты и неизвестную оплату отдельно."
+    ],
+    "dataset_query": "realization_payment_lines",
+    "metrics": [],
+    "relations": [
+      {
+        "id": "enriched",
+        "label": "способ оплаты положительных реализаций",
+        "left": "target",
+        "right": [
+          "fbo",
+          "fbs"
+        ],
+        "on": [
+          [
+            "posting_key",
+            "posting_key"
+          ],
+          [
+            "product_id",
+            "product_id"
+          ]
+        ],
+        "parent_keys": [
+          0
+        ],
+        "left_where": {
+          "$fn": [
+            "gt",
+            {
+              "$fn": [
+                "decimal_compare",
+                {
+                  "$path": [
+                    "row",
+                    "sale_units"
+                  ]
+                },
+                "0"
+              ]
+            },
+            0
+          ]
+        },
+        "capacity": {
+          "left": "sale_units",
+          "right": "item_units",
+          "mode": "sum_le"
+        },
+        "preserve": [
+          "sale_units",
+          "sale_amount",
+          "seller_amount"
+        ],
+        "fields": {
+          "payment_label": {
+            "source": "payment_raw",
+            "unknown": "неизвестно",
+            "unknown_values": [
+              null,
+              "",
+              "unknown"
+            ]
+          }
+        },
+        "coverage_field": "join_state",
+        "missing": "report_unknown"
+      }
+    ],
+    "output_stage": "enriched",
+    "columns": [
+      {
+        "field": "day",
+        "label": "дата начисления",
+        "kind": "text"
+      },
+      {
+        "field": "product_id",
+        "label": "SKU",
+        "kind": "text"
+      },
+      {
+        "field": "payment_label",
+        "label": "метка оплаты источника",
+        "kind": "text"
+      },
+      {
+        "field": "sale_units",
+        "label": "товаров",
+        "kind": "number"
+      },
+      {
+        "field": "sale_amount",
+        "label": "покупательская сумма строк",
+        "kind": "money"
+      },
+      {
+        "field": "seller_amount",
+        "label": "сумма продавца",
+        "kind": "money"
+      },
+      {
+        "field": "buyer_unit_average",
+        "label": "средняя исходной строки",
+        "kind": "money"
+      }
+    ],
+    "group_by": [],
+    "aggregates": [],
+    "calculation_contract": {
+      "schema": "alisa-realization-payment-fields/v1",
+      "source_recipe_sha256": {
+        "ds_ozon_accrual_join_rows": "25f6f58c5120c60d672154b115c1bd7a34cbe4bc722df7f154b95d751c4805fd",
+        "ds_ozon_fbo_join_items": "1c8990e8e4f5e904782be0a0e02d599e69285fe892de061021bccfb55c5096cc",
+        "ds_ozon_fbs_join_items": "7dd19d46d6c3bdac89330a551c6758e2d5352d89e3ff1fe5495a3c0731b4760f"
+      },
+      "dataset_query_hash": "0335b59cfa4f315b91c1dccfe983d68115abb4476a6f2f2e539218767bc8e59e",
+      "target": "accruals[].posting.products[] with non-null commission and positive commission.sale_amount.amount; preserve canonical quantity, identity, sign and currency validation",
+      "canonical_fields": {
+        "sale_units": "products[].quantity on the positive-realization target line",
+        "sale_amount": "products[].commission.sale_price.amount: BUYER amount for the entire line, despite this raw field being named sale_price. This is the requested покупательская сумма. Do not multiply it by quantity again.",
+        "seller_amount": "products[].commission.sale_amount.amount: SELLER amount for the entire line. The raw name sale_amount does NOT make it the buyer amount. Do not substitute it for buyer amount.",
+        "average_price": "sum(canonical sale_amount) / sum(sale_units), never seller_amount or unweighted mean of row averages",
+        "buyer_unit_average": "raw commission.sale_price.amount / quantity for a single line; for multi-item lines this is an average, not each fiscal purchase price"
+      },
+      "payment_join": {
+        "target_posting": "raw accruals[].unit_number; canonical posting_key is its hash or null when absent/empty",
+        "metadata_posting": "raw postings[].posting_number; canonical posting_key is its hash",
+        "item_identity": "exact validated SKU on both sides, using canonical positive_integer mapping",
+        "right_sources": "both registered FBO and FBS metadata stages, all complete pages in the requested from-31days through to window, chunked into inclusive31-day windows",
+        "integrity": "Reject duplicate right keys, parent-posting/SKU mismatch and sum of matched target quantities exceeding metadata product quantity. Preserve target units and both monetary measures; do not multiply or drop target rows.",
+        "payment_label": "literal analytics_data.payment_type_group_name; absent/empty/unknown value or unmatched bounded-history posting becomes неизвестно. Unknown is separate from no-card. A bank label is not a verified card-product mapping. Metadata source completeness is distinct from enrichment coverage."
+      },
+      "aggregation": "For grouped outputs, sum requested measures over the existing declared group_by; for line output preserve separate target lines. Only use the requested measure. Buyer amount always uses canonical sale_amount from raw sale_price; seller amount uses canonical seller_amount from raw sale_amount.",
+      "scope": "Target date is accrual date, not order or physical buyout date. Require all source pages and currency validation. Missing/incomplete/error data is not zero. A valid explicit zero buyer amount is preserved. These are source line amounts, not fiscal receipts or proof of a particular card product.",
+      "declared_group_by": [],
+      "dataset_query": "realization_payment_lines"
+    }
+  }
+}
