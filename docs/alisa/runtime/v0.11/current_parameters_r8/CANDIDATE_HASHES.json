@@ -1,0 +1,21 @@
+{
+  "status": "PASS",
+  "byte_identical": true,
+  "files": {
+    "template_catalog.py": "1053f0d0d939637f8c729474775ec611d2bd085fa8a36fa6490b8e3cf501651a",
+    "template_catalog.json": "dfa0aafce2a76cf18094513f64e74a14e9253c72579fd6892c113f284f269c83",
+    "template_runtime.py": "7d576aff5e8a19e27202d05b0d3c6d6dbdae5f8350ab059d0e92556cbfc1546f",
+    "engine.py": "24b06ced72c2bd1f05c2cad03e093431c100f38665a1887d08221bc95a6c9ab0",
+    "parameter_source_runtime.py": "255df3cef2fb7e528f3417e03bf3fdbae7aff2310a3db4e6c5b97159a82c9831",
+    "parameter_collection_runtime.py": "e91d42769113b1d823a323d66c15110fbe5dd0dcd4e4543e3e4fb31ffe2d5827",
+    "model_answer.py": "3d3f799da732de6c5ca39e09d7064e8578967f5caefba0b80684af42201b20ad",
+    "runtime.py": "2e16056607bb0f879e2e818524b358383a7064013a175d5abacc5b0113c1e6c6",
+    "model_program.py": "3dde368ab040aca99aac6bcc99ed1bd1d9ac6065ed0f76c17b6ec17567f3a5ff",
+    "parameter_report_runtime.py": "45d1350675af8fdc86158d79d6ec128d44c79f8548f1ce89f3f8b33b535f4622",
+    "parameter_support/parameter_dependencies.py": "7c485c040bfa7f64ef59d0da11fc38079b90e4c5dd33844721c4b311a681c855",
+    "parameter_support/parameter_dependency_catalog.json": "ff2c90bf2689e8dd5e135adcbb38df8982b0f649ea74418099fbb6f80779d3e9",
+    "parameter_support/parameter_resolution.py": "c23d9affde809773ce5a12df3ace7537e8a4a43765de71ab614e597c0ce3f636",
+    "parameter_support/parameter_report_catalog.json": "746190e48e61d67b1dff7b42c729d7b60ead6d789c6b616eb5de0dda32831306",
+    "parameter_support/parameter_report_contract.py": "c8a443c097543c1e54836820000b9077e6888541cf23c533687393159a54fbd9"
+  }
+}

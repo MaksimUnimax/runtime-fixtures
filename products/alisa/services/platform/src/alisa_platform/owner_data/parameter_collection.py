@@ -269,5 +269,8 @@ def _commit_reply(info,current,replayed):
 
 
 def rpc(authority,payload):
+    if type(payload)is dict and str(payload.get('method','')).startswith('report_'):
+        from .parameter_report_rpc import rpc as report_rpc
+        return report_rpc(authority,payload)
     try:return {'ok':True,'data':dispatch(authority,payload)}
     except (Rejected,ParameterError,RuntimeFailure)as error:return {'ok':False,'code':error.code}

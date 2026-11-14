@@ -1,0 +1,20 @@
+{
+  "schema":"alisa-parameterized-report/v1",
+  "reports":{
+    "economics.delivery_projection.v1":{
+      "profile":"unit_economics.ozon.v1",
+      "base_template":"B01.ordered_units",
+      "metrics":["ordered_units"],
+      "provider":"OZON",
+      "scope":"store",
+      "label":"Оценка потерь заказов и прямой/последней доставки за период",
+      "not_profit":true,
+      "outputs":{
+        "estimated_retained_units":{"unit":"estimated_item","formula":{"multiply":[{"input":"ordered_units"},{"subtract":[{"constant":"1"},{"parameter":"loss_rate"}]}]}},
+        "estimated_failed_units":{"unit":"estimated_item","formula":{"multiply":[{"input":"ordered_units"},{"parameter":"loss_rate"}]}},
+        "estimated_forward_last_delivery":{"unit":"RUB","formula":{"multiply":[{"input":"ordered_units"},{"parameter":"delivery_mean"}]}}
+      },
+      "notes":["Это оценка потерь и прямой/последней доставки по сохранённым коэффициентам, не фактический выкуп и не прибыль. Назови использованные коэффициенты, их происхождение, период и дату расчёта. Средняя доставка уже объединённая: повторно прибавлять её компоненты нельзя."]
+    }
+  }
+}
