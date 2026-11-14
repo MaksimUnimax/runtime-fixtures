@@ -48,17 +48,14 @@ def customer(request, data):
     try:
         principal = SessionPrincipal(data['session_token']); before = actor(principal)
         store = store_context(before[1], data['store_id'])
-        preview = False
-        try:
-            result = read(client(principal, [data['store_id']]), scoped=True, query=data['query'])
-        except RuntimeFailure as error:
-            if error.code != 'ACCESS_REQUIRED' or not unprovisioned(before[1]):
-                raise
-            # A different, read-only operation returns published definitions.
-            # It has no user-store ticket and cannot execute a business request.
+        preview = unprovisioned(before[1])
+        if preview:
+            # Published definitions before first access provision. No work ticket,
+            # credentials, dry compilation or execution permission is requested.
             metadata = read(configured_client(MetadataOnly()), scoped=False)
             result = preview_metadata(metadata, store[0].lower(), data['store_id'], query)
-            preview = True
+        else:
+            result = read(client(principal, [data['store_id']]), scoped=True, query=data['query'])
         if actor(principal) != before: return reply({'code': 'AUTH_REQUIRED'}, 401)
         if store_context(before[1], data['store_id']) != store:
             return reply({'code': 'PERMISSION_DENIED'}, 403)

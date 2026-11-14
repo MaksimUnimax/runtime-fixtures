@@ -9,7 +9,7 @@ export function Catalog({initialStores,nextCursor}:{initialStores:QueryStore[];n
   const [previewOnly,setPreviewOnly]=useState(false);
   const generation=useRef(0),pageBusy=useRef(false),seen=useRef(new Set<string>());
   useEffect(()=>{
-    const current=++generation.current,controller=new AbortController();setRows([]);setNextOffset(null);setNotice('');setPreviewOnly(false);
+    const current=++generation.current,controller=new AbortController();setRows([]);setNextOffset(null);setTotal(0);setNotice('');setPreviewOnly(false);
     if(!store){setLoading(false);return ()=>controller.abort();}
     setLoading(true);
     fetch('/api/v1/question-catalog?store_id='+encodeURIComponent(store)+'&search='+encodeURIComponent(search)+'&kind='+encodeURIComponent(kind)+'&offset='+offset,{cache:'no-store',redirect:'error',signal:controller.signal}).then(async r=>{const value=await r.json();if(!r.ok)throw new Error(value.code);return value;}).then(value=>{if(current===generation.current){setRows(value.items);setNextOffset(value.next_offset);setTotal(value.total);setPreviewOnly(value.preview_only===true);}}).catch(e=>{if(current===generation.current&&e.name!=='AbortError')setNotice(errors[e.message]||'Каталог временно недоступен. Попробуйте позже.');}).finally(()=>{if(current===generation.current)setLoading(false);});

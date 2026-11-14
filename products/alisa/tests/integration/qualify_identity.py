@@ -279,6 +279,16 @@ def main():
                 page.goto(WEB);page.locator('footer a[href="/login"]').click();expect(page.locator('input[name=service],input[name=privacy]')).to_have_count(0)
                 with page.expect_response(lambda r:r.url==WEB+'/auth/start') as started:
                     page.get_by_role('button',name='Войти или создать кабинет').click()
+                if started.value.status!=303:
+                    raw=started.value.request.post_data or ''
+                    try:fields=parse_qs(raw,keep_blank_values=True,max_num_fields=8) if len(raw)<=4096 else {}
+                    except ValueError:fields={}
+                    record['safe_start_shape']={'body_bytes':len(raw.encode()),
+                        'query_present':bool(urlsplit(started.value.request.url).query),
+                        'known_field_counts':{key:len(fields.get(key,[]))for key in ['service','privacy','return_to']},
+                        'unknown_field_count':sum(key not in {'service','privacy','return_to'}for key in fields),
+                        'service_on':fields.get('service')==['on'],'privacy_on':fields.get('privacy')==['on'],
+                        'return_to_app':fields.get('return_to', ['/app'])==['/app']}
                 check('s02_bff_start_redirects_to_fixed_authority',started.value.status==303,http_status=started.value.status)
                 page.wait_for_url(re.compile(re.escape(ISSUER)+r'/accounts/'))
             checked_theme_pages=set()
@@ -722,6 +732,8 @@ def main():
             logs.seek(0);private_text=logs.read()
             record['safe_process_error_classes']=sorted(set(re.findall(r'(?m)^([A-Za-z_][A-Za-z0-9_]*(?:Error|Exception)):',private_text)))
             record['safe_missing_module_names']=sorted(set(re.findall(r"ModuleNotFoundError: No module named '([A-Za-z0-9_.]{1,120})'",private_text)))[:10]
+            failed=re.fullmatch(r'CHECK_FAILED:([A-Za-z0-9_]{1,180})',str(sys.exception()))
+            if failed:record['failed_check']=failed.group(1)
             record['safe_process_exit_codes']=[process.poll() for process in PROCESSES]
             record['safe_failure_categories']=[name for name,marker in {'CWD_NOT_ACCESSIBLE':"can't chdir",'SOURCE_PERMISSION_DENIED':'Permission denied','UNREGISTERED_UID':'getpwuid','WORKER_BOOT_FAILED':'Worker failed to boot','MISSING_MODULE':'ModuleNotFoundError','CONNECTION_REFUSED':'Connection refused'}.items() if marker in private_text]
     finally:
