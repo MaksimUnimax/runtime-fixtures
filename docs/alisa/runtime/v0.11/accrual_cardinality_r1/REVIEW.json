@@ -1,0 +1,70 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "reviewed_at_utc": "2026-11-14T02:26:12.916654+00:00",
+  "scope": "Exact accrual_items identity/cardinality metadata, both final-model context routes, isolated context regressions, finite prepare and one-catalog installer. No client values or private job identifiers are included.",
+  "files_sha256": {
+    "template_catalog.base.json": "7a8f48ae71cc7939df6b50a76465d52f7124b54b5b78108bb2151f3ed84c42c2",
+    "template_catalog.json": "bd047f6a5896b45352858e29adabfb216186902a01ad15aa9471566ff9e54352",
+    "patch.json": "4e33511e89777f921ebbce0ba1d2aa38594d15db214d76347eedf95cc24dad13",
+    "BASE_SOURCE.json": "4c300752574683832b01ca5cbca7cdd5d0bd7b7b5abd75ab56778dbf30bc76c4",
+    "install.py": "3dda5e54ce864af189910d889cebf53911d736b244bad36e33d834f028612618",
+    "prepare.py": "e981c13ea9e12a90cae7c14c03f60202f94dd8607d7a99f8efae61cbd65d5afc",
+    "test_accrual_cardinality_context.py": "8dfbd8b45bd936f8e760cf92f8b96d4d743887eb9b6d89b460a08bc145a8b6cc",
+    "SERVER_TEST_PROOF.json": "532e673cd3cf83131036874d4299ea07c5bcd7ec9c64a1e133a62d1af975120f"
+  },
+  "findings": [],
+  "checks": [
+    "Exact JSON comparison changes only accrual_items version1 to2, appends one conditional short-answer note and adds calculation_contract. All other templates and top-level catalog fields are unchanged.",
+    "Existing dataset source operation, request steps, period_mode days, input restrictions, columns, output stage, group_by, aggregates, source formulas and prior notes are unchanged. No production arithmetic or answer rewrite is added.",
+    "Compared to canonical ds_ozon_accrual_rows: priced is the product subset whose commission is not null; missing commission defaults to null. Map iterates priced and maps normalized sku to product_id. Existing accrual_items groups by product_id.",
+    "Canonical positive_integer requires an actual integer excluding bool, positive and no greater than10**30, and emits a decimal string. Contract preserves this rule and does not silently coerce strings, floats or booleans.",
+    "Different-SKU cardinality uses distinct product identity across all complete pages and requested days, counting the same SKU once across prices and directions. It does not substitute product-line count, quantity, accrual IDs, delivery-only products or a sum of daily distinct counts.",
+    "No positive-sale-only filter is introduced for the general question. Missing/invalid SKU and incomplete documents cannot become a complete result or zero. Existing accrual-date semantics and unrelated dataset metrics remain intact.",
+    "Calculation context reaches both direct model request and program execution input with original question and raw API data preserved. Static contract is not added to selector metadata; no expected client result is injected.",
+    "The two meaningful integration tests exercise real Worker dispatch paths with synthetic source data. They detect absence of calculation_context on the baseline and do not claim that model compliance follows from a unit test.",
+    "Exact prepare archive contains only the intended catalog and test module and matches their local hashes. Candidate preparation uses hardlinks from pinned current source, replacing only the candidate catalog inode and running isolated tests as the configured test user.",
+    "Installer pins current base manifest, candidate catalog and new test hashes and requires147 successful checks. The entire existing base manifest is checked before and after preparation; only template_catalog.json can differ.",
+    "Immutable hardlinked base payloads, independent manifest replacement, shared recovery lock, active-job and unexpired READY-clarification guards before and after stop, policy/version preflight, atomic current pointer, process cwd verification and rollback are retained.",
+    "Base dataset-selector commit5f783fcedb93dba01948de9590cd0108cd09df72 and clarification81579c18d4725c7f0a6603c8abbf703668863e36 lineage are preserved. Runtime configuration, source qualifications and Station code are not written."
+  ],
+  "independent_local_validation": {
+    "exact_scope_patch_and_catalog_validation": "PASS",
+    "canonical_source_filter_mapping_grouping_and_recipe_hash": "PASS",
+    "identity_type_boundary_probes": "PASS",
+    "embedded_prepare_payload_byte_equality": "PASS",
+    "python_syntax": "PASS",
+    "context_integration_suite": {
+      "tests": 2,
+      "seconds": 0.615,
+      "status": "PASS",
+      "method": "Used the available exact selector source with the candidate catalog overlaid in process; no runtime payload files modified."
+    },
+    "paid_live_remote_calls": 0,
+    "new_test_files_written_by_reviewer": 0
+  },
+  "primary_executor_evidence": {
+    "server_suite": {
+      "tests": 147,
+      "seconds": 30.733,
+      "status": "PASS"
+    },
+    "local_suite": {
+      "tests": 147,
+      "seconds": 7.689,
+      "status": "PASS"
+    },
+    "baseline_context_regression": {
+      "tests": 2,
+      "result": "calculation_context absent"
+    },
+    "base_payloads_verified": 174,
+    "provenance": "Primary executor report and local SERVER_TEST_PROOF.json; server execution was not independently repeated by reviewer."
+  },
+  "limitations": [
+    "The observed live issue remains open until the exact real question is repeated successfully. Static contract delivery does not guarantee probabilistic model correctness.",
+    "An incorrect result equal to a line count does not establish the exact internal generated-code cause; that code is unavailable.",
+    "Review is bounded to recorded hashes. No installation or provider request was performed by reviewer.",
+    "Unchanged hardlinked release payloads must remain immutable and subsequent deployments must replace changed destination inodes."
+  ]
+}

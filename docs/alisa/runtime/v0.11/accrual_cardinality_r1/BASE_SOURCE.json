@@ -1,0 +1,9 @@
+{
+  "base_release": "alisa-dataset-selector-metadata-r1-20261113",
+  "base_manifest_sha256": "d4958f3e74c6e81575033b175b7deb67b39eae832f3a391a9b598231112da679",
+  "base_source_commit": "5f783fcedb93dba01948de9590cd0108cd09df72",
+  "base_catalog_sha256": "7a8f48ae71cc7939df6b50a76465d52f7124b54b5b78108bb2151f3ed84c42c2",
+  "new_catalog_sha256": "bd047f6a5896b45352858e29adabfb216186902a01ad15aa9471566ff9e54352",
+  "preserved_clarification_source": "81579c18d4725c7f0a6603c8abbf703668863e36",
+  "source_recipe_sha256": "9473f038ff42b77fe7ddc2f4369b6d994221cc6c7560680acf4b84bc98cb2241"
+}

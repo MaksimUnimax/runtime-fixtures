@@ -1,0 +1,16 @@
+{
+  "status": "PASS",
+  "server_tests": 147,
+  "server_elapsed_seconds": 30.733,
+  "server_log": "/opt/alice-market/candidates/accrual-cardinality-tests-20261114/focused-final.log",
+  "local_tests": 147,
+  "local_elapsed_seconds": 7.689,
+  "baseline_context_tests": 2,
+  "baseline_result": "ERROR: calculation_context absent",
+  "paid_calls": 0,
+  "only_changed_runtime_payload": [
+    "template_catalog.json"
+  ],
+  "catalog_sha256": "bd047f6a5896b45352858e29adabfb216186902a01ad15aa9471566ff9e54352",
+  "new_test_sha256": "8dfbd8b45bd936f8e760cf92f8b96d4d743887eb9b6d89b460a08bc145a8b6cc"
+}

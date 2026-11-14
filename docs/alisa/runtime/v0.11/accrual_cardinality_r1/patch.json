@@ -1,0 +1,149 @@
+{
+  "id": "accrual_items",
+  "version": 2,
+  "purpose": "Товарные начисления по SKU",
+  "platforms": [
+    "ozon"
+  ],
+  "kind": "dataset",
+  "input_policy": {
+    "time_axis": "source_period",
+    "snapshot": false,
+    "period_required": true,
+    "comparison_supported": false,
+    "filters_supported": false
+  },
+  "steps": [
+    {
+      "id": "ozon_rows",
+      "platform": "ozon",
+      "operation": "ds_ozon_accrual_rows",
+      "source_registry": "dataset_sources",
+      "params": [
+        {}
+      ],
+      "period_mode": "days"
+    }
+  ],
+  "qualification": "existing_source_requirements",
+  "notes": [
+    "Дата начисления, не дата заказа или физического выкупа; направления разделены.",
+    "Показаны только дни и товары с записями источника; отсутствие строки не заменено нулём.",
+    "Покупательская сумма — сумма строки; среднее взвешено количеством. Это не кассовый чек.",
+    "Если спрашивают количество разных SKU, ответь одним коротким предложением, без вводных фраз. Не называй число товарных строк или сумму количества товара числом разных SKU."
+  ],
+  "dataset_query": "accrual_items",
+  "metrics": [],
+  "relations": [],
+  "output_stage": "rows",
+  "columns": [
+    {
+      "field": "product_id",
+      "label": "SKU",
+      "kind": "text"
+    },
+    {
+      "field": "sale_units",
+      "label": "реализовано",
+      "kind": "number"
+    },
+    {
+      "field": "sale_amount",
+      "label": "покупательская сумма строк",
+      "kind": "money"
+    },
+    {
+      "field": "average_price",
+      "label": "средняя на товар",
+      "kind": "money"
+    },
+    {
+      "field": "reversal_units",
+      "label": "обратные начисления, шт.",
+      "kind": "number"
+    },
+    {
+      "field": "reversal_amount",
+      "label": "модуль обратных сумм",
+      "kind": "money"
+    },
+    {
+      "field": "seller_amount",
+      "label": "положительная сумма продавца",
+      "kind": "money"
+    },
+    {
+      "field": "reversal_seller_amount",
+      "label": "обратная сумма продавца, модуль",
+      "kind": "money"
+    }
+  ],
+  "group_by": [
+    "product_id"
+  ],
+  "aggregates": [
+    {
+      "field": "sale_units",
+      "kind": "sum",
+      "source": "sale_units",
+      "denominator": null
+    },
+    {
+      "field": "sale_amount",
+      "kind": "sum",
+      "source": "sale_amount",
+      "denominator": null
+    },
+    {
+      "field": "seller_amount",
+      "kind": "sum",
+      "source": "seller_amount",
+      "denominator": null
+    },
+    {
+      "field": "reversal_units",
+      "kind": "sum",
+      "source": "reversal_units",
+      "denominator": null
+    },
+    {
+      "field": "reversal_amount",
+      "kind": "sum",
+      "source": "reversal_amount",
+      "denominator": null
+    },
+    {
+      "field": "average_price",
+      "kind": "ratio_sum",
+      "source": "sale_amount",
+      "denominator": "sale_units"
+    },
+    {
+      "field": "reversal_seller_amount",
+      "kind": "sum",
+      "source": "reversal_seller_amount",
+      "denominator": null
+    }
+  ],
+  "calculation_contract": {
+    "schema": "alisa-accrual-items-cardinality/v1",
+    "source_operation": "ds_ozon_accrual_rows",
+    "source_recipe_sha256": "9473f038ff42b77fe7ddc2f4369b6d994221cc6c7560680acf4b84bc98cb2241",
+    "identity": {
+      "raw_collection": "accruals[].posting.products[]",
+      "include": "commission is present and not null; missing/null commission is not a priced product",
+      "raw_field": "sku",
+      "validated_raw_type": "integer, not boolean, in1..10**30; do not silently coerce string/float/bool",
+      "output_field": "product_id",
+      "canonical_mapping": "SourceMatrix positive_integer: validated raw integer mapped to decimal string"
+    },
+    "cardinality": {
+      "applies_when": "the question asks how many different SKU have product accruals in the requested period",
+      "operation": "count_distinct",
+      "key": "product_id",
+      "scope": "all priced product lines from all complete pages and all requested days together",
+      "directions": "both realization and reverse-accrual rows; the same SKU counts once across directions, prices and repeated rows"
+    },
+    "instructions": "Поле product_id в этом dataset — это SKU из products[].sku у строк с ненулевым объектом commission. Для количества РАЗНЫХ SKU построй множество этих валидных SKU по всем полным страницам запрошенного периода и возьми его размер. Не считай len(accruals), количество товарных строк, сумму quantity или ID начислений. Тот же SKU в нескольких строках, с разными ценами или направлениями остаётся одним SKU. Не суммируй дневные distinct для итога за период. Строки доставки и услуг без commission в это множество не входят. Не вводи фильтр только положительных реализаций без явного требования пользователя. Неполный набор страниц, пропущенный SKU или неверный тип ID не превращай в полный итог или ноль. Этот контракт описывает смысл существующего поля и не меняет расчёт прочих показателей dataset."
+  }
+}
