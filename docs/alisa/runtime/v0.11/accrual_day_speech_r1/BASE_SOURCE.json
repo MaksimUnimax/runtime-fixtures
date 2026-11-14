@@ -1,0 +1,8 @@
+{
+  "base_release": "alisa-accrual-cardinality-r1-20261114",
+  "base_source_commit": "cb35d89752ab6f866617278fa772b179205e9127",
+  "base_manifest_sha256": "a59d14e432f37bb1e4018e1404e442148df6fe3b8649093bbd03d81b4bba72ae",
+  "base_catalog_sha256": "bd047f6a5896b45352858e29adabfb216186902a01ad15aa9471566ff9e54352",
+  "new_catalog_sha256": "e4f0c38566fc49dabe82ff9fcd3c665dbf8b66c6a72cb2758e0039de85973ff8",
+  "preserved_clarification_source": "81579c18d4725c7f0a6603c8abbf703668863e36"
+}

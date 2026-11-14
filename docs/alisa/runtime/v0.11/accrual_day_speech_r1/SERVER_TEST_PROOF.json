@@ -1,0 +1,16 @@
+{
+  "status": "PASS",
+  "server_tests": 147,
+  "server_elapsed_seconds": 29.794,
+  "server_log": "/opt/alice-market/candidates/accrual-day-speech-tests-20261114/focused-final.log",
+  "paid_calls": 0,
+  "only_changed_runtime_payload": [
+    "template_catalog.json"
+  ],
+  "only_changed_template": "accrual_days",
+  "changed_fields": [
+    "version",
+    "notes"
+  ],
+  "catalog_sha256": "e4f0c38566fc49dabe82ff9fcd3c665dbf8b66c6a72cb2758e0039de85973ff8"
+}

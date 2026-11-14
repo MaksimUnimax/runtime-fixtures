@@ -1,0 +1,128 @@
+{
+  "id": "accrual_days",
+  "version": 2,
+  "purpose": "Товарные начисления по дням",
+  "platforms": [
+    "ozon"
+  ],
+  "kind": "dataset",
+  "input_policy": {
+    "time_axis": "source_period",
+    "snapshot": false,
+    "period_required": true,
+    "comparison_supported": false,
+    "filters_supported": false
+  },
+  "steps": [
+    {
+      "id": "ozon_rows",
+      "platform": "ozon",
+      "operation": "ds_ozon_accrual_rows",
+      "source_registry": "dataset_sources",
+      "params": [
+        {}
+      ],
+      "period_mode": "days"
+    }
+  ],
+  "qualification": "existing_source_requirements",
+  "notes": [
+    "Дата начисления, не дата заказа или физического выкупа; направления разделены.",
+    "Показаны только дни и товары с записями источника; отсутствие строки не заменено нулём.",
+    "Покупательская сумма — сумма строки; среднее взвешено количеством. Это не кассовый чек.",
+    "В коротком голосовом ответе на вопрос о количестве по дням назови даты и запрошенные количества одним предложением. Одного краткого указания «по начислениям» достаточно для оси дат. При полных корректных данных не добавляй описание исключённых строк доставки, отправлений и внутренних проверок. Пояснения расчёта давай, если пользователь их запросил; ошибку или неполноту источника не скрывай."
+  ],
+  "dataset_query": "accrual_days",
+  "metrics": [],
+  "relations": [],
+  "output_stage": "rows",
+  "columns": [
+    {
+      "field": "day",
+      "label": "день",
+      "kind": "text"
+    },
+    {
+      "field": "sale_units",
+      "label": "реализовано",
+      "kind": "number"
+    },
+    {
+      "field": "sale_amount",
+      "label": "покупательская сумма строк",
+      "kind": "money"
+    },
+    {
+      "field": "average_price",
+      "label": "средняя на товар",
+      "kind": "money"
+    },
+    {
+      "field": "reversal_units",
+      "label": "обратные начисления, шт.",
+      "kind": "number"
+    },
+    {
+      "field": "reversal_amount",
+      "label": "модуль обратных сумм",
+      "kind": "money"
+    },
+    {
+      "field": "seller_amount",
+      "label": "положительная сумма продавца",
+      "kind": "money"
+    },
+    {
+      "field": "reversal_seller_amount",
+      "label": "обратная сумма продавца, модуль",
+      "kind": "money"
+    }
+  ],
+  "group_by": [
+    "day"
+  ],
+  "aggregates": [
+    {
+      "field": "sale_units",
+      "kind": "sum",
+      "source": "sale_units",
+      "denominator": null
+    },
+    {
+      "field": "sale_amount",
+      "kind": "sum",
+      "source": "sale_amount",
+      "denominator": null
+    },
+    {
+      "field": "seller_amount",
+      "kind": "sum",
+      "source": "seller_amount",
+      "denominator": null
+    },
+    {
+      "field": "reversal_units",
+      "kind": "sum",
+      "source": "reversal_units",
+      "denominator": null
+    },
+    {
+      "field": "reversal_amount",
+      "kind": "sum",
+      "source": "reversal_amount",
+      "denominator": null
+    },
+    {
+      "field": "average_price",
+      "kind": "ratio_sum",
+      "source": "sale_amount",
+      "denominator": "sale_units"
+    },
+    {
+      "field": "reversal_seller_amount",
+      "kind": "sum",
+      "source": "reversal_seller_amount",
+      "denominator": null
+    }
+  ]
+}

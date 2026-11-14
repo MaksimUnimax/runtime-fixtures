@@ -1,0 +1,58 @@
+{
+  "status": "APPROVED",
+  "reviewer": "independent_review",
+  "reviewed_at_utc": "2026-11-14T02:36:07.548046+00:00",
+  "scope": "Exact accrual_days speech-note-only catalog change and derived finite preparation/installer. No client results or private job identifiers included.",
+  "files_sha256": {
+    "template_catalog.base.json": "bd047f6a5896b45352858e29adabfb216186902a01ad15aa9471566ff9e54352",
+    "template_catalog.json": "e4f0c38566fc49dabe82ff9fcd3c665dbf8b66c6a72cb2758e0039de85973ff8",
+    "patch.json": "fc9af4baa31c71a31787724ae7c0571728b1d086e910a4b3a59a723e751c8c8c",
+    "BASE_SOURCE.json": "f83ae3cd68c6be0d2008f64dd85b7ed2cf0d00459ee097b221123c21de1ac768",
+    "build.py": "bd078654c73713bb1a1dccf74caddcdf8d578e21496073a0c8aad136d52940ab",
+    "prepare.py": "98c40c76feb43c70b84f2284176e0b708a5c22e024223dc2ec7bad760a74953d",
+    "install.py": "722d859ac3933d08babb7ac4a3c10ea3bfc32fc29bb71deaddc8fd4cef4ce6e8",
+    "README.md": "85298bde1308a130f5de9394cfd49e29276e33483ca45f3bc2b0e70322423860",
+    "SERVER_TEST_PROOF.json": "e70f6a083e07068a202cd247060db099a0ebbaaa53227c7d5153f2c4eb98cb9a"
+  },
+  "findings": [],
+  "checks": [
+    "Exact JSON comparison changes only accrual_days.version from1 to2 and appends one note. All prior notes, all other85 templates and top-level catalog metadata remain unchanged. Patch equals the complete updated template.",
+    "Note is conditional on a short voice answer about quantities by day. It requests dates and requested quantities, permits a brief accrual-date qualification, suppresses unrequested internal audit detail only for complete correct data, and retains requested explanations and disclosure of errors or incomplete sources.",
+    "No formula, request, source inclusion rule, date axis, group_by, aggregate, dataset column, original question or global owner prompt changes. Existing absence-not-zero and separation of directions remain in the preserved notes.",
+    "Catalog validates against registered dataset/scalar recipes. build.py, prepare.py and install.py parse successfully.",
+    "The exact in-memory decoded preparation ZIP contains only template_catalog.json and the existing test_accrual_cardinality_context.py. Catalog bytes match the reviewed candidate; the unchanged context test bytes match the prior reviewed test hash8dfbd8b45bd936f8e760cf92f8b96d4d743887eb9b6d89b460a08bc145a8b6cc.",
+    "Preparation pins the current cardinality release and manifest, checks every base payload and replaces only the candidate catalog inode before the existing147 isolated checks. No additional mirror test is introduced.",
+    "Compared installer to the previously approved cardinality installer: changes are bounded to base/target paths, manifest/catalog pins and lineage metadata. Shared recovery lock, current-base guard, immutable hardlink copy, independent catalog and manifest inode replacement, full base hash verification before and after preparation, policy/version preflight, atomic current pointer, active process cwd check and rollback are retained.",
+    "Active guard reads the configured database read-only and includes QUEUED/RUNNING and unexpired READY runtime_clarification_v1 before and after stopping the service. No database or configuration write is added.",
+    "Pinned current base cb35d89752ab6f866617278fa772b179205e9127 is copied exactly except catalog. Its cardinality implementation and earlier dataset-selector5f783fcedb93dba01948de9590cd0108cd09df72 and clarification81579c18d4725c7f0a6603c8abbf703668863e36 code are preserved. Clarification metadata is explicitly checked; current base and cardinality source are recorded in new manifest lineage. Station and runtime configuration are untouched."
+  ],
+  "independent_local_validation": {
+    "exact_scope_and_patch": "PASS",
+    "catalog_validator": "PASS",
+    "ast_parse": [
+      "build.py",
+      "prepare.py",
+      "install.py"
+    ],
+    "embedded_payload_exact_bytes": "PASS",
+    "derived_installer_diff": "PASS",
+    "new_test_files_created": 0,
+    "remote_provider_or_model_calls": 0
+  },
+  "primary_executor_evidence": {
+    "source": "SERVER_TEST_PROOF.json and primary executor message; not independently rerun remotely by reviewer",
+    "server_tests": 147,
+    "server_elapsed_seconds": 29.794,
+    "prepare_exit_code": 0,
+    "verified_base_payload_files": 174,
+    "only_changed_runtime_payload": [
+      "template_catalog.json"
+    ],
+    "paid_calls": 0
+  },
+  "limitations": [
+    "This review approves the exact static candidate and finite installer; it does not assert deployment or live speech acceptance.",
+    "The daily speech issue remains open until the exact real voice retest confirms concise output. Passing isolated tests does not establish model compliance with prose instructions.",
+    "Hardlinked releases retain the existing immutable-release assumption; runtime/source mutation outside this installer is outside the reviewed scope."
+  ]
+}
