@@ -1,0 +1,12 @@
+{
+  "schema": "alisa-station-source-fixture/v1",
+  "source_release": "station-pending-ready-race-r1-20261113",
+  "source_release_manifest_sha256": "c4f389e45398ff933ae4d3dd86c8bab8dba0802b039accc8381e37e6f027a53d",
+  "files": {
+    "transport.py": "aa1f89b7310dfb8dabd65614eaf9157488a1620f3f782e297e1ce54ce18417fb",
+    "eta.py": "45d76947eaa99c7057aca91761f21b3b51b937a9b288ac42ec3b7f96afa841de",
+    "service.py": "bd52db81254164955a119310b743e8ebd3e69a03fd400d771653b8944482d89c",
+    "voice_protocol.py": "82fb4873a6a638d47783a74f5df254285f5ad0563649e4bc2b209392ab63a4d1"
+  },
+  "secrets_or_state": false
+}
