@@ -9,5 +9,5 @@ export default async function Admin(){
   try{staff=await getProfile(readCookieHeader((await headers()).get('cookie'),SESSION_COOKIE));}
   catch{return <main><h1>Админка временно недоступна</h1><p>Повторите вход позже.</p></main>;}
   if(!staff)redirect('/login');
-  return <Dashboard staff={staff}/>;
+  return <>{process.env.ALISA_QUESTION_CATALOG_ENABLED==='1'&&staff.permissions.includes('staff.manage')&&<p><a href="/admin/catalog">Каталог вопросов</a></p>}<Dashboard staff={staff}/></>;
 }
