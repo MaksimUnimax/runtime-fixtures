@@ -118,7 +118,7 @@ export async function callback(request:Request){
     catch{result=await accountApi('createSession',input);}
     if(result.status!==201&&!(result.status===200&&result.body.state==='ALREADY_CREATED'))throw new Error();
     const headers=new Headers({Location:c.origin+'/admin','Cache-Control':'no-store','Referrer-Policy':'no-referrer'});
-    headers.append('Set-Cookie',cookie(SESSION_COOKIE,sessionToken,3600));headers.append('Set-Cookie',cookie(FLOW_COOKIE,'',0));
+    headers.append('Set-Cookie',cookie(SESSION_COOKIE,sessionToken,2592000));headers.append('Set-Cookie',cookie(FLOW_COOKIE,'',0));
     return new Response(null,{status:303,headers});
   }catch(error){
     reportAuthFailure(error);
