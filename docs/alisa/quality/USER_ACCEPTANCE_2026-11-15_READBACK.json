@@ -1,34 +1,98 @@
 {
-  "date": "2026-11-15",
   "status": "PARTIAL_LIVE_ACCEPTANCE",
+  "date": "2026-11-15",
   "application_source": "8b8b919993c3812898e14367c161aa4cf9fcf6e6",
   "driver_source": "066d791fbadb090c163822b984d6a216c38830fb",
-  "native_source": "1d572aebf6b05b88",
+  "native_authority_source": "1d572aebf6b05b88",
+  "publisher_source": "4ad35243da2fb50a7bd8b9a377898d6187d6f474",
+  "publisher_sha256": "dc750adf6818a5cce92d6bccd95b1cfa3e441da6f1406cef41900892b5cdacd2",
+  "publisher_checks": 37,
+  "independent_review": "APPROVE",
+  "exact_source_ci": {
+    "platform": {
+      "run_id": 43676343498,
+      "conclusion": "success"
+    },
+    "identity": {
+      "run_id": 43676343505,
+      "conclusion": "success"
+    },
+    "docs": {
+      "run_id": 43676343556,
+      "conclusion": "success"
+    }
+  },
   "all_nine_main_services_active": true,
-  "unknown_jobs_same_four": true,
-  "readback_at": "2026-11-15T03:36:14.754554+00:00",
+  "main_services_restarted": false,
+  "old_unknown_jobs_unchanged": true,
+  "active_native_jobs": 0,
   "counts": {
     "customers": 9,
     "web_sessions": 5,
-    "grants": 0,
-    "access_ledger": 0,
-    "queries": 0,
-    "current_parameters": 0,
-    "staff_sessions": 0
+    "grants": 1,
+    "access_ledger": 1,
+    "staff_sessions": 1,
+    "queries": 7,
+    "current_parameters": 0
   },
-  "synthetic_leads": {
-    "total": 2,
+  "gift": {
+    "days": 7,
+    "from": "2026-11-15T03:56:35Z",
+    "to": "2026-11-22T03:56:35Z",
+    "owner_confirmation": true
+  },
+  "report": {
+    "template": "B08.finance_sales",
+    "version": 5,
+    "period": {
+      "from": "2026-11-14",
+      "to": "2026-11-14"
+    },
+    "source_value_verified": true,
+    "document_bytes": 5899,
+    "sha256": "4605a0b02b728f28bc69482f04f52a7b1b04995148c94fefbc80bef43c8438c2",
+    "identical_repeated_download": true,
+    "download_after_answer_expired": true,
+    "initial_model_calls": 2,
+    "initial_provider_calls": 1,
+    "calls_after_repeated_reads": 3,
+    "answer_ttl_seconds_observed": 300
+  },
+  "clarification": {
+    "same_platform_query": true,
+    "final_result_opened": true
+  },
+  "r5": {
+    "year_preflight": "READY",
+    "preview_period": {
+      "from": "2026-08-15",
+      "to": "2026-11-14"
+    },
+    "preview_http200_calls": 31,
+    "preview_completed": true,
+    "current_value_changed": false,
+    "separate_collection_cancelled": true,
+    "cancel_next_source_gate": "SOURCE_ACCESS",
+    "annual_save_verified": false
+  },
+  "journal": {
+    "visible_new_unsupported_case": true,
+    "pending": 0,
+    "pending_bytes": 0,
+    "dropped": 0,
+    "publisher_exit": 0,
+    "export_bytes": 16419,
+    "export_sha256": "a3d8072d1e16df3a228fcf05c88dd5e4b6847d6139459f8bacaaaa0873091059",
+    "emails_in_export": 0,
+    "raw_question_absent": true,
+    "store_name_absent": true
+  },
+  "synthetic_funnel": {
+    "leads": 2,
     "confirmed": 1,
     "mail_sent": 2,
-    "mail_body_cleared": 2
+    "outbox_body_cleared": 2
   },
-  "failed_staff_flow": {
-    "age_seconds_at_check": 1129,
-    "ttl_seconds": 599,
-    "expired": true,
-    "consumed": false
-  },
-  "product_code_changed": false,
-  "production_restart_performed": false,
+  "physical_station_verified": false,
   "secrets_exported": false
 }
