@@ -1,0 +1,34 @@
+{
+  "date": "2026-11-15",
+  "status": "PARTIAL_LIVE_ACCEPTANCE",
+  "application_source": "8b8b919993c3812898e14367c161aa4cf9fcf6e6",
+  "driver_source": "066d791fbadb090c163822b984d6a216c38830fb",
+  "native_source": "1d572aebf6b05b88",
+  "all_nine_main_services_active": true,
+  "unknown_jobs_same_four": true,
+  "readback_at": "2026-11-15T03:36:14.754554+00:00",
+  "counts": {
+    "customers": 9,
+    "web_sessions": 5,
+    "grants": 0,
+    "access_ledger": 0,
+    "queries": 0,
+    "current_parameters": 0,
+    "staff_sessions": 0
+  },
+  "synthetic_leads": {
+    "total": 2,
+    "confirmed": 1,
+    "mail_sent": 2,
+    "mail_body_cleared": 2
+  },
+  "failed_staff_flow": {
+    "age_seconds_at_check": 1129,
+    "ttl_seconds": 599,
+    "expired": true,
+    "consumed": false
+  },
+  "product_code_changed": false,
+  "production_restart_performed": false,
+  "secrets_exported": false
+}
