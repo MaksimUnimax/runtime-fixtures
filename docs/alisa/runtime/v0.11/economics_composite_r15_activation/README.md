@@ -16,6 +16,21 @@ the existing `/run/lock` is a root-owned sticky directory. The narrow lock
 correction below changes only this separate tool. Its authoring made no remote
 retry or modification of the installed tool, product, builder or package.
 
+The corrected actual `plan` at 13:54:02 UTC passed the lock boundary and refused
+with `HELPER_CHANGED`, again before attempt/publication changes. Five of the six
+installed helper hashes matched. The existing shared version synchronizer was
+still the exact accepted 10 November source `8257aaac46a075ee6e1b59601f4ccce6dd7edbcd`,
+SHA-256 `b57ebf6be29b05d08955b043cc3036592cf768016d4fcf18ac6ff67b1d63cee0`.
+The initial activation contract had incorrectly used the newer canonical product
+source hash as if that helper had been installed. Its observed inode and mtime/
+ctime were unchanged since 10 November; this was not a new concurrent edit.
+
+This correction preserves that installed helper as an exact baseline and carries
+the stronger canonical version synchronizer as a fourth immutable tool file.
+It also preserves unprivileged version computation when the verified bundle has
+private root-owned ancestors. Neither the shared helper nor those permissions
+are changed.
+
 ## Fixed identities and scope
 
 The exact product PLAN is
@@ -25,9 +40,12 @@ The 96-input source index is
 Its encoding is the frozen builder's sorted, indented JSON with a final newline.
 The builder files and exact hashes remain in `activation_contract.BUILD_TOOLS`.
 
-The three executable files in this artifact have a separate tool identity:
+The four executable files in this artifact have a separate tool identity:
 the SHA-256 of the same canonical encoding of their filename-to-SHA-256 map.
-Only `activation_contract.py`, `activate.py`, and `readiness.py` participate.
+Only `activation_contract.py`, `activate.py`, `readiness.py`, and
+`runtime_versions_sync.py` participate. The last file is an unchanged copy of
+the canonical product helper, SHA-256
+`10421a4ec0000a5e26ecc92e5fbeed0a31f48133698a84b92935b04700615dd4`.
 Their publication and review can therefore proceed independently of product CI.
 There is no production test mode, custom target role, alternative owner, clock,
 permission, readiness receipt, or skip-check CLI option.
@@ -153,7 +171,7 @@ started services cannot perform their authorized work.
 
 ## Verified executable bytes
 
-Production invocation requires `python -I -B`. The three tool files must be
+Production invocation requires `python -I -B`. The four tool files must be
 root-owned, immutable and readable at
 `/usr/local/libexec/alisa-r15-activation-<tool-pin-first-16>/`, with no additional
 files or directories. Every parent must permit traversal by the sampler users.
@@ -163,7 +181,7 @@ The CLI checks the external tool PIN before executing its sibling modules.
 Sibling modules, builder modules and accepted helpers execute their already
 verified source bytes with `compile`/`exec`; `-B` alone would still permit
 reading an old `.pyc`. The sampler command similarly verifies and executes the
-three source byte strings before entering its function. Its source directory is
+four source byte strings before entering its function. Its source directory is
 not prepended to `sys.path`, so an extra `sqlite3.py` cannot shadow the standard
 library. Native roots are checked for bytecode caches before import probes.
 
@@ -175,13 +193,56 @@ native PID generation. The caller replaces its `atomic` function with a narrow
 CAS publisher that accepts only the projection path, retaining ownership even
 if a later helper operation fails.
 
-The accepted version synchronizer runs `--check` with the inherited common
-flock descriptor. Its version calculation is loaded from verified bytes; only
-`catalog_bundle_hash` may change. Exact source, config and version CAS are
-repeated before the caller publishes the validated bytes. This supplies an
-owned staged inode before rename, including a crash after publication. The
-helper's `/usr/bin/python3` alias must resolve to the exact pinned
-`/usr/bin/python3.12` executable. Accepted helpers themselves are not edited.
+The private canonical version synchronizer runs `--check` on the published
+native target with the inherited common flock descriptor. Its complete strict
+manifest and payload checks, including content digests in the before/after
+snapshots, remain unchanged. It is not replaced with the older installed
+implementation. Only `catalog_bundle_hash` may change. Exact source, config and
+version CAS are repeated before the caller publishes the validated bytes. This
+supplies an owned staged inode before rename, including a crash after
+publication. The helper's `/usr/bin/python3` alias must resolve to the exact
+pinned `/usr/bin/python3.12` executable.
+
+For the still-private bundle, the tool loads that same canonical helper from
+verified bytes and uses a narrow descriptor-based adapter for its `compute`
+operation. The only accepted roots are this package's `releases/native` and its
+fixed published native target. The exact frozen builder manifest, all payload
+hashes, immutable ownership/modes, inventory and absence of bytecode caches are
+checked before and after computation. The private bundle leaf is named `native`,
+while its manifest names the final artifact; it is therefore checked by the
+frozen builder rather than passing an incorrect root alias to the canonical
+publisher's final-release validator.
+
+The adapter opens the verified directory read-only with `O_DIRECTORY|O_NOFOLLOW`.
+It compares the held descriptor and pathname identity before and after the
+manifest checks and the child. A subprocess still runs as `nobody`, with no
+supplementary groups, an explicit minimal environment, `-I -B`, the canonical
+CPU/file/core limits, eight-second timeout and bounded output. Only the payload
+directory descriptor is inherited; `cwd` and the import path use its
+`/proc/self/fd/<n>` alias. The exact current-version import closure reads adjacent
+files through `__file__.parent` and `with_name`; it does not resolve this alias
+back to the private ancestor. The caller always closes the descriptor, including
+child failure, timeout, malformed output and source/path changes. Product code
+is never imported as root for this calculation.
+
+The shared `/usr/local/libexec/alisa/runtime_versions_sync.py` remains pinned to
+its observed `b57ebf6b…` bytes and remains the native service's existing startup
+helper. The six accepted shared helper files and service definition are not
+edited. The separate artifact's canonical check does not claim that the shared
+startup helper was upgraded.
+
+The source suite covers missing or changed fourth-file identities, canonical
+same-metadata manifest tampering, the two fixed source coordinates, descriptor
+closure on child failures/timeouts/oversized output, payload tampering and
+directory replacement. The existing activation workflow also contains a finite
+root-to-nobody fixture gate. Its root-owned 0700 RuntimeDirectory contains only
+owned synthetic source/data and exact tool/verifier copies; it demonstrates
+that an absolute private path fails while the held descriptor permits imports
+and adjacent data reads. It checks the clean child environment, absence of an
+unrelated inheritable descriptor, complete source checks after tampering and
+closure after actual child failures/timeouts. Both explicit fixture cleanup and
+the unit's native RuntimeDirectory cleanup are checked. These fixtures do not
+access installed applications or establish live acceptance.
 
 ## Failure and recovery boundary
 
@@ -218,6 +279,10 @@ The common arguments are `--builder`, `--bundle`, `--prepared-sha256`,
 
 Run `plan` first to inspect the exact candidate, current sources and count-only
 state. This creates only finite sampler units and prints a proposed plan.
+The finite outer unit must provide `PrivateTmp=yes` for the canonical and
+descriptor compute subprocesses' bounded temporary output files when
+`ProtectSystem=strict` is used. No root ancestor permission change or shared
+temporary workspace is required.
 After its resource estimate is reviewed, `prepare` repeats the checks and
 publishes the three copies using independent inodes and `RENAME_NOREPLACE`.
 Existing destinations are never merged, overwritten, adopted or deleted.

@@ -34,7 +34,7 @@ OWNER_UID = 0  # Fixed production owner; tests patch this in their disposable tr
 
 def _raw_tools():
     result = {}
-    for name in ('activation_contract.py', 'activate.py', 'readiness.py'):
+    for name in ('activation_contract.py', 'activate.py', 'readiness.py', 'runtime_versions_sync.py'):
         fd = os.open(HERE/name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
         try:
             before = os.fstat(fd)
@@ -324,6 +324,68 @@ def load_module(name, path, digest):
         sys.dont_write_bytecode = previous
 
 
+def _version_root_identity(info):
+    c.need(stat.S_ISDIR(info.st_mode) and info.st_uid == OWNER_UID
+           and not info.st_mode & 0o222 and info.st_mode & 0o005 == 0o005,
+           'VERSION_ROOT_UNTRUSTED')
+    return tuple(getattr(info, name) for name in
+                 ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_nlink',
+                  'st_size', 'st_mtime_ns', 'st_ctime_ns'))
+
+
+def _version_root_unchanged(root, fd, expected):
+    secure_dir(root)
+    c.need(_version_root_identity(os.fstat(fd)) == expected
+           and _version_root_identity(root.lstat()) == expected, 'VERSION_ROOT_CHANGED')
+
+
+def compute_versions_from_fd(root, sync, verify_root):
+    """Compute the canonical version result as nobody from a verified directory.
+
+    The immutable bundle can have private root-owned ancestors. Its held read-only
+    directory fd grants access only to this payload; it does not grant traversal
+    of those ancestors. The caller supplies its exact frozen-manifest verifier.
+    No product module is imported in this privileged process.
+    """
+    root = secure_dir(root)
+    before = _version_root_identity(root.lstat())
+    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        _version_root_unchanged(root, fd, before)
+        verify_root()
+        _version_root_unchanged(root, fd, before)
+        account = pwd.getpwnam('nobody')
+        c.need(account.pw_uid != 0, 'COMPUTE_IDENTITY')
+        public_root = '/proc/self/fd/'+str(fd)
+        # Same import/call/result algorithm as the frozen canonical compute().
+        # The actual current_versions import closure uses __file__.parent and
+        # with_name; it never resolves this fd alias back to private ancestors.
+        code = ('import sys,json;sys.path.insert(0,'+repr(public_root)+');'
+                'from runtime_port import current_versions;print(json.dumps(current_versions()))')
+        with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as error:
+            try:
+                result = subprocess.run(['/usr/bin/python3', '-I', '-B', '-c', code],
+                    cwd=public_root,
+                    env={'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'HOME': '/nonexistent',
+                         'PYTHONDONTWRITEBYTECODE': '1'},
+                    user=account.pw_uid, group=account.pw_gid, extra_groups=[],
+                    pass_fds=(fd,), close_fds=True, stdin=subprocess.DEVNULL,
+                    stdout=output, stderr=error, timeout=8, preexec_fn=sync.limits)
+            except (subprocess.TimeoutExpired, OSError):
+                raise c.Blocked('COMPUTE_UNAVAILABLE') from None
+            finally:
+                _version_root_unchanged(root, fd, before)
+                verify_root()
+                _version_root_unchanged(root, fd, before)
+            c.need(result.returncode == 0, 'COMPUTE_UNAVAILABLE')
+            output.seek(0)
+            raw = output.read(8193)
+        c.need(len(raw) <= 8192, 'VERSION_SCHEMA')
+        return sync.decode(raw)
+    finally:
+        os.close(fd)
+
+
 def tool_hash():
     return c.canonical_hash({name: c.digest(regular(HERE/name)) for name in c.TOOL_FILES})
 
@@ -540,6 +602,8 @@ class LiveHost:
         c.need(tool_hash() == self.tool_pin, 'ACTIVATION_SOURCE_CHANGED')
         interpreter_alias(self.baseline['environment'])
         c.need({p: c.digest(regular(Path(p))) for p in c.HELPERS} == c.HELPERS, 'HELPER_CHANGED')
+        c.need(c.digest(regular(HERE/c.VERSION_SYNC_FILE)) == c.VERSION_SYNC_SHA,
+               'VERSION_HELPER_CHANGED')
 
     def helpers(self):
         self.helper_guard()
@@ -559,13 +623,19 @@ class LiveHost:
         return self.pair
 
     def expected_versions(self, root):
-        # Same exact algorithm as accepted pair.expected_version_bytes, with
-        # verified-byte loading instead of its cache-capable nested loader.
+        # Separate canonical helper; the shared installed startup helper remains
+        # pinned as a baseline and is never substituted, edited or imported here.
         self.helper_guard()
-        no_native_cache(root)
-        sync = load_module('r15_accepted_version_sync', c.SYNC, c.HELPERS[str(c.SYNC)])
+        root = Path(root)
+        c.need(root in (self.bundle/'releases/native', self.targets['native']), 'VERSION_SOURCE_SCOPE')
+        sync = load_module('r15_canonical_version_sync', HERE/c.VERSION_SYNC_FILE, c.VERSION_SYNC_SHA)
+        def verify_root():
+            no_native_cache(root)
+            verify_target(self.builder, root, self.prepared['candidates']['native']['manifest_sha256'],
+                          'native', self.prepared)
         old = sync.version_shape(c.strict_json(regular(c.VERSIONS)))
-        new = sync.version_shape({**sync.compute(root), 'catalog_release_id': old['catalog_release_id']})
+        new = sync.version_shape({**compute_versions_from_fd(root, sync, verify_root),
+                                  'catalog_release_id': old['catalog_release_id']})
         c.need({key for key in old if old[key] != new[key]} <= {'catalog_bundle_hash'}, 'VERSION_SCOPE')
         return (json.dumps(new, indent=2)+'\n').encode()
 
@@ -816,7 +886,7 @@ class LiveHost:
 
     def sync_check(self):
         self.helper_guard()
-        result = c.strict_json(run('/usr/bin/python3', '-I', '-B', str(c.SYNC),
+        result = c.strict_json(run('/usr/bin/python3', '-I', '-B', str(HERE/c.VERSION_SYNC_FILE),
                                    '--source', str(self.targets['native']), '--check',
                                    '--lock-fd', str(self.lock_stream.fileno()),
                                    pass_fds=(self.lock_stream.fileno(),)))
@@ -1164,7 +1234,7 @@ def sampler_main(kind, platform_root, expected_tool, config_state=None):
 
 
 def sampler_code(kind, root, expected_tool, config_state=None):
-    """Isolated child bootstraps all three verified source bytes, never .pyc."""
+    """Isolated child bootstraps all four verified source bytes, never .pyc."""
     # No credentials or environment values are embedded in this command.
     return ('import sys,os,json,hashlib;from pathlib import Path;'
             'p=Path('+repr(str(HERE))+');names='+repr(c.TOOL_FILES)+';b={};'

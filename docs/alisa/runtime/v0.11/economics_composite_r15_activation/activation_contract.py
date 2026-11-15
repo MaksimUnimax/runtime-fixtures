@@ -19,7 +19,9 @@ BUILD_TOOLS = {
     'inspect_native.py': 'e310616f618ee63ca27372404e0f6639d01e4235975d0ae35f1aec5921d5a3e7',
     'release_contract.py': '48a7f0ebb53213e38b188af169fab54f6101ccadf478200f1770b36a31198633',
 }
-TOOL_FILES = ('activation_contract.py', 'activate.py', 'readiness.py')
+VERSION_SYNC_FILE = 'runtime_versions_sync.py'
+VERSION_SYNC_SHA = '10421a4ec0000a5e26ecc92e5fbeed0a31f48133698a84b92935b04700615dd4'
+TOOL_FILES = ('activation_contract.py', 'activate.py', 'readiness.py', VERSION_SYNC_FILE)
 ROLES = ('platform', 'authority', 'native')
 UNITS = {'web': 'alisa-web@stage.service', 'platform': 'alisa-platform@stage.service',
          'authority': 'alisa-runtime-authority-stage.service', 'native': 'alice-market.service'}
@@ -52,7 +54,9 @@ HELPERS = {
     str(PAIR): '194b45ba797b053544bff9db84a1e933da62db34dba6e55835121f66eb2f8fb9',
     str(CORE): 'f8e68d5e0ad7502c8bd31f7c859a44921ba904f3265f8607e0f4091d2e596307',
     str(CHECKER): '30664db61e047927c9dafd2b16fd70d3d1ba662ee3ea59ce539d4e1e32045347',
-    str(SYNC): '10421a4ec0000a5e26ecc92e5fbeed0a31f48133698a84b92935b04700615dd4',
+    # Existing shared startup helper, observed byte-for-byte at commit 8257aaac.
+    # This baseline is preserved; the separate tool uses VERSION_SYNC_FILE.
+    str(SYNC): 'b57ebf6be29b05d08955b043cc3036592cf768016d4fcf18ac6ff67b1d63cee0',
     str(SHARED_HTTP): '0a7657ff13ea4e34bb553294dd0bec09e094cdb6ab25dbb65050d04735d8d7f8',
     str(STORE_CHECKER): 'a9b8abe8ac37d43c35eae19ab9b3114feaf158b72e80e7485d982add9cfc77a1',
 }

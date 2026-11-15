@@ -1,0 +1,172 @@
+{
+  "activation_base_commit": "9afad1e0cd7ba5bc0a72a89936b2ba9c7c2dcf5a",
+  "author_validation": {
+    "actual_privileged_gate": "NOT_RUN_LOCALLY; executor uid1000 has no sudo",
+    "bash_blocks": 6,
+    "bash_syntax": "PASS",
+    "current_github_ci": "NOT_RUN_FOR_NEW_SOURCE",
+    "inventory": "62 prior activation +28 readiness +11 new version-probe cases; no errors, failures or skips",
+    "new_cases": "fourth source missing/tampered; canonical strict manifest bytes; fixed source scope; descriptor lifecycle; child failure/timeout/oversized output; payload mutation; path replacement; canonical check command",
+    "python_ast": "PASS",
+    "unittest_cases": 101,
+    "unittest_result": "PASS",
+    "unittest_seconds": 0.602,
+    "yaml": "PASS"
+  },
+  "boundary": {
+    "apply": "NOT_RUN",
+    "installed_synthetic": "NOT_RUN",
+    "live_owner": "NOT_RUN",
+    "new_plan": "NOT_RUN",
+    "prepare": "NOT_RUN",
+    "production_deployed": false,
+    "source_only": true
+  },
+  "cause": {
+    "actual_plan_r2": "BLOCKED_HELPER_CHANGED_BEFORE_ATTEMPT_OR_PUBLICATION",
+    "actual_plan_r2_utc": "2026-11-15T13:54:02Z",
+    "algorithm_unchanged": [
+      "compute",
+      "version_shape",
+      "decode",
+      "read_file",
+      "rollout_lock",
+      "limits",
+      "main",
+      "version fields",
+      "catalog_bundle_hash-only publication scope"
+    ],
+    "canonical_bytes": 10867,
+    "canonical_delta": [
+      "Include manifest and payload SHA256 in snapshots",
+      "Re-read and hash unchanged payload instead of metadata-only comparison",
+      "Forward owner_uid to unchanged"
+    ],
+    "canonical_hardening_commit": "cacc71483ebe39f1a316fb5b53e53b40167bbbb3",
+    "canonical_sha256": "10421a4ec0000a5e26ecc92e5fbeed0a31f48133698a84b92935b04700615dd4",
+    "conclusion": "The initial contract pinned newer canonical source as an already-installed helper; the observed installed bytes and inode metadata remained from November10.",
+    "helper_readback_utc": "2026-11-15T13:55:11.834152+00:00",
+    "installed_bytes": 10554,
+    "installed_exact_source_commit": "8257aaac46a075ee6e1b59601f4ccce6dd7edbcd",
+    "installed_mtime_and_ctime_utc": "2026-11-10T02:16:11.375535Z",
+    "installed_path": "/usr/local/libexec/alisa/runtime_versions_sync.py",
+    "installed_sha256": "b57ebf6be29b05d08955b043cc3036592cf768016d4fcf18ac6ff67b1d63cee0",
+    "matching_existing_helpers": 5,
+    "mismatches": 1
+  },
+  "change": {
+    "canonical_helper": "Exact10421 canonical bytes are the fourth immutable activation artifact file; full tool inventory, external PIN and sampler bootstrap include it.",
+    "cleanup": "Payload descriptor closes on success, child failure, timeout, output error and source/path mismatch. No ancestor chmod or installed helper/service change.",
+    "closure_path_behavior": "These eight actual immutable-candidate imports and current_versions use __file__.parent/with_name, not Path(__file__).resolve; wider function-body imports are not entered.",
+    "existing_helpers": "All six observed installed hashes remain enforced, including the preserved b57 shared startup helper.",
+    "isolation": "nobody, no supplementary groups, explicit minimal environment, -I -B, canonical CPU/file/core limits, 8-second timeout and bounded output; pass_fds contains only the payload directory.",
+    "observed_current_versions_module_scope": [
+      "runtime_port",
+      "query_program",
+      "registry",
+      "request_basis",
+      "retention",
+      "runtime_port_contract",
+      "semantic_catalog",
+      "semantics"
+    ],
+    "outer_unit_requirement": "PrivateTmp=yes when ProtectSystem=strict is used.",
+    "private_compute": "Only the fixed bundle/native or published native root is accepted. A read-only O_DIRECTORY|O_NOFOLLOW fd carries the already-verified payload to nobody via /proc/self/fd. Frozen manifest/content/inventory/immutability checks and fd/path identity CAS surround the child.",
+    "strict_check": "sync_check runs the canonical private helper --check against the fixed published target with the existing lock fd; canonical hardening is not edited."
+  },
+  "changed_source_files": {
+    ".github/workflows/alisa-economics-activation-ci.yml": {
+      "bytes": 9367,
+      "sha256": "31ffdb222569174e9f203c2c5ff69a26248d9c5fb899f4c6f8c81b435390af8b"
+    },
+    "docs/alisa/runtime/v0.11/economics_composite_r15_activation/README.md": {
+      "bytes": 22573,
+      "sha256": "c99be71a3d259bb4a0180567c3f044aea8168d2128d8497600f4e7f021a7c9bf"
+    },
+    "docs/alisa/runtime/v0.11/economics_composite_r15_activation/activate.py": {
+      "bytes": 68988,
+      "sha256": "8da462fb303a6598c6f78ab7c4cf386ca7434cd5e9cb422cd8b33562bb240e50"
+    },
+    "docs/alisa/runtime/v0.11/economics_composite_r15_activation/activation_contract.py": {
+      "bytes": 12816,
+      "sha256": "692e11948e1d6e0ddc1cd539f3924174e03f4f2804d6d1b8788783dfa2f1982f"
+    },
+    "docs/alisa/runtime/v0.11/economics_composite_r15_activation/runtime_versions_sync.py": {
+      "bytes": 10867,
+      "sha256": "10421a4ec0000a5e26ecc92e5fbeed0a31f48133698a84b92935b04700615dd4"
+    },
+    "docs/alisa/runtime/v0.11/economics_composite_r15_activation/tests/private_probe_gate.py": {
+      "bytes": 11888,
+      "sha256": "4e977d41b4b6b3342ad3a3fb4ac302ed247a2734f996c443fc92e7bdd023d4be"
+    },
+    "docs/alisa/runtime/v0.11/economics_composite_r15_activation/tests/test_version_probe.py": {
+      "bytes": 11827,
+      "sha256": "e8eb4cff8631742d3128600743552eae9014bc6baa7e5500b97305b36f5fb0b1"
+    }
+  },
+  "ci_privileged_gate": {
+    "actual_child_attempts": 8,
+    "artifact": "Source SHA, tool/canonical hashes, named results, actual identity boundary and owned cleanup; no installed/client data.",
+    "caps": {
+      "kill_mode": "control-group",
+      "memory_bytes": 134217728,
+      "oom_policy": "stop",
+      "runtime_seconds": 45,
+      "stop_seconds": 5,
+      "swap_bytes": 0,
+      "tasks": 32
+    },
+    "cleanup": "Explicit TemporaryDirectory cleanup plus RuntimeDirectory removal on native unit completion; always-step records actual unit state without stopping a reused unit.",
+    "fixture": "Owned synthetic modules/data plus exact tool/frozen verifier copies; direct private-path EACCES, nobody fd imports and sibling/JSON reads, clean environment, only payload fd, source/path tampering and actual child failure/oversize/timeout rejection.",
+    "isolation": "PrivateTmp; PrivateNetwork; ProtectSystem=strict; NoNewPrivileges; AF_UNIX only; RW only own RuntimeDirectory0700",
+    "named_checks": 10,
+    "status": "SOURCE_REVIEWED_NOT_RUN",
+    "unit": "Unique existing-workflow transient unit alisa-r15-private-probe-ci-<run>-<attempt>"
+  },
+  "independent_review": {
+    "actual_descriptor_fixture": "PASS using the actual adapter and Python subprocess with an inaccessible fixture ancestor; only fixture child identity arguments adjusted to local uid1000. Includes imported sibling, adjacent JSON/text, glob, unrelated inheritable descriptor excluded and payload fd closed. This is not root-to-nobody CI evidence.",
+    "ci_gate_sha256": "4e977d41b4b6b3342ad3a3fb4ac302ed247a2734f996c443fc92e7bdd023d4be",
+    "ci_review_fix": "Direct negative probe requires exact exit73 only from actual nobody PermissionError(errno.EACCES) opening the exact private file. Generic nonzero exit cannot pass.",
+    "ci_reviewer": "disk_resume_review",
+    "ci_verdict": "SOURCE_APPROVE",
+    "core_proof_sha256": "73afcb037b87d49dbc14025c853bfd807b207a8c86e3d4387892bdc68230aad2",
+    "core_reviewer": "activation_resume_review",
+    "core_verdict": "SOURCE_APPROVE",
+    "focused_cases": 11,
+    "focused_result": "PASS; these11 overlap author101",
+    "root_review": "Full core/gate/workflow reviewed; SOURCE GO after both independent reviews.",
+    "unchanged_outside_scope": "Independent byte comparison with9af confirmed existing code unchanged outside the explicitly approved blocks.",
+    "workflow_sha256": "31ffdb222569174e9f203c2c5ff69a26248d9c5fb899f4c6f8c81b435390af8b"
+  },
+  "prepared_sha256": "2f83b12b5a9d67e4060051dce26ddae934cc98f638669c1a156060164622bc4d",
+  "preserved": {
+    "actual_package_rebuilt": false,
+    "application_configuration_modified": false,
+    "builder_all_hashes_unchanged": true,
+    "builder_file_count": 5,
+    "builder_hashes": {
+      "baseline_20261115.json": "1644351c664b3f2550d0e9fec67a7a60f499b91aa530f64041cef46f82624a51",
+      "build_candidate.py": "68f502a20d4f869a7d6e0bd81dab37e174693cd1a673ded195331a832cf47839",
+      "compatibility_review.json": "a6f8eecbb603b82afa578de626df4f1e9af02250434df9a19b58efbbab3dc97a",
+      "inspect_native.py": "e310616f618ee63ca27372404e0f6639d01e4235975d0ae35f1aec5921d5a3e7",
+      "release_contract.py": "48a7f0ebb53213e38b188af169fab54f6101ccadf478200f1770b36a31198633"
+    },
+    "installed_shared_helpers_modified": false,
+    "product_source_count": 96,
+    "product_source_index": "3b6bee51f233398d46c15646b3435edf147ee19e9cdf7abe74ae8908472dc26b",
+    "readiness_sha256": "ce3cf08c8338f8d34d07c222b2c974b867098f185bfba165b5a4526f77853658",
+    "service_definitions_modified": false,
+    "source_index_regression_in_101_suite": "PASS"
+  },
+  "product_commit": "1964d60f9a7598fefa2e10a0affcda0cce0f1f34",
+  "recorded_utc": "2026-11-15T14:12:48.075264+00:00",
+  "runtime_files": {
+    "activate.py": "8da462fb303a6598c6f78ab7c4cf386ca7434cd5e9cb422cd8b33562bb240e50",
+    "activation_contract.py": "692e11948e1d6e0ddc1cd539f3924174e03f4f2804d6d1b8788783dfa2f1982f",
+    "readiness.py": "ce3cf08c8338f8d34d07c222b2c974b867098f185bfba165b5a4526f77853658",
+    "runtime_versions_sync.py": "10421a4ec0000a5e26ecc92e5fbeed0a31f48133698a84b92935b04700615dd4"
+  },
+  "schema": "alisa-r15-canonical-sync-source-qualification/v1",
+  "status": "SOURCE_APPROVED_CURRENT_CI_NOT_RUN",
+  "tool_sha256": "89fc9fa0d0ecd9cd4ec65475c204fcd912f51e2f215a65ac622b96b5aabb7456"
+}
