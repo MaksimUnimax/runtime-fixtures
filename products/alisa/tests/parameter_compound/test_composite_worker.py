@@ -290,13 +290,20 @@ class Composite(CompositeFixture,TransactionTestCase):
         self.assertNotIn('model_answer',[request.operation for request in self.e.transport.calls])
 
     def test_more_than_sixtyfour_sku_days_are_batched_without_source_repetition(self):
+        # A valid, substantial owner dataset must fit the existing private RPC
+        # deadline as well as the tiny all-products fixture. Unrelated mappings
+        # remain subject to complete structural validation on every fresh read.
+        for sku in range(1000,1130):
+            self.facts['product_map'][str(sku)]='sku:'+str(sku)
+            self.facts['entries'].append(self.entry('unit_cost','250','sku:'+str(sku)))
+        self.approve()
         self.e.save('0');self.delivery('0');self.e.transport.orders={'fbo':[posting('fbo','PRIVATE-BATCH-'+str(i),i,'100',1)for i in range(100,165)],'fbs':[]}
         self.e.transport.quotes=[quote(i+1000,20,10,40,0)for i in range(100,165)]
         self.e.transport.skus={i+1000:i for i in range(100,165)};self.e.transport.fees={};self.e.transport.records=[]
         self.start();self.ready();result=self.context();self.assertEqual(result['scenarios']['with_loss']['totals']['original_units'],'65')
         from alisa_platform.owner_data.parameter_report_rpc import KEY
-        nodes=Query.objects.get().continuation[KEY];self.assertEqual(len(nodes),2)
-        self.assertEqual(sorted(len(n['owner_readset']['readset']['rows'])for n in nodes.values()),[1,64])
+        nodes=Query.objects.get().continuation[KEY];self.assertEqual(len(nodes),9)
+        self.assertEqual(sorted(len(n['owner_readset']['readset']['rows'])for n in nodes.values()),[1]+[8]*8)
         self.assertEqual(self.provider_ops().count('ds_ozon_fbo_postings'),1)
 
 

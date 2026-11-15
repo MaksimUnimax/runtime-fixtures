@@ -28,7 +28,7 @@ import read_surface
 TEMPLATE='economics.unit_forecast.v1'
 SCHEMA='alice-economics-composite/v1'
 CACHE='_economics_sources'
-BATCH_SIZE=64
+BATCH_SIZE=8
 OWNER_FIELDS=['unit_cost','tax_amount','own_cost_amount']
 READ_OPERATIONS=(*tariff_source.OPERATIONS,*other_source.OPERATIONS,
                  *(step['operation']for step in realization_source.STEPS))

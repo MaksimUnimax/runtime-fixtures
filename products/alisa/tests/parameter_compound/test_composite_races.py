@@ -86,13 +86,13 @@ class CompositeRaces(CompositeFixture, TransactionTestCase):
 
     def test_active_second_batch_fill_survives_new_first_batch_gap_and_manual_value_wins(self):
         self.delivery('0')
-        for sku in range(100, 164):
+        for sku in range(100, 108):
             self.e.save('0', area={'kind': 'sku', 'sku': str(sku)})
         self.e.transport.orders = {
             'fbo': [posting('fbo', 'PRIVATE-RACE-' + str(sku), sku, '100', 1)
-                    for sku in range(100, 165)], 'fbs': []}
-        self.e.transport.quotes = [quote(sku + 1000, 20, 10, 40, 0) for sku in range(100, 165)]
-        self.e.transport.skus = {sku + 1000: sku for sku in range(100, 165)}
+                    for sku in range(100, 109)], 'fbs': []}
+        self.e.transport.quotes = [quote(sku + 1000, 20, 10, 40, 0) for sku in range(100, 109)]
+        self.e.transport.skus = {sku + 1000: sku for sku in range(100, 109)}
         self.e.transport.fees = {}; self.e.transport.records = []
         self.assertFalse(CurrentParameter.objects.filter(key='loss_rate', scope_kind='store').exists())
         active, cleared, manual, fills = {}, [], [], []
@@ -115,9 +115,9 @@ class CompositeRaces(CompositeFixture, TransactionTestCase):
                 batches = {node['owner_readset']['readset']['batch']['index']: (node_id, node)
                            for node_id, node in nodes.items() if 'owner_readset' in node}
                 self.assertEqual(set(batches), {0, 1})
-                self.assertEqual(len(batches[0][1]['owner_readset']['readset']['rows']), 64)
+                self.assertEqual(len(batches[0][1]['owner_readset']['readset']['rows']), 8)
                 self.assertEqual(batches[1][1]['owner_readset']['readset']['rows'],
-                                 [{'sku': '164', 'day': DAY}])
+                                 [{'sku': '108', 'day': DAY}])
                 self.assertEqual(rpc._unsign(state['reference'])['node_id'], batches[1][0])
                 source = state['fragment']['plan']['parameter_source']
                 self.assertEqual(source['key'], 'loss_rate')
@@ -168,7 +168,7 @@ class CompositeRaces(CompositeFixture, TransactionTestCase):
         self.assertEqual((general.value, general.origin, general.revision), ('0.2', 'manual', 1))
         exception = CurrentParameter.objects.get(key='loss_rate', scope_kind='sku', sku='100')
         self.assertEqual((exception.state, exception.value, exception.revision), ('INHERIT', None, 2))
-        self.assertEqual(self.context()['scenarios']['with_loss']['totals']['expected_retained_units'], '64.6')
+        self.assertEqual(self.context()['scenarios']['with_loss']['totals']['expected_retained_units'], '8.6')
         requests = provider_requests(); prefix = len(active['full_requests'])
         self.assertEqual(requests[:prefix], active['full_requests'])
         self.assertEqual(Counter(operation for operation, _ in requests[prefix:]),

@@ -33,7 +33,7 @@ OWNER_FIELDS = ['unit_cost', 'tax_amount', 'own_cost_amount']
 READSET_SCHEMA = 'alisa-economics-owner-readset/v1'
 DESCRIPTOR_SCHEMA = 'alisa-economics-query/v1'
 CHECKPOINT_SCHEMA = 'alisa-economics-query-fence/v1'
-BATCH_SIZE = 64  # Per private-RPC message, never a report row/day/batch quota.
+BATCH_SIZE = 8  # Per private-RPC budget, never a report row/day/batch quota.
 ORDER_NORMALIZER_SHA256 = sha256(Path(orders.__file__).read_bytes()).hexdigest()
 HEX = re.compile(r'[a-f0-9]{64}')
 

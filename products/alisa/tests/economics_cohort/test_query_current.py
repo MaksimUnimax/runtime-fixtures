@@ -7,6 +7,8 @@ from copy import deepcopy
 from datetime import timedelta
 from pathlib import Path
 from threading import Thread
+from types import SimpleNamespace
+from unittest import TestCase as UnitCase
 from unittest.mock import patch
 import json, os, tempfile, uuid
 
@@ -287,11 +289,15 @@ class QueryCurrent(QueryFixture, TestCase):
 
     def test_more_than_sixtyfour_distinct_reads_use_multiple_nodes_without_total_cap(self):
         self.filled(); rows = [{'sku': str(i), 'day': DAY} for i in range(100, 165)]
-        first = self.get(self.bound(0), self.readset(rows[:64], distinct=65, original=1000))
-        second = self.get(self.bound(1), self.readset(rows[64:], index=1, distinct=65, original=1000))
-        self.assertTrue(first['ready'] and second['ready'])
-        self.assertEqual(len(first['coefficients'])+len(second['coefficients']), 65)
-        self.assertEqual(first['checkpoint']['owner'], second['checkpoint']['owner'])
+        results = [self.get(self.bound(index), self.readset(rows[start:start+query.BATCH_SIZE],
+                   index=index, distinct=65, original=1000))
+                   for index, start in enumerate(range(0, len(rows), query.BATCH_SIZE))]
+        self.assertTrue(all(result['ready'] for result in results))
+        self.assertEqual(len(results), 9)
+        keys = [key for result in results for key in result['coefficients']]
+        self.assertEqual(len(keys), len(set(keys)))
+        self.assertEqual(set(keys), {query.pc.CANON([row['sku'], row['day']]) for row in rows})
+        self.assertTrue(all(result['checkpoint']['owner'] == results[0]['checkpoint']['owner'] for result in results))
 
     def test_empty_cohort_reads_exact_period_owner_amounts_without_parameter_jobs(self):
         result = self.get(readset=self.readset([]))
@@ -441,3 +447,83 @@ class QuerySessionRace(QueryFixture, TransactionTestCase):
             with self.assertRaisesRegex(RuntimeFailure, 'AUTH_REQUIRED'): self.get(reference)
         self.session.refresh_from_db(); self.assertIsNotNone(self.session.revoked_at)
         self.assertNotIn('owner_readset', self.node(reference)); self.assertEqual(CurrentParameter.objects.count(), 0)
+
+
+class OwnerFactsValidation(UnitCase):
+    """The structural pass validates the entire current payload, before any IO."""
+    def setUp(self):
+        self.actor = SimpleNamespace(tenant_id=uuid.UUID('11111111-1111-1111-1111-111111111111'))
+        self.store = SimpleNamespace(pk=uuid.UUID('22222222-2222-2222-2222-222222222222'))
+        self.entity = 'store:'+str(self.store.pk)
+
+    def entry(self, entity, value='1', field='unit_cost', period=None):
+        return {'id': str(uuid.uuid4()), 'field': field, 'entity': entity, 'currency': 'RUB',
+                'period': deepcopy(period), 'state': 'VALUE' if value is not None else 'NOT_PROVIDED',
+                'value': value}
+
+    def facts(self):
+        return {'product_map': {'101': 'sku:101', '102': 'sku:102'}, 'entries': [
+            self.entry('all-products'), self.entry('sku:101', '0'), self.entry('sku:102', None),
+            self.entry(self.entity, '0', 'tax_amount', PERIOD),
+            self.entry(self.entity, None, 'own_cost_amount', PERIOD)]}
+
+    def validate(self, facts):
+        return owner.validate_facts(facts, self.actor, self.store)
+
+    def test_all_mapped_rows_and_both_field_modes_validate_without_changing_facts(self):
+        facts = self.facts(); facts['entries'][3].update(state='EXCLUDED_BY_OWNER', value=None)
+        before = deepcopy(facts); result = self.validate(facts)
+        self.assertEqual(result, before); self.assertEqual(facts, before)
+        result['entries'][1]['value'] = '999'
+        self.assertEqual(facts['entries'][1]['value'], '0')
+
+    def test_malformed_unselected_sku_rows_are_still_rejected(self):
+        cases = [({'id': ''}, 'OWNER_INPUT_SCHEMA'), ({'extra': True}, 'OWNER_INPUT_SCHEMA'),
+                 ({'state': 'VALUE', 'value': 'NaN'}, 'OWNER_INPUT_VALUE'),
+                 ({'state': 'VALUE', 'value': '-1'}, 'OWNER_INPUT_BOUNDS'),
+                 ({'state': 'VALUE', 'value': '1000000000001'}, 'OWNER_INPUT_BOUNDS'),
+                 ({'state': 'INVALID'}, 'OWNER_INPUT_STATE'),
+                 ({'state': 'EXCLUDED_BY_OWNER', 'value': None}, 'OWNER_INPUT_EXCLUSION'),
+                 ({'state': 'NOT_PROVIDED', 'value': '0'}, 'OWNER_INPUT_MISSING_NOT_ZERO'),
+                 ({'period': {'from': '2026-11-32', 'to': DAY}}, 'OWNER_INPUT_PERIOD')]
+        for changes, code in cases:
+            with self.subTest(changes=changes):
+                facts = self.facts(); facts['entries'][2].update(changes)
+                with self.assertRaisesRegex(owner.Rejected, code): self.validate(facts)
+
+    def test_duplicate_ids_overlap_and_current_conflicts_cover_every_entity(self):
+        duplicate = self.facts(); duplicate['entries'][2]['id'] = duplicate['entries'][1]['id']
+        with self.assertRaisesRegex(owner.Rejected, 'OWNER_INPUT_DUPLICATE_ID'): self.validate(duplicate)
+        overlap = self.facts(); overlap['entries'][2].update(period={'from': '2026-11-01', 'to': DAY})
+        overlap['entries'].append(self.entry('sku:102', '1', period={'from': DAY, 'to': '2026-11-20'}))
+        with self.assertRaisesRegex(owner.Rejected, 'OWNER_INPUT_OVERLAP'): self.validate(overlap)
+        conflict = self.facts(); conflict['entries'].append(self.entry('sku:102', '1', period=PERIOD))
+        with self.assertRaisesRegex(owner.Rejected, 'OWNER_INPUT_CURRENT_CONFLICT'): self.validate(conflict)
+
+    def test_mapping_scope_currency_and_field_entity_checks_remain_required(self):
+        cases = [lambda f: f['product_map'].update({'102': 'sku:103'}),
+                 lambda f: f['entries'][2].update(entity='sku:999'),
+                 lambda f: f['entries'][2].update(entity=self.entity),
+                 lambda f: f['entries'][3].update(entity='sku:101'),
+                 lambda f: f['entries'][2].update(field='unknown'),
+                 lambda f: f['entries'][2].update(currency='USD'),
+                 lambda f: f['entries'][3].update(period=None)]
+        for mutate in cases:
+            with self.subTest(mutate=mutate):
+                facts = self.facts(); mutate(facts)
+                with self.assertRaises(owner.Rejected): self.validate(facts)
+
+    def test_large_admissible_mapping_preserves_whole_payload_checks(self):
+        facts = {'product_map': {str(i): 'sku:'+str(i) for i in range(100, 230)},
+                 'entries': [self.entry('all-products')]+[self.entry('sku:'+str(i)) for i in range(100, 230)]}
+        self.assertLessEqual(len(owner.canonical(facts)), 24000)
+        self.assertEqual(self.validate(facts), facts)
+        facts['entries'][-1]['value'] = 'not-a-number'
+        with self.assertRaisesRegex(owner.Rejected, 'OWNER_INPUT_VALUE'): self.validate(facts)
+
+    def test_existing_facts_byte_and_mapping_bounds_are_not_relaxed(self):
+        too_many = {'product_map': {str(i): 'sku:'+str(i) for i in range(100, 301)},
+                    'entries': [self.entry('all-products')]}
+        with self.assertRaisesRegex(owner.Rejected, 'OWNER_SOURCE_MAPPING'): self.validate(too_many)
+        oversized = self.facts(); oversized['entries'][0]['id'] = 'x'*24000
+        with self.assertRaisesRegex(owner.Rejected, 'OWNER_SOURCE_CAPACITY'): self.validate(oversized)

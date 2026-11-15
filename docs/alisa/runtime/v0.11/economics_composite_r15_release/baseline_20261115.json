@@ -1,0 +1,58 @@
+{
+  "schema": "alisa-economics-release-readback/v1",
+  "observed_on": "2026-11-15",
+  "bases": {
+    "platform": {
+      "root": "/opt/alisa-platform/stage/releases/alisa-customer-catalog-8b8b919993c38128",
+      "manifest_sha256": "0d77e7f22c595538869775231a79ce854456fb8d758a81d0aa87d602ba2d445b",
+      "venv_link": "/opt/alisa-platform/stage/releases/alisa-parameters-1d572aebf6b05b88/.venv"
+    },
+    "authority": {
+      "root": "/opt/alisa-platform/stage/releases/alisa-parameters-1d572aebf6b05b88",
+      "manifest_sha256": "1c9911c9615309c66056588cdb28458beb57ce54abc3f577278606cd83736a21",
+      "venv_link": "/opt/alisa-platform/stage/releases/alisa-store-enrollment-592cc8bb006a4991/.venv"
+    },
+    "native": {
+      "root": "/opt/alice-market/releases/alisa-parameters-1d572aebf6b05b88",
+      "manifest_sha256": "20c5afddbc8f07c86e72a33676d4475c4b23b7c0316bc73f814e51dc5a60e95e"
+    },
+    "web": {
+      "root": "/opt/alisa-platform/stage/releases/alisa-public-guidance-e0cc5b5aea966213",
+      "manifest_sha256": "6eb0e9987ab0383ab259e64cdb5f36dc78dd607dcba7a3379b1525f1da1f3d2b",
+      "venv_link": "/opt/alisa-platform/stage/releases/alisa-customer-catalog-8b8b919993c38128/.venv"
+    }
+  },
+  "publisher": {
+    "path": "/usr/local/libexec/alisa/query_gap_publish.py",
+    "sha256": "dc750adf6818a5cce92d6bccd95b1cfa3e441da6f1406cef41900892b5cdacd2"
+  },
+  "live_references": {
+    "pointers": {
+      "native": "/opt/alice-market/releases/current",
+      "web": "/opt/alisa-platform/stage/web-current"
+    },
+    "services": {
+      "platform": {"unit": "alisa-platform@stage.service", "cwd_suffix": ""},
+      "authority": {"unit": "alisa-runtime-authority-stage.service", "cwd_suffix": "services/platform"},
+      "native": {"unit": "alice-market.service", "cwd_suffix": ""},
+      "web": {"unit": "alisa-web@stage.service", "cwd_suffix": "ui/web/apps/web"}
+    }
+  },
+  "environment": {
+    "python": {
+      "path": "/usr/bin/python3.12",
+      "sha256": "e50d468e8b0adfb05733f5b87b3cff34829c4a8c1aea50c865aa8bdfe4bb150f"
+    },
+    "node": {
+      "path": "/usr/local/bin/node",
+      "sha256": "904a6d3484241d466989f9df9ba3aab822b1496191bdb28230eb491a55c32a52"
+    },
+    "venv_root": "/opt/alisa-platform/stage/releases/alisa-store-enrollment-592cc8bb006a4991/.venv",
+    "pyvenv_cfg_sha256": "366f667bd3d6acf2622751af767a71a6dab9dea5aee32d5a5d158205f8814bfc",
+    "locks": {
+      "pnpm-lock.yaml": "60123e4366690520bb80912aa4508d7ee1fc23fcba1facd5b5cdf7be9648e6be",
+      "services/platform/requirements.lock": "cec575d3dc6726767fc6fcc1a629b51f686ed141858146bb24f4c570ef7baeef",
+      "services/identity/requirements.lock": "8b9d98e0bf537b6959f7c85e772a2fc47c33205f730a95548a900384e58d1344"
+    }
+  }
+}
