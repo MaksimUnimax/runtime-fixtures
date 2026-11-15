@@ -652,7 +652,7 @@
       "title": "POSITIVE",
       "test_plan_line": 670,
       "verdict": "PARTIAL",
-      "evidence": "Действующая роль владельца, админка и аудит GIFT доступны. L1/B/H3/Q03.",
+      "evidence": "Действующая роль владельца, админка и аудит GIFT доступны. L1/B/H3/Q03. S3I: точные 180 файлов, 150 core PASS и 23 проверки границ; browser/fault acceptance не подразумевается.",
       "remaining_or_scope_limit": "Ограниченный сотрудник и CUSTOMER_ONLY на нынешней смешанной паре не проверены заново."
     },
     {
@@ -661,7 +661,7 @@
       "title": "SECURITY",
       "test_plan_line": 690,
       "verdict": "PARTIAL",
-      "evidence": "Реальный native TOTP-вход выполнен ранее; H3 проверял отказ/отзыв, Q03 — recovery.",
+      "evidence": "Реальный native TOTP-вход выполнен ранее; H3 проверял отказ/отзыв, Q03 — recovery. S3I: точные 180 файлов, 150 core PASS и 23 проверки границ; browser/fault acceptance не подразумевается.",
       "remaining_or_scope_limit": "Текущий recovery/повтор кода/чужой Origin на установленной паре не принят целиком."
     },
     {
@@ -670,8 +670,8 @@
       "title": "RECOVERY",
       "test_plan_line": 711,
       "verdict": "PARTIAL",
-      "evidence": "H3: фактическая резервная процедура и возврат staff-пути; Q03 — одноразовые recovery.",
-      "remaining_or_scope_limit": "Не переносить старое принятие на текущий overlay без отдельной квалификации его точных файлов."
+      "evidence": "H3: фактическая резервная процедура и возврат staff-пути; Q03 — одноразовые recovery. S3I: точные 180 файлов, 150 core PASS и 23 проверки границ; browser/fault acceptance не подразумевается.",
+      "remaining_or_scope_limit": "Точная серверная копия проверена в изоляции; восстановление MFA и полный browser/OIDC fault test нынешней пары остаются открытыми. Два старых policy-теста расходятся со сроком установленной сессии."
     },
     {
       "stage": "AL-S03",
@@ -679,7 +679,7 @@
       "title": "SEQUENCE_ACCEPTANCE",
       "test_plan_line": 732,
       "verdict": "PARTIAL",
-      "evidence": "H3: reader-write denied; сейчас действующий владелец видит админку. Q03.",
+      "evidence": "H3: reader-write denied; сейчас действующий владелец видит админку. Q03. S3I: точные 180 файлов, 150 core PASS и 23 проверки границ; browser/fault acceptance не подразумевается.",
       "remaining_or_scope_limit": "Текущий no-role/customer-only контекст и отсутствие изменения статуса не проверены в браузере."
     },
     {
@@ -688,7 +688,7 @@
       "title": "SEQUENCE_ACCEPTANCE",
       "test_plan_line": 749,
       "verdict": "PARTIAL",
-      "evidence": "H3: отзыв reader в двух контекстах и сохранение customer profile. Q03.",
+      "evidence": "H3: отзыв reader в двух контекстах и сохранение customer profile. Q03. S3I: точные 180 файлов, 150 core PASS и 23 проверки границ; browser/fault acceptance не подразумевается.",
       "remaining_or_scope_limit": "Повторный отзыв на текущей паре не выполнялся: рабочие сессии сохранены."
     },
     {
@@ -697,7 +697,7 @@
       "title": "V04_CHANGE",
       "test_plan_line": 766,
       "verdict": "PARTIAL",
-      "evidence": "Админка доступна после реального MFA, роль владельца видна. L1/B/Q03.",
+      "evidence": "Админка доступна после реального MFA, роль владельца видна. L1/B/Q03. S3I: точные 180 файлов, 150 core PASS и 23 проверки границ; browser/fault acceptance не подразумевается.",
       "remaining_or_scope_limit": "Чужой продукт/email и невозможность стать staff без роли не приняты на текущей паре."
     },
     {
@@ -706,7 +706,7 @@
       "title": "V04_CHANGE",
       "test_plan_line": 782,
       "verdict": "PARTIAL",
-      "evidence": "В админке и кабинете разные сущности и поверхности. L1/Q03.",
+      "evidence": "В админке и кабинете разные сущности и поверхности. L1/Q03. S3I: точные 180 файлов, 150 core PASS и 23 проверки границ; browser/fault acceptance не подразумевается.",
       "remaining_or_scope_limit": "Локальная блокировка/разблокировка тестового клиента и независимость общей identity не повторялись."
     },
     {
@@ -715,7 +715,7 @@
       "title": "REVOCATION",
       "test_plan_line": 800,
       "verdict": "PARTIAL",
-      "evidence": "H3 подтверждал отзыв staff и работу customer; Q03/Q04 содержат связанные проверки.",
+      "evidence": "H3 подтверждал отзыв staff и работу customer; Q03/Q04 содержат связанные проверки. S3I: точные 180 файлов, 150 core PASS и 23 проверки границ; browser/fault acceptance не подразумевается.",
       "remaining_or_scope_limit": "Нужны две контролируемые staff-сессии, delayed write и защита последнего OWNER на текущей паре."
     },
     {
@@ -1141,5 +1141,15 @@
       "evidence": "B: кабинет и read-only админка показывают B08.finance_sales v5; каталог 9bf2… из текущего ядра, публикация отдельной процедурой. L1.",
       "remaining_or_scope_limit": "Принято для текущего неизменяемого установленного пакета; редактор/публикация шаблонов — следующий этап."
     }
-  ]
+  ],
+  "staff_installed_copy_followup": {
+    "report": "STAFF_SESSION_ACCEPTANCE_2026-11-15.md",
+    "status": "INSTALLED_SOURCE_COPY_SYNTHETIC_PASS_WITH_POLICY_CONTRACT_DIFFERENCE",
+    "exact_source_files": 180,
+    "core_passed": 150,
+    "boundary_assertions_passed": 27,
+    "boundary_distinct_labels": 23,
+    "old_policy_tests_failed": 2,
+    "roadmap_case_verdicts_unchanged": true
+  }
 }
