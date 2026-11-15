@@ -351,10 +351,12 @@ def rename_no_replace(source, destination):
         raise RuntimeError('SELECTOR_OCCUPIED' if number == errno.EEXIST else 'SELECTOR_RENAME_FAILED')
 
 
-def replace_selection(path, staged, expected):
+def replace_selection(path, staged, expected, staged_expected=None):
     held = path.with_name('.'+path.name+'.customer-catalog-held')
     need(path_state(held) is None, 'SELECTOR_RECOVERY_REQUIRED')
     need(path_state(path) == expected, 'SELECTOR_CHANGED')
+    if staged is not None:
+        need(staged_expected is not None and path_state(staged) == staged_expected, 'STAGED_SELECTOR_CHANGED')
     moved = False
     try:
         if expected is not None:
@@ -362,7 +364,9 @@ def replace_selection(path, staged, expected):
             moved = True
             need(path_state(held) == expected, 'DISPLACED_SELECTOR_CHANGED')
         if staged is not None:
+            need(path_state(staged) == staged_expected, 'STAGED_SELECTOR_CHANGED')
             rename_no_replace(staged, path)
+            need(path_state(path) == staged_expected, 'INSTALLED_SELECTOR_CHANGED')
         if moved:
             held.unlink()
     except BaseException:
@@ -378,7 +382,9 @@ def select(link, target, expected):
     need(path_state(temp) is None, 'SELECTOR_TEMP_EXISTS')
     temp.symlink_to(target)
     try:
-        replace_selection(link, temp, expected)
+        staged = path_state(temp)
+        need(temp.is_symlink() and staged[-1] == str(target), 'STAGED_SELECTOR_CHANGED')
+        replace_selection(link, temp, expected, staged)
     finally:
         if temp.is_symlink() and os.readlink(temp) == str(target):
             temp.unlink()
@@ -454,7 +460,10 @@ def fence_service(unit):
         temp = mask.with_name('.'+mask.name+'.customer-catalog-new')
         need(path_state(temp) is None, 'WEB_FENCE_TEMP_EXISTS')
         temp.symlink_to('/dev/null')
+        staged = path_state(temp)
+        need(temp.is_symlink() and staged[-1] == '/dev/null', 'STAGED_MASK_CHANGED')
         rename_no_replace(temp, mask)
+        need(path_state(mask) == staged, 'INSTALLED_MASK_CHANGED')
         record(proof_path.name, {'source': SOURCE, 'installer_sha256': sha(__file__),
                                'mask_state': list(path_state(mask)),
                                'mask_ctime_ns': mask.lstat().st_ctime_ns, 'phase': 'active'})
@@ -495,7 +504,9 @@ def switch(rollback=False):
         staged = DROP.with_name('.'+DROP.name+'.customer-catalog-new')
         need(path_state(staged) is None, 'DROP_TEMP_EXISTS')
         atomic(staged, drop_bytes(), 0o644)
-        replace_selection(DROP, staged, states[DROP])
+        staged_state = path_state(staged)
+        need(staged_state[-1] == hashlib.sha256(drop_bytes()).hexdigest(), 'STAGED_DROP_CHANGED')
+        replace_selection(DROP, staged, states[DROP], staged_state)
     run('systemctl', 'daemon-reload')
     for unit in [PLATFORM, IDP]:
         require_fence(unit)

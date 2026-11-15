@@ -108,6 +108,7 @@ class InstallTests(unittest.TestCase):
             root = Path(folder);live = root/'live';staged = root/'new'
             live.symlink_to('old');staged.symlink_to('ours')
             expected = M.path_state(live)
+            staged_expected = M.path_state(staged)
             original = M.rename_no_replace
             def race(src, dst):
                 if src == live:
@@ -115,7 +116,7 @@ class InstallTests(unittest.TestCase):
                 original(src, dst)
             with patch.object(M, 'rename_no_replace', race):
                 with self.assertRaisesRegex(RuntimeError, 'DISPLACED_SELECTOR_CHANGED'):
-                    M.replace_selection(live, staged, expected)
+                    M.replace_selection(live, staged, expected, staged_expected)
             self.assertEqual(live.readlink(), Path('foreign'))
             self.assertEqual(staged.readlink(), Path('ours'))
 
@@ -124,6 +125,7 @@ class InstallTests(unittest.TestCase):
             root = Path(folder);live = root/'live';staged = root/'new'
             live.symlink_to('old');staged.symlink_to('ours')
             expected = M.path_state(live)
+            staged_expected = M.path_state(staged)
             original = M.rename_no_replace
             def race(src, dst):
                 if src == staged:
@@ -131,7 +133,7 @@ class InstallTests(unittest.TestCase):
                 original(src, dst)
             with patch.object(M, 'rename_no_replace', race):
                 with self.assertRaisesRegex(RuntimeError, 'SELECTOR_OCCUPIED'):
-                    M.replace_selection(live, staged, expected)
+                    M.replace_selection(live, staged, expected, staged_expected)
             self.assertEqual(live.readlink(), Path('foreign'))
             self.assertEqual((root/'.live.customer-catalog-held').readlink(), Path('old'))
 
@@ -218,6 +220,32 @@ class InstallTests(unittest.TestCase):
             self.assertLess(trace.index(('fence', unit)), trace.index(('stop', unit)))
             self.assertGreater(trace.index(('release_fence', unit)), max(selectors))
             self.assertLess(trace.index(('release_fence', unit)), trace.index(('systemctl', 'start', M.PLATFORM, M.IDP)))
+
+    def test_staging_replacement_is_rejected_before_live_selector_moves(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder);live = root/'live';stage = root/'stage'
+            live.symlink_to('old');stage.symlink_to('ours')
+            expected = M.path_state(live);staged = M.path_state(stage)
+            stage.unlink();stage.symlink_to('foreign')
+            with self.assertRaisesRegex(RuntimeError, 'STAGED_SELECTOR_CHANGED'):
+                M.replace_selection(live, stage, expected, staged)
+            self.assertEqual(live.readlink(), Path('old'))
+
+    def test_staging_replacement_during_rename_keeps_held_selector(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder);live = root/'live';stage = root/'stage'
+            live.symlink_to('old');stage.symlink_to('ours')
+            expected = M.path_state(live);staged = M.path_state(stage)
+            original = M.rename_no_replace
+            def race(src, dst):
+                if src == stage:
+                    stage.unlink();stage.symlink_to('foreign')
+                original(src, dst)
+            with patch.object(M, 'rename_no_replace', race):
+                with self.assertRaisesRegex(RuntimeError, 'INSTALLED_SELECTOR_CHANGED'):
+                    M.replace_selection(live, stage, expected, staged)
+            self.assertEqual(live.readlink(), Path('foreign'))
+            self.assertEqual((root/'.live.customer-catalog-held').readlink(), Path('old'))
 
 
 if __name__ == '__main__':

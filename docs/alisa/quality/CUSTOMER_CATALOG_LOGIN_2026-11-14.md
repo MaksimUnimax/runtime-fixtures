@@ -22,7 +22,7 @@
 | CI app | platform `43602990621`, docs `43602990627`, identity probe `43602990689`: все PASS |
 | CI package | artifact `14117144770`, ZIP SHA256 `bbd498a1ebf27f09c268de98908e5060deeab096c692f9fa0560b26fd0160b5d` |
 | Platform tar | SHA256 `3635cda397ba95f4df21b37901844e30ad4561c0671b82623a4089363ba6a6f6` |
-| Installer tests | 15 disposable проверок PASS; независимое review текущей редакции требуется до prepare/apply |
+| Installer tests | 17 disposable проверок PASS; независимое review текущей редакции требуется до prepare/apply |
 | Installed / live owner | NOT_RUN для текущего исправления |
 
 После app8b менялись только installer/docs: `git diff 8b8b9199..HEAD -- products/alisa` пуст. Полный identity qualifier запускается в изолированном GitHub root job. Локальный GITHUB_ACTIONS guard не обходили; собственные временные БД и процессы завершены, чужие профили сохранены.
@@ -37,7 +37,7 @@
 
 Общий lock: `/run/lock/alisa-stage-rollout.lock`. Перед переключением проверяются pins, неизменность конфигурации и отсутствие QUEUED/RUNNING native jobs. Собственные временные runtime masks запрещают перезапуск всех трёх изменяемых служб во время смены selectors. Web дренируется первым; cgroup должна завершиться. После смены обоих backend selectors снимаются только их собственные masks, запускается и проверяется совместимая пара. Mask web снимается и web запускается последним. Rollback использует тот же порядок. Чужие masks и selectors не перезаписываются.
 
-Каждая смена selector проверяет точное состояние после drain и использует Linux RENAME_NOREPLACE. Прежний объект временно удерживается в `.customer-catalog-held`; при конкурентной записи он сохраняется для разбора. PLAN, PREPARING и три FENCE receipts фиксируют конкретную попытку. Это разовая поставка, без нового фонового контроллера.
+Каждая смена selector проверяет точное состояние после drain и использует Linux RENAME_NOREPLACE. Staged-объект проверяется по inode/содержимому перед переносом и ещё раз в установленном имени до освобождения прежнего объекта. Прежний объект временно удерживается в `.customer-catalog-held`; при конкурентной записи он сохраняется для разбора. PLAN, PREPARING и три FENCE receipts фиксируют конкретную попытку. Это разовая поставка, без нового фонового контроллера.
 
 Ресурсный envelope: tests 512 МиБ / 90 секунд, prepare 512 МиБ / 180 секунд, apply или rollback 512 МиБ / 720 секунд, независимый review 1024 МиБ / 300 секунд. Все запуски — конечные transient systemd service с MemorySwapMax=0, TasksMax=1024, MemoryAccounting=yes, KillMode=control-group, TimeoutStopSec=5s, SendSIGKILL=yes, OOMPolicy=stop. До запуска проверяются свободная память сверх ожидаемого расхода и резерв 1024 МиБ, pressure и диск. После запуска исполнитель проверяет действительные свойства unit, исход и завершение всей cgroup.
 
