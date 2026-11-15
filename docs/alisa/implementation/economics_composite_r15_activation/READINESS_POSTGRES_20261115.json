@@ -1,0 +1,43 @@
+{
+  "actual_postgresql": true,
+  "errors": 0,
+  "failed_tests": [],
+  "failures": 0,
+  "network_isolated_fixture": true,
+  "new_test_database_removed": true,
+  "new_test_role_removed": true,
+  "production_access": false,
+  "schema": "alisa-economics-readiness-postgres-gate/v1",
+  "skipped": 0,
+  "source_sha256": {
+    "readiness.py": "ce3cf08c8338f8d34d07c222b2c974b867098f185bfba165b5a4526f77853658",
+    "readiness_postgres_gate.py": "49ebae00fe5fad0dc45d4b6667f7d45db9adb9eb0f38e52336e2b1553762446b"
+  },
+  "status": "PASS",
+  "tests_run": 20,
+  "verification_stage": "ISOLATED_SOURCE_POSTGRES_NOT_INSTALLED",
+  "execution": {
+    "date_utc": "2026-11-15",
+    "device": "Easyscript",
+    "unit": "alisa-r15-readiness-pg-20261115-r1",
+    "python": "3.12.13",
+    "psycopg": "3.3.8",
+    "client_memory_max_bytes": 134217728,
+    "runtime_max_seconds": 55,
+    "launcher_returncode": 0,
+    "unit_result": "success",
+    "exec_main_status": 0,
+    "active_state": "inactive",
+    "sub_state": "dead",
+    "control_group": ""
+  },
+  "cleanup_independent_readback": {
+    "database_absent": true,
+    "role_absent": true,
+    "other_client_count": 0
+  },
+  "product_source_commit": "1964d60f9a7598fefa2e10a0affcda0cce0f1f34",
+  "activation_tool_at_execution": "SEPARATE_SOURCE_NOT_YET_COMMITTED",
+  "live_owner_acceptance": "NOT_RUN",
+  "production_deployed": false
+}

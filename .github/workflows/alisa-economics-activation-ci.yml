@@ -1,0 +1,133 @@
+name: Alisa economics activation source checks
+
+on:
+  pull_request:
+    paths:
+      - 'docs/alisa/runtime/v0.11/economics_composite_r15_activation/**'
+      - '.github/workflows/alisa-economics-activation-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  activation-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Record source and install the existing locked Python dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -m 700 "$RUNNER_TEMP/r15-activation-evidence"
+          git rev-parse HEAD > "$RUNNER_TEMP/r15-activation-evidence/source.sha"
+          python -m venv "$RUNNER_TEMP/r15-activation-venv"
+          "$RUNNER_TEMP/r15-activation-venv/bin/python" -m pip install \
+            --require-hashes --only-binary=:all: \
+            -r products/alisa/services/platform/requirements.lock
+      - name: Disposable activation faults and current-WAL readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/r15-activation-venv/bin/python" -I -B -m unittest discover \
+            -s docs/alisa/runtime/v0.11/economics_composite_r15_activation/tests \
+            -p 'test_*.py' -q 2>&1 | tee "$RUNNER_TEMP/r15-activation-evidence/unit-tests.log"
+      - name: Create the isolated PostgreSQL fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          r15_container=alisa-economics-composite-r15-20261115
+          r15_parent=/dev/shm/alisa-current-parameters-pg-ci-r15-20261115
+          r15_socket="$r15_parent/socket"
+          if docker container inspect "$r15_container" >/dev/null 2>&1; then
+            echo 'OWN_FIXTURE_NAME_OCCUPIED' >&2
+            exit 1
+          fi
+          test ! -e "$r15_parent"
+          test ! -L "$r15_parent"
+          mkdir -m 700 "$r15_parent"
+          mkdir -m 755 "$r15_socket"
+          docker run --detach --rm --name "$r15_container" \
+            --label alisa.task=economics-composite-r15-20261115 \
+            --network none --memory 384m --memory-swap 384m --pids-limit 256 \
+            --tmpfs /var/lib/postgresql/data:rw,size=256m \
+            --mount "type=bind,source=$r15_socket,target=/var/run/postgresql" \
+            --env POSTGRES_DB=parameter_test --env POSTGRES_HOST_AUTH_METHOD=trust \
+            postgres:16.15 > "$RUNNER_TEMP/r15-activation-evidence/container.id"
+          r15_ready=0
+          for r15_attempt in {1..40}; do
+            if test "$(docker exec "$r15_container" cat /proc/1/comm)" = postgres && \
+               docker exec "$r15_container" pg_isready -U postgres -d parameter_test >/dev/null 2>&1; then
+              r15_ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$r15_ready" = 1
+      - name: Actual PostgreSQL visibility, RLS and read-only boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          r15_unit="alisa-r15-readiness-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          test "$(systemctl show "$r15_unit" -p LoadState --value)" = not-found
+          printf '%s\n' "$r15_unit" > "$RUNNER_TEMP/r15-activation-evidence/client-unit.txt"
+          sudo systemd-run --quiet --wait --pipe --unit="$r15_unit" \
+            --property=Type=exec --property=RuntimeMaxSec=55 --property=TimeoutStartSec=5 \
+            --property=TimeoutStopSec=5 --property=KillMode=control-group \
+            --property=SendSIGKILL=yes --property=OOMPolicy=stop \
+            --property=MemoryAccounting=yes --property=MemoryMax=134217728 \
+            --property=MemorySwapMax=0 --property=TasksMax=32 --property=LimitCORE=0 \
+            /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C.UTF-8 PYTHONDONTWRITEBYTECODE=1 \
+            "$RUNNER_TEMP/r15-activation-venv/bin/python" -I -B \
+            "$GITHUB_WORKSPACE/docs/alisa/runtime/v0.11/economics_composite_r15_activation/tests/readiness_postgres_gate.py" \
+            --owned-fixture > "$RUNNER_TEMP/r15-activation-evidence/postgres-gate.json"
+      - name: Observe the finite client and finish only this job's database container
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          r15_evidence="$RUNNER_TEMP/r15-activation-evidence"
+          r15_cleanup_failed=0
+          if test -f "$r15_evidence/client-unit.txt"; then
+            r15_unit=$(cat "$r15_evidence/client-unit.txt")
+            if test "$r15_unit" = "alisa-r15-readiness-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"; then
+              # --wait already awaited the bounded client. Successful transient
+              # units may have been unloaded. Never stop a possibly reused name.
+              r15_load=$(systemctl show "$r15_unit" -p LoadState --value 2>/dev/null || true)
+              if test "$r15_load" = not-found; then
+                printf '%s\n' 'LoadState=not-found' > "$r15_evidence/client-unit-observation.txt"
+              else
+                sudo systemctl show "$r15_unit" -p Result -p ExecMainStatus -p ActiveState \
+                  -p SubState -p MemoryPeak > "$r15_evidence/client-unit-observation.txt" || r15_cleanup_failed=1
+              fi
+            else
+              r15_cleanup_failed=1
+            fi
+          fi
+          if test -s "$r15_evidence/container.id"; then
+            r15_id=$(cat "$r15_evidence/container.id")
+            if [[ "$r15_id" =~ ^[0-9a-f]{64}$ ]] && \
+               test "$(docker inspect --format '{{index .Config.Labels "alisa.task"}}' "$r15_id")" = economics-composite-r15-20261115 && \
+               test "$(docker inspect --format '{{.HostConfig.NetworkMode}}' "$r15_id")" = none; then
+              docker stop --time 5 "$r15_id" >/dev/null || r15_cleanup_failed=1
+            else
+              r15_cleanup_failed=1
+            fi
+          fi
+          exit "$r15_cleanup_failed"
+      - name: Preserve source-only results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alisa-economics-activation-source-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/r15-activation-evidence/
+          if-no-files-found: error
+          retention-days: 14

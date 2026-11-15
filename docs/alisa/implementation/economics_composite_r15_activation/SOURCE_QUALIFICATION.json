@@ -1,0 +1,152 @@
+{
+  "actual_readonly_metadata": {
+    "database_access": false,
+    "four_unit_names_have_no_aliases": true,
+    "masks_written": false,
+    "minimum_free_bytes": 3221225472,
+    "native_bytecode_files": 0,
+    "native_cache_directories": 0,
+    "observed_at_utc": "2026-11-15T11:31:53Z",
+    "prior_conservative_single_build_budget_bytes": 315142754,
+    "publication_requires_separate_full_copy_budget": true,
+    "root_available_bytes": 3089305600,
+    "root_single_build_deficit_bytes": 447062626,
+    "services_reloaded_or_restarted": false,
+    "shm_available_bytes": 3302256640,
+    "shm_single_build_deficit_bytes": 234111586
+  },
+  "closed_findings": [
+    "Read current SQLite WAL and all pending outbox rows without mutating repository helpers.",
+    "Refuse incomplete PostgreSQL visibility, RLS, incorrect identity/schema, inherited transaction and unavailable evidence.",
+    "Use distinct existing native, PostgreSQL and Station principals with finite resource limits.",
+    "Append an own final EnvironmentFile with exactly two flags and verify the two actual process values.",
+    "Execute already-verified Python bytes, refuse stale bytecode/shadowing and verify the complete accepted helper import closure.",
+    "Pin the interpreter alias and preserve the inherited rollout flock during accepted version checks.",
+    "Use exact owned system.control masks that precede existing /etc fragments, verify actual UnitPath and masked state, preserve other instances.",
+    "Recheck owned masks and stopped processes before each pre-admission write and before the durable admission marker.",
+    "Retain exact inode ownership across successful rename followed by fsync failure; never delete a later writer for recovery.",
+    "Validate old unit sources and effective definitions before recovery starts; web start depends on successful own-mask release.",
+    "Do not automatically downgrade after admission becomes possible, including zero-count or unavailable-evidence cases.",
+    "Use the frozen old-state package verifier only before switching; validate new role trees/processes afterward."
+  ],
+  "date_utc": "2026-11-15",
+  "frozen_product_preservation": {
+    "all_unchanged": true,
+    "builder_files_checked": 5,
+    "observed_at_utc": "2026-11-15T11:30:15Z",
+    "product_ci_status": "SUCCESS",
+    "product_documentation_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/43705469707",
+    "product_source_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/43705469646",
+    "product_specialized_ci_tests": 1007,
+    "source_files_checked": 96
+  },
+  "independent_review": {
+    "activation": {
+      "author": "orders_source",
+      "reviewer": "formula_sources",
+      "root_additional_source_read": "PASS",
+      "status": "SOURCE_APPROVE"
+    },
+    "helper_closure": "EXACT_ACCEPTED_SOURCES_REVIEWED_BY_ROOT_AND_FORMULA_SOURCES",
+    "private_helper_copies_published": false,
+    "readiness": {
+      "author": "repo_state",
+      "reviewer": "formula_sources",
+      "status": "SOURCE_APPROVE"
+    },
+    "workflow": {
+      "author": "root",
+      "bash_blocks_checked": 5,
+      "bash_syntax": "PASS",
+      "reviewer": "repo_state",
+      "status": "SOURCE_APPROVE",
+      "yaml_parse": "PASS"
+    }
+  },
+  "post_admission_automatic_downgrade_supported": false,
+  "product_commit": "1964d60f9a7598fefa2e10a0affcda0cce0f1f34",
+  "product_plan_sha256": "7e86513fd831d74d89eb0ab3aaf5ce8f851ec936d5e09a0684516a7eee25cb73",
+  "qualified_files_sha256": {
+    ".github/workflows/alisa-economics-activation-ci.yml": "5f115b05ab398d8f4ec9b4547c285ff33793e53e1828c8364735f79c199ce430",
+    "docs/alisa/implementation/economics_composite_r15_activation/READINESS_POSTGRES_20261115.json": "4c7e7658bfa5792d3cab8fdba1bfa0f6bd359c78bf1e522a5b371e6ca2628aba",
+    "docs/alisa/implementation/economics_composite_r15_activation/SYSTEMD_MASK_LOOKUP_20261115.json": "b0674bb806e2217be558d8b2f56f42a94a93b49962d65afbbf9410663b36d891",
+    "docs/alisa/runtime/v0.11/economics_composite_r15_activation/README.md": "b54bb2412facc3d94ef0d7210931be81f64ef36e65f4ce27ad7bc93701e531a8",
+    "docs/alisa/runtime/v0.11/economics_composite_r15_activation/activate.py": "707f7a05d79e57024a59b3c8c816af1f139cf7889b61f998e7558402fc3fad16",
+    "docs/alisa/runtime/v0.11/economics_composite_r15_activation/activation_contract.py": "503500d07d7bfe3dcdaec33383a0e009872031c1d1ec3f7d2d8f998848a234b1",
+    "docs/alisa/runtime/v0.11/economics_composite_r15_activation/readiness.py": "ce3cf08c8338f8d34d07c222b2c974b867098f185bfba165b5a4526f77853658",
+    "docs/alisa/runtime/v0.11/economics_composite_r15_activation/tests/readiness_postgres_gate.py": "49ebae00fe5fad0dc45d4b6667f7d45db9adb9eb0f38e52336e2b1553762446b",
+    "docs/alisa/runtime/v0.11/economics_composite_r15_activation/tests/test_activation.py": "072f055de5bf788d4fd8ce56b013937206133c36589e2b0ac21939295dba382b",
+    "docs/alisa/runtime/v0.11/economics_composite_r15_activation/tests/test_readiness.py": "8543655db1b0fc0f18903a597cb783490c50f2344ae85bb014c35852f37214ff"
+  },
+  "remaining_gates": [
+    "Sufficient measured space after independent build and publication copies while preserving reserve.",
+    "Real three-role package from the exact installed bases and its external manifest pins.",
+    "Fresh coordination with the active browser and voice testing window.",
+    "Installed technical and synthetic verification followed by separate live owner acceptance."
+  ],
+  "schema": "alisa-economics-activation-source-qualification/v1",
+  "scope": "FINITE_ACTIVATION_SOURCE_NOT_INSTALLED",
+  "source_parent_commit": "1964d60f9a7598fefa2e10a0affcda0cce0f1f34",
+  "stage": {
+    "activation_apply": "NOT_RUN",
+    "activation_prepare": "NOT_RUN",
+    "focused_github_ci_at_authoring": "NOT_YET_RUN",
+    "installed_synthetic": "NOT_RUN",
+    "live_owner_acceptance": "NOT_RUN",
+    "production_deployed": false,
+    "real_three_role_package": "NOT_BUILT"
+  },
+  "tests": {
+    "activation_author": {
+      "errors": 0,
+      "failures": 0,
+      "seconds": 0.39,
+      "skipped": 0,
+      "tests_run": 44
+    },
+    "activation_independent": {
+      "allowed_subprocesses": "PYTHON_FOR_OWN_DISPOSABLE_FILES_ONLY",
+      "before_after_source_hashes_equal": true,
+      "errors": 0,
+      "failures": 0,
+      "network_denied": true,
+      "seconds": 0.327,
+      "skipped": 0,
+      "sqlite_denied": true,
+      "tested_source_loaded_from_verified_bytes": true,
+      "tests_run": 44
+    },
+    "actual_isolated_postgresql": {
+      "database_and_role_cleanup_independently_confirmed": true,
+      "distinct_tests": 20,
+      "errors": 0,
+      "failures": 0,
+      "production_access": false,
+      "receipt": "READINESS_POSTGRES_20261115.json",
+      "rerun_during_activation_final_review": false,
+      "skipped": 0
+    },
+    "counting_note": "Author and reviewer activation runs repeat the same 44 cases. These source scopes are not product CI, installed readiness or live owner acceptance.",
+    "readiness_unit": {
+      "distinct_tests": 28,
+      "errors": 0,
+      "failures": 0,
+      "rerun_during_activation_final_review": false,
+      "skipped": 0,
+      "source_unchanged_since_independent_pass": true
+    },
+    "systemd_offline_lookup": {
+      "failed_cases": 0,
+      "passed_cases": 7,
+      "receipt": "SYSTEMD_MASK_LOOKUP_20261115.json",
+      "system_manager_used_for_cases": false,
+      "unit_started": false
+    }
+  },
+  "tool_files": {
+    "activate.py": "707f7a05d79e57024a59b3c8c816af1f139cf7889b61f998e7558402fc3fad16",
+    "activation_contract.py": "503500d07d7bfe3dcdaec33383a0e009872031c1d1ec3f7d2d8f998848a234b1",
+    "readiness.py": "ce3cf08c8338f8d34d07c222b2c974b867098f185bfba165b5a4526f77853658"
+  },
+  "tool_sha256": "0f88036be2198d55b6f9327e59a55d45cfeabe3d1bed225b84392e1ccd6b57bd"
+}
