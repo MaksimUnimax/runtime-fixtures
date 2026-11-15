@@ -118,6 +118,14 @@ class Sources(TestCase):
   q=e.qualify(data,TARGET,PERIOD,verify=verify)
   self.assertEqual(q.rows[0]['inputs']['commission_original'],'200')
 
+ def test_correction_cannot_cross_cohort_boundary_via_parent_id(self):
+  self.rejected(bundle(fees=[event(),event('c',posting='old-posting',amount='10',nature='CORRECTION',parent='fee1')]),'ECONOMICS_CORRECTION_SCOPE')
+ def test_sale_reversal_cannot_hide_wrong_parent_scope_outside_cohort(self):
+  self.rejected(bundle(fees=[event(),event('r',posting='old-posting',amount='150',nature='SALE_REVERSAL',parent='fee1')]),'ECONOMICS_CORRECTION_SCOPE')
+ def test_valid_foreign_original_and_correction_are_both_excluded(self):
+  q=qualify(bundle(fees=[event(posting='old-posting'),event('c',posting='old-posting',amount='10',nature='CORRECTION',parent='fee1')]))
+  self.assertEqual(q.rows[0]['inputs']['commission_original'],'200')
+
 class Formula(TestCase):
  def test_coefficient_only_on_revenue_commission_cogs(self):
   r=calculated();a=r['scenarios']['with_loss']['totals'];b=r['scenarios']['without_loss']['totals']

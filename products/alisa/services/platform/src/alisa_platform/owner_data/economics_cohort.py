@@ -135,7 +135,15 @@ def qualify(bundle,target,period,*,verify):
             need(old==event,'ECONOMICS_CONFLICTING_EVENT_VERSION')
         duplicates=len(bundle['fees']['rows'])-len(events)
         corrections={}
+        # Validate every declared edge BEFORE applying any correction or dropping
+        # out-of-cohort rows. A wrong-scope child must not influence an in-scope
+        # original via parent_id, or escape validation through the cohort filter.
         for entry in events.values():
+            if entry['nature']!='ORIGINAL':
+                parent=events.get(entry['parent_id'])
+                need(parent is not None and parent['nature']=='ORIGINAL','ECONOMICS_ORPHAN_CORRECTION')
+                need(all(entry[x]==parent[x]for x in ('posting','sku','scheme','type_id','currency','quantity')),
+                     'ECONOMICS_CORRECTION_SCOPE')
             if entry['nature']=='CORRECTION':corrections.setdefault(entry['parent_id'],[]).append(entry)
         posting_ids={p for p,scheme in postings}
         actual={k:{}for k in orders};ignored={};selected_ids=[];allocated_totals={}
@@ -148,8 +156,6 @@ def qualify(bundle,target,period,*,verify):
                 ignored['outside_cohort']=ignored.get('outside_cohort',0)+1;continue
             need(event['type_id']in known,'ECONOMICS_UNCLASSIFIED_FEE')
             if event['nature']!='ORIGINAL':
-                parent=events.get(event['parent_id']);need(parent is not None and parent['nature']=='ORIGINAL','ECONOMICS_ORPHAN_CORRECTION')
-                need(all(event[x]==parent[x]for x in ('posting','sku','scheme','type_id','currency','quantity')),'ECONOMICS_CORRECTION_SCOPE')
                 if event['nature']=='SALE_REVERSAL':ignored['sale_reversal']=ignored.get('sale_reversal',0)+1
                 continue
             if event['type_id']in excluded:
