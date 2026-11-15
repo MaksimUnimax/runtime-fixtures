@@ -1,0 +1,48 @@
+{
+  "schema": "alisa-cohort-economics-source-map/v1",
+  "repository": "MaksimUnimax/blood_sand",
+  "commit": "6b7d8fe8a8e164e0c2b52e4b6deb212a78eb4c08",
+  "rules_revision": "agreed-statistics-r16",
+  "reopened": [
+    {
+      "path": "стратегии рекламы/ПРАВИЛА_РАБОТЫ.md",
+      "purpose": "Original posting/SKU fee precedence; same-period expenses; monetary N denominator"
+    },
+    {
+      "path": "стратегии рекламы/tools/rebuild_saved_statistics.py",
+      "purpose": "Saved source schemas and type grouping; not blindly imported collector code"
+    },
+    {
+      "path": "стратегии рекламы/аудит статистики/2026-11-14_unit_111213_r15/sources/ozon/cohort_accruals_2_retry1.json",
+      "purpose": "Aggregate posting endpoint contains amount/date/sku/quantity but no stable accrual_id in shown rows; cannot manufacture identity"
+    },
+    {
+      "path": "стратегии рекламы/аудит статистики/2026-11-14_unit_111213_r15/ORDER_ITEMS.csv",
+      "lines": [
+        34,
+        38
+      ],
+      "git_blob": "6246498cfd6c5610b7c8d8204daa6f0bafdcf2f2",
+      "purpose": "Five actual archived selected-component rows for arithmetic replay; fee origin still ambiguous previous-debit-or-tariff"
+    },
+    {
+      "path": "стратегии рекламы/аудит статистики/2026-11-14_full_unit_checks_r14/corrected/16_Ozon_2026-11-13/REPORT.md",
+      "purpose": "Original-N corrected displayed means"
+    }
+  ],
+  "raw_current_provider_calls": 0,
+  "real_owner_values_imported": false,
+  "normalization_requirements": {
+    "orders": "complete original physical cohort; exact store/posting/SKU/scheme/day/price/quantity",
+    "fees": "Stable source-derived atomic event identity and full coverage; declared original/correction/sale-reversal, parent reference, original signed amount/currency. No ID made from a rounded amount.",
+    "fee_quantity": "Partial/overlapping original debit coverage is rejected until decomposed with proof; not blindly added to full tariff.",
+    "fee_period": "The period in the normalized contract identifies the ORDER cohort, not a restriction to accruals only on those days. Late same-cohort fees are allowed.",
+    "source_verifier": "Trusted existing-job ledger callback must verify provider receipt, complete pagination/coverage, source state, timestamps and same tenant/store; complete=true alone never qualifies.",
+    "tariffs": "SameSKU/scheme own quote; explicit units; quote time retained through source receipt, not silently historical actual.",
+    "storage_advertising": "Explicit full-period source amounts. This allocation is not per-order actual. Absent data does not mean zero.",
+    "posting_allocation": "Only explicitly declared other costs (currently type93) may be allocated by original physical units; marked QUALIFIED_POSTING_ALLOCATION. Commission/acquiring/processing require item attribution, not inferred original debits.",
+    "corrections": "All parent edges validated before cohort filtering and aggregation. A child pointing outside its parent posting/SKU/scheme/type/currency/quantity cannot affect the selected cohort or be ignored as foreign."
+  },
+  "arithmetic_replay_is_not_raw_api_adapter_qualification": true,
+  "next_runtime_work": "Wire normalization/receipts and current owner proof into the existing compound Query/Worker, then final-model basis/fence; no second queue or direct arbitrary HTTP."
+}
