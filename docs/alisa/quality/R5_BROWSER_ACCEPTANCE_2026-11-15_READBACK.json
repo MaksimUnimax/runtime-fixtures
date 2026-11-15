@@ -1,0 +1,62 @@
+{
+  "status": "PARTIAL_LIVE_ACCEPTANCE",
+  "checked_at_client": "2026-11-15T14:19:23+05:00",
+  "web_source": "e0cc5b5aea9662132fb1a933e7aa21d26a3b36b7",
+  "backend_source": "8b8b919993c3812898e14367c161aa4cf9fcf6e6",
+  "native_source": "1d572aebf6b05b88ae5c233ae4313284add03e45",
+  "all_nine_active": true,
+  "native_jobs_before": 11,
+  "native_jobs_after": 11,
+  "new_native_jobs": 0,
+  "native_states": {
+    "EXPIRED": 6,
+    "FAILED": 1,
+    "UNKNOWN": 4
+  },
+  "business_writes": false,
+  "product_code_changed": false,
+  "services_restarted": false,
+  "sessions_reused": {
+    "customer": true,
+    "staff": true
+  },
+  "periods_verified": {
+    "year": [
+      "2025-11-15",
+      "2026-11-14"
+    ],
+    "half_year": [
+      "2026-05-15",
+      "2026-11-14"
+    ],
+    "custom": [
+      "2026-11-14",
+      "2026-11-14"
+    ],
+    "reversed_rejected": true
+  },
+  "percent_101_rejected": true,
+  "zero_draft_only": true,
+  "draft_cleared_on_parameter_change": true,
+  "api_negative": {
+    "no_cookie_same_origin": 401,
+    "foreign_origin": 403
+  },
+  "catalog_parameter_count": 2,
+  "coefficient_drafts_have_yesterday": false,
+  "prefill_without_submit": true,
+  "short_history": {
+    "pure_contract_cases_passed": 3,
+    "live_history_discovery_connected": false,
+    "live_short_history_accepted": false
+  },
+  "viewport": {
+    "width": 1363,
+    "scroll_width": 1348,
+    "narrow_verified": false
+  },
+  "model_calls_observed": null,
+  "provider_calls_observed": null,
+  "cost_observed": null,
+  "screenshot": "alisa-r5-periods-verified-20261115.jpg"
+}
