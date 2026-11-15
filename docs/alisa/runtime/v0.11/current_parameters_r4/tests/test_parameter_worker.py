@@ -16,7 +16,7 @@ from parameter_support import parameter_producers as pp
 
 PERIOD={'from':'2026-10-01','to':'2026-10-31'}
 TODAY=date(2026,11,14)
-NODE='/root/alisa-owner-toolchain/node-v24.22.1-linux-x64/bin/node'
+NODE=(__import__('os').environ.get('ALISA_TEST_NODE') or __import__('shutil').which('node') or '/root/alisa-owner-toolchain/node-v24.22.1-linux-x64/bin/node')
 
 class Transport(BaseTransport):
  def __init__(self):

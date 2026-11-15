@@ -889,3 +889,8 @@ R7 resolver подключён к существующим Query/Worker/private 
 ## Экономика R10 — исходные комиссии/эквайринг и current owner inputs
 
 15.11.2026: в отдельном кандидате добавлены квалификация нормализованных расходов тойже исходной когорты и декларативная арифметика9групп с currentCOGS/коэффициентами, exactperiodналогом/своимирасходами. 303/303 локальныхпроверок, исторические5строк/26средних совпали. Review выявило смешение postingallocation с itemactual и проверку correctionпослеcohortfilter; оба воспроизведены и исправлены, finalreview отдельнойквитанцией. FullrawAPI/QueryWorkerwiring и общийCI ещё открыты; новый код НЕ установлен и не смешивается с browserприёмкой другогоагента. [Точная граница и следующий шаг](../../implementation/economics_cohort_r10/README.md).
+
+
+## Экономика R11 — наблюдаемые начисления и отдельный CI, не полная интеграция
+
+15.11.2026: exact by-day normalizer проверен на29сохранённых начислениях/51компоненте, source-ID не подменяется суммой. Новый лист через существующий Worker и реальные ledger-квитанции проверен изолированно. Original/correction-parent семантика пока не доказана, потому original_economics_ready=false; полная экономика/новый пользовательский template не включены. Foundation150, специальные346/32/51/39PASS; исправлены invocation CI и manifest-byte race, livehelper не менялся. [Доказательства и следующий источник](../../implementation/economics_ledger_r11/README.md).

@@ -1,0 +1,43 @@
+{
+  "utc": "2026-11-15T02:31:51.899341+00:00",
+  "normalizer_sha256": "0605de8c320a425b6076d3bcc8ba93676dcf86266473c9e7a591771b7bf9c047",
+  "status": "EXACT_SAVED_SOURCE_NORMALIZATION_PASS",
+  "records": 29,
+  "components": 51,
+  "duplicates": 0,
+  "pagination_complete": true,
+  "original_economics_ready": false,
+  "reason": "ECONOMICS_ORIGINAL_EVENT_RELATION_UNPROVEN",
+  "unclassified_components": 51,
+  "new_api_or_database_calls": 0,
+  "raw_ids_or_rows_exported": false,
+  "runtime_configuration_loaded": false,
+  "qualification_scope": "Exact normalization of saved provider responses only; not live Query admission or original/correction semantics",
+  "source_files": [
+    {
+      "path": "private/accrual_2026-11-13_p1.json",
+      "sha256": "0d18bd9b04ff53f28254101a88a8a72c9138590a223dab98214c8bc427a4348f",
+      "export_sha256": "4d93b3c9e4e9b008655c5f25e274b1b8e3eb2e8efc9c1773ef4ae0a28e7c80f9"
+    },
+    {
+      "path": "private/accrual_2026-11-14_p1.json",
+      "sha256": "030312bfc3e121b7c3bdc2a03fb02c259af8c9f82067c95e5a21cb0c9f0a1e08",
+      "export_sha256": "fb4a52f3d5da1c065936c2085e5cbf5afc46ef2008d8155a10c0d22424b0d7bd"
+    }
+  ],
+  "fee_type_counts": {
+    "98": 3,
+    "32": 11,
+    "69": 10,
+    "29": 8,
+    "1": 9,
+    "46": 1,
+    "38": 1,
+    "17": 2,
+    "59": 1,
+    "93": 2,
+    "77": 2,
+    "39": 1
+  },
+  "source_root_on_alisa": "/root/alice-lab-evidence/ad-strategy-snapshots/s03-20261114-20261113-full-day-r1"
+}
