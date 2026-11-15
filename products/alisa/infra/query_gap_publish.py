@@ -20,6 +20,15 @@ def deliver(store,authority):
     else:acknowledge(store,marks)
     return {'event':'query_gaps_publish','status':'ACKNOWLEDGED','events':len(marks)}
 
+def runtime_release(admission):
+    # systemd may name the root-controlled current alias. Validate the exact,
+    # canonical immutable payload before importing it; all admission checks stay.
+    configured=subprocess.run(['/usr/bin/systemctl','show','alice-market.service','--value','-p','WorkingDirectory'],
+        check=True,capture_output=True,text=True,timeout=3).stdout.strip()
+    source=Path(configured).resolve(strict=True)
+    admission.validate_release(source)
+    return source
+
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--database',type=Path,default=Path('/var/lib/alice-market/template-gaps.sqlite3'))
     parser.add_argument('--state-database',type=Path,default=Path('/var/lib/alice-market/state.sqlite3'))
@@ -29,9 +38,7 @@ def main():
         # The same root-owned admission check used by the existing startup hook.
         spec=importlib.util.spec_from_file_location('admission',Path(__file__).with_name('runtime_versions_sync.py'))
         admission=importlib.util.module_from_spec(spec);spec.loader.exec_module(admission)
-        source=Path(subprocess.run(['/usr/bin/systemctl','show','alice-market.service','--value','-p','WorkingDirectory'],
-            check=True,capture_output=True,text=True,timeout=3).stdout.strip())
-        admission.validate_release(source)
+        source=runtime_release(admission)
         raw,_=admission.read_file(args.config,admission.MAX_FILE);config=admission.decode(raw)
         sys.path.insert(0,str(source))
         from runtime_port_service import validate,private_credential
