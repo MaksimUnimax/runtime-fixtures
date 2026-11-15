@@ -474,5 +474,8 @@
     "remainder_before_owner_inputs",
     "remainder_after_cogs_and_ads"
   ],
-  "output_boundary": "Estimated remainder, not actual net profit. Tax/custom owner expenses never default to zero."
+  "output_boundary": "Estimated remainder, not actual net profit. Tax/custom owner expenses never default to zero.",
+  "posting_allocations": {
+    "other": "ORIGINAL_PHYSICAL_UNITS"
+  }
 }

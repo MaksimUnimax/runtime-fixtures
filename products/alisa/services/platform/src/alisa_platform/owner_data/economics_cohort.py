@@ -155,6 +155,10 @@ def qualify(bundle,target,period,*,verify):
             if event['type_id']in excluded:
                 ignored['excluded_delivery']=ignored.get('excluded_delivery',0)+1;continue
             group=included[event['type_id']]
+            allocation=None
+            if event['sku']is None:
+                allocation=CATALOG['posting_allocations'].get(group)
+                need(allocation=='ORIGINAL_PHYSICAL_UNITS','ECONOMICS_ITEM_ATTRIBUTION_REQUIRED')
             affected=postings[pk]if event['sku']is None else[key(event)]
             need(all(k in orders for k in affected),'ECONOMICS_FEE_SKU_NOT_IN_POSTING')
             if event['sku']is not None:need(integer(event['quantity'])==integer(orders[affected[0]]['quantity']),'ECONOMICS_PARTIAL_FEE_COVERAGE')
@@ -164,9 +168,10 @@ def qualify(bundle,target,period,*,verify):
             if classes[group]['original_nonnegative']:need(cost>=0,'ECONOMICS_ORIGINAL_DEBIT_SIGN')
             total_units=sum((integer(orders[k]['quantity'])for k in affected),Decimal(0));left=cost
             for index,k in enumerate(sorted(affected)):
-                item=actual[k].setdefault(group,{'amount':Decimal(0),'types':set(),'events':[]})
+                item=actual[k].setdefault(group,{'amount':Decimal(0),'types':set(),'events':[],'allocation':None})
                 need(event['type_id']not in item['types'],'ECONOMICS_OVERLAPPING_ORIGINAL_FEE')
                 part=left if index==len(affected)-1 else cost*integer(orders[k]['quantity'])/total_units;left-=part
+                if allocation is not None:item['allocation']=allocation
                 item['amount']+=part;item['types'].add(event['type_id']);item['events']+=[e['event_id']for e in [event,*related]]
             need(left==0,'ECONOMICS_ALLOCATION_NOT_CONSERVED');allocated_totals[event['event_id']]=c.decimal_text(cost)
             selected_ids+=[e['event_id']for e in [event,*related]]
@@ -177,7 +182,10 @@ def qualify(bundle,target,period,*,verify):
             for output,rule in CATALOG['line_inputs'].items():
                 group=rule.get('fee_group');matched=actual[k].get(group)
                 if matched is not None:
-                    vals[output]=matched['amount'];basis[output]={'kind':'QUALIFIED_ORIGINAL_DEBIT','events':matched['events']};continue
+                    vals[output]=matched['amount']
+                    basis[output]={'kind':'QUALIFIED_POSTING_ALLOCATION'if matched['allocation']else'QUALIFIED_ORIGINAL_DEBIT',
+                                   'allocation':matched['allocation'],'events':matched['events']}
+                    continue
                 fallback=rule['fallback'][row['scheme']]
                 inputs=deepcopy(vals)
                 if tariff:inputs.update({name:number(v)for name,v in tariff['fields'].items()})

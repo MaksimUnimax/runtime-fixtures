@@ -87,3 +87,12 @@ class Current(Fixture,TestCase):
   out=self.prepare();before=self.counts();self.assertTrue(svc.publication_check(self.token,out)['current']);self.assertEqual(before,self.counts())
  def test_zero_orders_preserve_period_costs_without_need_of_sku_cost(self):
   out=self.prepare(self.qualified(rows=[],quotes=[]));self.assertTrue(out.ready);self.assertEqual(out.result['scenarios']['with_loss']['totals']['remainder_before_owner_inputs'],'-130')
+
+ def test_answer_explains_current_coefficients_without_checkpoint_values(self):
+  out=self.prepare();basis={r['parameter']:r for r in out.result['parameters_used']}
+  self.assertEqual(basis['loss_rate']['value'],'0.2');self.assertEqual(basis['loss_rate']['origin'],'manual');self.assertIsNone(basis['loss_rate']['calculated_at'])
+  self.assertEqual(out.result['unit_cost_basis'][0]['value'],'250')
+  saved=json.dumps(out.checkpoint());self.assertNotIn('parameters_used',saved);self.assertNotIn('unit_cost_basis',saved)
+ def test_calculated_coefficient_date_preserved_in_explanation(self):
+  self.calculated(revision=1);out=self.prepare();row=next(r for r in out.result['parameters_used']if r['parameter']=='loss_rate')
+  self.assertEqual(row['origin'],'calculated');self.assertIsNotNone(row['calculated_at']);self.assertIsNotNone(row['collected_at'])

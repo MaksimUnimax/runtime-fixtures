@@ -37,8 +37,16 @@ class Sources(TestCase):
   q=qualify(bundle(rows=rows,quotes=[tariff('101'),tariff('102')],fees=[event(sku=None,quantity=None,typ=93,amount='-10')]))
   vals=[Decimal(r['inputs']['other'])for r in q.rows]
   with __import__('decimal').localcontext()as ctx:ctx.prec=60;self.assertEqual(sum(vals),Decimal(10));self.assertEqual(vals[1],Decimal(10)-vals[0])
+ def test_posting_commission_cannot_be_allocated_as_sku_actual(self):
+  self.rejected(bundle(fees=[event(sku=None,quantity=None)]),'ECONOMICS_ITEM_ATTRIBUTION_REQUIRED')
+ def test_posting_acquiring_without_approved_allocation_is_rejected(self):
+  self.rejected(bundle(fees=[event(sku=None,quantity=None,typ=1)]),'ECONOMICS_ITEM_ATTRIBUTION_REQUIRED')
+ def test_posting_other_allocation_is_not_item_level_actual(self):
+  q=qualify(bundle(fees=[event(sku=None,quantity=None,typ=93)]))
+  self.assertEqual(q.rows[0]['basis']['other']['kind'],'QUALIFIED_POSTING_ALLOCATION')
+  self.assertEqual(q.rows[0]['basis']['other']['allocation'],'ORIGINAL_PHYSICAL_UNITS')
  def test_posting_fee_and_same_sku_fee_overlap_rejected(self):
-  self.rejected(bundle(fees=[event(sku=None,quantity=None),event('other')]),'ECONOMICS_OVERLAPPING_ORIGINAL_FEE')
+  self.rejected(bundle(fees=[event(sku=None,quantity=None,typ=93),event('other',typ=93)]),'ECONOMICS_OVERLAPPING_ORIGINAL_FEE')
  def test_other_signed_credit_not_abs_value(self):
   q=qualify(bundle(fees=[event(typ=93,amount='15')]));self.assertEqual(q.rows[0]['inputs']['other'],'-15')
  def test_forward_last_reverse_actuals_not_added_on_top_of_normative(self):

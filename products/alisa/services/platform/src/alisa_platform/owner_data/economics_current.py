@@ -67,7 +67,7 @@ def prepare(token,qualified,*,today:date,parameter_periods=None):
                           'sku_reference':parameters.sku_reference(actor,store,order['sku'])})
     binding=dependencies.resolve_current(token,PROFILE,consumers,today,report_period=qualified.period,
                                          parameter_periods=parameter_periods)if consumers else None
-    unit_costs={};missing=[];owner_basis={}
+    unit_costs={};missing=[];owner_basis={};cost_basis=[]
     for row in rows:
         order=row['order'];k=economics.c.CANON(economics.key(order));sku=order['sku']
         if sku not in owner_basis:owner_basis[sku]=_owner_value(source,state,bundle,'sku:'+sku,['unit_cost'],qualified.period)
@@ -75,7 +75,10 @@ def prepare(token,qualified,*,today:date,parameter_periods=None):
         chosen=[s for s in segments if s['period']['from']<=order['day']<=s['period']['to']]
         need(len(chosen)==1,'ECONOMICS_COGS_PERIOD',422)
         if chosen[0]['state']!='VALUE':missing.append({'sku':sku,'day':order['day'],'reason':chosen[0]['reason']})
-        else:unit_costs[k]=chosen[0]['value']
+        else:
+            unit_costs[k]=chosen[0]['value']
+            cost_basis.append({'sku':sku,'day':order['day'],'value':chosen[0]['value'],
+                               'unit':chosen[0]['unit'],'entry_id':chosen[0]['entry_id']})
     owner=_owner_value(source,state,bundle,bundle['store_entity'],['tax_amount','own_cost_amount'],qualified.period)
     amounts={}
     for name,value in owner['fields'].items():
@@ -85,6 +88,11 @@ def prepare(token,qualified,*,today:date,parameter_periods=None):
     if not missing and(binding is None or binding.ready):
         coeff={k:binding.formula_inputs(cid)for k,cid in row_ids.items()}if binding else{}
         result=economics.calculate(qualified,unit_costs,coeff,amounts)
+        # These current numbers/dates are explanation inputs in memory, not a
+        # coefficient history or material added to the value-free checkpoint.
+        result['parameters_used']=binding.answer_basis()if binding else[]
+        result['unit_cost_basis']=cost_basis
+        result['owner_data_revision']=state['revision']
     return CurrentEconomics(qualified,source,_pin(state),binding,result,missing)
 
 
