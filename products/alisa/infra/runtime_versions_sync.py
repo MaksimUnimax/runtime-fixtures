@@ -81,7 +81,7 @@ def validate_release(root,*,releases=RELEASES,owner_uid=0):
          and manifest.get('artifact_id')==root.name and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,127}',root.name)
          and re.fullmatch('[a-f0-9]{40}',str(manifest.get('source_commit',''))),'UNTRUSTED_RELEASE')
     files=manifest.get('files');need(type(files)is dict and 1<=len(files)<=1000,'UNTRUSTED_RELEASE')
-    total=0;snapshots={'manifest.json':(manifest_info.st_dev,manifest_info.st_ino,manifest_info.st_size,manifest_info.st_mtime_ns,manifest_info.st_ctime_ns)}
+    total=0;snapshots={'manifest.json':(manifest_info.st_dev,manifest_info.st_ino,manifest_info.st_size,manifest_info.st_mtime_ns,manifest_info.st_ctime_ns,hashlib.sha256(raw).hexdigest())}
     for name,digest in files.items():
         need(type(name)is str and name and not Path(name).is_absolute()and '..'not in Path(name).parts
              and str(Path(name))==name and name!='manifest.json'
@@ -90,7 +90,7 @@ def validate_release(root,*,releases=RELEASES,owner_uid=0):
         # Inode permissions apply to every hard link; checksums are still mandatory.
         raw,s=read_file(root/name,MAX_FILE,owner_uid,single_link=False);total+=len(raw)
         need(total<=MAX_TOTAL and hashlib.sha256(raw).hexdigest()==digest,'SOURCE_MISMATCH')
-        snapshots[name]=(s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_ctime_ns)
+        snapshots[name]=(s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_ctime_ns,digest)
     # Cover the entire immutable payload, including present and future data formats.
     # Do not follow symlinks or traverse an unbounded, undeclared directory tree.
     required=set();pending=[root];entries=0
@@ -107,10 +107,13 @@ def validate_release(root,*,releases=RELEASES,owner_uid=0):
     need(required==set(files)|{'manifest.json'}and 'runtime_port.py'in files,'SOURCE_MISMATCH')
     return snapshots
 
-def unchanged(root,snapshots):
+def unchanged(root,snapshots,*,owner_uid=0):
     for name,expected in snapshots.items():
         s=(root/name).lstat()
-        need(stat.S_ISREG(s.st_mode)and (s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_ctime_ns)==expected,'SOURCE_CHANGED')
+        need(stat.S_ISREG(s.st_mode)and (s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_ctime_ns)==expected[:5],'SOURCE_CHANGED')
+        raw,info=read_file(root/name,MAX_FILE,owner_uid,single_link=False)
+        need((info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns,info.st_ctime_ns)==expected[:5]
+             and hashlib.sha256(raw).hexdigest()==expected[5],'SOURCE_CHANGED')
 
 def limits():
     resource.setrlimit(resource.RLIMIT_CPU,(5,5))
@@ -154,7 +157,7 @@ def publish(root,config_path,versions_path,*,check=False,calculate=compute,relea
     new=version_shape({**new,'catalog_release_id':port['catalog_release_id']})
     changed={k for k in FIELDS if old[k]!=new[k]}
     need(changed<={'catalog_bundle_hash'},'CONTRACT_CHANGED')
-    unchanged(root,snapshots)
+    unchanged(root,snapshots,owner_uid=owner_uid)
     need(validate_release(root,releases=releases,owner_uid=owner_uid)==snapshots,'SOURCE_CHANGED')
     need(read_file(config_path,MAX_FILE,owner_uid)[0]==config_raw and read_file(versions_path,8192,owner_uid)[0]==raw,'CONFIG_CHANGED')
     if not changed:return {'status':'UNCHANGED','source_files':len(snapshots)}

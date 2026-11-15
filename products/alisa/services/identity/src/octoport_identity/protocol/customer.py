@@ -209,4 +209,19 @@ def token_claims(client, token):
             or proof.get('client_id') != client.id
             or not fresh(proof.get('at'), time.time(), 300)):
         raise ImmediateHttpResponse(JsonResponse({'error': 'invalid_grant'}, status=400))
-    return {'acr': ACR, 'amr': ['pwd', 'email_otp'], 'auth_time': proof['at']}
+    # Consent comes from native signup receipts, never from a login checkbox.
+    from octoport_identity.accounts.models import IdentityConsent
+    from .adapter import OIDCAdapter
+    user = OIDCAdapter().get_user_by_sub(client, token['sub'])
+    if user is None or not user.is_active:
+        raise ImmediateHttpResponse(JsonResponse({'error': 'invalid_grant'}, status=400))
+    consents = {}
+    for receipt in IdentityConsent.objects.filter(person=user,
+            document__in=['service', 'privacy'],
+            version__in=['identity-s02-1', 'identity-s02-mail-1', 'identity-s02-open-1']).order_by('-accepted_at', '-pk'):
+        consents.setdefault(receipt.document, {'version': receipt.version,
+            'accepted_at': receipt.accepted_at.isoformat()})
+    if set(consents) != {'service', 'privacy'}:
+        consents = {}
+    return {'acr': ACR, 'amr': ['pwd', 'email_otp'], 'auth_time': proof['at'],
+        'alisa_consents': consents}

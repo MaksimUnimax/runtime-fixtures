@@ -11,6 +11,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import DatabaseError,transaction,IntegrityError
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import csrf_exempt
 from alisa_platform.foundation.views import reply
 from alisa_platform.leads.views import event,allow
@@ -48,8 +49,10 @@ def opaque(value,maximum=16000):
 
 @boundary
 def flow_create(request,data):
-    exact(data,{'encrypted_payload','service_consent','privacy_consent'},{'handoff_id'})
-    if data['service_consent'] is not True or data['privacy_consent'] is not True:raise ValueError()
+    exact(data,{'encrypted_payload'},{'handoff_id','service_consent','privacy_consent'})
+    # Legacy clients may still send their explicit consent pair during rollout.
+    if {'service_consent','privacy_consent'} & set(data):
+        if data.get('service_consent') is not True or data.get('privacy_consent') is not True:raise ValueError()
     with transaction.atomic():
         if not allow('auth-flow-global',60,60):return reply({'code':'RATE_LIMITED'},429)
         AuthFlow.objects.filter(expires_at__lt=timezone.now()-timedelta(days=1),websession__isnull=True).delete()
@@ -72,9 +75,29 @@ def flow_consume(request,data):
         row.consumed_at=timezone.now();row.encrypted_payload='';row.save(update_fields=['consumed_at','encrypted_payload'])
     return reply({'flow_id':str(row.pk),'encrypted_payload':payload})
 
+def registration_consents(value, now):
+    if value == {}:
+        return {}
+    if not isinstance(value, dict) or set(value) != {'service', 'privacy'}:
+        raise ValueError()
+    result = {}
+    for document, receipt in value.items():
+        if not isinstance(receipt, dict) or set(receipt) != {'version', 'accepted_at'}:
+            raise ValueError()
+        if receipt['version'] not in {'identity-s02-1', 'identity-s02-mail-1', 'identity-s02-open-1'}:
+            raise ValueError()
+        stamp = receipt['accepted_at']
+        if not isinstance(stamp, str) or len(stamp) > 40:
+            raise ValueError()
+        accepted = parse_datetime(stamp)
+        if accepted is None or timezone.is_naive(accepted) or accepted.year < 2000 or accepted > now + timedelta(seconds=60):
+            raise ValueError()
+        result[document] = (receipt['version'], accepted)
+    return result
+
 @boundary
 def session_create(request,data):
-    exact(data,{'flow_id','issuer','client_id','subject','email','email_verified','session_hash','encrypted_payload'})
+    exact(data,{'flow_id','issuer','client_id','subject','email','email_verified','session_hash','encrypted_payload'},{'registration_consents'})
     flow_id=uuid.UUID(data['flow_id']);subject=data['subject']
     if data['issuer']!=settings.IDENTITY_ISSUER or data['client_id']!=settings.OIDC_CLIENT_ID:
         return reply({'code':'WRONG_IDENTITY_CONTEXT'},403)
@@ -83,6 +106,7 @@ def session_create(request,data):
     if len(email)>254 or (not email.endswith('@example.invalid') and not settings.REAL_LOGIN_OPEN and email not in settings.REAL_LOGIN_RECIPIENTS):raise ValueError()
     if not isinstance(data['session_hash'],str) or not re.fullmatch(r'[0-9a-f]{64}',data['session_hash']):raise ValueError()
     payload=opaque(data['encrypted_payload']);now=timezone.now()
+    consents=registration_consents(data.get('registration_consents',{}),now)
     with transaction.atomic():
         flow=AuthFlow.objects.select_for_update().filter(pk=flow_id).first()
         if not flow or not flow.consumed_at or flow.expires_at<=now:return reply({'code':'INVALID_FLOW'},400)
@@ -98,6 +122,9 @@ def session_create(request,data):
         with connection.cursor() as cursor:cursor.execute('SELECT pg_advisory_xact_lock(%s)',[key])
         link=IdentityLink.objects.select_related('customer').filter(issuer=data['issuer'],client_id=data['client_id'],subject=subject).first()
         created=link is None
+        existing_documents=set(ConsentRecord.objects.filter(customer=link.customer,document__in=['service','privacy']).values_list('document',flat=True)) if link else set()
+        if existing_documents | set(consents) != {'service','privacy'}:
+            return reply({'code':'CONSENT_REQUIRED'},403)
         if created:
             customer=Customer.objects.create(email=email)
             tenant=Tenant.objects.create()
@@ -108,8 +135,10 @@ def session_create(request,data):
         if customer.email!=email:
             customer.email=email;customer.save(update_fields=['email'])
         membership=Membership.objects.get(customer=customer)
-        for document in ['service','privacy']:
-            ConsentRecord.objects.get_or_create(customer=customer,document=document,version=VERSION)
+        for document in set(consents)-existing_documents:
+            version,accepted_at=consents[document]
+            receipt=ConsentRecord.objects.create(customer=customer,document=document,version=version)
+            ConsentRecord.objects.filter(pk=receipt.pk).update(accepted_at=accepted_at)
         WebSession.objects.create(token_hash=data['session_hash'],customer=customer,tenant=membership.tenant,flow=flow,
             encrypted_payload=payload,security_revision=customer.security_revision,expires_at=now+timedelta(seconds=SESSION_MAX_AGE_SECONDS))
         flow.completed_at=now;flow.save(update_fields=['completed_at'])

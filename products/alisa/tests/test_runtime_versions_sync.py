@@ -6,10 +6,15 @@ from pathlib import Path
 import stat
 import tempfile
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('runtime_versions_sync',ROOT/'infra/runtime_versions_sync.py')
 sync=importlib.util.module_from_spec(spec);spec.loader.exec_module(sync)
+
+publisher_spec=importlib.util.spec_from_file_location('query_gap_publish',ROOT/'infra/query_gap_publish.py')
+publisher=importlib.util.module_from_spec(publisher_spec);publisher_spec.loader.exec_module(publisher)
 
 class RuntimeVersions(unittest.TestCase):
     def setUp(self):
@@ -123,5 +128,34 @@ class RuntimeVersions(unittest.TestCase):
         self.current['unexpected']='unknown';self.blocked('VERSION_SCHEMA')
     def test_malformed_hash_is_denied(self):
         self.current['catalog_bundle_hash']='invalid';self.blocked('VERSION_SCHEMA')
+
+    def publisher_source(self,path):
+        admission=SimpleNamespace(validate_release=lambda root:sync.validate_release(
+            root,releases=self.releases,owner_uid=os.getuid()))
+        with patch.object(publisher.subprocess,'run',return_value=SimpleNamespace(stdout=str(path))):
+            return publisher.runtime_release(admission)
+    def test_gap_publisher_accepts_direct_admitted_release(self):
+        self.assertEqual(self.publisher_source(self.source),self.source)
+    def test_gap_publisher_resolves_current_before_unchanged_admission(self):
+        alias=self.releases/'current';alias.symlink_to(self.source.name,target_is_directory=True)
+        self.assertEqual(self.publisher_source(alias),self.source)
+    def test_gap_publisher_alias_cannot_admit_tampered_payload(self):
+        alias=self.releases/'current';alias.symlink_to(self.source.name,target_is_directory=True)
+        (self.source/'runtime_port.py').write_text('tampered')
+        with self.assertRaises(sync.Blocked)as caught:self.publisher_source(alias)
+        self.assertEqual(caught.exception.code,'SOURCE_MISMATCH')
+    def test_gap_publisher_alias_outside_release_root_is_denied(self):
+        outside=self.root/'outside';outside.mkdir()
+        alias=self.releases/'current';alias.symlink_to(outside,target_is_directory=True)
+        with self.assertRaises(sync.Blocked)as caught:self.publisher_source(alias)
+        self.assertEqual(caught.exception.code,'UNTRUSTED_RELEASE')
+    def test_gap_publisher_broken_alias_fails_without_fallback(self):
+        alias=self.releases/'current';alias.symlink_to('missing',target_is_directory=True)
+        with self.assertRaises(FileNotFoundError):self.publisher_source(alias)
+    def test_gap_publisher_alias_keeps_directory_permissions_check(self):
+        alias=self.releases/'current';alias.symlink_to(self.source.name,target_is_directory=True)
+        self.source.chmod(0o777)
+        with self.assertRaises(sync.Blocked)as caught:self.publisher_source(alias)
+        self.assertEqual(caught.exception.code,'UNTRUSTED_PATH')
 
 if __name__=='__main__':unittest.main()

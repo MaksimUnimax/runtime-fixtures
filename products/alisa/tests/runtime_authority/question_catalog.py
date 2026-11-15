@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Catalog over real disposable PostgreSQL and Unix IPC, with no execution."""
+import secrets
 import argparse
 import hashlib
 import json
@@ -17,6 +18,9 @@ from datetime import timedelta
 from django.test import override_settings
 from alisa_platform.catalog import views, reader
 from alisa_platform.queries.models import Query
+from alisa_platform.accounts.models import Customer, Tenant, Membership, AuthFlow, WebSession
+from alisa_platform.stores.models import Store
+from alisa_platform.entitlements.models import AccessLedger, AccessGrant
 from alisa_platform.staff.models import StaffMember, StaffSession, StaffAuthFlow, StaffAuditEvent
 from alisa_platform.runtime_adapter.job_client import RuntimeClient
 import question_catalog_extension
@@ -47,6 +51,54 @@ class CatalogChecks(QueryChecks):
         with self.repo.connection() as c:
             self.assertEqual(c.execute('SELECT count(*) FROM jobs').fetchone()[0], 0)
         self.assertEqual(self.transport.calls, [])
+
+    def unprovisioned_owner(self):
+        now=timezone.now();actor=Customer.objects.create(email='catalog-preview-'+uid()+'@example.invalid')
+        tenant=Tenant.objects.create();Membership.objects.create(customer=actor,tenant=tenant,role='OWNER_CLIENT')
+        token=secrets.token_urlsafe(32)
+        flow=AuthFlow.objects.create(secret_hash=hashlib.sha256(secrets.token_bytes(32)).hexdigest(),
+            encrypted_payload='',expires_at=now+timedelta(minutes=10),consumed_at=now,completed_at=now)
+        session=WebSession.objects.create(customer=actor,tenant=tenant,flow=flow,
+            token_hash=hashlib.sha256(token.encode()).hexdigest(),encrypted_payload='',security_revision=1,
+            expires_at=now+timedelta(days=1))
+        store=Store.objects.create(tenant=tenant,provider='OZON',name='Catalog preview')
+        return actor,tenant,token,session,store
+
+    def test_unprovisioned_owner_reads_preview_without_a_grant_or_execution(self):
+        actor,tenant,token,session,store=self.unprovisioned_owner();before=Query.objects.count()
+        with patch.object(views,'configured_client',side_effect=self.staff_client):
+            response=self.customer(session_token=token,store_id=str(store.pk))
+        self.assertEqual(response.status_code,200,response.content)
+        value=json.loads(response.content);self.assertIs(value['preview_only'],True)
+        self.assertEqual(value['items'][0]['id'],'B01.ordered_units')
+        self.assertEqual(value['items'][0]['availability'],[{'store_id':str(store.pk),'status':'UNAVAILABLE'}])
+        self.assertTrue(all('sources'not in row and 'metrics'not in row for row in value['items']))
+        self.assertFalse(AccessLedger.objects.filter(tenant=tenant).exists())
+        self.assertFalse(AccessGrant.objects.filter(tenant=tenant).exists())
+        self.assertEqual(Query.objects.count(),before);self.no_execution()
+
+    def test_unprovisioned_owner_cannot_preview_a_foreign_or_disabled_store(self):
+        actor,tenant,token,session,store=self.unprovisioned_owner()
+        with patch.object(views,'read',side_effect=AssertionError('IPC')):
+            self.assertEqual(self.customer(session_token=token).status_code,403)
+            store.status='DISABLED';store.save(update_fields=['status'])
+            self.assertEqual(self.customer(session_token=token,store_id=str(store.pk)).status_code,403)
+        self.no_execution()
+
+    def test_unprovisioned_session_revocation_during_preview_discards_metadata(self):
+        actor,tenant,token,session,store=self.unprovisioned_owner();original=views.read
+        def revoke(*args,**kwargs):
+            result=original(*args,**kwargs)
+            if kwargs.get('scoped')is False:
+                session.revoked_at=timezone.now();session.save(update_fields=['revoked_at'])
+            return result
+        with patch.object(views,'configured_client',side_effect=self.staff_client),patch.object(views,'read',revoke):
+            self.assertEqual(self.customer(session_token=token,store_id=str(store.pk)).status_code,401)
+        self.no_execution()
+
+    def test_parameter_filter_is_accepted_even_without_parameter_templates(self):
+        response=self.customer(query={'search':'','kind':'parameter','offset':0})
+        self.assertEqual(response.status_code,200,response.content);self.no_execution()
 
     def test_current_session_gets_owned_store_projection_over_real_ipc(self):
         for _ in range(2):

@@ -88,6 +88,7 @@ def run(check):
     claims=jwt.decode(token.json()['id_token'],options={'verify_signature':False}) if token.status_code==200 else {}
     check('customer_native_signed_token_contains_both_factors',token.status_code==200
         and claims.get('acr')==ACR and claims.get('amr')==['pwd','email_otp'])
+    check('customer_login_without_signup_receipts_does_not_invent_consents',claims.get('alisa_consents')=={})
     check('customer_oauth_code_single_use',b.post(reverse('idp:oidc:token'),grant,secure=True,HTTP_AUTHORIZATION=basic).status_code==400)
     new_url,_=target()
     check('customer_existing_sso_cannot_issue_new_code',b.get(new_url,secure=True).status_code==403)
