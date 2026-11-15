@@ -74,10 +74,11 @@ class QualifiedCohort:
     def period(self):return json.loads(self.period_json)
     def checkpoint(self):
         return {'definition_hash':self.definition_hash,'scope':self.scope,'period':self.period,
-                'source_receipts':json.loads(self.evidence_json)['receipts'],'persist_values':False}
+                'source_receipts':json.loads(self.evidence_json)['receipts'],
+                'realization_document':json.loads(self.evidence_json).get('realization_document'),'persist_values':False}
 
 
-def qualify(bundle,target,period,*,verify):
+def qualify(bundle,target,period,*,verify,realization=None):
     """Normalize only explicitly classified original debits; never guess direction.
 
     A matched original amount covers its complete original product line or whole
@@ -107,6 +108,13 @@ def qualify(bundle,target,period,*,verify):
             orders[key(row)]=deepcopy(row);postings.setdefault((row['posting'],row['scheme']),[]).append(key(row))
         # Posting identifiers must identify one scheme in this cohort.
         need(len({p for p,s in postings})==len(postings),'ECONOMICS_POSTING_SCHEME_CONFLICT')
+        document_matches={};document_missing={};document_checkpoint=None
+        if realization is not None:
+            from .economics_realization import commission_matches,RealizationError
+            try:
+                document_matches,document_missing=commission_matches(realization,list(orders.values()),target)
+                document_checkpoint=realization.checkpoint()
+            except RealizationError as error:raise EconomicsError(error.code)from None
         tariffs={}
         for row in bundle['tariffs']['rows']:
             exact(row,('sku','scheme','quote_id','fields'))
@@ -187,6 +195,12 @@ def qualify(bundle,target,period,*,verify):
             tariff=tariffs.get((row['sku'],row['scheme']));basis={}
             for output,rule in CATALOG['line_inputs'].items():
                 group=rule.get('fee_group');matched=actual[k].get(group)
+                document=document_matches.get(k,{}).get(rule.get('document_input'))
+                if document is not None:
+                    amount=number(document['amount'])
+                    need(matched is None or matched['amount']==amount,'ECONOMICS_COMMISSION_SOURCES_DISAGREE')
+                    vals[output]=amount;basis[output]=deepcopy(document['basis'])
+                    continue
                 if matched is not None:
                     vals[output]=matched['amount']
                     basis[output]={'kind':'QUALIFIED_POSTING_ALLOCATION'if matched['allocation']else'QUALIFIED_ORIGINAL_DEBIT',
@@ -197,6 +211,7 @@ def qualify(bundle,target,period,*,verify):
                 if tariff:inputs.update({name:number(v)for name,v in tariff['fields'].items()})
                 vals[output]=expression(fallback,inputs)
                 basis[output]={'kind':rule['fallback_kind'][row['scheme']],'quote_id':tariff['quote_id']if tariff else None}
+                if rule.get('document_input') and k in document_missing:basis[output]['document_status']=document_missing[k]
             result.append({'order':row,'inputs':{name:c.decimal_text(v)for name,v in vals.items()},'basis':basis})
         # Period expenses are qualified as period-wide allocations, never claimed
         # to be order-level original debits. Unknown is not a numeric zero.
@@ -209,7 +224,8 @@ def qualify(bundle,target,period,*,verify):
         need(set(period_costs)==set(CATALOG['period_costs']),'ECONOMICS_MISSING_PERIOD_COST')
         evidence={'receipts':{n:bundle[n]['receipt_hash']for n in bundle},'period_costs':period_costs,
                   'duplicates_removed':duplicates,'ignored':ignored,'selected_event_ids':sorted(selected_ids),
-                  'posting_allocation_totals':allocated_totals,'observed_at':{n:bundle[n]['observed_at']for n in bundle}}
+                  'posting_allocation_totals':allocated_totals,'observed_at':{n:bundle[n]['observed_at']for n in bundle},
+                  'realization_document':document_checkpoint,'realization_unmatched':{c.CANON(k):v for k,v in document_missing.items()}}
         return QualifiedCohort(c.CANON(target),c.CANON(period),c.CANON(result),c.CANON(evidence),HASH)
 
 
