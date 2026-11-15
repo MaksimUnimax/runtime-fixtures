@@ -8,7 +8,8 @@
   "counts": {
     "HISTORICAL_ACCEPTED": 25,
     "PARTIAL": 37,
-    "SOURCE_ONLY": 28,
+    "SOURCE_ONLY": 27,
+    "SYNTHETIC_PASS": 1,
     "INSTALLED_ACCEPTED": 1
   },
   "per_stage": [
@@ -72,8 +73,9 @@
     {
       "stage": "AL-S10",
       "total": 6,
-      "SOURCE_ONLY": 2,
-      "PARTIAL": 4
+      "SOURCE_ONLY": 1,
+      "PARTIAL": 4,
+      "SYNTHETIC_PASS": 1
     },
     {
       "stage": "AL-S11",
@@ -1074,9 +1076,9 @@
       "id": "AL-T08-02",
       "title": "RESTART",
       "test_plan_line": 1558,
-      "verdict": "SOURCE_ONLY",
-      "evidence": "Q-runtime содержит durable queue/restart проверки; H0 принимал технический probe.",
-      "remaining_or_scope_limit": "Restart после страницы 1 бизнес-отчёта на текущем ядре не проверен; probe не заменяет этот сценарий."
+      "verdict": "SYNTHETIC_PASS",
+      "evidence": "NATIVE: точные 184 файла, реальный выход процесса после page1, другой процесс завершил страницы 2/3; 2001 строка, старый owner fenced, ни одна подтверждённая страница не повторена.",
+      "remaining_or_scope_limit": "PASS в точной изолированной копии установленного кода на WB fixture. Не live-служба и не независимая приёмка всей установки; остановка до page checkpoint может повторить безопасный read."
     },
     {
       "stage": "AL-S10",
@@ -1084,7 +1086,7 @@
       "title": "UNKNOWN",
       "test_plan_line": 1577,
       "verdict": "PARTIAL",
-      "evidence": "Четыре прежних UNKNOWN сверены и не повторены. L1/HT.",
+      "evidence": "Четыре прежних UNKNOWN сверены и не повторены. L1/HT. NATIVE: соответствующая process fixture прошла на точной копии; полная ручная/межканальная приёмка не подразумевается.",
       "remaining_or_scope_limit": "Новый контролируемый killpoint с lost response и обычным retry на текущем ядре не воспроизведён."
     },
     {
@@ -1093,7 +1095,7 @@
       "title": "CANCEL",
       "test_plan_line": 1598,
       "verdict": "PARTIAL",
-      "evidence": "R5 отменён после двух HTTP; последующие вызовы заблокированы authority. L1.",
+      "evidence": "R5 отменён после двух HTTP; последующие вызовы заблокированы authority. L1. NATIVE: соответствующая process fixture прошла на точной копии; полная ручная/межканальная приёмка не подразумевается.",
       "remaining_or_scope_limit": "Поздний callback и чтение из другого канала после cancel отдельно не приняты."
     },
     {
@@ -1102,7 +1104,7 @@
       "title": "TTL",
       "test_plan_line": 1617,
       "verdict": "PARTIAL",
-      "evidence": "Краткий ответ истёк через 300s; тот же отдельный документ доступен в 48h-архиве. L1.",
+      "evidence": "Краткий ответ истёк через 300s; тот же отдельный документ доступен в 48h-архиве. L1. NATIVE: соответствующая process fixture прошла на точной копии; полная ручная/межканальная приёмка не подразумевается.",
       "remaining_or_scope_limit": "Нет полной очистки всех text/tts/cache после TTL и отдельного expiry доступа. 900s fixture не равен 48h документу."
     },
     {
@@ -1151,5 +1153,13 @@
     "boundary_distinct_labels": 23,
     "old_policy_tests_failed": 2,
     "roadmap_case_verdicts_unchanged": true
+  },
+  "native_lifecycle_followup": {
+    "report": "NATIVE_LIFECYCLE_ACCEPTANCE_2026-11-15.md",
+    "status": "PARTIAL_EXACT_INSTALLED_COPY_LIFECYCLE_VERIFIED_FULL_SUITE_NOT_GREEN",
+    "fixture_scenario_pass": "AL-T08-02",
+    "whole_suite_green": false,
+    "remaining_test_units": 6,
+    "production_calls_since_test_start": 0
   }
 }

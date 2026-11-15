@@ -1,0 +1,254 @@
+{
+  "status": "PARTIAL_EXACT_INSTALLED_COPY_LIFECYCLE_VERIFIED_FULL_SUITE_NOT_GREEN",
+  "recorded_at_client": "2026-11-15T17:51:38.399028+05:00",
+  "full_roadmap_acceptance": false,
+  "native_source_commit": "1d572aebf6b05b88ae5c233ae4313284add03e45",
+  "native_manifest_sha256": "20c5afddbc8f07c86e72a33676d4475c4b23b7c0316bc73f814e51dc5a60e95e",
+  "snapshot_source_files": 184,
+  "source_hash_match_before_and_after": true,
+  "git_seed_files": 142,
+  "text_transferred_files": 42,
+  "product_or_installed_files_changed": false,
+  "configuration_or_security_policy_changed": false,
+  "working_services_restarted": false,
+  "production_configuration_or_database_copied": false,
+  "suite": {
+    "first_run": {
+      "status": "FAILED",
+      "tests_run": 2140,
+      "skipped": 0,
+      "forbidden_network_attempts": 0,
+      "failures": 50,
+      "errors": 98
+    },
+    "first_positive_case_records": 1993,
+    "first_case_records": 2139,
+    "first_failed_test_subcase_parent_missing_from_case_array": true,
+    "only_affected_cases_retried": 141,
+    "retry": {
+      "status": "PASS",
+      "tests_run": 141,
+      "skipped": 0,
+      "forbidden_network_attempts": 0,
+      "failures": 0,
+      "errors": 0,
+      "node_route_calls": 407
+    },
+    "different_positive_test_ids": 2134,
+    "whole_suite_green": false,
+    "remaining_test_units": 6,
+    "remaining_failure_events": 7,
+    "stale_catalog_count_assertions": [
+      "test_request_reliability.Selection.test_exact_original_question_and_model_payload_retained",
+      "test_template_only.Catalogue.test_all_85_ids_migrated",
+      "test_template_only.Pilot.test_exact_original_question_and_model_payload_retained"
+    ],
+    "missing_external_fixtures": [
+      "unittest.loader._FailedTest.test_legacy_voice_clarification",
+      "test_request_reliability.Session.test_durable_outbox_binding_ack_and_no_content_after_ack"
+    ],
+    "parameter_kind_subtest_parent": "test_template_integration.AllTemplates.test_all_85_compile_without_speech_or_network",
+    "parameter_kind_subtest_ids": [
+      "parameter.loss_rate.v1",
+      "parameter.delivery_mean.v1"
+    ],
+    "original_failures_not_overwritten": true
+  },
+  "test_environment": {
+    "python": "3.12.13",
+    "installed_python": "3.12.3",
+    "approved_node": "v24.22.1",
+    "installed_node": "v24.22.2",
+    "node_dependency_routing_in_test_driver_only": true,
+    "non_executable_shared_node_mode": "0644",
+    "shared_node_file_not_changed": true,
+    "native_tests_and_assertions_unchanged": true,
+    "original_network_guards_unchanged": true,
+    "source_provenance_driver_adapted_without_fake_git_state": true,
+    "synthetic_transport_only": true
+  },
+  "process_checks": {
+    "scope": "AUTHOR_CHECKS_REAL_PROCESS_EXIT_ON_PRIVATE_SYNTHETIC_DATABASE_NOT_INDEPENDENT_STAGE_ACCEPTANCE",
+    "cases": {
+      "unknown": {
+        "mode": "unknown",
+        "first_process_exit": 23,
+        "expected_abrupt_exit": 23,
+        "second_process_exit": 0,
+        "checks": {
+          "new_worker_does_not_dispatch_unknown": true,
+          "refresh_keeps_same_unknown": true,
+          "no_second_dispatch": true
+        },
+        "all_passed": true,
+        "state_after": "UNKNOWN",
+        "new_fixture_http_calls": 0,
+        "call_rows_after": 1,
+        "passed": true
+      },
+      "cancel": {
+        "mode": "cancel",
+        "first_process_exit": 23,
+        "expected_abrupt_exit": 23,
+        "second_process_exit": 0,
+        "checks": {
+          "new_worker_does_not_dispatch_cancelled": true,
+          "late_completion_denied": true,
+          "cancelled_not_revived": true,
+          "no_future_call": true
+        },
+        "all_passed": true,
+        "state_after": "CANCELLED",
+        "new_fixture_http_calls": 0,
+        "call_rows_after": 1,
+        "passed": true
+      },
+      "ttl": {
+        "mode": "ttl",
+        "first_process_exit": 23,
+        "expected_abrupt_exit": 23,
+        "second_process_exit": 0,
+        "checks": {
+          "expired_sensitive_payload_erased": true,
+          "expired_not_ready": true,
+          "no_recalculation": true
+        },
+        "all_passed": true,
+        "state_after": "EXPIRED",
+        "new_fixture_http_calls": 0,
+        "call_rows_after": 1,
+        "passed": true
+      },
+      "restart": {
+        "mode": "restart",
+        "first_process_exit": 23,
+        "expected_abrupt_exit": 23,
+        "second_process_exit": 0,
+        "checks": {
+          "new_process_owns_same_job": true,
+          "old_owner_fenced": true,
+          "recovered_to_ready": true,
+          "confirmed_page_not_repeated": true,
+          "three_pages_once": true,
+          "source_pacing_respected": true,
+          "all_rows_without_duplicates": true
+        },
+        "all_passed": true,
+        "state_after": "READY",
+        "new_fixture_http_calls": 2,
+        "call_rows_after": 3,
+        "passed": true
+      }
+    },
+    "scenario_count": 4,
+    "expected_first_process_exit": 23,
+    "three_page_fixture": {
+      "platform": "WB_SYNTHETIC",
+      "page_offsets": [
+        0,
+        1000,
+        2000
+      ],
+      "page_lengths": [
+        1000,
+        1000,
+        1
+      ],
+      "rows": 2001,
+      "restart_after_durable_first_page": true,
+      "confirmed_page_repeated": false,
+      "provider_pacing_preserved": true
+    },
+    "historical_process_attempts_preserved": [
+      "PROCESS_RESULT.json",
+      "PROCESS_RESULT_V2.json",
+      "PROCESS_RESULT_V3.json"
+    ],
+    "limitations": [
+      "Stopping after low-level HTTP receipt but before page checkpoint repeated one safe read in the first experiment; no arbitrary-killpoint exactly-once claim.",
+      "TTL content erase accepts empty JSON sentinel {}; after sweep original request/plan/progress/result content is absent.",
+      "Initial v2 restart fixture did not advance its fake clock to the recorded due time; v3 respects pacing without disabling it."
+    ],
+    "script_sha256": {
+      "process_fixture.py": "06b6dd22fe48696cfafe0298ce8e29d5851c4417de9f25519d125e11eb01befe",
+      "process_fixture_v2.py": "15257953cebcb513eeef4d6f40d1a3f081cd91562c4f9054ca8b2eb5fec56d08",
+      "process_fixture_v3.py": "c98fcd29e2a8e11cc489e74c7267f55e16471f8a5ae6b383e9cb9a32264a2c1e"
+    }
+  },
+  "production_observation": {
+    "baseline": {
+      "checked_at": "2026-11-15T12:10:23.435334+00:00",
+      "native_states": {
+        "EXPIRED": 6,
+        "FAILED": 1,
+        "UNKNOWN": 4
+      },
+      "unknown_ids_sha256": "c2945b1122ea86480f38e69f5f7461367782bd70de156f2f8143c848a38f4e91",
+      "physical_call_rows": 1233,
+      "root_free_bytes": 3333754880,
+      "root_reserve_bytes": 3221225472,
+      "root_reserve_deficit_bytes": 0,
+      "scope": "READ_ONLY_COUNTS_NO_PAYLOAD_OR_RESUME",
+      "measurement_position": "AFTER_FIRST_OFFLINE_SUITE_BEFORE_NODE_RETRY_AND_PROCESS_CHECKS"
+    },
+    "postcheck": {
+      "checked_at": "2026-11-15T12:42:01.496062+00:00",
+      "native_release": "alisa-parameters-1d572aebf6b05b88",
+      "native_manifest_sha256": "20c5afddbc8f07c86e72a33676d4475c4b23b7c0316bc73f814e51dc5a60e95e",
+      "all_184_files_match": true,
+      "native_states": {
+        "EXPIRED": 6,
+        "FAILED": 1,
+        "UNKNOWN": 4
+      },
+      "unknown_ids_sha256": "c2945b1122ea86480f38e69f5f7461367782bd70de156f2f8143c848a38f4e91",
+      "physical_call_rows": 1198,
+      "all_nine_active": true,
+      "root_free_bytes": 3934871552,
+      "root_reserve_deficit_bytes": 0,
+      "scope": "READ_ONLY_POSTCHECK_NO_PAYLOAD_OR_RESUME"
+    },
+    "call_times": {
+      "checked_at": "2026-11-15T12:44:37.550046+00:00",
+      "test_started_at": "2026-11-15T12:08:49.205719+00:00",
+      "calls_at_or_after_test_start": 0,
+      "latest_physical_call_at": "2026-11-15T11:14:35.329065+00:00",
+      "scope": "READ_ONLY_TIMESTAMPS_NO_PAYLOAD"
+    },
+    "unknown_four_unchanged": true,
+    "call_row_count_is_not_monotonic": true,
+    "call_rows_decreased": 35,
+    "counter_difference_not_used_as_no_new_calls_proof": true,
+    "no_new_calls_proof": "No production calls with at >= offline test start; latest call predates it.",
+    "retention_or_other_cleanup_cause_not_attributed_to_this_task": true
+  },
+  "cleanup": {
+    "checked_at": "2026-11-15T12:48:11.229976+00:00",
+    "all_five_units_inactive": true,
+    "test_cgroups_empty": true,
+    "own_source_and_fixture_tmpfs_removed": true,
+    "archives": [
+      {
+        "name": "native-source-20c5afddbc8f.tar.gz",
+        "bytes": 738244,
+        "sha256": "f9903e580f98d8bbd5db8b9499e2027d572ec0946f08f8eba38ad0a6fbafc9d3"
+      },
+      {
+        "name": "synthetic-process-databases.tar.gz",
+        "bytes": 45586,
+        "sha256": "dfda9c25cdcdbf821b9c5a954d44b3704724ad4e9c4b01694aaa0ff7f7968b03"
+      }
+    ],
+    "source_archive_all184_entries_verified": true,
+    "synthetic_database_count": 7,
+    "production_data_archived": false,
+    "root_free_bytes": 3345735680
+  },
+  "evidence_directory": "/root/alisa-native-lifecycle-acceptance-20261115",
+  "synthetic_database_archive_contains_no_production_data": true,
+  "roadmap_change": {
+    "AL-T08-02": "SYNTHETIC_PASS",
+    "scope": "Exact copied installed code, private WB fixture, real process exit/restart after confirmed page1; not live service restart."
+  },
+  "remaining_installed_ui_voice_and_other_criteria_not_closed": true
+}
