@@ -1,0 +1,20 @@
+{
+  "model": "gpt-6-luna",
+  "initial_source": "4df428659e2b76d3458a19fec734a820a519bb02",
+  "approved_source": "a0ed8d1235a3e8d101c9c993cb9c0db9744cfd27",
+  "scope": "read-only five-file product/test diff plus immediate consumers; no tests/API/live execution by reviewer",
+  "before_fix_review_cases": 7,
+  "before_fix_failures": 6,
+  "source_reviews": {
+    "REVIEW.md": {
+      "original_sha256": "fd0abb1a86eaece655af6233b2f0c90f69fd152c271029105476d7ae0d997154",
+      "published_file": "REVIEW_INITIAL.md",
+      "format_only_adjustment": "absolute local links replaced by repository-relative code locations; terminal newline"
+    },
+    "REVIEW_FINAL.md": {
+      "original_sha256": "6d34dc133522bcdcd6c0be01a025bafa0452ba8319274d87a0ef29822416f338",
+      "published_file": "REVIEW_FINAL.md",
+      "format_only_adjustment": "absolute local links replaced by repository-relative code locations; terminal newline"
+    }
+  }
+}

@@ -10,7 +10,7 @@ SPECIALIZED={
  'parameter_dependencies':{'test_binding':'base','test_service':'base'},
  'parameter_compound':{'test_contract':'compound','test_worker':'compound','test_program_socket':'compound','test_review_races':'compound'},
  'economics_cohort':{'test_sources':'base','test_current':'base','test_reference':'base'},
- 'economics_ledger':{'test_accruals':'base','test_worker':'ledger'},
+ 'economics_ledger':{'test_accruals':'base','test_realization':'base','test_worker':'ledger'},
  'owner_catalog':{'test_catalog_ipc':'ledger','test_product_catalog':'ledger'},
 }
 

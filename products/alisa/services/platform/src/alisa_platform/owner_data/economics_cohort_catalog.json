@@ -119,7 +119,8 @@
       "fallback_kind": {
         "fbo": "SCHEME_TARIFF_ESTIMATE",
         "fbs": "SCHEME_TARIFF_ESTIMATE"
-      }
+      },
+      "document_input": "sale_base_commission"
     },
     "acquiring": {
       "fee_group": "acquiring",
