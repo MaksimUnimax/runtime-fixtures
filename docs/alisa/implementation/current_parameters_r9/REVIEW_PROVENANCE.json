@@ -1,0 +1,13 @@
+{
+  "model": "gpt-6-luna",
+  "mode": "read-only independent CLI",
+  "reviewed_base": "be767a6570a8a6ff258300e378571a1f59648a3f",
+  "corrected_source": "e3968e238753d51b72a3303cbb1d9dee8a19115e",
+  "initial_verdict": "REQUEST_CHANGES",
+  "final_verdict": "SOURCE_APPROVE",
+  "scope": "confirmed session TOCTOU correction and exact before_dispatch runtime interface",
+  "raw_initial_sha256": "a479d55583f603856a958ebb9e04cece7cf674ffa1d9b0d921ee0991465c0ca1",
+  "raw_final_sha256": "8fba64fb449096c0f1d51ba91274a4b63ab7ce835a00081a1f4734230cc240a5",
+  "publication_formatting_only": "absolute machine links converted to inline repository file locations; final newline",
+  "full_project_or_live_approval": false
+}
