@@ -5,13 +5,13 @@ commission field and not sale minus return. The source does not establish cash
 acquiring, an original-accrual ID, or absence of later adjustments. No IO here.
 """
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass,field
 from datetime import date
 from decimal import Decimal, localcontext
 from hashlib import sha256
 from calendar import monthrange
 from collections import defaultdict
-import json,re
+import json,re,hmac,secrets
 from zoneinfo import ZoneInfo
 from . import parameter_contract as c
 
@@ -23,6 +23,29 @@ ADDITIVE=('quantity',)+MONEY[1:]
 HEADER={'number','doc_date','start_date','stop_date','contract_date','contract_number',
         'payer_name','payer_inn','payer_kpp','receiver_name','receiver_inn','receiver_kpp','currency_sys_name'}
 HEX=re.compile(r'[a-f0-9]{64}')
+# Request-local integrity capabilities, not account credentials or permissions.
+# They are deliberately not serialized/reloadable across processes. Current
+# authority and the original Worker receipt verifier remain mandatory at source.
+_CREATION_KEY=secrets.token_bytes(32)
+
+def _seal(domain,text):
+    return hmac.new(_CREATION_KEY,(domain+'\0'+text).encode(),'sha256').hexdigest()
+
+def _snapshot_proof(value):
+    need(type(value)is RealizationSnapshot,'REALIZATION_TYPED_SNAPSHOT_REQUIRED')
+    need(type(value.payload_json)is str and type(value._proof)is str and
+         hmac.compare_digest(value._proof,_seal('snapshot',value.payload_json)),
+         'REALIZATION_SNAPSHOT_NOT_ATTESTED')
+
+def _pair_text(posting,monthly):
+    _snapshot_proof(posting);_snapshot_proof(monthly)
+    return c.CANON([posting._proof,monthly._proof])
+
+def _pair_proof(value):
+    need(type(value)is ReconciledRealization,'REALIZATION_RECONCILED_REQUIRED')
+    text=_pair_text(value.posting,value.monthly)
+    need(type(value._proof)is str and hmac.compare_digest(value._proof,_seal('pair',text)),
+         'REALIZATION_PAIR_NOT_RECONCILED')
 
 class RealizationError(ValueError):
     def __init__(self,code):self.code=code;super().__init__(code)
@@ -66,9 +89,11 @@ def _constant(value):raise RealizationError('REALIZATION_NUMBER')
 @dataclass(frozen=True,repr=False)
 class RealizationSnapshot:
     payload_json:str
+    _proof:str=field(default='',repr=False)
     def __repr__(self):return '<RealizationSnapshot; document, not event stream>'
     @property
-    def data(self):return json.loads(self.payload_json)
+    def data(self):
+        _snapshot_proof(self);return json.loads(self.payload_json)
     def summary(self):
         data=self.data
         return {k:deepcopy(data[k])for k in ('kind','scope','report_period','document_key','document_date',
@@ -152,12 +177,13 @@ def normalize(packet,*,verify,encode):
             need(bool(row['sides']),'REALIZATION_EMPTY_ROW')
             rows.append(row)
     data={'kind':kind,'scope':target,'report_period':period,'document_key':document_key,
-          'document_date':document_date.isoformat(),'source_receipt':str(packet['receipt_id']),
+          'document_date':document_date.isoformat(),'source_receipt':_encoded(encode,'source-receipt',packet['receipt_id']),
           'source_sha256':packet['response_sha256'],'observed_at':observed.isoformat(),
           'row_count':len(rows),'branch_counts':dict(branches),'rows':rows,
           'date_axis':'REALIZATION_MONTH_NOT_ORDER_COHORT','original_accrual_relations_proven':False,
           'acquiring_present':False,'snapshot_versions_are_not_additive':True}
-    return RealizationSnapshot(c.CANON(data))
+    text=c.CANON(data)
+    return RealizationSnapshot(text,_seal('snapshot',text))
 
 
 def _totals(snapshot):
@@ -174,8 +200,10 @@ def _totals(snapshot):
 class ReconciledRealization:
     posting:RealizationSnapshot
     monthly:RealizationSnapshot
+    _proof:str=field(default='',repr=False)
     def __repr__(self):return '<ReconciledRealization; one current document pair>'
     def checkpoint(self):
+        _pair_proof(self)
         return {'document_key':self.posting.data['document_key'],'report_period':self.posting.data['report_period'],
                 'source_sha256':[self.posting.data['source_sha256'],self.monthly.data['source_sha256']],
                 'receipts':[self.posting.data['source_receipt'],self.monthly.data['source_receipt']],
@@ -189,7 +217,7 @@ def reconcile(posting,monthly):
     need(all(left[k]==right[k]for k in ('scope','report_period','document_key','document_date')),'REALIZATION_DOCUMENT_MISMATCH')
     need(left['source_receipt']!=right['source_receipt'],'REALIZATION_RECEIPT_REUSED')
     need(_totals(posting)==_totals(monthly),'REALIZATION_TOTALS_MISMATCH')
-    return ReconciledRealization(posting,monthly)
+    return ReconciledRealization(posting,monthly,_seal('pair',_pair_text(posting,monthly)))
 
 
 def commission_matches(reconciled,orders,target):
@@ -199,7 +227,7 @@ def commission_matches(reconciled,orders,target):
     Missing/partial/return-only realization is explicit unknown, never zero.
     Returns remain separate: no sale-return netting or fabricated parent events.
     """
-    need(type(reconciled)is ReconciledRealization,'REALIZATION_RECONCILED_REQUIRED')
+    _pair_proof(reconciled)
     document=reconciled.posting.data
     need(document['scope']==target,'REALIZATION_SCOPE')
     need(type(orders)is list,'REALIZATION_ORDERS')

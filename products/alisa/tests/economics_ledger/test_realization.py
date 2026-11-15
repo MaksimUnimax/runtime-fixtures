@@ -187,3 +187,32 @@ class CohortBinding(TestCase):
   bad=r.reconcile(normalized(scope={**TARGET,'tenant_id':'other'}),normalized(kind='MONTHLY',scope={**TARGET,'tenant_id':'other'}))
   with self.assertRaises(e.EconomicsError):self.calculation(document=bad)
  def test_ordinary_R10_without_document_unchanged(self):self.assertEqual(f.qualify().rows[0]['inputs']['commission_original'],'200')
+
+class ReviewBoundary(TestCase):
+ def test_public_snapshot_constructor_is_not_receipt_proof(self):
+  good=normalized();forged=r.RealizationSnapshot(good.payload_json)
+  with self.assertRaises(r.RealizationError):r.reconcile(forged,normalized(kind='MONTHLY'))
+ def test_public_pair_constructor_is_not_reconciliation_proof(self):
+  forged=r.ReconciledRealization(normalized(),normalized(kind='MONTHLY'))
+  with self.assertRaises(r.RealizationError):r.commission_matches(forged,[order()],TARGET)
+ def test_forged_pair_cannot_override_R10_commission(self):
+  data=normalized().data;data['rows'][0]['sides']['SALE']['standard_fee']='999'
+  forged=r.ReconciledRealization(r.RealizationSnapshot(e.c.CANON(data)),normalized(kind='MONTHLY'))
+  bundle=f.bundle(rows=[order()])
+  with self.assertRaises(e.EconomicsError):e.qualify(bundle,TARGET,f.PERIOD,verify=f.attested(bundle),realization=forged)
+ def test_snapshot_copy_with_changed_payload_is_denied(self):
+  from dataclasses import replace
+  good=normalized();data=good.data;data['rows'][0]['sides']['SALE']['standard_fee']='999'
+  changed=replace(good,payload_json=e.c.CANON(data))
+  with self.assertRaises(r.RealizationError):r.reconcile(changed,normalized(kind='MONTHLY'))
+ def test_snapshot_summary_cannot_hide_forged_content(self):
+  with self.assertRaises(r.RealizationError):r.RealizationSnapshot(normalized().payload_json).summary()
+ def test_receipt_identifier_is_encoded_not_copied(self):
+  a=packet();a['receipt_id']='name@example.com'
+  p=r.normalize(a,verify=lambda x:True,encode=encode);q=r.reconcile(p,normalized(kind='MONTHLY'))
+  self.assertNotIn('name@example.com',p.payload_json);self.assertNotIn('name@example.com',json.dumps(q.checkpoint()))
+ def test_pair_with_substituted_snapshot_cannot_reuse_seal(self):
+  from dataclasses import replace
+  good=pair();other=normalized(source([row(posting='p2')]))
+  changed=replace(good,posting=other)
+  with self.assertRaises(r.RealizationError):r.commission_matches(changed,[order('p2')],TARGET)
