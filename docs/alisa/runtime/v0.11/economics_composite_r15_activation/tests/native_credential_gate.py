@@ -33,12 +33,87 @@ def need(ok, code):
     if not ok: raise RuntimeError(code)
 
 
+class FixtureCommandFailure(RuntimeError):
+    def __init__(self, operation, exit_status, code, *, timed_out=False):
+        super().__init__('FIXTURE_COMMAND_FAILED')
+        self.public = {'operation': operation, 'exit_status': exit_status,
+                       'error_code': code, 'timed_out': timed_out}
+
+
+def command_operation(args):
+    if args[0] == '/usr/bin/systemd-run': return 'PRODUCER_START'
+    if args[0] == '/usr/bin/systemd': return 'SYSTEMD_VERSION'
+    if args[:2] == ('/usr/bin/systemctl', 'show'): return 'UNIT_METADATA'
+    if args[:2] == ('/usr/bin/systemctl', 'restart'): return 'PRODUCER_RESTART'
+    if args[:2] == ('/usr/bin/systemctl', 'stop'): return 'PRODUCER_STOP'
+    return 'FIXTURE_COMMAND'
+
+
 def command(*args, timeout=12):
-    result = subprocess.run(args, stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout,
-                            env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C.UTF-8'})
-    need(result.returncode == 0 and len(result.stdout) <= 16384 and len(result.stderr) <= 16384,
-         'FIXTURE_COMMAND_FAILED')
+    operation = command_operation(args)
+    try:
+        result = subprocess.run(args, stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout,
+                                env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C.UTF-8'})
+    except subprocess.TimeoutExpired:
+        raise FixtureCommandFailure(operation, None, 'TIMEOUT', timed_out=True) from None
+    if len(result.stdout) > 16384 or len(result.stderr) > 16384:
+        raise FixtureCommandFailure(operation, result.returncode, 'OUTPUT_BOUND')
+    if result.returncode:
+        # Classify known fixed signatures only; never return command arguments,
+        # output, paths, credential values or arbitrary exception messages.
+        text = result.stderr[:4096].lower()
+        code = ('EXEC_CHDIR' if b'chdir' in text or b'status=200' in text else
+                'EXEC_FAILED' if b'status=203' in text else
+                'PERMISSION_DENIED' if b'permission denied' in text else
+                'UNIT_ALREADY_EXISTS' if b'already exists' in text else 'NONZERO_EXIT')
+        raise FixtureCommandFailure(operation, result.returncode, code)
     return result.stdout
+
+
+def failed_unit_metadata(unit):
+    need(re.fullmatch(r'alisa-r15-native-credential-ci-[0-9]+-[0-9]+-native\.service', unit),
+         'FIXTURE_DIAGNOSTIC_SCOPE')
+    enums = {
+        'LoadState': {'loaded', 'not-found', 'bad-setting', 'error', 'masked'},
+        'ActiveState': {'active', 'inactive', 'failed', 'activating', 'deactivating', 'reloading', 'maintenance'},
+        'SubState': {'dead', 'running', 'exited', 'failed', 'start', 'start-pre', 'start-post',
+                     'stop', 'stop-sigterm', 'stop-sigkill', 'stop-post', 'auto-restart'},
+        'Result': {'success', 'resources', 'timeout', 'exit-code', 'signal', 'core-dump',
+                   'watchdog', 'start-limit-hit', 'oom-kill', 'protocol'},
+        'Transient': {'yes', 'no'},
+    }
+    numbers = ('ExecMainCode', 'ExecMainStatus', 'MainPID', 'ControlPID')
+    names = (*enums, *numbers, 'InvocationID')
+    try:
+        raw = command('/usr/bin/systemctl', 'show', unit, '--property='+','.join(names), timeout=5)
+    except FixtureCommandFailure as error:
+        return {'unit': unit, 'metadata_status': 'UNAVAILABLE', 'query_failure': error.public}
+    result = {'unit': unit, 'metadata_status': 'READ'}
+    for line in raw.decode(errors='replace').splitlines():
+        key, sep, value = line.partition('=')
+        if not sep or key not in names: continue
+        if key in enums:
+            result[key] = value if value in enums[key] else 'UNRECOGNIZED'
+        elif key in numbers:
+            result[key] = int(value) if re.fullmatch('[0-9]{1,20}', value) else 'UNRECOGNIZED'
+        elif key == 'InvocationID':
+            result[key] = value if re.fullmatch('[0-9a-f]{32}', value) else 'UNAVAILABLE'
+    return result
+
+
+def make_immutable_cwd(path):
+    path.mkdir(mode=0o555)  # Refuse any pre-existing entry, including a symlink.
+    path.chmod(0o555)  # mkdir's mode alone is reduced to 0500 by UMask=0077.
+
+
+def validate_native_cwd(path):
+    info = path.lstat()
+    need(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and stat.S_IMODE(info.st_mode) == 0o555,
+         'FIXTURE_CWD_METADATA')
+    for parent in path.parents:
+        info = parent.lstat()
+        need(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022
+             and info.st_mode & stat.S_IXOTH, 'FIXTURE_CWD_TRAVERSAL')
 
 
 def property_value(unit, name):
@@ -136,9 +211,9 @@ def gate(workspace, source_sha):
     private = root/'private'
     private.mkdir(mode=0o700)
     cwd = root/'release'
-    cwd.mkdir(mode=0o555)
+    make_immutable_cwd(cwd)
     wrong_cwd = root/'wrong-release'
-    wrong_cwd.mkdir(mode=0o555)
+    make_immutable_cwd(wrong_cwd)
     link = root/'current'
     link.symlink_to(cwd, target_is_directory=True)
     material = {'seller_client_id': '11', 'seller_api_key': 'synthetic-seller',
@@ -150,7 +225,7 @@ def gate(workspace, source_sha):
     native_uid = pwd.getpwnam('nobody').pw_uid
     native_gid = pwd.getpwnam('nobody').pw_gid
     socket_path = runtime/'native.sock'
-    description = 'R15 owned synthetic native credential lifecycle '+workspace.name
+    description = 'R15 owned synthetic native credential lifecycle '+workspace.name+' '+root.name
     checks, retained, writes, checker_calls = [], [], [], []
     started, invocation, cleaned, removed = False, None, False, False
     a = binding = None
@@ -175,9 +250,24 @@ def gate(workspace, source_sha):
             'ReadWritePaths': str(runtime), 'LoadCredential': 'fixture.json:'+str(credential),
             'StandardOutput': 'null', 'StandardError': 'null',
         }
-        command('/usr/bin/systemd-run', '--quiet', '--collect', '--unit='+producer,
-                *('--property='+key+'='+value for key, value in properties.items()),
-                '/usr/bin/python3', '-I', '-B', '-c', PRODUCER, str(socket_path), str(native_uid))
+        validate_native_cwd(cwd)
+        validate_native_cwd(wrong_cwd)
+        try:
+            # Keep an owned failed unit available long enough to record its
+            # bounded exit metadata; strict cleanup below stops that same unit.
+            command('/usr/bin/systemd-run', '--quiet', '--unit='+producer,
+                    *('--property='+key+'='+value for key, value in properties.items()),
+                    '/usr/bin/python3', '-I', '-B', '-c', PRODUCER, str(socket_path), str(native_uid))
+        except FixtureCommandFailure as error:
+            error.public['unit_state'] = failed_unit_metadata(producer)
+            if (error.public['error_code'] != 'UNIT_ALREADY_EXISTS'
+                    and error.public['unit_state'].get('LoadState') != 'not-found'
+                    and property_value(producer, 'Description') == description
+                    and property_value(producer, 'Transient') == 'yes'
+                    and property_value(producer, 'FragmentPath') == '/run/systemd/transient/'+producer):
+                invocation = property_value(producer, 'InvocationID')
+                started = re.fullmatch('[0-9a-f]{32}', invocation) is not None
+            raise
         started = True
         invocation = property_value(producer, 'InvocationID')
         need(re.fullmatch('[0-9a-f]{32}', invocation) is not None, 'PRODUCER_INVOCATION')
@@ -409,9 +499,16 @@ def main():
             frames.append({'file': Path(trace.tb_frame.f_code.co_filename).name,
                            'function': trace.tb_frame.f_code.co_name, 'line': trace.tb_lineno})
             trace = trace.tb_next
-        print(json.dumps({'status': 'BLOCKED', 'code': 'NATIVE_CREDENTIAL_FIXTURE_FAILED',
-                          'exception_type': type(error).__name__, 'frames': frames,
-                          'source_sha': args.source_sha, 'production_access': False}, sort_keys=True))
+        result = {'status': 'BLOCKED', 'code': 'NATIVE_CREDENTIAL_FIXTURE_FAILED',
+                  'exception_type': type(error).__name__, 'frames': frames,
+                  'source_sha': args.source_sha, 'production_access': False}
+        current = error
+        while current is not None:
+            if isinstance(current, FixtureCommandFailure):
+                result['command_failure'] = current.public
+                break
+            current = current.__context__
+        print(json.dumps(result, sort_keys=True))
         return 2
     print(json.dumps(result, sort_keys=True))
     return 0

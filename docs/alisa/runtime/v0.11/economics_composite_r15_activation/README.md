@@ -420,8 +420,9 @@ database and role were confirmed removed afterward. That evidence establishes
 SQL behavior in the isolated fixture, not current production visibility, current
 idle state, installed synthetic acceptance, or a live financial result.
 
-The native credential correction passes 116 local source tests, including 15
-new descriptor/HMAC cases. The local descriptor fixtures explicitly substitute
+The native credential correction and its CI setup regression pass 122 local
+source tests, including 15 descriptor/HMAC cases and six gate setup/diagnostic
+cases. The local descriptor fixtures explicitly substitute
 their own UID and read-only mount bit; they do not claim a kernel namespace
 result. Independent review ran those 15 cases and ten additional rejection/CAS
 cases against the frozen runtime source.
@@ -448,3 +449,26 @@ The artifact records exact source/tool/helper identities, systemd version,
 checks and owned cleanup. This new real lifecycle gate remains **NOT_RUN** at
 source qualification; its eventual current-commit CI artifact is separate
 evidence. No production retry or application mutation was used to author it.
+
+The first real CI run on source `ed3ce2c5fa4d02dde7f3005b4ef7fe7904beafee`
+(`43726077665`) failed while starting the disposable producer, before the
+lifecycle checks. Its 116 source tests and ten private-bundle checks passed;
+PostgreSQL was not reached. The producer's immediate collection and discarded
+stderr did not preserve its actual exit reason. A separate real-umask
+reproduction established a concrete setup defect: `mkdir(mode=0555)` under
+the observer's `UMask=0077` creates `0500`, so `nobody` lacks traversal access.
+Both synthetic release directories now receive explicit `chmod(0555)` and
+exact root-owner, directory-mode and ancestor-traversal checks before startup.
+The six new local cases use the real restrictive umask and test diagnostic
+redaction; they do not substitute for a successful new-commit lifecycle run.
+
+An owned failed producer is now retained until its bounded status has been
+observed and strict identity cleanup has completed. Failure output contains
+only a fixed operation/error classification, numeric exit status or timeout,
+and whitelisted properties of that exact fixture unit. Raw argv, stdout,
+stderr and arbitrary error messages remain private. The startup-failure path
+requires the fresh fixture identity before cleanup; an occupied-name refusal
+cannot adopt or stop another unit. `BindsTo`, finite limits, zero swap and
+five-second stop timeouts remain in place. This setup correction changes no
+runtime tool file: tool identity remains
+`d1d3ca18cdca4d5419fd53dbfd924bb71bf529d409ae0f076d6e42c395dfff04`.
