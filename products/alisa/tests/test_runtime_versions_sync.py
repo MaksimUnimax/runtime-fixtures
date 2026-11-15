@@ -107,6 +107,18 @@ class RuntimeVersions(unittest.TestCase):
     def test_manifest_change_during_computation_is_denied(self):
         def calculate(_): self.manifest['source_commit']='2'*40;self.write_manifest();return dict(self.current)
         self.blocked('SOURCE_CHANGED',lambda:self.publish(calculate=calculate))
+    def test_manifest_same_metadata_different_source_is_denied(self):
+        from unittest.mock import patch
+        original=sync.read_file
+        _,before=original(self.source/'manifest.json',sync.MAX_FILE,os.getuid(),single_link=False)
+        def read(path,*args,**kwargs):
+            raw,meta=original(path,*args,**kwargs)
+            return (raw,before)if path==self.source/'manifest.json'else(raw,meta)
+        def calculate(_):
+            self.manifest['source_commit']='2'*40;self.write_manifest();return dict(self.current)
+        old=self.versions.read_bytes()
+        with patch.object(sync,'read_file',read):self.blocked('SOURCE_CHANGED',lambda:self.publish(calculate=calculate))
+        self.assertEqual(self.versions.read_bytes(),old)
     def test_concurrent_config_change_is_preserved(self):
         replacement=b'{"runtime_port":{"enabled":false}}'
         def calculate(_): self.config.write_bytes(replacement);return dict(self.current)

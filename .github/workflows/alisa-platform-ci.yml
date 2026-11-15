@@ -1,10 +1,10 @@
 name: Alisa platform source checks
 on:
   pull_request:
-    paths: ['products/alisa/**', 'docs/alisa/runtime/v0.11/rt_check_r01/**', 'docs/alisa/runtime/v0.11/rt_job_r02/**', 'docs/alisa/runtime/v0.11/question_catalog_r1/**', 'docs/alisa/quality/scripts/*question_catalog*', '.github/workflows/alisa-platform-ci.yml']
+    paths: ['products/alisa/**', 'docs/alisa/runtime/v0.11/rt_check_r01/**', 'docs/alisa/runtime/v0.11/rt_job_r02/**', 'docs/alisa/runtime/v0.11/question_catalog_r1/**', 'docs/alisa/runtime/v0.11/current_parameters_r4/**', 'docs/alisa/runtime/v0.11/current_parameters_r5/**', 'docs/alisa/runtime/v0.11/current_parameters_r8/**', 'docs/alisa/runtime/v0.11/economics_ledger_r11/**', 'docs/alisa/quality/scripts/*question_catalog*', '.github/workflows/alisa-platform-ci.yml']
   push:
     branches: ['feat/alisa-platform-foundation-v05', 'feat/alisa-site-funnel-v05']
-    paths: ['products/alisa/**', 'docs/alisa/runtime/v0.11/rt_check_r01/**', 'docs/alisa/runtime/v0.11/rt_job_r02/**', 'docs/alisa/runtime/v0.11/question_catalog_r1/**', 'docs/alisa/quality/scripts/*question_catalog*', '.github/workflows/alisa-platform-ci.yml']
+    paths: ['products/alisa/**', 'docs/alisa/runtime/v0.11/rt_check_r01/**', 'docs/alisa/runtime/v0.11/rt_job_r02/**', 'docs/alisa/runtime/v0.11/question_catalog_r1/**', 'docs/alisa/runtime/v0.11/current_parameters_r4/**', 'docs/alisa/runtime/v0.11/current_parameters_r5/**', 'docs/alisa/runtime/v0.11/current_parameters_r8/**', 'docs/alisa/runtime/v0.11/economics_ledger_r11/**', 'docs/alisa/quality/scripts/*question_catalog*', '.github/workflows/alisa-platform-ci.yml']
 permissions:
   contents: read
 jobs:
@@ -178,3 +178,68 @@ jobs:
             products/alisa/dist/rt-check-*.tar.gz.sha256
           if-no-files-found: error
           retention-days: 14
+
+  parameters:
+    name: Parameter and economics source suites
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.1'
+      - name: Install exact locked Python test dependencies
+        working-directory: products/alisa
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --require-hashes -r requirements-dev.lock
+      - name: Reproduce pinned coefficient runtime test fixture
+        working-directory: products/alisa
+        run: |
+          export PARAMETER_TEST_RUNTIME_ROOT="/dev/shm/alisa-parameter-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "PARAMETER_TEST_RUNTIME_ROOT=$PARAMETER_TEST_RUNTIME_ROOT" >> "$GITHUB_ENV"
+          .venv/bin/python -B tests/current_parameters/build_native_fixture.py             --output "$PARAMETER_TEST_RUNTIME_ROOT" --receipt dist/parameter-native-fixture.json
+      - name: Explicit coefficient, compound and economics suites on owned Unix PostgreSQL
+        timeout-minutes: 12
+        working-directory: products/alisa
+        run: |
+          set -euo pipefail
+          name="alisa-parameter-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          root="/dev/shm/alisa-current-parameters-pg-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          test ! -e "$root"
+          mkdir -m 700 "$root"
+          mkdir -m 700 "$root/socket"
+          sudo chown 999:999 "$root/socket"
+          export PARAMETER_TEST_SOCKET="$root/socket"
+          export ALISA_TEST_NODE="$(command -v node)"
+          cleanup() {
+            label="$(docker inspect -f '{{ index .Config.Labels "alisa.task" }}' "$name" 2>/dev/null || true)"
+            if [ "$label" = "$name" ]; then docker rm -f "$name"; fi
+          }
+          trap cleanup EXIT
+          docker run -d --name "$name" --label "alisa.task=$name" --network none             --memory 384m --memory-swap 384m --cpus 1 --pids-limit 128             --tmpfs /var/lib/postgresql/data:rw,size=192m             -v "$root/socket:/var/run/postgresql"             -e POSTGRES_DB=parameter_test -e POSTGRES_HOST_AUTH_METHOD=trust postgres:16.15
+          ready=0
+          for attempt in $(seq 1 60); do
+            if docker exec "$name" pg_isready -U postgres -d parameter_test; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" = 1
+          docker exec "$name" psql -U postgres -d parameter_test -v ON_ERROR_STOP=1             -c 'CREATE ROLE test_parameter_test_runtime NOLOGIN; CREATE ROLE parameter_test_runtime NOLOGIN;'
+          for suite in base collection compound ledger; do
+            sudo --preserve-env=PARAMETER_TEST_SOCKET,PARAMETER_TEST_RUNTIME_ROOT,ALISA_TEST_NODE               .venv/bin/python -B tests/current_parameters/ci_qualified_suites.py               --suite "$suite" --output "dist/parameter-${suite}-qualification.json"
+          done
+      - name: Retain source-only qualification receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alisa-parameter-qualification-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            products/alisa/dist/parameter-native-fixture.json
+            products/alisa/dist/parameter-*-qualification.json
+          if-no-files-found: error

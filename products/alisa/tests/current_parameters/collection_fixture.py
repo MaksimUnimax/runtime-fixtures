@@ -76,7 +76,7 @@ class Environment(Fixture):
         self.transport=Transport();self.transport.pending_once=False;self.worker=Worker(self.engine,self.transport)
         original=subprocess.run
         def node(command,*args,**kw):
-            if type(command)is list and command[0]=='/usr/local/bin/node':command=['/root/alisa-owner-toolchain/node-v24.22.1-linux-x64/bin/node',*command[1:]]
+            if type(command)is list and command[0]=='/usr/local/bin/node':command=[(__import__('os').environ.get('ALISA_TEST_NODE') or __import__('shutil').which('node') or '/root/alisa-owner-toolchain/node-v24.22.1-linux-x64/bin/node'),*command[1:]]
             return original(command,*args,**kw)
         self.node=patch('subprocess.run',node);self.node.start()
     def close(self):
