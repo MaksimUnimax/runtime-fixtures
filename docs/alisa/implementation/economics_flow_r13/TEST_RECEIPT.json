@@ -1,0 +1,68 @@
+{
+  "utc": "2026-11-15T04:11:17.222236+00:00",
+  "status": "QUALIFIED_SOURCE_COMPONENTS_NOT_FULL_USER_GRAPH",
+  "reviewed_source": "7b8e33f842be2fdaceb21fde82d433ed3c28b4b1",
+  "base": "c809da644654cbfdd166f8351133f3c28a1851c4",
+  "specialized_suites": {
+    "base": {
+      "status": "PASS",
+      "tests": 448,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "external_connections": 0,
+      "elapsed_seconds": 12.93
+    },
+    "ledger": {
+      "status": "PASS",
+      "tests": 65,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "external_connections": 0,
+      "elapsed_seconds": 35.786
+    },
+    "collection": {
+      "status": "PASS",
+      "tests": 32,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "external_connections": 0,
+      "elapsed_seconds": 220.019
+    },
+    "compound": {
+      "status": "PASS",
+      "tests": 51,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "external_connections": 0,
+      "elapsed_seconds": 162.319
+    }
+  },
+  "specialized_test_executions": 596,
+  "new_tests": 58,
+  "new_worker_tests": 26,
+  "new_tariff_tests": 32,
+  "foundation_tests": 150,
+  "foundation_skipped": 0,
+  "docs_unit_tests": 6,
+  "isolated_postgresql": "16.15 network=none",
+  "review": "SOURCE_APPROVE limited new code and tests scope",
+  "raw_real_source_replay": "PASS 72 SKU /144 scheme quotes /720 numeric comparisons",
+  "new_owner_provider_calls": 1,
+  "new_alisa_model_calls": 0,
+  "full_native_financial_query_registered": false,
+  "full_financial_source_graph_wired": false,
+  "live_deployed": false,
+  "initial_failures_preserved": [
+    "too-short synthetic dialogue ID",
+    "incorrect test expectation of fatal repeat-safe READ unknown error",
+    "combined collection+compound run reached240s after collectionPASS, compound separately rerun",
+    "foundation test lacked jsonschema in chosen env; reused existing test-doc dependency directory without product change"
+  ],
+  "no_tests_skipped_or_downgraded": true,
+  "prior_r12_exact_ci": "SUCCESS,not transferred to R13",
+  "r13_exact_github_ci": "PENDING_PUBLICATION"
+}
