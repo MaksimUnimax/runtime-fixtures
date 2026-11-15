@@ -1,0 +1,12 @@
+{
+  "reviewed_source": "7b8e33f842be2fdaceb21fde82d433ed3c28b4b1",
+  "base": "c809da644654cbfdd166f8351133f3c28a1851c4",
+  "verdict": "SOURCE_APPROVE",
+  "model": "gpt-6-luna",
+  "review_type": "Independent read-only source review; no product execution, no live grant",
+  "review_sha256": "90860917b9383e238d79b2d4e4bfdb26dc88366626be80b2993bf0d500682955",
+  "live_approval": false,
+  "full_project_review": false,
+  "published_review_sha256": "17e96ef7e9304390ee4ddd18cfd5b150d1e151692916c26544637e3aeb45b071",
+  "formatting_only_change": "Added final newline required by documentation check; raw review preserved in evidence"
+}

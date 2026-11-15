@@ -33,6 +33,9 @@ def build(target):
   else:module.prepare(target,platform)
  leaf=REPO/'docs/alisa/runtime/v0.11/economics_ledger_r11/accrual_source_runtime.py'
  shutil.copy2(leaf,target/leaf.name);shutil.copy2(platform/'economics_accruals.py',target/'parameter_support/economics_accruals.py')
+ flow=REPO/'docs/alisa/runtime/v0.11/economics_flow_r13'
+ for name in ('realization_source_runtime.py','realization_source_catalog.json'):shutil.copy2(flow/name,target/name)
+ for name in ('economics_realization.py','economics_cohort.py','economics_cohort_catalog.json'):shutil.copy2(platform/name,target/'parameter_support'/name)
  hashes={str(p.relative_to(target)):sha256(p.read_bytes()).hexdigest()for p in target.rglob('*')if p.is_file()and '__pycache__'not in p.parts}
  return {'status':'REPRODUCED_SOURCE_TEST_FIXTURE','files':hashes,'production_deployed':False,'archive_sha256':manifest['archive_sha256']}
 

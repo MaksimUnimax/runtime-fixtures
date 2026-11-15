@@ -1,0 +1,8 @@
+{
+  "observed_utc": "2026-11-15T04:00:36.526398+00:00",
+  "source": "c809da644654cbfdd166f8351133f3c28a1851c4",
+  "source_workflow": 43673364195,
+  "documentation_workflow": 43673364182,
+  "both_success": true,
+  "proof": "Exact SHA GitHub workflow status; not transferred to R13"
+}

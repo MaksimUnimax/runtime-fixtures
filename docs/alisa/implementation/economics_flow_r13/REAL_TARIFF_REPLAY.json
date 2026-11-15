@@ -1,0 +1,30 @@
+{
+  "utc": "2026-11-15T04:03:17.501926+00:00",
+  "status": "EXACT_REVIEWED_TARIFF_ADAPTER_ON_REAL_SOURCES_PASS",
+  "source": "7b8e33f842be2fdaceb21fde82d433ed3c28b4b1",
+  "normalizer_sha256": "980ee003526cb9cef25a5e104a63d881770991b485211e588192f39fdeb67596",
+  "price_pages": 2,
+  "price_products": 72,
+  "mapped_products_in_product_response": 72,
+  "qualified_price_skus": 72,
+  "scheme_quotes": 144,
+  "independently_checked_numeric_fields": 720,
+  "acquiring_unit": "RUB/unit",
+  "quote_observed_at": "2026-11-15T01:19:54.219484+00:00",
+  "mapping_observed_at": "2026-11-15T04:03:04.260405+00:00",
+  "current_quote_not_historical_actual": true,
+  "original_cash_acquiring_proven": false,
+  "source_hashes": {
+    "current_prices_p1.json": "0e6451484578791dcb2ddfd3a5d314f4a13a5b6b691cd24146bd26158b44ba8f",
+    "current_prices_p2.json": "a0ca316cb32288d9d6fe7498c88202b6ff2a929a4baa543cb9245e6c9a5fc04e",
+    "seller_product_info_list.raw.json": "13edf19a6d8ea2880786c34c56e4a9c2b6404cf820044c65e3535af04dd56f2a"
+  },
+  "receipt_verification": "Same-store archived manifests/bodySHA + shared RECEIVED/http200/bytes ledger, read-only; not current user authority",
+  "new_marketplace_calls_during_replay": 0,
+  "total_qualification_marketplace_calls": 1,
+  "old_mapping_ignored_due_to_missing_ledger_receipt": true,
+  "new_model_calls": 0,
+  "source_data_changed": false,
+  "customer_identifiers_or_rows_exported": false,
+  "live_runtime_installed": false
+}

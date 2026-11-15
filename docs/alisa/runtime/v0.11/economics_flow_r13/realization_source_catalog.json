@@ -1,0 +1,11 @@
+{
+  "schema": "alisa-realization-source-plan/v1",
+  "provider": "ozon",
+  "steps": [
+    {"kind": "POSTING", "operation": "finance_realization_posting"},
+    {"kind": "MONTHLY", "operation": "finance_realization_v2"}
+  ],
+  "period_axis": "COMPLETED_REALIZATION_MONTH",
+  "row_axis": "ORIGINAL_ORDER_DATE",
+  "projection": "VERIFIED_DOCUMENT_BASE_COMMISSION_NOT_CASH_DEBIT"
+}
