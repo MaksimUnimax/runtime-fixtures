@@ -1,0 +1,453 @@
+{
+  "schema": "alisa-stat-representation-proof/v1",
+  "old_context_sha256": "2f30c836b03ee639a5a821546334218a4e03771c5a7a8f4e22d3ac3514dfe45e",
+  "stat_fields": [
+    "st_dev",
+    "st_ino",
+    "st_mode",
+    "st_uid",
+    "st_gid",
+    "st_size",
+    "st_mtime_ns",
+    "st_ctime_ns"
+  ],
+  "transformation": "JSON.stringify(Number(current_exact_decimal_string))",
+  "non_timestamp_values_unchanged": true,
+  "all_timestamp_round_trips_exact": true,
+  "rows": [
+    {
+      "path": "/etc/alisa-platform/stage/alice-link.env",
+      "old_decimal": [
+        "64769",
+        "135188",
+        "33152",
+        "0",
+        "0",
+        "277",
+        "1794187615257088500",
+        "1794187615259088600"
+      ],
+      "current_exact_decimal": [
+        "64769",
+        "135188",
+        "33152",
+        "0",
+        "0",
+        "277",
+        "1794187615257088574",
+        "1794187615259088532"
+      ],
+      "timestamp_javascript_json": [
+        "1794187615257088500",
+        "1794187615259088600"
+      ]
+    },
+    {
+      "path": "/etc/alisa-platform/stage/platform.env",
+      "old_decimal": [
+        "64769",
+        "134890",
+        "33152",
+        "0",
+        "0",
+        "1329",
+        "1793936472408357000",
+        "1794116700789720600"
+      ],
+      "current_exact_decimal": [
+        "64769",
+        "134890",
+        "33152",
+        "0",
+        "0",
+        "1329",
+        "1793936472408357148",
+        "1794116700789720592"
+      ],
+      "timestamp_javascript_json": [
+        "1793936472408357000",
+        "1794116700789720600"
+      ]
+    },
+    {
+      "path": "/etc/alisa-platform/stage/query-insights.env",
+      "old_decimal": [
+        "64769",
+        "135049",
+        "33184",
+        "0",
+        "0",
+        "31",
+        "1794297349024212000",
+        "1794297349025212200"
+      ],
+      "current_exact_decimal": [
+        "64769",
+        "135049",
+        "33184",
+        "0",
+        "0",
+        "31",
+        "1794297349024212080",
+        "1794297349025212064"
+      ],
+      "timestamp_javascript_json": [
+        "1794297349024212000",
+        "1794297349025212200"
+      ]
+    },
+    {
+      "path": "/etc/alisa-platform/stage/question-catalog.env",
+      "old_decimal": [
+        "64769",
+        "134042",
+        "33152",
+        "0",
+        "0",
+        "33",
+        "1794650073507650800",
+        "1794650073509650700"
+      ],
+      "current_exact_decimal": [
+        "64769",
+        "134042",
+        "33152",
+        "0",
+        "0",
+        "33",
+        "1794650073507650841",
+        "1794650073509650807"
+      ],
+      "timestamp_javascript_json": [
+        "1794650073507650800",
+        "1794650073509650700"
+      ]
+    },
+    {
+      "path": "/etc/alisa-platform/stage/runtime-link.env",
+      "old_decimal": [
+        "64769",
+        "135051",
+        "33152",
+        "0",
+        "0",
+        "547",
+        "1794547324560074500",
+        "1794547324560074500"
+      ],
+      "current_exact_decimal": [
+        "64769",
+        "135051",
+        "33152",
+        "0",
+        "0",
+        "547",
+        "1794547324560074426",
+        "1794547324560074426"
+      ],
+      "timestamp_javascript_json": [
+        "1794547324560074500",
+        "1794547324560074500"
+      ]
+    },
+    {
+      "path": "/etc/systemd/system/alisa-platform@.service",
+      "old_decimal": [
+        "64769",
+        "193027",
+        "33188",
+        "0",
+        "0",
+        "727",
+        "1793794402415165000",
+        "1793794402415165000"
+      ],
+      "current_exact_decimal": [
+        "64769",
+        "193027",
+        "33188",
+        "0",
+        "0",
+        "727",
+        "1793794402415164868",
+        "1793794402415164868"
+      ],
+      "timestamp_javascript_json": [
+        "1793794402415165000",
+        "1793794402415165000"
+      ]
+    },
+    {
+      "path": "/etc/systemd/system/alisa-platform@stage.service.d/s01-release.conf",
+      "old_decimal": [
+        "64769",
+        "194335",
+        "33188",
+        "0",
+        "0",
+        "207",
+        "1793840142962514400",
+        "1793840142962514400"
+      ],
+      "current_exact_decimal": [
+        "64769",
+        "194335",
+        "33188",
+        "0",
+        "0",
+        "207",
+        "1793840142962514395",
+        "1793840142962514395"
+      ],
+      "timestamp_javascript_json": [
+        "1793840142962514400",
+        "1793840142962514400"
+      ]
+    },
+    {
+      "path": "/etc/systemd/system/alisa-platform@stage.service.d/s05-store-check.conf",
+      "old_decimal": [
+        "64769",
+        "139747",
+        "33188",
+        "0",
+        "0",
+        "48",
+        "1793935862497243400",
+        "1793935862497243400"
+      ],
+      "current_exact_decimal": [
+        "64769",
+        "139747",
+        "33188",
+        "0",
+        "0",
+        "48",
+        "1793935862497243436",
+        "1793935862497243436"
+      ],
+      "timestamp_javascript_json": [
+        "1793935862497243400",
+        "1793935862497243400"
+      ]
+    },
+    {
+      "path": "/etc/systemd/system/alisa-platform@stage.service.d/s07-runtime-link.conf",
+      "old_decimal": [
+        "64769",
+        "139841",
+        "33188",
+        "0",
+        "0",
+        "69",
+        "1794220936383217400",
+        "1794220936384217300"
+      ],
+      "current_exact_decimal": [
+        "64769",
+        "139841",
+        "33188",
+        "0",
+        "0",
+        "69",
+        "1794220936383217408",
+        "1794220936384217391"
+      ],
+      "timestamp_javascript_json": [
+        "1794220936383217400",
+        "1794220936384217300"
+      ]
+    },
+    {
+      "path": "/etc/systemd/system/alisa-platform@stage.service.d/zzzzzzzzzzzzzzzzzz-staff-session-r1.conf",
+      "old_decimal": [
+        "64769",
+        "135047",
+        "33188",
+        "0",
+        "0",
+        "291",
+        "1794134464249903000",
+        "1794134464249903000"
+      ],
+      "current_exact_decimal": [
+        "64769",
+        "135047",
+        "33188",
+        "0",
+        "0",
+        "291",
+        "1794134464249902992",
+        "1794134464249902992"
+      ],
+      "timestamp_javascript_json": [
+        "1794134464249903000",
+        "1794134464249903000"
+      ]
+    },
+    {
+      "path": "/etc/systemd/system/alisa-platform@stage.service.d/zzzzzzzzzzzzzzzzzzzz-alice-link-r1.conf",
+      "old_decimal": [
+        "64769",
+        "139854",
+        "33152",
+        "0",
+        "0",
+        "357",
+        "1794220938151188200",
+        "1794220938152188200"
+      ],
+      "current_exact_decimal": [
+        "64769",
+        "139854",
+        "33152",
+        "0",
+        "0",
+        "357",
+        "1794220938151188199",
+        "1794220938152188183"
+      ],
+      "timestamp_javascript_json": [
+        "1794220938151188200",
+        "1794220938152188200"
+      ]
+    },
+    {
+      "path": "/etc/systemd/system/alisa-platform@stage.service.d/zzzzzzzzzzzzzzzzzzzzz-report-archive.conf",
+      "old_decimal": [
+        "64769",
+        "132712",
+        "33188",
+        "0",
+        "0",
+        "430",
+        "1794572521944646400",
+        "1794572521950646300"
+      ],
+      "current_exact_decimal": [
+        "64769",
+        "132712",
+        "33188",
+        "0",
+        "0",
+        "430",
+        "1794572521944646303",
+        "1794572521950646191"
+      ],
+      "timestamp_javascript_json": [
+        "1794572521944646400",
+        "1794572521950646300"
+      ]
+    },
+    {
+      "path": "/etc/systemd/system/alisa-platform@stage.service.d/zzzzzzzzzzzzzzzzzzzzzzzz-parameters-r5.conf",
+      "old_decimal": [
+        "64769",
+        "134059",
+        "33188",
+        "0",
+        "0",
+        "110",
+        "1794651336166601500",
+        "1794651336185601000"
+      ],
+      "current_exact_decimal": [
+        "64769",
+        "134059",
+        "33188",
+        "0",
+        "0",
+        "110",
+        "1794651336166601435",
+        "1794651336185601127"
+      ],
+      "timestamp_javascript_json": [
+        "1794651336166601500",
+        "1794651336185601000"
+      ]
+    },
+    {
+      "path": "/etc/systemd/system/alisa-platform@stage.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-question-catalog.conf",
+      "old_decimal": [
+        "64769",
+        "134044",
+        "33188",
+        "0",
+        "0",
+        "378",
+        "1794650073510651000",
+        "1794650073511650800"
+      ],
+      "current_exact_decimal": [
+        "64769",
+        "134044",
+        "33188",
+        "0",
+        "0",
+        "378",
+        "1794650073510650790",
+        "1794650073511650773"
+      ],
+      "timestamp_javascript_json": [
+        "1794650073510651000",
+        "1794650073511650800"
+      ]
+    },
+    {
+      "path": "/etc/systemd/system/alisa-platform@stage.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-parameters-r5-release.conf",
+      "old_decimal": [
+        "64769",
+        "134055",
+        "33188",
+        "0",
+        "0",
+        "360",
+        "1794651336160601600",
+        "1794651336161601500"
+      ],
+      "current_exact_decimal": [
+        "64769",
+        "134055",
+        "33188",
+        "0",
+        "0",
+        "360",
+        "1794651336160601533",
+        "1794651336161601517"
+      ],
+      "timestamp_javascript_json": [
+        "1794651336160601600",
+        "1794651336161601500"
+      ]
+    },
+    {
+      "path": "/etc/systemd/system/alisa-platform@stage.service.d/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-customer-catalog.conf",
+      "old_decimal": [
+        "64769",
+        "134065",
+        "33188",
+        "0",
+        "0",
+        "315",
+        "1794708974082527000",
+        "1794708974086527000"
+      ],
+      "current_exact_decimal": [
+        "64769",
+        "134065",
+        "33188",
+        "0",
+        "0",
+        "315",
+        "1794708974082526954",
+        "1794708974086526895"
+      ],
+      "timestamp_javascript_json": [
+        "1794708974082527000",
+        "1794708974086527000"
+      ]
+    }
+  ],
+  "new_context_sha256": "04cc28b9b0ef93a3c7aea07f6c1b6b571a66ce0235e5e4114d38b335b6b3385f",
+  "all_other_context_fields_unchanged": true
+}

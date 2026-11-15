@@ -150,11 +150,14 @@ def live_references(spec):
                and values['WorkingDirectory'].startswith('/')
                and values.get('ActiveState') == 'active' and values.get('SubState') == 'running'
                and pid.isdecimal() and int(pid) > 0, 'SERVICE_NOT_RUNNING:' + role)
-        expected = Path(spec['bases'][role]['root']) / descriptor['cwd_suffix']
-        c.need(Path(values.get('WorkingDirectory', '')).resolve(strict=True) == expected
-               and (Path('/proc') / pid / 'cwd').resolve(strict=True) == expected,
+        root = Path(spec['bases'][role]['root'])
+        expected_unit = root / descriptor['unit_cwd_suffix']
+        expected_process = root / descriptor['process_cwd_suffix']
+        c.need(Path(values.get('WorkingDirectory', '')).resolve(strict=True) == expected_unit
+               and (Path('/proc') / pid / 'cwd').resolve(strict=True) == expected_process,
                'LIVE_SERVICE_BASE_CHANGED:' + role)
-        result['services'][role] = {'unit': descriptor['unit'], 'cwd': str(expected), 'state': 'active/running'}
+        result['services'][role] = {'unit': descriptor['unit'], 'unit_cwd': str(expected_unit),
+                                    'process_cwd': str(expected_process), 'state': 'active/running'}
     return result
 
 

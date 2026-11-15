@@ -19,6 +19,17 @@ The running Python executable is `/usr/bin/python3.12` (`e50d468e…`). The real
 
 The preserved publisher is `/usr/local/libexec/alisa/query_gap_publish.py`, SHA256 `dc750adf6818a5cce92d6bccd95b1cfa3e441da6f1406cef41900892b5cdacd2`. No web build is performed. Old R5/S11 installer constants are not reused.
 
+The systemd `WorkingDirectory` and the main process cwd are separate exact expectations. A 15 November 10:20:20 UTC readback independently confirmed all four roles below, unchanged manifest hashes, active/running states and stable service metadata. Suffixes are relative to each role's pinned release root:
+
+| Role | Resolved systemd WorkingDirectory suffix | Main process cwd suffix |
+|---|---|---|
+| platform | root | root |
+| authority | `services/platform` | `services/platform` |
+| native | root, through `releases/current` | root |
+| web | root, through `web-current` | `ui/web/apps/web` |
+
+The first real read-only PLAN attempt on source `888cf0aaf10b22a689fca26241beac1ae197be83` refused with `LIVE_SERVICE_BASE_CHANGED:web` before emitting PLAN bytes. Its check incorrectly required the unit and process cwd to be the same app directory. The two explicit suffixes correct that model. Each resolved path must still equal its exact expected path, and both current-pointer guards remain unchanged; being somewhere under a release or sharing a path prefix is insufficient. No installed configuration or release changed in this correction.
+
 ## Exact source and scope
 
 `plan` reads the explicitly supplied final source directory and full source commit. It records the SHA256 of all 96 source inputs and this builder's five tool files. The source commit is provenance supplied by the caller; required source CI and independent review remain external evidence. A plan hash freezes the selected bytes. It does not assert CI, permission or live readiness.
@@ -37,7 +48,7 @@ All existing template definitions and catalogue metadata must remain equal; only
 
 ## Commands and output
 
-These are the commands for a later authorized build on the recorded environment. None was executed on production while authoring this tool. Substitute a verified final source directory and its full commit; source/plan/output directories must be canonical and separate from release inputs.
+These are the commands for a later authorized build on the recorded environment. The first read-only plan attempt is described above; no production build or activation was executed. Substitute a verified final source directory and its full commit; source/plan/output directories must be canonical and separate from release inputs.
 
 ```bash
 python3 -B build_candidate.py plan \
@@ -57,7 +68,7 @@ python3 -B build_candidate.py verify \
   --prepared-sha256 EXACT_PREPARED_SHA256_FROM_BUILD
 ```
 
-`plan` and `verify` are read-only. They verify source-only release files and read safe service metadata (`WorkingDirectory`, `MainPID`, `ActiveState`, `SubState`, process cwd), two current symlink targets, publisher and executable hashes. They do not read systemd `Environment`, credentials or database contents. `build` writes only a new private staging directory and atomically publishes the requested new directory with Linux `RENAME_NOREPLACE`; an existing destination, including a concurrent empty directory, is preserved. `/opt` output is refused by the source prepare contract. A later reviewed installer owns copying the immutable release folders to the proposed `/opt/.../releases/<artifact_id>` paths.
+`plan` and `verify` are read-only. They verify source-only release files and read safe service metadata (`WorkingDirectory`, `MainPID`, `ActiveState`, `SubState`, process cwd), two current symlink targets, publisher and executable hashes. The plan records the separately verified `unit_cwd` and `process_cwd` for every role. They do not read systemd `Environment`, credentials or database contents. `build` writes only a new private staging directory and atomically publishes the requested new directory with Linux `RENAME_NOREPLACE`; an existing destination, including a concurrent empty directory, is preserved. `/opt` output is refused by the source prepare contract. A later reviewed installer owns copying the immutable release folders to the proposed `/opt/.../releases/<artifact_id>` paths.
 
 The bundle contains `releases/platform`, `releases/authority`, `releases/native`, `PLAN.json` and `PREPARED.json`. Files are independent copies, never writable hardlinks to a base. Internal links are checked for escape; `.venv` is the one explicit external dependency. New files are fsynced and made read-only. Failure cleanup touches only this invocation's private staging inode. It never restores a changed input or removes another writer's final directory.
 

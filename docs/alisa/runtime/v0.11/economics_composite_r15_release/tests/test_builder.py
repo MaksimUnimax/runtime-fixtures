@@ -388,7 +388,8 @@ class CandidateBuilder(unittest.TestCase):
         pointer.symlink_to(Path.cwd(), target_is_directory=True)
         spec = {'bases': {'native': {'root': str(Path.cwd())}}, 'live_references': {
             'pointers': {'native': str(pointer)},
-            'services': {'native': {'unit': 'owned-test.service', 'cwd_suffix': ''}}}}
+            'services': {'native': {'unit': 'owned-test.service', 'unit_cwd_suffix': '',
+                                    'process_cwd_suffix': ''}}}}
         text = f'WorkingDirectory={Path.cwd()}\nMainPID={os.getpid()}\nActiveState=active\nSubState=running\n'
         # Unpatch only this helper; subprocess itself remains a deterministic fake.
         self.live.stop()
@@ -426,6 +427,84 @@ class CandidateBuilder(unittest.TestCase):
             c.rollback_allowed(before, ours, {**mixed, 'native': {**ours['native'], 'manifest_sha256': '0' * 64}})
         with self.assertRaisesRegex(c.ReleaseError, 'PRESERVED_COMPONENT_CHANGED'):
             c.rollback_allowed(before, {**ours, 'publisher': {**ours['publisher'], 'sha256': '0' * 64}}, before)
+
+
+class LiveReferencePaths(unittest.TestCase):
+    """Observed four-role cwd shape, reproduced locally without service calls."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(prefix='r15-service-paths-')
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        descriptors = deepcopy(b.baseline()['live_references']['services'])
+        self.spec = {'bases': {}, 'live_references': {'pointers': {}, 'services': descriptors}}
+        self.unit_cwds, self.process_cwds, self.pid_roles = {}, {}, {}
+        self.units = {v['unit']: role for role, v in descriptors.items()}
+        self.pids = {role: str(990001 + i) for i, role in enumerate(descriptors)}
+        for role, descriptor in descriptors.items():
+            base = self.root / ('release-' + role)
+            base.mkdir()
+            self.spec['bases'][role] = {'root': str(base)}
+            unit_cwd = base / descriptor['unit_cwd_suffix']
+            process_cwd = base / descriptor['process_cwd_suffix']
+            unit_cwd.mkdir(parents=True, exist_ok=True)
+            process_cwd.mkdir(parents=True, exist_ok=True)
+            if role in ('native', 'web'):
+                pointer = self.root / (role + '-current')
+                pointer.symlink_to(base, target_is_directory=True)
+                self.spec['live_references']['pointers'][role] = str(pointer)
+                unit_cwd = pointer
+            self.unit_cwds[role] = unit_cwd
+            self.process_cwds[role] = process_cwd
+            self.pid_roles['/proc/' + self.pids[role] + '/cwd'] = role
+        resolve = Path.resolve
+
+        def process_path(path, *args, **kwargs):
+            role = self.pid_roles.get(str(path))
+            return resolve(self.process_cwds[role] if role else path, *args, **kwargs)
+
+        def service_metadata(args, **kwargs):
+            role = self.units[args[2]]
+            self.assertEqual(args, ['systemctl', 'show', args[2], '-p', 'WorkingDirectory',
+                                   '-p', 'MainPID', '-p', 'ActiveState', '-p', 'SubState'])
+            return SimpleNamespace(returncode=0, stdout=(
+                f'WorkingDirectory={self.unit_cwds[role]}\nMainPID={self.pids[role]}\n'
+                'ActiveState=active\nSubState=running\n'))
+
+        self.resolve_patch = patch.object(Path, 'resolve', new=process_path)
+        self.resolve_patch.start()
+        self.addCleanup(self.resolve_patch.stop)
+        self.run_patch = patch.object(b.subprocess, 'run', side_effect=service_metadata)
+        self.run_patch.start()
+        self.addCleanup(self.run_patch.stop)
+
+    def test_observed_unit_and_process_cwds_are_independently_pinned(self):
+        expected = {'platform': ('', ''), 'authority': ('services/platform', 'services/platform'),
+                    'native': ('', ''), 'web': ('', 'ui/web/apps/web')}
+        result = b.live_references(self.spec)
+        for role, (unit_suffix, process_suffix) in expected.items():
+            base = Path(self.spec['bases'][role]['root'])
+            descriptor = self.spec['live_references']['services'][role]
+            self.assertEqual((descriptor['unit_cwd_suffix'], descriptor['process_cwd_suffix']),
+                             (unit_suffix, process_suffix))
+            self.assertEqual(result['services'][role], {
+                'unit': descriptor['unit'], 'unit_cwd': str(base / unit_suffix),
+                'process_cwd': str(base / process_suffix), 'state': 'active/running'})
+
+    def test_wrong_unit_cwd_fails_even_inside_the_pinned_web_release(self):
+        self.unit_cwds['web'] = self.process_cwds['web']
+        with self.assertRaisesRegex(c.ReleaseError, 'LIVE_SERVICE_BASE_CHANGED:web'):
+            b.live_references(self.spec)
+
+    def test_wrong_process_cwd_fails_for_release_root_and_matching_prefix(self):
+        base = Path(self.spec['bases']['web']['root'])
+        sibling = base / 'ui/web/apps/web-parallel'
+        sibling.mkdir()
+        for wrong in (base, sibling):
+            with self.subTest(wrong=wrong):
+                self.process_cwds['web'] = wrong
+                with self.assertRaisesRegex(c.ReleaseError, 'LIVE_SERVICE_BASE_CHANGED:web'):
+                    b.live_references(self.spec)
 
 
 class NativeSourceChain(unittest.TestCase):

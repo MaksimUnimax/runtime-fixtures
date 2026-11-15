@@ -32,10 +32,10 @@
       "web": "/opt/alisa-platform/stage/web-current"
     },
     "services": {
-      "platform": {"unit": "alisa-platform@stage.service", "cwd_suffix": ""},
-      "authority": {"unit": "alisa-runtime-authority-stage.service", "cwd_suffix": "services/platform"},
-      "native": {"unit": "alice-market.service", "cwd_suffix": ""},
-      "web": {"unit": "alisa-web@stage.service", "cwd_suffix": "ui/web/apps/web"}
+      "platform": {"unit": "alisa-platform@stage.service", "unit_cwd_suffix": "", "process_cwd_suffix": ""},
+      "authority": {"unit": "alisa-runtime-authority-stage.service", "unit_cwd_suffix": "services/platform", "process_cwd_suffix": "services/platform"},
+      "native": {"unit": "alice-market.service", "unit_cwd_suffix": "", "process_cwd_suffix": ""},
+      "web": {"unit": "alisa-web@stage.service", "unit_cwd_suffix": "", "process_cwd_suffix": "ui/web/apps/web"}
     }
   },
   "environment": {
