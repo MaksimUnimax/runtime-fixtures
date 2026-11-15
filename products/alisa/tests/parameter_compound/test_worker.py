@@ -119,7 +119,17 @@ class Compound(TransactionTestCase):
    if q.continuation.get(rpc.KEY):break
   else:self.fail('no dependency admission')
   node=next(iter(q.continuation[rpc.KEY].values()));periods=[x['plan']['parameter_period']for x in node['dependencies'].values()]
-  self.assertTrue(periods);self.assertTrue(all(x['actual']=={'from':'2025-11-14','to':'2026-11-13'}and not x['explicit']for x in periods));self.assertEqual(node['descriptor']['input']['period'],{'from':'2026-11-13','to':'2026-11-13'})
+  # Anchor belongs to the accepted Query, not the developer's calendar date
+  # when this test was originally written. Check the calendar-year rule without
+  # calling the implementation's period resolver to manufacture the expectation.
+  from datetime import date
+  from calendar import monthrange
+  anchor=date.fromisoformat(q.continuation[rpc.PRINCIPAL]['anchor'])
+  prior=date(anchor.year-1,anchor.month,min(anchor.day,monthrange(anchor.year-1,anchor.month)[1]))
+  expected={'from':prior.isoformat(),'to':(anchor-timedelta(days=1)).isoformat()}
+  self.assertTrue(periods);self.assertTrue(all(x['actual']==expected and not x['explicit']for x in periods))
+  self.assertEqual(node['descriptor']['input']['period'],{'from':'2026-11-13','to':'2026-11-13'})
+  self.assertNotEqual(expected,node['descriptor']['input']['period'])
  def test_disabled_compound_flag_does_not_grant_writes(self):
   with override_settings(OWNER_PARAMETER_COMPOUNDS_ENABLED=False):
    self.start();row=self.finish()

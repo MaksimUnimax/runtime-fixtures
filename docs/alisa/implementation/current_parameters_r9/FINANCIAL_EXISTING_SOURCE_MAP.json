@@ -1,0 +1,553 @@
+{
+  "native_source": "R5 qualified copy; not a new live inspection",
+  "catalog_sha256": "257546629babaf0184e1ccb1cdb0ec7869d65f90e612b35a107c92f0320db26d",
+  "matching_templates": {
+    "B05.accrual_seller_amount": {
+      "purpose": "Сумма выкупленных товаров Ozon в цене продавца по положительным товарным начислениям. Включает покупательскую часть, баллы за скидки и софинансирование; до комиссии и услуг. Не сумма заказов и не итог всех начислений.",
+      "kind": "scalar",
+      "metrics": [
+        "accrual_seller_amount"
+      ],
+      "input_policy": {
+        "time_axis": "accrual_date",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "source_registry": "scalar_source_catalog",
+          "operation": "ozon_accrual_by_day",
+          "recipe": "ozon_accruals"
+        }
+      ]
+    },
+    "B05.accrual_reversal_seller_amount": {
+      "purpose": "Сумма возвратов Ozon в цене продавца по обратным товарным начислениям. Для возвратов в цене продавца, до комиссии и услуг; положительная величина возврата.",
+      "kind": "scalar",
+      "metrics": [
+        "accrual_reversal_seller_amount"
+      ],
+      "input_policy": {
+        "time_axis": "accrual_date",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "source_registry": "scalar_source_catalog",
+          "operation": "ozon_accrual_by_day",
+          "recipe": "ozon_accruals"
+        }
+      ]
+    },
+    "B06.finance_storage_cost": {
+      "purpose": "хранение: сумма расходов по финансовому источнику",
+      "kind": "scalar",
+      "metrics": [
+        "finance_storage_cost"
+      ],
+      "input_policy": {
+        "time_axis": "financial_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "source_registry": "scalar_source_catalog",
+          "operation": "ozon_finance",
+          "recipe": "ozon_finance"
+        },
+        {
+          "source_registry": "scalar_source_catalog",
+          "operation": "wb_finance",
+          "recipe": "wb_finance"
+        }
+      ]
+    },
+    "B06.finance_commission_cost": {
+      "purpose": "Комиссия Ozon за продажи с учётом её возврата при возврате товара. Для вопросов о комиссии; остальные услуги не входят.",
+      "kind": "scalar",
+      "metrics": [
+        "finance_commission_cost"
+      ],
+      "input_policy": {
+        "time_axis": "financial_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "source_registry": "scalar_source_catalog",
+          "operation": "ozon_finance",
+          "recipe": "ozon_finance"
+        }
+      ]
+    },
+    "B06.finance_acquiring_cost": {
+      "purpose": "эквайринг по финансовому балансу",
+      "kind": "scalar",
+      "metrics": [
+        "finance_acquiring_cost"
+      ],
+      "input_policy": {
+        "time_axis": "financial_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "source_registry": "scalar_source_catalog",
+          "operation": "ozon_finance",
+          "recipe": "ozon_finance"
+        }
+      ]
+    },
+    "B08.finance_accrued": {
+      "purpose": "Итог начислений Ozon с учётом возвратов, комиссии и услуг. Для «сколько начислил Ozon». Не сумма заказов, не продажи до удержаний и не банковская выплата.",
+      "kind": "scalar",
+      "metrics": [
+        "finance_accrued"
+      ],
+      "input_policy": {
+        "time_axis": "financial_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "source_registry": "scalar_source_catalog",
+          "operation": "ozon_finance",
+          "recipe": "ozon_finance"
+        }
+      ]
+    },
+    "B08.finance_services_cost": {
+      "purpose": "Общая стоимость услуг Ozon: логистика, хранение, эквайринг и другие статьи услуг. Комиссия за продажи отдельно. Для «сколько стоили услуги/удержали за услуги». Для отдельной услуги — её шаблон. Не все удержания Ozon.",
+      "kind": "scalar",
+      "metrics": [
+        "finance_services_cost"
+      ],
+      "input_policy": {
+        "time_axis": "financial_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "source_registry": "scalar_source_catalog",
+          "operation": "ozon_finance",
+          "recipe": "ozon_finance"
+        }
+      ]
+    },
+    "B12.ad_spend": {
+      "purpose": "расход на рекламу по отчёту",
+      "kind": "scalar",
+      "metrics": [
+        "ad_spend"
+      ],
+      "input_policy": {
+        "time_axis": "advertising_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "source_registry": "scalar_source_catalog",
+          "operation": "ozon_ads_daily",
+          "recipe": "ozon_ads_daily"
+        },
+        {
+          "source_registry": "scalar_source_catalog",
+          "operation": "wb_expense",
+          "recipe": "wb_ads"
+        }
+      ]
+    },
+    "B12.ad_bonus_spend": {
+      "purpose": "расход рекламных бонусов",
+      "kind": "scalar",
+      "metrics": [
+        "ad_bonus_spend"
+      ],
+      "input_policy": {
+        "time_axis": "advertising_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "source_registry": "scalar_source_catalog",
+          "operation": "ozon_expense",
+          "recipe": "ozon_ads"
+        }
+      ]
+    },
+    "B12.ad_prepayment_spend": {
+      "purpose": "расход с абонентского рекламного счёта",
+      "kind": "scalar",
+      "metrics": [
+        "ad_prepayment_spend"
+      ],
+      "input_policy": {
+        "time_axis": "advertising_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "source_registry": "scalar_source_catalog",
+          "operation": "ozon_expense",
+          "recipe": "ozon_ads"
+        }
+      ]
+    },
+    "SUMMARY.46": {
+      "purpose": "сводка хранения и логистики",
+      "kind": "compound",
+      "metrics": [
+        "finance_storage_cost",
+        "finance_logistics_cost"
+      ],
+      "input_policy": {
+        "time_axis": "source_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "source_registry": null,
+          "operation": null,
+          "recipe": null
+        },
+        {
+          "source_registry": null,
+          "operation": null,
+          "recipe": null
+        }
+      ]
+    },
+    "SUMMARY.47": {
+      "purpose": "сводка комиссии и эквайринга",
+      "kind": "compound",
+      "metrics": [
+        "finance_commission_cost",
+        "finance_acquiring_cost"
+      ],
+      "input_policy": {
+        "time_axis": "source_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "source_registry": null,
+          "operation": null,
+          "recipe": null
+        },
+        {
+          "source_registry": null,
+          "operation": null,
+          "recipe": null
+        }
+      ]
+    },
+    "SUMMARY.53": {
+      "purpose": "сводка рекламных расходов",
+      "kind": "compound",
+      "metrics": [
+        "ad_spend"
+      ],
+      "input_policy": {
+        "time_axis": "source_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "source_registry": null,
+          "operation": null,
+          "recipe": null
+        }
+      ]
+    },
+    "SUMMARY.54": {
+      "purpose": "сводка компонентов рекламных расходов",
+      "kind": "compound",
+      "metrics": [
+        "ad_spend",
+        "ad_bonus_spend",
+        "ad_prepayment_spend"
+      ],
+      "input_policy": {
+        "time_axis": "source_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "source_registry": null,
+          "operation": null,
+          "recipe": null
+        },
+        {
+          "source_registry": null,
+          "operation": null,
+          "recipe": null
+        },
+        {
+          "source_registry": null,
+          "operation": null,
+          "recipe": null
+        }
+      ]
+    },
+    "finance_storage_logistics": {
+      "purpose": "сумма хранения и логистики по финансовому отчёту",
+      "kind": "formula",
+      "metrics": [
+        "finance_storage_logistics"
+      ],
+      "input_policy": {
+        "time_axis": "formula_input_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "source_registry": null,
+          "operation": null,
+          "recipe": null
+        },
+        {
+          "source_registry": null,
+          "operation": null,
+          "recipe": null
+        }
+      ]
+    },
+    "finance_storage_logistics_share": {
+      "purpose": "доля хранения и логистики в финансовых продажах",
+      "kind": "formula",
+      "metrics": [
+        "finance_storage_logistics_share"
+      ],
+      "input_policy": {
+        "time_axis": "formula_input_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "source_registry": null,
+          "operation": null,
+          "recipe": null
+        },
+        {
+          "source_registry": null,
+          "operation": null,
+          "recipe": null
+        }
+      ]
+    },
+    "wb_active_ads": {
+      "purpose": "Статистика активных рекламных кампаний WB",
+      "kind": "dataset",
+      "metrics": [],
+      "input_policy": {
+        "time_axis": "source_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": false,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "source_registry": "dataset_sources",
+          "operation": "ds_wb_campaigns",
+          "recipe": null
+        },
+        {
+          "source_registry": "dataset_sources",
+          "operation": "ds_wb_adstats",
+          "recipe": null
+        }
+      ]
+    },
+    "wb_campaign_inventory": {
+      "purpose": "Реестр рекламных кампаний WB",
+      "kind": "dataset",
+      "metrics": [],
+      "input_policy": {
+        "time_axis": "snapshot",
+        "snapshot": true,
+        "period_required": false,
+        "comparison_supported": false,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "source_registry": "dataset_sources",
+          "operation": "ds_wb_campaigns",
+          "recipe": null
+        }
+      ]
+    },
+    "wb_active_ads_totals": {
+      "purpose": "Суммарная статистика активных рекламных кампаний WB",
+      "kind": "dataset",
+      "metrics": [],
+      "input_policy": {
+        "time_axis": "source_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": false,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "source_registry": "dataset_sources",
+          "operation": "ds_wb_campaigns",
+          "recipe": null
+        },
+        {
+          "source_registry": "dataset_sources",
+          "operation": "ds_wb_adstats",
+          "recipe": null
+        }
+      ]
+    }
+  },
+  "financial_recipes": {
+    "ozon_finance": {
+      "platform": "ozon",
+      "family": "finance",
+      "operation": "ozon_finance",
+      "max_days": 366,
+      "paired_periods": false,
+      "fields": {
+        "finance_sales": "finance_sales",
+        "finance_storage_cost": "finance_storage_cost",
+        "finance_logistics_cost": "finance_logistics_cost",
+        "finance_commission_cost": "finance_commission_cost",
+        "finance_acquiring_cost": "finance_acquiring_cost",
+        "finance_return_amount": "finance_return_amount",
+        "finance_accrued": "finance_accrued",
+        "finance_payments": "finance_payments",
+        "finance_services_cost": "finance_services_cost",
+        "finance_opening_balance": "finance_opening_balance",
+        "finance_closing_balance": "finance_closing_balance"
+      },
+      "output": {
+        "values": {
+          "$fn": [
+            "pairs_object",
+            {
+              "$map": [
+                {
+                  "$path": [
+                    "params",
+                    "metrics"
+                  ]
+                },
+                "metric",
+                [
+                  {
+                    "$path": [
+                      "metric"
+                    ]
+                  },
+                  {
+                    "$fn": [
+                      "sum_values",
+                      {
+                        "$map": [
+                          {
+                            "$path": [
+                              "rows"
+                            ]
+                          },
+                          "summand",
+                          {
+                            "$fn": [
+                              "get",
+                              {
+                                "$path": [
+                                  "summand",
+                                  "values"
+                                ]
+                              },
+                              {
+                                "$path": [
+                                  "metric"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              ]
+            }
+          ]
+        },
+        "rows": {
+          "$fn": [
+            "count_integer",
+            {
+              "$fn": [
+                "sum",
+                {
+                  "$path": [
+                    "rows"
+                  ]
+                },
+                "count"
+              ]
+            }
+          ]
+        }
+      },
+      "error_code": "OZON_FINANCE_SCHEMA",
+      "workflow": null,
+      "priority": 4,
+      "auth_profile": null,
+      "comparison_error": "OZON_FINANCE_SCHEMA"
+    }
+  },
+  "qualification": "Existing source definitions only; does not establish order-cohort matching or current API completeness"
+}

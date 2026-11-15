@@ -1,0 +1,8 @@
+{
+  "scope": "test expectation only",
+  "failing_test": "parameter_compound.test_worker.Compound.test_default_coefficient_year_independent_from_report_day",
+  "old_expected_anchor": "2026-11-14",
+  "actual_run_utc": "2026-11-15",
+  "product_rule_changed": false,
+  "replacement": "derive previous calendar-year boundary from original Query anchor independently of product resolve_period; still assert one-day report period is not used for coefficients"
+}

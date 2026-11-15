@@ -99,5 +99,16 @@
     }
   ],
   "numeric_constants_from_reference_are_not_production_defaults": true,
-  "live_values_changed": false
+  "live_values_changed": false,
+  "confirmed_existing_template_mismatch": {
+    "commission_template": "B06.finance_commission_cost",
+    "existing_meaning": "commission already includes commission reversal on returned goods",
+    "existing_period_axis": "financial_period",
+    "forecast_required_meaning": "original commission of the same ordered cohort, before applying the loss coefficient",
+    "unsafe_substitution": "using existing net-period commission as original_commission then multiplying by (1-k) again",
+    "acquiring_template": "B06.finance_acquiring_cost",
+    "acquiring_existing_basis": "financial balance period, not proven same original order cohort",
+    "action": "qualify matched posting/SKU debits or explicit approved tariff estimate; do not alter already accepted simple finance templates",
+    "evidence": "FINANCIAL_EXISTING_SOURCE_MAP.json from exact qualified R5 native source"
+  }
 }

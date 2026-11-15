@@ -1,0 +1,30 @@
+{
+  "r8_sha": "be767a6570a8a6ff258300e378571a1f59648a3f",
+  "checked_from": "GitHub workflow jobs and exact logs",
+  "documentation": {
+    "run": 43595050532,
+    "job": 132447663615,
+    "conclusion": "failure",
+    "causes": [
+      "two missing final newlines in current_parameters_release review documents",
+      "two absolute /root markdown links in REVIEW_OVERLAY"
+    ]
+  },
+  "platform": {
+    "run": 43595050593,
+    "job": 132447663346,
+    "conclusion": "failure",
+    "failed_step": "Locked source checks and UI build (not stage acceptance)",
+    "command": "./bin/alisa test --scope foundation",
+    "causes": [
+      "unconfigured Django settings during recursive foundation test discovery",
+      "specialized current_parameters/parameter_dependencies imports without platform/src"
+    ],
+    "failed_imports": 6,
+    "compound_modules_skipped": 3,
+    "current_runtime_tests_passed_earlier_in_run": 1102,
+    "downstream_packaging_and_browser_steps": "SKIPPED_AFTER_FAILURE"
+  },
+  "all_ci_green": false,
+  "test_skips_added_to_hide_failure": false
+}
