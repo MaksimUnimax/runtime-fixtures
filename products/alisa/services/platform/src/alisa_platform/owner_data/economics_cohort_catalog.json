@@ -1,0 +1,478 @@
+{
+  "schema": "alisa-cohort-economics-catalog/v1",
+  "provider": "OZON",
+  "schemes": [
+    "fbo",
+    "fbs"
+  ],
+  "reference_repository": "MaksimUnimax/blood_sand",
+  "reference_commit": "6b7d8fe8a8e164e0c2b52e4b6deb212a78eb4c08",
+  "reference_rules": "agreed-statistics-r16",
+  "sources": [
+    "orders",
+    "fees",
+    "tariffs",
+    "period_costs"
+  ],
+  "fee_groups": {
+    "commission": {
+      "types": [
+        69
+      ],
+      "original_nonnegative": true
+    },
+    "acquiring": {
+      "types": [
+        1
+      ],
+      "original_nonnegative": true
+    },
+    "processing": {
+      "types": [
+        16,
+        17,
+        42
+      ],
+      "original_nonnegative": true
+    },
+    "other": {
+      "types": [
+        93
+      ],
+      "original_nonnegative": false
+    }
+  },
+  "excluded_fee_types": [
+    32,
+    73,
+    28,
+    29,
+    30,
+    98,
+    2,
+    6,
+    9,
+    45,
+    59
+  ],
+  "tariff_fields": {
+    "commission_percent": {
+      "unit": "percent",
+      "maximum": "100"
+    },
+    "acquiring_per_unit": {
+      "unit": "RUB/unit",
+      "maximum": null
+    },
+    "return_per_unit": {
+      "unit": "RUB/unit",
+      "maximum": null
+    },
+    "processing_min": {
+      "unit": "RUB/unit",
+      "maximum": null
+    },
+    "processing_max": {
+      "unit": "RUB/unit",
+      "maximum": null
+    }
+  },
+  "line_inputs": {
+    "commission_original": {
+      "fee_group": "commission",
+      "fallback": {
+        "fbo": {
+          "divide": [
+            {
+              "multiply": [
+                {
+                  "input": "turnover"
+                },
+                {
+                  "input": "commission_percent"
+                }
+              ]
+            },
+            {
+              "constant": "100"
+            }
+          ]
+        },
+        "fbs": {
+          "divide": [
+            {
+              "multiply": [
+                {
+                  "input": "turnover"
+                },
+                {
+                  "input": "commission_percent"
+                }
+              ]
+            },
+            {
+              "constant": "100"
+            }
+          ]
+        }
+      },
+      "fallback_kind": {
+        "fbo": "SCHEME_TARIFF_ESTIMATE",
+        "fbs": "SCHEME_TARIFF_ESTIMATE"
+      }
+    },
+    "acquiring": {
+      "fee_group": "acquiring",
+      "fallback": {
+        "fbo": {
+          "multiply": [
+            {
+              "input": "quantity"
+            },
+            {
+              "input": "acquiring_per_unit"
+            }
+          ]
+        },
+        "fbs": {
+          "multiply": [
+            {
+              "input": "quantity"
+            },
+            {
+              "input": "acquiring_per_unit"
+            }
+          ]
+        }
+      },
+      "fallback_kind": {
+        "fbo": "RUBLE_TARIFF_ESTIMATE",
+        "fbs": "RUBLE_TARIFF_ESTIMATE"
+      }
+    },
+    "processing": {
+      "fee_group": "processing",
+      "fallback": {
+        "fbo": {
+          "constant": "0"
+        },
+        "fbs": {
+          "multiply": [
+            {
+              "input": "quantity"
+            },
+            {
+              "divide": [
+                {
+                  "add": [
+                    {
+                      "input": "processing_min"
+                    },
+                    {
+                      "input": "processing_max"
+                    }
+                  ]
+                },
+                {
+                  "constant": "2"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "fallback_kind": {
+        "fbo": "FBS_PROCESSING_NOT_APPLICABLE",
+        "fbs": "SCHEME_TARIFF_ESTIMATE"
+      }
+    },
+    "other": {
+      "fee_group": "other",
+      "fallback": {
+        "fbo": {
+          "constant": "0"
+        },
+        "fbs": {
+          "constant": "0"
+        }
+      },
+      "fallback_kind": {
+        "fbo": "QUALIFIED_COMPLETE_MATCHED_FEE_ABSENCE",
+        "fbs": "QUALIFIED_COMPLETE_MATCHED_FEE_ABSENCE"
+      }
+    },
+    "return_tariff_base": {
+      "fallback": {
+        "fbo": {
+          "multiply": [
+            {
+              "input": "quantity"
+            },
+            {
+              "input": "return_per_unit"
+            }
+          ]
+        },
+        "fbs": {
+          "multiply": [
+            {
+              "input": "quantity"
+            },
+            {
+              "input": "return_per_unit"
+            }
+          ]
+        }
+      },
+      "fallback_kind": {
+        "fbo": "SCHEME_TARIFF_RESERVE_INPUT",
+        "fbs": "SCHEME_TARIFF_RESERVE_INPUT"
+      }
+    }
+  },
+  "period_costs": [
+    "storage",
+    "advertising"
+  ],
+  "scenarios": {
+    "with_loss": {
+      "use_loss": true
+    },
+    "without_loss": {
+      "use_loss": false
+    }
+  },
+  "row_outputs": {
+    "original_units": {
+      "input": "quantity"
+    },
+    "expected_retained_units": {
+      "multiply": [
+        {
+          "input": "quantity"
+        },
+        {
+          "subtract": [
+            {
+              "constant": "1"
+            },
+            {
+              "input": "loss_rate"
+            }
+          ]
+        }
+      ]
+    },
+    "revenue": {
+      "multiply": [
+        {
+          "input": "turnover"
+        },
+        {
+          "subtract": [
+            {
+              "constant": "1"
+            },
+            {
+              "input": "loss_rate"
+            }
+          ]
+        }
+      ]
+    },
+    "commission": {
+      "multiply": [
+        {
+          "input": "commission_original"
+        },
+        {
+          "subtract": [
+            {
+              "constant": "1"
+            },
+            {
+              "input": "loss_rate"
+            }
+          ]
+        }
+      ]
+    },
+    "acquiring": {
+      "input": "acquiring"
+    },
+    "forward_last": {
+      "multiply": [
+        {
+          "input": "quantity"
+        },
+        {
+          "input": "delivery_mean"
+        }
+      ]
+    },
+    "reverse": {
+      "multiply": [
+        {
+          "input": "return_tariff_base"
+        },
+        {
+          "input": "loss_rate"
+        }
+      ]
+    },
+    "processing": {
+      "input": "processing"
+    },
+    "other": {
+      "input": "other"
+    },
+    "cogs": {
+      "multiply": [
+        {
+          "multiply": [
+            {
+              "input": "quantity"
+            },
+            {
+              "input": "unit_cost"
+            }
+          ]
+        },
+        {
+          "subtract": [
+            {
+              "constant": "1"
+            },
+            {
+              "input": "loss_rate"
+            }
+          ]
+        }
+      ]
+    },
+    "original_turnover": {
+      "input": "turnover"
+    }
+  },
+  "report_outputs": {
+    "all_selected_costs": {
+      "add": [
+        {
+          "add": [
+            {
+              "add": [
+                {
+                  "add": [
+                    {
+                      "add": [
+                        {
+                          "add": [
+                            {
+                              "add": [
+                                {
+                                  "add": [
+                                    {
+                                      "input": "commission"
+                                    },
+                                    {
+                                      "input": "acquiring"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "input": "forward_last"
+                                }
+                              ]
+                            },
+                            {
+                              "input": "reverse"
+                            }
+                          ]
+                        },
+                        {
+                          "input": "processing"
+                        }
+                      ]
+                    },
+                    {
+                      "input": "other"
+                    }
+                  ]
+                },
+                {
+                  "input": "cogs"
+                }
+              ]
+            },
+            {
+              "input": "storage"
+            }
+          ]
+        },
+        {
+          "input": "advertising"
+        }
+      ]
+    },
+    "remainder_before_owner_inputs": {
+      "subtract": [
+        {
+          "input": "revenue"
+        },
+        {
+          "input": "all_selected_costs"
+        }
+      ]
+    },
+    "remainder_after_cogs_and_ads": {
+      "subtract": [
+        {
+          "subtract": [
+            {
+              "input": "revenue"
+            },
+            {
+              "input": "cogs"
+            }
+          ]
+        },
+        {
+          "input": "advertising"
+        }
+      ]
+    },
+    "drr_percent": {
+      "ratio": [
+        {
+          "multiply": [
+            {
+              "input": "advertising"
+            },
+            {
+              "constant": "100"
+            }
+          ]
+        },
+        {
+          "input": "original_turnover"
+        }
+      ]
+    }
+  },
+  "money_outputs": [
+    "revenue",
+    "commission",
+    "acquiring",
+    "forward_last",
+    "reverse",
+    "processing",
+    "other",
+    "cogs",
+    "storage",
+    "advertising",
+    "all_selected_costs",
+    "remainder_before_owner_inputs",
+    "remainder_after_cogs_and_ads"
+  ],
+  "output_boundary": "Estimated remainder, not actual net profit. Tax/custom owner expenses never default to zero."
+}
