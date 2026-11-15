@@ -1,0 +1,39 @@
+{
+  "builder_mismatches": [],
+  "changed_files": [
+    "activate.py",
+    "tests/test_activation.py",
+    "README.md"
+  ],
+  "diff_path": "/workspace/scratch/764c6b17e9de/r15-sticky-lock-fix.diff",
+  "diff_sha256": "5607fb8911973e022cc43c775c8118b0cbf2f50a84b92c3a7de7c72c5aafa44c",
+  "focused_is_subset_of_full": true,
+  "focused_tests": {
+    "errors": 0,
+    "failed": 0,
+    "passed": 18,
+    "seconds": 0.017,
+    "skipped": 0
+  },
+  "full_activation_tests": {
+    "errors": 0,
+    "failed": 0,
+    "passed": 62,
+    "seconds": 0.474,
+    "skipped": 0
+  },
+  "generic_secure_dir_ast_unchanged": true,
+  "installed_tool_changed": false,
+  "prepared_sha256_unchanged_by_scope": "2f83b12b5a9d67e4060051dce26ddae934cc98f638669c1a156060164622bc4d",
+  "product_source_mismatches": [],
+  "readiness_and_actual_pg_rerun": false,
+  "remote_calls_during_correction": 0,
+  "sha256": {
+    "README.md": "8717af37b2465a2a6dbee03695098dc5e4cc455de7183e049afa206b7e6636e3",
+    "activate.py": "cb4d84eab06b77fcce6e354c9d686dc88975612d5367529c9600b3db59b59916",
+    "activation_contract.py": "503500d07d7bfe3dcdaec33383a0e009872031c1d1ec3f7d2d8f998848a234b1",
+    "readiness.py": "ce3cf08c8338f8d34d07c222b2c974b867098f185bfba165b5a4526f77853658",
+    "tests/test_activation.py": "41b83bcccf715522b1f3159f0225a7b8f23a3b597ef63d2c8594d1111cee9d33"
+  },
+  "tool_pin": "acb46514ae4e712222738fbbc781746dd1471731289cced8039ddddef91ff373"
+}

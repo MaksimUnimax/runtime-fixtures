@@ -1,0 +1,220 @@
+{
+  "schema": "alisa-economics-systemd-mask-lookup/v1",
+  "date": "2026-11-15",
+  "status": "SOURCE_LOOKUP_PROOF_ONLY",
+  "installation_state": "NOT_INSTALLED",
+  "production_mutations": false,
+  "production_deployed": false,
+  "offline_probe": {
+    "systemd_version": "systemd 257 (257.13-1~deb13u1)",
+    "version_command": [
+      "systemd-analyze",
+      "--version"
+    ],
+    "command_template": [
+      "/usr/bin/systemd-analyze",
+      "--root=${OWN_TEMPORARY_ROOT}",
+      "--man=no",
+      "--generators=no",
+      "verify",
+      "${CASE_UNIT}"
+    ],
+    "command_placeholders": {
+      "OWN_TEMPORARY_ROOT": "Fresh tempfile.TemporaryDirectory(prefix='alisa-mask-offline-'); automatically removed after the seven cases.",
+      "CASE_UNIT": "The exact unit field of each observation below."
+    },
+    "environment": {
+      "PATH": "/usr/bin:/bin",
+      "LANG": "C",
+      "SYSTEMD_LOG_COLOR": "0"
+    },
+    "system_manager_used": false,
+    "unit_started": false,
+    "generators_run": false,
+    "database_or_network_calls": false,
+    "setup": {
+      "unit_files": [
+        "/etc/systemd/system/alisa-owned-mask-proof.service",
+        "/etc/systemd/system/alisa-owned-mask-template@.service"
+      ],
+      "unit_content": "[Unit]\nDescription=Owned offline mask proof\nDefaultDependencies=no\n[Service]\nType=oneshot\nExecStart=/bin/true\n",
+      "executable": "/usr/bin/true copied to the alternate root's /bin/true for verify's executable-path check; not executed.",
+      "low_priority_mask": "/run/systemd/system/alisa-owned-mask-proof.service -> /dev/null",
+      "high_priority_mask": "/run/systemd/system.control/alisa-owned-mask-proof.service -> /dev/null",
+      "exact_instance_mask": "/run/systemd/system.control/alisa-owned-mask-template@one.service -> /dev/null",
+      "all_paths_relative_to_alternate_root": true
+    },
+    "observations": [
+      {
+        "name": "etc_unit_baseline",
+        "unit": "alisa-owned-mask-proof.service",
+        "returncode": 0,
+        "masked_diagnostic": false,
+        "diagnostic": "",
+        "passed": true
+      },
+      {
+        "name": "runtime_low_priority_mask_does_not_override_etc",
+        "unit": "alisa-owned-mask-proof.service",
+        "returncode": 0,
+        "masked_diagnostic": false,
+        "diagnostic": "",
+        "passed": true
+      },
+      {
+        "name": "runtime_control_mask_overrides_etc",
+        "unit": "alisa-owned-mask-proof.service",
+        "returncode": 1,
+        "masked_diagnostic": true,
+        "diagnostic": "Unit alisa-owned-mask-proof.service is masked.",
+        "passed": true
+      },
+      {
+        "name": "removing_owned_control_mask_restores_etc",
+        "unit": "alisa-owned-mask-proof.service",
+        "returncode": 0,
+        "masked_diagnostic": false,
+        "diagnostic": "",
+        "passed": true
+      },
+      {
+        "name": "exact_template_instance_is_masked",
+        "unit": "alisa-owned-mask-template@one.service",
+        "returncode": 1,
+        "masked_diagnostic": true,
+        "diagnostic": "Unit alisa-owned-mask-template@one.service is masked.",
+        "passed": true
+      },
+      {
+        "name": "other_template_instance_unchanged",
+        "unit": "alisa-owned-mask-template@two.service",
+        "returncode": 0,
+        "masked_diagnostic": false,
+        "diagnostic": "",
+        "passed": true
+      },
+      {
+        "name": "template_instance_restored",
+        "unit": "alisa-owned-mask-template@one.service",
+        "returncode": 0,
+        "masked_diagnostic": false,
+        "diagnostic": "",
+        "passed": true
+      }
+    ],
+    "passed_cases": 7,
+    "failed_cases": 0
+  },
+  "actual_alisa_metadata": {
+    "scope": "READ_ONLY_VERSION_LOAD_PATH_AND_FRAGMENT_METADATA",
+    "systemd_version": "systemd 255 (255.4-1ubuntu8.18)",
+    "commands": [
+      [
+        "systemd",
+        "--version"
+      ],
+      [
+        "systemd-analyze",
+        "unit-paths"
+      ],
+      [
+        "systemctl",
+        "show",
+        "alice-market.service",
+        "alisa-runtime-authority-stage.service",
+        "-p",
+        "FragmentPath",
+        "-p",
+        "LoadState",
+        "-p",
+        "UnitFileState"
+      ]
+    ],
+    "manager_readback": {
+      "reported_by": "root",
+      "source_record": "r15ActualSystemdUnitPath",
+      "date": "2026-11-15",
+      "observed_before_utc": "2026-11-15T11:26:23Z",
+      "commands": [
+        [
+          "systemctl",
+          "show",
+          "--property=UnitPath",
+          "--value"
+        ],
+        [
+          "systemctl",
+          "--version"
+        ]
+      ],
+      "systemd_version": "systemd 255 (255.4-1ubuntu8.18)",
+      "unit_path_value": "/etc/systemd/system.control /run/systemd/system.control /run/systemd/transient /run/systemd/generator.early /etc/systemd/system /etc/systemd/system.attached /run/systemd/system /run/systemd/system.attached /run/systemd/generator /usr/local/lib/systemd/system /usr/lib/systemd/system /run/systemd/generator.late",
+      "order_equal": true,
+      "comparison_target": "actual_alisa_metadata.unit_paths_in_reported_order",
+      "scope": "Read-only manager property and systemctl version, captured separately by root.",
+      "mutations": false,
+      "masks_written": false,
+      "daemon_reload": false,
+      "services_started_stopped_or_restarted": false
+    },
+    "unit_paths_in_reported_order": [
+      "/etc/systemd/system.control",
+      "/run/systemd/system.control",
+      "/run/systemd/transient",
+      "/run/systemd/generator.early",
+      "/etc/systemd/system",
+      "/etc/systemd/system.attached",
+      "/run/systemd/system",
+      "/run/systemd/system.attached",
+      "/run/systemd/generator",
+      "/usr/local/lib/systemd/system",
+      "/usr/lib/systemd/system",
+      "/run/systemd/generator.late"
+    ],
+    "units": {
+      "alice-market.service": {
+        "FragmentPath": "/etc/systemd/system/alice-market.service",
+        "LoadState": "loaded",
+        "UnitFileState": "enabled"
+      },
+      "alisa-runtime-authority-stage.service": {
+        "FragmentPath": "/etc/systemd/system/alisa-runtime-authority-stage.service",
+        "LoadState": "loaded",
+        "UnitFileState": "enabled"
+      }
+    },
+    "manager_access": "Read-only systemctl show only; no manager mutation.",
+    "masks_written": false,
+    "daemon_reload": false,
+    "services_started_stopped_or_restarted": false,
+    "environment_or_credentials_read": false,
+    "database_access": false
+  },
+  "primary_reference": {
+    "url": "https://www.freedesktop.org/software/systemd/man/255/systemd.unit.html",
+    "sections": [
+      "System Unit Search Path",
+      "Unit File Load Path",
+      "Description"
+    ],
+    "supported_claims": [
+      "The earlier directory wins for an identically named unit; runtime system.control precedes /etc/systemd/system.",
+      "A unit symlink to /dev/null is masked and cannot be activated.",
+      "The control directories are described as configuration created using the D-Bus API."
+    ]
+  },
+  "interpretation": {
+    "lookup_mechanism": "An exact /run/systemd/system.control unit mask can override an /etc/systemd/system fragment without editing that fragment.",
+    "required_installer_guards": [
+      "Pin actual unit-path order and refuse a higher-priority competing unit or an occupied own mask path.",
+      "Preserve the shared control directory and other writers' files and drop-ins.",
+      "Create and remove only the exact owned mask using current identity/CAS checks.",
+      "Require actual manager LoadState=masked before treating admission as fenced."
+    ],
+    "limits": [
+      "The seven executable observations used the local systemd 257 offline verifier, not the Alisa 255 manager.",
+      "Alisa 255 evidence is version, load-path and existing-fragment metadata only.",
+      "No installed masking, daemon reload, service start refusal or rollout was performed or qualified."
+    ]
+  }
+}
