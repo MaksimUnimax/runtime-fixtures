@@ -1,0 +1,18 @@
+{
+  "REVIEW_INITIAL.md": {
+    "raw_sha256": "3b8200be941ca49b4c09a6d6a73ba8255a0f4441cab6ba3f858953bcde81a096",
+    "published_sha256": "95852df7c7b0e5bf2183150793fbe1b88a043b84fd139c3a6da32a0fd974caf5",
+    "changes": "Only absolute local link formatting and final newline"
+  },
+  "REVIEW_SECOND.md": {
+    "raw_sha256": "8d8ababcf64c5504822093f66070d90e8d2b570b67b6606b275a9c6971085a6d",
+    "published_sha256": "dae97bb78d484eec0f76acf5444cf8a8a0ab3689ecc59e7ad6c0e04c22953394",
+    "changes": "Only absolute local link formatting and final newline"
+  },
+  "REVIEW_FINAL.md": {
+    "raw_sha256": "c9dfa7c5716b94f86d693e920c481507d2f14caa5d67aea4662bbdb3d8886287",
+    "published_sha256": "092e97a6a3e00e7d98c290e56edfe9ba1d5e98f4fd3c77a00d88b953eff9d936",
+    "reviewed_product": "ae7a4219042bb7d7ee3c7de30d90990007b7c9ad",
+    "changes": "Only absolute local link formatting and final newline"
+  }
+}

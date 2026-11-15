@@ -1,0 +1,17 @@
+{
+  "status": "PASS_ARCHIVED_COMPONENT_ARITHMETIC",
+  "source_commit": "6b7d8fe8a8e164e0c2b52e4b6deb212a78eb4c08",
+  "source_csv": "стратегии рекламы/аудит статистики/2026-11-14_unit_111213_r15/ORDER_ITEMS.csv",
+  "product_rows": 5,
+  "expense_groups": 9,
+  "money_rows": 13,
+  "paired_money_cells": 26,
+  "primary_denominator": "original_N",
+  "profit_per_original_unit_before_tax": "160.799930",
+  "raw_provider_source_qualification": false,
+  "new_api_calls": 0,
+  "old_ambiguous_fee_origin_promoted_to_actual": false,
+  "live_values_imported": false,
+  "net_profit_claimed": false,
+  "reviewed_product_source": "ae7a4219042bb7d7ee3c7de30d90990007b7c9ad"
+}

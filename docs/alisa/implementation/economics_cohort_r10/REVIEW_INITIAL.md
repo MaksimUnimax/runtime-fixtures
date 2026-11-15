@@ -1,0 +1,7 @@
+## REQUEST_CHANGES
+
+**Posting-level fees are allocated to SKU lines as if they were item-level original debits.** In `products/alisa/services/platform/src/alisa_platform/owner_data/economics_cohort.py:158`, a fee with `sku=None` is assigned across every line in the posting, split by physical quantity, and recorded as `QUALIFIED_ORIGINAL_DEBIT` at lines 165–170. That applies to commission and acquiring as well as `other`. The catalog then applies each SKU’s loss rate to its allocated commission (`products/alisa/services/platform/src/alisa_platform/owner_data/economics_cohort_catalog.json:283`).
+
+For example, a posting with SKU A quantity 1 and SKU B quantity 2, plus a posting-level type 69 debit of 30 RUB, is allocated as 10/20 RUB. With loss rates 0 and 1 respectively, the forecast retains 10 RUB of commission. The source establishes a 30 RUB posting debit, but this scope contains no item-level evidence for the 10/20 split; another valid attribution could produce a different loss-adjusted result. The code should reject posting-level events for SKU-sensitive groups or represent and calculate them under an explicit, qualified allocation rule without presenting the split as item-level actuals.
+
+The review was read-only. I did not run tests or product code. The generic verifier callback is a seam only; this review does not treat it as evidence that a trusted current job-ledger adapter or raw API collector is connected.
