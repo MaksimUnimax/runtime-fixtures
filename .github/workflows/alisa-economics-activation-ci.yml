@@ -66,6 +66,38 @@ jobs:
             --workspace "/run/$r15_probe_unit" --source-sha "$r15_source_sha" \
             > "$RUNNER_TEMP/r15-activation-evidence/private-probe-gate.json"
           test ! -e "/run/$r15_probe_unit"
+      - name: Actual native credential mount lifecycle in the strict observer sandbox
+        shell: bash
+        run: |
+          set -euo pipefail
+          r15_credential_unit="alisa-r15-native-credential-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          test "$(systemctl show "$r15_credential_unit" -p LoadState --value)" = not-found
+          test "$(systemctl show "$r15_credential_unit-native" -p LoadState --value)" = not-found
+          test ! -e "/run/$r15_credential_unit"
+          test ! -L "/run/$r15_credential_unit"
+          test ! -e "/run/$r15_credential_unit-native"
+          test ! -L "/run/$r15_credential_unit-native"
+          printf '%s\n' "$r15_credential_unit" > "$RUNNER_TEMP/r15-activation-evidence/native-credential-unit.txt"
+          r15_source_sha=$(cat "$RUNNER_TEMP/r15-activation-evidence/source.sha")
+          sudo systemd-run --quiet --wait --pipe --unit="$r15_credential_unit" \
+            --property=Type=exec --property=RuntimeMaxSec=120 --property=TimeoutStartSec=5 \
+            --property=TimeoutStopSec=5 --property=KillMode=control-group \
+            --property=SendSIGKILL=yes --property=OOMPolicy=stop \
+            --property=MemoryAccounting=yes --property=MemoryMax=134217728 \
+            --property=MemorySwapMax=0 --property=TasksMax=32 --property=LimitCORE=0 \
+            --property=CPUQuota=50% --property=Nice=10 --property=UMask=0077 \
+            --property=PrivateTmp=yes --property=PrivateNetwork=yes \
+            --property=ProtectSystem=strict --property=ProtectHome=read-only \
+            --property=NoNewPrivileges=yes --property=RestrictAddressFamilies=AF_UNIX \
+            --property=RuntimeDirectory="$r15_credential_unit" --property=RuntimeDirectoryMode=0755 \
+            --property=ReadWritePaths="/run/$r15_credential_unit" \
+            /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C.UTF-8 PYTHONDONTWRITEBYTECODE=1 \
+            "$RUNNER_TEMP/r15-activation-venv/bin/python" -I -B \
+            "$GITHUB_WORKSPACE/docs/alisa/runtime/v0.11/economics_composite_r15_activation/tests/native_credential_gate.py" \
+            --workspace "/run/$r15_credential_unit" --source-sha "$r15_source_sha" \
+            > "$RUNNER_TEMP/r15-activation-evidence/native-credential-gate.json"
+          test ! -e "/run/$r15_credential_unit"
+          test ! -e "/run/$r15_credential_unit-native"
       - name: Create the isolated PostgreSQL fixture
         shell: bash
         run: |
@@ -151,6 +183,26 @@ jobs:
                 sudo systemctl show "$r15_unit" -p Result -p ExecMainStatus -p ActiveState \
                   -p SubState -p MemoryPeak > "$r15_evidence/client-unit-observation.txt" || r15_cleanup_failed=1
               fi
+            else
+              r15_cleanup_failed=1
+            fi
+          fi
+          if test -f "$r15_evidence/native-credential-unit.txt"; then
+            r15_credential_unit=$(cat "$r15_evidence/native-credential-unit.txt")
+            if test "$r15_credential_unit" = "alisa-r15-native-credential-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"; then
+              for r15_observed_unit in "$r15_credential_unit" "$r15_credential_unit-native"; do
+                r15_credential_load=$(systemctl show "$r15_observed_unit" -p LoadState --value 2>/dev/null || true)
+                if test "$r15_credential_load" = not-found; then
+                  printf '%s\n' 'LoadState=not-found' > "$r15_evidence/$r15_observed_unit-observation.txt"
+                else
+                  sudo systemctl show "$r15_observed_unit" -p Result -p ExecMainStatus -p ActiveState \
+                    -p SubState -p ControlGroup -p MemoryPeak > "$r15_evidence/$r15_observed_unit-observation.txt" || r15_cleanup_failed=1
+                  test "$(systemctl show "$r15_observed_unit" -p ActiveState --value)" = inactive || r15_cleanup_failed=1
+                fi
+                if test -e "/run/$r15_observed_unit" || test -L "/run/$r15_observed_unit"; then
+                  r15_cleanup_failed=1
+                fi
+              done
             else
               r15_cleanup_failed=1
             fi

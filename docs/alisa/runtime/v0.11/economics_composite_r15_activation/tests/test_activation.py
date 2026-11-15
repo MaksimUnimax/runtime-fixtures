@@ -534,7 +534,7 @@ class OwnedFilesystem(unittest.TestCase):
         host.ready = lambda *args, **kwargs: None
         host.validate_start = lambda *args, **kwargs: None
         host.unit_files_unchanged = lambda _: None
-        host.refresh = lambda: None
+        host.refresh = lambda *, old=False: self.assertTrue(old)
         host.protected = lambda _: None
         planned = {'before': {'units': {role: {'role': role} for role in c.UNITS}}}
         return host, planned, events
@@ -560,7 +560,7 @@ class OwnedFilesystem(unittest.TestCase):
         host.ready = lambda *args, **kwargs: None
         host.validate_start = lambda *args, **kwargs: None
         host.unit_files_unchanged = lambda _: None
-        host.refresh = lambda: None
+        host.refresh = lambda *, old=False: self.assertTrue(old)
         host.protected = lambda _: None
         with patch.object(a, 'run', return_value=b''):
             result = host.recover_pre_admission({'before': {'units': dict.fromkeys(c.UNITS, {})}})
@@ -959,28 +959,29 @@ class InstalledAdapterBoundaries(unittest.TestCase):
         with patch.object(a, 'run', return_value=b'{"status":"UPDATE_REQUIRED"}'), self.assertRaises(c.Blocked):
             host.sync_check()
 
-    def test_generation_write_wrapper_rejects_every_other_path(self):
+    def test_generation_refresh_rejects_foreign_projection_before_any_write(self):
         host = object.__new__(a.LiveHost)
         host.helper_guard = lambda: None
         host.old_projection = {'only': 'fixture'}
-        host.intent = {'ours': {'projection': {'mode': 0o600}}}
+        states = {'projection': {'mode': 0o600}, 'config': {'identity': 'config'}}
+        host.intent = {'ours': states}
         writes = []
         host.change = lambda *args, **kwargs: writes.append((args, kwargs))
-        pair = SimpleNamespace(projection_data=lambda: {})
-        pair.refresh_projection = lambda _: pair.atomic(c.CONFIG, b'forbidden', 0o600)
-        host.helpers = lambda: pair
-        with self.assertRaises(c.Blocked): host.refresh()
+        pair = SimpleNamespace(refresh_projection=lambda _: self.fail('shared writer called'))
+        host._projection_inputs = lambda expected: (pair, None, {'foreign': 'projection'}, {}, states)
+        with self.assertRaisesRegex(c.Blocked, 'PROJECTION_RACE'): host.refresh()
         self.assertFalse(writes)
-        with self.assertRaises(c.Blocked): pair.atomic(c.PROJECTION, b'late write')
 
     def test_post_switch_does_not_apply_old_live_prepared_verifier_to_new_roles(self):
         host = object.__new__(a.LiveHost)
         calls = []
         host.verify_publications = lambda _: calls.append('candidate')
         host.protected = lambda _: calls.append('protected')
-        host.intent = {'ours': {}, 'fences': {'web': {'own': 'mask'}}}
+        host.intent = {'ours': {'projection': {'own': 'mask'}, 'config': {'own': 'mask'}},
+                       'fences': {'web': {'own': 'mask'}}}
+        host.components = {'projection': c.PROJECTION, 'config': c.CONFIG}
         host.targets = {'native': Path('/opt/native')}
-        host.helpers = lambda: SimpleNamespace(projection_data=lambda: calls.append('generation'))
+        host.projection_data = lambda root, **kwargs: calls.append('generation')
         host.unit_files_unchanged = lambda _: calls.append('web-source')
         planned = {'before': {'units': {'web': {'source_hashes': {}, 'environment_stats': {}}}}}
         with patch.object(a, 'prop', return_value='masked'), \

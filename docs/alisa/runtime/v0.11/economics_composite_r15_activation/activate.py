@@ -158,6 +158,167 @@ def optional_state(path):
     return path_state(path)
 
 
+def _native_fd_identity(fd):
+    """Include the mount ID: equal root inodes do not identify a mount view."""
+    info = os.fstat(fd)
+    meta = os.open('/proc/self/fdinfo/'+str(fd), os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        raw = os.read(meta, 4097)
+    finally:
+        os.close(meta)
+    c.need(len(raw) <= 4096, 'NATIVE_DESCRIPTOR_METADATA')
+    rows = [line.split(b':', 1)[1].strip() for line in raw.splitlines()
+            if line.startswith(b'mnt_id:')]
+    c.need(len(rows) == 1 and rows[0].isdigit() and int(rows[0]) > 0,
+           'NATIVE_DESCRIPTOR_METADATA')
+    return (info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid,
+            info.st_nlink, int(rows[0]))
+
+
+class NativeCredentialView:
+    """One checked native generation's existing, read-only credential directory.
+
+    Only the fixed kernel process-root link and mount-namespace link are followed.
+    All ordinary components and credential leaves use O_NOFOLLOW. Nothing is
+    mounted, copied, inherited by a child, cached across calls, or made public.
+    """
+    def __init__(self, binding, pair, generation, root, config, names):
+        self.binding, self.pair = binding, pair
+        self.generation, self.root = deepcopy(generation), Path(root)
+        c.need(type(generation) is dict and set(generation) == {'pid', 'start_ticks', 'uid', 'boot_id'}
+               and type(generation['pid']) is int and generation['pid'] > 1
+               and type(generation['start_ticks']) is int and generation['start_ticks'] > 0
+               and type(generation['uid']) is int and generation['uid'] >= 0
+               and type(generation['boot_id']) is str
+               and re.fullmatch('[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', generation['boot_id']),
+               'NATIVE_GENERATION_SHAPE')
+        # The accepted checker.resolve admits 1..128 explicit bindings; never
+        # interpret an empty or unbounded projection as a successful owner proof.
+        c.need(type(names) in (tuple, list) and 0 < len(names) <= 128
+               and all(type(name) is str and 0 < len(os.fsencode(name)) <= 255
+                       and Path(name).name == name and name not in ('.', '..') and '\x00' not in name
+                       for name in names), 'NATIVE_CREDENTIAL_NAME')
+        self.names = frozenset(names)
+        self.socket_path = config['runtime_port']['socket']
+        c.need(c.absolute(self.socket_path) and self.socket_path.startswith('/run/'), 'NATIVE_SOCKET_SCOPE')
+        secure_dir(self.root)
+        self.fds, self.anchor, self.closed = [], None, True
+
+    def _generation_guard(self):
+        unit = c.UNITS['native']
+        raw = run('systemctl', 'show', unit, '--property=MainPID,ActiveState,SubState', timeout=10)
+        rows = [line.partition('=') for line in raw.decode().splitlines()]
+        c.need(len(rows) == 3 and all(row[1] for row in rows), 'NATIVE_UNIT_IDENTITY')
+        values = {key: value for key, _, value in rows}
+        c.need(values == {'MainPID': str(self.generation['pid']), 'ActiveState': 'active', 'SubState': 'running'},
+               'NATIVE_GENERATION_MOVED')
+        c.need(self.binding.process_generation(self.generation['pid']) == self.generation,
+               'NATIVE_GENERATION_MOVED')
+        c.need(c.NATIVE_LINK.resolve(strict=True) == self.root
+               and Path('/proc', str(self.generation['pid']), 'cwd').resolve(strict=True) == self.root,
+               'NATIVE_PROCESS_SOURCE_MOVED')
+        c.need(self.pair.native_peer(self.socket_path) ==
+               (self.generation['pid'], self.generation['uid']), 'NATIVE_SOCKET_GENERATION_MOVED')
+        c.need(self.binding.process_generation(self.generation['pid']) == self.generation,
+               'NATIVE_GENERATION_MOVED')
+
+    def _open_anchor(self):
+        fds = []
+        def opened(path, flags, *, parent=None):
+            fd = os.open(path, flags | os.O_CLOEXEC, dir_fd=parent)
+            fds.append(fd)
+            c.need(not os.get_inheritable(fd), 'NATIVE_DESCRIPTOR_INHERITABLE')
+            return fd
+        try:
+            directory = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+            proc = opened('/proc/'+str(self.generation['pid']), directory)
+            c.need(os.fstat(proc).st_uid == self.generation['uid'], 'NATIVE_PROCESS_OWNER')
+            # These two literal kernel links are the complete exception. Never
+            # resolve root into '/', follow a caller path, or enter a namespace.
+            namespace = opened('ns/mnt', os.O_RDONLY, parent=proc)
+            root = opened('root', os.O_RDONLY | os.O_DIRECTORY, parent=proc)
+            current = root
+            for component in ('run', 'credentials', c.UNITS['native']):
+                parent_info = os.fstat(current)
+                c.need(stat.S_ISDIR(parent_info.st_mode) and parent_info.st_uid == OWNER_UID
+                       and not parent_info.st_mode & 0o022, 'NATIVE_CREDENTIAL_DIRECTORY')
+                current = opened(component, directory, parent=current)
+            info = os.fstat(current)
+            c.need(stat.S_ISDIR(info.st_mode) and info.st_uid == OWNER_UID and not info.st_mode & 0o022
+                   and os.fstatvfs(current).f_flag & os.ST_RDONLY, 'NATIVE_CREDENTIAL_DIRECTORY')
+            return fds, {'proc': proc, 'namespace': namespace, 'root': root, 'credentials': current}
+        except BaseException:
+            for fd in reversed(fds): os.close(fd)
+            raise
+
+    def check(self):
+        c.need(not self.closed and self.anchor is not None, 'NATIVE_CREDENTIAL_SCOPE_CLOSED')
+        self._generation_guard()
+        c.need({key: _native_fd_identity(fd) for key, fd in self.anchor.items()} == self.identities,
+               'NATIVE_CREDENTIAL_VIEW_MOVED')
+        fresh, anchor = self._open_anchor()
+        try:
+            # Reopen from the CURRENT process, not from the held root. This also
+            # rejects an old root/credential fd whose root inode happens to match.
+            c.need({key: _native_fd_identity(fd) for key, fd in anchor.items()} == self.identities,
+                   'NATIVE_CREDENTIAL_VIEW_MOVED')
+            self._generation_guard()
+        finally:
+            for fd in reversed(fresh): os.close(fd)
+
+    def __enter__(self):
+        try:
+            self._generation_guard()
+            self.fds, self.anchor = self._open_anchor()
+            self.identities = {key: _native_fd_identity(fd) for key, fd in self.anchor.items()}
+            self.closed = False
+            self.check()
+            return self
+        except BaseException:
+            self.close()
+            raise
+
+    def close(self):
+        self.closed = True
+        for fd in reversed(self.fds): os.close(fd)
+        self.fds = []
+        self.anchor = None
+
+    def __exit__(self, *_):
+        try:
+            self.check()
+        finally:
+            self.close()
+
+    def read(self, name):
+        c.need(name in self.names, 'NATIVE_CREDENTIAL_NAME')
+        self.check()
+        directory = self.anchor['credentials']
+        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=directory)
+        try:
+            before = os.fstat(fd)
+            c.need(stat.S_ISREG(before.st_mode) and before.st_uid == OWNER_UID and before.st_nlink == 1
+                   and not before.st_mode & 0o027 and 0 < before.st_size <= 32768
+                   and os.fstatvfs(fd).f_flag & os.ST_RDONLY and not os.get_inheritable(fd),
+                   'NATIVE_CREDENTIAL_FILE')
+            raw = b''
+            while len(raw) <= 32768:
+                part = os.read(fd, min(32769-len(raw), 65536))
+                if not part: break
+                raw += part
+            def state(info):
+                return (info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid,
+                        info.st_nlink, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+            c.need(len(raw) == before.st_size and len(raw) <= 32768
+                   and state(os.fstat(fd)) == state(before)
+                   and state(os.stat(name, dir_fd=directory, follow_symlinks=False)) == state(before),
+                   'NATIVE_CREDENTIAL_CHANGED')
+            self.check()
+            return self.binding.loads(raw)
+        finally:
+            os.close(fd)
+
+
 def fence_environment():
     paths = run('systemctl', 'show', '--property=UnitPath', '--value', timeout=10).decode().split()
     c.need(tuple(paths) == c.UNIT_PATHS, 'UNIT_LOAD_PATH_CHANGED')
@@ -670,25 +831,54 @@ class LiveHost:
                 'publisher': c.digest(regular(Path(self.baseline['publisher']['path']))),
                 'helpers': dict(c.HELPERS), 'unit_load_paths': unit_paths}
 
+    def _projection_inputs(self, expected_states=None):
+        pair = self.helpers()
+        module = pair.native_module()
+        states = {'projection': path_state(c.PROJECTION), 'config': path_state(c.CONFIG)}
+        c.need(expected_states is None or states == expected_states, 'PROJECTION_INPUTS_MOVED')
+        data = module.root_json(c.PROJECTION, 65536)
+        config = module.root_json(c.CONFIG, 1048576)
+        c.need(states == {'projection': path_state(c.PROJECTION), 'config': path_state(c.CONFIG)},
+               'PROJECTION_INPUTS_MOVED')
+        return pair, module, data, config, states
+
+    def projection_data(self, root, *, expected=None, expected_config=None, candidate_config=None,
+                        expected_states=None):
+        """Accepted full source proof, using this projection's CURRENT generation."""
+        pair, module, data, config, states = self._projection_inputs(expected_states)
+        c.need(root in (Path(self.baseline['bases']['native']['root']), self.targets['native']),
+               'NATIVE_PROCESS_SOURCE_SCOPE')
+        c.need(expected is None or data == expected, 'PROJECTION_RACE')
+        c.need(expected_config is None or config == expected_config, 'PROJECTION_INPUTS_MOVED')
+        generation = data['native_generation']
+        key = bytes.fromhex(data['mac_key'])
+        names = [row['credential_name'] for row in data['bindings']]
+        with NativeCredentialView(module, pair, generation, root, config, names) as view:
+            for row in data['bindings']:
+                material = view.read(row['credential_name'])
+                context = module.native_context(config, material, row,
+                    environment=data['environment'], product_id=data['product_id'], generation=generation)
+                c.need(module.hmac.compare_digest(module.mac(key, 'native-owner-source-v1', context),
+                                                  row['source_hmac']), 'OWNER_PAIR_MOVED')
+                if candidate_config is not None:
+                    context = module.native_context(candidate_config, material, row,
+                        environment=data['environment'], product_id=data['product_id'], generation=generation)
+                    c.need(module.hmac.compare_digest(module.mac(key, 'native-owner-source-v1', context),
+                                                      row['source_hmac']), 'OWNER_SOURCE_WOULD_CHANGE')
+            c.need(states == {'projection': path_state(c.PROJECTION), 'config': path_state(c.CONFIG)},
+                   'PROJECTION_INPUTS_MOVED')
+        return data
+
     def private_inputs(self):
         self.private_before = {name: regular(path) for name, path in self.components.items()
                                if name not in ('native_pointer', 'platform_selector', 'authority_selector', 'flags')}
-        p = self.helpers()
-        self.old_projection = p.projection_data()
-        c.need(c.strict_json(self.private_before['projection']) == self.old_projection,
-               'PROJECTION_RACE')
         config = c.policy_bytes(self.private_before['config'], self.prepared['native_before'],
                                 self.prepared['native_candidate'])
         # Same full old source HMAC under the candidate policy configuration;
         # no credential relabel, enrollment, provider qualification or new grant.
-        module = p.native_module()
-        for row in self.old_projection['bindings']:
-            material = module.root_json(Path('/run/credentials/alice-market.service')/row['credential_name'], 32768)
-            ctx = module.native_context(c.strict_json(config), material, row,
-                    environment=self.old_projection['environment'], product_id=self.old_projection['product_id'],
-                    generation=self.old_projection['native_generation'])
-            c.need(module.hmac.compare_digest(module.mac(bytes.fromhex(self.old_projection['mac_key']),
-                         'native-owner-source-v1', ctx), row['source_hmac']), 'OWNER_SOURCE_WOULD_CHANGE')
+        self.old_projection = self.projection_data(Path(self.baseline['bases']['native']['root']),
+            expected=c.strict_json(self.private_before['projection']),
+            expected_config=c.strict_json(self.private_before['config']), candidate_config=c.strict_json(config))
         desired = {'config': config, 'flags': c.FLAG_BYTES,
                    'versions': self.expected_versions(self.bundle/'releases/native')}
         before_versions, after_versions = (c.strict_json(self.private_before['versions']),
@@ -933,20 +1123,40 @@ class LiveHost:
         c.need(unit_static(c.UNITS[role]) == self.expected_unit(role, planned, old=old),
                'START_UNIT_CHANGED')
 
-    def refresh(self):
+    def refresh(self, *, old=False):
         self.helper_guard()
-        pair = self.helpers()
-        def projection_atomic(path, raw, mode=0o600):
-            c.need(path == c.PROJECTION and mode == self.intent['ours']['projection']['mode'],
-                   'GENERATION_WRITE_SCOPE')
-            self.change('projection', raw=raw)
-        pair.atomic = projection_atomic
-        try:
-            pair.refresh_projection(self.old_projection)
-            pair.projection_data()
-        finally:
-            # Never leave this wrapper available to another helper operation.
-            pair.atomic = lambda *_a, **_kw: c.need(False, 'GENERATION_WRITE_SCOPE')
+        expected_states = {name: self.intent['ours'][name] for name in ('projection', 'config')}
+        pair, module, current, config, states = self._projection_inputs(expected_states)
+        c.need(current == self.old_projection and states['projection'] == self.intent['ours']['projection'],
+               'PROJECTION_RACE')
+        root = Path(self.baseline['bases']['native']['root']) if old else self.targets['native']
+        generation = pair.wait_native_generation(module, self.old_projection['native_generation']['uid'])
+        data = deepcopy(self.old_projection)
+        data['native_generation'] = generation
+        key = bytes.fromhex(data['mac_key'])
+        names = [row['credential_name'] for row in data['bindings']]
+        # The descriptor is NEW-generation material. The previous proof MUST
+        # still use the OLD generation, exactly as the accepted helper does.
+        with NativeCredentialView(module, pair, generation, root, config, names) as view:
+            for row in data['bindings']:
+                material = view.read(row['credential_name'])
+                previous = module.native_context(config, material, row,
+                    environment=data['environment'], product_id=data['product_id'],
+                    generation=self.old_projection['native_generation'])
+                c.need(module.hmac.compare_digest(module.mac(key, 'native-owner-source-v1', previous),
+                                                  row['source_hmac']), 'OWNER_PAIR_CHANGED_DURING_RESTART')
+                context = module.native_context(config, material, row,
+                    environment=data['environment'], product_id=data['product_id'], generation=generation)
+                row['source_hmac'] = module.mac(key, 'native-owner-source-v1', context)
+            c.need(states == {'projection': path_state(c.PROJECTION), 'config': path_state(c.CONFIG)},
+                   'PROJECTION_INPUTS_MOVED')
+            view.check()  # before publication, not merely after the helper returns
+            self.change('projection', raw=(json.dumps(data, indent=2)+'\n').encode())
+            c.need(path_state(c.CONFIG) == states['config'], 'PROJECTION_INPUTS_MOVED')
+        # No old descriptor survives the restart or the independent readback.
+        run('systemctl', 'restart', c.CHECKER_UNIT)
+        self.projection_data(root, expected_states={name: self.intent['ours'][name]
+                                                  for name in ('projection', 'config')})
 
     def verify_publications(self, planned):
         for role, entry in planned['published'].items():
@@ -1042,7 +1252,8 @@ class LiveHost:
                 self.unit_files_unchanged(old)
                 continue
             c.need(unit_static(c.UNITS[role]) == self.expected_unit(role, planned), 'POST_SWITCH_UNIT_CHANGED')
-        self.helpers().projection_data()
+        self.projection_data(self.targets['native'], expected_states={name: self.intent['ours'][name]
+                                                                     for name in ('projection', 'config')})
         reserve(roots=tuple(p.parent for p in self.targets.values()))
 
     def recover_pre_admission(self, planned):
@@ -1109,7 +1320,7 @@ class LiveHost:
             if native_ok:
                 # Restarting the OLD source also changes PID generation. Its
                 # existing source HMAC must still hold before refreshing.
-                native_ok = attempt('refresh_old_generation', self.refresh)
+                native_ok = attempt('refresh_old_generation', lambda: self.refresh(old=True))
         service_ok = {'native': native_ok}
         for role in ('authority', 'platform'):
             safe = native_ok and restored.get(role+'_selector') and restored.get('flags') and reload_ok

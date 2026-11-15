@@ -31,6 +31,21 @@ It also preserves unprivileged version computation when the verified bundle has
 private root-owned ancestors. Neither the shared helper nor those permissions
 are changed.
 
+The next actual `plan`, using activation source `ee6351c7b912417cba58e3e889dce157099d116d`,
+finished at 14:16:17 UTC with `ACTIVATION_DEPENDENCY_UNAVAILABLE`. The bounded
+exception-location diagnostic reached the accepted credential reader's parent
+`lstat`, before opening credential material, computing versions or counting
+readiness. A separate metadata-only comparison at 14:24:57 UTC established
+that the installer's strict systemd namespace hides `/run/credentials` as a
+root-owned mode-0000 directory. The native service's credential directory still
+existed in both the host and the native process view. No application attempt,
+publication or binding change had occurred.
+
+The correction below reads only the current native process's existing
+credential directory through a checked descriptor. The installer retains its
+strict namespace; the native service, shared helpers and credential stores are
+unchanged. A successful source gate is required before another real PLAN.
+
 ## Fixed identities and scope
 
 The exact product PLAN is
@@ -62,7 +77,8 @@ directories are checked separately. Web's unit works from its release root,
 while its process works from `ui/web/apps/web`; neither is replaced by R15.
 The accepted query-gap publisher remains byte-for-byte unchanged. Admin,
 identity, Station and SMTP service identities/PIDs are preserved. The existing
-store checker is restarted only by the accepted native-generation refresh.
+store checker is restarted only by the scoped native-generation refresh, which
+preserves the accepted full source context and HMAC algorithm.
 
 The new report remains WEB-only. The existing voice continuation branch is not
 changed. Two flags are enabled in one new, own file,
@@ -187,11 +203,58 @@ library. Native roots are checked for bytecode caches before import probes.
 
 The native bridge closure is pinned and loaded in order:
 `shared_http` → `store_checker` → `native_store_binding`. The accepted pair
-helper receives that exact binding module object. Its source/HMAC checks still
-require unchanged configuration and credentials before refreshing only the
-native PID generation. The caller replaces its `atomic` function with a narrow
-CAS publisher that accepts only the projection path, retaining ownership even
-if a later helper operation fails.
+helper receives that exact binding module object. The installer uses the
+unchanged accepted `native_context`, `mac`, JSON decoder, process-generation
+and socket-peer checks. Its small projection adapter supplies credential
+material through the current process view and publishes only through the
+existing `change('projection')` inode CAS. It does not replace the accepted
+module's `root_json`, mutate a shared helper, or expose a general reader/writer.
+
+### Credentials from the current native process
+
+The observed systemd version is `255.4-1ubuntu8.18`. Its strict namespace hides
+other units' credential stores. An explicit bind of the initial store would
+also risk retaining the old mount when native restarts. The installer instead
+opens `/proc/<expected-native-PID>` and follows only its literal kernel `root`
+link plus the `ns/mnt` identity link. It never resolves that root link to `/`,
+opens PID 1's root, enters a namespace, or changes a mount. Linux documents the
+process root's per-process mount view and its access checks in
+[proc_pid_root(5)](https://man7.org/linux/man-pages/man5/proc_pid_root.5.html).
+
+Every scope requires the fixed native unit's current MainPID, active/running
+state, complete accepted generation (PID, start ticks, UID and boot ID), exact
+selected release and process cwd, and the configured socket's SO_PEERCRED to
+agree before and after the read. A still-alive previous PID cannot substitute
+for the unit's current generation. The root descriptor is used only to walk
+`run/credentials/alice-market.service`; each ordinary component and leaf is
+opened with `O_NOFOLLOW`. Directories remain root-owned without group/world
+write access. Only explicit binding filenames are admitted, within the accepted
+checker's 1–128 binding limit. A leaf must be a root-owned regular single-link
+file, have the accepted mode restrictions, contain 1–32768 bytes, and reside on
+a read-only mount. The accepted strict decoder receives the bounded bytes in
+private memory.
+
+Held process, mount-namespace, root and credential-directory identities are
+compared with a freshly opened current-process path. Descriptor identity
+includes Linux's `mnt_id` from
+[proc_pid_fdinfo(5)](https://man7.org/linux/man-pages/man5/proc_pid_fdinfo.5.html);
+the same root inode across two mount namespaces is insufficient. File metadata,
+length and the directory entry must also remain unchanged. All descriptors are
+non-inheritable and closed on success or failure; none survives a reader scope
+or is reused after a restart.
+
+For `plan`, `prepare` and apply's initial check, expected generation comes from
+the exact captured projection. Old and candidate policy contexts are checked
+against the same full old HMAC in one current-generation scope. During refresh,
+the accepted wait selects the new generation and a new descriptor opens its
+material. That new material must first validate the previous HMAC using the
+original old generation. Only then is the new generation's HMAC calculated.
+A generation check immediately precedes projection publication. Configuration
+and projection states are pinned to the caller's exact owned intent. The
+independent post-publication check opens another fresh scope. Recovery after an
+old-source restart explicitly selects the retained baseline; normal activation
+and post-switch checks select the candidate. Changed material, PID, socket,
+namespace, source or managed input blocks the operation.
 
 The private canonical version synchronizer runs `--check` on the published
 native target with the inherited common flock descriptor. Its complete strict
@@ -330,7 +393,7 @@ Run only disposable source tests from the checkout:
 ```sh
 PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover \
   -s docs/alisa/runtime/v0.11/economics_composite_r15_activation/tests \
-  -p 'test_activation.py' -v
+  -p 'test_*.py' -v
 ```
 
 The activation tests cover source identity, policy scope, all pre-admission
@@ -356,3 +419,32 @@ ordinary role, real transactions and real visibility/schema changes; its own
 database and role were confirmed removed afterward. That evidence establishes
 SQL behavior in the isolated fixture, not current production visibility, current
 idle state, installed synthetic acceptance, or a live financial result.
+
+The native credential correction passes 116 local source tests, including 15
+new descriptor/HMAC cases. The local descriptor fixtures explicitly substitute
+their own UID and read-only mount bit; they do not claim a kernel namespace
+result. Independent review ran those 15 cases and ten additional rejection/CAS
+cases against the frozen runtime source.
+
+The existing activation workflow now has one additional finite lifecycle gate
+on its Ubuntu 24.04 runner. An owned strict observer has a 120-second limit,
+128 MiB memory and zero swap. Its sole synthetic producer runs as `nobody`,
+has a separate strict mount namespace and a real `LoadCredential`, a 90-second
+limit, 64 MiB memory, zero swap, and `BindsTo` the observer. Its immutable cwd
+is root-owned; its own writable RuntimeDirectory contains only its Unix socket.
+Synthetic credential input and projection remain under a root-only private
+subdirectory. Network access is disabled.
+
+The gate checks the hidden direct path, real descriptor access, process/socket/
+cwd fences, descriptor closure, two producer restarts and mount replacement.
+It retains the old namespace and credential descriptors, proves old material
+is still readable, and rejects those stale descriptors even when the root
+inode is unchanged. Same material must confirm the old full HMAC before new
+generation publication; changed material must leave the synthetic projection
+and writer count unchanged. A separate injected final-generation failure tests
+the immediate pre-publication boundary. Projection publication and checker
+restart use explicit fixture substitutes; no installed acceptance is claimed.
+The artifact records exact source/tool/helper identities, systemd version,
+checks and owned cleanup. This new real lifecycle gate remains **NOT_RUN** at
+source qualification; its eventual current-commit CI artifact is separate
+evidence. No production retry or application mutation was used to author it.
