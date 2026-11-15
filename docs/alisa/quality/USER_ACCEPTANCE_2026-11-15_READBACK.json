@@ -94,5 +94,49 @@
     "outbox_body_cleared": 2
   },
   "physical_station_verified": false,
-  "secrets_exported": false
+  "secrets_exported": false,
+  "web_guidance": {
+    "status": "INSTALLED_LIVE_OWNER_PASS",
+    "source": "e0cc5b5aea9662132fb1a933e7aa21d26a3b36b7",
+    "installer_sha256": "48c36a4920d135f5d7fa1a9ca5d063e6e314136406c9398747358b39c363c9d0",
+    "plan_sha256": "d2bfc1198ed53e6a69fc8015ad077f34b2d18dbd807a1e3b39bb93585273c925",
+    "manifest_sha256": "6eb0e9987ab0383ab259e64cdb5f36dc78dd607dcba7a3379b1525f1da1f3d2b",
+    "artifact_id": 14148993251,
+    "regression_tests_passed": 10,
+    "independent_review": "APPROVE",
+    "exact_source_ci": {
+      "platform": 43683135565,
+      "identity": 43683135563,
+      "docs": 43683135587,
+      "all_success": true
+    },
+    "restarted_units": [
+      "alisa-web@stage.service"
+    ],
+    "nonweb_files_contracts_migrations_unchanged": true,
+    "protected_service_invocations_unchanged": true,
+    "all9active": true,
+    "catalog": {
+      "total": 56,
+      "search_sales": 8,
+      "card": "B08.finance_sales v5",
+      "prefill_without_submit": true
+    },
+    "native_jobs_before": 11,
+    "native_jobs_after": 11,
+    "native_active_jobs": 0,
+    "unknown_unchanged": 4,
+    "saved_parameter_still_unset": true,
+    "download_bytes": 5899,
+    "download_sha256": "4605a0b02b728f28bc69482f04f52a7b1b04995148c94fefbc80bef43c8438c2",
+    "owner_and_staff_sessions_reused": true,
+    "browser_tabs": {
+      "admin": "7",
+      "reports": "8",
+      "prepared_question": "9",
+      "parameters": "10"
+    },
+    "own_tmpfs_removed_bytes": 228988556,
+    "root_disk_free_bytes": 3272421376
+  }
 }
