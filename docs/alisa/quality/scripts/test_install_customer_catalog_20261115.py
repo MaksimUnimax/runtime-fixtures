@@ -300,6 +300,18 @@ class InstallTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, 'OVERLAY_REF_CHANGED'):
                     M.manifest(identity, True)
 
+    def test_overlay_keeps_deployed_staff_and_r5_migration(self):
+        staff = 'services/platform/src/alisa_platform/staff/policy.py'
+        migration = 'services/platform/src/alisa_platform/owner_data/migrations/0002_current_parameter_only.py'
+        baseline = {staff:'live-staff', migration:'live-r5'}
+        package = {n:'qualified-patch' for n in M.PLATFORM_PATCH | M.AUTH_CONTRACTS}
+        package.update({staff:'different-staff', migration:'different-r5', 'ui/web/page.js':'qualified-ui'})
+        result = baseline | M.selected_files(package, 'app')
+        self.assertEqual(result[staff], 'live-staff')
+        self.assertEqual(result[migration], 'live-r5')
+        self.assertEqual(result['ui/web/page.js'], 'qualified-ui')
+        self.assertEqual(M.APP_BASE, M.PLATFORM_BASE)
+
 
 if __name__ == '__main__':
     unittest.main()

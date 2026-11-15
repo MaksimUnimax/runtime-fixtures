@@ -22,6 +22,7 @@ ROOT = Path('/root/alisa-login-catalog-install-20261115')
 PAYLOAD = Path('/dev/shm/alisa-login-catalog-8b8b9199-20261115/platform/alisa-8b8b919993c38128')
 BASE = STAGE/'releases/alisa-cabinet-parameters-1d572aebf6b05b88'
 PLATFORM_BASE = STAGE/'releases/alisa-parameters-1d572aebf6b05b88'
+APP_BASE = PLATFORM_BASE
 IDENTITY_BASE = STAGE/'releases/alisa-direct-login-3a1d3885250d8aa1'
 APP = STAGE/'releases/alisa-customer-catalog-8b8b919993c38128'
 IDENTITY = STAGE/'releases/alisa-customer-identity-8b8b919993c38128'
@@ -45,6 +46,10 @@ PINS = {
 }
 ENV_FILES = ['web.env', 'platform.env', 'identity.env', 'runtime-link.env',
              'alice-link.env', 'query-insights.env', 'question-catalog.env']
+PLATFORM_PATCH = {'services/platform/src/alisa_platform/accounts/views.py',
+                  'services/platform/src/alisa_platform/catalog/views.py',
+                  'services/platform/src/alisa_platform/catalog/reader.py'}
+AUTH_CONTRACTS = {'contracts/auth-flow-v1.json', 'contracts/auth-session-v1.json'}
 
 
 def need(value, code):
@@ -262,6 +267,12 @@ def materialize(base, target, value, sources, pool, ownership=None):
     manifest(target)
 
 
+def selected_files(files, kind):
+    required = PLATFORM_PATCH | AUTH_CONTRACTS if kind == 'app' else {'services/identity/src/octoport_identity/protocol/customer.py'}
+    need(required <= set(files), 'PATCH_FILES_MISSING')
+    return {n:h for n,h in files.items() if n in required or (kind == 'app' and n.startswith('ui/web/'))}
+
+
 def prepare():
     reserve()
     idle()
@@ -277,7 +288,7 @@ def prepare():
     package = package_manifest(PAYLOAD, tar, TAR_SHA)
     need(package['source_sha'] == SOURCE, 'PACKAGE_SOURCE')
     old = {p: manifest(p, p == IDENTITY_BASE) for p in [BASE, PLATFORM_BASE, IDENTITY_BASE]}
-    for service, base in [('platform', BASE), ('identity', IDENTITY_BASE)]:
+    for service, base in [('platform', APP_BASE), ('identity', IDENTITY_BASE)]:
         lock = 'services/'+service+'/requirements.lock'
         need(package['locks'][lock] == old[base]['locks'][lock], 'DEPENDENCY_CHANGE')
         prefix = 'services/'+service+'/'
@@ -288,13 +299,11 @@ def prepare():
         for n, h in m['files'].items():
             pool.setdefault(h, (base/n).resolve(strict=True))
     targets = []
-    for base, target, kind in [(BASE, APP, 'app'), (IDENTITY_BASE, IDENTITY, 'identity')]:
+    for base, target, kind in [(APP_BASE, APP, 'app'), (IDENTITY_BASE, IDENTITY, 'identity')]:
         value = json.loads(json.dumps(old[base]))
         value.pop('overlay_base', None)
         value.pop('overlay_references', None)
-        selected = {n:h for n,h in package['files'].items() if
-                    (kind == 'app' and (n.startswith(('ui/web/', 'services/platform/', 'contracts/')) or n == 'infra/launch.py')) or
-                    (kind == 'identity' and n == 'services/identity/src/octoport_identity/protocol/customer.py')}
+        selected = selected_files(package['files'], kind)
         links = {n:d for n,d in package.get('links', {}).items() if kind == 'app' and n.startswith('ui/web/')}
         sources = {n: base/n for n in value['files']}
         sources.update({n: PAYLOAD/n for n in selected})
@@ -308,7 +317,7 @@ def prepare():
                      base_manifest_sha256=PINS[base], customer_catalog_source=SOURCE,
                      qualified_tar_sha256=TAR_SHA)
         if kind == 'app':
-            value['contracts'] = package['contracts']
+            value['contracts'].update({n:package['contracts'][n] for n in AUTH_CONTRACTS})
         targets.append((base, target, value, sources))
     unique = {h: sources[n].stat().st_size for _,_,m,sources in targets for n,h in m['files'].items() if h not in pool}
     count = sum(len(m['files'])+len(m.get('links', {})) for _,_,m,_ in targets)
@@ -335,7 +344,7 @@ def load(digest, activating=True):
     for p, h in value['candidates'].items():
         need(Path(p) in [APP, IDENTITY] and sha(Path(p)/'manifest.json') == h, 'CANDIDATE_CHANGED')
         if activating:
-            candidate_manifest(Path(p), BASE if Path(p) == APP else IDENTITY_BASE, value['ownership'])
+            candidate_manifest(Path(p), APP_BASE if Path(p) == APP else IDENTITY_BASE, value['ownership'])
         else:
             # Rollback never executes the candidate. Keep its possible runtime
             # cache entries for inspection while still verifying admitted files.
