@@ -606,6 +606,255 @@ class OwnedFilesystem(unittest.TestCase):
         self.assertEqual(payload.read_bytes(), b'pass\n')
 
 
+class RolloutLockFilesystem(unittest.TestCase):
+    """Actual files/flock, with fixed /run paths mapped only inside the test.
+
+    No production path/owner option is added. Root ownership is represented in
+    returned metadata so the same disposable tests run on unprivileged CI.
+    """
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix='r15-lock-test-')
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.root.chmod(0o755)
+        self.run = self.root/'run'
+        self.run.mkdir(mode=0o755)
+        self.parent = self.run/'lock'
+        self.parent.mkdir()
+        self.parent.chmod(0o1777)
+        self.target = self.parent/'alisa-stage-rollout.lock'
+        self.target.write_bytes(b'existing shared lock\n')
+        self.target.chmod(0o644)
+        self.paths = {'/': self.root, '/run': self.run, '/run/lock': self.parent,
+                      str(c.LOCK): self.target}
+        self.overrides, self.fds, self.opens = {}, {}, []
+        self.after_open = self.after_flock = None
+        self.real_open, self.real_stat = os.open, os.stat
+        self.real_lstat, self.real_fstat = os.lstat, os.fstat
+        self.real_flock = a.fcntl.flock
+        for owner, name, replacement in (
+                (a.os, 'open', self.open), (a.os, 'stat', self.stat),
+                (a.os, 'lstat', self.lstat), (a.os, 'fstat', self.fstat),
+                (a.fcntl, 'flock', self.flock)):
+            active = patch.object(owner, name, side_effect=replacement)
+            active.start()
+            self.addCleanup(active.stop)
+
+    def logical(self, path, dir_fd=None):
+        if isinstance(path, int):
+            return None
+        name = os.fspath(path)
+        if name in self.paths:
+            return name
+        if dir_fd in self.fds and not os.path.isabs(name):
+            return self.fds[dir_fd][0]+'/'+name
+        return None
+
+    def metadata(self, info, logical):
+        if logical is None:
+            return info
+        values = {key: getattr(info, key) for key in
+                  ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_nlink')}
+        values.update(st_uid=0, st_gid=0)
+        values.update(self.overrides.get(logical, {}))
+        return SimpleNamespace(**values)
+
+    def stat(self, path, *, dir_fd=None, follow_symlinks=True):
+        logical = self.logical(path, dir_fd)
+        actual = self.paths.get(os.fspath(path), path) if not isinstance(path, int) else path
+        info = self.real_stat(actual, dir_fd=dir_fd, follow_symlinks=follow_symlinks)
+        return self.metadata(info, logical)
+
+    def lstat(self, path, *, dir_fd=None):
+        logical = self.logical(path, dir_fd)
+        return self.metadata(self.real_lstat(self.paths.get(os.fspath(path), path),
+                                             dir_fd=dir_fd), logical)
+
+    def fstat(self, fd):
+        info = self.real_fstat(fd)
+        known = self.fds.get(fd)
+        logical = known[0] if known and known[1:] == (info.st_dev, info.st_ino) else None
+        return self.metadata(info, logical)
+
+    def open(self, path, flags, mode=0o777, *, dir_fd=None):
+        logical = self.logical(path, dir_fd)
+        actual = self.paths.get(os.fspath(path), path)
+        fd = self.real_open(actual, flags, mode, dir_fd=dir_fd)
+        if logical is not None:
+            info = self.real_fstat(fd)
+            self.fds[fd] = (logical, info.st_dev, info.st_ino)
+            self.opens.append((logical, flags, dir_fd))
+            if self.after_open is not None:
+                self.after_open(logical, fd)
+        return fd
+
+    def flock(self, fd, operation):
+        result = self.real_flock(fd, operation)
+        if self.after_flock is not None:
+            hook, self.after_flock = self.after_flock, None
+            hook(fd)
+        return result
+
+    def assert_closed(self):
+        for fd in self.fds:
+            with self.assertRaises(OSError):
+                self.real_fstat(fd)
+
+    def blocked(self, code='UNTRUSTED_LOCK'):
+        with self.assertRaises(c.Blocked) as error:
+            with a.lock():
+                self.fail('untrusted lock yielded')
+        if code is not None:
+            self.assertEqual(error.exception.code, code)
+        self.assert_closed()
+
+    def replace_file(self):
+        new = self.parent/'later-writer'
+        new.write_bytes(b'later writer\n')
+        new.chmod(0o644)
+        os.replace(new, self.target)
+
+    def replace_parent(self):
+        self.parent.rename(self.run/'held-lock-directory')
+        self.parent.mkdir()
+        self.parent.chmod(0o1777)
+        self.target.write_bytes(b'later directory\n')
+        self.target.chmod(0o644)
+
+    def test_existing_sticky_root_lock_holds_real_exclusion_and_preserves_bytes(self):
+        before = self.target.lstat()
+        with a.lock() as held:
+            self.assertEqual(self.real_fstat(held.fileno()).st_ino, before.st_ino)
+            other = self.real_open(self.target, os.O_RDWR)
+            try:
+                with self.assertRaises(BlockingIOError):
+                    self.real_flock(other, a.fcntl.LOCK_EX | a.fcntl.LOCK_NB)
+            finally:
+                os.close(other)
+        self.assert_closed()
+        self.assertEqual(self.target.read_bytes(), b'existing shared lock\n')
+        self.assertEqual(self.target.lstat().st_ino, before.st_ino)
+        self.assertEqual(stat.S_IMODE(self.target.lstat().st_mode), 0o644)
+        parent_open, file_open = self.opens
+        self.assertTrue(parent_open[1] & os.O_DIRECTORY and parent_open[1] & os.O_NOFOLLOW)
+        self.assertTrue(file_open[1] & os.O_RDWR and file_open[1] & os.O_NOFOLLOW)
+        self.assertIsNotNone(file_open[2])
+        self.assertFalse(any(flags & (os.O_CREAT | os.O_TRUNC) for _, flags, _ in self.opens))
+        with self.target.open('r+b') as other:
+            self.real_flock(other.fileno(), a.fcntl.LOCK_EX | a.fcntl.LOCK_NB)
+
+    def test_safe_existing_parent_remains_supported_and_generic_guard_stays_strict(self):
+        with self.assertRaises(c.Blocked):
+            a.secure_dir(Path('/run/lock'))
+        self.parent.chmod(0o755)
+        a.secure_dir(Path('/run/lock'))
+        with a.lock():
+            pass
+        self.assert_closed()
+
+    def test_writable_parent_requires_exact_sticky_mode(self):
+        for mode in (0o777, 0o775, 0o3777):
+            with self.subTest(mode=oct(mode)):
+                self.parent.chmod(mode)
+                self.blocked()
+
+    def test_root_ancestors_and_parent_require_root_uid_and_gid(self):
+        for path in ('/', '/run', '/run/lock'):
+            for key in ('st_uid', 'st_gid'):
+                with self.subTest(path=path, key=key):
+                    self.overrides = {path: {key: 999}}
+                    self.blocked(code=None)
+        self.overrides = {}
+
+    def test_writable_run_ancestor_is_not_covered_by_sticky_exception(self):
+        self.run.chmod(0o1777)
+        self.blocked(code='UNTRUSTED_DIRECTORY')
+
+    def test_symlink_parent_is_not_followed(self):
+        held = self.run/'real-lock-directory'
+        self.parent.rename(held)
+        self.parent.symlink_to(held, target_is_directory=True)
+        self.blocked()
+
+    def test_symlink_file_is_not_followed(self):
+        held = self.parent/'real-lock'
+        self.target.rename(held)
+        self.target.symlink_to(held)
+        self.blocked()
+        self.assertEqual(held.read_bytes(), b'existing shared lock\n')
+
+    def test_missing_lock_is_never_created(self):
+        self.target.unlink()
+        self.blocked()
+        self.assertFalse(self.target.exists())
+
+    def test_foreign_file_uid_gid_and_group_world_writes_are_rejected(self):
+        for key in ('st_uid', 'st_gid'):
+            with self.subTest(key=key):
+                self.overrides = {str(c.LOCK): {key: 999}}
+                self.blocked()
+        self.overrides = {}
+        for mode in (0o664, 0o646):
+            with self.subTest(mode=oct(mode)):
+                self.target.chmod(mode)
+                self.blocked()
+
+    def test_hardlink_alias_is_rejected(self):
+        os.link(self.target, self.parent/'alias')
+        self.blocked()
+
+    def test_file_replacement_during_open_is_detected_before_flock(self):
+        def change(path, _fd):
+            if path == str(c.LOCK):
+                self.replace_file()
+        self.after_open = change
+        with patch.object(a.fcntl, 'flock') as acquire:
+            self.blocked()
+        acquire.assert_not_called()
+        self.assertEqual(self.target.read_bytes(), b'later writer\n')
+
+    def test_file_replacement_after_flock_is_detected_before_yield(self):
+        self.after_flock = lambda _fd: self.replace_file()
+        self.blocked()
+        self.assertEqual(self.target.read_bytes(), b'later writer\n')
+
+    def test_parent_replacement_during_open_is_detected(self):
+        self.after_open = lambda path, _fd: self.replace_parent() if path == '/run/lock' else None
+        self.blocked()
+        self.assertEqual(self.target.read_bytes(), b'later directory\n')
+
+    def test_parent_replacement_after_flock_is_detected(self):
+        self.after_flock = lambda _fd: self.replace_parent()
+        self.blocked()
+        self.assertEqual(self.target.read_bytes(), b'later directory\n')
+
+    def test_parent_or_file_permissions_changed_after_flock_are_rejected(self):
+        for path, new_mode, old_mode in ((self.parent, 0o777, 0o1777), (self.target, 0o666, 0o644)):
+            with self.subTest(path=path.name):
+                self.after_flock = lambda _fd: path.chmod(new_mode)
+                self.blocked()
+                path.chmod(old_mode)
+
+    def test_real_busy_lock_retains_existing_typed_refusal(self):
+        with self.target.open('r+b') as other:
+            self.real_flock(other.fileno(), a.fcntl.LOCK_EX | a.fcntl.LOCK_NB)
+            self.blocked(code='ROLLOUT_BUSY')
+
+    def test_unrelated_parent_activity_does_not_invalidate_held_directory(self):
+        def unrelated(_fd):
+            (self.parent/'another-users-directory').mkdir()
+            (self.parent/'another-lock').write_bytes(b'unrelated\n')
+        self.after_flock = unrelated
+        with a.lock():
+            pass
+        self.assert_closed()
+
+    def test_no_alternate_lock_path_receives_the_exception(self):
+        with patch.object(c, 'LOCK', Path('/run/another-lock/alisa-stage-rollout.lock')):
+            self.blocked()
+        self.assertEqual(self.opens, [])
+
+
 class InstalledAdapterBoundaries(unittest.TestCase):
     def test_fence_load_path_and_higher_priority_exact_or_template_shadow_fail_closed(self):
         good = ' '.join(c.UNIT_PATHS).encode()

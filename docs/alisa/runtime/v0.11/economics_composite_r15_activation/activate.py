@@ -248,22 +248,69 @@ def prop(unit, key):
     return run('systemctl', 'show', unit, '--value', '-p', key, timeout=10).decode().strip()
 
 
+def _lock_identity(info):
+    # Directory timestamps/link counts can change when unrelated locks appear.
+    return (info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid)
+
+
+def _lock_parent_state():
+    c.need(c.LOCK == Path('/run/lock/alisa-stage-rollout.lock'), 'UNTRUSTED_LOCK')
+    parent = c.LOCK.parent
+    secure_dir(parent.parent)
+    for ancestor in (parent.parent, *parent.parent.parents):
+        info = ancestor.lstat()
+        c.need(info.st_uid == 0 and info.st_gid == 0, 'UNTRUSTED_LOCK')
+    info = parent.lstat()
+    c.need(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and info.st_gid == 0
+           and (not info.st_mode & 0o022 or stat.S_IMODE(info.st_mode) == 0o1777),
+           'UNTRUSTED_LOCK')
+    return _lock_identity(info)
+
+
+def _lock_file_state(info):
+    c.need(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and info.st_gid == 0
+           and not info.st_mode & 0o022 and info.st_nlink == 1, 'UNTRUSTED_LOCK')
+    return _lock_identity(info)
+
+
+def _check_lock(parent_fd, fd, parent_before, file_before):
+    c.need(_lock_parent_state() == parent_before
+           and _lock_identity(os.fstat(parent_fd)) == parent_before, 'UNTRUSTED_LOCK')
+    # Compare the held fd, its entry in the held directory, and the public path.
+    # A root writer replacing either inode must not split the shared flock.
+    for info in (os.fstat(fd), os.stat(c.LOCK.name, dir_fd=parent_fd, follow_symlinks=False),
+                 c.LOCK.lstat()):
+        c.need(_lock_file_state(info) == file_before, 'UNTRUSTED_LOCK')
+
+
 @contextmanager
 def lock():
-    secure_dir(c.LOCK.parent)
-    fd = os.open(c.LOCK, os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK)
-    stream = os.fdopen(fd, 'r+b', closefd=True)
+    parent_fd = fd = None
     try:
-        info, current = os.fstat(fd), c.LOCK.lstat()
-        c.need(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022
-               and (info.st_dev, info.st_ino) == (current.st_dev, current.st_ino), 'UNTRUSTED_LOCK')
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            raise c.Blocked('ROLLOUT_BUSY') from None
-        yield stream
+            parent_before = _lock_parent_state()
+            parent_fd = os.open(c.LOCK.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            c.need(_lock_identity(os.fstat(parent_fd)) == parent_before, 'UNTRUSTED_LOCK')
+            # The shared lock must already exist. Never create, chmod, relabel,
+            # rename or substitute a different file in the sticky directory.
+            fd = os.open(c.LOCK.name, os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK,
+                         dir_fd=parent_fd)
+            file_before = _lock_file_state(os.fstat(fd))
+            _check_lock(parent_fd, fd, parent_before, file_before)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise c.Blocked('ROLLOUT_BUSY') from None
+            _check_lock(parent_fd, fd, parent_before, file_before)
+        except OSError:
+            raise c.Blocked('UNTRUSTED_LOCK') from None
+        with os.fdopen(fd, 'r+b', closefd=False) as stream:
+            yield stream
     finally:
-        stream.close()
+        if fd is not None:
+            os.close(fd)
+        if parent_fd is not None:
+            os.close(parent_fd)
 
 
 def load_module(name, path, digest):

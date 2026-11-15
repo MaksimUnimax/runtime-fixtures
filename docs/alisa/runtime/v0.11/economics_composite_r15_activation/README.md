@@ -6,10 +6,15 @@ This is a separate activation artifact for product commit
 publisher. Source review and disposable tests do not authorize execution on an
 installed system and do not establish installed readiness or owner acceptance.
 
-There is no real R15 `PREPARED.json` package yet: the existing resource reserve
-prevents building and publishing the additional independent copies. A fixture,
-the existing `PLAN_NOT_BUILT` receipt, or a successful source CI run cannot
-substitute for that package. No activation invocation was made during authoring.
+A real immutable R15 package was built on 15 November 2026 at 12:38:29 UTC.
+Its externally retained `PREPARED.json` SHA-256 is
+`2f83b12b5a9d67e4060051dce26ddae934cc98f638669c1a156060164622bc4d`;
+the exact source, role inventories and package were independently checked.
+The first activation `plan` at 12:45:14 UTC refused with
+`UNTRUSTED_DIRECTORY` before creating an attempt or changing application state:
+the existing `/run/lock` is a root-owned sticky directory. The narrow lock
+correction below changes only this separate tool. Its authoring made no remote
+retry or modification of the installed tool, product, builder or package.
 
 ## Fixed identities and scope
 
@@ -234,6 +239,25 @@ independent-copy budget. Memory headroom must remain at least 1 GiB beyond a
 512 MiB task allowance. No reserve, quota or cap is relaxed to make a package
 fit, and no historical or foreign fixture is cleaned up by this tool.
 
+### Existing shared rollout lock
+
+The tool uses only the already existing
+`/run/lock/alisa-stage-rollout.lock`. The exact `/run/lock` directory may have
+its normal root:root mode `01777`; `/run` and `/` must remain strict root-owned
+directories without group/world write permission. No other writable parent
+receives this exception. The generic `secure_dir` validator remains unchanged.
+
+The parent is opened with `O_DIRECTORY|O_NOFOLLOW`; the existing file is opened
+relative to that directory fd with `O_RDWR|O_NOFOLLOW`, never `O_CREAT`. The
+file must be root:root, regular, have exactly one link and no group/world write
+bits. Directory identity, security metadata and all three file views (held fd,
+held-directory entry and full pathname) must match before and after the
+nonblocking exclusive flock. A changed inode, owner, permissions, symlink or
+hardlink fails before the critical section. A held lock remains `ROLLOUT_BUSY`.
+Unrelated files appearing in the sticky directory do not invalidate its
+identity; directory timestamps and link count are not treated as authority.
+The tool never creates, replaces, renames, chmods or relabels the common lock.
+
 ## Qualification evidence and limits
 
 Run only disposable source tests from the checkout:
@@ -251,6 +275,14 @@ publication collisions, sampler principals/lifetime/schema, isolated bootstrap,
 stale bytecode, standard-library shadowing and the complete pinned helper load
 order. They use disposable files and explicit Python fakes; no fake adapter is
 reachable from the CLI and they do not certify installed readiness.
+
+The lock correction adds 18 focused cases using actual disposable files and
+kernel flock, with the fixed logical `/run` paths mapped into the test's own
+directory. Only fixture ownership metadata is represented as root for ordinary
+CI users; the production path and ownership constants have no override. These
+cases cover the normal sticky directory, a strict parent, true busy exclusion,
+missing files, symlinks, hardlinks, unsafe ownership/permissions, file and parent
+replacement during open/flock, descriptor cleanup, and unrelated lock activity.
 
 The separately authored readiness suite passed 28 disposable cases, including
 uncheckpointed WAL visibility and fail-closed SQL/metadata shapes. The actual
