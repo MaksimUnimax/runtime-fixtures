@@ -41,3 +41,14 @@ class SuiteRouting(TestCase):
   with tempfile.TemporaryDirectory()as t:
    root=Path(t);self.fixture(root);(root/'runtime_client/test_unassigned.py').write_text('')
    with self.assertRaisesRegex(RuntimeError,'UNASSIGNED'):inventory(root)
+
+ def test_symlinked_nested_test_tree_is_not_ignored(self):
+  with tempfile.TemporaryDirectory()as t:
+   root=Path(t)/'tests';root.mkdir();self.fixture(root);outside=Path(t)/'outside';outside.mkdir();(outside/'test_future.py').write_text('')
+   (root/'economics_ledger/nested_link').symlink_to(outside,target_is_directory=True)
+   with self.assertRaisesRegex(RuntimeError,'SYMLINK'):inventory(root)
+ def test_symlinked_test_file_is_rejected(self):
+  with tempfile.TemporaryDirectory()as t:
+   root=Path(t)/'tests';root.mkdir();self.fixture(root);outside=Path(t)/'outside.py';outside.write_text('')
+   p=root/'economics_ledger/test_accruals.py';p.unlink();p.symlink_to(outside)
+   with self.assertRaisesRegex(RuntimeError,'SYMLINK'):inventory(root)

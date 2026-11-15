@@ -24,6 +24,7 @@ EXTERNAL={
 
 def inventory(root):
  root=Path(root);found={}
+ if root.is_symlink()or any(p.is_symlink()for p in root.rglob('*')):raise RuntimeError('TEST_TREE_SYMLINK_DENIED')
  for directory in root.iterdir():
   if not directory.is_dir():continue
   modules={'.'.join(p.relative_to(directory).with_suffix('').parts) for p in directory.rglob('test_*.py')}
