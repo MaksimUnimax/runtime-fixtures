@@ -1,0 +1,28 @@
+{
+  "schema": "alisa-owner-catalog-acceptance/v1",
+  "date": "2026-11-15",
+  "app_source": "8b8b919993c3812898e14367c161aa4cf9fcf6e6",
+  "installer_source": "066d791fbadb090c163822b984d6a216c38830fb",
+  "status": "LIVE_OWNER_CATALOG_PASS",
+  "checks": {
+    "session_preserved": true,
+    "ozon_total": 56,
+    "sales_search": 8,
+    "table_kind": 12,
+    "parameter_kind": 2,
+    "pagination": true,
+    "card": "B08.finance_sales@5",
+    "draft_store_and_question": true,
+    "query_count_after": 0,
+    "new_grants": 0,
+    "unknown_preserved": 4,
+    "anonymous_login_checkbox_count": 0,
+    "core_metadata_definitions": 88,
+    "protected_components_and_staff_changes_preserved": true
+  },
+  "open": [
+    "account calculation access NOT_PROVISIONED",
+    "physical Station voice acceptance",
+    "remaining R5 functional acceptance"
+  ]
+}
