@@ -1,9 +1,10 @@
-"""Actual restrictive-umask regression and bounded fixture diagnostics only."""
+"""Actual umask/Unix-socket regressions and bounded fixture diagnostics only."""
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 import json
 import os
+import socket
 import stat
 import subprocess
 import sys
@@ -15,6 +16,19 @@ import native_credential_gate as gate
 
 
 class CredentialGateSetup(unittest.TestCase):
+    def test_actual_unix_peer_accepts_path_and_string_with_matching_credentials(self):
+        with tempfile.TemporaryDirectory(prefix='r15-gate-peer-') as directory:
+            path = Path(directory)/'peer.sock'
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
+                listener.settimeout(1)
+                listener.bind(str(path))
+                listener.listen(2)
+                for address in (path, str(path)):
+                    with self.subTest(input_type=type(address).__name__):
+                        self.assertEqual(gate.peer(address), (os.getpid(), os.getuid()))
+                        connection, _ = listener.accept()
+                        connection.close()
+
     def test_real_umask_0077_requires_explicit_mode_on_both_cwds(self):
         with tempfile.TemporaryDirectory(prefix='r15-gate-umask-') as directory:
             root = Path(directory)

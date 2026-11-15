@@ -420,9 +420,11 @@ database and role were confirmed removed afterward. That evidence establishes
 SQL behavior in the isolated fixture, not current production visibility, current
 idle state, installed synthetic acceptance, or a live financial result.
 
-The native credential correction and its CI setup regression pass 122 local
-source tests, including 15 descriptor/HMAC cases and six gate setup/diagnostic
-cases. The local descriptor fixtures explicitly substitute
+The existing 122 native credential and CI setup cases pass locally, including
+15 descriptor/HMAC cases and six gate setup/diagnostic cases. A seventh setup
+case brings the required CI total to 123; the local execution environment
+rejects its real AF_UNIX socket creation with `EPERM` before the tested call.
+It has no mock or skip fallback. The local descriptor fixtures explicitly substitute
 their own UID and read-only mount bit; they do not claim a kernel namespace
 result. Independent review ran those 15 cases and ten additional rejection/CAS
 cases against the frozen runtime source.
@@ -472,3 +474,14 @@ cannot adopt or stop another unit. `BindsTo`, finite limits, zero swap and
 five-second stop timeouts remain in place. This setup correction changes no
 runtime tool file: tool identity remains
 `d1d3ca18cdca4d5419fd53dbfd924bb71bf529d409ae0f076d6e42c395dfff04`.
+
+The subsequent corrected-source CI (`43726961701`) started the producer but
+stopped in the fixture's first socket readiness check: `socket.connect` received
+a `pathlib.Path`, producing `TypeError` before the runtime adapter was reached.
+Only the fixture peer boundary now converts the address with `os.fspath`.
+One additional regression requires a real owned AF_UNIX listener and checks
+SO_PEERCRED for both `Path` and string input without mocks. Local execution
+stopped at `socket()` with `EPERM`, so a positive socket result is still pending
+the corrected-source CI. The runtime consumes
+the unchanged config string; its four-file identity and the workflow are
+unchanged. The new source still requires its own successful lifecycle CI run.

@@ -123,7 +123,7 @@ def property_value(unit, name):
 def peer(path):
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as stream:
         stream.settimeout(.5)
-        stream.connect(path)
+        stream.connect(os.fspath(path))
         pid, uid, _ = struct.unpack('3i', stream.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
         return pid, uid
 
