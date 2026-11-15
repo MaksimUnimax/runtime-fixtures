@@ -3,6 +3,7 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
+import tarfile
 import unittest
 from unittest.mock import patch
 
@@ -150,6 +151,23 @@ class InstallTests(unittest.TestCase):
                 else:extra.symlink_to(src)
                 with self.assertRaisesRegex(RuntimeError, 'UNDECLARED_RELEASE_ENTRY'):
                     M.candidate_manifest(target, base)
+
+    def test_payload_and_manifest_must_match_the_pinned_archive(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder);payload = root/'release';payload.mkdir()
+            code = payload/'code.py';code.write_bytes(b'qualified')
+            record = {'files': {'code.py': M.sha(code)}}
+            (payload/'manifest.json').write_text(json.dumps(record)+'\n')
+            archive = root/'qualified.tar.gz'
+            with tarfile.open(archive, 'w:gz') as t:t.add(payload, arcname=payload.name)
+            digest = M.sha(archive)
+            M.package_manifest(payload, archive, digest)
+            code.write_bytes(b'changed after extraction')
+            record['files']['code.py'] = M.sha(code)
+            (payload/'manifest.json').write_text(json.dumps(record)+'\n')
+            M.manifest(payload)  # Internally consistent, but not the CI package.
+            with self.assertRaisesRegex(RuntimeError, 'PACKAGE_MANIFEST_CHANGED'):
+                M.package_manifest(payload, archive, digest)
 
 
 if __name__ == '__main__':

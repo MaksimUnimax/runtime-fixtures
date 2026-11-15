@@ -10,6 +10,7 @@ import signal
 import sqlite3
 import subprocess
 import sys
+import tarfile
 import time
 import urllib.request
 from pathlib import Path
@@ -156,6 +157,19 @@ def candidate_manifest(root, base, ownership=None):
     return value
 
 
+def package_manifest(payload, archive, digest):
+    need(sha(archive) == digest, 'PACKAGE_TAR_HASH')
+    with tarfile.open(archive, 'r:gz') as package:
+        entry = package.getmember(payload.name+'/manifest.json')
+        need(entry.isfile() and 0 < entry.size <= 2*1024*1024, 'PACKAGE_MANIFEST_BOUND')
+        raw = package.extractfile(entry).read(2*1024*1024+1)
+    need((payload/'manifest.json').read_bytes() == raw, 'PACKAGE_MANIFEST_CHANGED')
+    value = manifest(payload)
+    need(value == json.loads(raw), 'PACKAGE_MANIFEST_CHANGED')
+    exact_tree(payload, value)
+    return value
+
+
 def static(unit):
     result = {k: prop(unit, k) for k in ['WorkingDirectory', 'DropInPaths', 'EnvironmentFiles']}
     start = prop(unit, 'ExecStart')
@@ -227,11 +241,9 @@ def prepare():
     before = protected()
     units = {u: static(u) for u in [WEB, PLATFORM, IDP]}
     need(Path(units[PLATFORM]['WorkingDirectory']).resolve() == PLATFORM_BASE, 'PLATFORM_BASE')
-    package = manifest(PAYLOAD)
-    exact_tree(PAYLOAD, package)
-    need(package['source_sha'] == SOURCE, 'PACKAGE_SOURCE')
     tar = PAYLOAD.parents[1]/'alisa-8b8b919993c38128.tar.gz'
-    need(sha(tar) == TAR_SHA, 'PACKAGE_TAR_HASH')
+    package = package_manifest(PAYLOAD, tar, TAR_SHA)
+    need(package['source_sha'] == SOURCE, 'PACKAGE_SOURCE')
     old = {p: manifest(p) for p in [BASE, PLATFORM_BASE, IDENTITY_BASE]}
     for service, base in [('platform', BASE), ('identity', IDENTITY_BASE)]:
         lock = 'services/'+service+'/requirements.lock'
