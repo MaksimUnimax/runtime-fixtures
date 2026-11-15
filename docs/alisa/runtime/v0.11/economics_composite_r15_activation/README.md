@@ -96,6 +96,28 @@ the PINs recomputed from the exact candidate. All other configuration values,
 including `execution_enabled`, remain unchanged. Setting that flag false is
 not an admission fence: submission can still enqueue work.
 
+### Existing authority selector and release identity
+
+The observed authority selector retains a leading comment, empty lines,
+`Environment=ALISA_RELEASE=<old release>`, the matching existing Gunicorn
+`--env ALISA_RELEASE=<old release>` argument, and the query-insights then
+question-catalog `EnvironmentFile` directives. These are part of the accepted
+source. The writer now recognizes that exact ordered authority grammar and the
+existing platform grammar. Comments, empty lines and all unrelated arguments
+are preserved. Unknown directives, changed environment-file order or paths,
+empty resets, duplicate assignments and ambiguous release arguments still block.
+
+The writer changes the full release paths and both existing authority release
+identities. The effective-command predictor uses the same bounded rewrite;
+it cannot leave an old Gunicorn release name while predicting a successful new
+start. The existing health check still requires the target release name.
+Because a later drop-in appends its existing environment files again, the unit
+predictor retains their ordered duplicates and then the final two-flag file.
+It neither deduplicates that list nor resets earlier environment assignments.
+Existing environment-file metadata and source hashes remain under the original
+before/after checks. This changes no admission, credential, recovery or readiness
+state-machine boundary.
+
 ## Phase contract
 
 | Command or phase | Required evidence | Permitted effect |
@@ -420,9 +442,9 @@ database and role were confirmed removed afterward. That evidence establishes
 SQL behavior in the isolated fixture, not current production visibility, current
 idle state, installed synthetic acceptance, or a live financial result.
 
-The existing 122 native credential and CI setup cases pass locally, including
+Before the selector correction, the 122 native credential and CI setup cases passed locally, including
 15 descriptor/HMAC cases and six gate setup/diagnostic cases. A seventh setup
-case brings the required CI total to 123; the local execution environment
+case brought that correction's required CI total to 123; the local execution environment
 rejects its real AF_UNIX socket creation with `EPERM` before the tested call.
 It has no mock or skip fallback. The local descriptor fixtures explicitly substitute
 their own UID and read-only mount bit; they do not claim a kernel namespace
@@ -471,8 +493,8 @@ and whitelisted properties of that exact fixture unit. Raw argv, stdout,
 stderr and arbitrary error messages remain private. The startup-failure path
 requires the fresh fixture identity before cleanup; an occupied-name refusal
 cannot adopt or stop another unit. `BindsTo`, finite limits, zero swap and
-five-second stop timeouts remain in place. This setup correction changes no
-runtime tool file: tool identity remains
+five-second stop timeouts remain in place. That setup correction changed no
+runtime tool file: its tool identity remained
 `d1d3ca18cdca4d5419fd53dbfd924bb71bf529d409ae0f076d6e42c395dfff04`.
 
 The subsequent corrected-source CI (`43726961701`) started the producer but
@@ -485,3 +507,39 @@ stopped at `socket()` with `EPERM`, so a positive socket result is still pending
 the corrected-source CI. The runtime consumes
 the unchanged config string; its four-file identity and the workflow are
 unchanged. The new source still requires its own successful lifecycle CI run.
+
+The corrected socket source `985ead5d66e7960416062c9aeef8a4e100b1b7f8`
+subsequently passed its actual CI: 123 source tests, ten private-bundle checks,
+15 native credential lifecycle checks and 20 PostgreSQL checks, with owned
+cleanup confirmed. Actual PLAN R4 then stopped at `SELECTOR_GRAMMAR` at
+15:08:04 UTC on 15 November, before any attempt or publication. Bounded
+diagnostics identified the accepted 900-byte authority selector described above;
+the 315-byte platform selector already passed the old grammar. The post-R4
+readback confirmed all eleven protected services unchanged and the attempt and
+three publication targets absent. No credential or environment-file contents
+were emitted by that diagnosis.
+
+The selector correction passed eleven focused local cases and the existing
+62 activation cases; independent source review also passed the eleven cases.
+These use synthetic structural equivalents, not a copy of private production
+arguments. Its four-file tool identity is
+`db2af005bbe06fca76bea2a60f16dc69fe858dbb1247d3446019de6ef99da9b5`.
+
+One additional step in the existing workflow requires six actual systemd and
+locked Gunicorn 26.2.0 consumer checks. A single owned authority-shaped service
+starts an old synthetic WSGI release and restarts once with the generated later
+drop-in. It checks the real effective unit against the runtime predictor,
+ordered duplicate environment files, conflicting synthetic values, both new
+release identities, module/cwd selection, new process generation and the actual
+two process flags. The unprivileged service uses only the existing CI virtual
+environment and its own synthetic paths. Its 60-second, 128 MiB limit and the
+observer's 120-second, 128 MiB limit retain zero swap, five-second stop,
+control-group termination and private AF_UNIX-only networking. Exact owned
+unit files, stopped/empty cgroup, absent runtime paths and unit unload are
+mandatory cleanup results. Existing native and PostgreSQL gates remain real.
+
+The corrected source requires its own CI result: 134 source tests, ten private
+bundle checks, 15 native lifecycle checks, six selector consumer checks and
+20 PostgreSQL checks without errors or skips. The new consumer gate is
+**NOT_RUN** at source qualification. Its future artifact cannot substitute for
+a fresh installed PLAN, preparation, coordination or owner acceptance.

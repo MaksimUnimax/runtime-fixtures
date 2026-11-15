@@ -1,0 +1,291 @@
+{
+  "actual_consumer_ci_design": {
+    "checks": [
+      "old release, module marker and cwd from actual baseline WSGI response",
+      "actual unit_static equals LiveHost.expected_unit and Environment property has new release",
+      "actual EnvironmentFiles retain old list plus ordered query/catalog duplicates and final flags",
+      "Synthetic conflicts prove catalog after query and final flag values 1.",
+      "actual Gunicorn --env overrides conflicting env-file release and serves new module/cwd",
+      "new MainPID/InvocationID and real process_flags plus post-start effective-unit validation"
+    ],
+    "cleanup_required": [
+      "exact owned fragment/drop-in inode and hash guards",
+      "stop only own service",
+      "Always inspect fixed own cgroup path after stop, including empty ControlGroup: directory absent or empty cgroup.procs and cgroup.events populated=0.",
+      "remove only owned unit files/drop-in directory and payload",
+      "daemon reload and unit not-found",
+      "own runtime directories absent"
+    ],
+    "count": 6,
+    "dependencies": "Existing hash-locked CI virtual environment and Gunicorn 26.2.0; no new dependency, runner or workflow.",
+    "fixture_substitutions": [
+      "unit name",
+      "selector paths",
+      "environment-file paths"
+    ],
+    "limits": {
+      "network": "private;AF_UNIX only",
+      "observer_memory_bytes": 134217728,
+      "observer_seconds": 120,
+      "observer_tasks": 32,
+      "producer_binds_to_observer": true,
+      "service_memory_bytes": 134217728,
+      "service_seconds": 60,
+      "service_tasks": 16,
+      "stop_seconds": 5,
+      "swap_bytes": 0
+    },
+    "principal": "Existing nonroot owner of the CI virtual environment;source release files root-owned readonly.",
+    "systemd_units": "One own observer plus one own authority-shaped service; baseline start and exactly one restart."
+  },
+  "base_source_commit": "985ead5d66e7960416062c9aeef8a4e100b1b7f8",
+  "date_utc": "2026-11-15",
+  "independent_reviews": {
+    "actual_consumer_source": {
+      "actual_execution_claimed": false,
+      "final_cleanup_only_delta": "Final gate differs only in the independently reviewed fixed-own-cgroup cleanup proof; all six consumer assertions are unchanged.",
+      "reviewed_gate_sha256": "cee7451165d966e7dfe821ae5bc0e4149f20fbccbacf28264c760b995ae031d0",
+      "reviewer": "activation_resume_review",
+      "status": "SOURCE_APPROVE"
+    },
+    "finite_fixture_and_cleanup": {
+      "actual_execution_claimed": false,
+      "basis": "Full source review and exact final cleanup delta reconstruction; no reviewer source edits, test repeats or production actions.",
+      "gate_sha256": "85e310e966bf56472d22f1d0c4faf4cc8dd172ebcd669778ced70e672a812607",
+      "reviewer": "disk_resume_review",
+      "status": "SOURCE_APPROVE",
+      "workflow_sha256": "e41eb998c635965b974d40df61bcd0036433c3095c368631db4d6e97ab94a197"
+    },
+    "runtime_core": {
+      "proof": {
+        "bytes": 11057,
+        "path": "r15-selector-fix-20261115/CORE_REVIEW_20261115.json",
+        "sha256": "16d7bfdf79ec9e5e348ff1d858c20c0a06ebcdb926cf382d68d81097edc2ffdd"
+      },
+      "reviewer": "activation_resume_review",
+      "status": "SOURCE_APPROVE_PENDING_ACTUAL_SYSTEMD_CI"
+    }
+  },
+  "local_validation": {
+    "actual_new_systemd_gate": "NOT_RUN",
+    "author_existing_activation_suite": {
+      "errors": 0,
+      "seconds": 0.371,
+      "skips": 0,
+      "status": "PASS",
+      "tests": 62
+    },
+    "author_selector_suite": {
+      "errors": 0,
+      "seconds": 0.003,
+      "skips": 0,
+      "status": "PASS",
+      "tests": 11
+    },
+    "fixture_scope": "Structural synthetic equivalents; production private arguments were not copied into a test.",
+    "full134_suite_run_locally": false,
+    "gate_ast": "PASS",
+    "reviewer_selector_suite": {
+      "errors": 0,
+      "seconds": 0.004,
+      "skips": 0,
+      "status": "PASS",
+      "tests": 11
+    },
+    "workflow_shell_blocks_syntax_passed": 8,
+    "workflow_yaml": "PASS"
+  },
+  "observed_failure": {
+    "attempt_created": false,
+    "cgroup_empty": true,
+    "code": "SELECTOR_GRAMMAR",
+    "completed_utc": "2026-11-15T15:08:04.802054+00:00",
+    "diagnostic_scope": "Bounded metadata, allowlisted nonsecret paths/release identity and grammar predicates. No credentials, environment-file contents or other argv contents emitted.",
+    "evidence": [
+      {
+        "bytes": 371,
+        "path": "r15-r4-activation-20261115/ACTIVATION_PREVIEW_RESULT_R4.json",
+        "sha256": "6124a9a638968255ea3a3f4c55a9537cdd2ddab425284f4a0d988c1d4a7dc85c"
+      },
+      {
+        "bytes": 6750,
+        "path": "r15-r4-activation-20261115/SELECTOR_GRAMMAR_DIAGNOSTIC.json",
+        "sha256": "41a4f99e9b6226ae291f9630a9ceebffeacabf81cc019694a3931b5277650362"
+      },
+      {
+        "bytes": 701,
+        "path": "r15-r4-activation-20261115/SELECTOR_ALLOWLIST_DIAGNOSTIC.json",
+        "sha256": "96c70733215b937b487bd39e4ee359837f5d93eb2f84fee6e73fed669cf5e016"
+      },
+      {
+        "bytes": 453,
+        "path": "r15-r4-activation-20261115/SELECTOR_RELEASE_DIAGNOSTIC.json",
+        "sha256": "adf3d04d78618854e144a4f7eeddeb4823bd368fe046a2e67e1e69b6e432b3b1"
+      },
+      {
+        "bytes": 8559,
+        "path": "r15-r4-activation-20261115/SELECTOR_OCCURRENCES_DIAGNOSTIC.json",
+        "sha256": "b3ce5515508929a7b1ea0ec6589d1bfc1623622244dcf3c9d8feada5a6d6451c"
+      },
+      {
+        "bytes": 498,
+        "path": "r15-r4-activation-20261115/SELECTOR_RELEASE_TOKEN_DIAGNOSTIC.json",
+        "sha256": "4ff4b9135c6c30a9f908dd8c4f3fe71b583ce1927b59c4918ef249febdb65e38"
+      },
+      {
+        "bytes": 367,
+        "path": "r15-r4-activation-20261115/SELECTOR_RELEASE_RAW_DIAGNOSTIC.json",
+        "sha256": "7166c0752d80ca46ba218132e1ee39ddad3ff318d42fbeac35b183d05017d57c"
+      }
+    ],
+    "exit_status": 2,
+    "installed_selectors": {
+      "authority": {
+        "bytes": 900,
+        "raw_command_proof": "At 15:17:32 UTC the actual unquoted command matched the exact --env ALISA_RELEASE regex once, with 2 full roots, 1 residual basename and 1 ALISA_RELEASE assignment.",
+        "release_occurrences": "3 full roots plus exact Environment assignment plus one existing gunicorn --env assignment",
+        "sha256": "6871bf5b50512e2f62d647a58f4265ecc723662fa123332eb9fdfed03d4222b9",
+        "shape": "leading comment; Service; WorkingDirectory; Environment ALISA_RELEASE; ExecStart reset and command; blank; query-insights EnvironmentFile; blank; question-catalog EnvironmentFile"
+      },
+      "platform": {
+        "bytes": 315,
+        "old_grammar": "PASS",
+        "sha256": "0344a0c6999e1570c32f50f8d37d1e2a6bcbc5481d7fea71bed11195b42cc45b"
+      }
+    },
+    "preservation": {
+      "attempt_and_three_targets_absent": true,
+      "evidence": {
+        "bytes": 8446,
+        "path": "ALISA_R15_R4_PRESERVATION_READBACK_20261115T150931Z.json",
+        "sha256": "7421db58bbee767a410cb3dcd9fa59d1b1d17e9fadd2c9bd6fa49d3716e4a52d"
+      },
+      "services_unchanged": 11,
+      "status": "PASS"
+    },
+    "previous_ci": {
+      "evidence": {
+        "bytes": 11536,
+        "path": "ci-readback-985ead5d-20261115/CI_READBACK.json",
+        "sha256": "b5abc2e6133bb313b09723e2a6ac10343060983aad53f442f8920fc4fd813089"
+      },
+      "native_lifecycle_checks": 15,
+      "postgresql_checks": 20,
+      "private_bundle_checks": 10,
+      "source_commit": "985ead5d66e7960416062c9aeef8a4e100b1b7f8",
+      "source_tests": 123,
+      "status": "PASS",
+      "url": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/43727581747"
+    },
+    "stage": "actual PLAN R4",
+    "stderr_bytes": 0,
+    "stdout_bytes": 208,
+    "stdout_sha256": "4b455e65ba0cd26a360c64a2aa668acee6b53239b8592c82af1f639e4f239f19",
+    "targets_published": false
+  },
+  "operations": {
+    "installed_readiness_or_owner_acceptance_claimed": false,
+    "next_installed_plan_requires_its_own_fresh_counts": true,
+    "prepare_or_apply_performed": false,
+    "production_commands_by_source_author": false,
+    "readiness_weakened": false,
+    "same_failed_source_retried": false
+  },
+  "prepared_package_sha256": "2f83b12b5a9d67e4060051dce26ddae934cc98f638669c1a156060164622bc4d",
+  "product_source_commit": "1964d60f9a7598fefa2e10a0affcda0cce0f1f34",
+  "required_current_source_ci": {
+    "all_owned_cleanup_required": true,
+    "documentation_checks_required": true,
+    "native_credential_lifecycle_checks": 15,
+    "postgresql_checks": 20,
+    "private_bundle_checks": 10,
+    "required_errors_failures_skips": 0,
+    "selector_consumer_checks": 6,
+    "source_sha_and_tool_pin_match_required": true,
+    "source_tests": 134,
+    "status": "NOT_RUN_AT_SOURCE_QUALIFICATION"
+  },
+  "schema": "alisa-r15-selector-source-qualification/v1",
+  "source_correction": {
+    "changed_files": [
+      {
+        "bytes": 81729,
+        "path": "docs/alisa/runtime/v0.11/economics_composite_r15_activation/activate.py",
+        "sha256": "0e85f3e1641fa4446f487bd63a8e598fce0b12b86593e4c0b1faa610b512c9c1"
+      },
+      {
+        "bytes": 14987,
+        "path": "docs/alisa/runtime/v0.11/economics_composite_r15_activation/activation_contract.py",
+        "sha256": "2cbae401202c0d32daec5a7b53183d423c482e169c28d0c5012b694e1ca0f1f4"
+      },
+      {
+        "bytes": 52732,
+        "path": "docs/alisa/runtime/v0.11/economics_composite_r15_activation/tests/test_activation.py",
+        "sha256": "92832ef0110f67e9032d5ddd22f1467f16541c4654c4b1c29952c73384a6e0d6"
+      },
+      {
+        "bytes": 9364,
+        "path": "docs/alisa/runtime/v0.11/economics_composite_r15_activation/tests/test_selectors.py",
+        "sha256": "1ede0a0a37a26e7a341a8ef45b5f694cdb79a5ff782c58fdc39ed1eae1a0b0f5"
+      },
+      {
+        "bytes": 17642,
+        "path": "docs/alisa/runtime/v0.11/economics_composite_r15_activation/tests/selector_consumer_gate.py",
+        "sha256": "85e310e966bf56472d22f1d0c4faf4cc8dd172ebcd669778ced70e672a812607"
+      },
+      {
+        "bytes": 17093,
+        "path": ".github/workflows/alisa-economics-activation-ci.yml",
+        "sha256": "e41eb998c635965b974d40df61bcd0036433c3095c368631db4d6e97ab94a197"
+      },
+      {
+        "bytes": 34961,
+        "path": "docs/alisa/runtime/v0.11/economics_composite_r15_activation/README.md",
+        "sha256": "7d2988b11163d39ab265265b2e6a0b5cceb60d1786df0366da40cd6b9b5aa350"
+      }
+    ],
+    "consumer": "unit_static predicts command hashes with that rewrite; expected_unit appends inherited authority EnvironmentFiles in their existing order, including duplicates, before the final flag file. Existing metadata, source hashes and actual health-release checks remain mandatory.",
+    "release_identity": "One shared bounded rewrite replaces full release roots and the single exact existing gunicorn --env ALISA_RELEASE token; selector Environment gets the same new basename. Unrelated or partial basename matches cannot be silently relabelled.",
+    "runtime_scope": [
+      "activation_contract.SELECTOR_ENV_FILES",
+      "activation_contract.rewrite_release_command",
+      "activation_contract.selector_bytes",
+      "activate.unit_static",
+      "LiveHost.private_inputs",
+      "LiveHost.expected_unit"
+    ],
+    "selector": "Exact role-specific ordered semantic grammar admits the observed comments/empty lines and exact authority Environment plus two EnvironmentFile paths. It retains all unrelated bytes and rejects extra directives, altered paths/order, resets and ambiguous assignments.",
+    "unchanged_boundaries": [
+      "credential/HMAC/generation guards",
+      "lock and resource reserves",
+      "window and admission fences",
+      "apply state machine and recovery",
+      "readiness and sampler logic",
+      "product96/builder5/shared installed helpers"
+    ]
+  },
+  "status": "SOURCE_REVIEWED_CURRENT_CI_REQUIRED",
+  "tool_sha256": "db2af005bbe06fca76bea2a60f16dc69fe858dbb1247d3446019de6ef99da9b5",
+  "unchanged_files": [
+    {
+      "bytes": 15669,
+      "path": "docs/alisa/runtime/v0.11/economics_composite_r15_activation/readiness.py",
+      "sha256": "ce3cf08c8338f8d34d07c222b2c974b867098f185bfba165b5a4526f77853658"
+    },
+    {
+      "bytes": 10867,
+      "path": "docs/alisa/runtime/v0.11/economics_composite_r15_activation/runtime_versions_sync.py",
+      "sha256": "10421a4ec0000a5e26ecc92e5fbeed0a31f48133698a84b92935b04700615dd4"
+    },
+    {
+      "bytes": 29478,
+      "path": "docs/alisa/runtime/v0.11/economics_composite_r15_activation/tests/native_credential_gate.py",
+      "sha256": "c8232c7c5a28884c43162cf2b808cd252e8c89613edfa3559f33b35b75e11d33"
+    },
+    {
+      "bytes": 20418,
+      "path": "docs/alisa/runtime/v0.11/economics_composite_r15_activation/tests/readiness_postgres_gate.py",
+      "sha256": "49ebae00fe5fad0dc45d4b6667f7d45db9adb9eb0f38e52336e2b1553762446b"
+    }
+  ]
+}

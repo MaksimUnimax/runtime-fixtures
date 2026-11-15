@@ -64,6 +64,11 @@ SOURCE_SELECTORS = {
     'platform': Path('/etc/systemd/system/alisa-platform@stage.service.d') / ('z'*80+'-customer-catalog.conf'),
     'authority': Path('/etc/systemd/system/alisa-runtime-authority-stage.service.d') / ('z'*72+'-parameters-r5-release.conf'),
 }
+SELECTOR_ENV_FILES = {
+    'platform': (),
+    'authority': ('/etc/alisa-platform/stage/query-insights.env',
+                  '/etc/alisa-platform/stage/question-catalog.env'),
+}
 SELECTORS = {role: path.parent / ('z'*88+'-economics-r15-release.conf')
              for role, path in SOURCE_SELECTORS.items()}
 FLAGS = ('ALISA_OWNER_PARAMETER_COMPOUNDS_ENABLED', 'ALISA_OWNER_ECONOMICS_COMPOSITES_ENABLED')
@@ -182,31 +187,64 @@ def policy_bytes(raw, before_probe, after_probe):
     return encoded(new)
 
 
-def selector_bytes(raw, base, target):
+def rewrite_release_command(value, base, target, *, release_env=False):
+    """Rewrite only verified release paths and the existing gunicorn identity."""
+    need(absolute(base) and absolute(target) and base != target
+         and type(value) is str and base in value, 'UNIT_RELEASE_COMMAND')
+    old, new = Path(base).name, Path(target).name
+    need(all(re.fullmatch('[A-Za-z0-9][A-Za-z0-9_.-]*', name) for name in (old, new)),
+         'UNIT_RELEASE_COMMAND')
+    # Full paths and the one existing --env assignment account for every old
+    # release occurrence. Do not rewrite a substring in an unrelated argument.
+    rest = value.replace(base, '')
+    result = value.replace(base, target)
+    if release_env:
+        pattern = re.compile(r'(?<!\S)(--env[ \t]+ALISA_RELEASE=)'+re.escape(old)+r'(?=[ \t]|$)')
+        need(rest.count(old) == 1 and value.count('ALISA_RELEASE=') == 1
+             and len(pattern.findall(value)) == 1, 'UNIT_RELEASE_COMMAND')
+        result, count = pattern.subn(lambda match: match.group(1)+new, result)
+        need(count == 1, 'UNIT_RELEASE_COMMAND')
+    else:
+        need(old not in rest and 'ALISA_RELEASE=' not in value, 'UNIT_RELEASE_COMMAND')
+    need(base not in result, 'UNIT_RELEASE_COMMAND')
+    return result
+
+
+def selector_bytes(raw, base, target, *, role):
     """Preserve the accepted role's command; replace only its release root.
 
     The effective unit is separately pinned in the plan and compared after
     daemon-reload. Unexpected selector grammar fails instead of being guessed.
     """
-    need(absolute(base) and absolute(target) and base != target, 'SELECTOR_ROOT')
+    need(role in SELECTOR_ENV_FILES and absolute(base) and absolute(target) and base != target,
+         'SELECTOR_ROOT')
     try:
         text = raw.decode('utf-8')
     except UnicodeError:
         raise Blocked('SELECTOR_GRAMMAR') from None
-    lines = text.splitlines()
-    need(lines and lines[0] == '[Service]' and text.endswith('\n')
-         and all(line and not any(x in line for x in ('\r', '\x00', '\\'))
-                 for line in lines), 'SELECTOR_GRAMMAR')
-    need(all(line == '[Service]' or line.startswith(('WorkingDirectory=', 'ExecStart='))
-             for line in lines), 'SELECTOR_GRAMMAR')
-    work = [line for line in lines if line.startswith('WorkingDirectory=')]
-    commands = [line for line in lines if line.startswith('ExecStart=')]
+    need(text.endswith('\n') and not any(x in text for x in ('\r', '\x00', '\\')),
+         'SELECTOR_GRAMMAR')
+    lines = text[:-1].split('\n')
+    entries = [line for line in lines if line and not line.startswith('#')]
+    work = [line for line in entries if line.startswith('WorkingDirectory=')]
+    commands = [line for line in entries if line.startswith('ExecStart=')]
     need(len(work) == 1 and work[0] in ('WorkingDirectory='+base,
                                       'WorkingDirectory='+base+'/services/platform')
          and len(commands) == 2 and commands[0] == 'ExecStart='
-         and commands[1].startswith('ExecStart='+base+'/')
-         and text.count('[Service]') == 1, 'SELECTOR_GRAMMAR')
-    result = text.replace(base, target)
+         and commands[1].startswith('ExecStart='+base+'/'), 'SELECTOR_GRAMMAR')
+    release = 'Environment=ALISA_RELEASE='+Path(base).name
+    expected = ['[Service]', work[0], *([release] if role == 'authority' else []),
+                'ExecStart=', commands[1],
+                *('EnvironmentFile='+path for path in SELECTOR_ENV_FILES[role])]
+    need(entries == expected, 'SELECTOR_GRAMMAR')
+    command = rewrite_release_command(commands[1][len('ExecStart='):], base, target,
+                                      release_env=role == 'authority')
+    replacements = {work[0]: work[0].replace(base, target), commands[1]: 'ExecStart='+command}
+    if role == 'authority':
+        replacements[release] = 'Environment=ALISA_RELEASE='+Path(target).name
+    # Preserve comments, empty lines, unrelated argv and the existing env-file
+    # order byte-for-byte. The later drop-in appends those files a second time.
+    result = '\n'.join(replacements.get(line, line) for line in lines)+'\n'
     need(base not in result, 'SELECTOR_REPLACE')
     # A final EnvironmentFile wins over earlier EnvironmentFile assignments;
     # bare Environment= would not. This file contains exactly the two flags.

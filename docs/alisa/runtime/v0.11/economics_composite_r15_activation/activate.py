@@ -725,8 +725,10 @@ def unit_static(unit, rewrite=None):
     command_values = {'path': path.group(1), 'argv': argv.group(1)}
     if rewrite is not None:
         base, target = rewrite
-        c.need(all(base in value for value in command_values.values()), 'UNIT_RELEASE_COMMAND')
-        command_values = {k: v.replace(base, target) for k, v in command_values.items()}
+        c.need(unit in (c.UNITS['platform'], c.UNITS['authority']), 'UNIT_RELEASE_COMMAND')
+        command_values = {key: c.rewrite_release_command(value, base, target,
+            release_env=key == 'argv' and unit == c.UNITS['authority'])
+            for key, value in command_values.items()}
     # Even an unexpected installed argument is not reflected into a receipt.
     values['command'] = {k: c.digest(v.encode()) for k, v in command_values.items()}
     unset = prop(unit, 'UnsetEnvironment')
@@ -889,7 +891,7 @@ class LiveHost:
                'VERSION_SCOPE')
         for role, path in c.SOURCE_SELECTORS.items():
             desired[role+'_selector'] = c.selector_bytes(regular(path), self.baseline['bases'][role]['root'],
-                                                       str(self.targets[role]))
+                                                        str(self.targets[role]), role=role)
         self.target_commands = {role: unit_static(c.UNITS[role],
             rewrite=(self.baseline['bases'][role]['root'], str(self.targets[role])))['command']
             for role in ('platform', 'authority')}
@@ -1114,7 +1116,11 @@ class LiveHost:
             expected['command'] = planned['target_commands'][role]
             expected['DropInPaths'] += ' '+str(c.SELECTORS[role])
             expected['source_hashes'][str(c.SELECTORS[role])] = c.digest(self.desired[role+'_selector'])
-            expected['EnvironmentFiles'] += '\n'+str(c.FLAG_FILE)+' (ignore_errors=no)'
+            inherited = c.SELECTOR_ENV_FILES[role]
+            c.need(all(path in expected['environment_stats'] for path in inherited),
+                   'SELECTOR_ENVIRONMENT_CHANGED')
+            expected['EnvironmentFiles'] += ''.join('\n'+path+' (ignore_errors=no)'
+                for path in (*inherited, str(c.FLAG_FILE)))
             expected['environment_stats'][str(c.FLAG_FILE)] = metadata(c.FLAG_FILE)
         return expected
 

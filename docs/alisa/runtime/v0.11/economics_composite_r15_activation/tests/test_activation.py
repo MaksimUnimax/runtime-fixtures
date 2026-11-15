@@ -208,16 +208,16 @@ class ContractTests(unittest.TestCase):
                            {'parameter_sources_pin': 'a'*64}, probe)
 
     def test_late_envfile_contains_exactly_two_flags_and_preserves_role_command(self):
-        old, new = '/opt/base/authority', '/opt/new/authority'
+        old, new = '/opt/base/old-platform', '/opt/new/new-platform'
         raw = ('[Service]\nWorkingDirectory='+old+'/services/platform\nExecStart=\n'
                'ExecStart='+old+'/.venv/bin/python -m alisa_platform.authority\n').encode()
-        result = c.selector_bytes(raw, old, new)
+        result = c.selector_bytes(raw, old, new, role='platform')
         self.assertEqual(result, raw.replace(old.encode(), new.encode())+
                          ('EnvironmentFile='+str(c.FLAG_FILE)+'\n').encode())
         self.assertEqual(c.FLAG_BYTES.splitlines(), [x.encode()+b'=1' for x in c.FLAGS])
-        for extra in (b'User=root\n', b'ExecStart=/bin/sh\n', b'Environment=SECRET=value\n', b'\n'):
+        for extra in (b'User=root\n', b'ExecStart=/bin/sh\n', b'Environment=SECRET=value\n'):
             with self.subTest(extra=extra), self.assertRaises(c.Blocked):
-                c.selector_bytes(raw+extra, old, new)
+                c.selector_bytes(raw+extra, old, new, role='platform')
 
     def test_public_results_contain_no_private_material_and_no_global_provider_claim(self):
         value = c.public_result('RECOVERY_REQUIRES_REVIEW')
