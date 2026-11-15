@@ -136,6 +136,21 @@ class InstallTests(unittest.TestCase):
             M.atomic_copy(dst, src, M.sha(src))
             self.assertEqual(M.sha(dst), M.sha(src))
 
+    def test_unlisted_file_or_empty_directory_blocks_candidate_activation(self):
+        for extra_kind in ['file', 'directory', 'symlink']:
+            with self.subTest(extra_kind=extra_kind), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder);base = root/'base';base.mkdir();(base/'.venv').mkdir()
+                src = root/'source';src.write_bytes(b'admitted')
+                target = root/'candidate';value = {'files': {'code.py': M.sha(src)}}
+                M.materialize(base, target, value, {'code.py': src}, {})
+                M.candidate_manifest(target, base)
+                extra = target/'unlisted'
+                if extra_kind == 'file':extra.write_bytes(b'extra')
+                elif extra_kind == 'directory':extra.mkdir()
+                else:extra.symlink_to(src)
+                with self.assertRaisesRegex(RuntimeError, 'UNDECLARED_RELEASE_ENTRY'):
+                    M.candidate_manifest(target, base)
+
 
 if __name__ == '__main__':
     unittest.main()

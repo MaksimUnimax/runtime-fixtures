@@ -122,6 +122,40 @@ def manifest(root):
     return value
 
 
+def exact_tree(root, value, extra=()):
+    leaves = set(value['files']) | set(value.get('links', {})) | {'manifest.json'} | set(extra)
+    directories = {str(p) for name in leaves for p in Path(name).parents if str(p) != '.'}
+    seen = set()
+    pending = [root]
+    while pending:
+        directory = pending.pop()
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                name = str(Path(entry.path).relative_to(root))
+                need(name in leaves or name in directories, 'UNDECLARED_RELEASE_ENTRY')
+                need(name not in seen and len(seen) < len(leaves)+len(directories), 'RELEASE_TREE_BOUND')
+                seen.add(name)
+                if entry.is_dir(follow_symlinks=False):
+                    need(name in directories, 'RELEASE_ENTRY_TYPE')
+                    pending.append(Path(entry.path))
+                else:
+                    need(name in leaves and (entry.is_file(follow_symlinks=False) or entry.is_symlink()), 'RELEASE_ENTRY_TYPE')
+    need(seen == leaves | directories, 'RELEASE_TREE_MISSING')
+
+
+def candidate_manifest(root, base, ownership=None):
+    value = manifest(root)
+    extra = {'.venv'}
+    need((root/'.venv').is_symlink() and os.readlink(root/'.venv') == str(base/'.venv') and
+         (root/'.venv').resolve() == (base/'.venv').resolve(), 'CANDIDATE_VENV')
+    if ownership is not None:
+        marker = root/'.customer-catalog-preparation.json'
+        need(not marker.is_symlink() and json.loads(marker.read_text()) == ownership, 'PREPARATION_OWNER')
+        extra.add(marker.name)
+    exact_tree(root, value, extra)
+    return value
+
+
 def static(unit):
     result = {k: prop(unit, k) for k in ['WorkingDirectory', 'DropInPaths', 'EnvironmentFiles']}
     start = prop(unit, 'ExecStart')
@@ -194,6 +228,7 @@ def prepare():
     units = {u: static(u) for u in [WEB, PLATFORM, IDP]}
     need(Path(units[PLATFORM]['WorkingDirectory']).resolve() == PLATFORM_BASE, 'PLATFORM_BASE')
     package = manifest(PAYLOAD)
+    exact_tree(PAYLOAD, package)
     need(package['source_sha'] == SOURCE, 'PACKAGE_SOURCE')
     tar = PAYLOAD.parents[1]/'alisa-8b8b919993c38128.tar.gz'
     need(sha(tar) == TAR_SHA, 'PACKAGE_TAR_HASH')
@@ -238,21 +273,27 @@ def prepare():
     record('PREPARING.json', {'ownership': ownership, 'protected': before, 'units': units})
     for base, target, value, sources in targets:
         materialize(base, target, value, sources, pool, ownership)
+        candidate_manifest(target, base, ownership)
     need(protected() == before and {u: static(u) for u in units} == units, 'BASE_CHANGED_DURING_PREPARE')
     record('PLAN.json', {'source': SOURCE, 'installer_sha256': sha(__file__), 'protected': before,
                        'units': units, 'candidates': {str(p): sha(p/'manifest.json') for p in [APP, IDENTITY]},
-                       'budget_bytes': extra, 'new_unique_bytes': sum(unique.values()), 'migrations': []})
+                       'ownership': ownership, 'budget_bytes': extra, 'new_unique_bytes': sum(unique.values()), 'migrations': []})
     reserve()
     print(json.dumps({'prepared': True, 'plan_sha256': sha(ROOT/'PLAN.json'), 'new_unique_bytes': sum(unique.values())}))
 
 
-def load(digest):
+def load(digest, activating=True):
     need(re.fullmatch('[a-f0-9]{64}', digest) and sha(ROOT/'PLAN.json') == digest, 'PLAN_CHANGED')
     value = json.loads((ROOT/'PLAN.json').read_text())
     need(value['source'] == SOURCE and value['installer_sha256'] == sha(__file__), 'INSTALLER_CHANGED')
     for p, h in value['candidates'].items():
         need(Path(p) in [APP, IDENTITY] and sha(Path(p)/'manifest.json') == h, 'CANDIDATE_CHANGED')
-        manifest(Path(p))
+        if activating:
+            candidate_manifest(Path(p), BASE if Path(p) == APP else IDENTITY_BASE, value['ownership'])
+        else:
+            # Rollback never executes the candidate. Keep its possible runtime
+            # cache entries for inspection while still verifying admitted files.
+            manifest(Path(p))
     return value
 
 
@@ -414,7 +455,7 @@ def main():
             prepare()
         else:
             need(len(sys.argv) == 3 and sys.argv[1] in ['apply', 'rollback'], 'USAGE')
-            apply(load(sys.argv[2]), sys.argv[1] == 'rollback')
+            apply(load(sys.argv[2], sys.argv[1] == 'apply'), sys.argv[1] == 'rollback')
 
 
 if __name__ == '__main__':
