@@ -119,12 +119,26 @@ def safe(name):
     return type(name) is str and not p.is_absolute() and '..' not in p.parts and str(p) == name
 
 
-def manifest(root):
+def manifest(root, allow_overlay=False):
     value = json.loads(bounded(root/'manifest.json'))
     need(not set(value['files']) & set(value.get('links', {})), 'MANIFEST_OVERLAP')
+    overlay = None
+    if allow_overlay:
+        need(root == IDENTITY_BASE and sha(root/'manifest.json') == PINS[root], 'OVERLAY_PIN')
+        overlay = Path(value['overlay_base'])
+        need(overlay.parent == STAGE/'releases' and not overlay.is_symlink() and
+             sha(overlay/'manifest.json') == value['base_manifest_sha256'], 'OVERLAY_BASE_PIN')
+        base_manifest = json.loads(bounded(overlay/'manifest.json'))
     for name, digest in value['files'].items():
         p = root/name
-        need(safe(name) and not p.is_symlink() and p.resolve().is_relative_to(root) and sha(p) == digest, 'FILE_HASH')
+        need(safe(name), 'FILE_PATH')
+        if p.is_symlink() and overlay is not None:
+            expected = overlay/name
+            need(value.get('overlay_references', {}).get(name) == str(expected) and
+                 os.readlink(p) == str(expected) and p.resolve() == expected.resolve() and
+                 base_manifest['files'].get(name) == digest and sha(p) == digest, 'OVERLAY_REF_CHANGED')
+        else:
+            need(not p.is_symlink() and p.resolve().is_relative_to(root) and sha(p) == digest, 'FILE_HASH')
     for name, dest in value.get('links', {}).items():
         p = root/name
         need(safe(name) and p.is_symlink() and os.readlink(p) == dest and p.resolve().is_relative_to(root), 'FILE_LINK')
@@ -253,7 +267,7 @@ def prepare():
     tar = PAYLOAD.parents[1]/'alisa-8b8b919993c38128.tar.gz'
     package = package_manifest(PAYLOAD, tar, TAR_SHA)
     need(package['source_sha'] == SOURCE, 'PACKAGE_SOURCE')
-    old = {p: manifest(p) for p in [BASE, PLATFORM_BASE, IDENTITY_BASE]}
+    old = {p: manifest(p, p == IDENTITY_BASE) for p in [BASE, PLATFORM_BASE, IDENTITY_BASE]}
     for service, base in [('platform', BASE), ('identity', IDENTITY_BASE)]:
         lock = 'services/'+service+'/requirements.lock'
         need(package['locks'][lock] == old[base]['locks'][lock], 'DEPENDENCY_CHANGE')
@@ -263,10 +277,12 @@ def prepare():
     pool = {}
     for base, m in old.items():
         for n, h in m['files'].items():
-            pool.setdefault(h, base/n)
+            pool.setdefault(h, (base/n).resolve(strict=True))
     targets = []
     for base, target, kind in [(BASE, APP, 'app'), (IDENTITY_BASE, IDENTITY, 'identity')]:
         value = json.loads(json.dumps(old[base]))
+        value.pop('overlay_base', None)
+        value.pop('overlay_references', None)
         selected = {n:h for n,h in package['files'].items() if
                     (kind == 'app' and (n.startswith(('ui/web/', 'services/platform/', 'contracts/')) or n == 'infra/launch.py')) or
                     (kind == 'identity' and n == 'services/identity/src/octoport_identity/protocol/customer.py')}
@@ -381,12 +397,13 @@ def select(link, target, expected):
     temp = link.with_name('.'+link.name+'.customer-catalog-new')
     need(path_state(temp) is None, 'SELECTOR_TEMP_EXISTS')
     temp.symlink_to(target)
+    staged = None
     try:
         staged = path_state(temp)
         need(temp.is_symlink() and staged[-1] == str(target), 'STAGED_SELECTOR_CHANGED')
         replace_selection(link, temp, expected, staged)
     finally:
-        if temp.is_symlink() and os.readlink(temp) == str(target):
+        if staged is not None and path_state(temp) == staged:
             temp.unlink()
 
 

@@ -247,6 +247,40 @@ class InstallTests(unittest.TestCase):
             self.assertEqual(live.readlink(), Path('foreign'))
             self.assertEqual((root/'.live.customer-catalog-held').readlink(), Path('old'))
 
+    def test_pinned_legacy_identity_overlay_is_verified_before_dereferencing(self):
+        with tempfile.TemporaryDirectory() as folder:
+            stage = Path(folder);base = stage/'releases/base';identity = stage/'releases/identity'
+            base.mkdir(parents=True);identity.mkdir()
+            (base/'code.py').write_bytes(b'qualified baseline')
+            digest = M.sha(base/'code.py')
+            (base/'manifest.json').write_text(json.dumps({'files': {'code.py': digest}}))
+            (identity/'code.py').symlink_to(base/'code.py')
+            value = {'files': {'code.py': digest}, 'overlay_base': str(base),
+                     'overlay_references': {'code.py': str(base/'code.py')},
+                     'base_manifest_sha256': M.sha(base/'manifest.json')}
+            (identity/'manifest.json').write_text(json.dumps(value))
+            with patch.object(M, 'STAGE', stage), patch.object(M, 'IDENTITY_BASE', identity), patch.object(M, 'PINS', {identity:M.sha(identity/'manifest.json')}):
+                M.manifest(identity, True)
+                (identity/'code.py').unlink()
+                (stage/'foreign.py').write_bytes(b'qualified baseline')
+                (identity/'code.py').symlink_to(stage/'foreign.py')
+                with self.assertRaisesRegex(RuntimeError, 'OVERLAY_REF_CHANGED'):
+                    M.manifest(identity, True)
+
+    def test_selector_cleanup_keeps_a_new_same_target_staging_object(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder);link = root/'live';link.symlink_to('old')
+            temp = root/'.live.customer-catalog-new'
+            def concurrent(*args):
+                temp.unlink();temp.symlink_to('ours')
+                os.utime(temp, ns=(1,1), follow_symlinks=False)
+                raise RuntimeError('SYNTHETIC_OTHER_WRITER')
+            with patch.object(M, 'replace_selection', concurrent):
+                with self.assertRaisesRegex(RuntimeError, 'SYNTHETIC_OTHER_WRITER'):
+                    M.select(link, Path('ours'), M.path_state(link))
+            self.assertTrue(temp.is_symlink())
+            self.assertEqual(link.readlink(), Path('old'))
+
 
 if __name__ == '__main__':
     unittest.main()
