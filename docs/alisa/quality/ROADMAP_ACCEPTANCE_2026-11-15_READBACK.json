@@ -1113,8 +1113,8 @@
       "title": "POSITIVE",
       "test_plan_line": 1638,
       "verdict": "PARTIAL",
-      "evidence": "B: 56 вопросов Ozon, поиск «продажи»=7, смысл/ось/единицы, B08.finance_sales v5; перенос в форму без отправки. L1 — страницы/фильтры.",
-      "remaining_or_scope_limit": "Поиск/карточка/предзаполнение приняты для своего Ozon. Отдельное действие выбора периода и площадки по исходному сценарию не выполнено целиком; default «вчера» в примере не заменяет эту проверку."
+      "evidence": "B: поиск «продажи»=7, B08.finance_sales v5, фильтр «Показатель» и перенос без отправки повторно проверены в сохранённой Cloud Browser сессии. NATIVE_FIXTURE: 88 compile.",
+      "remaining_or_scope_limit": "В текущем каталоге нет выбора периода; пример всегда «за вчера». В аккаунте один свой Ozon, смена площадки не принята. Единица показана техническим currency. Сценарий остаётся частичным."
     },
     {
       "stage": "AL-S11",
@@ -1159,7 +1159,15 @@
     "status": "PARTIAL_EXACT_INSTALLED_COPY_LIFECYCLE_VERIFIED_FULL_SUITE_NOT_GREEN",
     "fixture_scenario_pass": "AL-T08-02",
     "whole_suite_green": false,
-    "remaining_test_units": 6,
-    "production_calls_since_test_start": 0
+    "production_calls_since_test_start": 0,
+    "remaining_test_units_at_first_run": 6,
+    "old_units_classified_in_fixture_followup": true
+  },
+  "native_fixture_followup": {
+    "report": "NATIVE_FIXTURE_ACCEPTANCE_2026-11-15.md",
+    "targeted_passed": 68,
+    "original_suite_green": false,
+    "all_88_compile": true,
+    "roadmap_counts_unchanged": true
   }
 }

@@ -250,5 +250,12 @@
     "AL-T08-02": "SYNTHETIC_PASS",
     "scope": "Exact copied installed code, private WB fixture, real process exit/restart after confirmed page1; not live service restart."
   },
-  "remaining_installed_ui_voice_and_other_criteria_not_closed": true
+  "remaining_installed_ui_voice_and_other_criteria_not_closed": true,
+  "fixture_followup": {
+    "report": "NATIVE_FIXTURE_ACCEPTANCE_2026-11-15.md",
+    "legacy_executor_tests_passed": 30,
+    "recipe_and_parameter_tests_passed": 38,
+    "historical_failure_preserved": true,
+    "whole_original_suite_green": false
+  }
 }

@@ -1,0 +1,579 @@
+{
+  "status": "TARGETED_FIXTURE_QUALIFICATION_PASS_FULL_ROADMAP_PARTIAL",
+  "recorded_at_utc": "2026-11-15T14:49:10.497912+00:00",
+  "source_commit": "1d572aebf6b05b88ae5c233ae4313284add03e45",
+  "native_manifest_sha256": "20c5afddbc8f07c86e72a33676d4475c4b23b7c0316bc73f814e51dc5a60e95e",
+  "native_source_files": 184,
+  "native_source_files_unchanged": true,
+  "original_full_suite_green": false,
+  "original_full_suite_rerun": false,
+  "old_six_units_classified": true,
+  "whole_roadmap_pass": false,
+  "remaining_roadmap_partial_or_source_only": 64,
+  "restored_fixtures": {
+    "scope": "EXACT_INSTALLED_NATIVE_COPY_OFFLINE_LOOPBACK_NOT_LIVE",
+    "status": "PASS",
+    "tests_run": 30,
+    "skipped": 0,
+    "forbidden_network_attempts": 0,
+    "failures": 0,
+    "errors": 0,
+    "cases": [
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_ambiguous_saved_binding_revokes_existing_ticket",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_authority_wrong_unix_peer_is_denied",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_binding_revision_revokes_old_ticket",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_cancel_callback_reader_keeps_original_reader_question",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_cancel_pending_then_late_answer_does_not_start_calculation",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_changed_answer_same_request_denied",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_changed_authority_snapshot_fails_closed",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_expired_question_does_not_enqueue_answer_as_new_request",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_failed_disconnect_write_invalidates_old_guard_and_dispatch",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_failed_refresh_save_recovers_on_same_receipt_retry",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_four_turn_limit_uses_existing_lifecycle",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_fresh_legacy_token_renews_existing_proof_without_new_access",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_full_question_answer_one_job_and_one_marketplace_call",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_lost_acceptance_response_retry_is_same_job",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_lost_before_after_receipt_replay_persists_fresh_token",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_manual_result_route_does_not_deadlock_reverse_authority",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_new_callback_session_continues_existing_question",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_prior_provider_call_blocks_mutating_pending_job",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_private_guard_never_in_model_context",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_receipt_replay_rechecks_current_authority",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_refresh_token_cannot_admit_continuation",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_revocation_between_transport_prepare_and_dispatch",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_revocation_blocks_continuation_without_job_change",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_revocation_blocks_worker_dispatch",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_scope_change_blocks_answer",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_supplied_owner_does_not_select_another_binding",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_unbound_application_cannot_continue_same_reader",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_unknown_binding_keeps_legacy_refusal_policy",
+        "passed": true
+      },
+      {
+        "case": "test_legacy_voice_clarification.Checks.test_unsaved_different_owner_does_not_block_existing_owner",
+        "passed": true
+      },
+      {
+        "case": "test_request_reliability.Session.test_durable_outbox_binding_ack_and_no_content_after_ack",
+        "passed": true
+      }
+    ],
+    "native_manifest_sha256": "20c5afddbc8f07c86e72a33676d4475c4b23b7c0316bc73f814e51dc5a60e95e",
+    "installed_manifest_source": "1d572aebf6b05b88ae5c233ae4313284add03e45",
+    "installed_manifest_parallel_source": "47007fc5b0e500c796d96360eb951f7ce6687e3d",
+    "source_files": 184,
+    "source_files_unchanged": true,
+    "live_provider_calls_exercised": false,
+    "production_config_or_database_copied": false,
+    "original_tests_and_network_guards_modified": false,
+    "driver_provenance_adapted_for_installed_snapshot": true,
+    "python_version": "3.12.13",
+    "node_route_calls": 0,
+    "node_version": "v24.22.1",
+    "installed_node_version": "v24.22.2",
+    "first_failed_qualification_preserved": true,
+    "only_prior_missing_fixture_units": true,
+    "station_fixture_code_only": true,
+    "production_keys_or_token_database_copied": false
+  },
+  "feature_aware_recipe": {
+    "scope": "EXACT_INSTALLED_NATIVE_COPY_OFFLINE_LOOPBACK_NOT_LIVE",
+    "status": "PASS",
+    "tests_run": 38,
+    "skipped": 0,
+    "forbidden_network_attempts": 0,
+    "failures": 0,
+    "errors": 0,
+    "cases": [
+      {
+        "case": "qa_template_only.Catalogue.test_all_85_ids_migrated",
+        "passed": true
+      },
+      {
+        "case": "qa_template_only.Pilot.test_exact_original_question_and_model_payload_retained",
+        "passed": true
+      },
+      {
+        "case": "qa_request_reliability.Selection.test_exact_original_question_and_model_payload_retained",
+        "passed": true
+      },
+      {
+        "case": "qa_template_integration.AllTemplates.test_all_85_compile_without_speech_or_network",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_delivery_mean_v1_collection_changed",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_delivery_mean_v1_disabled",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_delivery_mean_v1_explicit",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_delivery_mean_v1_feature_revoked",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_delivery_mean_v1_half_year",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_delivery_mean_v1_invalid_period",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_delivery_mean_v1_malformed_intent",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_delivery_mean_v1_pin_changed",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_delivery_mean_v1_preview",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_delivery_mean_v1_revoked_intent",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_delivery_mean_v1_scope_changed",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_delivery_mean_v1_sku",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_delivery_mean_v1_target_changed",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_delivery_mean_v1_unsupported_input",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_delivery_mean_v1_wb",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_delivery_mean_v1_write_intent",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_delivery_mean_v1_write_without_intent",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_loss_rate_v1_collection_changed",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_loss_rate_v1_disabled",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_loss_rate_v1_explicit",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_loss_rate_v1_feature_revoked",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_loss_rate_v1_half_year",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_loss_rate_v1_invalid_period",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_loss_rate_v1_malformed_intent",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_loss_rate_v1_pin_changed",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_loss_rate_v1_preview",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_loss_rate_v1_revoked_intent",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_loss_rate_v1_scope_changed",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_loss_rate_v1_sku",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_loss_rate_v1_target_changed",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_loss_rate_v1_unsupported_input",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_loss_rate_v1_wb",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_loss_rate_v1_write_intent",
+        "passed": true
+      },
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_loss_rate_v1_write_without_intent",
+        "passed": true
+      }
+    ],
+    "native_manifest_sha256": "20c5afddbc8f07c86e72a33676d4475c4b23b7c0316bc73f814e51dc5a60e95e",
+    "installed_manifest_source": "1d572aebf6b05b88ae5c233ae4313284add03e45",
+    "installed_manifest_parallel_source": "47007fc5b0e500c796d96360eb951f7ce6687e3d",
+    "source_files": 184,
+    "source_files_unchanged": true,
+    "live_provider_calls_exercised": false,
+    "production_config_or_database_copied": false,
+    "original_tests_and_network_guards_modified": false,
+    "separate_recipe_copies_modified": true,
+    "all_templates_compiled": 88,
+    "driver_provenance_adapted_for_installed_snapshot": true,
+    "python_version": "3.12.13",
+    "node_route_calls": 0,
+    "node_version": "v24.22.1",
+    "installed_node_version": "v24.22.2",
+    "first_failed_qualification_preserved": true,
+    "only_prior_missing_fixture_units": false,
+    "scope_detail": "4 historical test units with explicit recipe deltas plus parameter boundary qualification; not a full original-suite rerun",
+    "station_fixture_code_only": true,
+    "production_keys_or_token_database_copied": false
+  },
+  "recipe_deltas": {
+    "scope": "TEST_RECIPE_ONLY_NOT_PRODUCT_PATCH",
+    "changes": [
+      {
+        "original": "test_template_only.py",
+        "recipe_copy": "qa_template_only.py",
+        "original_sha256": "45e2b393bb6866cc7a2e2d5939e7f62968d9180827ff8ea3d6c3efb1539e1c5f",
+        "recipe_sha256": "3f611dc8094b72a4e84de777c43d72b58f78a33851d19da9a758bdbfe70d33c9",
+        "diff": "--- test_template_only.py\n+++ qa_template_only.py\n@@ -119,7 +119,7 @@\n  def test_historical_snapshot_rejected_as_gap(self):self.transport.selection=selection(['B11.current_balance'],'wb1');self.gap()\n  def test_exact_original_question_and_model_payload_retained(self):\n   q='Покажи заказы и НЕИЗВЕСТНОЕ: «Пример».  Не теряй условия!';self.transport.selection={'action':'unsupported','reason':'missing','missing':['НЕИЗВЕСТНОЕ'],'reply':TEXT};row,result,saved=self.gap(self.ask(q))\n-  self.assertEqual(saved['original_question'],q);self.assertEqual(saved['model_calls'][0]['request_payload'],payload('template_select',self.transport.calls[0].body));self.assertIn(q,saved['model_calls'][0]['request_payload']['messages'][-1]['content']);self.assertEqual(len(saved['catalog']['templates']),86)\n+  self.assertEqual(saved['original_question'],q);self.assertEqual(saved['model_calls'][0]['request_payload'],payload('template_select',self.transport.calls[0].body));self.assertIn(q,saved['model_calls'][0]['request_payload']['messages'][-1]['content']);self.assertEqual(len(saved['catalog']['templates']),88)\n  def test_gap_has_source_revision_and_selector_output(self):self.transport.selection={'action':'unsupported','reason':'no','missing':['x'],'reply':TEXT};_,_,s=self.gap();self.assertEqual(s['catalog_hash'],tc.HASH);self.assertEqual(s['model_calls'][0]['response']['content'],json.dumps(self.transport.selection,ensure_ascii=False))\n  def test_no_free_final_answer_model_for_fixed_refusal(self):self.transport.selection={'action':'unsupported','reason':'no','missing':['x'],'reply':'WRONG'};self.gap();self.assertNotIn('model_answer',[x.operation for x in self.transport.calls])\n  def test_station_exact_reply_and_object(self):\n@@ -250,7 +250,7 @@\n class Catalogue(unittest.TestCase):\n  def test_storage_note_explains_ozon_source_terminology(self):\n   template=tc.TEMPLATES['B06.finance_storage_cost'];self.assertEqual(template['version'],3);self.assertIn('Размещение товаров на складах Ozon',' '.join(template['notes']))\n- def test_all_85_ids_migrated(self):self.assertEqual(len(tc.TEMPLATES),86)\n+ def test_all_85_ids_migrated(self):self.assertEqual(len(tc.TEMPLATES),88)\n  def test_no_speech_fields_anywhere(self):tc.validate_catalog()\n  def test_no_dataset_phrase_field(self):\n   d=strict_json(Path(tc.__file__).with_name('dataset_queries.json').read_text());self.assertTrue(all('phrases'not in q for q in d['queries'].values()))\n"
+      },
+      {
+        "original": "test_template_integration.py",
+        "recipe_copy": "qa_template_integration.py",
+        "original_sha256": "6aa9580a7707b19f74f1c478fcf8a68a6db6d9904ca6a9d5939909ece046f356",
+        "recipe_sha256": "bc6cfae4dc5bfc8b9298514eb65f3faf66af8d1be5e8ed85c1d79fea1c5af29b",
+        "diff": "--- test_template_integration.py\n+++ qa_template_integration.py\n@@ -25,6 +25,7 @@\n class AllTemplates(unittest.TestCase):\n  def setUp(self):\n   self.tmp=tempfile.TemporaryDirectory();self.repo=Repository(Path(self.tmp.name)/'state.sqlite3',Clock());self.engine=Engine(self.repo,lambda _:SCOPE,template_mode=True,dataset_capabilities=dataset_caps,table_capabilities=table_caps)\n+  import parameter_source_runtime as ps;self.engine.parameter_source_policy={'enabled':True,'pin':ps.PIN}\n  def tearDown(self):self.tmp.cleanup()\n  def root(self,q):return {'schema':SCHEMA,'tenant':'A','access_revision':SCOPE.revision,'stores':[asdict(s)for s in SCOPE.stores],'question':q,'calendar_date':TODAY.isoformat(),'timezone':'Europe/Moscow','template_execution':{'catalog_hash':HASH,'mode':MODE},'selection_verified':False,'fragments':[]}\n  def test_all_85_compile_without_speech_or_network(self):\n"
+      },
+      {
+        "original": "test_request_reliability.py",
+        "recipe_copy": "qa_request_reliability.py",
+        "original_sha256": "82608fce79042fe60554b92055c78fe3f2f1e0f12b7bf44eb8e11e8bdb524ec9",
+        "recipe_sha256": "f456ab4313b5f347bccf21f27adc4afd56f553bb67c30bc19955b6998bac85dd",
+        "diff": "--- test_request_reliability.py\n+++ qa_request_reliability.py\n@@ -13,7 +13,7 @@\n from shared_http import read_response\n from model_usage import RECEIPT_OBSERVER,job_attempts\n import test_program_answers as routing\n-import test_template_only as templates\n+import qa_template_only as templates\n \n USAGE={'input_tokens':100,'cache_read_input_tokens':200,'cache_creation_input_tokens':0,'output_tokens':30}\n def sse(stop=True):\n"
+      }
+    ],
+    "original_184_files_immutable": true
+  },
+  "first_parameter_attempt": {
+    "started_at": "2026-11-15T14:36:34.568359+00:00",
+    "finished_at": "2026-11-15T14:36:40.964640+00:00",
+    "unit": "alisa-native-parameter-catalog-20261115",
+    "test_exit_code": 1,
+    "status": "FAILED",
+    "tests_run": 38,
+    "skipped": 0,
+    "forbidden_network_attempts": 0,
+    "failures": 4,
+    "errors": 21,
+    "source_files_unchanged": true,
+    "node_route_calls": 0,
+    "nonpassing_cases": [
+      {
+        "case": "qa_parameter_catalog.ParameterAdmission.test_parameter_delivery_mean_v1_sku",
+        "passed": false,
+        "kind": "ERROR"
+      }
+    ]
+  },
+  "first_parameter_attempt_is_fixture_error_not_product_fix": true,
+  "first_parameter_attempt_causes": [
+    "Typed parameter input denials are Rejected before outer TemplateGap",
+    "compile_selection already performs current-intent authorization; explicit check repeats it",
+    "Qualified finance source supports store scope only, so delivery_mean SKU must be denied"
+  ],
+  "fixture_dependencies": {
+    "native_source_files": 184,
+    "native_all_hashes_match": true,
+    "station_release": "/opt/alisa-station/releases/station-legacy-clarification-5a62b45b6370adb5-329dd714",
+    "station_files": {
+      "station_authority.py": "5a7aa0a465ebaf69d5f117a44eed3e7900dce6d1b19d0cc2b1823753df6d08c5",
+      "service.py": "ee0716ad11590c56a49be8c19a3c70b966f83358a88cfe127299a033ac1d8380",
+      "transport.py": "aa1f89b7310dfb8dabd65614eaf9157488a1620f3f782e297e1ce54ce18417fb",
+      "eta.py": "45d76947eaa99c7057aca91761f21b3b51b937a9b288ac42ec3b7f96afa841de",
+      "voice_protocol.py": "82fb4873a6a638d47783a74f5df254285f5ad0563649e4bc2b209392ab63a4d1",
+      "qrcodegen.py": "f727dbf8300b16ab2ed317e227980e7259a4041f94340fb5382fdbecbda41396"
+    },
+    "executor_helper_source": "/opt/alice-market/candidates/alisa-request-reliability-20261113/executor/program_results.py",
+    "executor_helper_sha256": "1bf19d8d15587efecc88a4b1cf5c2609c5731a7fc7dcf2e4f7152a9b565ae952",
+    "production_keys_config_or_token_db_copied": false,
+    "runtime_tests_modified": false,
+    "fixture_driver_only": true
+  },
+  "fixture_code_archive": {
+    "archive": "/root/alisa-native-fixture-followup-20261115/fixture-code-only.tar.gz",
+    "bytes": 45557,
+    "sha256": "100eec5a0d85ce4fa6c069eca1b671c1199e19a2ec5979b5e1a3cbbe6a469c3b",
+    "files": {
+      "station/qrcodegen.py": "f727dbf8300b16ab2ed317e227980e7259a4041f94340fb5382fdbecbda41396",
+      "station/service.py": "ee0716ad11590c56a49be8c19a3c70b966f83358a88cfe127299a033ac1d8380",
+      "station/voice_protocol.py": "82fb4873a6a638d47783a74f5df254285f5ad0563649e4bc2b209392ab63a4d1",
+      "station/eta.py": "45d76947eaa99c7057aca91761f21b3b51b937a9b288ac42ec3b7f96afa841de",
+      "station/transport.py": "aa1f89b7310dfb8dabd65614eaf9157488a1620f3f782e297e1ce54ce18417fb",
+      "station/station_authority.py": "5a7aa0a465ebaf69d5f117a44eed3e7900dce6d1b19d0cc2b1823753df6d08c5",
+      "executor/program_results.py": "1bf19d8d15587efecc88a4b1cf5c2609c5731a7fc7dcf2e4f7152a9b565ae952",
+      "recipe/qa_parameter_catalog.py": "5dc559162d6908d80e7c3b8a89206b9edfa423b2e8f52fc576c066a15d70f3c9",
+      "recipe/qa_request_reliability.py": "f456ab4313b5f347bccf21f27adc4afd56f553bb67c30bc19955b6998bac85dd",
+      "recipe/qa_template_integration.py": "bc6cfae4dc5bfc8b9298514eb65f3faf66af8d1be5e8ed85c1d79fea1c5af29b",
+      "recipe/qa_template_only.py": "3f611dc8094b72a4e84de777c43d72b58f78a33851d19da9a758bdbfe70d33c9"
+    },
+    "verified_entries": 11,
+    "contains_production_configuration_or_database": false,
+    "native_184_code_archive_reused_from": "/root/alisa-native-lifecycle-acceptance-20261115/native-source-20c5afddbc8f.tar.gz"
+  },
+  "production_postcheck": {
+    "checked_at": "2026-11-15T14:39:37.495853+00:00",
+    "native_release": "alisa-parameters-1d572aebf6b05b88",
+    "native_manifest_sha256": "20c5afddbc8f07c86e72a33676d4475c4b23b7c0316bc73f814e51dc5a60e95e",
+    "native_source_commit": "1d572aebf6b05b88ae5c233ae4313284add03e45",
+    "native_files": 184,
+    "native_file_mismatches": [],
+    "catalog_comparison": {
+      "baseline_catalog_sha256": "345f46e5c1fa395db23642783a84416ad6da58e9808b10edc05716a70e13a720",
+      "baseline_count": 86,
+      "current_count": 88,
+      "added_ids": [
+        "parameter.delivery_mean.v1",
+        "parameter.loss_rate.v1"
+      ],
+      "removed_count": 0,
+      "changed_existing_count": 0
+    },
+    "states": {
+      "EXPIRED": 6,
+      "FAILED": 1,
+      "UNKNOWN": 4
+    },
+    "unknown_ids_exact_expected_match": true,
+    "unknown_ids_sha256": "c2945b1122ea86480f38e69f5f7461367782bd70de156f2f8143c848a38f4e91",
+    "calls_count_observed": 1197,
+    "calls_latest_utc": "2026-11-15T11:14:35.329065+00:00",
+    "calls_after_previous_latest": 0,
+    "services": {
+      "alice-market": {
+        "MainPID": "1417979",
+        "ActiveState": "active"
+      },
+      "alisa-web@stage": {
+        "MainPID": "1493454",
+        "ActiveState": "active"
+      },
+      "alisa-platform@stage": {
+        "MainPID": "1475936",
+        "ActiveState": "active"
+      },
+      "alisa-identity@stage": {
+        "MainPID": "1475937",
+        "ActiveState": "active"
+      },
+      "alisa-admin@stage": {
+        "MainPID": "1415985",
+        "ActiveState": "active"
+      },
+      "alisa-runtime-authority-stage": {
+        "MainPID": "1418026",
+        "ActiveState": "active"
+      },
+      "alisa-station": {
+        "MainPID": "1379402",
+        "ActiveState": "active"
+      },
+      "alisa-store-check": {
+        "MainPID": "1418023",
+        "ActiveState": "active"
+      },
+      "alisa-smtp-sandbox-stage": {
+        "MainPID": "1268881",
+        "ActiveState": "active"
+      }
+    },
+    "publisher_sha256": "dc750adf6818a5cce92d6bccd95b1cfa3e441da6f1406cef41900892b5cdacd2",
+    "read_only": true,
+    "jobs_replayed": false
+  },
+  "cleanup": {
+    "checked_at": "2026-11-15T14:40:23.376535+00:00",
+    "test_units": {
+      "alisa-native-restored-fixtures-20261115": {
+        "MainPID": "0",
+        "ControlGroup": "",
+        "LoadState": "not-found",
+        "ActiveState": "inactive"
+      },
+      "alisa-native-parameter-catalog-20261115": {
+        "MainPID": "0",
+        "ControlGroup": "",
+        "LoadState": "not-found",
+        "ActiveState": "inactive"
+      },
+      "alisa-native-parameter-catalog-v2-20261115": {
+        "MainPID": "0",
+        "ControlGroup": "",
+        "LoadState": "not-found",
+        "ActiveState": "inactive"
+      }
+    },
+    "owned_tmpfs_removed": true,
+    "archive_verified": true,
+    "production_services_modified": false
+  },
+  "fresh_browser": {
+    "scope": "LIVE_OWNER_BROWSER_READ_ONLY_PREFILL_NOT_SUBMITTED",
+    "browser": "cloud cdp same profile",
+    "customer_session_reused": true,
+    "catalog_url": "https://alisa.octoport.ru/app/catalog",
+    "search_sales_count": 7,
+    "search_exact_sales_phrase_count": 2,
+    "store": "Кровь и Песок · OZON",
+    "available_owned_store_count": 1,
+    "kind_filter_selected": "Показатель",
+    "template_id": "B08.finance_sales",
+    "template_version": 5,
+    "date_axis": "Период финансового отчёта",
+    "unit_rendered": "currency",
+    "date_controls_present": false,
+    "independent_platform_selector_present": false,
+    "prefilled_question": "Покажи Продажи до удержаний за вчера",
+    "prefilled_selected_stores": 1,
+    "prepare_report_clicked": false,
+    "jobs_replayed": false,
+    "fresh_desktop_screenshots": [
+      {
+        "name": "catalog-version.jpg",
+        "sha256": "aebd7ed6f7446c5fa2ab5d4390eef17460f2ac067386b78da966ce34a55e1fa4"
+      },
+      {
+        "name": "catalog-prefill.jpg",
+        "sha256": "622319470998934b0596a8e80227da3de32190d3522b100ff0a23a1d7855fd06"
+      }
+    ],
+    "screenshots_contain_no_credentials": true,
+    "roadmap_case": "AL-T09-01",
+    "verdict": "PARTIAL",
+    "remaining": "Нет выбора периода; переключение площадки с единственным своим Ozon не проверяется. currency — техническое обозначение, не единица в рублях."
+  },
+  "product_code_or_deployed_files_changed": false,
+  "business_values_written": false,
+  "access_or_bindings_changed": false,
+  "foreign_wip_preserved": {
+    "r15_head": "0df0e207fb549c31c56424ccea33ba33ec268668",
+    "r15_dirty_count": 36,
+    "r9_head": "8a8cd8e93469414bb2516ca490ae742130e93ffd",
+    "r9_dirty_count": 0
+  },
+  "independent_full_live_acceptance": false,
+  "next_step": "Закрыть выявленный разрыв выбора периода AL-S11 в отдельной поставке, затем принять переключение площадки на пригодной fixture; продолжить межканальные cancel/TTL, короткую историю R5 и настоящий голос без повтора UNKNOWN."
+}
