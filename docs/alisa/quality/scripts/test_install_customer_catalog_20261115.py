@@ -48,9 +48,9 @@ class InstallTests(unittest.TestCase):
                        patch.object(M, 'stop', lambda u: trace.append(('stop', u))),
                        patch.object(M, 'select', lambda link, dest, expected: trace.append(('select', link.name, dest.name))),
                        patch.object(M, 'run', command), patch.object(M, 'ready_pair', pair),
-                       patch.object(M, 'fence_web', lambda: trace.append(('fence_web',))),
-                       patch.object(M, 'require_web_fence', lambda *a: trace.append(('check_fence',))),
-                       patch.object(M, 'release_web_fence', lambda: trace.append(('release_fence',))),
+                       patch.object(M, 'fence_service', lambda unit: trace.append(('fence', unit))),
+                       patch.object(M, 'require_fence', lambda unit, *a: trace.append(('check_fence', unit))),
+                       patch.object(M, 'release_fence', lambda unit: trace.append(('release_fence', unit))),
                        patch.object(M, 'ready_web', lambda b: trace.append(('ready_web', b))),
                        patch.object(M, 'reserve', lambda *a: None), patch.object(M, 'idle', lambda: None),
                        patch.object(M, 'protected', lambda: {'fixed': True}),
@@ -84,7 +84,7 @@ class InstallTests(unittest.TestCase):
         self.assertLess(trace.index(('ready_pair', True)), trace.index(('systemctl', 'start', M.WEB)))
         self.assertNotIn(('ready_web', False), trace)
         self.assertEqual(trace[-1], ('receipt', 'ROLLED_BACK.json'))
-        self.assertLess(trace.index(('ready_pair', True)), trace.index(('release_fence',)))
+        self.assertLess(trace.index(('ready_pair', True)), trace.index(('release_fence', M.WEB)))
 
     def test_foreign_selector_is_never_overwritten(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -185,10 +185,10 @@ class InstallTests(unittest.TestCase):
 
     def test_web_fence_is_checked_before_switch_and_released_after_pair_ready(self):
         trace = self.trace_switch()
-        self.assertLess(trace.index(('fence_web',)), trace.index(('stop', M.WEB)))
-        self.assertLess(trace.index(('check_fence',)), trace.index(('stop', M.PLATFORM)))
-        self.assertLess(trace.index(('ready_pair', False)), trace.index(('release_fence',)))
-        self.assertLess(trace.index(('release_fence',)), trace.index(('systemctl', 'start', M.WEB)))
+        self.assertLess(trace.index(('fence', M.WEB)), trace.index(('stop', M.WEB)))
+        self.assertLess(trace.index(('check_fence', M.WEB)), trace.index(('stop', M.PLATFORM)))
+        self.assertLess(trace.index(('ready_pair', False)), trace.index(('release_fence', M.WEB)))
+        self.assertLess(trace.index(('release_fence', M.WEB)), trace.index(('systemctl', 'start', M.WEB)))
 
     def test_foreign_web_mask_cannot_be_released(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -202,8 +202,22 @@ class InstallTests(unittest.TestCase):
             os.utime(mask, ns=(1, 1), follow_symlinks=False)
             with patch.object(M, 'ROOT', root), patch.object(M, 'WEB_MASK', mask), patch.object(M, 'prop', lambda *a:'masked'):
                 with self.assertRaisesRegex(RuntimeError, 'WEB_FENCE_LOST'):
-                    M.release_web_fence()
+                    M.release_fence(M.WEB)
                 self.assertTrue(mask.is_symlink())
+
+    def test_metadata_read_rejects_bytes_beyond_its_limit(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'manifest';path.write_bytes(b'x'*33)
+            with self.assertRaisesRegex(RuntimeError, 'METADATA_BOUND'):
+                M.bounded(path, 32)
+
+    def test_backend_start_fences_cover_selector_changes(self):
+        trace = self.trace_switch()
+        selectors = [i for i, item in enumerate(trace) if item[0] == 'select']
+        for unit in [M.PLATFORM, M.IDP]:
+            self.assertLess(trace.index(('fence', unit)), trace.index(('stop', unit)))
+            self.assertGreater(trace.index(('release_fence', unit)), max(selectors))
+            self.assertLess(trace.index(('release_fence', unit)), trace.index(('systemctl', 'start', M.PLATFORM, M.IDP)))
 
 
 if __name__ == '__main__':

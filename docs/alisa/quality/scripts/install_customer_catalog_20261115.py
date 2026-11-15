@@ -60,6 +60,13 @@ def sha(path):
     return h.hexdigest()
 
 
+def bounded(path, limit=2*1024*1024):
+    with Path(path).open('rb') as stream:
+        value = stream.read(limit+1)
+    need(len(value) <= limit, 'METADATA_BOUND')
+    return value
+
+
 def run(*args):
     result = subprocess.run(args, capture_output=True, text=True, timeout=45)
     need(result.returncode == 0, 'COMMAND_FAILED_'+Path(args[0]).name)
@@ -113,7 +120,7 @@ def safe(name):
 
 
 def manifest(root):
-    value = json.loads((root/'manifest.json').read_text())
+    value = json.loads(bounded(root/'manifest.json'))
     need(not set(value['files']) & set(value.get('links', {})), 'MANIFEST_OVERLAP')
     for name, digest in value['files'].items():
         p = root/name
@@ -152,7 +159,7 @@ def candidate_manifest(root, base, ownership=None):
          (root/'.venv').resolve() == (base/'.venv').resolve(), 'CANDIDATE_VENV')
     if ownership is not None:
         marker = root/'.customer-catalog-preparation.json'
-        need(not marker.is_symlink() and json.loads(marker.read_text()) == ownership, 'PREPARATION_OWNER')
+        need(not marker.is_symlink() and json.loads(bounded(marker, 65536)) == ownership, 'PREPARATION_OWNER')
         extra.add(marker.name)
     exact_tree(root, value, extra)
     return value
@@ -164,7 +171,7 @@ def package_manifest(payload, archive, digest):
         entry = package.getmember(payload.name+'/manifest.json')
         need(entry.isfile() and 0 < entry.size <= 2*1024*1024, 'PACKAGE_MANIFEST_BOUND')
         raw = package.extractfile(entry).read(2*1024*1024+1)
-    need((payload/'manifest.json').read_bytes() == raw, 'PACKAGE_MANIFEST_CHANGED')
+    need(bounded(payload/'manifest.json') == raw, 'PACKAGE_MANIFEST_CHANGED')
     value = manifest(payload)
     need(value == json.loads(raw), 'PACKAGE_MANIFEST_CHANGED')
     exact_tree(payload, value)
@@ -194,7 +201,7 @@ def active(units):
 
 
 def idle():
-    v = json.loads(Path('/etc/alice-market/market-runtime.json').read_text())
+    v = json.loads(bounded(Path('/etc/alice-market/market-runtime.json')))
     with sqlite3.connect(Path(v['database']).as_uri()+'?mode=ro', uri=True, timeout=2) as db:
         need(db.execute("SELECT count(*) FROM jobs WHERE state IN ('QUEUED','RUNNING')").fetchone()[0] == 0, 'ACTIVE_JOBS')
 
@@ -298,7 +305,7 @@ def prepare():
 
 def load(digest, activating=True):
     need(re.fullmatch('[a-f0-9]{64}', digest) and sha(ROOT/'PLAN.json') == digest, 'PLAN_CHANGED')
-    value = json.loads((ROOT/'PLAN.json').read_text())
+    value = json.loads(bounded(ROOT/'PLAN.json'))
     need(value['source'] == SOURCE and value['installer_sha256'] == sha(__file__), 'INSTALLER_CHANGED')
     for p, h in value['candidates'].items():
         need(Path(p) in [APP, IDENTITY] and sha(Path(p)/'manifest.json') == h, 'CANDIDATE_CHANGED')
@@ -412,61 +419,73 @@ def ready_web(rollback):
 def selection_guard():
     need(WEB_LINK.is_symlink() and WEB_LINK.resolve() in [BASE, APP], 'WEB_SELECTOR_MOVED')
     need(IDENTITY_LINK.is_symlink() and IDENTITY_LINK.resolve() in [IDENTITY_BASE, IDENTITY], 'IDENTITY_SELECTOR_MOVED')
-    need(not DROP.exists() or (not DROP.is_symlink() and DROP.read_bytes() == drop_bytes()), 'DROP_MOVED')
+    need(not DROP.exists() or (not DROP.is_symlink() and bounded(DROP, 2048) == drop_bytes()), 'DROP_MOVED')
 
 
-def fence_proof():
-    proof = json.loads((ROOT/'WEB_FENCE.json').read_text())
+def fence_paths(unit):
+    need(unit in [WEB, PLATFORM, IDP], 'FENCE_SCOPE')
+    names = {WEB: 'WEB_FENCE.json', PLATFORM: 'PLATFORM_FENCE.json', IDP: 'IDENTITY_FENCE.json'}
+    return (WEB_MASK if unit == WEB else Path('/run/systemd/system')/unit), ROOT/names[unit]
+
+
+def fence_proof(unit):
+    _, path = fence_paths(unit)
+    proof = json.loads(bounded(path, 65536))
     need(proof['source'] == SOURCE and proof['installer_sha256'] == sha(__file__), 'FOREIGN_WEB_FENCE')
     return proof
 
 
-def require_web_fence(drained=True):
-    proof = fence_proof()
-    need(WEB_MASK.is_symlink() and os.readlink(WEB_MASK) == '/dev/null' and
-         list(path_state(WEB_MASK)) == proof['mask_state'] and
-         WEB_MASK.lstat().st_ctime_ns == proof['mask_ctime_ns'] and
-         prop(WEB, 'LoadState') == 'masked', 'WEB_FENCE_LOST')
+def require_fence(unit, drained=True):
+    mask, _ = fence_paths(unit)
+    proof = fence_proof(unit)
+    need(mask.is_symlink() and os.readlink(mask) == '/dev/null' and
+         list(path_state(mask)) == proof['mask_state'] and
+         mask.lstat().st_ctime_ns == proof['mask_ctime_ns'] and
+         prop(unit, 'LoadState') == 'masked', 'WEB_FENCE_LOST')
     if drained:
-        need(prop(WEB, 'ActiveState') in ['inactive', 'failed'], 'WEB_RESTARTED')
+        need(prop(unit, 'ActiveState') in ['inactive', 'failed'], 'SERVICE_RESTARTED')
 
 
-def fence_web():
-    if path_state(WEB_MASK) is None:
-        if (ROOT/'WEB_FENCE.json').exists():
-            need(fence_proof()['phase'] in ['releasing', 'released'], 'WEB_FENCE_LOST')
-        temp = WEB_MASK.with_name('.'+WEB_MASK.name+'.customer-catalog-new')
+def fence_service(unit):
+    mask, proof_path = fence_paths(unit)
+    if path_state(mask) is None:
+        if proof_path.exists():
+            need(fence_proof(unit)['phase'] in ['releasing', 'released'], 'WEB_FENCE_LOST')
+        temp = mask.with_name('.'+mask.name+'.customer-catalog-new')
         need(path_state(temp) is None, 'WEB_FENCE_TEMP_EXISTS')
         temp.symlink_to('/dev/null')
-        rename_no_replace(temp, WEB_MASK)
-        record('WEB_FENCE.json', {'source': SOURCE, 'installer_sha256': sha(__file__),
-                               'mask_state': list(path_state(WEB_MASK)),
-                               'mask_ctime_ns': WEB_MASK.lstat().st_ctime_ns, 'phase': 'active'})
+        rename_no_replace(temp, mask)
+        record(proof_path.name, {'source': SOURCE, 'installer_sha256': sha(__file__),
+                               'mask_state': list(path_state(mask)),
+                               'mask_ctime_ns': mask.lstat().st_ctime_ns, 'phase': 'active'})
         run('systemctl', 'daemon-reload')
-    require_web_fence(False)
+    require_fence(unit, False)
 
 
-def release_web_fence():
-    require_web_fence()
-    proof = fence_proof()
+def release_fence(unit):
+    mask, proof_path = fence_paths(unit)
+    require_fence(unit)
+    proof = fence_proof(unit)
     proof['phase'] = 'releasing'
-    record('WEB_FENCE.json', proof)
-    replace_selection(WEB_MASK, None, tuple(proof['mask_state']))
+    record(proof_path.name, proof)
+    replace_selection(mask, None, tuple(proof['mask_state']))
     run('systemctl', 'daemon-reload')
     proof['phase'] = 'released'
-    record('WEB_FENCE.json', proof)
+    record(proof_path.name, proof)
 
 
 def switch(rollback=False):
     # Web must be drained before either backend can change, including rollback.
     selection_guard()
     states = {p: path_state(p) for p in [WEB_LINK, IDENTITY_LINK, DROP]}
-    fence_web()
+    for unit in [WEB, PLATFORM, IDP]:
+        fence_service(unit)
     stop(WEB)
-    require_web_fence()
+    require_fence(WEB)
     stop(PLATFORM)
     stop(IDP)
-    require_web_fence()
+    for unit in [WEB, PLATFORM, IDP]:
+        require_fence(unit)
     need({p: path_state(p) for p in states} == states, 'SELECTOR_CHANGED_DURING_DRAIN')
     select(WEB_LINK, BASE if rollback else APP, states[WEB_LINK])
     select(IDENTITY_LINK, IDENTITY_BASE if rollback else IDENTITY, states[IDENTITY_LINK])
@@ -478,10 +497,13 @@ def switch(rollback=False):
         atomic(staged, drop_bytes(), 0o644)
         replace_selection(DROP, staged, states[DROP])
     run('systemctl', 'daemon-reload')
+    for unit in [PLATFORM, IDP]:
+        require_fence(unit)
+        release_fence(unit)
     run('systemctl', 'start', PLATFORM, IDP)
     ready_pair(rollback)
-    require_web_fence()
-    release_web_fence()
+    require_fence(WEB)
+    release_fence(WEB)
     run('systemctl', 'start', WEB)
     ready_web(rollback)
 
