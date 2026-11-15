@@ -1,0 +1,45 @@
+{
+  "utc": "2026-11-15T03:37:26.783237+00:00",
+  "status": "PASS_EXACT_REVIEWED_SOURCE_ON_REAL_REPORTS_AND_INDEPENDENT_ORDERS",
+  "source_commit": "a0ed8d1235a3e8d101c9c993cb9c0db9744cfd27",
+  "normalizer_sha256": "28c2268c76e81ce4207f2373f49ff941d31432ef0ba5b53eeebfcef101a75745",
+  "posting_rows": 575,
+  "monthly_rows": 567,
+  "physical_units": 577,
+  "sku_branch_groups": 64,
+  "reconciled_fields_including_seller_turnover": 704,
+  "independent_order_rows_matched": 575,
+  "independent_order_mismatches": 0,
+  "scheme_counts": {
+    "fbo": 462,
+    "fbs": 113
+  },
+  "actual_sale_branch_rows": 575,
+  "actual_return_branch_rows": 0,
+  "full_october_original_order_lines": 660,
+  "october_lines_with_document_base_commission": 494,
+  "october_lines_without_document_commission": 166,
+  "missing_is_not_zero": true,
+  "order_date_normalization": "Existing qualified processed(): UTC CSV to Europe/Moscow date",
+  "raw_report_sha256": {
+    "finance_realization_posting": "86b383fe7028886a46bcd4b6809bc46c7cbd9837fef7eb57e27650712eacc68d",
+    "finance_realization_v2": "cf0532588553d47237a7dbabfbfe83504688bc9e237616838c220d8dc9b4cb01"
+  },
+  "archived_order_sha256": {
+    "postings_report_2026q3_fbo_download.json": "9c0c2276d31052782ca51e330ff37469b262fda7bfc3b712b7c5f075c92a67c9",
+    "postings_report_2026q3_fbs_download.json": "ba8c786cad6272fa5c9832db42f6eada314194a3204a1f55f9147805f794bc31",
+    "postings_report_2026q4_fbo_download.json": "bf8028ae2120e96dcfd92407d5cb10bb71a55d73e15ef1911e3dc7e081b70b13",
+    "postings_report_2026q4_fbs_download.json": "a52269ce023f6ab44d816ce42c213c36abfa137454ac17082a967178fd08ae35"
+  },
+  "acquiring_in_source": false,
+  "original_accrual_relations_claimed": false,
+  "corrected_document_revisions_not_accumulated": true,
+  "return_branch_live_qualification": false,
+  "native_full_user_query_compiled": false,
+  "source_receipt_qualification": "Private exact capture record/body hash plus existing shared RECEIVED/http200 call ledger, read-only; not fresh user authority",
+  "new_provider_calls_during_replay": 0,
+  "total_provider_calls_this_stage": 2,
+  "new_alisa_model_calls": 0,
+  "raw_identifiers_or_rows_exported": false,
+  "live_business_parameters_changed": false
+}
