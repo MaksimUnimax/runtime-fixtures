@@ -1,5 +1,7 @@
 """Finite, pinned customer web/platform/identity rollout. No migrations or grants."""
 import fcntl
+import ctypes
+import errno
 import hashlib
 import json
 import os
@@ -81,6 +83,24 @@ def atomic(path, raw, mode=0o600):
             temp.unlink()
 
 
+def atomic_copy(path, source, digest):
+    """One MiB buffer, independent of the admitted file size."""
+    temp = path.with_name('.'+path.name+'.customer-catalog-new')
+    need(not temp.exists() and not temp.is_symlink(), 'TEMP_EXISTS')
+    try:
+        with source.open('rb') as src, temp.open('xb') as dst:
+            while block := src.read(1024*1024):
+                dst.write(block)
+            dst.flush()
+            os.fsync(dst.fileno())
+        need(sha(temp) == digest, 'COPY_HASH')
+        temp.chmod(0o644)
+        os.replace(temp, path)
+    finally:
+        if temp.exists():
+            temp.unlink()
+
+
 def record(name, value):
     atomic(ROOT/name, (json.dumps(value, indent=2)+'\n').encode())
 
@@ -139,8 +159,10 @@ def drop_bytes():
     return ('[Service]\nWorkingDirectory='+str(APP)+'\nExecStart=\nExecStart='+str(APP/'.venv/bin/python')+' '+str(APP/'infra/launch.py')+' platform\n').encode()
 
 
-def materialize(base, target, value, sources, pool):
+def materialize(base, target, value, sources, pool, ownership=None):
     target.mkdir(mode=0o755)
+    if ownership is not None:
+        atomic(target/'.customer-catalog-preparation.json', (json.dumps(ownership)+'\n').encode(), 0o644)
     for name, digest in value['files'].items():
         dst = target/name
         dst.parent.mkdir(parents=True, exist_ok=True)
@@ -150,7 +172,7 @@ def materialize(base, target, value, sources, pool):
         else:
             src = sources[name]
             need(sha(src) == digest, 'PAYLOAD_CHANGED')
-            atomic(dst, src.read_bytes(), 0o644)
+            atomic_copy(dst, src, digest)
     for name, dest in value.get('links', {}).items():
         dst = target/name
         dst.parent.mkdir(parents=True, exist_ok=True)
@@ -164,7 +186,7 @@ def prepare():
     reserve()
     idle()
     active([WEB, PLATFORM, IDP]+PRESERVE)
-    need(not any(p.exists() for p in [APP, IDENTITY, ROOT/'PLAN.json', DROP]), 'CANDIDATE_EXISTS')
+    need(not any(p.exists() for p in [APP, IDENTITY, ROOT/'PLAN.json', ROOT/'PREPARING.json', DROP]), 'CANDIDATE_EXISTS')
     need(WEB_LINK.is_symlink() and WEB_LINK.resolve() == BASE and IDENTITY_LINK.is_symlink() and IDENTITY_LINK.resolve() == IDENTITY_BASE, 'BASE_SELECTOR')
     for p, digest in PINS.items():
         need(sha(p/'manifest.json') == digest, 'BASE_PIN')
@@ -211,8 +233,11 @@ def prepare():
     count = sum(len(m['files'])+len(m.get('links', {})) for _,_,m,_ in targets)
     extra = sum(unique.values()) + 16*1024**2
     reserve(extra, count*2)
+    ownership = {'source': SOURCE, 'installer_sha256': sha(__file__), 'nonce': os.urandom(16).hex(),
+                 'targets': [str(APP), str(IDENTITY)]}
+    record('PREPARING.json', {'ownership': ownership, 'protected': before, 'units': units})
     for base, target, value, sources in targets:
-        materialize(base, target, value, sources, pool)
+        materialize(base, target, value, sources, pool, ownership)
     need(protected() == before and {u: static(u) for u in units} == units, 'BASE_CHANGED_DURING_PREPARE')
     record('PLAN.json', {'source': SOURCE, 'installer_sha256': sha(__file__), 'protected': before,
                        'units': units, 'candidates': {str(p): sha(p/'manifest.json') for p in [APP, IDENTITY]},
@@ -244,11 +269,57 @@ def stop(unit):
         need('populated 0' in (Path('/sys/fs/cgroup')/group.lstrip('/')/'cgroup.events').read_text(), 'CGROUP_STILL_PRESENT')
 
 
-def select(link, target):
+def path_state(path):
+    if not path.exists() and not path.is_symlink():
+        return None
+    st = path.lstat()
+    content = os.readlink(path) if path.is_symlink() else sha(path)
+    return (st.st_dev, st.st_ino, st.st_mode, st.st_size, st.st_mtime_ns, content)
+
+
+def rename_no_replace(source, destination):
+    # Linux primitive: concurrent destination creation cannot be overwritten.
+    libc = ctypes.CDLL(None, use_errno=True)
+    fn = libc.renameat2
+    fn.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    fn.restype = ctypes.c_int
+    result = fn(-100, os.fsencode(source), -100, os.fsencode(destination), 1)
+    if result:
+        number = ctypes.get_errno()
+        raise RuntimeError('SELECTOR_OCCUPIED' if number == errno.EEXIST else 'SELECTOR_RENAME_FAILED')
+
+
+def replace_selection(path, staged, expected):
+    held = path.with_name('.'+path.name+'.customer-catalog-held')
+    need(path_state(held) is None, 'SELECTOR_RECOVERY_REQUIRED')
+    need(path_state(path) == expected, 'SELECTOR_CHANGED')
+    moved = False
+    try:
+        if expected is not None:
+            rename_no_replace(path, held)
+            moved = True
+            need(path_state(held) == expected, 'DISPLACED_SELECTOR_CHANGED')
+        if staged is not None:
+            rename_no_replace(staged, path)
+        if moved:
+            held.unlink()
+    except BaseException:
+        # Keep a displaced selector if somebody has occupied the live name.
+        # Never erase that concurrent value to restore ours.
+        if moved and path_state(path) is None:
+            rename_no_replace(held, path)
+        raise
+
+
+def select(link, target, expected):
     temp = link.with_name('.'+link.name+'.customer-catalog-new')
-    need(not temp.exists() and not temp.is_symlink(), 'SELECTOR_TEMP_EXISTS')
+    need(path_state(temp) is None, 'SELECTOR_TEMP_EXISTS')
     temp.symlink_to(target)
-    os.replace(temp, link)
+    try:
+        replace_selection(link, temp, expected)
+    finally:
+        if temp.is_symlink() and os.readlink(temp) == str(target):
+            temp.unlink()
 
 
 def health(port, target, host='127.0.0.1'):
@@ -292,16 +363,20 @@ def selection_guard():
 def switch(rollback=False):
     # Web must be drained before either backend can change, including rollback.
     selection_guard()
+    states = {p: path_state(p) for p in [WEB_LINK, IDENTITY_LINK, DROP]}
     stop(WEB)
     stop(PLATFORM)
     stop(IDP)
-    select(WEB_LINK, BASE if rollback else APP)
-    select(IDENTITY_LINK, IDENTITY_BASE if rollback else IDENTITY)
+    need({p: path_state(p) for p in states} == states, 'SELECTOR_CHANGED_DURING_DRAIN')
+    select(WEB_LINK, BASE if rollback else APP, states[WEB_LINK])
+    select(IDENTITY_LINK, IDENTITY_BASE if rollback else IDENTITY, states[IDENTITY_LINK])
     if rollback:
-        if DROP.exists():
-            DROP.unlink()
+        replace_selection(DROP, None, states[DROP])
     else:
-        atomic(DROP, drop_bytes(), 0o644)
+        staged = DROP.with_name('.'+DROP.name+'.customer-catalog-new')
+        need(path_state(staged) is None, 'DROP_TEMP_EXISTS')
+        atomic(staged, drop_bytes(), 0o644)
+        replace_selection(DROP, staged, states[DROP])
     run('systemctl', 'daemon-reload')
     run('systemctl', 'start', PLATFORM, IDP)
     ready_pair(rollback)
@@ -352,4 +427,3 @@ if __name__ == '__main__':
         print(json.dumps({'status': 'FAILED', 'error_type': type(error).__name__,
                           'code': str(error) if isinstance(error, RuntimeError) else 'OPERATION_FAILED'}))
         raise SystemExit(1)
-

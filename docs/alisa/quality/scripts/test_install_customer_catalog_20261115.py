@@ -44,7 +44,7 @@ class InstallTests(unittest.TestCase):
             patches = [patch.object(M, 'DROP', drop),
                        patch.object(M, 'selection_guard', lambda: trace.append(('guard',))),
                        patch.object(M, 'stop', lambda u: trace.append(('stop', u))),
-                       patch.object(M, 'select', lambda link, dest: trace.append(('select', link.name, dest.name))),
+                       patch.object(M, 'select', lambda link, dest, expected: trace.append(('select', link.name, dest.name))),
                        patch.object(M, 'run', command), patch.object(M, 'ready_pair', pair),
                        patch.object(M, 'ready_web', lambda b: trace.append(('ready_web', b))),
                        patch.object(M, 'reserve', lambda *a: None), patch.object(M, 'idle', lambda: None),
@@ -97,7 +97,45 @@ class InstallTests(unittest.TestCase):
                 M.materialize(root, root/'target', {'files': {'data': digest}}, {}, {digest: source})
             self.assertEqual(source.read_bytes(), b'b')
 
+    def test_concurrent_replacement_before_move_is_detected_and_restored(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder);live = root/'live';staged = root/'new'
+            live.symlink_to('old');staged.symlink_to('ours')
+            expected = M.path_state(live)
+            original = M.rename_no_replace
+            def race(src, dst):
+                if src == live:
+                    live.unlink();live.symlink_to('foreign')
+                original(src, dst)
+            with patch.object(M, 'rename_no_replace', race):
+                with self.assertRaisesRegex(RuntimeError, 'DISPLACED_SELECTOR_CHANGED'):
+                    M.replace_selection(live, staged, expected)
+            self.assertEqual(live.readlink(), Path('foreign'))
+            self.assertEqual(staged.readlink(), Path('ours'))
+
+    def test_concurrent_creation_in_gap_is_never_overwritten(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder);live = root/'live';staged = root/'new'
+            live.symlink_to('old');staged.symlink_to('ours')
+            expected = M.path_state(live)
+            original = M.rename_no_replace
+            def race(src, dst):
+                if src == staged:
+                    live.symlink_to('foreign')
+                original(src, dst)
+            with patch.object(M, 'rename_no_replace', race):
+                with self.assertRaisesRegex(RuntimeError, 'SELECTOR_OCCUPIED'):
+                    M.replace_selection(live, staged, expected)
+            self.assertEqual(live.readlink(), Path('foreign'))
+            self.assertEqual((root/'.live.customer-catalog-held').readlink(), Path('old'))
+
+    def test_stream_copy_handles_multiple_chunks_and_validates_digest(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder);src = root/'src';dst = root/'dst'
+            src.write_bytes(b'z'*(3*1024*1024+1))
+            M.atomic_copy(dst, src, M.sha(src))
+            self.assertEqual(M.sha(dst), M.sha(src))
+
 
 if __name__ == '__main__':
     unittest.main()
-
