@@ -52,6 +52,11 @@ def _load(authority,qid,pins):
  need(info['report_catalog_hash']==spec.HASH and info['dependency_catalog_hash']==digest(dep.CATALOG),'CATALOG_INCOMPATIBLE',409)
  actor=WebSession.objects.select_for_update().select_related('customer','tenant').filter(pk=info['proof']['id'],tenant_id=row.tenant_id,customer_id=row.customer_id).first()
  need(actor is not None,'OWNER_SOURCE_AUTH_CHANGED',403)
+ # The first principal check precedes the session row lock. A logout, expiry or
+ # token rotation may commit in that gap. Revalidate the SAME signed proof while
+ # holding the lock until this RPC transaction completes; never treat existence
+ # of an already revoked row as continued write/read authority.
+ principal_current(info['proof'],pins)
  need(sorted(row.store_ids)==sorted(x['store_id']for x in pins['store_scope']),'PERMISSION_DENIED',403)
  return row,info,actor,scope
 

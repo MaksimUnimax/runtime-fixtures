@@ -1,0 +1,16 @@
+{
+  "status": "PASS_PINNED_FINANCIAL_REFERENCE_ARITHMETIC",
+  "source_commit": "6b7d8fe8a8e164e0c2b52e4b6deb212a78eb4c08",
+  "reference_day": "2026-11-13",
+  "original_units": "5",
+  "rows_checked": 13,
+  "paired_unit_cells_checked": 26,
+  "primary_denominator_both_scenarios": "original_N",
+  "per_original_unit_before_tax_with_loss": "160.799930",
+  "old_per_retained_unit_not_primary": "184.392473",
+  "financial_cost_groups_checked": 9,
+  "tax_assumed_zero": false,
+  "net_profit_claimed": false,
+  "api_or_database_calls": 0,
+  "this_does_not_qualify_live_source_completeness": true
+}

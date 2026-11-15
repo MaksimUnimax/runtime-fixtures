@@ -1,0 +1,103 @@
+{
+  "schema": "alisa-economics-source-qualification/v1",
+  "status": "SOURCE_RULES_REOPENED_NOT_A_LIVE_PROFIT_TEMPLATE",
+  "utc": "2026-11-15T01:05:30.343115+00:00",
+  "reference_repository": "MaksimUnimax/blood_sand",
+  "reference_branch": "статистика",
+  "reference_commit": "6b7d8fe8a8e164e0c2b52e4b6deb212a78eb4c08",
+  "definition_revision": "agreed-statistics-r16",
+  "sources": [
+    "стратегии рекламы/FORMULA_REGISTRY.json",
+    "стратегии рекламы/ПРАВИЛА_РАБОТЫ.md",
+    "стратегии рекламы/аудит статистики/2026-11-14_formula_semantics_r16/FORMULA_CATALOG.json",
+    "стратегии рекламы/аудит статистики/2026-11-14_full_unit_checks_r14/corrected/16_Ozon_2026-11-13/REPORT.md"
+  ],
+  "primary_quantity": "sum original physical quantities",
+  "turnover": "sum original seller price times original quantity",
+  "primary_denominator_both_scenarios": "original_N",
+  "secondary_retained_unit_denominator": "N*(1-k), separately labelled only",
+  "apply_loss_once": [
+    "turnover",
+    "original_commission",
+    "full_original_cogs"
+  ],
+  "never_multiply_by_retention": [
+    "acquiring",
+    "combined_forward_and_last_delivery",
+    "processing",
+    "storage",
+    "advertising",
+    "other"
+  ],
+  "reverse_with_loss": "k * sum(original_quantity * qualified_return_tariff_by_sku_and_scheme)",
+  "reverse_without_loss": "explicit scenario zero, not missing-data default",
+  "delivery": "original_N * saved_combined_forward_and_last_rate; no extra last-mile line",
+  "cogs": "current owner_data per SKU/general, not hardcoded reference-store 250",
+  "zero_original_N": "unit values undefined; observed total advertising/storage/etc remain visible",
+  "missing_required_cost": "do not publish completed economics; missing is not zero",
+  "signed_corrections": "preserve classified source signs; do not abs every adjustment",
+  "drr": "all advertising / original seller turnover, no loss factor",
+  "output_boundary": "calculated remainder before tax and explicitly unallocated services; not net profit",
+  "qualification_layers": {
+    "owner_policy": "VERIFIED_FROM_PINNED_SOURCE",
+    "reference_formula_semantics": "READ",
+    "all_input_collectors_in_alisa": "NOT_QUALIFIED_BY_THIS_DOCUMENT",
+    "live_cohort_financial_join": "NOT_TESTED",
+    "tax_and_owner_expense_binding": "OPEN",
+    "new_wb_support": "NOT_IMPLEMENTED"
+  },
+  "input_map": [
+    {
+      "input": "original_N",
+      "source_basis": "original order product rows",
+      "rule": "physical quantity, not number of distinct SKU/postings/realized units"
+    },
+    {
+      "input": "seller_turnover",
+      "source_basis": "original order seller price times physical quantity",
+      "rule": "not card price, buyer payment or seller payout"
+    },
+    {
+      "input": "commission_original",
+      "source_basis": "qualified original debit for same posting+SKU, else approved scheme-specific tariff estimate",
+      "rule": "no mixture of already-adjusted/net returns base and second loss multiplication"
+    },
+    {
+      "input": "acquiring",
+      "source_basis": "qualified cost for original cohort or explicit approved tariff/proxy",
+      "rule": "Ozon acquiring field in rubles per unit; no loss factor"
+    },
+    {
+      "input": "return_tariff_total",
+      "source_basis": "same SKU and scheme quoted source",
+      "rule": "forecast reserve on losses, not a claim every cancellation creates physical return"
+    },
+    {
+      "input": "processing",
+      "source_basis": "matched qualified debit or explicit supported scheme rule",
+      "rule": "zero must be evidenced, not absent row"
+    },
+    {
+      "input": "storage",
+      "source_basis": "actual financial day or declared model allocation",
+      "rule": "distinct cohort/day basis, label estimates"
+    },
+    {
+      "input": "advertising",
+      "source_basis": "actual period spend, CPC and order-paid promotion distinctly",
+      "rule": "not balance topup or dashboard orders attributed revenue"
+    },
+    {
+      "input": "other",
+      "source_basis": "qualified matched expenses/corrections",
+      "rule": "no double counting direct delivery or commission already selected"
+    },
+    {
+      "input": "owner_data",
+      "source_basis": "current COGS/tax/custom-expense records",
+      "rule": "unknown tax does not silently become zero; after-tax label forbidden until complete"
+    }
+  ],
+  "numeric_constants_from_reference_are_not_production_defaults": true,
+  "live_values_changed": false
+}

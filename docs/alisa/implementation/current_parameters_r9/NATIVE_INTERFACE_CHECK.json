@@ -1,0 +1,16 @@
+{
+  "status": "EXACT_BASE_SUPPORTS_BEFORE_DISPATCH",
+  "engine_sha256": "da352a4024dda12c4e7a808f94718f4fc4b4ff57bb6e19c093a6135f2aff85bc",
+  "baseline_matches": true,
+  "method_args": [
+    "self",
+    "row",
+    "request",
+    "store",
+    "on_rejection",
+    "on_received",
+    "before_dispatch"
+  ],
+  "line": 406,
+  "reviewed_source": "be767a6570a8a6ff258300e378571a1f59648a3f"
+}

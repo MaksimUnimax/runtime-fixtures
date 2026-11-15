@@ -1,0 +1,13 @@
+## Вердикт: REQUEST_CHANGES
+
+Точный HEAD совпадает с `be767a6570a8a6ff258300e378571a1f59648a3f`, база — `9b2419932cd1453f0a53ec8ae34371be72486376`. Проверил указанные owner-data и query границы, контракт и каталог отчёта, runtime patch и тесты `parameter_compound`. Приложение и тесты не запускал.
+
+### Подтверждённое замечание
+
+- **HIGH — проверка сессии допускает гонку с отзывом.** [parameter_report_rpc.py:51](/root/alisa-parameter-dependencies-r7-20261114/products/alisa/services/platform/src/alisa_platform/owner_data/parameter_report_rpc.py:51), [parameter_report_rpc.py:53](/root/alisa-parameter-dependencies-r7-20261114/products/alisa/services/platform/src/alisa_platform/owner_data/parameter_report_rpc.py:53). Минимальный сценарий: `principal_current` видит активную сессию; затем параллельная транзакция отзывает её; `select_for_update` получает уже отозванную строку, но код проверяет только, что строка существует. RPC продолжает операцию — в том числе `report_fill`. Это нарушает требование повторно проверять текущие права и сессию перед чтением и записью. После блокировки сессии нужно заново проверять `revoked_at`, срок действия, активность владельца, `security_revision` и отпечаток токена. Добавить тест с отзывом между первоначальной проверкой и получением блокировки; после отзыва `report_*` не должен читать или записывать параметр.
+
+### Подозрение, требующее сверки с точной native-базой
+
+- **Возможный HIGH — `ReportWorker` передаёт неподтверждённый аргумент `before_dispatch`.** [parameter_report_runtime.py:110](/root/alisa-parameter-dependencies-r7-20261114/docs/alisa/runtime/v0.11/current_parameters_r8/parameter_report_runtime.py:110), [parameter_report_runtime.py:115](/root/alisa-parameter-dependencies-r7-20261114/docs/alisa/runtime/v0.11/current_parameters_r8/parameter_report_runtime.py:115). Runtime patch добавляет вызовы с этим аргументом, но не меняет интерфейс `Worker._call`. В доступной в копии границе `rt_job_r02` метод принимает только `on_rejection` и `on_received`; при таком интерфейсе составной отчёт падает с `TypeError` на первом wrapped-вызове. Однако SHA native baseline из R8 не совпадает с этой доступной копией, поэтому не считаю это подтверждённым дефектом точного кандидата. Сверить сигнатуру `Worker._call` именно по native-файлу с SHA из `BASELINE.json`; если аргумента нет, добавить его обработку на границе dispatch и интеграционную проверку.
+
+Других подтверждённых существенных регрессов в просмотренных границах не установил. Доказательств проблемы с формулой ограниченной delivery projection или с совместимостью legacy list/dict-результатов не нашёл. Полное одобрение не выдаю из-за подтверждённой гонки с отзывом сессии.
