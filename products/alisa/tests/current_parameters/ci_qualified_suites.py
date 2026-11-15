@@ -7,6 +7,7 @@ ROOT=Path(__file__).resolve().parents[2];REPO=ROOT.parents[1]
 sys.path[:0]=[str(ROOT/'tests'),str(ROOT/'services/platform/src')]
 from suite_routing import inventory,labels
 p=argparse.ArgumentParser();p.add_argument('--suite',choices=['base','collection','compound','ledger'],required=True);p.add_argument('--output',type=Path,required=True);args=p.parse_args();inventory(ROOT/'tests')
+if not labels(args.suite):raise RuntimeError('EMPTY_SPECIALIZED_SUITE')
 N=Path(os.environ['PARAMETER_TEST_RUNTIME_ROOT']).resolve();sock=os.environ.get('PARAMETER_TEST_SOCKET','')
 if not str(N).startswith('/dev/shm/alisa-parameter-ci-')or not(N/'parameter_report_runtime.py').is_file():raise RuntimeError('PINNED_TEST_NATIVE_REQUIRED')
 if not sock.startswith('/dev/shm/alisa-current-parameters-pg-ci-')or not Path(sock).is_dir():raise RuntimeError('OWN_TEST_POSTGRES_REQUIRED')
@@ -31,6 +32,6 @@ with patch.object(socket.socket,'connect',connect),patch('socket.getaddrinfo',si
    def run_suite(self,suite,**kwargs):self.result=super().run_suite(suite,**kwargs);return self.result
   call_command('makemigrations','owner_data',check=True,dry_run=True,verbosity=1)
   runner=Capture(verbosity=2,interactive=False);runner.run_tests(labels(args.suite));result=runner.result
-status='PASS'if result.wasSuccessful()and not result.skipped and not attempts else'FAIL'
+status='PASS'if result.wasSuccessful()and result.testsRun>0 and not result.skipped and not attempts else'FAIL'
 receipt={'utc':datetime.now(timezone.utc).isoformat(),'suite':args.suite,'status':status,'tests':result.testsRun,'failures':len(result.failures),'errors':len(result.errors),'skipped':len(result.skipped),'external_connections':len(attempts),'elapsed_seconds':round(time.monotonic()-start,3),'live_configuration_loaded':False}
 args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt));raise SystemExit(0 if status=='PASS'else 1)

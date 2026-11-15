@@ -132,7 +132,7 @@ class SourceIdentities(TestCase):
   p=[page()];before=deepcopy(p);normalize(p);self.assertEqual(p,before)
 
  def test_receipt_cannot_back_two_pages(self):
-  with self.assertRaises(a.AccrualError)as e:normalize([page(next_cursor='a'),page(cursor='a')])
+  with self.assertRaises(a.AccrualError)as e:a.normalize([page(next_cursor='a'),page(cursor='a')],SCOPE,PERIOD,verify=lambda p:True,encode=encode,as_of=NOW)
   self.assertEqual(e.exception.code,'ACCRUAL_RECEIPT_REUSED')
  def test_nonobject_record_is_typed_schema_failure(self):
   with self.assertRaises(a.AccrualError)as e:normalize([page([None])])

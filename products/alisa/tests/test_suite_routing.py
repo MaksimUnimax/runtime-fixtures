@@ -1,11 +1,11 @@
 from pathlib import Path
 from unittest import TestCase
 import tempfile
-from suite_routing import SPECIALIZED,inventory,labels
+from suite_routing import SPECIALIZED,EXTERNAL,inventory,labels
 
 class SuiteRouting(TestCase):
  def fixture(self,root):
-  for name,modules in SPECIALIZED.items():
+  for name,modules in {**SPECIALIZED,**EXTERNAL}.items():
    d=root/name;d.mkdir();(d/'__init__.py').write_text('')
    for module in modules:(d/(module+'.py')).write_text('')
   (root/'test_root.py').write_text('')
@@ -25,9 +25,19 @@ class SuiteRouting(TestCase):
   with tempfile.TemporaryDirectory()as t:
    with self.assertRaisesRegex(RuntimeError,'MISSING'):inventory(Path(t))
  def test_existing_checkout_inventory_is_complete(self):
-  root,groups=inventory(Path(__file__).parent);self.assertIn('test_suite_routing',root);self.assertEqual(set(groups),set(SPECIALIZED))
+  root,groups=inventory(Path(__file__).parent);self.assertIn('test_suite_routing',root);self.assertEqual(set(groups),set(SPECIALIZED)|set(EXTERNAL))
 
  def test_nested_duplicate_basename_cannot_hide_unassigned_test(self):
   with tempfile.TemporaryDirectory()as t:
    root=Path(t);self.fixture(root);d=root/'economics_cohort/nested';d.mkdir();(d/'test_sources.py').write_text('')
+   with self.assertRaisesRegex(RuntimeError,'UNASSIGNED'):inventory(root)
+
+ def test_unknown_nonpackage_directory_also_requires_assignment(self):
+  with tempfile.TemporaryDirectory()as t:
+   root=Path(t);self.fixture(root);d=root/'future';d.mkdir();(d/'test_new.py').write_text('')
+   with self.assertRaisesRegex(RuntimeError,'UNASSIGNED'):inventory(root)
+
+ def test_new_module_in_other_known_environment_is_not_silently_external(self):
+  with tempfile.TemporaryDirectory()as t:
+   root=Path(t);self.fixture(root);(root/'runtime_client/test_unassigned.py').write_text('')
    with self.assertRaisesRegex(RuntimeError,'UNASSIGNED'):inventory(root)
