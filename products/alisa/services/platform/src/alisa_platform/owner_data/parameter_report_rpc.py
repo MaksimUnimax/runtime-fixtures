@@ -69,7 +69,8 @@ def _node(authority,reference):
  from alisa_platform.stores.models import Store
  store=Store.objects.select_for_update().get(pk=node['descriptor']['platform_store_id'],tenant_id=actor.tenant_id)
  expected_native=next((s for p,s in zip(ref['pins']['store_scope'],scope['stores'])if p['store_id']==str(store.pk)),None)
- need(expected_native is not None and expected_native['id']==node['descriptor']['runtime_store_id'],'PERMISSION_DENIED',403)
+ need(scope['tenant']==node['descriptor']['runtime_tenant']and expected_native is not None
+      and expected_native['id']==node['descriptor']['runtime_store_id'],'PERMISSION_DENIED',403)
  return ref,row,info,actor,store,node
 
 
@@ -103,7 +104,16 @@ def _reply(row,pins,actor,store,node_id,node,reference):
 def dispatch(authority,payload):
  need(getattr(settings,'OWNER_PARAMETER_COMPOUNDS_ENABLED',False)is True,'PARAMETER_REPORT_DISABLED',403);values._enabled()
  need(type(payload)is dict,'PARAMETER_SCHEMA',422);method=payload.get('method')
+ if method in('report_owner_inputs','report_owner_fence'):
+  from . import economics_query
+  fields={'method','reference','job_id','readset'}if method=='report_owner_inputs'else{'method','reference','checkpoint'}
+  pc.exact(payload,fields)
+  if method=='report_owner_inputs':return economics_query.inputs(authority,payload['reference'],payload['job_id'],payload['readset'])
+  return economics_query.fence(authority,payload['reference'],payload['checkpoint'])
  if method=='report_bind':
+  if payload.get('template_id')=='economics.unit_forecast.v1':
+   from . import economics_query
+   return economics_query.bind(authority,payload)
   pc.exact(payload,('method','query_id','pins','template_id','invocation_id','runtime_store_id','input','question_hash','job_id'))
   rule=spec.definition(payload['template_id']);inputs=spec.normalized_input(payload['input'])
   need(type(payload['invocation_id'])is str and payload['invocation_id']and type(payload['job_id'])is str and payload['job_id'],'PARAMETER_SCHEMA',422)
@@ -129,6 +139,11 @@ def dispatch(authority,payload):
  if method in('report_dependency_current','report_fill'):expected|={'target','period'}
  if method=='report_fill':expected|={'envelope','envelope_sha256','job_id'}
  pc.exact(payload,expected);ref,row,info,actor,store,node=_node(authority,payload['reference'])
+ if node['descriptor']['template_id']=='economics.unit_forecast.v1':
+  from . import economics_query
+  economics_query._check_descriptor(node['descriptor'])
+  if method=='report_current':return economics_query.current(authority,payload['reference'])
+  need(method not in('report_refresh','report_fence'),'ECONOMICS_OWNER_INPUTS_REQUIRED',422)
  if method in('report_current','report_refresh','report_fence'):
   need(ref['dependency_id']is None,'PARAMETER_REPORT_REFERENCE',403)
   if method=='report_current':return {'current':True}

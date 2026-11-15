@@ -66,16 +66,15 @@ def validate_facts(facts,actor,store):
     payload={'schema':'alice-owner-input-snapshot/v1','revision':'structural-validation',
        'scope_hash':scope_hash,'catalog_hash':RESOLVER.hash,'issued_at':now,'expires_at':now+300,'entries':deepcopy(entries)}
     envelope={'payload':payload,'sha256':digest(payload)}
-    # Structural validation only: this private pure method performs no authorization.
-    # The existing authenticated actor_store above authorizes the explicit approval.
+    # Structural validation only: _validate checks every entry and overlap group,
+    # independently of request entity/fields. The outer checks above bind all
+    # entities to this store, so repeating the same payload for each SKU adds no
+    # validation. Current session/credentials/approval checks remain at callers.
     try:
-        for entity in sorted(entities):
-            fields=sorted(k for k,v in CATALOG['fields'].items()
-                          if (v['mode']=='exact_period')==(entity==store_entity))
-            if fields:
-                RESOLVER._validate(envelope,{'scope_hash':scope_hash,'entity':entity,'currency':'RUB',
-                  'period':next((deepcopy(x['period'])for x in entries if x.get('period')is not None),
-                    {'from':timezone.now().date().isoformat(),'to':timezone.now().date().isoformat()}),'fields':fields},now)
+        RESOLVER._validate(envelope,{'scope_hash':scope_hash,'entity':store_entity,'currency':'RUB',
+          'period':next((deepcopy(x['period'])for x in entries if x.get('period')is not None),
+            {'from':timezone.now().date().isoformat(),'to':timezone.now().date().isoformat()}),
+          'fields':sorted(CATALOG['fields'])},now)
     except (InputError,KeyError,TypeError,ValueError)as e:
         raise Rejected(getattr(e,'code','OWNER_SOURCE_SCHEMA'),422)from None
     return deepcopy(facts)

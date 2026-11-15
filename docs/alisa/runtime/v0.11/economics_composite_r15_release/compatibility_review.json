@@ -1,0 +1,68 @@
+{
+  "schema": "alisa-economics-release-compatibility/v1",
+  "preserved_differences": [
+    {
+      "role": "platform",
+      "path": "accounts/views.py",
+      "source_sha256": "0c5da8a593c9ae091f8bca3ecc0e1f0ac917d16ab9c7a2347249da68e38c5864",
+      "base_sha256": "b755a2fd49b784201b2eca97e1c8a33b19dca786709cf5714c042a80b8271778",
+      "reason": "Root independently reviewed the exact installed-to-source consent/login diff on 2026-11-15. Preserve the accepted platform login pair. Existing session() and SessionPrincipal boundary are unchanged. Authority already matches the source bytes."
+    },
+    {
+      "role": "platform",
+      "path": "staff/policy.py",
+      "source_sha256": "44927044cdb710dacfa427044239eaff6a58447fc7c12f1ec83ecb58e2b99d01",
+      "base_sha256": "1b3b930fe33231b61493c646b23f361576154509e0ad92b392df791ef542bd4f",
+      "reason": "Root independently reviewed the exact diff on 2026-11-15. Preserve the previously accepted staff session policy; R15 uses customer WebSession. Compatibility preservation does not approve a new staff security policy."
+    },
+    {
+      "role": "authority",
+      "path": "staff/policy.py",
+      "source_sha256": "44927044cdb710dacfa427044239eaff6a58447fc7c12f1ec83ecb58e2b99d01",
+      "base_sha256": "1b3b930fe33231b61493c646b23f361576154509e0ad92b392df791ef542bd4f",
+      "reason": "Root independently reviewed the exact diff on 2026-11-15. Preserve the previously accepted staff session policy; R15 uses customer WebSession. Compatibility preservation does not approve a new staff security policy."
+    }
+  ],
+  "replacement_deltas": {
+    "config/settings.py": {
+      "source_sha256": "e65b8930beb9cc8f955645cdb1108febf1d4a4d3ebd2ce72e72c21891b84de18",
+      "base_sha256": {
+        "platform": "ff39e951129f66a203385af64c862eac1e72998745700ba3e42ac6c7061c6a83",
+        "authority": "ff39e951129f66a203385af64c862eac1e72998745700ba3e42ac6c7061c6a83"
+      },
+      "reason": "Root reviewed the exact delta: append only the two default-off compound/economics feature flags. Existing login, catalogue and collection settings remain unchanged."
+    },
+    "queries/service.py": {
+      "source_sha256": "a3c8e2ffab12aedc83d645979a839bce9fd73cc799d77df7fb3541242d754a20",
+      "base_sha256": {
+        "platform": "c6d196c12526e34638dca9e24665aecc5cd4eaee8f36e071f407cdeb2c5559fe",
+        "authority": "c6d196c12526e34638dca9e24665aecc5cd4eaee8f36e071f407cdeb2c5559fe"
+      },
+      "reason": "Root reviewed the exact delta: initialize continuation through remember() for WEB admission. Non-WEB returns an empty object; the existing voice branch and recovery code remain unchanged."
+    },
+    "owner_data/parameter_collection.py": {
+      "source_sha256": "1d48630ef14833fc54b8f8d31f54cf87bc3529579d687f6bf8f72ee7edb21b2d",
+      "base_sha256": {
+        "platform": "9ed58c59c998a9e380202e211ba54bd0f53d791be45392fef37a03b77b1fa2e8",
+        "authority": "9ed58c59c998a9e380202e211ba54bd0f53d791be45392fef37a03b77b1fa2e8"
+      },
+      "reason": "Root reviewed the exact delta: dispatch report_* methods through the existing authenticated private parameter-collection route; existing collection dispatch remains unchanged."
+    },
+    "owner_data/service.py": {
+      "source_sha256": "79c7b5ff89ccdbc7aa7acf11cba179af6cbb35e421384a7ac624068e220369ca",
+      "base_sha256": {
+        "platform": "7204dc46163c9131020cc4d14dc7c9c7df3935f5b59b43301d6020ff09e2c64d",
+        "authority": "7204dc46163c9131020cc4d14dc7c9c7df3935f5b59b43301d6020ff09e2c64d"
+      },
+      "reason": "Root independently approved the exact performance delta: retain all outer entity/mode/currency and caller authorization checks; invoke the complete pure structural validator once instead of once per entity."
+    },
+    "owner_data/source.py": {
+      "source_sha256": "405996d2678ebdd9cb0eb743e0b42affb16bc4521f1b752357ffe862b5280cbf",
+      "base_sha256": {
+        "platform": "717811b6fddb8f4235908b5d64f65b8d772994521e1a7f8f79f3272306cca4d1",
+        "authority": "717811b6fddb8f4235908b5d64f65b8d772994521e1a7f8f79f3272306cca4d1"
+      },
+      "reason": "Root independently approved the exact installed-to-source delta on 2026-11-15: extract the existing strict CONNECTED comparison into a private credential predicate and call that predicate in current(). Generic source behavior and all session, access, approval, content and environment checks are unchanged. The separately pinned WEB Query adapter alone may specialize the predicate for its existing mapped Performance native-owner path under current runtime authority."
+    }
+  }
+}

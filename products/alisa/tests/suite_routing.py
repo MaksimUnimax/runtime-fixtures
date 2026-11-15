@@ -8,9 +8,9 @@ from pathlib import Path
 SPECIALIZED={
  'current_parameters':{'test_parameters':'base','test_producers':'base','test_collection':'collection','test_runtime_writer':'collection'},
  'parameter_dependencies':{'test_binding':'base','test_service':'base'},
- 'parameter_compound':{'test_contract':'compound','test_worker':'compound','test_program_socket':'compound','test_review_races':'compound'},
- 'economics_cohort':{'test_sources':'base','test_current':'base','test_reference':'base'},
- 'economics_ledger':{'test_accruals':'base','test_realization':'base','test_tariffs':'base','test_realization_worker':'ledger','test_worker':'ledger'},
+ 'parameter_compound':{'test_contract':'compound','test_worker':'compound','test_program_socket':'compound','test_review_races':'compound','test_composite_worker':'compound','test_composite_races':'compound'},
+ 'economics_cohort':{'test_sources':'base','test_current':'base','test_reference':'base','test_query_current':'base','test_composite_sources':'base'},
+ 'economics_ledger':{'test_accruals':'base','test_realization':'base','test_tariffs':'base','test_period_costs':'base','test_period_current':'base','test_order_sources':'base','test_other_sources':'base','test_period_worker':'ledger','test_realization_worker':'ledger','test_worker':'ledger','test_tariff_worker':'ledger','test_order_worker':'ledger','test_other_worker':'ledger'},
  'owner_catalog':{'test_catalog_ipc':'ledger','test_product_catalog':'ledger'},
 }
 

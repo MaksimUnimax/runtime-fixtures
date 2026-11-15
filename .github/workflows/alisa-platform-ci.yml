@@ -1,10 +1,10 @@
 name: Alisa platform source checks
 on:
   pull_request:
-    paths: ['products/alisa/**', 'docs/alisa/runtime/v0.11/rt_check_r01/**', 'docs/alisa/runtime/v0.11/rt_job_r02/**', 'docs/alisa/runtime/v0.11/question_catalog_r1/**', 'docs/alisa/runtime/v0.11/current_parameters_r4/**', 'docs/alisa/runtime/v0.11/current_parameters_r5/**', 'docs/alisa/runtime/v0.11/current_parameters_r8/**', 'docs/alisa/runtime/v0.11/economics_ledger_r11/**', 'docs/alisa/quality/scripts/*question_catalog*', '.github/workflows/alisa-platform-ci.yml']
+    paths: ['products/alisa/**', 'docs/alisa/runtime/v0.11/rt_check_r01/**', 'docs/alisa/runtime/v0.11/rt_job_r02/**', 'docs/alisa/runtime/v0.11/question_catalog_r1/**', 'docs/alisa/runtime/v0.11/current_parameters_r4/**', 'docs/alisa/runtime/v0.11/current_parameters_r5/**', 'docs/alisa/runtime/v0.11/current_parameters_r8/**', 'docs/alisa/runtime/v0.11/economics_ledger_r11/**', 'docs/alisa/runtime/v0.11/economics_flow_r13/**', 'docs/alisa/runtime/v0.11/economics_period_r14/**', 'docs/alisa/runtime/v0.11/economics_composite_r15/**', 'docs/alisa/runtime/v0.11/economics_composite_r15_release/**', 'docs/alisa/runtime/v0.11/economics_composite_r15_preflight/**', 'docs/alisa/quality/scripts/*question_catalog*', '.github/workflows/alisa-platform-ci.yml']
   push:
     branches: ['feat/alisa-platform-foundation-v05', 'feat/alisa-site-funnel-v05']
-    paths: ['products/alisa/**', 'docs/alisa/runtime/v0.11/rt_check_r01/**', 'docs/alisa/runtime/v0.11/rt_job_r02/**', 'docs/alisa/runtime/v0.11/question_catalog_r1/**', 'docs/alisa/runtime/v0.11/current_parameters_r4/**', 'docs/alisa/runtime/v0.11/current_parameters_r5/**', 'docs/alisa/runtime/v0.11/current_parameters_r8/**', 'docs/alisa/runtime/v0.11/economics_ledger_r11/**', 'docs/alisa/quality/scripts/*question_catalog*', '.github/workflows/alisa-platform-ci.yml']
+    paths: ['products/alisa/**', 'docs/alisa/runtime/v0.11/rt_check_r01/**', 'docs/alisa/runtime/v0.11/rt_job_r02/**', 'docs/alisa/runtime/v0.11/question_catalog_r1/**', 'docs/alisa/runtime/v0.11/current_parameters_r4/**', 'docs/alisa/runtime/v0.11/current_parameters_r5/**', 'docs/alisa/runtime/v0.11/current_parameters_r8/**', 'docs/alisa/runtime/v0.11/economics_ledger_r11/**', 'docs/alisa/runtime/v0.11/economics_flow_r13/**', 'docs/alisa/runtime/v0.11/economics_period_r14/**', 'docs/alisa/runtime/v0.11/economics_composite_r15/**', 'docs/alisa/runtime/v0.11/economics_composite_r15_release/**', 'docs/alisa/runtime/v0.11/economics_composite_r15_preflight/**', 'docs/alisa/quality/scripts/*question_catalog*', '.github/workflows/alisa-platform-ci.yml']
 permissions:
   contents: read
 jobs:
@@ -60,6 +60,10 @@ jobs:
         run: python -B -m unittest discover -s docs/alisa/quality/scripts -p test_install_legacy_voice_clarification_20261114.py -q
       - name: Catalog rollout failure and rollback boundaries on disposable files
         run: python -B -m unittest discover -s docs/alisa/quality/scripts -p test_install_question_catalog_20261114.py -q
+      - name: Immutable economics candidate boundaries on disposable files
+        run: products/alisa/.venv/bin/python -B -m unittest discover -s docs/alisa/runtime/v0.11/economics_composite_r15_release/tests -p test_builder.py -q
+      - name: Bounded owner metadata preflight on disposable files
+        run: products/alisa/.venv/bin/python -B -m unittest discover -s docs/alisa/runtime/v0.11/economics_composite_r15_preflight/tests -p test_preflight.py -q
       - name: Current runtime fairness, deadlines and offline regression
         working-directory: products/alisa/runtime
         run: |
@@ -180,9 +184,20 @@ jobs:
           retention-days: 14
 
   parameters:
-    name: Parameter and economics source suites
+    name: Parameter and economics source suites (${{ matrix.suite }} ${{ matrix.shard_index }}/${{ matrix.shard_count }})
     runs-on: ubuntu-24.04
     timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {suite: base, shard_count: 1, shard_index: 0}
+          - {suite: collection, shard_count: 1, shard_index: 0}
+          - {suite: ledger, shard_count: 1, shard_index: 0}
+          - {suite: compound, shard_count: 4, shard_index: 0}
+          - {suite: compound, shard_count: 4, shard_index: 1}
+          - {suite: compound, shard_count: 4, shard_index: 2}
+          - {suite: compound, shard_count: 4, shard_index: 3}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -202,7 +217,7 @@ jobs:
       - name: Reproduce pinned coefficient runtime test fixture
         working-directory: products/alisa
         run: |
-          export PARAMETER_TEST_RUNTIME_ROOT="/dev/shm/alisa-parameter-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          export PARAMETER_TEST_RUNTIME_ROOT="/dev/shm/alisa-parameter-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.suite }}-${{ matrix.shard_index }}"
           echo "PARAMETER_TEST_RUNTIME_ROOT=$PARAMETER_TEST_RUNTIME_ROOT" >> "$GITHUB_ENV"
           .venv/bin/python -B tests/current_parameters/build_native_fixture.py             --output "$PARAMETER_TEST_RUNTIME_ROOT" --receipt dist/parameter-native-fixture.json
       - name: Explicit coefficient, compound and economics suites on owned Unix PostgreSQL
@@ -210,8 +225,8 @@ jobs:
         working-directory: products/alisa
         run: |
           set -euo pipefail
-          name="alisa-parameter-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          root="/dev/shm/alisa-current-parameters-pg-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          name="alisa-parameter-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.suite }}-${{ matrix.shard_index }}"
+          root="/dev/shm/alisa-current-parameters-pg-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.suite }}-${{ matrix.shard_index }}"
           test ! -e "$root"
           mkdir -m 700 "$root"
           mkdir -m 700 "$root/socket"
@@ -231,14 +246,16 @@ jobs:
           done
           test "$ready" = 1
           docker exec "$name" psql -U postgres -d parameter_test -v ON_ERROR_STOP=1             -c 'CREATE ROLE test_parameter_test_runtime NOLOGIN; CREATE ROLE parameter_test_runtime NOLOGIN;'
-          for suite in base collection compound ledger; do
-            sudo --preserve-env=PARAMETER_TEST_SOCKET,PARAMETER_TEST_RUNTIME_ROOT,ALISA_TEST_NODE               .venv/bin/python -B tests/current_parameters/ci_qualified_suites.py               --suite "$suite" --output "dist/parameter-${suite}-qualification.json"
-          done
+          sudo --preserve-env=PARAMETER_TEST_SOCKET,PARAMETER_TEST_RUNTIME_ROOT,ALISA_TEST_NODE \
+            .venv/bin/python -B tests/current_parameters/ci_qualified_suites.py \
+            --suite '${{ matrix.suite }}' \
+            --shard-count '${{ matrix.shard_count }}' --shard-index '${{ matrix.shard_index }}' \
+            --output 'dist/parameter-${{ matrix.suite }}-shard-${{ matrix.shard_index }}-qualification.json'
       - name: Retain source-only qualification receipts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: alisa-parameter-qualification-${{ github.event.pull_request.head.sha || github.sha }}
+          name: alisa-parameter-qualification-${{ matrix.suite }}-${{ matrix.shard_index }}-of-${{ matrix.shard_count }}-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             products/alisa/dist/parameter-native-fixture.json
             products/alisa/dist/parameter-*-qualification.json

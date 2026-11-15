@@ -31,6 +31,10 @@ class DjangoOwnerSource:
     def _actor_store(self):
         return actor_store(self._token,self.store_id)
 
+    def _credential_qualified(self,kind,row):
+        # Policy predicate only; current() checks current authority first.
+        return row['check_code']=='CONNECTED'
+
     @transaction.atomic
     def current(self):
         need(getattr(settings,'OWNER_DATA_ENABLED',False)is True,'OWNER_SOURCE_DISABLED',403)
@@ -44,7 +48,7 @@ class DjangoOwnerSource:
         for kind in self.required_credentials:
             rows=list(CredentialRevision.objects.filter(product_id=PRODUCT,tenant_id=actor.tenant_id,
                 store=store,kind=kind,status='ACTIVE').values('id','kind','revision','check_code')[:2])
-            need(len(rows)==1 and rows[0]['check_code']=='CONNECTED','OWNER_SOURCE_CREDENTIAL_UNQUALIFIED',403)
+            need(len(rows)==1 and self._credential_qualified(kind,rows[0]),'OWNER_SOURCE_CREDENTIAL_UNQUALIFIED',403)
             credentials.append({**rows[0],'id':str(rows[0]['id'])})
         row=OwnerDataset.objects.select_for_update().filter(store=store,tenant_id=actor.tenant_id,
                                                            product_id=PRODUCT).first()

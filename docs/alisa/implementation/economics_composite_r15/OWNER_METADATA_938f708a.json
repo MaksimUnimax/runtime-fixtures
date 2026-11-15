@@ -1,0 +1,40 @@
+{
+  "utc": "2026-11-15T10:28:51.315203+00:00",
+  "source_commit": "938f708aecb1be4736274d5d5cf9cf77bfdcfc33",
+  "source_sha256": {
+    "preflight.py": "f8346e1cb21d5e31a7644b808830e0eb6029e6e86487e50c33a3cc6010531a9a",
+    "source_context.json": "04cc28b9b0ef93a3c7aea07f6c1b6b571a66ce0235e5e4114d38b335b6b3385f"
+  },
+  "environmentfile_invocation": "SEPARATE_PROPERTIES_VERIFIED_BY_SYNTHETIC_PROBE",
+  "stat_identity": "EXACT_DECIMAL_STRINGS",
+  "diagnostic_exit_code": 1,
+  "result": {
+    "checks": {
+      "approval_security_matches": true,
+      "approver_matches": true,
+      "customer_active": true,
+      "dataset_approved": true,
+      "own_cost_amount_registered": true,
+      "owner_catalog_current": true,
+      "owner_membership": true,
+      "performance_strict_compatible": false,
+      "seller_strict_compatible": true,
+      "store_active": true,
+      "store_identity_verified": true,
+      "tax_amount_registered": true,
+      "unit_cost_registered": true
+    },
+    "credentials": {
+      "PERFORMANCE": "CONNECTED_NATIVE_OWNER",
+      "SELLER": "CONNECTED"
+    },
+    "execution_authorized": false,
+    "metadata_compatible": false,
+    "profile_coverage": "NOT_CHECKED",
+    "status": "METADATA_BLOCKED"
+  },
+  "unit_state": "Result=exit-code\nExecMainStartTimestamp=Sun 2026-11-15 10:28:49 UTC\nExecMainStatus=1\nMemoryPeak=327680\nActiveState=failed\nSubState=failed",
+  "persistent_application_writes": false,
+  "facts_read": false,
+  "identifiers_exported": false
+}

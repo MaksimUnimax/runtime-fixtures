@@ -1,7 +1,8 @@
 from pathlib import Path
-from unittest import TestCase
-import tempfile
+from unittest import TestCase, TestSuite, TextTestRunner
+import io, tempfile
 from suite_routing import SPECIALIZED,EXTERNAL,inventory,labels
+from current_parameters.ci_qualified_suites import select_shard, RecordingResult, execution_coverage
 
 class SuiteRouting(TestCase):
  def fixture(self,root):
@@ -52,3 +53,69 @@ class SuiteRouting(TestCase):
    root=Path(t)/'tests';root.mkdir();self.fixture(root);outside=Path(t)/'outside.py';outside.write_text('')
    p=root/'economics_ledger/test_accruals.py';p.unlink();p.symlink_to(outside)
    with self.assertRaisesRegex(RuntimeError,'SYMLINK'):inventory(root)
+
+ def nested_suite(self,names):
+  class Probe(TestCase):
+   def __init__(self,name):super().__init__('runTest');self.name=name
+   def id(self):return self.name
+   def runTest(self):pass
+  return TestSuite([TestSuite(Probe(name)for name in names[::2]),
+                    TestSuite([TestSuite(Probe(name)for name in names[1::2])])])
+
+ def test_default_shard_runs_the_entire_discovered_inventory(self):
+  names=['fixture.Case.test_'+str(i).zfill(2)for i in reversed(range(19))]
+  selected,coverage=select_shard(self.nested_suite(names))
+  self.assertEqual([test.id()for test in selected],sorted(names))
+  self.assertEqual((coverage['shard_count'],coverage['shard_index']),(1,0))
+  self.assertEqual(coverage['inventory_count'],len(names))
+  self.assertEqual(coverage['inventory_sha256'],coverage['selected_ids_sha256'])
+
+ def test_shards_are_disjoint_and_the_union_is_the_exact_inventory(self):
+  names=['fixture.Case.test_'+str(i).zfill(2)for i in reversed(range(37))]
+  for count in (2,4,6):
+   with self.subTest(count=count):
+    executed=[];seen=set();hashes=set();sizes=[]
+    for index in range(count):
+     selected,coverage=select_shard(self.nested_suite(names),count,index)
+     ids=[test.id()for test in selected]
+     self.assertEqual(ids,sorted(names)[index::count]);self.assertFalse(seen.intersection(ids))
+     self.assertEqual(coverage['inventory_count'],len(names));self.assertEqual(coverage['selected_ids_count'],len(ids))
+     hashes.add(coverage['inventory_sha256']);seen.update(ids);executed.extend(ids);sizes.append(len(ids))
+    self.assertEqual(sorted(executed),sorted(names));self.assertEqual(len(hashes),1)
+    self.assertLessEqual(max(sizes)-min(sizes),1)
+
+ def test_shards_do_not_depend_on_discovery_order_or_nesting(self):
+  names=['fixture.Case.test_'+str(i).zfill(2)for i in range(17)]
+  for index in range(4):
+   left,left_proof=select_shard(self.nested_suite(names),4,index)
+   right,right_proof=select_shard(self.nested_suite(list(reversed(names))),4,index)
+   self.assertEqual([test.id()for test in left],[test.id()for test in right]);self.assertEqual(left_proof,right_proof)
+
+ def test_empty_duplicate_and_impossible_shards_are_hard_errors(self):
+  with self.assertRaisesRegex(RuntimeError,'EMPTY_SPECIALIZED_SUITE'):select_shard(TestSuite())
+  with self.assertRaisesRegex(RuntimeError,'DUPLICATE_TEST_ID'):select_shard(self.nested_suite(['same','same']))
+  with self.assertRaisesRegex(RuntimeError,'EMPTY_TEST_SHARD'):select_shard(self.nested_suite(['only']),2,0)
+
+ def test_out_of_range_or_noninteger_shard_arguments_are_hard_errors(self):
+  for count,index in ((0,0),(-1,0),(2,-1),(2,2),(True,0),(2,False),(2,'0')):
+   with self.subTest(count=count,index=index),self.assertRaisesRegex(RuntimeError,'TEST_SHARD_RANGE'):
+    select_shard(self.nested_suite(['a','b']),count,index)
+
+ def test_receipt_tracks_tests_actually_started(self):
+  selected,planned=select_shard(self.nested_suite(['c','a','b']))
+  result=TextTestRunner(stream=io.StringIO(),verbosity=0,resultclass=RecordingResult).run(selected)
+  actual=execution_coverage(result,planned)
+  self.assertTrue(result.wasSuccessful());self.assertEqual(result.executed_ids,['a','b','c'])
+  self.assertTrue(actual['execution_complete']);self.assertEqual(actual['executed_ids_count'],3)
+  self.assertEqual(actual['executed_ids_sha256'],planned['selected_ids_sha256'])
+
+ def test_class_setup_failure_cannot_claim_planned_tests_executed(self):
+  class Broken(TestCase):
+   @classmethod
+   def setUpClass(cls):raise RuntimeError('SYNTHETIC_SETUP_FAILURE')
+   def runTest(self):self.fail('must not run')
+  selected,planned=select_shard(TestSuite([Broken()]))
+  result=TextTestRunner(stream=io.StringIO(),verbosity=0,resultclass=RecordingResult).run(selected)
+  actual=execution_coverage(result,planned)
+  self.assertFalse(result.wasSuccessful());self.assertEqual(actual['executed_ids_count'],0)
+  self.assertFalse(actual['execution_complete']);self.assertNotEqual(actual['executed_ids_sha256'],planned['selected_ids_sha256'])

@@ -18,10 +18,11 @@ def prepare(target,platform):
   catalog['templates'][tid]={'id':tid,'version':1,'purpose':rule['label']+' Это оценки, не прибыль и не фактические выкупы.',
    'platforms':['ozon'],'kind':'compound','parameter_report':tid,
    'input_policy':{'time_axis':'order_period','snapshot':False,'period_required':True,'comparison_supported':False,'filters_supported':False},
-   'steps':[{'id':'ordered','template':rule['base_template']}],'metrics':rule['metrics'],'qualification':'existing_parameter_report_sources','notes':rule['notes']}
+   'steps':rule['source_steps']if rule.get('source_mode')=='cohort_forecast'else[{'id':'ordered','template':rule['base_template']}],
+   'metrics':rule['metrics'],'qualification':'existing_parameter_report_sources','notes':rule['notes']}
  (target/'template_catalog.json').write_text(json.dumps(catalog,ensure_ascii=False,indent=2)+'\n')
  p=target/'template_catalog.py'
- change(p,"        if t['kind']=='compound':\n            if any", "        if t.get('parameter_report'):\n            from parameter_support.parameter_report_contract import definition\n            rule=definition(t['parameter_report'])\n            if t['id']!=t['parameter_report']or t['kind']!='compound'or t['steps']!=[{'id':'ordered','template':rule['base_template']}]or t['metrics']!=rule['metrics']:raise ValueError('PARAMETER_REPORT_CONTRACT')\n        if t['kind']=='compound':\n            if any")
+ change(p,"        if t['kind']=='compound':\n            if any", "        if t.get('parameter_report'):\n            from parameter_support.parameter_report_contract import definition\n            rule=definition(t['parameter_report'])\n            expected=rule['source_steps']if rule.get('source_mode')=='cohort_forecast'else[{'id':'ordered','template':rule['base_template']}]\n            if t['id']!=t['parameter_report']or t['kind']!='compound'or t['steps']!=expected or t['metrics']!=rule['metrics']:raise ValueError('PARAMETER_REPORT_CONTRACT')\n        if t['kind']=='compound'and not t.get('parameter_report'):\n            if any")
  change(p,"    if t['kind']=='information':return True", "    if t.get('parameter_report'):\n        from parameter_report_runtime import available\n        return available(engine,t,store)\n    if t['kind']=='information':return True")
  change(p,"def _input(call,t,today,now):\n", "def _input(call,t,today,now):\n    if t.get('parameter_report'):\n        from parameter_report_runtime import input_value\n        return input_value(call,t,today,now)\n")
  change(p,"        if t['kind']=='compound':\n            for step in t['steps']:expand", "        if t['kind']=='compound'and not t.get('parameter_report'):\n            for step in t['steps']:expand")

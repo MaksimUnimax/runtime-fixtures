@@ -48,7 +48,7 @@ class Contract(TestCase):
   old=json.loads((repo/'docs/alisa/runtime/v0.11/current_parameters_r8/BASELINE_TEMPLATE_HASHES.json').read_text())
   self.assertEqual(len(old),88)
   for key,digest in old.items():self.assertEqual(hashlib.sha256(json.dumps(template_catalog.TEMPLATES[key],ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest(),digest,key)
-  self.assertEqual(set(template_catalog.TEMPLATES)-set(old),{TID})
+  self.assertEqual(set(template_catalog.TEMPLATES)-set(old),{TID,'economics.unit_forecast.v1'})
  def test_default_disabled(self):self.assertFalse(native.enabled(SimpleNamespace()))
  def test_policy_is_exact_not_integer_true(self):self.assertFalse(native.enabled(SimpleNamespace(parameter_compound_policy={'enabled':1,'pin':native.PIN})))
  def test_no_generation_for_ordinary_answer(self):

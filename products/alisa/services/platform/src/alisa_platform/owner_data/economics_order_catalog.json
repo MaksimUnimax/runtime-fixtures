@@ -1,0 +1,44 @@
+{
+  "schema": "alisa-original-order-source-map/v1",
+  "timezone": "Europe/Moscow",
+  "basis": "ALL_ORDERED_UNITS_IN_SELECTED_ORDER_PERIOD",
+  "statuses": "ALL_INCLUDING_LATER_CANCELLED",
+  "currency_basis": "QUALIFIED_RUB_STORE",
+  "page_size": 100,
+  "request_window": {
+    "basis": "EXISTING_REGISTERED_QUERY_BOUNDARY_NOT_PROVIDER_MAXIMUM",
+    "query": "posting_metadata",
+    "max_days": 31,
+    "query_sha256": "acd7ea4d2410eeedff8d46c974b1f82a10ce0c2243a8b7a1dc9a0dfa1ca5e4d9"
+  },
+  "request": {
+    "with": {"analytics_data": true, "financial_data": false},
+    "sort_dir": "asc"
+  },
+  "response": {
+    "postings": "postings",
+    "has_next": "has_next",
+    "cursor": "cursor",
+    "posting": "posting_number",
+    "status": "status",
+    "products": "products",
+    "sku": "sku",
+    "quantity": "quantity",
+    "seller_price": "price",
+    "optional_currency": "currency_code"
+  },
+  "schemes": {
+    "fbo": {
+      "operation": "ds_ozon_fbo_postings",
+      "source_recipe_sha256": "0cdef21b471ab29b9913e32fb8488f254bdeec05c9207a8a33f6e0867f4a4b91",
+      "day_field": "created_at",
+      "request_extra": {"translit": false}
+    },
+    "fbs": {
+      "operation": "ds_ozon_fbs_postings",
+      "source_recipe_sha256": "7937cd36a456fb6566683229abc1bb07d11a2bca423c411d2423a756437893a3",
+      "day_field": "in_process_at",
+      "request_extra": {}
+    }
+  }
+}

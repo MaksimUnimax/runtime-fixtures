@@ -21,7 +21,9 @@ def normalized_input(value):
 
 
 def evaluate(tid,inputs,parameters):
- rule=definition(tid);c.need(type(inputs)is dict and set(inputs)==set(rule['metrics']),'PARAMETER_REPORT_SOURCE')
+ rule=definition(tid)
+ c.need(rule.get('source_mode')!='cohort_forecast','ECONOMICS_QUALIFIED_INPUT_REQUIRED')
+ c.need(type(inputs)is dict and set(inputs)==set(rule['metrics']),'PARAMETER_REPORT_SOURCE')
  bindings=dependencies.profile(rule['profile'])['bindings']
  c.need(type(parameters)is dict and set(parameters)=={b['slot']for b in bindings},'PARAMETER_DEPENDENCIES_PENDING')
  for binding in bindings:
