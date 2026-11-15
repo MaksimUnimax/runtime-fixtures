@@ -1,0 +1,23 @@
+[
+  {
+    "original_name": "REVIEW.md",
+    "original_sha256": "b2e4d79e3445b69b629331c4f422fe12357f9dbbec8807c13a683ee5e3570bce",
+    "published_name": "REVIEW_INITIAL.md",
+    "published_sha256": "2328c985817fcaa55e49a408a4535bb7f4d32a64c146810dbed27688e90e0237",
+    "format_only_changes": "absolute source hyperlinks converted to repository-relative links, final newline added; findings unchanged"
+  },
+  {
+    "original_name": "REVIEW_FINAL.md",
+    "original_sha256": "aee35821032fa9803a18c324a52564f1df88550db8e72abcd3910c7f61777939",
+    "published_name": "REVIEW_INTERMEDIATE.md",
+    "published_sha256": "298c117c6f27fd3e6da8da9edc417138a6b4076dbf75a10015d7e5bc008dbddd",
+    "format_only_changes": "absolute source hyperlinks converted to repository-relative links, final newline added; findings unchanged"
+  },
+  {
+    "original_name": "REVIEW_SEALED.md",
+    "original_sha256": "ca11787b610ff6d6f51105c33433e201f77e2b300bef07fd1abfb62299186333",
+    "published_name": "REVIEW_FINAL.md",
+    "published_sha256": "ea304a2559067d672c71d3fdfdb5b55368591eda86dcb712d73525a60da2f890",
+    "format_only_changes": "absolute source hyperlinks converted to repository-relative links, final newline added; findings unchanged"
+  }
+]

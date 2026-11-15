@@ -1,0 +1,67 @@
+{
+  "utc": "2026-11-15T02:33:09.149676+00:00",
+  "status": "SOURCE_OBSERVATIONS_AND_LEDGER_TESTED_NOT_FULL_ECONOMICS",
+  "reviewed_source": "6199d587202afec4923cd7c78f50e52d0a67af28",
+  "base": "9139ff9226f2bc0466ff584f84f76d67c7fc9fa3",
+  "foundation_tests": 150,
+  "specialized_suites": {
+    "base": {
+      "utc": "2026-11-15T02:22:46.213096+00:00",
+      "suite": "base",
+      "status": "PASS",
+      "tests": 346,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "external_connections": 0,
+      "elapsed_seconds": 11.602,
+      "live_configuration_loaded": false
+    },
+    "collection": {
+      "utc": "2026-11-15T02:16:43.461609+00:00",
+      "suite": "collection",
+      "status": "PASS",
+      "tests": 32,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "external_connections": 0,
+      "elapsed_seconds": 208.488,
+      "live_configuration_loaded": false
+    },
+    "compound": {
+      "utc": "2026-11-15T02:25:25.021597+00:00",
+      "suite": "compound",
+      "status": "PASS",
+      "tests": 51,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "external_connections": 0,
+      "elapsed_seconds": 158.56,
+      "live_configuration_loaded": false
+    },
+    "ledger": {
+      "utc": "2026-11-15T02:25:34.794455+00:00",
+      "suite": "ledger",
+      "status": "PASS",
+      "tests": 39,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "external_connections": 0,
+      "elapsed_seconds": 9.545,
+      "live_configuration_loaded": false
+    }
+  },
+  "all_listed_local_suites_pass": true,
+  "no_skips": true,
+  "new_live_api_calls": 0,
+  "new_model_calls_in_alisa": 0,
+  "live_deployment": false,
+  "independent_review": "SOURCE_APPROVE incremental diff, earlier source reviews found no other counterexample; not a full-CI or live approval",
+  "original_event_relations_proven": false,
+  "full_user_template_wired": false,
+  "historical_runtime_client_r01_test": "NOT_RUN; explicit separate archived-environment requirement",
+  "source_snapshot_r4_input_reproduced": true
+}

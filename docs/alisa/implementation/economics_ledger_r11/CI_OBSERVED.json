@@ -1,0 +1,21 @@
+{
+  "observed_utc": "2026-11-15T02:33:09.150091+00:00",
+  "source": "cb6859a3906c6117b42a2ac08447093efd02c4ad",
+  "workflow_run": 43667737735,
+  "new_job_id": 132670779040,
+  "new_job_name": "Parameter and economics source suites",
+  "new_job_conclusion": "success",
+  "counts": {
+    "base": 346,
+    "collection": 32,
+    "compound": 51,
+    "ledger": 39
+  },
+  "artifact_id": 14142134932,
+  "artifact_zip_sha256": "bb845993a6017489ed16c92b8e5e37395bec4a789fc94acfba07256ac0fca9c8",
+  "documentation_workflow_run": 43667737699,
+  "documentation_conclusion": "success",
+  "existing_source_job": "in_progress at observation; prior foundation-failing step13 now success",
+  "latest_local_reviewed_source": "6199d587202afec4923cd7c78f50e52d0a67af28",
+  "exact_latest_head_ci_pass_claimed": false
+}
