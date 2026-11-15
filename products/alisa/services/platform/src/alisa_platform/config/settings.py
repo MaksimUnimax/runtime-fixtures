@@ -242,3 +242,4 @@ if os.environ.get("ALISA_OWNER_PARAMETER_COLLECTION_ENABLED","0")not in {"0","1"
 
 # R8 compound-parameter execution is separate from installed R5 collection.
 OWNER_PARAMETER_COMPOUNDS_ENABLED = os.environ.get("ALISA_OWNER_PARAMETER_COMPOUNDS_ENABLED", "0") == "1"
+OWNER_ECONOMICS_COMPOSITES_ENABLED = os.environ.get("ALISA_OWNER_ECONOMICS_COMPOSITES_ENABLED", "0") == "1"

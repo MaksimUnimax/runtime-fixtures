@@ -259,3 +259,41 @@ def commission_matches(reconciled,orders,target):
                                 'source_field':'delivery_commission.standard_fee','return_netted':False,
                                 'provider_accrual_id_claimed':False}}}
     return matched,unmatched
+
+
+def commission_matches_many(pairs,orders,target):
+    """Use individually reconciled closed-month documents without double cover.
+
+    Month boundaries do not reset an order's identity. A line with two complete
+    sale bases is ambiguous even when amounts happen to match; do not sum it or
+    pick the latest. Partial documents remain explicit unknown tariff fallback.
+    """
+    need(type(pairs)is list,'REALIZATION_SOURCE_PAIRS')
+    matched={};unmatched={};months=set();receipts=set();coverage=defaultdict(Decimal)
+    for pair in pairs:
+        _pair_proof(pair);checkpoint=pair.checkpoint()
+        month=c.CANON(checkpoint['report_period'])
+        need(month not in months,'REALIZATION_DUPLICATE_MONTH');months.add(month)
+        need(not receipts.intersection(checkpoint['receipts']),'REALIZATION_RECEIPT_REUSED')
+        receipts.update(checkpoint['receipts'])
+        actual,missing=commission_matches(pair,orders,target)
+        need(not set(matched).intersection(actual),'REALIZATION_MULTIPLE_DOCUMENT_COVERAGE')
+        # A partial sale in another month is still coverage. Do not let a full
+        # match hide that second debit, or silently accept several partial
+        # documents whose combined quantity exceeds the original order line.
+        with localcontext()as context:
+            context.prec=60
+            for order in orders:
+                key=(order['posting'],order['sku'],order['scheme'])
+                coverage[key]+=sum((number(row['sides']['SALE']['quantity'])
+                    for row in pair.posting.data['rows']
+                    if(row['posting'],row['sku'])==key[:2]and 'SALE'in row['sides']),Decimal(0))
+                need(coverage[key]<=number(order['quantity']),'REALIZATION_MULTIPLE_DOCUMENT_COVERAGE')
+        matched.update(actual)
+        for key,reason in missing.items():
+            if key not in unmatched or reason!='NOT_IN_REALIZATION_SNAPSHOT':unmatched[key]=reason
+    for row in orders:
+        key=(row['posting'],row['sku'],row['scheme'])
+        if key in matched:unmatched.pop(key,None)
+        else:unmatched.setdefault(key,'NO_CLOSED_REALIZATION_DOCUMENT')
+    return matched,unmatched

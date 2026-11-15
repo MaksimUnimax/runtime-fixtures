@@ -5,7 +5,8 @@ Source normalization/ledger attestation must come from a trusted existing job;
 client JSON flags, current-day net balances and aggregate posting fees are not proof.
 """
 from copy import deepcopy
-from decimal import Decimal, localcontext
+from decimal import Decimal, DecimalException, Inexact, Rounded, localcontext
+from fractions import Fraction
 from pathlib import Path
 from hashlib import sha256
 from dataclasses import dataclass
@@ -32,6 +33,73 @@ def ident(value):need(type(value)is str and bool(value)and not any(ord(x)<32 for
 
 def key(row):return(row['posting'],row['sku'],row['scheme'])
 
+
+def _finite(value):
+    need(type(value)is Decimal and value.is_finite(),'ECONOMICS_DECIMAL_VALUE')
+
+
+def _add_exact(left,right):
+    """Reserve every occupied decimal place and a possible carry, not a quota."""
+    _finite(left);_finite(right)
+    exponent=min(left.as_tuple().exponent,right.as_tuple().exponent)
+    precision=max(1,max(left.adjusted(),right.adjusted())-exponent+2)
+    try:
+        with localcontext()as context:
+            context.prec=precision;context.traps[Inexact]=True
+            result=left+right
+        _finite(result);return result
+    except (DecimalException,ValueError,OverflowError):raise EconomicsError('ECONOMICS_DECIMAL_PRECISION')from None
+
+
+def _subtract_exact(left,right):
+    _finite(right)
+    return _add_exact(left,right.copy_negate())
+
+
+def _multiply_exact(left,right):
+    _finite(left);_finite(right)
+    try:
+        with localcontext()as context:
+            context.prec=max(1,len(left.as_tuple().digits)+len(right.as_tuple().digits))
+            context.traps[Inexact]=True
+            result=left*right
+        _finite(result);return result
+    except (DecimalException,ValueError,OverflowError):raise EconomicsError('ECONOMICS_DECIMAL_PRECISION')from None
+
+
+def _sum_exact(values):
+    total=Decimal(0)
+    for value in values:total=_add_exact(total,value)
+    return total
+
+
+def _divide(left,right):
+    """Keep terminating ratios exact; recurring ratios retain 60 digits.
+
+    Removing powers of two/five from the reduced denominator distinguishes a
+    finite decimal from a recurring one. No external NUMBER validation changes.
+    """
+    _finite(left);_finite(right);need(right!=0,'ECONOMICS_ZERO_DENOMINATOR')
+    ratio=Fraction(left)/Fraction(right);denominator=ratio.denominator;twos=fives=0
+    while denominator%2==0:denominator//=2;twos+=1
+    while denominator%5==0:denominator//=5;fives+=1
+    finite=denominator==1
+    precision=max(1,len(str(abs(ratio.numerator)))+max(twos,fives))if finite else 60
+    try:
+        with localcontext()as context:
+            context.prec=precision;context.traps[Inexact]=finite;context.traps[Rounded]=False
+            result=left/right
+        _finite(result);return result
+    except (DecimalException,ValueError,OverflowError):raise EconomicsError('ECONOMICS_DECIMAL_PRECISION')from None
+
+
+def _line_text(value):
+    # These values cross the existing qualified line-input boundary and will be
+    # parsed by calculate. Refuse an unrepresentable derived input explicitly;
+    # do not round it into the unchanged 60-digit NUMBER representation.
+    text=c.decimal_text(value);number(text);return text
+
+
 def expression(tree,values):
     need(type(tree)is dict and len(tree)==1,'ECONOMICS_FORMULA');op,arg=next(iter(tree.items()))
     if op=='input':need(arg in values,'ECONOMICS_MISSING_INPUT:'+str(arg));return values[arg]
@@ -39,12 +107,12 @@ def expression(tree,values):
     need(op in ('add','subtract','multiply','divide','ratio')and type(arg)is list and len(arg)==2,'ECONOMICS_FORMULA')
     left,right=(expression(x,values)for x in arg)
     need(left is not None and right is not None,'ECONOMICS_UNDEFINED_FORMULA_INPUT')
-    if op=='add':return left+right
-    if op=='subtract':return left-right
-    if op=='multiply':return left*right
+    if op=='add':return _add_exact(left,right)
+    if op=='subtract':return _subtract_exact(left,right)
+    if op=='multiply':return _multiply_exact(left,right)
     if right==0:
         need(op=='ratio','ECONOMICS_ZERO_DENOMINATOR');return None
-    return left/right
+    return _divide(left,right)
 
 def _checked_source(name,data,target,period,verify):
     exact(data,('rows','receipt_hash','complete','scope','period','observed_at'))
@@ -75,10 +143,11 @@ class QualifiedCohort:
     def checkpoint(self):
         return {'definition_hash':self.definition_hash,'scope':self.scope,'period':self.period,
                 'source_receipts':json.loads(self.evidence_json)['receipts'],
-                'realization_document':json.loads(self.evidence_json).get('realization_document'),'persist_values':False}
+                'realization_document':json.loads(self.evidence_json).get('realization_document'),
+                'observed_other':json.loads(self.evidence_json).get('observed_other'),'persist_values':False}
 
 
-def qualify(bundle,target,period,*,verify,realization=None):
+def qualify(bundle,target,period,*,verify,realization=None,observed_other=None):
     """Normalize only explicitly classified original debits; never guess direction.
 
     A matched original amount covers its complete original product line or whole
@@ -91,8 +160,21 @@ def qualify(bundle,target,period,*,verify,realization=None):
     ident(target['tenant_id']);ident(target['store_id'])
     try:c.dates(period)
     except c.ParameterError:raise EconomicsError('ECONOMICS_PERIOD')from None
-    exact(bundle,CATALOG['sources'])
+    # The signed observed OTHER path does not claim original event direction.
+    # Its separate sealed source proves the complete selected posting snapshot,
+    # actual accrual identities and allocation; never manufacture an empty
+    # "qualified original fees" block to enable tariff fallbacks.
+    names=CATALOG['sources']if observed_other is None else[n for n in CATALOG['sources']if n!='fees']
+    exact(bundle,names)
     for name,data in bundle.items():_checked_source(name,data,target,period,verify)
+    other_inputs=None;other_checkpoint=None
+    if observed_other is not None:
+        from .economics_other import ObservedOther,OtherError
+        need(type(observed_other)is ObservedOther,'ECONOMICS_OTHER_SOURCE_REQUIRED')
+        try:
+            other_inputs=observed_other.for_cohort(period,target,bundle['orders'])
+            other_checkpoint=observed_other.checkpoint()
+        except OtherError as error:raise EconomicsError(error.code)from None
     with localcontext()as ctx:
         ctx.prec=60
         orders={};postings={}
@@ -108,12 +190,18 @@ def qualify(bundle,target,period,*,verify,realization=None):
             orders[key(row)]=deepcopy(row);postings.setdefault((row['posting'],row['scheme']),[]).append(key(row))
         # Posting identifiers must identify one scheme in this cohort.
         need(len({p for p,s in postings})==len(postings),'ECONOMICS_POSTING_SCHEME_CONFLICT')
+        if other_inputs is not None:
+            need(set(other_inputs)=={c.CANON(k)for k in orders},'ECONOMICS_OTHER_COHORT_SCOPE')
         document_matches={};document_missing={};document_checkpoint=None
         if realization is not None:
-            from .economics_realization import commission_matches,RealizationError
+            from .economics_realization import commission_matches,commission_matches_many,RealizationError
             try:
-                document_matches,document_missing=commission_matches(realization,list(orders.values()),target)
-                document_checkpoint=realization.checkpoint()
+                if type(realization)is list:
+                    document_matches,document_missing=commission_matches_many(realization,list(orders.values()),target)
+                    document_checkpoint=[pair.checkpoint()for pair in realization]
+                else:
+                    document_matches,document_missing=commission_matches(realization,list(orders.values()),target)
+                    document_checkpoint=realization.checkpoint()
             except RealizationError as error:raise EconomicsError(error.code)from None
         tariffs={}
         for row in bundle['tariffs']['rows']:
@@ -127,7 +215,8 @@ def qualify(bundle,target,period,*,verify,realization=None):
                 need(number(row['fields']['processing_min'])<=number(row['fields']['processing_max']),'ECONOMICS_TARIFF_INTERVAL')
             k=(row['sku'],row['scheme']);need(k not in tariffs,'ECONOMICS_AMBIGUOUS_TARIFF');tariffs[k]=deepcopy(row)
         events={};duplicates=0
-        for event in bundle['fees']['rows']:
+        fee_rows=bundle['fees']['rows']if observed_other is None else[]
+        for event in fee_rows:
             exact(event,('event_id','posting','sku','scheme','type_id','nature','parent_id','quantity','amount','currency','accrual_day'))
             ident(event['event_id']);ident(event['posting']);need(type(event['type_id'])is int,'ECONOMICS_FEE_TYPE')
             need(type(event['scheme'])is str and event['scheme']in CATALOG['schemes'],'ECONOMICS_SCHEME')
@@ -141,7 +230,7 @@ def qualify(bundle,target,period,*,verify,realization=None):
             except c.ParameterError:raise EconomicsError('ECONOMICS_ACCRUAL_DAY')from None
             old=events.setdefault(event['event_id'],deepcopy(event))
             need(old==event,'ECONOMICS_CONFLICTING_EVENT_VERSION')
-        duplicates=len(bundle['fees']['rows'])-len(events)
+        duplicates=len(fee_rows)-len(events)
         corrections={}
         # Validate every declared edge BEFORE applying any correction or dropping
         # out-of-cohort rows. A wrong-scope child must not influence an in-scope
@@ -178,23 +267,29 @@ def qualify(bundle,target,period,*,verify,realization=None):
             if event['sku']is not None:need(integer(event['quantity'])==integer(orders[affected[0]]['quantity']),'ECONOMICS_PARTIAL_FEE_COVERAGE')
             if classes[group]['original_nonnegative']:need(number(event['amount'])<=0,'ECONOMICS_ORIGINAL_DEBIT_SIGN')
             related=corrections.get(event['event_id'],[])
-            cost=-sum((number(e['amount'])for e in [event,*related]),Decimal(0))
+            cost=_sum_exact(number(e['amount'])for e in [event,*related]).copy_negate()
             if classes[group]['original_nonnegative']:need(cost>=0,'ECONOMICS_ORIGINAL_DEBIT_SIGN')
-            total_units=sum((integer(orders[k]['quantity'])for k in affected),Decimal(0));left=cost
+            total_units=_sum_exact(integer(orders[k]['quantity'])for k in affected);left=cost
             for index,k in enumerate(sorted(affected)):
                 item=actual[k].setdefault(group,{'amount':Decimal(0),'types':set(),'events':[],'allocation':None})
                 need(event['type_id']not in item['types'],'ECONOMICS_OVERLAPPING_ORIGINAL_FEE')
-                part=left if index==len(affected)-1 else cost*integer(orders[k]['quantity'])/total_units;left-=part
+                part=left if index==len(affected)-1 else _divide(_multiply_exact(cost,integer(orders[k]['quantity'])),total_units)
+                left=_subtract_exact(left,part)
                 if allocation is not None:item['allocation']=allocation
-                item['amount']+=part;item['types'].add(event['type_id']);item['events']+=[e['event_id']for e in [event,*related]]
+                item['amount']=_add_exact(item['amount'],part);item['types'].add(event['type_id']);item['events']+=[e['event_id']for e in [event,*related]]
             need(left==0,'ECONOMICS_ALLOCATION_NOT_CONSERVED');allocated_totals[event['event_id']]=c.decimal_text(cost)
             selected_ids+=[e['event_id']for e in [event,*related]]
         result=[]
         for k,row in sorted(orders.items()):
-            quantity=integer(row['quantity']);vals={'quantity':quantity,'seller_price':number(row['seller_price'])};vals['turnover']=quantity*vals['seller_price']
+            quantity=integer(row['quantity']);vals={'quantity':quantity,'seller_price':number(row['seller_price'])}
+            vals['turnover']=_multiply_exact(quantity,vals['seller_price'])
             tariff=tariffs.get((row['sku'],row['scheme']));basis={}
             for output,rule in CATALOG['line_inputs'].items():
                 group=rule.get('fee_group');matched=actual[k].get(group)
+                if group=='other'and other_inputs is not None:
+                    observed=other_inputs[c.CANON(k)]
+                    vals[output]=number(observed['amount']);basis[output]=deepcopy(observed['basis'])
+                    continue
                 document=document_matches.get(k,{}).get(rule.get('document_input'))
                 if document is not None:
                     amount=number(document['amount'])
@@ -212,7 +307,7 @@ def qualify(bundle,target,period,*,verify,realization=None):
                 vals[output]=expression(fallback,inputs)
                 basis[output]={'kind':rule['fallback_kind'][row['scheme']],'quote_id':tariff['quote_id']if tariff else None}
                 if rule.get('document_input') and k in document_missing:basis[output]['document_status']=document_missing[k]
-            result.append({'order':row,'inputs':{name:c.decimal_text(v)for name,v in vals.items()},'basis':basis})
+            result.append({'order':row,'inputs':{name:_line_text(v)for name,v in vals.items()},'basis':basis})
         # Period expenses are qualified as period-wide allocations, never claimed
         # to be order-level original debits. Unknown is not a numeric zero.
         period_costs={}
@@ -225,7 +320,10 @@ def qualify(bundle,target,period,*,verify,realization=None):
         evidence={'receipts':{n:bundle[n]['receipt_hash']for n in bundle},'period_costs':period_costs,
                   'duplicates_removed':duplicates,'ignored':ignored,'selected_event_ids':sorted(selected_ids),
                   'posting_allocation_totals':allocated_totals,'observed_at':{n:bundle[n]['observed_at']for n in bundle},
-                  'realization_document':document_checkpoint,'realization_unmatched':{c.CANON(k):v for k,v in document_missing.items()}}
+                  'realization_document':document_checkpoint,'realization_unmatched':{c.CANON(k):v for k,v in document_missing.items()},
+                  'observed_other':other_checkpoint}
+        if other_checkpoint is not None:
+            evidence['receipts']['observed_other']=sha256(c.CANON(other_checkpoint).encode()).hexdigest()
         return QualifiedCohort(c.CANON(target),c.CANON(period),c.CANON(result),c.CANON(evidence),HASH)
 
 
@@ -250,17 +348,19 @@ def calculate(qualified,unit_costs,coefficients,owner_period):
                 exact(coefficients[k],('loss_rate','delivery_mean'))
                 for n,v in coefficients[k].items():c.validate_value(c.definition(n),v,c.definition(n)['unit']);values[n]=number(v)
                 values['loss_rate']=values['loss_rate']if spec['use_loss']else Decimal(0)
-                for name,formula in CATALOG['row_outputs'].items():totals[name]+=expression(formula,values)
+                for name,formula in CATALOG['row_outputs'].items():totals[name]=_add_exact(totals[name],expression(formula,values))
                 used.append({'sku':row['order']['sku'],'scheme':row['order']['scheme'],'basis':row['basis']})
             totals.update({n:number(v)for n,v in evidence['period_costs'].items()})
             for name,formula in CATALOG['report_outputs'].items():totals[name]=expression(formula,totals)
             complete_owner=all(row['state']=='VALUE'for row in owner_period.values())
             after=None
-            if complete_owner:after=totals['remainder_before_owner_inputs']-sum((number(v['value'])for v in owner_period.values()),Decimal(0))
+            if complete_owner:after=_subtract_exact(totals['remainder_before_owner_inputs'],_sum_exact(number(v['value'])for v in owner_period.values()))
             results[scenario]={'totals':{n:c.decimal_text(v)if v is not None else None for n,v in totals.items()},
-                'per_original_unit':{n:c.decimal_text(v/totals['original_units'])if totals['original_units']else None for n,v in totals.items()if n in CATALOG['money_outputs']},
+                'per_original_unit':{n:c.decimal_text(_divide(v,totals['original_units']))if totals['original_units']else None for n,v in totals.items()if n in CATALOG['money_outputs']},
                 'after_declared_owner_inputs':c.decimal_text(after)if after is not None else None,
                 'owner_inputs_complete':complete_owner,'unknown_owner_inputs':[n for n,v in owner_period.items()if v['state']!='VALUE'],
                 'not_actual_profit':True,'source_basis':used,'period_cost_basis':'FULL_PERIOD_ALLOCATION'}
         return {'schema':'alisa-qualified-economics/v1','definition_hash':HASH,'scope':qualified.scope,'period':qualified.period,
-                'scenarios':results,'owner_period':deepcopy(owner_period),'no_intermediate_rounding':True,'persisted':False}
+                'scenarios':results,'owner_period':deepcopy(owner_period),
+                'observed_other':deepcopy(evidence.get('observed_other')),
+                'no_intermediate_rounding':True,'persisted':False}

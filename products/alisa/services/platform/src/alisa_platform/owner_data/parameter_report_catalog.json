@@ -1,20 +1,204 @@
 {
-  "schema":"alisa-parameterized-report/v1",
-  "reports":{
-    "economics.delivery_projection.v1":{
-      "profile":"unit_economics.ozon.v1",
-      "base_template":"B01.ordered_units",
-      "metrics":["ordered_units"],
-      "provider":"OZON",
-      "scope":"store",
-      "label":"Оценка потерь заказов и прямой/последней доставки за период",
-      "not_profit":true,
-      "outputs":{
-        "estimated_retained_units":{"unit":"estimated_item","formula":{"multiply":[{"input":"ordered_units"},{"subtract":[{"constant":"1"},{"parameter":"loss_rate"}]}]}},
-        "estimated_failed_units":{"unit":"estimated_item","formula":{"multiply":[{"input":"ordered_units"},{"parameter":"loss_rate"}]}},
-        "estimated_forward_last_delivery":{"unit":"RUB","formula":{"multiply":[{"input":"ordered_units"},{"parameter":"delivery_mean"}]}}
+  "schema": "alisa-parameterized-report/v1",
+  "reports": {
+    "economics.delivery_projection.v1": {
+      "profile": "unit_economics.ozon.v1",
+      "base_template": "B01.ordered_units",
+      "metrics": [
+        "ordered_units"
+      ],
+      "provider": "OZON",
+      "scope": "store",
+      "label": "Оценка потерь заказов и прямой/последней доставки за период",
+      "not_profit": true,
+      "outputs": {
+        "estimated_retained_units": {
+          "unit": "estimated_item",
+          "formula": {
+            "multiply": [
+              {
+                "input": "ordered_units"
+              },
+              {
+                "subtract": [
+                  {
+                    "constant": "1"
+                  },
+                  {
+                    "parameter": "loss_rate"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "estimated_failed_units": {
+          "unit": "estimated_item",
+          "formula": {
+            "multiply": [
+              {
+                "input": "ordered_units"
+              },
+              {
+                "parameter": "loss_rate"
+              }
+            ]
+          }
+        },
+        "estimated_forward_last_delivery": {
+          "unit": "RUB",
+          "formula": {
+            "multiply": [
+              {
+                "input": "ordered_units"
+              },
+              {
+                "parameter": "delivery_mean"
+              }
+            ]
+          }
+        }
       },
-      "notes":["Это оценка потерь и прямой/последней доставки по сохранённым коэффициентам, не фактический выкуп и не прибыль. Назови использованные коэффициенты, их происхождение, период и дату расчёта. Средняя доставка уже объединённая: повторно прибавлять её компоненты нельзя."]
+      "notes": [
+        "Это оценка потерь и прямой/последней доставки по сохранённым коэффициентам, не фактический выкуп и не прибыль. Назови использованные коэффициенты, их происхождение, период и дату расчёта. Средняя доставка уже объединённая: повторно прибавлять её компоненты нельзя."
+      ]
+    },
+    "economics.unit_forecast.v1": {
+      "source_mode": "cohort_forecast",
+      "profile": "unit_economics.ozon.v1",
+      "provider": "OZON",
+      "scope": "store",
+      "orders_catalog_hash": "73faa662a7eccf6f6e083111ba6ad29b03ed65bd455ad178c06294faec8fea21",
+      "owner_fields": [
+        "unit_cost",
+        "tax_amount",
+        "own_cost_amount"
+      ],
+      "label": "Полная прогнозная экономика исходных заказов Ozon за период, с потерями и без потерь",
+      "not_profit": true,
+      "source_steps": [
+        {
+          "id": "orders_fbo",
+          "operation": "ds_ozon_fbo_postings",
+          "source_registry": "dataset_sources",
+          "params": {
+            "period": "input.period",
+            "windows": "registered_posting_metadata_boundary",
+            "pagination": "complete"
+          }
+        },
+        {
+          "id": "orders_fbs",
+          "operation": "ds_ozon_fbs_postings",
+          "source_registry": "dataset_sources",
+          "params": {
+            "period": "input.period",
+            "windows": "registered_posting_metadata_boundary",
+            "pagination": "complete"
+          }
+        },
+        {
+          "id": "tariff_prices",
+          "operation": "product_prices_bulk",
+          "source_registry": "read_surface",
+          "params": {
+            "visibility": "ALL",
+            "pagination": "complete"
+          }
+        },
+        {
+          "id": "tariff_skus",
+          "operation": "seller_product_info_list",
+          "source_registry": "read_surface",
+          "params": {
+            "product_id": "verified_price_products"
+          }
+        },
+        {
+          "id": "posting_fees",
+          "operation": "finance_accrual_postings",
+          "source_registry": "read_surface",
+          "params": {
+            "posting_numbers": "verified_original_orders"
+          }
+        },
+        {
+          "id": "fee_identities",
+          "operation": "finance_accrual_by_day",
+          "source_registry": "read_surface",
+          "params": {
+            "financial_period": "posting_accrual_dates_through_observation",
+            "pagination": "complete"
+          }
+        },
+        {
+          "id": "storage",
+          "operation": "ozon_finance",
+          "source_registry": "scalar_source_catalog",
+          "params": {
+            "period": "input.period",
+            "component": "storage"
+          }
+        },
+        {
+          "id": "advertising",
+          "operation": "ozon_ads_daily",
+          "source_registry": "scalar_source_catalog",
+          "params": {
+            "period": "input.period",
+            "campaigns": "ALL"
+          }
+        },
+        {
+          "id": "posting_commission",
+          "operation": "finance_realization_posting",
+          "source_registry": "read_surface",
+          "params": {
+            "months": "closed_order_months"
+          }
+        },
+        {
+          "id": "monthly_commission",
+          "operation": "finance_realization_v2",
+          "source_registry": "read_surface",
+          "params": {
+            "months": "closed_order_months"
+          }
+        }
+      ],
+      "metrics": [
+        "original_units",
+        "expected_retained_units",
+        "revenue",
+        "commission",
+        "acquiring",
+        "forward_last",
+        "reverse",
+        "processing",
+        "other",
+        "cogs",
+        "original_turnover",
+        "storage",
+        "advertising",
+        "all_selected_costs",
+        "remainder_before_owner_inputs",
+        "remainder_after_cogs_and_ads",
+        "drr_percent"
+      ],
+      "outputs": {
+        "catalog": "economics_cohort_catalog.json",
+        "scenarios": [
+          "with_loss",
+          "without_loss"
+        ]
+      },
+      "notes": [
+        "Покажи оба сценария и все девять групп расходов. Денежные средние в обоих сценариях делятся на исходное физическое количество заказанных единиц N; ожидаемые выкупы Q показывай отдельно.",
+        "Результат — прогнозный остаток выбранной модели, не фактическая чистая прибыль. Назови период заказов, интервал наблюдения начислений, факты, тарифные оценки и распределения; не обещай окончательность будущих начислений.",
+        "Коэффициент потерь уменьшает только выручку, исходную комиссию и себестоимость. Эквайринг, реклама, объединённая прямая/последняя доставка, обработка, хранение и прочие расходы не уменьшаются. Обратная доставка — резерв по тарифу и коэффициенту, без потерь он равен нулю.",
+        "Документированная исходная комиссия замещает тариф; текущий тариф — оценка. Прочие расходы — сверенный знаковый снимок начислений по исходным отправлениям; нераспределённые услуги раскрывай отдельно. Источник с неизвестной обязательной статьёй не разрешает частичный полный отчёт.",
+        "Назови использованные текущие коэффициенты, их происхождение, периоды и даты расчёта, а также основу себестоимости. Неизвестный налог или собственный расход не ноль; итог после них возможен только при значениях точного периода."
+      ]
     }
   }
 }

@@ -38,6 +38,8 @@ def build(target):
  for name in ('economics_realization.py','economics_cohort.py','economics_cohort_catalog.json'):shutil.copy2(platform/name,target/'parameter_support'/name)
  path=REPO/'docs/alisa/runtime/v0.11/economics_period_r14/prepare_candidate.py'
  spec=importlib.util.spec_from_file_location('test_prepare_period_r14',path);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);module.prepare(target,platform)
+ path=REPO/'docs/alisa/runtime/v0.11/economics_composite_r15/prepare_candidate.py'
+ spec=importlib.util.spec_from_file_location('test_prepare_composite_r15',path);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);module.prepare(target,platform)
  hashes={str(p.relative_to(target)):sha256(p.read_bytes()).hexdigest()for p in target.rglob('*')if p.is_file()and '__pycache__'not in p.parts}
  return {'status':'REPRODUCED_SOURCE_TEST_FIXTURE','files':hashes,'production_deployed':False,'archive_sha256':manifest['archive_sha256']}
 

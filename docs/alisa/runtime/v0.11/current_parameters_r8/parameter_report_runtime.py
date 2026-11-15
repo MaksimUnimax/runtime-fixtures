@@ -52,6 +52,9 @@ def attach(port):
 
 
 def available(engine,template,store):
+ if template.get('parameter_report')=='economics.unit_forecast.v1':
+  from economics_report_runtime import available as full_available
+  return full_available(engine,template,store)
  return enabled(engine)and isinstance(getattr(engine,'parameter_intent_authority',None),Authority)and store.platform=='ozon'and template.get('parameter_report')in spec.CATALOG['reports']
 
 
@@ -63,6 +66,9 @@ def input_value(call,template,today,now):
 
 
 def compile_plan(engine,scope,draft,template,root,invocation_id):
+ if template.get('parameter_report')=='economics.unit_forecast.v1':
+  from economics_report_runtime import compile_plan as full_compile
+  return full_compile(engine,scope,draft,template,root,invocation_id)
  need(len(scope.stores)==1 and available(engine,template,scope.stores[0]),'PARAMETER_REPORT_NOT_ENABLED')
  need(type(root.get('runtime_guard'))is dict,'PARAMETER_REPORT_AUTHORITY_REQUIRED')
  rule=spec.definition(template['parameter_report']);normalized=spec.normalized_input({'period':draft['period'],'parameter_periods':draft['parameter_periods']})
@@ -76,6 +82,9 @@ def compile_plan(engine,scope,draft,template,root,invocation_id):
 
 
 def authorized(engine,plan):
+ if plan.get('parameter_report',{}).get('template_id')=='economics.unit_forecast.v1':
+  from economics_report_runtime import authorized as full_authorized
+  return full_authorized(engine,plan)
  try:
   if not enabled(engine)or plan.get('schema')!=SCHEMA:return False
   info=plan['parameter_report'];rule=spec.definition(info['template_id'])
@@ -143,6 +152,9 @@ def _check_source(fragment,data):
 
 
 def step(worker,row,root,progress,fragment):
+ if fragment['plan']['parameter_report']['template_id']=='economics.unit_forecast.v1':
+  from economics_report_runtime import step as full_step
+  return full_step(worker,row,root,progress,fragment)
  from template_runtime import _save,_finish_fragment,_FragmentRepo
  need(authorized(worker.engine,fragment['plan'])and worker.engine.authorized(root),'SOURCE_ACCESS')
  state=progress.get('fragment_progress')or{'phase':'bind','reference':None,'child_progress':None,'producer':None,'source_data':None}
@@ -190,14 +202,39 @@ def markers(progress):
  return [item['data']['compound_parameter_report']for item in data.get('templates',[])if type(item)is dict and type(item.get('data'))is dict and 'compound_parameter_report'in item['data']]
 
 
+def resume_fill(worker,row,root,progress,state):
+ """Finish the exact admitted child before resolving a different missing slot.
+
+ A manual value may win the existing fill_missing commit. A changed read order
+ must never relabel encrypted child progress as another batch or dependency.
+ """
+ _current_report(worker,state['reference'])
+ def saved(packed,until=None):
+  state['child_progress']=packed;progress['_compound_fill']=state
+  worker.repo.reschedule(row['id'],row['owner'],progress,until)
+ def filled(reply):
+  need(reply.get('saved')is True,'PARAMETER_WRITE_NOT_CONFIRMED')
+  progress.pop('_compound_fill',None);worker.repo.reschedule(row['id'],row['owner'],progress)
+ sources.step(ReportWorker(worker,state['reference']),row,root,{'fragment_progress':state['child_progress']},
+              state['fragment'],save_progress=saved,on_complete=filled)
+
+
 def prepare_answer(worker,row,root,progress):
  """Resolve values in memory. A late missing value resumes fill in the same job."""
  from model_answer import PENDING
  items=markers(progress)
  if not items:return [],[]
  need(enabled(worker.engine),'PARAMETER_REPORT_NOT_ENABLED')
+ if progress.get('_compound_fill')is not None:
+  resume_fill(worker,row,root,progress,progress['_compound_fill'])
+  return None,None
  contexts=[];fences=[]
  for marker in items:
+  if marker['template_id']=='economics.unit_forecast.v1':
+   from economics_report_runtime import prepare_marker
+   context,checkpoints=prepare_marker(worker,row,root,progress,marker)
+   if context is None:return None,None
+   contexts.append(context);fences.extend(checkpoints);continue
   result=_api(worker).call({'method':'report_refresh','reference':marker['reference']})
   if not result['ready']:
    state=progress.get('_compound_fill')
@@ -205,11 +242,7 @@ def prepare_answer(worker,row,root,progress):
     need(result['producers'],'PARAMETER_DEPENDENCIES_PENDING')
     state={'fragment':_producer_fragment(worker,root,result['producers'][0],marker['fragment_id']+':late-fill'),'child_progress':None,'reference':marker['reference']}
    need(state['reference']==marker['reference'],'PARAMETER_REPORT_STATE')
-   def saved(packed,until=None):
-    state['child_progress']=packed;progress['_compound_fill']=state;worker.repo.reschedule(row['id'],row['owner'],progress,until)
-   def filled(reply):
-    need(reply.get('saved')is True,'PARAMETER_WRITE_NOT_CONFIRMED');progress.pop('_compound_fill',None);worker.repo.reschedule(row['id'],row['owner'],progress)
-   sources.step(ReportWorker(worker,state['reference']),row,root,{'fragment_progress':state['child_progress']},state['fragment'],save_progress=saved,on_complete=filled)
+   resume_fill(worker,row,root,progress,state)
    return None,None
   calculated=spec.evaluate(marker['template_id'],marker['source_data'],result['inputs'])
   contexts.append({'template_id':marker['template_id'],'source_metrics':deepcopy(marker['source_data']),'estimates':calculated,'parameters_used':result['basis'],'not_profit':True})
@@ -237,7 +270,8 @@ def answer_generation(worker,row,progress,fences):
 
 def fence_answer(worker,row,progress,fences):
  for reference,checkpoint in fences:
-  value=_api(worker).call({'method':'report_fence','reference':reference,'checkpoint':checkpoint})
+  method='report_owner_fence'if checkpoint.get('schema')=='alisa-economics-query-fence/v1'else'report_fence'
+  value=_api(worker).call({'method':method,'reference':reference,'checkpoint':checkpoint})
   if value!={'current':True}:
    # Discard the stale response, not the fetched marketplace facts. The next
    # final-answer pass rebinds current values (or fills only newly empty slots).
