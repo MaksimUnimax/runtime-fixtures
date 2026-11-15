@@ -30,6 +30,7 @@ from .owner_inputs import digest
 TEMPLATE = 'economics.unit_forecast.v1'
 PROFILE = 'unit_economics.ozon.v1'
 OWNER_FIELDS = ['unit_cost', 'tax_amount', 'own_cost_amount']
+OWNER_CREDENTIAL_POLICY = 'query-runtime-native-owner-performance/v1'
 READSET_SCHEMA = 'alisa-economics-owner-readset/v1'
 DESCRIPTOR_SCHEMA = 'alisa-economics-query/v1'
 CHECKPOINT_SCHEMA = 'alisa-economics-query-fence/v1'
@@ -50,6 +51,7 @@ def _rule():
     rule = reports.definition(TEMPLATE)
     need(rule.get('provider') == 'OZON' and rule.get('scope') == 'store' and rule.get('profile') == PROFILE
          and rule.get('owner_fields') == OWNER_FIELDS
+         and rule.get('owner_credential_policy') == OWNER_CREDENTIAL_POLICY
          and rule.get('orders_catalog_hash') == orders.HASH
          and rule.get('source_mode') == 'cohort_forecast',
          'ECONOMICS_QUERY_CONTRACT', 409)
@@ -122,6 +124,15 @@ class _QueryOwnerSource(DjangoOwnerSource):
     def _actor_store(self):
         _, _, _, actor, store, _ = _node(self._authority, self._reference)
         return actor, store
+
+    def _credential_qualified(self, kind, row):
+        # current() already called the fresh full Query _node in this atomic
+        # transaction. RuntimeAuthority locked this store and its active rows,
+        # matching every kind/id/revision to its current platform binding. Retain
+        # the actual check_code in the owner scope hash and publication fence.
+        return super()._credential_qualified(kind, row) or (
+            kind == 'PERFORMANCE' and row['kind'] == 'PERFORMANCE'
+            and row['check_code'] == 'CONNECTED_NATIVE_OWNER')
 
     @transaction.atomic
     def current(self):

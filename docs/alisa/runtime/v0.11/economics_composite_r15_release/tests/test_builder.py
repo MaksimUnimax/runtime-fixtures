@@ -170,6 +170,21 @@ class CandidateBuilder(unittest.TestCase):
         self.assertEqual(value['base_provenance']['acceptance']['status'], 'OLD_ACCEPTED')
         self.assertEqual(value['migrations'], {'old-migration': 'untouched'})
 
+    def test_owner_source_and_query_adapter_are_copied_to_both_platform_roles(self):
+        self.assertIn('owner_data/source.py', c.EXISTING_PLATFORM)
+        self.assertNotIn('owner_data/source.py', c.COMPATIBILITY_FILES)
+        self.build()
+        for role in ('platform', 'authority'):
+            base = Path(self.spec['bases'][role]['root'])
+            candidate = self.out / 'releases' / role
+            for name in ('owner_data/source.py', 'owner_data/economics_query.py'):
+                expected = (self.source / c.SOURCE_PLATFORM / name).read_bytes()
+                self.assertEqual((candidate / c.PLATFORM / name).read_bytes(), expected)
+            self.assertNotEqual((base / c.PLATFORM / 'owner_data/source.py').read_bytes(),
+                                (candidate / c.PLATFORM / 'owner_data/source.py').read_bytes())
+            self.assertFalse((base / c.PLATFORM / 'owner_data/economics_query.py').exists())
+        self.assertFalse((self.out / 'releases/native/parameter_support/source.py').exists())
+
     def test_source_mutation_during_build_refuses_publication(self):
         def mutate(target, source):
             self.native(target, source)
@@ -337,10 +352,18 @@ class CandidateBuilder(unittest.TestCase):
 
     def test_whole_file_replacement_requires_exact_before_after_review(self):
         _, bases, _ = b.snapshot(self.spec)
-        wrong = deepcopy(self.review)
-        wrong['replacement_deltas']['queries/service.py']['source_sha256'] = '0' * 64
-        with self.assertRaisesRegex(c.ReleaseError, 'REPLACEMENT_SOURCE_CHANGED'):
-            c.check_compatibility(self.plan['source_files'], bases, wrong)
+        for name in c.EXISTING_PLATFORM:
+            wrong = deepcopy(self.review)
+            wrong['replacement_deltas'][name]['source_sha256'] = '0' * 64
+            with self.subTest(path=name, side='source'):
+                with self.assertRaisesRegex(c.ReleaseError, 'REPLACEMENT_SOURCE_CHANGED'):
+                    c.check_compatibility(self.plan['source_files'], bases, wrong)
+            for role in ('platform', 'authority'):
+                wrong = deepcopy(self.review)
+                wrong['replacement_deltas'][name]['base_sha256'][role] = '0' * 64
+                with self.subTest(path=name, side=role):
+                    with self.assertRaisesRegex(c.ReleaseError, 'REPLACEMENT_BASE_CHANGED:' + role):
+                        c.check_compatibility(self.plan['source_files'], bases, wrong)
 
     def test_direct_copy_must_match_source_even_inside_allowed_scope(self):
         def mutate(target, source):

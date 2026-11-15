@@ -13,7 +13,8 @@ RUNTIME = 'docs/alisa/runtime/v0.11/'
 ROLES = ('platform', 'authority', 'native', 'web')
 BUILD_ROLES = ('platform', 'authority', 'native')
 EXISTING_PLATFORM = ('config/settings.py', 'queries/service.py',
-                     'owner_data/parameter_collection.py', 'owner_data/service.py')
+                     'owner_data/parameter_collection.py', 'owner_data/service.py',
+                     'owner_data/source.py')
 NEW_OWNER = (
     'parameter_dependencies.py', 'parameter_dependency_catalog.json',
     'parameter_dependency_service.py', 'parameter_report_catalog.json',
@@ -37,7 +38,7 @@ COMPATIBILITY_PY = (
     'owner_data/owner_inputs.py', 'owner_data/parameter_contract.py',
     'owner_data/parameter_producers.py', 'owner_data/parameter_readset.py',
     'owner_data/parameter_resolution.py', 'owner_data/parameter_service.py',
-    'owner_data/source.py', 'queries/__init__.py', 'queries/models.py',
+    'queries/__init__.py', 'queries/models.py',
     'queries/voice_dialogue.py', 'query_insights/models.py',
     'query_insights/service.py', 'query_insights/wire.py',
     'runtime_adapter/authority.py', 'runtime_adapter/authority_rpc.py',

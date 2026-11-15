@@ -44,6 +44,8 @@ No `facts`, `continuation`, question, email, token, VaultSecret, CurrentParamete
 
 Output contains only fixed codes and booleans. `METADATA_COMPATIBLE` covers the listed checks. `profile_coverage=NOT_CHECKED` and `execution_authorized=false` remain explicit: this does not qualify SKU/day facts, entitlements, current sessions, financial sources or report execution. There is no queue/delivery scan in this target-scoped diagnostic.
 
+This diagnostic deliberately measures compatibility with the ordinary strict owner source. Its `METADATA_BLOCKED` result for `CONNECTED_NATIVE_OWNER` is not a finding that the already accepted native Performance pair is disconnected. The full WEB Query's separate fixed policy may consume that provenance only after its signed reference and current RuntimeAuthority binding checks. This metadata-only helper does not inspect that Query proof, requalify native process generation or authorize the specialized path. The actual 938f708a receipt is retained unchanged; it must not be relabeled as a successful execution check after a source change.
+
 ## Proposed finite invocation — only after exact source review
 
 Set `SCRIPT` to the reviewed absolute `preflight.py` path in an owned checkout. Its adjacent source context must be the reviewed file. Verify both hashes before this command. The path is the sole caller-supplied deployment location; the accepted target and installed source are fixed inside the artifact.

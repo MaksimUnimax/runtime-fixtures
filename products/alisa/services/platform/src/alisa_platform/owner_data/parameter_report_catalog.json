@@ -65,6 +65,7 @@
     },
     "economics.unit_forecast.v1": {
       "source_mode": "cohort_forecast",
+      "owner_credential_policy": "query-runtime-native-owner-performance/v1",
       "profile": "unit_economics.ozon.v1",
       "provider": "OZON",
       "scope": "store",

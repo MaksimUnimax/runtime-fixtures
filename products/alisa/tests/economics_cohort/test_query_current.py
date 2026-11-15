@@ -26,6 +26,7 @@ from alisa_platform.runtime_adapter.job_client import RuntimeFailure
 from alisa_platform.owner_data import economics_query as query
 from alisa_platform.owner_data import parameter_report_rpc as rpc
 from alisa_platform.owner_data import parameter_service as parameters, service as owner
+from alisa_platform.owner_data import source as owner_source, runtime_rpc as owner_runtime
 from alisa_platform.owner_data.models import CurrentParameter, OwnerCommand, OwnerDataset
 from current_parameters.test_parameters import Fixture
 
@@ -165,15 +166,105 @@ class QueryCurrent(QueryFixture, TestCase):
             query.current(self.authority, reference)
         self.assertNotIn('owner_readset', self.node(reference))
 
-    def test_current_preflight_keeps_strict_owner_credential_policy_before_readset(self):
+    def test_current_preflight_accepts_mapped_native_performance_before_readset(self):
         reference = self.bound()
         CredentialRevision.objects.filter(kind='PERFORMANCE').update(check_code='CONNECTED_NATIVE_OWNER')
-        # Existing runtime pins still resolve; the stricter owner source policy
-        # is independently enforced before the native parent can send a request.
         self.authority.resolve(self.pins, 'execute')
-        with self.assertRaisesRegex(owner.Rejected, 'OWNER_SOURCE_CREDENTIAL_UNQUALIFIED'):
-            query.current(self.authority, reference)
+        with patch.object(parameters, '_read', side_effect=AssertionError('NO_COEFFICIENT_READ')), \
+             patch.object(query.current_owner, '_owner_value', side_effect=AssertionError('NO_OWNER_VALUE_RESOLUTION')):
+            self.assertEqual(query.current(self.authority, reference), {'current': True})
         self.assertNotIn('owner_readset', self.node(reference))
+        self.assertEqual(self.node(reference)['dependencies'], {})
+        self.assertEqual(CredentialRevision.objects.get(kind='PERFORMANCE').check_code, 'CONNECTED_NATIVE_OWNER')
+
+    def test_native_performance_does_not_change_generic_or_ticket_owner_policy(self):
+        CredentialRevision.objects.filter(kind='PERFORMANCE').update(check_code='CONNECTED_NATIVE_OWNER')
+        sources = [owner_source.DjangoOwnerSource(self.token, str(self.store.pk)),
+                   owner_runtime._TicketSource({'session_id': str(self.session.pk),
+                       'actor': str(self.customer.pk), 'tenant': str(self.tenant.pk), 'store': str(self.store.pk)})]
+        for source in sources:
+            with self.subTest(source=type(source).__name__):
+                with self.assertRaisesRegex(owner.Rejected, 'OWNER_SOURCE_CREDENTIAL_UNQUALIFIED'):
+                    source.current()
+
+    def test_native_performance_inputs_and_fence_preserve_actual_provenance(self):
+        self.filled(); reference = self.bound()
+        CredentialRevision.objects.filter(kind='PERFORMANCE').update(check_code='CONNECTED_NATIVE_OWNER')
+        result = self.get(reference)
+        self.assertTrue(result['ready'])
+        self.assertEqual(result['unit_costs'][query.pc.CANON(['101', DAY])], '250')
+        self.assertEqual(query.fence(self.authority, reference, result['checkpoint']), {'current': True})
+        self.assertEqual(CredentialRevision.objects.get(kind='PERFORMANCE').check_code, 'CONNECTED_NATIVE_OWNER')
+        # Both states remain valid runtime credentials; the owner checkpoint
+        # must still notice that the attested provenance changed.
+        CredentialRevision.objects.filter(kind='PERFORMANCE').update(check_code='CONNECTED')
+        self.authority.resolve(self.pins, 'execute')
+        self.assertEqual(query.fence(self.authority, reference, result['checkpoint']), {'current': False})
+
+    def test_native_provenance_cannot_qualify_seller_or_unlinked_performance(self):
+        reference = self.bound()
+        for kind, code in (('SELLER', 'CONNECTED_NATIVE_OWNER'),
+                           ('PERFORMANCE', 'AUTHENTICATED_UNLINKED'), ('PERFORMANCE', 'NOT_CHECKED')):
+            with self.subTest(kind=kind, code=code):
+                CredentialRevision.objects.filter(kind=kind).update(check_code=code)
+                with self.assertRaises((owner.Rejected, RuntimeFailure)):
+                    query.current(self.authority, reference)
+                CredentialRevision.objects.filter(kind=kind).update(check_code='CONNECTED')
+        self.assertNotIn('owner_readset', self.node(reference))
+
+    def test_native_performance_requires_exact_current_binding_credential_identity(self):
+        reference = self.bound()
+        CredentialRevision.objects.filter(kind='PERFORMANCE').update(check_code='CONNECTED_NATIVE_OWNER')
+        mapping = json.loads(self.bindings.read_text())
+        credentials = mapping['tenants'][0]['stores'][0]['credentials']
+        native = next(row for row in credentials if row['kind'] == 'PERFORMANCE')
+        native['id'] = str(uuid.uuid4())
+        self.bindings.write_text(json.dumps(mapping))
+        with patch.object(owner_source.OwnerDataset.objects, 'select_for_update',
+                          side_effect=AssertionError('UNQUALIFIED_OWNER_READ')):
+            with self.assertRaises(RuntimeFailure): query.current(self.authority, reference)
+
+    def test_captured_native_source_rechecks_credential_status_and_revision(self):
+        reference = self.bound()
+        CredentialRevision.objects.filter(kind='PERFORMANCE').update(check_code='CONNECTED_NATIVE_OWNER')
+        source = query._QueryOwnerSource(self.authority, reference)
+        source.current()
+        for field, value, original in (('status', 'REVOKED', 'ACTIVE'), ('status', 'PENDING', 'ACTIVE'),
+                                        ('revision', 2, 1)):
+            with self.subTest(field=field, value=value):
+                CredentialRevision.objects.filter(kind='PERFORMANCE').update(**{field: value})
+                with self.assertRaises(RuntimeFailure): source.current()
+                CredentialRevision.objects.filter(kind='PERFORMANCE').update(**{field: original})
+        duplicate_secret = VaultSecret.objects.create(tenant=self.tenant, store=self.store, kind='PERFORMANCE',
+            revision=2, key_version='fixture', ciphertext='SYNTHETIC-NOT-DECRYPTED-DUPLICATE')
+        duplicate = CredentialRevision.objects.create(tenant=self.tenant, store=self.store, kind='PERFORMANCE',
+            revision=2, secret=duplicate_secret, status='ACTIVE', check_code='CONNECTED_NATIVE_OWNER')
+        with self.assertRaises(RuntimeFailure): source.current()
+        duplicate.delete()
+        CredentialRevision.objects.filter(kind='PERFORMANCE').delete()
+        with self.assertRaises(RuntimeFailure): source.current()
+
+    def test_native_performance_does_not_admit_voice_or_tampered_references(self):
+        reference = self.bound()
+        CredentialRevision.objects.filter(kind='PERFORMANCE').update(check_code='CONNECTED_NATIVE_OWNER')
+        tampered = rpc._unsign(reference); tampered['descriptor_hash'] = '0'*64
+        for invalid in (reference+'tampered', rpc._sign(tampered)):
+            with self.subTest(reference_kind='tampered'):
+                with self.assertRaises((owner.Rejected, RuntimeFailure)):
+                    query.current(self.authority, invalid)
+        self.query.channel = 'ALICE'; self.query.save(update_fields=['channel'])
+        with self.assertRaisesRegex(owner.Rejected, 'PARAMETER_REPORT_NOT_ADMITTED'):
+            query.current(self.authority, reference)
+
+    def test_full_query_requires_fixed_owner_credential_policy(self):
+        reference = self.bound()
+        for policy in (None, 'allow-any-credential'):
+            with self.subTest(policy=policy):
+                catalog = deepcopy(query.reports.CATALOG)
+                catalog['reports'][query.TEMPLATE]['owner_credential_policy'] = policy
+                with patch.object(query.reports, 'CATALOG', catalog):
+                    with self.assertRaisesRegex(owner.Rejected, 'ECONOMICS_QUERY_CONTRACT'):
+                        query.current(self.authority, reference)
 
     def test_all_full_nodes_of_one_query_remain_bound_to_the_same_native_job(self):
         self.bound(0); payload = self.payload(1); payload['job_id'] = 'foreign-native-job'
@@ -183,12 +274,14 @@ class QueryCurrent(QueryFixture, TestCase):
 
     def test_old_delivery_reference_cannot_read_owner_values(self):
         self.filled()
+        CredentialRevision.objects.filter(kind='PERFORMANCE').update(check_code='CONNECTED_NATIVE_OWNER')
         old = rpc.dispatch(self.authority, self.payload(template='economics.delivery_projection.v1'))['reference']
         for operation in (lambda: query.current(self.authority, old), lambda: self.get(old),
                           lambda: query.fence(self.authority, old, {})):
             with self.assertRaises((owner.Rejected, query.pc.ParameterError)): operation()
 
     def test_producer_reference_is_not_a_full_report_read_authority(self):
+        CredentialRevision.objects.filter(kind='PERFORMANCE').update(check_code='CONNECTED_NATIVE_OWNER')
         result = self.get(); producer = result['producers'][0]['intent']['intent_ref']
         with self.assertRaisesRegex(owner.Rejected, 'ECONOMICS_QUERY_REFERENCE'): self.get(producer)
 
@@ -236,6 +329,7 @@ class QueryCurrent(QueryFixture, TestCase):
             query.inputs(self.authority, reference, 'foreign-job', self.readset())
 
     def test_changed_native_tenant_mapping_rejects_old_reference_with_same_platform_pins(self):
+        CredentialRevision.objects.filter(kind='PERFORMANCE').update(check_code='CONNECTED_NATIVE_OWNER')
         reference = self.bound(); mapping = json.loads(self.bindings.read_text())
         mapping['tenants'][0]['runtime_tenant'] = 'other-native-tenant'
         mapping['tenants'][0]['revision'] = 'fixture-2'
@@ -390,6 +484,7 @@ class QueryCurrent(QueryFixture, TestCase):
         self.assertEqual(set(self.node(reference)['owner_readset']['readset']['rows'][0]), {'sku', 'day'})
 
     def test_cancel_expiry_session_revoke_and_token_rotation_deny_current_authority(self):
+        CredentialRevision.objects.filter(kind='PERFORMANCE').update(check_code='CONNECTED_NATIVE_OWNER')
         reference = self.bound(); self.query.state = 'CANCELLED'; self.query.save(update_fields=['state'])
         with self.assertRaises(owner.Rejected): query.current(self.authority, reference)
         self.query.state = 'RUNNING'; self.query.expires_at = timezone.now()-timedelta(seconds=1)
@@ -400,6 +495,7 @@ class QueryCurrent(QueryFixture, TestCase):
         with self.assertRaises(RuntimeFailure): query.current(self.authority, reference)
 
     def test_revoked_principal_cannot_use_captured_source_or_checkpoint(self):
+        CredentialRevision.objects.filter(kind='PERFORMANCE').update(check_code='CONNECTED_NATIVE_OWNER')
         self.filled(); reference = self.bound(); result = self.get(reference)
         source = query._QueryOwnerSource(self.authority, reference)
         self.assertFalse(hasattr(source, '_token'))
@@ -407,11 +503,16 @@ class QueryCurrent(QueryFixture, TestCase):
         for operation in (source.current, lambda: self.get(reference), lambda: query.fence(self.authority, reference, result['checkpoint'])):
             with self.assertRaises(RuntimeFailure): operation()
 
-    def test_entitlement_and_strict_existing_credential_policy_remain_required(self):
+    def test_native_performance_still_requires_current_approval_and_entitlement(self):
         reference = self.bound()
         CredentialRevision.objects.filter(kind='PERFORMANCE').update(check_code='CONNECTED_NATIVE_OWNER')
-        with self.assertRaisesRegex(owner.Rejected, 'OWNER_SOURCE_CREDENTIAL_UNQUALIFIED'): self.get(reference)
-        CredentialRevision.objects.filter(kind='PERFORMANCE').update(check_code='CONNECTED')
+        dataset = OwnerDataset.objects.get(store=self.store)
+        OwnerDataset.objects.filter(pk=dataset.pk).update(status='REVOKED')
+        with self.assertRaisesRegex(owner.Rejected, 'OWNER_SOURCE_NOT_APPROVED'): self.get(reference)
+        OwnerDataset.objects.filter(pk=dataset.pk).update(status='APPROVED',
+            approved_security_revision=dataset.approved_security_revision+1)
+        with self.assertRaisesRegex(owner.Rejected, 'OWNER_SOURCE_APPROVAL_CHANGED'): self.get(reference)
+        OwnerDataset.objects.filter(pk=dataset.pk).update(approved_security_revision=dataset.approved_security_revision)
         AccessAdjustment.objects.create(id=uuid.uuid4(), grant=self.grant, cutoff=timezone.now(),
                                          actor_id=uuid.uuid4(), reason='SYNTHETIC_REVOKE')
         with self.assertRaises(RuntimeFailure): self.get(reference)
@@ -428,6 +529,7 @@ class QueryCurrent(QueryFixture, TestCase):
 @override_settings(**FLAGS)
 class QuerySessionRace(QueryFixture, TransactionTestCase):
     def test_revocation_committed_between_principal_check_and_lock_is_rechecked(self):
+        CredentialRevision.objects.filter(kind='PERFORMANCE').update(check_code='CONNECTED_NATIVE_OWNER')
         reference = self.bound(); original = rpc.principal_current; fired = []; writes = []
         def writer():
             try:

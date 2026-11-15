@@ -289,10 +289,32 @@ class Composite(CompositeFixture,TransactionTestCase):
         self.assertEqual(self.provider_ops(),before)
         self.assertNotIn('model_answer',[request.operation for request in self.e.transport.calls])
 
-    def test_more_than_sixtyfour_sku_days_are_batched_without_source_repetition(self):
+    def test_native_owner_revoked_after_answer_staging_cannot_reach_model(self):
+        self.filled()
+        CredentialRevision.objects.filter(pk=self.performance.pk).update(check_code='CONNECTED_NATIVE_OWNER')
+        before_values=list(CurrentParameter.objects.order_by('key','sku').values())
+        self.start();self.pending();before_calls=self.provider_ops()
+        CredentialRevision.objects.filter(pk=self.performance.pk).update(status='REVOKED')
+        row=self.finish();self.assertEqual(row['state'],'FAILED')
+        self.assertEqual(self.provider_ops(),before_calls)
+        self.assertNotIn('model_answer',[request.operation for request in self.e.transport.calls])
+        self.assertEqual(before_values,list(CurrentParameter.objects.order_by('key','sku').values()))
+
+    def test_native_owner_marker_on_seller_stops_before_provider(self):
+        self.filled()
+        CredentialRevision.objects.filter(pk__in=(self.performance.pk,self.e.credential.pk)).update(
+            check_code='CONNECTED_NATIVE_OWNER')
+        self.start();row=self.finish();self.assertEqual(row['state'],'FAILED')
+        self.assertEqual(self.provider_ops(),[])
+        self.assertNotIn('model_answer',[request.operation for request in self.e.transport.calls])
+
+    def test_more_than_sixtyfour_sku_days_with_native_owner_are_batched_without_source_repetition(self):
         # A valid, substantial owner dataset must fit the existing private RPC
         # deadline as well as the tiny all-products fixture. Unrelated mappings
         # remain subject to complete structural validation on every fresh read.
+        # The existing Performance provenance changes neither the real Query
+        # authority path nor the size of the data checked by each owner batch.
+        CredentialRevision.objects.filter(pk=self.performance.pk).update(check_code='CONNECTED_NATIVE_OWNER')
         for sku in range(1000,1130):
             self.facts['product_map'][str(sku)]='sku:'+str(sku)
             self.facts['entries'].append(self.entry('unit_cost','250','sku:'+str(sku)))
@@ -305,6 +327,8 @@ class Composite(CompositeFixture,TransactionTestCase):
         nodes=Query.objects.get().continuation[KEY];self.assertEqual(len(nodes),9)
         self.assertEqual(sorted(len(n['owner_readset']['readset']['rows'])for n in nodes.values()),[1]+[8]*8)
         self.assertEqual(self.provider_ops().count('ds_ozon_fbo_postings'),1)
+        self.performance.refresh_from_db()
+        self.assertEqual((self.performance.status,self.performance.check_code),('ACTIVE','CONNECTED_NATIVE_OWNER'))
 
 
 class CompositeBindings(UnitCase):

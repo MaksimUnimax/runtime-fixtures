@@ -55,6 +55,14 @@
         "authority": "7204dc46163c9131020cc4d14dc7c9c7df3935f5b59b43301d6020ff09e2c64d"
       },
       "reason": "Root independently approved the exact performance delta: retain all outer entity/mode/currency and caller authorization checks; invoke the complete pure structural validator once instead of once per entity."
+    },
+    "owner_data/source.py": {
+      "source_sha256": "405996d2678ebdd9cb0eb743e0b42affb16bc4521f1b752357ffe862b5280cbf",
+      "base_sha256": {
+        "platform": "717811b6fddb8f4235908b5d64f65b8d772994521e1a7f8f79f3272306cca4d1",
+        "authority": "717811b6fddb8f4235908b5d64f65b8d772994521e1a7f8f79f3272306cca4d1"
+      },
+      "reason": "Root independently approved the exact installed-to-source delta on 2026-11-15: extract the existing strict CONNECTED comparison into a private credential predicate and call that predicate in current(). Generic source behavior and all session, access, approval, content and environment checks are unchanged. The separately pinned WEB Query adapter alone may specialize the predicate for its existing mapped Performance native-owner path under current runtime authority."
     }
   }
 }
