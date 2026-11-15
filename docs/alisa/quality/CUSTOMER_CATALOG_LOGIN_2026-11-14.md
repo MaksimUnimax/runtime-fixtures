@@ -22,7 +22,7 @@
 | CI app | platform `43602990621`, docs `43602990627`, identity probe `43602990689`: все PASS |
 | CI package | artifact `14117144770`, ZIP SHA256 `bbd498a1ebf27f09c268de98908e5060deeab096c692f9fa0560b26fd0160b5d` |
 | Platform tar | SHA256 `3635cda397ba95f4df21b37901844e30ad4561c0671b82623a4089363ba6a6f6` |
-| Installer tests | 19 disposable проверок PASS; независимое review текущей редакции требуется до переключения |
+| Installer tests | 20 disposable проверок PASS; полный installer review bb63827c: INSTALLER_APPROVE; расширение проверки directory refs требует отдельного review до переключения |
 | Installed / live owner | NOT_RUN для текущего исправления |
 
 После app8b менялись только installer/docs: `git diff 8b8b9199..HEAD -- products/alisa` пуст. Полный identity qualifier запускается в изолированном GitHub root job. Локальный GITHUB_ACTIONS guard не обходили; собственные временные БД и процессы завершены, чужие профили сохранены.
@@ -33,7 +33,7 @@
 
 Проверяется SHA256 tar, затем manifest читается непосредственно из этого архива с пределом 2 МиБ и сравнивается с распаковкой. Все metadata reads ограничены. Файлы и ссылки сверяются с этим manifest. Перед apply выполняется полный ограниченный обход кандидатов без следования symlink: лишние файлы, пустые каталоги и специальные объекты запрещены. Дополнительно разрешены только проверенный .venv и ownership-marker, связанный с PLAN.
 
-Существующий identity3a имеет старый authenticated overlay: ссылки files объявлены в overlay_references, а исходный base manifest закреплён своим SHA256. До копирования сверяются pins обоих manifests, точные link targets и file digests из base. В новом кандидате они материализуются обычными hardlinked файлами; устаревшие reference metadata убраны. Первая prepare остановилась на различии формата до создания кандидатов или изменения служб; слепого повтора не было.
+Существующий identity3a имеет старый authenticated overlay: ссылки отдельных файлов и каталогов объявлены в overlay_references, а исходный base manifest закреплён своим SHA256. До копирования сверяются pins обоих manifests, точные link targets и file digests из base. В новом кандидате они материализуются обычными hardlinked файлами; устаревшие reference metadata убраны. Предварительные prepare остановились на различии формата до создания кандидатов или изменения служб; слепого повтора не было.
 
 Новые releases создаются без перезаписи базовых файлов. Неизменённые байты разделяются hardlink; новые копируются буфером 1 МиБ и добавляются в pool, чтобы один новый digest физически записывался один раз. Бюджет сохраняет минимум 3 ГиБ и 200000 inode. Распаковка находится в собственном tmpfs.
 

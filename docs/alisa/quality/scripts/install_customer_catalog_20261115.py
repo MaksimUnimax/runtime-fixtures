@@ -132,10 +132,19 @@ def manifest(root, allow_overlay=False):
     for name, digest in value['files'].items():
         p = root/name
         need(safe(name), 'FILE_PATH')
-        if p.is_symlink() and overlay is not None:
+        if overlay is not None and (p.is_symlink() or not p.resolve().is_relative_to(root)):
             expected = overlay/name
-            need(value.get('overlay_references', {}).get(name) == str(expected) and
-                 os.readlink(p) == str(expected) and p.resolve() == expected.resolve() and
+            declared = False
+            for length in range(1, len(Path(name).parts)+1):
+                relative = Path(*Path(name).parts[:length])
+                entry = root/relative
+                if entry.is_symlink():
+                    destination = overlay/relative
+                    need(value.get('overlay_references', {}).get(str(relative)) == str(destination) and
+                         os.readlink(entry) == str(destination), 'OVERLAY_REF_CHANGED')
+                    declared = True
+                    break
+            need(declared and p.resolve() == expected.resolve() and
                  base_manifest['files'].get(name) == digest and sha(p) == digest, 'OVERLAY_REF_CHANGED')
         else:
             need(not p.is_symlink() and p.resolve().is_relative_to(root) and sha(p) == digest, 'FILE_HASH')

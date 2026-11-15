@@ -281,6 +281,25 @@ class InstallTests(unittest.TestCase):
             self.assertTrue(temp.is_symlink())
             self.assertEqual(link.readlink(), Path('old'))
 
+    def test_pinned_identity_directory_reference_checks_each_admitted_leaf(self):
+        with tempfile.TemporaryDirectory() as folder:
+            stage = Path(folder);base = stage/'releases/base';identity = stage/'releases/identity'
+            (base/'config').mkdir(parents=True);identity.mkdir()
+            (base/'config/code.py').write_bytes(b'original')
+            digest = M.sha(base/'config/code.py')
+            (base/'manifest.json').write_text(json.dumps({'files': {'config/code.py': digest}}))
+            (identity/'config').symlink_to(base/'config')
+            value = {'files': {'config/code.py': digest}, 'overlay_base':str(base),
+                     'overlay_references': {'config':str(base/'config')},
+                     'base_manifest_sha256':M.sha(base/'manifest.json')}
+            (identity/'manifest.json').write_text(json.dumps(value))
+            with patch.object(M, 'STAGE', stage), patch.object(M, 'IDENTITY_BASE', identity), patch.object(M, 'PINS', {identity:M.sha(identity/'manifest.json')}):
+                M.manifest(identity, True)
+                foreign = stage/'foreign';foreign.mkdir();(foreign/'code.py').write_bytes(b'original')
+                (identity/'config').unlink();(identity/'config').symlink_to(foreign)
+                with self.assertRaisesRegex(RuntimeError, 'OVERLAY_REF_CHANGED'):
+                    M.manifest(identity, True)
+
 
 if __name__ == '__main__':
     unittest.main()
