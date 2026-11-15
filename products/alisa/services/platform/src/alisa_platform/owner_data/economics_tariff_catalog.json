@@ -1,0 +1,22 @@
+{
+  "schema": "alisa-current-price-tariff-map/v1",
+  "price_operation": "product_prices_bulk",
+  "product_operation": "seller_product_info_list",
+  "basis": "CURRENT_QUOTE_NOT_HISTORICAL_ACTUAL",
+  "schemes": {
+    "fbo": {
+      "commission_percent": ["commissions", "sales_percent_fbo"],
+      "acquiring_per_unit": ["acquiring"],
+      "return_per_unit": ["commissions", "fbo_return_flow_amount"],
+      "processing_min": {"constant":"0"},
+      "processing_max": {"constant":"0"}
+    },
+    "fbs": {
+      "commission_percent": ["commissions", "sales_percent_fbs"],
+      "acquiring_per_unit": ["acquiring"],
+      "return_per_unit": ["commissions", "fbs_return_flow_amount"],
+      "processing_min": ["commissions", "fbs_first_mile_min_amount"],
+      "processing_max": ["commissions", "fbs_first_mile_max_amount"]
+    }
+  }
+}
