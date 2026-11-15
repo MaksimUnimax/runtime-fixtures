@@ -1,6 +1,7 @@
 """Disposable failure boundaries; never reads live configuration or services."""
 import importlib.util
 import json
+import os
 from pathlib import Path
 import tempfile
 import tarfile
@@ -47,6 +48,9 @@ class InstallTests(unittest.TestCase):
                        patch.object(M, 'stop', lambda u: trace.append(('stop', u))),
                        patch.object(M, 'select', lambda link, dest, expected: trace.append(('select', link.name, dest.name))),
                        patch.object(M, 'run', command), patch.object(M, 'ready_pair', pair),
+                       patch.object(M, 'fence_web', lambda: trace.append(('fence_web',))),
+                       patch.object(M, 'require_web_fence', lambda *a: trace.append(('check_fence',))),
+                       patch.object(M, 'release_web_fence', lambda: trace.append(('release_fence',))),
                        patch.object(M, 'ready_web', lambda b: trace.append(('ready_web', b))),
                        patch.object(M, 'reserve', lambda *a: None), patch.object(M, 'idle', lambda: None),
                        patch.object(M, 'protected', lambda: {'fixed': True}),
@@ -75,11 +79,12 @@ class InstallTests(unittest.TestCase):
 
     def test_new_backend_failure_restores_pair_before_reopening_web(self):
         trace = self.trace_switch(True)
-        self.assertEqual(trace.count(('stop', M.WEB)), 2)
+        self.assertEqual(trace.count(('stop', M.WEB)), 3)
         self.assertEqual(trace.count(('systemctl', 'start', M.WEB)), 1)
         self.assertLess(trace.index(('ready_pair', True)), trace.index(('systemctl', 'start', M.WEB)))
         self.assertNotIn(('ready_web', False), trace)
         self.assertEqual(trace[-1], ('receipt', 'ROLLED_BACK.json'))
+        self.assertLess(trace.index(('ready_pair', True)), trace.index(('release_fence',)))
 
     def test_foreign_selector_is_never_overwritten(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -168,6 +173,37 @@ class InstallTests(unittest.TestCase):
             M.manifest(payload)  # Internally consistent, but not the CI package.
             with self.assertRaisesRegex(RuntimeError, 'PACKAGE_MANIFEST_CHANGED'):
                 M.package_manifest(payload, archive, digest)
+
+    def test_duplicate_new_bytes_are_written_once_across_candidate_releases(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder);base = root/'base';base.mkdir();(base/'.venv').mkdir()
+            src = root/'src';src.write_bytes(b'shared new content')
+            digest = M.sha(src);pool = {};value = {'files': {'new.py': digest}}
+            M.materialize(base, root/'first', value, {'new.py': src}, pool)
+            M.materialize(base, root/'second', value, {'new.py': src}, pool)
+            self.assertEqual((root/'first/new.py').stat().st_ino, (root/'second/new.py').stat().st_ino)
+
+    def test_web_fence_is_checked_before_switch_and_released_after_pair_ready(self):
+        trace = self.trace_switch()
+        self.assertLess(trace.index(('fence_web',)), trace.index(('stop', M.WEB)))
+        self.assertLess(trace.index(('check_fence',)), trace.index(('stop', M.PLATFORM)))
+        self.assertLess(trace.index(('ready_pair', False)), trace.index(('release_fence',)))
+        self.assertLess(trace.index(('release_fence',)), trace.index(('systemctl', 'start', M.WEB)))
+
+    def test_foreign_web_mask_cannot_be_released(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder);mask = root/'web.service';mask.symlink_to('/dev/null')
+            proof = {'source': M.SOURCE, 'installer_sha256': M.sha(M.__file__),
+                     'mask_state': list(M.path_state(mask)), 'mask_ctime_ns':mask.lstat().st_ctime_ns, 'phase': 'active'}
+            (root/'WEB_FENCE.json').write_text(json.dumps(proof))
+            mask.unlink();mask.symlink_to('/dev/null')
+            # Some filesystems immediately recycle a symlink inode and have
+            # coarse timestamps; make the distinct replacement deterministic.
+            os.utime(mask, ns=(1, 1), follow_symlinks=False)
+            with patch.object(M, 'ROOT', root), patch.object(M, 'WEB_MASK', mask), patch.object(M, 'prop', lambda *a:'masked'):
+                with self.assertRaisesRegex(RuntimeError, 'WEB_FENCE_LOST'):
+                    M.release_web_fence()
+                self.assertTrue(mask.is_symlink())
 
 
 if __name__ == '__main__':

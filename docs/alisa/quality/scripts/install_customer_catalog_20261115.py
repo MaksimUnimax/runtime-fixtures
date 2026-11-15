@@ -34,6 +34,7 @@ PRESERVE = ['alice-market.service', 'alisa-runtime-authority-stage.service',
             'alisa-admin@stage.service', 'alisa-station.service',
             'alisa-store-check.service', 'alisa-smtp-sandbox-stage.service']
 DROP = Path('/etc/systemd/system')/(PLATFORM+'.d')/('z'*80+'-customer-catalog.conf')
+WEB_MASK = Path('/run/systemd/system')/WEB
 LOCK = Path('/run/lock/alisa-stage-rollout.lock')
 PINS = {
     BASE: '66e237cee602f98ba4a0b5486b012edd0a9e22e7859b75212cd470d7120335dd',
@@ -221,6 +222,7 @@ def materialize(base, target, value, sources, pool, ownership=None):
             src = sources[name]
             need(sha(src) == digest, 'PAYLOAD_CHANGED')
             atomic_copy(dst, src, digest)
+            pool[digest] = dst
     for name, dest in value.get('links', {}).items():
         dst = target/name
         dst.parent.mkdir(parents=True, exist_ok=True)
@@ -413,13 +415,58 @@ def selection_guard():
     need(not DROP.exists() or (not DROP.is_symlink() and DROP.read_bytes() == drop_bytes()), 'DROP_MOVED')
 
 
+def fence_proof():
+    proof = json.loads((ROOT/'WEB_FENCE.json').read_text())
+    need(proof['source'] == SOURCE and proof['installer_sha256'] == sha(__file__), 'FOREIGN_WEB_FENCE')
+    return proof
+
+
+def require_web_fence(drained=True):
+    proof = fence_proof()
+    need(WEB_MASK.is_symlink() and os.readlink(WEB_MASK) == '/dev/null' and
+         list(path_state(WEB_MASK)) == proof['mask_state'] and
+         WEB_MASK.lstat().st_ctime_ns == proof['mask_ctime_ns'] and
+         prop(WEB, 'LoadState') == 'masked', 'WEB_FENCE_LOST')
+    if drained:
+        need(prop(WEB, 'ActiveState') in ['inactive', 'failed'], 'WEB_RESTARTED')
+
+
+def fence_web():
+    if path_state(WEB_MASK) is None:
+        if (ROOT/'WEB_FENCE.json').exists():
+            need(fence_proof()['phase'] in ['releasing', 'released'], 'WEB_FENCE_LOST')
+        temp = WEB_MASK.with_name('.'+WEB_MASK.name+'.customer-catalog-new')
+        need(path_state(temp) is None, 'WEB_FENCE_TEMP_EXISTS')
+        temp.symlink_to('/dev/null')
+        rename_no_replace(temp, WEB_MASK)
+        record('WEB_FENCE.json', {'source': SOURCE, 'installer_sha256': sha(__file__),
+                               'mask_state': list(path_state(WEB_MASK)),
+                               'mask_ctime_ns': WEB_MASK.lstat().st_ctime_ns, 'phase': 'active'})
+        run('systemctl', 'daemon-reload')
+    require_web_fence(False)
+
+
+def release_web_fence():
+    require_web_fence()
+    proof = fence_proof()
+    proof['phase'] = 'releasing'
+    record('WEB_FENCE.json', proof)
+    replace_selection(WEB_MASK, None, tuple(proof['mask_state']))
+    run('systemctl', 'daemon-reload')
+    proof['phase'] = 'released'
+    record('WEB_FENCE.json', proof)
+
+
 def switch(rollback=False):
     # Web must be drained before either backend can change, including rollback.
     selection_guard()
     states = {p: path_state(p) for p in [WEB_LINK, IDENTITY_LINK, DROP]}
+    fence_web()
     stop(WEB)
+    require_web_fence()
     stop(PLATFORM)
     stop(IDP)
+    require_web_fence()
     need({p: path_state(p) for p in states} == states, 'SELECTOR_CHANGED_DURING_DRAIN')
     select(WEB_LINK, BASE if rollback else APP, states[WEB_LINK])
     select(IDENTITY_LINK, IDENTITY_BASE if rollback else IDENTITY, states[IDENTITY_LINK])
@@ -433,6 +480,8 @@ def switch(rollback=False):
     run('systemctl', 'daemon-reload')
     run('systemctl', 'start', PLATFORM, IDP)
     ready_pair(rollback)
+    require_web_fence()
+    release_web_fence()
     run('systemctl', 'start', WEB)
     ready_web(rollback)
 
@@ -452,6 +501,7 @@ def apply(value, rollback=False):
                'preserved_native_authority_admin': True, 'migrations': [], 'owner_browser': 'NOT_RUN'})
     except BaseException:
         # Never overwrite a concurrent foreign selector or changed base/config.
+        stop(WEB)
         need(protected() == value['protected'], 'ROLLBACK_PROTECTED_CHANGED')
         switch(True)
         record('ROLLED_BACK.json', {'source': SOURCE, 'installed': False, 'reason': 'ACTIVATION_FAILED'})
