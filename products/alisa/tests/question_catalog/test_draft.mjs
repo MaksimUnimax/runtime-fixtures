@@ -22,3 +22,6 @@ try{
   assert.equal(stores.length,2);
   console.log('PASS 6 catalogue draft selection checks');
 }finally{rmSync(folder,{recursive:true,force:true});}
+
+// Keep period regression in the existing CI entry point; no shared workflow change.
+await import('./test_period.mjs');

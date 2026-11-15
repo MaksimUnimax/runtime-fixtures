@@ -11,7 +11,7 @@ state = {'submissions': 0, 'pages': 0, 'external': []}
 
 
 def store(n):
-    return {'id': IDS[n], 'name': NAMES[n], 'provider': 'OZON', 'status': 'ACTIVE',
+    return {'id': IDS[n], 'name': NAMES[n], 'provider': 'WB' if n == 1 else 'OZON', 'status': 'ACTIVE',
             'identity_verified': True, 'credentials': []}
 
 
@@ -30,15 +30,27 @@ class Fixture(BaseHTTPRequestHandler):
         elif self.path.endswith('/question-catalog'):
             sid = body['store_id']; query = body['query']
             value = {'items': [{'id': 'orders', 'version': 1, 'kind': 'scalar',
-                      'description': 'Количество заказанных товаров', 'platforms': ['ozon'], 'units': ['шт'],
+                      'description': 'Количество заказанных товаров', 'platforms': ['ozon', 'wb'], 'units': ['шт'],
                       'dependencies': [], 'input_policy': {'time_axis': 'order_period', 'snapshot': False,
                       'period_required': True, 'comparison_supported': True, 'filters_supported': True},
                       'availability': [{'store_id': sid, 'status': 'ELIGIBLE'}]},
                      {'id': 'accruals', 'version': 2, 'kind': 'dataset', 'description': 'Начисления по дате начисления',
-                      'platforms': ['ozon'], 'units': ['RUB'], 'dependencies': [],
+                      'platforms': ['ozon', 'wb'], 'units': ['RUB'], 'dependencies': [],
                       'input_policy': {'time_axis': 'accrual_date', 'snapshot': False, 'period_required': True,
                       'comparison_supported': False, 'filters_supported': False},
                       'availability': [{'store_id': sid, 'status': 'UNAVAILABLE'}]}], 'next_offset': None}
+            value['items'].extend([
+                {'id': 'snapshot', 'version': 1, 'kind': 'scalar', 'description': 'Текущие остатки',
+                 'platforms': ['ozon', 'wb'], 'units': ['шт'], 'dependencies': [],
+                 'input_policy': {'time_axis': 'snapshot', 'snapshot': True, 'period_required': False,
+                                  'comparison_supported': False, 'filters_supported': False},
+                 'availability': [{'store_id': sid, 'status': 'ELIGIBLE'}]},
+                {'id': 'parameter.loss_rate.v1', 'version': 1, 'kind': 'parameter', 'description': 'Коэффициент потерь',
+                 'platforms': ['ozon'], 'units': ['ratio'], 'dependencies': [],
+                 'input_policy': {'time_axis': 'parameter_period', 'snapshot': False, 'period_required': False,
+                                  'comparison_supported': False, 'filters_supported': True},
+                 'availability': [{'store_id': sid, 'status': 'ELIGIBLE' if sid == IDS[0] else 'UNAVAILABLE'}]}
+            ])
             value['items'] = [r for r in value['items'] if query['search'].casefold() in r['description'].casefold()
                               and (not query['kind'] or r['kind'] == query['kind'])]
             value['total'] = len(value['items'])
@@ -90,7 +102,7 @@ def run():
                         expect(page.get_by_role('heading', name='Поддерживаемые вопросы', exact=True)).to_be_visible()
                         expect(page.get_by_text('Дата финансового начисления', exact=False)).to_be_visible()
                         page.get_by_label('Магазин', exact=True).select_option(IDS[1])
-                        expect(page.get_by_role('status')).to_contain_text('Найдено: 2')
+                        expect(page.get_by_role('status')).to_contain_text('Найдено: 4')
                         page.get_by_role('button', name='Показать ещё магазины', exact=True).click()
                         expect(page.get_by_role('status')).to_contain_text('Текущий выбор сохранён')
                         expect(page.get_by_label('Магазин', exact=True)).to_have_value(IDS[1])
@@ -102,13 +114,51 @@ def run():
                         page.get_by_role('button', name='Найти', exact=True).click()
                         expect(page.get_by_role('heading', name='Начисления по дате начисления')).to_be_visible()
                         page.get_by_role('link', name='Подготовить вопрос в форме').click()
-                        expect(page.get_by_label('Второй магазин · OZON', exact=True)).to_be_checked()
+                        expect(page.get_by_label('Второй магазин · WB', exact=True)).to_be_checked()
                         expect(page.get_by_label('Первый магазин · OZON', exact=True)).not_to_be_checked()
                         expect(page.get_by_role('textbox', name='Вопрос', exact=True)).to_have_value(re.compile('Начисления'))
+                        # Repeat the actual UI flow with explicit dates and a different platform.
+                        page.goto(origin+'/app/catalog', wait_until='networkidle')
+                        expect(page.get_by_text('Площадка: OZON.', exact=True)).to_be_visible()
+                        page.get_by_label('Период', exact=True).select_option('custom')
+                        page.get_by_label('Дата начала', exact=True).fill('2026-11-10')
+                        page.get_by_label('Дата окончания', exact=True).fill('2026-11-01')
+                        expect(page.get_by_role('group', name='Период примера', exact=True).get_by_role('alert')).to_contain_text('Дата начала')
+                        dated = page.get_by_role('heading', name='Начисления по дате начисления', exact=True).locator('..')
+                        expect(dated.get_by_role('link', name='Подготовить вопрос в форме')).to_have_count(0)
+                        snapshot = page.get_by_role('heading', name='Текущие остатки', exact=True).locator('..')
+                        coefficient = page.get_by_role('heading', name='Коэффициент потерь', exact=True).locator('..')
+                        expect(snapshot.get_by_text('Пример: Покажи Текущие остатки сейчас', exact=True)).to_be_visible()
+                        expect(coefficient.get_by_text('Пример: Покажи Коэффициент потерь', exact=True)).to_be_visible()
+                        page.get_by_label('Дата начала', exact=True).fill('2026-11-01')
+                        page.get_by_label('Дата окончания', exact=True).fill('2026-11-10')
+                        expect(page.get_by_role('group', name='Период примера', exact=True).get_by_role('alert')).to_have_count(0)
+                        expected = 'Покажи Начисления по дате начисления с 01.11.2026 по 10.11.2026'
+                        expect(dated.get_by_text('Пример: '+expected, exact=True)).to_be_visible()
+                        page.get_by_label('Период', exact=True).select_option('last7')
+                        expect(page.get_by_label('Дата начала', exact=True)).to_have_count(0)
+                        expect(dated.get_by_text(re.compile(r'Пример: Покажи Начисления по дате начисления с \d{2}\.\d{2}\.\d{4} по'))).to_be_visible()
+                        page.get_by_label('Период', exact=True).select_option('custom')
+                        expect(page.get_by_label('Дата начала', exact=True)).to_have_value('2026-11-01')
+                        expect(page.get_by_label('Дата окончания', exact=True)).to_have_value('2026-11-10')
+                        page.get_by_label('Магазин', exact=True).select_option(IDS[1])
+                        expect(page.get_by_text('Площадка: WB.', exact=True)).to_be_visible()
+                        expect(dated.get_by_text('Пример: '+expected, exact=True)).to_be_visible()
+                        if os.environ.get('CATALOG_SCREENSHOTS'):
+                            output = Path(os.environ['CATALOG_SCREENSHOTS']); output.mkdir(parents=True, exist_ok=True)
+                            page.screenshot(path=str(output/'catalog-period-fixture.png'), full_page=True)
+                        dated.get_by_role('link', name='Подготовить вопрос в форме').click()
+                        expect(page.get_by_label('Второй магазин · WB', exact=True)).to_be_checked()
+                        expect(page.get_by_role('textbox', name='Вопрос', exact=True)).to_have_value(expected)
+                        if os.environ.get('CATALOG_SCREENSHOTS'):
+                            page.screenshot(path=str(output/'catalog-period-prefill-fixture.png'), full_page=True)
                         assert not state['submissions'] and not state['external'], state
                         print(json.dumps({'status':'PASS', 'checks': ['rendered_catalog', 'date_axis',
                             'selected_store_preserved', 'repeated_cursor_recovery', 'search', 'repeat_search',
-                            'draft_store_and_text', 'zero_submissions', 'zero_external_browser_requests']}))
+                            'draft_store_and_text', 'invalid_period_blocks_draft', 'custom_period_visible',
+                            'seven_complete_days', 'custom_dates_preserved', 'snapshot_ignores_report_dates',
+                            'parameter_keeps_own_period', 'platform_switch', 'explicit_period_prefill',
+                            'zero_submissions', 'zero_external_browser_requests']}))
                     finally: browser.close()
             finally:
                 try: os.killpg(process.pid, signal.SIGTERM)

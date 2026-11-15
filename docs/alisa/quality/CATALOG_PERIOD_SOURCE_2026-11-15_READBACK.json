@@ -1,0 +1,69 @@
+{
+  "status": "SOURCE_BUILD_AND_ISOLATED_BROWSER_PASS_NOT_INDEPENDENTLY_REVIEWED_NOT_INSTALLED",
+  "recorded_at": "2026-11-15T15:17:12.336971+00:00",
+  "base_commit": "f5e15425b5cb4c30bb3690b44e8d797b0f104bd2",
+  "source_branch": "fix/alisa-catalog-period-20261115",
+  "source_sha256": {
+    "products/alisa/apps/web/src/app/app/catalog/catalog.tsx": "15979ac54448a4063f2f3fbab961d79e85ce2c1271fd8db58b6485def70f94d3",
+    "products/alisa/apps/web/src/app/app/catalog/page.tsx": "255d48465c14944b0cb03ca653b0925ccac322bd0e33dde914a5299db897a8ff",
+    "products/alisa/tests/question_catalog/qualify_browser.py": "16afecdca6996b69da46ae995a3e90385f4b6c26a2d24b814615cbb509af33a7",
+    "products/alisa/tests/question_catalog/test_draft.mjs": "5059fa9a5f48e285157a4fe10bafb6fca3096920f9a68723fbe29d8149dfd912",
+    "products/alisa/apps/web/src/app/app/catalog/catalog-question.ts": "791b07cbc7b464274c20caf397ccf740648f58112b45779784b9ee56b8405938",
+    "products/alisa/tests/question_catalog/test_period.mjs": "a54530a6a90555813dcc5e3af65950c2dd06eee8b57a48a976870b1ad0aff6a9"
+  },
+  "period_unit_tests_passed": 15,
+  "existing_store_draft_assertions_passed": 6,
+  "initial_node_test_run_reported_cases": 16,
+  "existing_ci_entrypoint_includes_new_period_tests": true,
+  "shared_ci_workflow_changed": false,
+  "browser": {
+    "status": "PASS",
+    "checks": [
+      "rendered_catalog",
+      "date_axis",
+      "selected_store_preserved",
+      "repeated_cursor_recovery",
+      "search",
+      "repeat_search",
+      "draft_store_and_text",
+      "invalid_period_blocks_draft",
+      "custom_period_visible",
+      "seven_complete_days",
+      "custom_dates_preserved",
+      "snapshot_ignores_report_dates",
+      "parameter_keeps_own_period",
+      "platform_switch",
+      "explicit_period_prefill",
+      "zero_submissions",
+      "zero_external_browser_requests"
+    ]
+  },
+  "browser_uses_actual_next": true,
+  "browser_uses_only_loopback_synthetic_auth_stores_and_no_providers": true,
+  "browser_first_failure": {
+    "status": "FAILED",
+    "exit_code": 1,
+    "reason": "Test locator collided with Next.js route announcer alert; correct reverse-date error was visible",
+    "product_fix_for_failure": false,
+    "log": "BROWSER_PRIVATE.log"
+  },
+  "production_build_exit_code": 0,
+  "build_first_failure": {
+    "status": "FAILED",
+    "reason": "Owned dev and production generated Next route types collided after running dev before build in the same disposable .next directory",
+    "log": "BUILD_PRIVATE.log",
+    "product_changes_to_fix_environment": false
+  },
+  "first_failures_retained": true,
+  "production_services_changed": false,
+  "working_config_or_database_changed": false,
+  "owner_session_used_for_fixture": false,
+  "independent_review_received": false,
+  "installed_acceptance_received": false,
+  "roadmap_case": "AL-T09-01",
+  "installed_verdict_still": "PARTIAL",
+  "open_partial_or_source_only_cases": 64,
+  "foreign_workflow_wip_preserved": true,
+  "evidence_directory": "/root/alisa-catalog-period-20261115",
+  "next_step": "Independent code review and exact commit CI, then compatible web-only package/rollback validation and installed Cloud Browser acceptance; preserve backend/identity/native/R5 and sessions."
+}
