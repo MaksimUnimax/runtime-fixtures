@@ -12,7 +12,7 @@ const compiler=join(dirname(require.resolve('typescript/package.json')),'bin','t
 const source=fileURLToPath(new URL('../../apps/web/src/app/app/catalog/catalog-question.ts',import.meta.url));
 execFileSync(compiler,[source,'--module','commonjs','--target','ES2022','--skipLibCheck','--outDir',folder],
   {cwd:folder,env:{...process.env,PATH:dirname(process.execPath)+':'+process.env.PATH},timeout:30000});
-const {moscowCalendarDate,catalogQuestion,catalogPeriodError}=require(join(folder,'catalog-question.js'));
+const {moscowCalendarDate,catalogCalendarDate,catalogQuestion,catalogPeriodError}=require(join(folder,'catalog-question.js'));
 after(()=>rmSync(folder,{recursive:true,force:true}));
 const today='2026-11-15',dates={from:'2026-11-01',to:'2026-11-10'};
 const item={description:'Продажи до удержаний. Описание опубликованного показателя.',kind:'scalar',
@@ -58,4 +58,22 @@ test('maximum question size preserves the chosen dates',()=>{
 test('calendar date uses Moscow midnight rather than host timezone',()=>{
   assert.equal(moscowCalendarDate(new Date('2026-11-14T20:59:59Z')),'2026-11-14');
   assert.equal(moscowCalendarDate(new Date('2026-11-14T21:00:00Z')),'2026-11-15');
+});
+
+test('an open tab advances past Moscow midnight from the server time anchor',()=>{
+  const serverTime=Date.parse('2026-11-14T20:59:50Z');
+  assert.equal(catalogCalendarDate(serverTime,0),'2026-11-14');
+  assert.equal(catalogCalendarDate(serverTime,20000),'2026-11-15');
+  assert.equal(catalogCalendarDate(serverTime,86400000),'2026-11-15');
+  assert.match(catalogQuestion(item,'last7',dates,catalogCalendarDate(serverTime,20000)),/08\.11\.2026 по 14\.11\.2026$/);
+});
+
+test('device sleep advances the date even when performance time pauses',()=>{
+  const serverTime=Date.parse('2026-11-14T20:59:50Z');
+  assert.equal(catalogCalendarDate(serverTime,5000,86400000),'2026-11-15');
+  assert.match(catalogQuestion(item,'last7',dates,catalogCalendarDate(serverTime,5000,86400000)),/08\.11\.2026 по 14\.11\.2026$/);
+});
+test('a backwards wall-clock adjustment cannot freeze normal elapsed time',()=>{
+  const serverTime=Date.parse('2026-11-14T20:59:50Z');
+  assert.equal(catalogCalendarDate(serverTime,86400000,-86400000),'2026-11-15');
 });

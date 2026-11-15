@@ -1,17 +1,17 @@
 {
-  "status": "SOURCE_BUILD_AND_ISOLATED_BROWSER_PASS_NOT_INDEPENDENTLY_REVIEWED_NOT_INSTALLED",
-  "recorded_at": "2026-11-15T15:17:12.336971+00:00",
+  "status": "SOURCE_REVIEWED_BUILD_BROWSER_PASS_NEW_EXACT_CI_PENDING_NOT_INSTALLED",
+  "recorded_at": "2026-11-15T16:05:22.205533+00:00",
   "base_commit": "f5e15425b5cb4c30bb3690b44e8d797b0f104bd2",
   "source_branch": "fix/alisa-catalog-period-20261115",
   "source_sha256": {
-    "products/alisa/apps/web/src/app/app/catalog/catalog.tsx": "15979ac54448a4063f2f3fbab961d79e85ce2c1271fd8db58b6485def70f94d3",
-    "products/alisa/apps/web/src/app/app/catalog/page.tsx": "255d48465c14944b0cb03ca653b0925ccac322bd0e33dde914a5299db897a8ff",
-    "products/alisa/tests/question_catalog/qualify_browser.py": "16afecdca6996b69da46ae995a3e90385f4b6c26a2d24b814615cbb509af33a7",
+    "products/alisa/apps/web/src/app/app/catalog/catalog.tsx": "700de22082ee8a47741e3ddd74bf583f9a42efa42f1a6027394d1aa7b635af33",
+    "products/alisa/apps/web/src/app/app/catalog/page.tsx": "0a5e643b8f0b2abc525e82abed8e9feb2c25b29f08130be39b8946ac8c6efb02",
+    "products/alisa/tests/question_catalog/qualify_browser.py": "65de52457ad227f94fb8c24bc63912565cdd494445dc86cea0ff98455c881b5c",
     "products/alisa/tests/question_catalog/test_draft.mjs": "5059fa9a5f48e285157a4fe10bafb6fca3096920f9a68723fbe29d8149dfd912",
-    "products/alisa/apps/web/src/app/app/catalog/catalog-question.ts": "791b07cbc7b464274c20caf397ccf740648f58112b45779784b9ee56b8405938",
-    "products/alisa/tests/question_catalog/test_period.mjs": "a54530a6a90555813dcc5e3af65950c2dd06eee8b57a48a976870b1ad0aff6a9"
+    "products/alisa/apps/web/src/app/app/catalog/catalog-question.ts": "ed5b41e55c0eaa8a0a1c8e6c11ff2450ef78ae9ac635a9d3e562a08d40dc2596",
+    "products/alisa/tests/question_catalog/test_period.mjs": "869749c92bc08b321f6bd63e9b62b860fab53f8dc52c68bd482da14504ad8624"
   },
-  "period_unit_tests_passed": 15,
+  "period_unit_tests_passed": 18,
   "existing_store_draft_assertions_passed": 6,
   "initial_node_test_run_reported_cases": 16,
   "existing_ci_entrypoint_includes_new_period_tests": true,
@@ -29,6 +29,10 @@
       "invalid_period_blocks_draft",
       "custom_period_visible",
       "seven_complete_days",
+      "open_tab_midnight_rollover",
+      "date_input_max_rollover",
+      "device_sleep_wake",
+      "click_refreshes_stale_period",
       "custom_dates_preserved",
       "snapshot_ignores_report_dates",
       "parameter_keeps_own_period",
@@ -58,12 +62,33 @@
   "production_services_changed": false,
   "working_config_or_database_changed": false,
   "owner_session_used_for_fixture": false,
-  "independent_review_received": false,
+  "independent_review_received": true,
   "installed_acceptance_received": false,
   "roadmap_case": "AL-T09-01",
   "installed_verdict_still": "PARTIAL",
   "open_partial_or_source_only_cases": 64,
   "foreign_workflow_wip_preserved": true,
   "evidence_directory": "/root/alisa-catalog-period-20261115",
-  "next_step": "Independent code review and exact commit CI, then compatible web-only package/rollback validation and installed Cloud Browser acceptance; preserve backend/identity/native/R5 and sessions."
+  "next_step": "Finish new exact commit CI; download its qualified package through authenticated GitHub without Base64, prepare/review/test a NEW compatible web-only installer and rollback, then installed Cloud Browser acceptance.",
+  "previous_source_commit": "04c2ecb4b09144f5dc59b083bd93d468e13537c2",
+  "independent_review": {
+    "model": "gpt-6-luna",
+    "mode": "existing CLI/read-only/existing authorization/no fallback",
+    "first_verdict": "No blockers; P2 open-tab midnight date stale",
+    "second_verdict": "Running-tab fix accepted; residual P2 device sleep/performance clock",
+    "final_verdict": "Residual P2 fixed; no blocker or material regression",
+    "final_result_sha256": "9fb15f8e5bdaf4c14f50644f5f3691db6fcb209a2c2591e088ab839bb51e37b8",
+    "review_result": "CATALOG_PERIOD_SOURCE_2026-11-15_REVIEW.md",
+    "scope": "Source code review and inspected author receipts; not installed/owner acceptance"
+  },
+  "new_exact_commit_ci_pending": true,
+  "previous_exact_ci": {
+    "source_run": 43729279595,
+    "documentation_run": 43729279508,
+    "source_commit": "04c2ecb4b09144f5dc59b083bd93d468e13537c2",
+    "conclusion": "success",
+    "not_qualification_of_new_delta": true
+  },
+  "clock_basis": "Server epoch plus max of elapsed monotonic and elapsed wall clocks, each anchored at hydration; refresh on minute/focus/visibility/period choice/date focus/click",
+  "known_limit": "A deliberate forward change of the device wall clock can advance the displayed date; the UI clock is not an authority or access source."
 }

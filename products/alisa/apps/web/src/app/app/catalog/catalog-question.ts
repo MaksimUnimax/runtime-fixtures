@@ -7,6 +7,11 @@ export function moscowCalendarDate(now:Date=new Date()):string{
   const part=(name:string)=>parts.find(value=>value.type===name)?.value||'';
   return part('year')+'-'+part('month')+'-'+part('day');
 }
+export function catalogCalendarDate(serverTime:number,elapsedMilliseconds:number,wallElapsedMilliseconds:number=0):string{
+  // Wall elapsed covers device sleep; monotonic elapsed covers a clock set backwards.
+  // Both clocks are offsets from hydration, so the initial device date is not trusted.
+  return moscowCalendarDate(new Date(serverTime+Math.max(0,elapsedMilliseconds,wallElapsedMilliseconds)));
+}
 function validDate(value:string):boolean{
   if(!/^[1-9]\d{3}-\d{2}-\d{2}$/.test(value))return false;
   const time=Date.parse(value+'T00:00:00Z');

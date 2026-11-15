@@ -14,5 +14,6 @@ export default async function Page(){
   let profile,stores;
   try{profile=await getProfile(token);if(profile)stores=await getStores(token);}catch{return <main className="site"><h1>Каталог временно недоступен</h1><a href="/app">В кабинет</a></main>;}
   if(!profile)redirect('/login');
-  return <main className="site"><article className="article"><a href="/app">Мой кабинет</a><h1>Поддерживаемые вопросы</h1><p>Выберите магазин, найдите показатель и проверьте его смысл. Просмотр каталога не запускает расчёт.</p><Catalog initialStores={queryStores(stores?.items||[])} nextCursor={stores?.next_cursor||null} today={moscowCalendarDate()}/></article></main>;
+  const serverTime=Date.now();
+  return <main className="site"><article className="article"><a href="/app">Мой кабинет</a><h1>Поддерживаемые вопросы</h1><p>Выберите магазин, найдите показатель и проверьте его смысл. Просмотр каталога не запускает расчёт.</p><Catalog initialStores={queryStores(stores?.items||[])} nextCursor={stores?.next_cursor||null} today={moscowCalendarDate(new Date(serverTime))} serverTime={serverTime}/></article></main>;
 }

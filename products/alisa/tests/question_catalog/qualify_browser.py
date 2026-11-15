@@ -2,6 +2,7 @@
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import json, os, re, signal, socket, subprocess, tempfile, threading, time, urllib.request
+from datetime import datetime, timedelta, timezone
 from playwright.sync_api import sync_playwright, expect
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -98,7 +99,7 @@ def run():
                             if route.request.url.startswith(origin+'/'): route.continue_()
                             else: state['external'].append('blocked'); route.abort()
                         context.route('**/*', confined)
-                        page = context.new_page(); page.goto(origin+'/app/catalog', wait_until='networkidle')
+                        page = context.new_page(); page.clock.install(); page.goto(origin+'/app/catalog', wait_until='networkidle')
                         expect(page.get_by_role('heading', name='Поддерживаемые вопросы', exact=True)).to_be_visible()
                         expect(page.get_by_text('Дата финансового начисления', exact=False)).to_be_visible()
                         page.get_by_label('Магазин', exact=True).select_option(IDS[1])
@@ -135,10 +136,25 @@ def run():
                         expect(page.get_by_role('group', name='Период примера', exact=True).get_by_role('alert')).to_have_count(0)
                         expected = 'Покажи Начисления по дате начисления с 01.11.2026 по 10.11.2026'
                         expect(dated.get_by_text('Пример: '+expected, exact=True)).to_be_visible()
+                        before_day = page.get_by_label('Дата окончания', exact=True).get_attribute('max')
                         page.get_by_label('Период', exact=True).select_option('last7')
                         expect(page.get_by_label('Дата начала', exact=True)).to_have_count(0)
                         expect(dated.get_by_text(re.compile(r'Пример: Покажи Начисления по дате начисления с \d{2}\.\d{2}\.\d{4} по'))).to_be_visible()
+                        before_text = dated.get_by_text(re.compile(r'Пример: Покажи Начисления по дате начисления с')).inner_text()
+                        page.clock.fast_forward(24*60*60*1000)
+                        expected_range = re.search(r'с (\d{2}\.\d{2}\.\d{4}) по (\d{2}\.\d{2}\.\d{4})', before_text)
+                        assert expected_range
+                        advanced = [(datetime.strptime(v, '%d.%m.%Y')+timedelta(days=1)).strftime('%d.%m.%Y') for v in expected_range.groups()]
+                        expect(dated.get_by_text('Пример: Покажи Начисления по дате начисления с '+advanced[0]+' по '+advanced[1], exact=True)).to_be_visible()
                         page.get_by_label('Период', exact=True).select_option('custom')
+                        expected_max = (datetime.strptime(before_day, '%Y-%m-%d')+timedelta(days=1)).strftime('%Y-%m-%d')
+                        expect(page.get_by_label('Дата окончания', exact=True)).to_have_attribute('max', expected_max)
+                        # set_system_time moves wall time without advancing performance/timers: device-sleep case.
+                        wall_ms = page.evaluate('Date.now()')
+                        page.clock.set_system_time(datetime.fromtimestamp(wall_ms/1000, timezone.utc)+timedelta(days=1))
+                        page.evaluate("window.dispatchEvent(new Event('focus'))")
+                        after_sleep_max = (datetime.strptime(expected_max, '%Y-%m-%d')+timedelta(days=1)).strftime('%Y-%m-%d')
+                        expect(page.get_by_label('Дата окончания', exact=True)).to_have_attribute('max', after_sleep_max)
                         expect(page.get_by_label('Дата начала', exact=True)).to_have_value('2026-11-01')
                         expect(page.get_by_label('Дата окончания', exact=True)).to_have_value('2026-11-10')
                         page.get_by_label('Магазин', exact=True).select_option(IDS[1])
@@ -152,11 +168,24 @@ def run():
                         expect(page.get_by_role('textbox', name='Вопрос', exact=True)).to_have_value(expected)
                         if os.environ.get('CATALOG_SCREENSHOTS'):
                             page.screenshot(path=str(output/'catalog-period-prefill-fixture.png'), full_page=True)
+                        # A click must also refresh a stale link before the next minute/focus event.
+                        page.goto(origin+'/app/catalog', wait_until='networkidle')
+                        page.get_by_label('Магазин', exact=True).select_option(IDS[1])
+                        page.get_by_label('Период', exact=True).select_option('last7')
+                        dated = page.get_by_role('heading', name='Начисления по дате начисления', exact=True).locator('..')
+                        click_before = dated.get_by_text(re.compile(r'Пример: Покажи Начисления по дате начисления с')).inner_text()
+                        values = re.search(r'с (\d{2}\.\d{2}\.\d{4}) по (\d{2}\.\d{2}\.\d{4})', click_before).groups()
+                        click_dates = [(datetime.strptime(v, '%d.%m.%Y')+timedelta(days=1)).strftime('%d.%m.%Y') for v in values]
+                        wall_ms = page.evaluate('Date.now()')
+                        page.clock.set_system_time(datetime.fromtimestamp(wall_ms/1000, timezone.utc)+timedelta(days=1))
+                        dated.get_by_role('link', name='Подготовить вопрос в форме').click()
+                        expect(page.get_by_role('textbox', name='Вопрос', exact=True)).to_have_value('Покажи Начисления по дате начисления с '+click_dates[0]+' по '+click_dates[1])
+                        expect(page.get_by_label('Второй магазин · WB', exact=True)).to_be_checked()
                         assert not state['submissions'] and not state['external'], state
                         print(json.dumps({'status':'PASS', 'checks': ['rendered_catalog', 'date_axis',
                             'selected_store_preserved', 'repeated_cursor_recovery', 'search', 'repeat_search',
                             'draft_store_and_text', 'invalid_period_blocks_draft', 'custom_period_visible',
-                            'seven_complete_days', 'custom_dates_preserved', 'snapshot_ignores_report_dates',
+                            'seven_complete_days', 'open_tab_midnight_rollover', 'date_input_max_rollover', 'device_sleep_wake', 'click_refreshes_stale_period', 'custom_dates_preserved', 'snapshot_ignores_report_dates',
                             'parameter_keeps_own_period', 'platform_switch', 'explicit_period_prefill',
                             'zero_submissions', 'zero_external_browser_requests']}))
                     finally: browser.close()
