@@ -48,7 +48,18 @@ class ClosingGateway(Gateway):
 
 class Environment(Fixture):
     def setup(self):
-        self.folder=tempfile.TemporaryDirectory(prefix='parameter-lk-',dir='/root');self.root=Path(self.folder.name)
+        base=Path(os.environ.get('PARAMETER_COLLECTION_FIXTURE_ROOT','/root'))
+        info=base.lstat()
+        if not(base.is_absolute()and base.resolve()==base and base.is_dir()
+               and not base.is_symlink()and info.st_uid==0 and not info.st_mode&0o077):
+            raise RuntimeError('Private root-owned fixture path required')
+        if base!=Path('/root'):
+            mounts=Path('/proc/self/mountinfo').read_text().splitlines()
+            tmpfs=any(line.split()[4]==str(base)and line.split(' - ',1)[1].split()[0]=='tmpfs'for line in mounts)
+            if not(base.parent==Path('/root')and base.name.startswith('alisa-parameter-fixture-tmpfs-')
+                   and base.is_mount()and tmpfs):
+                raise RuntimeError('Owned private fixture tmpfs required')
+        self.folder=tempfile.TemporaryDirectory(prefix='parameter-lk-',dir=base);self.root=Path(self.folder.name)
         self.create();now=timezone.now();self.ledger=AccessLedger.objects.create(tenant=self.tenant)
         self.grant=AccessGrant.objects.create(tenant=self.tenant,source='GIFT',source_id=uuid.uuid4(),days=7,starts_at=now-timedelta(hours=1),ends_at=now+timedelta(days=6),actor_id=uuid.uuid4(),reason='SYNTHETIC_PARAMETER_TEST')
         secret=VaultSecret.objects.create(tenant=self.tenant,store=self.store,kind='SELLER',revision=1,key_version='fixture',ciphertext='SYNTHETIC-NOT-DECRYPTED')

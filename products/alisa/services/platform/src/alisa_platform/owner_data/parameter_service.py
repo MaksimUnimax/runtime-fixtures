@@ -13,8 +13,9 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.crypto import salted_hmac
 from .models import CurrentParameter,OwnerCommand,PRODUCT
+from . import parameter_periods
 from .service import actor_store,identifier,Rejected,need
-from .parameter_contract import (CATALOG,CATALOG_HASH,CANON,ParameterError,definition,scope,resolve_period,
+from .parameter_contract import (CATALOG,CATALOG_HASH,CANON,ParameterError,definition,scope,
                                 validate_value,validate_calculation)
 SKU_SALT='alisa.current-parameter.sku.v1'
 
@@ -159,11 +160,10 @@ def execute(token,command):
                     'receipt':deepcopy(old.result)if old else None,
                     'superseded':bool(old and old.result['revision']!=current['revision'])}
         if action=='prepare_calculation':
-            from zoneinfo import ZoneInfo
             need(command['mode']in('preview','replace'),'PARAMETER_ACTION',422)
-            period=resolve_period(timezone.now().astimezone(ZoneInfo('Europe/Moscow')).date(),command['period'])
+            period,reference=parameter_periods.prepare(actor,store,key,area,command['period'],command['mode'])
             return {**_read(actor,store,key,area),'prepared':True,'dispatched':False,
-                'period':period,'mode':command['mode'],'producer_template':rule['producer_template'],
+                'period':period,'period_reference':reference,'mode':command['mode'],'producer_template':rule['producer_template'],
                 'collection':{'available':False,'code':'PARAMETER_SOURCE_NOT_QUALIFIED'}}
         need(command['confirmed']is True,'OWNER_CONFIRMATION_REQUIRED',422)
         if action=='set_manual':

@@ -42,6 +42,94 @@ class Collection(TransactionTestCase):
         try:r=c.check(self.e.token,self.e.check_command(self.cmd))
         finally:sys.settrace(None)
         self.assertEqual(r['collection']['write_outcome'],'COMMITTED');self.assertEqual(r['current']['effective']['value'],'0.5')
+    def preparation(self,cmd):
+        q={k:cmd[k]for k in('store_id','parameter','scope','sku_reference','period','mode')}
+        return v.execute(self.e.token,{'action':'prepare_calculation',**q})
+
+    def test_prepared_period_uses_real_queue_worker_and_authority(self):
+        from alisa_platform.owner_data import parameter_periods
+        cmd=self.e.start_command(mode='preview');prepared=self.preparation(cmd);cmd['period_reference']=prepared['period_reference']
+        with patch.object(parameter_periods,'resolve',side_effect=AssertionError('PERIOD_RECOMPUTED')):self.start(cmd)
+        self.assertEqual(Query.objects.get().continuation[c.KEY]['period'],prepared['period'])
+        self.finish();self.assertFalse(CurrentParameter.objects.exists())
+
+    def test_prepared_short_period_reaches_native_without_explicit_reclassification(self):
+        from alisa_platform.owner_data import parameter_periods
+        from alisa_platform.owner_data.parameter_contract import resolve_period
+        from datetime import date
+        cmd=self.e.start_command(mode='preview');cmd['period']=None
+        period=resolve_period(date(2026,11,16),available_from=date(2026,10,1),short_history_confirmed=True)
+        # Synthetic trusted internal resolution; this does not prove discovery.
+        with patch.object(parameter_periods,'resolve',return_value=period):prepared=self.preparation(cmd)
+        cmd['period_reference']=prepared['period_reference'];self.start(cmd)
+        self.assertEqual(Query.objects.get().continuation[c.KEY]['period'],period)
+        self.finish();self.assertFalse(CurrentParameter.objects.exists())
+
+    def test_changed_credential_rejects_preparation_before_query_or_dispatch(self):
+        cmd=self.e.start_command(mode='preview');cmd['period_reference']=self.preparation(cmd)['period_reference']
+        self.e.credential.check_code='CHECK_FAILED';self.e.credential.save()
+        with self.assertRaises(Rejected):self.start(cmd)
+        self.assertFalse(Query.objects.exists());self.assertIsNone(self.e.row());self.assertEqual(len(self.e.transport.calls),0)
+
+    def test_same_accepted_reference_replays_after_reference_expiry_without_new_job(self):
+        from alisa_platform.owner_data import parameter_periods
+        cmd=self.e.start_command(mode='preview');cmd['period_reference']=self.preparation(cmd)['period_reference'];self.start(cmd)
+        with patch.object(parameter_periods,'MAX_AGE',-1):again=c.start(self.e.token,cmd)
+        self.assertTrue(again['replayed']);self.assertEqual(Query.objects.count(),1)
+        with self.e.repo.connection()as db:self.assertEqual(db.execute('SELECT COUNT(*)FROM jobs').fetchone()[0],1)
+
+    def test_bad_signed_string_rejected_before_runtime_readiness(self):
+        cmd=self.e.start_command(mode='preview');cmd['period_reference']='not-a-signed-preparation'
+        with patch.object(c,'readiness',side_effect=AssertionError('UNEXPECTED_RUNTIME_CALL')):
+            with self.assertRaises(Rejected)as error:self.start(cmd)
+        self.assertEqual(error.exception.code,'PARAMETER_PREPARATION_CHANGED')
+        self.assertFalse(Query.objects.exists());self.assertIsNone(self.e.row())
+
+    def test_expired_reference_rejected_before_runtime_readiness(self):
+        from alisa_platform.owner_data import parameter_periods
+        cmd=self.e.start_command(mode='preview');cmd['period_reference']=self.preparation(cmd)['period_reference']
+        with patch.object(parameter_periods,'MAX_AGE',-1),patch.object(c,'readiness',side_effect=AssertionError('UNEXPECTED_RUNTIME_CALL')):
+            with self.assertRaises(Rejected)as error:self.start(cmd)
+        self.assertEqual(error.exception.code,'PARAMETER_PREPARATION_EXPIRED')
+        self.assertFalse(Query.objects.exists());self.assertIsNone(self.e.row())
+
+    def test_reference_expiring_during_readiness_never_creates_query(self):
+        from alisa_platform.owner_data import parameter_periods
+        cmd=self.e.start_command(mode='preview');cmd['period_reference']=self.preparation(cmd)['period_reference']
+        original=c.readiness
+        def slow(*a):
+            result=original(*a);parameter_periods.MAX_AGE=-1;return result
+        with patch.object(parameter_periods,'MAX_AGE',180),patch.object(c,'readiness',slow):
+            with self.assertRaises(Rejected)as error:self.start(cmd)
+        self.assertEqual(error.exception.code,'PARAMETER_PREPARATION_EXPIRED')
+        self.assertFalse(Query.objects.exists());self.assertIsNone(self.e.row())
+
+    def test_legacy_start_resolves_period_once_even_across_readiness(self):
+        from alisa_platform.owner_data import parameter_periods
+        original=parameter_periods.resolve;calls=[]
+        def once(request):
+            calls.append(request);self.assertEqual(len(calls),1);return original(request)
+        with patch.object(parameter_periods,'resolve',once):self.start(self.e.start_command(mode='preview'))
+        self.assertEqual(len(calls),1)
+
+    def test_refreshable_reference_is_not_a_new_semantic_command(self):
+        from alisa_platform.owner_data import parameter_periods
+        cmd=self.e.start_command(mode='preview');cmd['period_reference']=self.preparation(cmd)['period_reference'];self.start(cmd)
+        payload=parameter_periods.signing.loads(cmd['period_reference'],salt=parameter_periods.SALT,max_age=180)
+        new_reference=parameter_periods.signing.dumps(payload,salt=parameter_periods.SALT,compress=False)
+        self.assertNotEqual(new_reference,cmd['period_reference'])
+        again=c.start(self.e.token,{**cmd,'period_reference':new_reference})
+        self.assertTrue(again['replayed']);self.assertEqual(Query.objects.count(),1)
+        with self.e.repo.connection()as db:self.assertEqual(db.execute('SELECT COUNT(*)FROM jobs').fetchone()[0],1)
+        raw=json.dumps(Query.objects.get().continuation)
+        self.assertNotIn(cmd['period_reference'],raw);self.assertNotIn(new_reference,raw)
+
+    def test_malformed_preparation_never_checks_readiness_or_creates_query(self):
+        cmd=self.e.start_command(mode='preview');cmd['period_reference']={'actual':cmd['period']}
+        with patch.object(c,'readiness',side_effect=AssertionError('UNEXPECTED_RUNTIME_CALL')):
+            with self.assertRaises(Rejected):self.start(cmd)
+        self.assertFalse(Query.objects.exists())
+
     def test_preview_uses_same_worker_without_write(self):
         self.start(self.e.start_command(mode='preview'));self.finish();self.assertEqual(CurrentParameter.objects.count(),0);self.assertEqual(OwnerCommand.objects.count(),0)
     def test_same_start_creates_one_query_and_job(self):

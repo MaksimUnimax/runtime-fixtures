@@ -12,6 +12,7 @@ import json
 import time
 import os
 import stat
+import re
 from playwright.sync_api import sync_playwright, expect
 
 SID = '11111111-1111-4111-8111-111111111111'
@@ -24,7 +25,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--bundle', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--case', choices=['period', 'preview', 'replace', 'all'], default='all')
+    parser.add_argument('--case', choices=['period', 'preview', 'replace', 'prepare_change', 'read_change', 'all'], default='all')
     parser.add_argument('--browser', type=Path)
     args = parser.parse_args()
     work = args.bundle.parent
@@ -42,7 +43,7 @@ def main():
     if not (args.output.is_absolute() and args.output.parent == work and args.output.suffix == '.json'
             and not args.output.exists() and not args.output.is_symlink()):
         raise RuntimeError('DISPOSABLE_OUTPUT_REQUIRED')
-    state = {'short': True, 'commands': [], 'held': Event(), 'release': Event(), 'hold_start': False}
+    state = {'short': True, 'commands': [], 'held': Event(), 'release': Event(), 'hold_start': False, 'hold_action': None, 'preflight_held': Event(), 'preflight_release': Event()}
     row = {'parameter': 'loss_rate', 'scope': AREA, 'state': 'VALUE', 'revision': 1,
            'value': '0.07', 'unit': 'ratio', 'origin': 'manual', 'collected_at': None,
            'calculated_at': None, 'updated_at': '2026-11-16T00:00:00Z',
@@ -72,6 +73,11 @@ def main():
             cmd = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
             state['commands'].append(deepcopy(cmd))
             action = cmd['action']
+            if state['hold_action'] == action:
+                state['hold_action'] = None
+                state['preflight_held'].set()
+                if not state['preflight_release'].wait(10):
+                    self.send_error(504); return
             if action == 'catalog':
                 result = {'definitions': [{'key': 'loss_rate', 'label': 'Коэффициент потерь',
                     'unit': 'ratio', 'minimum': '0', 'maximum': '1', 'scopes': ['store'],
@@ -80,8 +86,10 @@ def main():
             elif action == 'prepare_calculation':
                 result = {**current(), 'prepared': True, 'dispatched': False,
                     'period': {'requested': REQUESTED, 'actual': ACTUAL if state['short'] else REQUESTED},
+                    'period_reference': 'fixture-period-short' if state['short'] else 'fixture-period-full',
                     'collection': {'available': True, 'code': 'READY'}}
             elif action == 'start_calculation':
+                assert cmd.get('period_reference') == ('fixture-period-short' if state['short'] else 'fixture-period-full')
                 state['held'].set()
                 if state['hold_start'] and not state['release'].wait(10):
                     self.send_error(504); return
@@ -100,9 +108,10 @@ def main():
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True, executable_path=str(args.browser) if args.browser else None, args=['--no-sandbox'])
             try:
-                cases = ['period', 'preview', 'replace'] if args.case == 'all' else [args.case]
+                cases = ['period', 'preview', 'replace', 'prepare_change', 'read_change'] if args.case == 'all' else [args.case]
                 for case in cases:
                     state['commands'].clear(); state['held'].clear(); state['release'].clear()
+                    state['preflight_held'].clear(); state['preflight_release'].clear(); state['hold_action'] = None
                     state['hold_start'] = case == 'replace'
                     context = browser.new_context()
                     def route(request):
@@ -125,6 +134,25 @@ def main():
                         expect(page.get_by_role('status')).to_contain_text('Период: 2025-11-16 — 2026-11-15')
                         expect(page.get_by_role('status')).not_to_contain_text('Запрошенный период:')
                         checks.append('complete_year_has_no_false_shortening')
+                    elif case in ('prepare_change', 'read_change'):
+                        page.get_by_label('Режим расчёта', exact=True).select_option('preview')
+                        state['hold_action'] = 'prepare_calculation' if case == 'prepare_change' else 'read'
+                        with page.expect_request(lambda req: req.method == 'POST' and req.url == origin + '/api/account/parameters' and req.post_data_json.get('action') == ('prepare_calculation' if case == 'prepare_change' else 'read')):
+                            page.get_by_role('button', name='Рассчитать без сохранения', exact=True).click()
+                        deadline = time.monotonic() + 5
+                        while not state['preflight_held'].is_set() and time.monotonic() < deadline:
+                            page.wait_for_timeout(10)
+                        assert state['preflight_held'].is_set() and not state['preflight_release'].is_set()
+                        page.get_by_label('Режим расчёта', exact=True).select_option('replace')
+                        state['preflight_release'].set()
+                        notice = page.get_by_role('status').filter(has_text=re.compile(r'Параметры формы изменились|Расчёт.*принят'))
+                        expect(notice).to_have_count(1)
+                        starts = [c for c in state['commands'] if c['action'] == 'start_calculation']
+                        assert not starts, {'unexpected_start_count': len(starts), 'case': case}
+                        expect(notice).to_have_text('Параметры формы изменились. Расчёт не запускался.')
+                        assert page.evaluate("Object.keys(localStorage).filter(k=>k.endsWith(':collection')).length") == 0
+                        expect(page.get_by_test_id('current-value')).to_have_text('7 %')
+                        checks.append(case + '_never_admits_or_records_pending')
                     else:
                         mode = 'preview' if case == 'preview' else 'replace'
                         page.get_by_label('Режим расчёта', exact=True).select_option(mode)
@@ -144,14 +172,20 @@ def main():
                         else: button.click()
                         expect(page.get_by_role('button', name='Проверить расчёт', exact=True)).to_be_enabled()
                         if mode == 'preview':
-                            expect(page.get_by_role('status')).to_contain_text('Текущее число не изменится.')
-                            expect(page.get_by_role('status')).not_to_contain_text('будет заменено')
+                            notice=page.get_by_role('status').filter(has_text='Расчёт без сохранения принят.')
+                            expect(notice).to_have_count(1)
+                            expect(notice).to_contain_text('Текущее число не изменится.')
+                            expect(notice).not_to_contain_text('будет заменено')
                             checks.append('preview_admission_does_not_claim_replacement')
                         else:
-                            expect(page.get_by_role('status')).to_contain_text('Текущее число будет заменено только после успешного завершения.')
+                            notice=page.get_by_role('status').filter(has_text='Расчёт принят.')
+                            expect(notice).to_have_count(1)
+                            expect(notice).to_contain_text('Текущее число будет заменено только после успешного завершения.')
                             checks.append('notice_remains_bound_to_admitted_mode_after_ui_switch')
                         starts = [c for c in state['commands'] if c['action'] == 'start_calculation']
                         assert len(starts) == 1 and starts[0]['mode'] == mode
+                        assert starts[0]['period_reference'] == ('fixture-period-short' if state['short'] else 'fixture-period-full')
+                        checks.append(mode + '_prepared_reference_forwarded')
                         assert not any(c['action'] in ['set_manual', 'use_general'] for c in state['commands'])
                         expect(page.get_by_test_id('current-value')).to_have_text('7 %')
                         checks.append(mode + '_one_submission_no_manual_write_or_value_change')
@@ -164,7 +198,7 @@ def main():
             receipt.write(json.dumps(result, indent=2) + '\n')
         print(json.dumps(result))
     finally:
-        state['release'].set(); server.shutdown(); server.server_close(); thread.join(2)
+        state['release'].set(); state['preflight_release'].set(); server.shutdown(); server.server_close(); thread.join(2)
 
 
 if __name__ == '__main__': main()

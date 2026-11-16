@@ -1,7 +1,7 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
 import {type Area,type Current,type Definition,type Product,type Store,type Pending,enteredValue,shownValue,unitLabel,dateText,periodRequest,pendingKey,readPending,errorText,type CollectionPending,readCollection} from './model';
-type Prepared=Current&{period:{requested:{from:string;to:string};actual:{from:string;to:string}};collection:{available:boolean;code:string};dispatched:boolean};
+type Prepared=Current&{preparationKey?:string;period_reference?:string;period:{requested:{from:string;to:string};actual:{from:string;to:string}};collection:{available:boolean;code:string};dispatched:boolean};
 async function api(command:Record<string,unknown>):Promise<Record<string,unknown>>{
  const result=await fetch('/api/account/parameters',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(command),cache:'no-store'});
  const body=await result.json();if(!result.ok)throw Object.assign(new Error(errorText(body.code)),{code:body.code,status:result.status});return body;
@@ -18,6 +18,7 @@ export function ParametersView({stores,initialStore,recoveryScope}:{stores:Store
  const generation=useRef(0);const activeStore=useRef(store);activeStore.current=store;const definition=definitions.find(d=>d.key===parameter);
  const product=products.find(p=>p.sku===sku);const area:Area={kind,sku:kind==='store'?'':sku};
  const key=pendingKey(recoveryScope,store,parameter,area);const activeKey=useRef(key);activeKey.current=key;
+ const preparationKey=JSON.stringify([key,period,from,to,mode]);const activePreparationKey=useRef(preparationKey);activePreparationKey.current=preparationKey;
  const ready=!!store&&!!definition&&(kind==='store'||!!product?.parameter_reference);
  const base=()=>({store_id:store,parameter,scope:area,sku_reference:kind==='sku'?product?.parameter_reference||null:null});
  useEffect(()=>{
@@ -89,21 +90,25 @@ export function ParametersView({stores,initialStore,recoveryScope}:{stores:Store
  }
  async function prepare(){
   if(!ready||busy)return;const own=key;setError('');setPrepared(null);setBusy(true);
-  try{const request=periodRequest(period,from,to);const r=await api({...base(),action:'prepare_calculation',period:request,mode});if(activeKey.current===own)setPrepared(r as Prepared);}
+  try{const request=periodRequest(period,from,to);const r=await api({...base(),action:'prepare_calculation',period:request,mode});if(activeKey.current===own&&activePreparationKey.current===preparationKey)setPrepared({...r,preparationKey}as Prepared);}
   catch(e){if(activeKey.current===own)setError(e instanceof Error?e.message:'Период не проверен.');}finally{if(activeKey.current===own)setBusy(false);}
  }
  async function startCollection(){
   if(!ready||!current||busy||pending||collection||!storageOK)return;
   const own=key;setError('');setMessage('');setCollectionText('');setCollectionState('');setBusy(true);let recorded=false;
+  const unchanged=()=>{if(activeKey.current!==own)return false;if(activePreparationKey.current!==preparationKey){setMessage('Параметры формы изменились. Расчёт не запускался.');return false;}return true;};
   try{
-   const request=periodRequest(period,from,to);const fresh=await api({...base(),action:'read'})as Current;
-   if(activeKey.current!==own)return;
+   const request=periodRequest(period,from,to);
+   const resolution=prepared?.period_reference&&prepared.preparationKey===preparationKey?prepared:await api({...base(),action:'prepare_calculation',period:request,mode})as Prepared;
+   if(!unchanged())return;setPrepared({...resolution,preparationKey});
+   const fresh=await api({...base(),action:'read'})as Current;
+   if(!unchanged())return;
    if(mode==='replace'&&fresh.revision!==current.revision){setCurrent(fresh);throw Error('Число изменилось. Проверьте его перед пересчётом.');}
    const entry:CollectionPending={id:crypto.randomUUID(),store,parameter,scope:area,not_after:fresh.server_time+120};
    try{localStorage.setItem(own+':collection',JSON.stringify(entry));recorded=true;setCollection(entry);}catch{throw Error('Браузер не смог сохранить состояние запуска. Сбор не отправлен.');}
-   const r=await api({...base(),action:'start_calculation',period:request,mode,command_id:entry.id,expected_revision:current.revision,confirmed:true,not_after:entry.not_after});
+   const r=await api({...base(),action:'start_calculation',period:request,...(resolution.period_reference?{period_reference:resolution.period_reference}:{}),mode,command_id:entry.id,expected_revision:current.revision,confirmed:true,not_after:entry.not_after});
    if(activeKey.current===own){setCollectionState(r.dispatched?'QUEUED':'UNKNOWN');setMessage(r.dispatched?(mode==='preview'?'Расчёт без сохранения принят. Текущее число не изменится.':'Расчёт принят. Текущее число будет заменено только после успешного завершения.'):'Приём задания пока не подтверждён. Проверьте тот же запуск.');}
-  }catch(e){if(activeKey.current===own){const f=e as Error&{status?:number};if(recorded&&f.status&&f.status<500){try{localStorage.removeItem(own+':collection');setCollection(null);}catch{setStorageOK(false);}}setError(recorded&&!f.status?'Ответ о запуске не получен. Проверьте прежний запуск — новый сбор автоматически не создаётся.':f.message);}}
+  }catch(e){if(activeKey.current===own){const f=e as Error&{status?:number};if(f.status&&f.status<500)setPrepared(null);if(recorded&&f.status&&f.status<500){try{localStorage.removeItem(own+':collection');setCollection(null);}catch{setStorageOK(false);}}setError(recorded&&!f.status?'Ответ о запуске не получен. Проверьте прежний запуск — новый сбор автоматически не создаётся.':f.message);}}
   finally{if(activeKey.current===own)setBusy(false);}
  }
  async function checkCollection(action:'collection_status'|'recover_collection'|'cancel_collection'='collection_status'){

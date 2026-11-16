@@ -7,7 +7,6 @@ owner/period/parameter or mint permission from a model response.
 """
 from copy import deepcopy
 from datetime import timedelta
-from zoneinfo import ZoneInfo
 import hashlib,json,re,uuid
 from django.conf import settings
 from django.core import signing
@@ -19,9 +18,9 @@ from alisa_platform.queries.models import Query
 from alisa_platform.queries import service as queries
 from alisa_platform.runtime_adapter.authority import SessionPrincipal,principal_current
 from alisa_platform.runtime_adapter.job_client import RuntimeFailure,encode
-from . import parameter_service as values
+from . import parameter_service as values,parameter_periods
 from .service import actor_store,need,Rejected,identifier
-from .parameter_contract import definition,resolve_period,validate_calculation,ParameterError,CANON,CATALOG_HASH
+from .parameter_contract import definition,validate_calculation,ParameterError,CANON,CATALOG_HASH
 from .parameter_producers import HASH as PRODUCER_HASH,source_plan
 
 SALT='alisa.parameter.collection.intent.v1'
@@ -56,11 +55,12 @@ def readiness(token,store_id,key,area):
 
 def _shape(command):
     required={'action','store_id','parameter','scope','sku_reference','period','mode','command_id','expected_revision','confirmed','not_after'}
-    need(type(command)is dict and set(command)==required and command['action']=='start_calculation','PARAMETER_SCHEMA',422)
+    need(type(command)is dict and set(command) in (required,required|{'period_reference'}) and command['action']=='start_calculation','PARAMETER_SCHEMA',422)
+    if 'period_reference'in command:need(type(command['period_reference'])is str and 0<len(command['period_reference'])<=4096,'PARAMETER_SCHEMA',422)
     identifier(command['command_id']);identifier(command['store_id'])
     need(command['mode']in('preview','replace')and command['confirmed']is True,'OWNER_CONFIRMATION_REQUIRED',422)
     need(type(command['expected_revision'])is int and command['expected_revision']>=0,'PARAMETER_REVISION',422)
-    return digest({k:v for k,v in command.items()if k!='sku_reference'})
+    return digest({k:v for k,v in command.items()if k not in('sku_reference','period_reference')})
 
 
 def _summary(row):
@@ -93,6 +93,7 @@ def start(token,command):
         values._deadline(command);rule=values._target(actor,store,command['parameter'],command['scope'],command['sku_reference'])
         current=values._read(actor,store,command['parameter'],command['scope'])
         if command['mode']=='replace':need(current['revision']==command['expected_revision'],'PARAMETER_REVISION_CONFLICT')
+        prepared_period=parameter_periods.accept(actor,store,command['parameter'],command['scope'],command['period'],command['mode'],command.get('period_reference'))
     ready=readiness(token,command['store_id'],command['parameter'],command['scope']);need(ready['available'],ready['code'],422)
     api=queries.client(principal,[command['store_id']]);api.authorizer.prepare('submit')
     with transaction.atomic():
@@ -107,7 +108,7 @@ def start(token,command):
         values._deadline(command)
         current=values._read(actor,store,command['parameter'],command['scope'])
         if command['mode']=='replace':need(current['revision']==command['expected_revision'],'PARAMETER_REVISION_CONFLICT')
-        period=resolve_period(timezone.now().astimezone(ZoneInfo('Europe/Moscow')).date(),command['period'])
+        period=parameter_periods.accept(actor,store,command['parameter'],command['scope'],command['period'],command['mode'],command.get('period_reference')) if 'period_reference'in command else prepared_period
         utterance=_utterance(rule,period,command['scope'],command['mode'])
         actor_id,tenant_id,_,proof=principal.current()
         intent={'schema':SCHEMA,'key':command['parameter'],'area':deepcopy(command['scope']),
