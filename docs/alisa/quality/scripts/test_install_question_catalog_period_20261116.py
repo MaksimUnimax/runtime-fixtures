@@ -9,7 +9,7 @@ import types
 import unittest
 from unittest.mock import patch
 
-SOURCE = Path(__file__).with_name('install_question_catalog_units_20261116.py')
+SOURCE = Path(__file__).with_name('install_wb_activity_web_20261116.py')
 tree = ast.parse(SOURCE.read_text())
 functions = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in {'select','apply','need','baseline_tree'}]
 
@@ -77,6 +77,29 @@ class RolloutBoundaries(unittest.TestCase):
         self.assertNotIn('APPLIED.json',self.records)
         self.assertEqual(self.records['FAILED.json']['web_rolled_back'],True)
         self.assertEqual(self.records['FAILED.json']['protected_unchanged'],True)
+
+    def test_own_rollback_reports_exact_restored_selector(self):
+        self.fail_health=True
+        restored=[]
+        with self.assertRaisesRegex(RuntimeError,'WEB_NOT_READY'):
+            self.g['apply']('plan',on_restore=restored.append)
+        self.assertEqual(restored,[self.h.path_state(self.web)])
+        self.assertNotEqual(restored[0],self.initial_selector)
+
+    def test_foreign_same_target_selector_is_not_reported_as_restored(self):
+        def fail_after_replacement(rollback):
+            if not rollback:
+                replacement=self.stage/'later-selector'
+                replacement.symlink_to(self.base)
+                replacement.replace(self.web)
+                raise RuntimeError('WEB_NOT_READY')
+        self.h.ready_web=fail_after_replacement
+        restored=[]
+        with self.assertRaisesRegex(RuntimeError,'ROLLBACK_INCOMPLETE'):
+            self.g['apply']('plan',on_restore=restored.append)
+        self.assertEqual(restored,[])
+        self.assertFalse(self.records['FAILED.json']['web_rolled_back'])
+        self.assertEqual(self.web.resolve(),self.base)
 
     def test_protected_change_records_incomplete_rollback(self):
         self.actual['identity']='changed'
