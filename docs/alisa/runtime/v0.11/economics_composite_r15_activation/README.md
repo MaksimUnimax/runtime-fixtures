@@ -46,10 +46,50 @@ credential directory through a checked descriptor. The installer retains its
 strict namespace; the native service, shared helpers and credential stores are
 unchanged. A successful source gate is required before another real PLAN.
 
+## Current rebaseline proposal — 16 November 2026
+
+This Phase B proposal changes only two identity constants in
+`activation_contract.py`. [Phase A](https://github.com/MaksimUnimax/runtime-fixtures/blob/de9abcb160f39aad0f762ce2b7d0b681fd85cea4/docs/alisa/implementation/economics_composite_r15_release/WEB_BASELINE_REQUALIFICATION_20261116.md)
+qualified the installed period web baseline at source
+`de9abcb160f39aad0f762ce2b7d0b681fd85cea4`: Source workflow `43797911831`
+and Documentation workflow `43797911813` passed, including the existing
+36 builder tests. Its baseline file SHA-256 is
+`f91345ecef7efdea485cc914dc18b9baaf1b2a6002501e0a9fcf23bae6301e3e`.
+
+The reviewed finite builder PLAN then completed once at 03:43:29 UTC on
+16 November. Its exact 22,491 output bytes are retained as
+`/root/alisa-economics-r15-rebaseline-1964d60f-20261116/PLAN.json`, SHA-256
+`eee23a47dcb3c47a66e5bd85bbdc011deaa1a31ff09aff14b36d8050179be50d`.
+The separately retained result receipt has SHA-256
+`bf4d30e7de78f723a34023518ffedd5455a704ca5de2b073a7c1b960c6506aa9`.
+It reports exit 0, empty stderr, finished own cgroup, immutable PLAN and
+`ACTUAL_PLAN_VERIFIED_NOT_BUILT`; no candidate build, application change,
+database call or readiness grant occurred.
+
+The contract now binds that measured PLAN and the Phase A baseline hash.
+Product `1964d60f…`, the 96-input source index, the other four builder inputs,
+all helper pins and runtime behavior remain unchanged. The proposed four-file
+activation tool identity is
+`586bf05f08b97ba2bd5bab8dbd90b75ff59169f1dca6fdf362e70e4989527f4b`.
+The earlier PLAN
+`7e86513fd831d74d89eb0ab3aaf5ce8f851ec936d5e09a0684516a7eee25cb73`,
+PREPARED `2f83b12b…`, tool `db2af005…` and their failed attempts remain
+historical evidence; they are not the new package's identities.
+
+This proposal's current-head activation CI and the new immutable package are
+still pending. Require the unchanged 134 source tests plus the 10 private-bundle,
+15 native-lifecycle, 6 real selector and 20 PostgreSQL checks, with owned cleanup,
+and Documentation CI before transferring the new tool. A stacked PR based on
+the exact Phase A branch changes only this activation directory: existing path
+selectors run Activation and Docs without changing filters or bypassing a
+check. Any additional applicable check must still pass. The new package needs
+its own measured PREPARED hash; four UNKNOWN and the existing coordination,
+readiness and admission requirements are unaffected.
+
 ## Fixed identities and scope
 
 The exact product PLAN is
-`7e86513fd831d74d89eb0ab3aaf5ce8f851ec936d5e09a0684516a7eee25cb73`.
+`eee23a47dcb3c47a66e5bd85bbdc011deaa1a31ff09aff14b36d8050179be50d`.
 The 96-input source index is
 `3b6bee51f233398d46c15646b3435edf147ee19e9cdf7abe74ae8908472dc26b`.
 Its encoding is the frozen builder's sorted, indented JSON with a final newline.
