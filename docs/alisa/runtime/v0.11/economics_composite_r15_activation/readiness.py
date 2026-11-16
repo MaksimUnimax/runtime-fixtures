@@ -27,12 +27,16 @@ import time
 DB_ROLE = 'alisa_stage_platform_runtime'
 DB_NAME = 'alisa_stage_platform'
 NATIVE_KEYS = ('native_active_jobs', 'native_unknown_jobs', 'native_live_leases',
-               'native_unexpired_jobs', 'event_outbox_pending',
+               'native_unexpired_jobs', 'native_quiescent_unknown_jobs', 'event_outbox_pending',
                'terminal_outbox_pending', 'voice_undelivered')
 SQLITE_KEYS = NATIVE_KEYS[:-1]
 POSTGRES_KEYS = ('active_queries', 'live_query_leases', 'unresolved_continuations')
 NATIVE_SECONDS = 3
 MAX_STATE_BYTES = 1048576
+# Retention keeps UNKNOWN identities indefinitely to prohibit replay. A retained
+# tombstone is not a running operation. This age only selects a conservative
+# deployment-quiescence class; it NEVER proves a provider outcome or allows replay.
+UNKNOWN_TOMBSTONE_AGE_SECONDS = 90000
 JOBS_COLUMNS = {
     **{key: 'TEXT' for key in ('id', 'tenant', 'key', 'state', 'draft', 'plan',
                               'progress', 'result', 'error', 'owner', 'alias')},
@@ -200,6 +204,13 @@ def sqlite_counts(state_database, gap_database):
                 count(CASE WHEN state='UNKNOWN' THEN 1 END),
                 count(CASE WHEN lease>? THEN 1 END),
                 count(CASE WHEN expires>? THEN 1 END),
+                count(CASE WHEN state='UNKNOWN'
+                    AND owner IS NULL AND lease IS NULL AND expires IS NULL AND alias IS NULL
+                    AND draft='{}' AND plan IS NULL AND progress IS NULL AND result IS NULL
+                    AND typeof(error)='text' AND length(error)>0
+                    AND typeof(created) IN ('integer','real') AND created>0
+                    AND typeof(updated) IN ('integer','real') AND updated>=created
+                    AND updated<=? THEN 1 END),
                 count(CASE WHEN typeof(state)<>'text' OR state NOT IN
                     ('QUEUED','RUNNING','UNKNOWN','READY','EXPIRED','FAILED','CANCELLED','CANCELED','ALIASED')
                     OR typeof(lease) NOT IN ('null','integer','real')
@@ -209,13 +220,13 @@ def sqlite_counts(state_database, gap_database):
                     OR lease<=0 OR expires<=0
                     OR abs(lease)>1.7976931348623157e308
                     OR abs(expires)>1.7976931348623157e308 THEN 1 END)
-                FROM jobs""", (now, now)).fetchone(), 5)
-            _need(counts[4] == 0, 'NATIVE_METADATA_INVALID')
+                FROM jobs""", (now, now, now-UNKNOWN_TOMBSTONE_AGE_SECONDS)).fetchone(), 6)
+            _need(counts[5] == 0, 'NATIVE_METADATA_INVALID')
             terminal = _counts(connection.execute('SELECT count(*) FROM gap_terminal_outbox').fetchone(), 1)[0]
         with _sqlite(gap_database, deadline) as connection:
             _sqlite_schema(connection, 'gap_event_outbox', EVENT_COLUMNS)
             events = _counts(connection.execute('SELECT count(*) FROM gap_event_outbox').fetchone(), 1)[0]
-        return dict(zip(SQLITE_KEYS, (*counts[:4], events, terminal)))
+        return dict(zip(SQLITE_KEYS, (*counts[:5], events, terminal)))
     except Blocked:
         raise
     except Exception:
@@ -321,5 +332,15 @@ def check_idle(native, postgres):
     for value, keys in ((native, NATIVE_KEYS), (postgres, POSTGRES_KEYS)):
         _need(type(value) is dict and set(value) == set(keys), 'READINESS_SCHEMA')
         _counts(list(value.values()), len(keys))
-    _need(not any((*native.values(), *postgres.values())), 'READINESS_BUSY')
+    unknown = native['native_unknown_jobs']
+    quiescent = native['native_quiescent_unknown_jobs']
+    _need(quiescent <= unknown, 'READINESS_SCHEMA')
+    # Keep TOTAL UNKNOWN visible. Only the precisely classified, payload-free,
+    # unleased retained identities can coexist with a deployment. The installed
+    # and pinned candidate Repository keep these identities non-runnable and
+    # reusable as blocking records; this is not reconciliation or cancellation.
+    other_native = (value for key, value in native.items()
+                    if key not in ('native_unknown_jobs', 'native_quiescent_unknown_jobs'))
+    _need(unknown == quiescent and not any((*other_native, *postgres.values())),
+          'READINESS_BUSY')
     return {'idle': True}
