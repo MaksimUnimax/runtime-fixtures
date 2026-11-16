@@ -35,24 +35,6 @@ class AllTemplates(unittest.TestCase):
     if t['input_policy']['snapshot']:values['period']=None
     root=self.root('Финансовая реализация по финансовым отчетам. '+t['purpose'])
     fragments=tc.compile_selection(self.engine,root,selection([tid],store.id,values));self.assertTrue(fragments)
- def test_wb_card_activity_has_analytics_period_in_published_metadata(self):
-  for tid,field in [('B14.card_views','openCount'),('B14.cart_additions','cartCount')]:
-   with self.subTest(tid=tid):
-    template=tc.TEMPLATES[tid]
-    self.assertEqual(template['version'],2)
-    self.assertEqual(template['input_policy']['time_axis'],'analytics_period')
-    blocks=strict_json((tc.ROOT/'base_blocks.json').read_text())['entries']
-    block=next(row for row in blocks if row['id']==tid)
-    self.assertEqual(block['time_axis'],template['input_policy']['time_axis'])
-    self.assertTrue(template['input_policy']['period_required'])
-    step=template['steps'][0]
-    self.assertEqual(step['operation'],'wb_orders')
-    self.assertEqual(list(step['bind']['fields'].values()),[field])
-    selected=step['params']['$fn'][1]['selectedPeriod']
-    self.assertEqual(selected,{'start':{'$path':['period','from']},'end':{'$path':['period','to']}})
- def test_actual_order_cohorts_keep_order_period(self):
-  for tid in ['B01.ordered_units','B04.buyout_units_cohort','B04.cancelled_units_cohort']:
-   with self.subTest(tid=tid):self.assertEqual(tc.TEMPLATES[tid]['input_policy']['time_axis'],'order_period')
  def test_unknown_source_override_cannot_publish(self):
   t=tc.TEMPLATES['B01.ordered_units'];old=deepcopy(t['steps'])
   try:

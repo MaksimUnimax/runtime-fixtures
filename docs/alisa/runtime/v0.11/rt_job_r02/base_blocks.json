@@ -686,7 +686,7 @@
       "platforms": [
         "wb"
       ],
-      "time_axis": "analytics_period",
+      "time_axis": "order_period",
       "unit": "count",
       "source_family": "orders",
       "snapshot": false,
@@ -705,7 +705,7 @@
       "platforms": [
         "wb"
       ],
-      "time_axis": "analytics_period",
+      "time_axis": "order_period",
       "unit": "count",
       "source_family": "orders",
       "snapshot": false,
