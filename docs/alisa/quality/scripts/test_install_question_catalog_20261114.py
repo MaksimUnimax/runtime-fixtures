@@ -100,4 +100,7 @@ from test_install_wb_activity_metadata_20261116 import MetadataScope, NativeRoll
 
 from test_install_r5_preview_web_20261116 import ReviewedR5WebDriver
 
+from test_install_r5_bound_authority_20261116 import BoundAuthorityTests
+from test_install_r5_bound_web_20261116 import ReviewedBoundWebDriver, BoundWebRollbackBoundaries, BoundWebCommandBoundary
+
 if __name__=='__main__':unittest.main()
