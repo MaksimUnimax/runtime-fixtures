@@ -39,6 +39,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: AL-S16 reconciliation assessment and idempotent receipts (isolated)
+        run: |
+          set -euo pipefail
+          mkdir -p products/alisa/dist
+          python -I -B -m unittest discover -s products/alisa/tests/operations -p test_reconciliation.py -v \
+            2>&1 | tee products/alisa/dist/s16-reconciliation-unit-tests.log
       - uses: actions/setup-node@v4
         with:
           node-version: '24.22.1'
@@ -150,6 +156,7 @@ jobs:
           name: alisa-foundation-qualification-${{ env.ALISA_SOURCE_SHA }}
           path: |
             products/alisa/dist/postgresql-browser-qualification.json
+            products/alisa/dist/s16-reconciliation-unit-tests.log
             products/alisa/dist/s01-home-*.png
             products/alisa/dist/s02-*.json
             products/alisa/dist/s02-empty-state.png
