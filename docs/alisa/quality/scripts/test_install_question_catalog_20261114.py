@@ -98,4 +98,6 @@ from test_install_question_catalog_period_20261116 import (
 
 from test_install_wb_activity_metadata_20261116 import MetadataScope, NativeRollbackBoundaries
 
+from test_install_r5_preview_web_20261116 import ReviewedR5WebDriver
+
 if __name__=='__main__':unittest.main()
