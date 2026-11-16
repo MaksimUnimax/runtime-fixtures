@@ -108,7 +108,7 @@ class RolloutBoundaries(unittest.TestCase):
         self.assertEqual(os.readlink(self.stage/'.catalog-period-web-current'),str(self.stage/'foreign'))
 
 
-    def runtime_cache_fixture(self):
+    def runtime_cache_fixture(self, trusted=True):
         root=self.stage/'cache-base';root.mkdir()
         p=root/'services/platform/src/example/models.py';p.parent.mkdir(parents=True)
         p.write_text('pass\n')
@@ -116,6 +116,17 @@ class RolloutBoundaries(unittest.TestCase):
         (root/'.venv').symlink_to(self.base)
         cache=p.parent/'__pycache__';cache.mkdir()
         (cache/'models.cpython-312.pyc').write_bytes(b'compiled-cache')
+        # Model root-owned installed cache metadata inside this disposable fixture.
+        # The CI runner itself is non-root; production ownership validation stays intact.
+        original_lstat = Path.lstat
+        def cache_lstat(path, *args, **kwargs):
+            st = original_lstat(path, *args, **kwargs)
+            if path == cache or path.parent == cache:
+                values = list(st)
+                values[4] = values[5] = 0 if trusted else 1000
+                return os.stat_result(values)
+            return st
+        self.enterContext(patch.object(Path, 'lstat', cache_lstat))
         return root, {'files':{'services/platform/src/example/models.py':'digest'}}, cache
 
     def test_known_runtime_cache_is_recognized_but_not_in_manifest(self):
@@ -127,6 +138,11 @@ class RolloutBoundaries(unittest.TestCase):
         root,value,cache=self.runtime_cache_fixture()
         (root/'.customer-catalog-preparation.json').write_text('{}')
         with self.assertRaisesRegex(RuntimeError,'UNDECLARED_RELEASE_ENTRY'):
+            self.g['baseline_tree'](root,value)
+
+    def test_nonroot_runtime_cache_is_rejected(self):
+        root,value,cache=self.runtime_cache_fixture(trusted=False)
+        with self.assertRaisesRegex(RuntimeError,'UNTRUSTED_RUNTIME_CACHE'):
             self.g['baseline_tree'](root,value)
 
     def test_unknown_runtime_cache_is_rejected(self):
