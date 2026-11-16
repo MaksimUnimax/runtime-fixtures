@@ -325,7 +325,7 @@ class R15IntegrationTests(unittest.TestCase):
         a = self.a
         self.assertEqual(a.c.PRODUCT, 'cafb743c94672104d4afa2c471398e5c81d904f5')
         self.assertEqual(a.c.SOURCE_INDEX, '7342caa174709952744104dd156e38441c0caf15a01bc7442043dca100623562')
-        self.assertEqual(a.c.PRODUCT_PLAN, '733a2d1ded5702f4233524263946a41e14bf26428f8adc7519d4ab5432501616')
+        self.assertEqual(a.c.PRODUCT_PLAN, '982d137e067c533374e7254b5ac04008d0f7483e4c38c45e8d98f97e268ba422')
 
 
 if __name__ == '__main__':
