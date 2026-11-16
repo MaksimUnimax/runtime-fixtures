@@ -91,4 +91,9 @@ class Rollback(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,'ROLLBACK_LATER_WRITER'):
             i.rollback_guard(self.m,{}, {},{},b'flag')
 
+# The existing catalog CI entry point includes the web-only period rollout boundaries.
+from test_install_question_catalog_period_20261116 import (
+    RolloutBoundaries as PeriodRolloutBoundaries, EffectiveReleaseBoundary,
+)
+
 if __name__=='__main__':unittest.main()
