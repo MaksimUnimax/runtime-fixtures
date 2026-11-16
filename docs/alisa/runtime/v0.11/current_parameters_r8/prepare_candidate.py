@@ -9,6 +9,7 @@ def change(path,old,new):
 def prepare(target,platform):
  target=target.resolve();assert target.is_dir()and not str(target).startswith('/opt/')
  for name,digest in json.loads((ROOT/'BASELINE.json').read_text()).items():assert hashlib.sha256((target/name).read_bytes()).hexdigest()==digest,('BASELINE_CHANGED',name)
+ shutil.copy2(ROOT/'program_recovery'/'model_program.py',target/'model_program.py')
  shutil.copy2(ROOT/'parameter_report_runtime.py',target/'parameter_report_runtime.py')
  for name in ['parameter_dependencies.py','parameter_dependency_catalog.json','parameter_resolution.py','parameter_report_catalog.json','parameter_report_contract.py']:
   shutil.copy2(platform/name,target/'parameter_support'/name)
@@ -44,9 +45,6 @@ def prepare(target,platform):
  change(p,"    compound_fences,compound_generation=answer_generation(worker,row,progress,compound_fences)\n","    compound_fences,compound_generation=answer_generation(worker,row,progress,compound_fences)\n    from parameter_report_runtime import ReportWorker\n    answer_worker=ReportWorker(worker,[reference for reference,_ in compound_fences])if compound_fences else worker\n")
  change(p,"        else:run(worker,row,body['messages'],api_data,on_complete=received,generation=compound_generation)","        else:run(answer_worker,row,body['messages'],api_data,on_complete=received,generation=compound_generation)")
  change(p,"        worker._call(row, request, on_received=received)","        answer_worker._call(row, request, on_received=received)")
- p=target/'model_program.py'
- change(p,"def run(worker,row,messages,api_data,*,socket_path=SOCKET,on_complete=None):","def run(worker,row,messages,api_data,*,socket_path=SOCKET,on_complete=None,generation=None):")
- change(p,"send({'protocol':2,'job_id':hashlib.sha256((row['tenant']+'\\0'+row['id']).encode()).hexdigest(),","send({'protocol':2,'job_id':hashlib.sha256((row['tenant']+'\\0'+row['id']+(''if generation is None else'\\0parameter-revision:'+generation)).encode()).hexdigest(),")
  p=target/'runtime.py';change(p,"    engine.parameter_source_policy=lambda:config.read().get('parameter_sources')", "    engine.parameter_source_policy=lambda:config.read().get('parameter_sources')\n    engine.parameter_compound_policy=lambda:config.read().get('parameter_compounds')")
  # The isolated candidate exposes no new live route or deployment command.
 
