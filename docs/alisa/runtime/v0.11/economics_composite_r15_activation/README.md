@@ -1,3 +1,7 @@
+## Current source checkpoint: program pair guard (16 November 2026)
+
+This branch contains a reviewed pairing guard and tested phase ordering, **not a deployable R15 installer**. See [PROGRAM_PAIR_SOURCE_20261116.md](PROGRAM_PAIR_SOURCE_20261116.md) for the exact 36-method result, independent review, concurrent WB baseline change and unfinished live-adapter/pin qualification. Existing descriptions and commands below are historical qualified scopes; they do not authorize using this partial checkpoint on Alisa.
+
 # Finite R15 activation tool
 
 This is a separate activation artifact for product commit
