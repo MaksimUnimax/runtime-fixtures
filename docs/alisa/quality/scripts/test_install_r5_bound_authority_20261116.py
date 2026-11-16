@@ -538,5 +538,69 @@ class BoundAuthorityTests(unittest.TestCase):
         self.assertEqual(tuple(plan['candidate_identity']),M.candidate_identity(M.APP))
         self.assertEqual(len(plan['candidate_identity']),5)
 
+
+    def test_failed_start_with_systemd_state_transition_restores_owned_base(self):
+        state={'ActiveState':'active','SubState':'running','MainPID':'1','ControlPID':'0','InvocationID':'old','Result':'success','clock':0}
+        original_run=M.h.run;original_stop=M.h.stop
+        def stop(unit):
+            original_stop(unit);state.update(ActiveState='inactive',SubState='dead',MainPID='0',clock=state['clock']+1)
+        def run(*args):
+            result=original_run(*args)
+            if len(args)>2 and args[1]=='start':
+                if self.loaded:
+                    state.update(ActiveState='failed',SubState='failed',MainPID='0',InvocationID='our-failed-start',Result='exit-code',clock=state['clock']+1)
+                    raise RuntimeError('SYNTHETIC_START_FAILURE')
+                state.update(ActiveState='active',SubState='running',MainPID='2',InvocationID='restored',Result='success',clock=state['clock']+1)
+            return result
+        M.h.stop=stop;M.h.run=run
+        with patch.object(M,'service_state',lambda:dict(state)):
+            with self.assertRaisesRegex(RuntimeError,'SYNTHETIC_START_FAILURE'):M.apply('plan')
+        self.assertFalse(M.SELECTOR.exists())
+        self.assertEqual(state['ActiveState'],'active')
+        self.assertTrue(self.records['AUTHORITY_FAILED.json']['authority_rolled_back'])
+        self.assertEqual(self.trace.count(('systemctl','start',M.UNIT)),2)
+
+    def test_failed_start_cancelled_by_later_stop_is_not_restarted(self):
+        state={'ActiveState':'inactive','SubState':'dead','MainPID':'0','ControlPID':'0','InvocationID':'old','Result':'success','clock':0}
+        original_run=M.h.run
+        def run(*args):
+            result=original_run(*args)
+            if len(args)>2 and args[1]=='start':
+                state.update(clock=1,InvocationID='later-stopped',ActiveState='inactive')
+                raise RuntimeError('SYNTHETIC_CANCELLED_START')
+            return result
+        M.h.run=run
+        with patch.object(M,'service_state',lambda:dict(state)):
+            with self.assertRaisesRegex(RuntimeError,'ROLLBACK_SERVICE_STATE_CHANGED'):M.apply('plan')
+        self.assertEqual(self.trace.count(('systemctl','start',M.UNIT)),1)
+        self.assertFalse(self.records['AUTHORITY_FAILED.json']['authority_rolled_back'])
+
+
+    def test_crash_or_auto_restart_after_start_return_restores_owned_base(self):
+        for restarting in [False,True]:
+            with self.subTest(restarting=restarting):
+                other=BoundAuthorityTests(methodName='runTest');other.setUp()
+                try:
+                    state={'ActiveState':'inactive','SubState':'dead','MainPID':'0','ControlPID':'0','InvocationID':'old','Result':'success','Job':'0','clock':0}
+                    original_run=M.h.run;original_stop=M.h.stop
+                    def stop(unit):
+                        original_stop(unit);state.update(ActiveState='inactive',SubState='dead',MainPID='0',clock=state['clock']+1)
+                    def run(*args):
+                        result=original_run(*args)
+                        if len(args)>2 and args[1]=='start':
+                            state.update(ActiveState='active',SubState='running',MainPID='2',InvocationID='new',Result='success',clock=state['clock']+1)
+                        return result
+                    def health(label):
+                        if other.new_running:
+                            state.update(ActiveState='activating' if restarting else 'failed',SubState='auto-restart' if restarting else 'failed',MainPID='0',Result='exit-code',clock=state['clock']+1)
+                            raise RuntimeError('SYNTHETIC_POST_START_CRASH')
+                    M.h.stop=stop;M.h.run=run
+                    with patch.object(M,'service_state',lambda:dict(state)),patch.object(M,'wait_ready',health):
+                        with self.assertRaisesRegex(RuntimeError,'SYNTHETIC_POST_START_CRASH'):M.apply('plan')
+                    self.assertFalse(M.SELECTOR.exists())
+                    self.assertTrue(other.records['AUTHORITY_FAILED.json']['authority_rolled_back'])
+                    self.assertEqual(state['ActiveState'],'active')
+                finally:other.doCleanups()
+
 if __name__ == '__main__':
     unittest.main()

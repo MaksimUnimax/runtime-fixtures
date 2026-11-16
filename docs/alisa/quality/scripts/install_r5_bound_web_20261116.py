@@ -366,6 +366,11 @@ def select(target, expected):
         if h.path_state(temp) == staged:
             temp.unlink()
 
+def require_web_restart(plan, state, target, rollback=False):
+    need(h.path_state(h.WEB_LINK) == state and h.WEB_LINK.resolve() == target
+         and h.static(WEB) == plan['web_static'] and capture() == plan['protected'],
+         'ROLLBACK_INCOMPLETE' if rollback else 'WEB_RESTART_GUARD')
+
 def apply(expected, on_restore=None):
     plan = read_plan(expected)
     require_candidate(plan)
@@ -375,6 +380,7 @@ def apply(expected, on_restore=None):
     try:
         require_candidate(plan)
         installed = select(APP, tuple(plan['web_selector_state']))
+        require_web_restart(plan,installed,APP)
         h.run('systemctl', 'restart', WEB)
         h.ready_web(False)
         h.active([WEB]+h.PRESERVE)
@@ -396,6 +402,7 @@ def apply(expected, on_restore=None):
                 restored = select(BASE, installed)
                 if on_restore is not None:
                     on_restore(restored)
+                require_web_restart(plan,restored,BASE,True)
                 h.run('systemctl', 'restart', WEB)
             h.ready_web(True)
             status['web_rolled_back'] = (h.path_state(h.WEB_LINK) == restored

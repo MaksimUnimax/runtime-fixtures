@@ -437,8 +437,23 @@ def publish(raw):
 
 def service_state():
     return {key:h.prop(UNIT,key) for key in [
-        'ActiveState','SubState','MainPID','ControlPID','InvocationID',
+        'ActiveState','SubState','MainPID','ControlPID','InvocationID','Result','Job',
         'StateChangeTimestampMonotonic','InactiveEnterTimestampMonotonic']}
+
+def failed_owned_state(plan, target_static, target_inventory, installed):
+    value = service_state()
+    failure = value.get('Result') in {
+        'exit-code','signal','core-dump','timeout','watchdog',
+        'resources','protocol','start-limit-hit','oom-kill'}
+    state = value.get('ActiveState') == 'failed' or (
+        value.get('ActiveState') == 'activating' and value.get('SubState') == 'auto-restart')
+    if not (failure and state and value.get('MainPID') == '0'
+            and value.get('ControlPID') == '0' and value.get('Job','0') in {'0',''}):
+        return None
+    need(h.static(UNIT) == target_static and inventory() == target_inventory
+         and h.path_state(SELECTOR) == installed and captured() == plan['protected']
+         and service_state() == value, 'START_FAILURE_CHANGED')
+    return value
 
 def apply(expected):
     plan,raw = read_plan(expected)
@@ -448,6 +463,7 @@ def apply(expected):
     installed = None
     stopped = False
     owned_state = None
+    start_attempted = False
     try:
         # Only the authority admits parameter calculations; other services stay running.
         h.stop(UNIT)
@@ -463,7 +479,14 @@ def apply(expected):
         target_inventory = dict(plan['inventory'],**{str(SELECTOR):plan['overlay_sha']})
         need(h.static(UNIT) == target_static and inventory() == target_inventory, 'LOADED_CONFIG_CHANGED')
         require_candidate(plan)
-        h.run('systemctl','start',UNIT)
+        start_attempted = True
+        try:
+            h.run('systemctl','start',UNIT)
+        except BaseException:
+            failed = failed_owned_state(plan,target_static,target_inventory,installed)
+            if failed is not None:
+                owned_state = failed
+            raise
         owned_state = service_state()
         wait_ready(plan['health_label'])
         need(environment() == plan['environment_sha'], 'ENVIRONMENT_CHANGED')
@@ -484,6 +507,10 @@ def apply(expected):
         status = {'authority_rolled_back':False,'protected_unchanged':False}
         try:
             need(stopped, 'STOP_NOT_CONFIRMED')
+            if start_attempted and service_state() != owned_state:
+                failed = failed_owned_state(plan,target_static,target_inventory,installed)
+                if failed is not None:
+                    owned_state = failed
             need(service_state() == owned_state, 'ROLLBACK_SERVICE_STATE_CHANGED')
             # A publish may have moved the file before reporting failure.
             proof = ROOT/'AUTHORITY_OWNED.json'

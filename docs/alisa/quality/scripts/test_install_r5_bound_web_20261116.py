@@ -26,7 +26,7 @@ class ReviewedBoundWebDriver(unittest.TestCase):
             self.assertEqual(ast.dump(old_functions[name]),ast.dump(new_functions[name]),name)
         class StripCandidateGuard(ast.NodeTransformer):
             def visit_Expr(self,node):
-                if isinstance(node.value,ast.Call) and isinstance(node.value.func,ast.Name) and node.value.func.id=='require_candidate':return None
+                if isinstance(node.value,ast.Call) and isinstance(node.value.func,ast.Name) and node.value.func.id in {'require_candidate','require_web_restart'}:return None
                 return self.generic_visit(node)
         for name in ['read_plan','apply']:
             normalized=StripCandidateGuard().visit(deepcopy(new_functions[name]))
@@ -78,8 +78,33 @@ class BoundWebRollbackBoundaries(reviewed.RolloutBoundaries):
         self.g['require_candidate']=lambda plan:None
         path = Path(__file__).with_name('install_r5_bound_web_20261116.py')
         tree = ast.parse(path.read_text())
-        functions = [n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name in {'select','apply','need','baseline_tree'}]
+        functions = [n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name in {'select','apply','need','baseline_tree','require_web_restart'}]
         exec(compile(ast.Module(body=functions,type_ignores=[]),str(path),'exec'),self.g)
+
+
+    def test_later_writer_between_restore_and_restart_is_preserved(self):
+        self.fail_health=True
+        foreign=self.stage/'foreign';foreign.mkdir()
+        def later(state):
+            replacement=self.stage/'later-pointer';replacement.symlink_to(foreign);replacement.replace(self.web)
+        with self.assertRaisesRegex(RuntimeError,'ROLLBACK_INCOMPLETE'):
+            self.g['apply']('plan',on_restore=later)
+        self.assertEqual(self.web.resolve(),foreign)
+        self.assertEqual(self.calls,[('systemctl','restart','web.service')])
+        self.assertFalse(self.records['FAILED.json']['web_rolled_back'])
+
+    def test_later_writer_after_forward_select_is_not_restarted(self):
+        foreign=self.stage/'foreign';foreign.mkdir()
+        original=self.g['select']
+        def later(target,expected):
+            result=original(target,expected)
+            if target==self.app:
+                replacement=self.stage/'later-pointer';replacement.symlink_to(foreign);replacement.replace(self.web)
+            return result
+        self.g['select']=later
+        with self.assertRaisesRegex(RuntimeError,'ROLLBACK_INCOMPLETE'):self.g['apply']('plan')
+        self.assertEqual(self.web.resolve(),foreign)
+        self.assertEqual(self.calls,[])
 
 class BoundWebCommandBoundary(unittest.TestCase):
     def test_expected_working_directory_cannot_hide_wrong_authority_command(self):
