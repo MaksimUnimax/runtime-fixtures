@@ -95,7 +95,7 @@ def main():
                     if component=='identity':
                         subprocess.run([str(py),str(ROOT/'services/identity/manage.py'),'identity_clients','--apply'],env=migration,stdout=log,stderr=log,check=True,timeout=15)
                 record[component+'_migrations_applied'] = True
-            for component, filename in [('identity','staff_identity_checks.py'),('platform','staff_backend_checks.py'),('identity','canonical_auth_checks.py'),('platform','canonical_auth_checks.py')]:
+            for component, filename in [('identity','staff_identity_checks.py'),('platform','staff_backend_checks.py'),('platform','s16_reconciliation_backend_checks.py'),('identity','canonical_auth_checks.py'),('platform','canonical_auth_checks.py')]:
                 output = temp/(component+'-result.json')
                 with (temp/(component+'-checks.log')).open('w+') as log:
                     result = subprocess.run([str(py),str(ROOT/'tests/integration'/filename),str(output)],
@@ -103,6 +103,8 @@ def main():
                     if output.exists():
                         part = json.loads(output.read_text())
                         record['cases'].extend(part['cases'])
+                        if filename=='s16_reconciliation_backend_checks.py':
+                            record['s16_reconciliation']={k:part[k] for k in ('scope','status','runtime_transport_qualified','public_route_or_browser_qualified','native_job_mutations') if k in part}
                         if part['status']!='PASS':record['safe_script_error']={k:v for k,v in part.items() if k in {'error_type','error_location'}}
                     if result.returncode:
                         log.seek(0)
