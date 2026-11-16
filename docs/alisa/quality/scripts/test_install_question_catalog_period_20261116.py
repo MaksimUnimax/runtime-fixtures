@@ -9,7 +9,7 @@ import types
 import unittest
 from unittest.mock import patch
 
-SOURCE = Path(__file__).with_name('install_question_catalog_period_20261116.py')
+SOURCE = Path(__file__).with_name('install_question_catalog_units_20261116.py')
 tree = ast.parse(SOURCE.read_text())
 functions = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in {'select','apply','need','baseline_tree'}]
 
