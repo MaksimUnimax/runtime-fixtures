@@ -19,7 +19,8 @@ import sys
 import tempfile
 
 SOURCE = Path(__file__).resolve().parents[1]
-NAMES = ('activation_contract.py', 'activate.py', 'readiness.py', 'runtime_versions_sync.py')
+NAMES = ('activation_contract.py', 'activate.py', 'readiness.py', 'runtime_versions_sync.py',
+         'program_pair.py')
 CANONICAL_SHA = '10421a4ec0000a5e26ecc92e5fbeed0a31f48133698a84b92935b04700615dd4'
 
 

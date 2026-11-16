@@ -25,7 +25,8 @@ import tempfile
 import time
 
 SOURCE = Path(__file__).resolve().parents[1]
-NAMES = ('activation_contract.py', 'activate.py', 'readiness.py', 'runtime_versions_sync.py')
+NAMES = ('activation_contract.py', 'activate.py', 'readiness.py', 'runtime_versions_sync.py',
+         'program_pair.py')
 BINDING_SHA = '30664db61e047927c9dafd2b16fd70d3d1ba662ee3ea59ce539d4e1e32045347'
 
 

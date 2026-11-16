@@ -78,7 +78,7 @@ class VersionProbe(unittest.TestCase):
 
     def test_fourth_tool_is_exact_canonical_and_installed_baseline_is_separate(self):
         self.assertEqual(set(c.TOOL_FILES), {'activate.py', 'activation_contract.py',
-                                          'readiness.py', 'runtime_versions_sync.py'})
+                                          'readiness.py', 'runtime_versions_sync.py', 'program_pair.py'})
         self.assertEqual(c.digest((HERE/c.VERSION_SYNC_FILE).read_bytes()),
                          '10421a4ec0000a5e26ecc92e5fbeed0a31f48133698a84b92935b04700615dd4')
         self.assertEqual(c.HELPERS[str(c.SYNC)],
@@ -108,6 +108,34 @@ class VersionProbe(unittest.TestCase):
         sampler = subprocess.run([sys.executable, '-I', '-B', '-c', code], capture_output=True, timeout=10)
         self.assertNotEqual(sampler.returncode, 0)
         self.assertNotIn(b'FOURTH_FILE_EXECUTED', sampler.stderr)
+
+    def test_missing_pair_source_blocks_before_any_local_module_execution(self):
+        tools = self.root/'pair-tools-missing'
+        tools.mkdir()
+        for name in c.TOOL_FILES:
+            if name != 'program_pair.py':
+                (tools/name).write_bytes((HERE/name).read_bytes())
+        with patch.object(a, 'HERE', tools), self.assertRaises(FileNotFoundError):
+            a._raw_tools()
+
+    def test_changed_pair_source_blocks_cli_and_sampler_before_execution(self):
+        tools = self.root/'pair-tools-changed'
+        tools.mkdir()
+        raw = {name: (HERE/name).read_bytes() for name in c.TOOL_FILES}
+        for name, value in raw.items():
+            (tools/name).write_bytes(value)
+        pin = c.canonical_hash({name: c.digest(value) for name, value in raw.items()})
+        (tools/'program_pair.py').write_bytes(b'raise RuntimeError("PAIR_FILE_EXECUTED")\n')
+        direct = subprocess.run([sys.executable, '-I', '-B', str(tools/'activate.py'),
+                                 '--tool-sha256', pin, '--help'], capture_output=True, timeout=10)
+        self.assertEqual(direct.returncode, 2)
+        self.assertIn(b'TOOL_IDENTITY', direct.stdout)
+        self.assertNotIn(b'PAIR_FILE_EXECUTED', direct.stderr)
+        with patch.object(a, 'HERE', tools):
+            code = a.sampler_code('invalid', '', pin)
+        sampler = subprocess.run([sys.executable, '-I', '-B', '-c', code], capture_output=True, timeout=10)
+        self.assertNotEqual(sampler.returncode, 0)
+        self.assertNotIn(b'PAIR_FILE_EXECUTED', sampler.stderr)
 
     def test_descriptor_compute_validates_before_and_after_then_closes(self):
         with patch.object(a.subprocess, 'run', side_effect=self.child):

@@ -15,9 +15,9 @@
       "venv_link": "/opt/alisa-platform/stage/releases/alisa-parameters-1d572aebf6b05b88/.venv"
     },
     "web": {
-      "manifest_sha256": "3fd0a1d22b68678918102b5072b0bd6118481d153436569da66a09a7ca43e534",
-      "root": "/opt/alisa-platform/stage/releases/alisa-wb-activity-e0a10bb47fe1cd83",
-      "venv_link": "/opt/alisa-platform/stage/releases/alisa-catalog-units-0e00c848d3a4ad58/.venv"
+      "manifest_sha256": "789db7da63a5b40f65adbe0441757ceece13a1faf6538ada000ca20323396655",
+      "root": "/opt/alisa-platform/stage/releases/alisa-r5-preview-5e5e8cc8922342ca",
+      "venv_link": "/opt/alisa-platform/stage/releases/alisa-wb-activity-e0a10bb47fe1cd83/.venv"
     }
   },
   "environment": {

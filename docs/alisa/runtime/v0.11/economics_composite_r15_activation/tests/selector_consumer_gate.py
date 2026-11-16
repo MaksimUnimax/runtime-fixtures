@@ -27,7 +27,8 @@ sys.path.insert(0, str(HERE))
 import native_credential_gate as fixture
 
 need, command, prop = fixture.need, fixture.command, fixture.property_value
-NAMES = ('activation_contract.py', 'activate.py', 'readiness.py', 'runtime_versions_sync.py')
+NAMES = ('activation_contract.py', 'activate.py', 'readiness.py', 'runtime_versions_sync.py',
+         'program_pair.py')
 
 
 def identity(path):

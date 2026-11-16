@@ -132,6 +132,33 @@ jobs:
             > "$RUNNER_TEMP/r15-activation-evidence/selector-consumer-gate.json"
           test ! -e "/run/$r15_selector_unit"
           test ! -e "/run/$r15_selector_unit-authority"
+      - name: Actual program socket admission, publication, rollback and retained v2/v3
+        shell: bash
+        run: |
+          set -euo pipefail
+          r15_program_unit="alisa-r15-program-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          r15_program_root="/root/$r15_program_unit"
+          test "$(systemctl show "$r15_program_unit" -p LoadState --value)" = not-found
+          sudo test ! -e "$r15_program_root"
+          sudo test ! -L "$r15_program_root"
+          printf '%s\n' "$r15_program_unit" > "$RUNNER_TEMP/r15-activation-evidence/program-unit.txt"
+          sudo mkdir -m 700 "$r15_program_root"
+          sudo systemd-run --quiet --wait --pipe --collect --unit="$r15_program_unit" \
+            --property=Type=exec --property=RuntimeMaxSec=180 --property=TimeoutStartSec=5 \
+            --property=TimeoutStopSec=5 --property=KillMode=control-group \
+            --property=SendSIGKILL=yes --property=OOMPolicy=stop \
+            --property=MemoryAccounting=yes --property=MemoryMax=268435456 \
+            --property=MemorySwapMax=0 --property=TasksMax=128 --property=LimitCORE=0 \
+            --property=PrivateNetwork=yes --property=UMask=0077 \
+            /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C.UTF-8 PYTHONDONTWRITEBYTECODE=1 \
+            "$RUNNER_TEMP/r15-activation-venv/bin/python" -I -B \
+            "$GITHUB_WORKSPACE/docs/alisa/runtime/v0.11/economics_composite_r15_activation/tests/program_service_gate.py" \
+            --root "$r15_program_root" \
+            --broker-source "$GITHUB_WORKSPACE/docs/alisa/runtime/v0.11/current_parameters_r8/program_recovery/program_broker.py" \
+            --result-source "$GITHUB_WORKSPACE/docs/alisa/runtime/v0.11/current_parameters_r8/program_recovery/program_results.py" \
+            > "$RUNNER_TEMP/r15-activation-evidence/program-service-gate.json"
+          sudo rmdir "$r15_program_root"
+          test "$(systemctl show "$r15_program_unit" -p LoadState --value)" = not-found
       - name: Create the isolated PostgreSQL fixture
         shell: bash
         run: |
@@ -261,6 +288,23 @@ jobs:
                   r15_cleanup_failed=1
                 fi
               done
+            else
+              r15_cleanup_failed=1
+            fi
+          fi
+          if test -f "$r15_evidence/program-unit.txt"; then
+            r15_program_unit=$(cat "$r15_evidence/program-unit.txt")
+            if test "$r15_program_unit" = "alisa-r15-program-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"; then
+              systemctl show "$r15_program_unit" -p LoadState -p MainPID -p ControlGroup \
+                > "$r15_evidence/program-unit-observation.txt" || r15_cleanup_failed=1
+              test "$(systemctl show "$r15_program_unit" -p LoadState --value)" = not-found || r15_cleanup_failed=1
+              if sudo test -e "/root/$r15_program_unit" || sudo test -L "/root/$r15_program_unit"; then
+                r15_cleanup_failed=1
+              fi
+              # Observe only: a failed/partial fixture is never blindly deleted.
+              systemctl list-units --all --plain --no-legend --no-pager "$r15_program_unit*" \
+                > "$r15_evidence/program-remaining-units.txt" || r15_cleanup_failed=1
+              test ! -s "$r15_evidence/program-remaining-units.txt" || r15_cleanup_failed=1
             else
               r15_cleanup_failed=1
             fi

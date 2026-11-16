@@ -1,3 +1,11 @@
+## Latest WB97 source checkpoint (16 November 2026)
+
+The current branch binds the measured WB97 PLAN/package and adds reviewed real-file recovery and lock-lifetime primitives. **The actual broker service-control/admission-fence adapter is still unfinished; do not deploy this checkpoint as a completed paired installer.** See [PROGRAM_PAIR_FILE_RECOVERY_20261116.md](PROGRAM_PAIR_FILE_RECOVERY_20261116.md) for the183-method result, exact package pins, review findings and specific remaining work. Earlier source notes below are preserved history, not current deployment approval.
+
+## Current source checkpoint: program pair guard (16 November 2026)
+
+This branch contains a reviewed pairing guard and tested phase ordering, **not a deployable R15 installer**. See [PROGRAM_PAIR_SOURCE_20261116.md](PROGRAM_PAIR_SOURCE_20261116.md) for the exact 36-method result, independent review, concurrent WB baseline change and unfinished live-adapter/pin qualification. Existing descriptions and commands below are historical qualified scopes; they do not authorize using this partial checkpoint on Alisa.
+
 # Finite R15 activation tool
 
 This is a separate activation artifact for product commit
@@ -596,3 +604,8 @@ bundle checks, 15 native lifecycle checks, six selector consumer checks and
 20 PostgreSQL checks without errors or skips. The new consumer gate is
 **NOT_RUN** at source qualification. Its future artifact cannot substitute for
 a fresh installed PLAN, preparation, coordination or owner acceptance.
+
+
+## Real program service adapter continuation
+
+See [PROGRAM_SERVICE_ADAPTER_20261116.md](PROGRAM_SERVICE_ADAPTER_20261116.md) for the real service adapter and separately bound `program-plan`/`program-apply` commands. Earlier no-adapter statements describe preceding source checkpoints. New tests and source are not an authorization to switch live services.
