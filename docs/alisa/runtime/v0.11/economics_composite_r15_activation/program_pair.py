@@ -23,6 +23,13 @@ UNIT_FILES = {
     'alisa-program-cleanup.service': '2c7eeac499366649ca233d641f45512d5b0cec1ece4ccf1640c888aeda66905f',
     'alisa-program.socket': '1a9b69a53293b008697642b2f5d0c45ea28d1eda73a4af0777b7828ddcd6b397',
 }
+UNIT_ROOT = '/etc/systemd/system'
+SOCKET_UNIT = 'alisa-program.socket'
+CLEANUP_UNIT = 'alisa-program-cleanup.service'
+ENDPOINT = '/run/alisa-program/runner.sock'
+PEER_USER = 'alice-market'
+PEER_GROUP = 'alice-lab'
+CHANGING_UNITS = ('alisa-program@.service', 'alisa-program-cleanup.service')
 PROBE_UNIT = 'alisa-program@r15-pair-check.service'
 UNIT_QUERIES = {
     PROBE_UNIT: 'alisa-program@.service',
@@ -82,7 +89,7 @@ def inspect_pair(observer, consumer_sha256):
              'PROGRAM_PAIR_DIRECTORY_RACE')
         unit_files = {}
         for name, expected in UNIT_FILES.items():
-            path = '/etc/systemd/system/' + name
+            path = UNIT_ROOT + '/' + name
             before = observer.identity(path, immutable=False, directory=False)
             need(digest(observer.file(path)) == expected, 'PROGRAM_PAIR_UNIT_FILE')
             need(observer.identity(path, immutable=False, directory=False) == before,
@@ -92,23 +99,23 @@ def inspect_pair(observer, consumer_sha256):
         for query, fragment in UNIT_QUERIES.items():
             item = observer.unit(query)
             need(type(item) is dict and item.get('LoadState') == 'loaded'
-                 and item.get('FragmentPath') == '/etc/systemd/system/' + fragment
+                 and item.get('FragmentPath') == UNIT_ROOT + '/' + fragment
                  and item.get('DropInPaths') == ''
                  and item.get('NeedDaemonReload') == 'no', 'PROGRAM_PAIR_LOADED_UNIT')
             expected = {'LoadState': 'loaded', 'FragmentPath': item['FragmentPath'],
                         'DropInPaths': '', 'NeedDaemonReload': 'no'}
-            if query == 'alisa-program.socket':
+            if query == SOCKET_UNIT:
                 need(item.get('ActiveState') == 'active' and item.get('SubState') == 'listening'
                      and item.get('Accept') == 'yes'
-                     and item.get('Listen') == '/run/alisa-program/runner.sock (Stream)'
-                     and item.get('SocketUser') == 'alice-market'
-                     and item.get('SocketGroup') == 'alice-lab'
+                     and item.get('Listen') == ENDPOINT+' (Stream)'
+                     and item.get('SocketUser') == PEER_USER
+                     and item.get('SocketGroup') == PEER_GROUP
                      and item.get('SocketMode') == '0600', 'PROGRAM_PAIR_SOCKET')
                 expected.update({k: item[k] for k in ('ActiveState', 'SubState', 'Accept',
                     'Listen', 'SocketUser', 'SocketGroup', 'SocketMode')})
             else:
                 path, argv = command(item.get('ExecStart'))
-                suffix = ' --sweep' if query == 'alisa-program-cleanup.service' else ''
+                suffix = ' --sweep' if query == CLEANUP_UNIT else ''
                 need(path == '/usr/bin/python3'
                      and argv == '/usr/bin/python3 -B ' + ROOT + '/program_broker.py' + suffix,
                      'PROGRAM_PAIR_COMMAND')
@@ -128,14 +135,14 @@ def inspect_pair(observer, consumer_sha256):
 
 
 def rollout_pair(host):
-    """Finite broker-first phase core. No live adapter is supplied here.
+    """Finite broker-first phase core; the adapter is defined in activate.py.
 
     The adapter must enforce exact source/plan/maintenance-window binding,
     held rollout + program locks, a genuine socket admission fence and idle
     broker/cleanup instances. restore_before_admission must be CAS guarded
     and must not overwrite a later writer or touch retained result storage.
-    The existing R15 CLI does NOT call this function until that adapter has
-    its own actual-systemd qualification and independent review.
+    The separately bound program-apply command supplies the real adapter.
+    Source/synthetic qualification is not live readiness or maintenance consent.
     """
     host.check_plan_and_window()
     host.backup()

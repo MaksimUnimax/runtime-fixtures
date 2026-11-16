@@ -604,3 +604,8 @@ bundle checks, 15 native lifecycle checks, six selector consumer checks and
 20 PostgreSQL checks without errors or skips. The new consumer gate is
 **NOT_RUN** at source qualification. Its future artifact cannot substitute for
 a fresh installed PLAN, preparation, coordination or owner acceptance.
+
+
+## Real program service adapter continuation
+
+See [PROGRAM_SERVICE_ADAPTER_20261116.md](PROGRAM_SERVICE_ADAPTER_20261116.md) for the real service adapter and separately bound `program-plan`/`program-apply` commands. Earlier no-adapter statements describe preceding source checkpoints. New tests and source are not an authorization to switch live services.

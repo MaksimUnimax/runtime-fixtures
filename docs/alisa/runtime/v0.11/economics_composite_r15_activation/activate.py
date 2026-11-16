@@ -767,7 +767,7 @@ class ProgramPairObserver:
     def unit(self, name):
         c.need(name in program_pair.UNIT_QUERIES, 'PROGRAM_PAIR_UNIT_SCOPE')
         keys = ('LoadState', 'FragmentPath', 'DropInPaths', 'NeedDaemonReload')
-        if name == 'alisa-program.socket':
+        if name == program_pair.SOCKET_UNIT:
             keys += ('ActiveState', 'SubState', 'Accept', 'Listen', 'SocketUser',
                      'SocketGroup', 'SocketMode')
         else:
@@ -923,7 +923,7 @@ class ProgramPairUnitTransaction:
         secure_dir(self.candidates)
         secure_dir(self.attempt.parent)
         c.need(not os.path.lexists(self.attempt), 'PROGRAM_ATTEMPT_EXISTS')
-        c.need(set(self.BEFORE) == {'alisa-program@.service', 'alisa-program-cleanup.service'},
+        c.need(set(self.BEFORE) == set(program_pair.CHANGING_UNITS),
                'PROGRAM_UNIT_SCOPE')
         for name, expected in self.BEFORE.items():
             path = self.UNIT_ROOT/name
@@ -1105,7 +1105,7 @@ class LiveHost:
         except program_pair.PairBlocked as error:
             raise c.Blocked(error.code) from None
 
-    def capture(self):
+    def capture_product(self):
         self.helper_guard()
         unit_paths = fence_environment()
         units = {role: unit_static(unit) for role, unit in c.UNITS.items()}
@@ -1134,8 +1134,11 @@ class LiveHost:
                 'components': {name: path_state(path) for name, path in self.components.items()},
                 'web_pointer': path_state(c.WEB_LINK),
                 'publisher': c.digest(regular(Path(self.baseline['publisher']['path']))),
-                'helpers': dict(c.HELPERS), 'unit_load_paths': unit_paths,
-                'program_pair': self.program_pair()}
+                'helpers': dict(c.HELPERS), 'unit_load_paths': unit_paths}
+
+    def capture(self):
+        # Full R15 activation always retains its compatible-producer guard.
+        return {**self.capture_product(), 'program_pair': self.program_pair()}
 
     def _projection_inputs(self, expected_states=None):
         pair = self.helpers()
@@ -1776,9 +1779,483 @@ def sampler_code(kind, root, expected_tool, config_state=None):
             'scope["sampler_main"]('+repr(kind)+','+repr(root)+','+repr(expected_tool)+','+repr(config_state)+')')
 
 
+class ProgramPairServiceFence:
+    """Actual systemd admission fence; never stop a broker or paid worker.
+
+    Mask and stop the socket and cleanup TIMER. Cleanup itself is excluded by
+    the existing program flock and must be observed idle. Socket stop does not
+    imply accepted instances stopped: they and queued jobs are checked apart.
+    All project deployers must honor the shared rollout lock. No claim is made
+    against a privileged writer deliberately bypassing that protocol.
+    """
+    UNIT_ROOT = Path('/etc/systemd/system')
+    MASK_ROOT = Path('/run/systemd/system.control')
+    SOCKET = 'alisa-program.socket'
+    TIMER = 'alisa-program-cleanup.timer'
+    CLEANUP = 'alisa-program-cleanup.service'
+    TEMPLATE = 'alisa-program@.service'
+    PROBE = 'alisa-program@r15-pair-check.service'
+    INSTANCE_PREFIX = 'alisa-program@'
+    WORKER_PREFIX = 'alisa-program-run-'
+    ENDPOINT = Path('/run/alisa-program/runner.sock')
+    OLD_ROOT = Path('/opt/alisa-program/releases/20261113-reliability-r1')
+    TIMER_SHA = 'c1d0b939768fe2f69745d3bfed79c9ed35cb4f59b03efaed4a8eb6b4f106ac2d'
+
+    def __init__(self, exclusion, record):
+        c.need(isinstance(exclusion, ProgramPairExclusion) and callable(record),
+               'PROGRAM_SERVICE_ADAPTER')
+        self._exclusion, self._record = exclusion, record
+        self._exclusion.require()
+        self.nonce = os.urandom(16).hex()
+        self.masks, self.event = {}, 0
+        self.released = False
+
+    def record(self, label):
+        self._record('FENCE-'+str(self.event).zfill(4), {
+            'phase': label, 'masks': self.masks, 'released': self.released})
+        self.event += 1
+
+    def show(self, unit, keys):
+        c.need(type(unit) is str and re.fullmatch(r'[A-Za-z0-9_.@:\\-]{1,256}', unit),
+               'PROGRAM_UNIT_NAME')
+        raw = run('systemctl', 'show', unit, '--all', '--no-pager',
+                  '--property='+','.join(keys), timeout=10)
+        c.need(len(raw) <= 65536, 'PROGRAM_UNIT_OUTPUT')
+        rows = raw.decode().splitlines()
+        c.need(all('=' in row for row in rows), 'PROGRAM_UNIT_OUTPUT')
+        result = dict(row.split('=', 1) for row in rows)
+        c.need(len(result) == len(rows) and set(result) == set(keys), 'PROGRAM_UNIT_OUTPUT')
+        return result
+
+    def managed_name(self, name):
+        return (name in (self.SOCKET, self.TIMER, self.CLEANUP)
+                or name.endswith('.service') and
+                name.startswith((self.INSTANCE_PREFIX, self.WORKER_PREFIX)))
+
+    def load_path(self):
+        self._exclusion.require()
+        paths = run('systemctl', 'show', '--property=UnitPath', '--value', timeout=10).decode().split()
+        c.need(tuple(paths) == c.UNIT_PATHS and str(self.MASK_ROOT) == paths[1],
+               'PROGRAM_UNIT_LOAD_PATH')
+        for name in (self.SOCKET, self.TIMER, self.CLEANUP, self.TEMPLATE, self.PROBE):
+            c.need(optional_state(Path(paths[0])/name) is None, 'PROGRAM_HIGHER_UNIT_PRESENT')
+        # The template and cleanup must never acquire an unowned control mask.
+        for name in (self.CLEANUP, self.TEMPLATE, self.PROBE):
+            c.need(optional_state(self.MASK_ROOT/name) is None, 'PROGRAM_FOREIGN_SERVICE_MASK')
+
+    def raw_definitions(self, new=False):
+        expected = {**ProgramPairUnitTransaction.BEFORE,
+                    self.SOCKET: program_pair.UNIT_FILES[self.SOCKET], self.TIMER: self.TIMER_SHA}
+        if new:
+            expected.update({n:program_pair.UNIT_FILES[n] for n in ProgramPairUnitTransaction.BEFORE})
+        result = {}
+        for name, pin in expected.items():
+            state = path_state(self.UNIT_ROOT/name)
+            c.need(state is not None and state['kind'] == 'file' and state['content'] == pin,
+                   'PROGRAM_SERVICE_SOURCE_CHANGED')
+            result[name] = state
+        return result
+
+    def loaded_services(self, new=False):
+        self._exclusion.require()
+        self.raw_definitions(new)
+        root = Path(program_pair.ROOT) if new else self.OLD_ROOT
+        for query, fragment, suffix in ((self.PROBE, self.TEMPLATE, ''),
+                                         (self.CLEANUP, self.CLEANUP, ' --sweep')):
+            row = self.show(query, ('LoadState','FragmentPath','DropInPaths','NeedDaemonReload','ExecStart'))
+            c.need(row['LoadState'] == 'loaded' and row['FragmentPath'] == str(self.UNIT_ROOT/fragment)
+                   and row['DropInPaths'] == '' and row['NeedDaemonReload'] == 'no',
+                   'PROGRAM_SERVICE_LOADED_SOURCE')
+            path, argv = program_pair.command(row['ExecStart'])
+            c.need(path == '/usr/bin/python3' and
+                   argv == '/usr/bin/python3 -B '+str(root/'program_broker.py')+suffix,
+                   'PROGRAM_SERVICE_LOADED_COMMAND')
+
+    def require_idle(self):
+        self._exclusion.require()
+        raw = run('systemctl','list-units','--all','--full','--plain','--no-legend','--no-pager',
+                  '--output=json',self.INSTANCE_PREFIX+'*.service',self.WORKER_PREFIX+'*.service',timeout=10)
+        c.need(len(raw) <= 1024*1024, 'PROGRAM_INSTANCE_OUTPUT')
+        rows = c.strict_json(raw)
+        c.need(type(rows) is list and len(rows) <= 1024, 'PROGRAM_INSTANCE_OUTPUT')
+        names = {self.CLEANUP}
+        for row in rows:
+            c.need(type(row) is dict and type(row.get('unit')) is str
+                   and self.managed_name(row['unit']) and row['unit'].endswith('.service'),
+                   'PROGRAM_INSTANCE_OUTPUT')
+            names.add(row['unit'])
+        for name in sorted(names):
+            row = self.show(name, ('LoadState','ActiveState','MainPID','ControlPID','ControlGroup','Job'))
+            c.need(row['LoadState'] in ('loaded','not-found','masked')
+                   and row['ActiveState'] in ('inactive','failed')
+                   and row['MainPID'] == row['ControlPID'] == '0' and row['Job'] == '',
+                   'PROGRAM_INSTANCE_BUSY')
+            group = row['ControlGroup']
+            if group:
+                c.need(c.absolute(group), 'PROGRAM_INSTANCE_CGROUP')
+                events = Path('/sys/fs/cgroup')/group.lstrip('/')/'cgroup.events'
+                if events.exists():
+                    c.need('populated 0' in events.read_text().splitlines(), 'PROGRAM_INSTANCE_BUSY')
+        raw = run('systemctl','list-jobs','--plain','--no-legend','--no-pager',timeout=10)
+        c.need(len(raw) <= 1024*1024, 'PROGRAM_JOB_OUTPUT')
+        for line in raw.decode().splitlines():
+            fields = line.split()
+            c.need(len(fields) == 4 and fields[0].isdecimal(), 'PROGRAM_JOB_OUTPUT')
+            c.need(not self.managed_name(fields[1]), 'PROGRAM_PENDING_JOB')
+        self._exclusion.require()
+
+    def triggers_ready(self):
+        for name, sub in ((self.SOCKET, 'listening'), (self.TIMER, 'waiting')):
+            row = self.show(name, ('LoadState','ActiveState','SubState','FragmentPath','DropInPaths',
+                                   'NeedDaemonReload','Job'))
+            c.need(row == {'LoadState':'loaded','ActiveState':'active','SubState':sub,
+                           'FragmentPath':str(self.UNIT_ROOT/name),'DropInPaths':'',
+                           'NeedDaemonReload':'no','Job':''}, 'PROGRAM_TRIGGER_NOT_READY')
+        row = self.show(self.SOCKET, ('Accept','Listen','SocketUser','SocketGroup','SocketMode','RemoveOnStop'))
+        c.need(row == {'Accept':'yes','Listen':str(self.ENDPOINT)+' (Stream)',
+                       'SocketUser':program_pair.PEER_USER,'SocketGroup':program_pair.PEER_GROUP,
+                       'SocketMode':'0600','RemoveOnStop':'yes'}, 'PROGRAM_SOCKET_CONTEXT')
+        row = self.show(self.TIMER, ('Triggers',))
+        c.need(row['Triggers'] == self.CLEANUP, 'PROGRAM_TIMER_CONTEXT')
+
+    def before(self):
+        self.load_path()
+        for name in (self.SOCKET,self.TIMER):
+            c.need(optional_state(self.MASK_ROOT/name) is None, 'PROGRAM_FOREIGN_FENCE')
+        result = self.raw_definitions()
+        self.loaded_services();self.triggers_ready();self.require_idle()
+        return result
+
+    @_program_file_operation
+    def close(self):
+        self.before()
+        if not self.MASK_ROOT.exists():
+            secure_dir(self.MASK_ROOT.parent)
+            self.MASK_ROOT.mkdir(mode=0o755)
+            fsync_dir(self.MASK_ROOT.parent)
+        secure_dir(self.MASK_ROOT)
+        for name in (self.SOCKET, self.TIMER):
+            self.load_path()
+            path = self.MASK_ROOT/name
+            c.need(path_state(path) is None, 'PROGRAM_FOREIGN_FENCE')
+            staged = path.with_name('.'+name+'.program-fence-'+self.nonce)
+            c.need(not os.path.lexists(staged), 'PROGRAM_FENCE_STAGE_EXISTS')
+            staged.symlink_to('/dev/null');fsync_dir(staged.parent)
+            state = path_state(staged)
+            self.masks[name] = state
+            self.record('BEFORE_MASK_PUBLICATION')
+            self._exclusion.require()
+            replace_managed(path, staged, None, state, nonce=self.nonce)
+        # Stop using the still-loaded original definitions. Reloading a mask
+        # over an active socket first discards Listen/RemoveOnStop; over an
+        # active timer it can lose its target. Neither is closure evidence.
+        # The masks are already durable and the shared locks remain held.
+        # Never stop/kill existing accepted services or paid worker units.
+        run('systemctl','--no-block','stop',self.SOCKET,self.TIMER,timeout=10)
+        deadline = time.monotonic()+15
+        while True:
+            rows = {n:self.show(n,('ActiveState','Job') + (('ControlPID',) if n == self.SOCKET else ()))
+                    for n in self.masks}
+            if all(r['ActiveState'] == 'inactive' and r['Job'] == ''
+                   and (n == self.TIMER or r['ControlPID'] == '0') for n,r in rows.items()):
+                break
+            if time.monotonic() >= deadline:
+                self._record('TRIGGER_STOP_UNRESOLVED', {'states':rows})
+                raise c.Blocked('PROGRAM_TRIGGER_STOP_UNRESOLVED')
+            time.sleep(.1)
+        run('systemctl','daemon-reload',timeout=15)
+        for name in self.masks:
+            c.need(prop(name,'LoadState') == 'masked','PROGRAM_FENCE_NOT_LOADED')
+        self.require()
+        self.record('SOCKET_AND_TIMER_CLOSED')
+
+    def require(self):
+        self.load_path()
+        c.need(not self.released and set(self.masks) == {self.SOCKET,self.TIMER}, 'PROGRAM_FENCE_NOT_OWNED')
+        for name,state in self.masks.items():
+            c.need(path_state(self.MASK_ROOT/name) == state,'PROGRAM_FENCE_LOST')
+            expected = {'LoadState':'masked','ActiveState':'inactive','Job':''}
+            if name == self.SOCKET:
+                expected['ControlPID'] = '0'
+            row = self.show(name,tuple(expected))
+            c.need(row == expected, 'PROGRAM_ADMISSION_NOT_CLOSED')
+        c.need(not os.path.lexists(self.ENDPOINT), 'PROGRAM_SOCKET_NODE_REMAINS')
+        self.require_idle()
+
+    @_program_file_operation
+    def release_and_start(self, new, *, admission_guard=None):
+        c.need(not new or callable(admission_guard), 'PROGRAM_ADMISSION_WINDOW_REQUIRED')
+        guard = admission_guard if new else (lambda: None)
+        guard()
+        self.require()
+        self.loaded_services(new)
+        # Caller must durably mark possible admission BEFORE this method.
+        for name,state in self.masks.items():
+            self._exclusion.require();self.load_path()
+            c.need(path_state(self.MASK_ROOT/name) == state,'PROGRAM_FENCE_LOST')
+            guard()  # immediately before each operation exposing admission
+            replace_managed(self.MASK_ROOT/name,None,state,None,nonce=self.nonce)
+        self.released = True
+        guard()
+        run('systemctl','daemon-reload',timeout=15)
+        self.loaded_services(new)
+        guard()  # reload/verification may outlive the originally checked window
+        run('systemctl','start',self.SOCKET,self.TIMER,timeout=15)
+        # A timer may immediately schedule its cleanup on reactivation. With
+        # the program lock held, that sweep returns without touching results.
+        deadline = time.monotonic()+5
+        while True:
+            try:
+                self.triggers_ready()
+                break
+            except c.Blocked as error:
+                if error.code != 'PROGRAM_TRIGGER_NOT_READY' or time.monotonic() >= deadline:
+                    raise
+                time.sleep(.1)
+        self.record('TRIGGERS_REOPENED')
+
+
+
+
+def program_tree(root, pins, *, immutable=False):
+    """Seven bounded source files only; never inspect retained result storage."""
+    root = Path(root)
+    observer = ProgramPairObserver()
+    before = observer.identity(root, immutable=immutable, directory=True)
+    c.need(set(observer.names(root)) == set(pins), 'PROGRAM_RELEASE_INVENTORY')
+    files = {}
+    for name, pin in pins.items():
+        c.need(Path(name).name == name and c.is_hash(pin), 'PROGRAM_RELEASE_SCOPE')
+        path = root/name
+        identity = observer.identity(path, immutable=immutable, directory=False)
+        c.need(c.digest(observer.file(path)) == pin, 'PROGRAM_RELEASE_SOURCE')
+        c.need(observer.identity(path, immutable=immutable, directory=False) == identity,
+               'PROGRAM_RELEASE_CHANGED')
+        files[name] = identity
+    c.need(observer.identity(root, immutable=immutable, directory=True) == before,
+           'PROGRAM_RELEASE_CHANGED')
+    return {'root':str(root),'identity':before,'files':files,'hashes':dict(pins)}
+
+
+class ProgramPairDeployment:
+    """Finite paired program deployment using the real service/file adapters.
+
+    PLAN performs only reads and holds the two pre-existing advisory locks.
+    APPLY requires exact product/package, source/unit/old-state and short
+    coordination bindings, plus the unchanged real read-only readiness check.
+    No result-store path, provider call, credential or database write exists
+    in this adapter. It never replays an interrupted attempt.
+    """
+    OLD_ROOT = Path('/opt/alisa-program/releases/20261113-reliability-r1')
+    OLD_PINS = {**program_pair.FILES,
+        'manifest.json':'7264c065e5a16db8eea4a9df316a60ba1bc90d2a56120891e8b198e0f3b32795',
+        'program_broker.py':'915d9b328b87ee4acc21c052f1fb4c19c3747f921916022d0e5cabb1071a5156'}
+    SDK = Path('/opt/alisa-dsh-lab/20261110-r1')
+    SDK_MANIFEST = 'd24d77973c3517282fbad48a481185a30295d162d50da5371505428af9e1f256'
+    SDK_CFG = '731f0daa65ed2fda5091e516049114c1a919d97544ec259953bb3ebdc95d9b33'
+
+    def __init__(self, product, source, unit_candidates, attempt, exclusion,
+                 planned=None, coordination=None, plan_hash=None):
+        self.product, self.source = product, Path(source)
+        self.unit_candidates, self.attempt = Path(unit_candidates), Path(attempt)
+        c.need(isinstance(exclusion,ProgramPairExclusion),'PROGRAM_EXCLUSION_REQUIRED')
+        self._exclusion = exclusion
+        self._exclusion.require()
+        self.planned, self.coordination, self.plan_hash = planned, coordination, plan_hash
+        self.services = ProgramPairServiceFence(exclusion,self.record)
+        self.transaction = None
+        self.admission_possible = False
+        self.published = None
+
+    @_program_file_operation
+    def record(self, name, value=None):
+        c.need(re.fullmatch('[A-Z][A-Z0-9_-]{0,95}',name) is not None,'PROGRAM_RECORD_SCOPE')
+        if value is None:
+            value = {'status':name,'admission_possible':self.admission_possible,
+                     'source_commit':c.PRODUCT,'installed_synthetic':'NOT_RUN','live_owner':'NOT_RUN'}
+        write_new(self.attempt/(name+'.json'),c.encoded(value))
+
+    def sdk_context(self):
+        # Preserve the accepted runtime dependency, not a requalification of
+        # its SDK or package manager. No dependency is installed or upgraded.
+        secure_dir(self.SDK);secure_dir(self.SDK/'.venv')
+        manifest=self.SDK/'INSTALLED_MANIFEST.json';cfg=self.SDK/'.venv/pyvenv.cfg'
+        c.need(c.digest(regular(manifest))==self.SDK_MANIFEST and c.digest(regular(cfg))==self.SDK_CFG,
+               'PROGRAM_SDK_BASE_CHANGED')
+        interpreter=self.SDK/'.venv/bin/python'
+        c.need(interpreter.is_symlink(),'PROGRAM_SDK_INTERPRETER')
+        target=interpreter.resolve(strict=True)
+        return {'manifest':metadata(manifest),'cfg':metadata(cfg),
+                'interpreter_link':path_state(interpreter),'interpreter_target':str(target),
+                'interpreter_sha256':c.digest(regular(target))}
+
+    def candidate_units(self):
+        secure_dir(self.unit_candidates)
+        c.need({p.name for p in self.unit_candidates.iterdir()} == set(program_pair.CHANGING_UNITS),
+               'PROGRAM_UNIT_CANDIDATE_INVENTORY')
+        result={}
+        for name in program_pair.CHANGING_UNITS:
+            p=self.unit_candidates/name;state=path_state(p)
+            c.need(state is not None and state['kind']=='file'
+                   and state['content']==program_pair.UNIT_FILES[name],'PROGRAM_UNIT_CANDIDATE')
+            result[name]=state
+        return result
+
+    def product_snapshot(self):
+        package(self.product.builder,self.product.bundle,self.product.prepared_hash)
+        value=self.product.capture_product()
+        value['program_rollout_generations']={u:{'pid':prop(u,'MainPID'),
+            'invocation':prop(u,'InvocationID')} for u in (*c.UNITS.values(),c.CHECKER_UNIT)}
+        return value
+
+    def before(self):
+        self._exclusion.require()
+        c.need(not os.path.lexists(Path(program_pair.ROOT)),'PROGRAM_RELEASE_ALREADY_EXISTS')
+        return {'product':self.product_snapshot(),
+                'old_program':program_tree(self.OLD_ROOT,self.OLD_PINS),
+                'source':program_tree(self.source,program_pair.FILES),
+                'candidate_units':self.candidate_units(),
+                'units':self.services.before(),'sdk':self.sdk_context()}
+
+    def make_plan(self):
+        c.need(not os.path.lexists(self.attempt),'PROGRAM_ATTEMPT_EXISTS')
+        before=self.before()
+        counts=self.product.counts()
+        reserve(8*1024**2,64,(Path(program_pair.ROOT).parent,self.attempt.parent))
+        c.need(self.before()==before,'PROGRAM_PLAN_BASE_MOVED')
+        return {'schema':'alisa-program-pair-activation-plan/v1','status':'PROGRAM_PLAN_NOT_APPLIED',
+                'source_commit':c.PRODUCT,'tool_sha256':self.product.tool_pin,
+                'prepared_sha256':self.product.prepared_hash,'bundle':str(self.product.bundle),
+                'program_source':str(self.source),'program_units':str(self.unit_candidates),
+                'before':before,'counts_at_plan':counts}
+
+    def window(self):
+        c.window(self.coordination,plan_hash=self.plan_hash,tool_hash=self.product.tool_pin,
+                 prepared_hash=self.product.prepared_hash,now=time.time())
+
+    def check_plan_and_window(self):
+        c.need(type(self.planned) is dict and self.planned.get('schema')=='alisa-program-pair-activation-plan/v1'
+               and self.planned.get('status')=='PROGRAM_PLAN_NOT_APPLIED'
+               and self.planned.get('source_commit')==c.PRODUCT
+               and self.planned.get('tool_sha256')==self.product.tool_pin
+               and self.planned.get('prepared_sha256')==self.product.prepared_hash
+               and self.planned.get('bundle')==str(self.product.bundle)
+               and self.planned.get('program_source')==str(self.source)
+               and self.planned.get('program_units')==str(self.unit_candidates), 'PROGRAM_PLAN_BINDING')
+        self.window()
+        c.need(self.make_plan()==self.planned,'PROGRAM_PLAN_CHANGED')
+        self.window()
+
+    @_program_file_operation
+    def backup(self):
+        c.need(not os.path.lexists(self.attempt),'PROGRAM_ATTEMPT_EXISTS')
+        self.attempt.mkdir(mode=0o700);fsync_dir(self.attempt.parent)
+        self.record('STARTED',{'plan_sha256':self.plan_hash,'admission_possible':False})
+        self.transaction=ProgramPairUnitTransaction(self.attempt/'unit-files',self.unit_candidates,
+                                                   self.services.require,self._exclusion)
+        self.transaction.backup()
+
+    def fence_socket_and_cleanup(self):
+        self.services.close()
+
+    def require_admission_fence(self):
+        self.services.require()
+
+    def require_idle_and_locks(self):
+        self._exclusion.require();self.services.require_idle()
+
+    def verify_old_and_candidate(self):
+        before=self.planned['before']
+        c.need(program_tree(self.OLD_ROOT,self.OLD_PINS)==before['old_program']
+               and program_tree(self.source,program_pair.FILES)==before['source']
+               and self.candidate_units()==before['candidate_units']
+               and self.sdk_context()==before['sdk'],'PROGRAM_DEPENDENCY_CHANGED')
+        c.need(self.product_snapshot()==before['product'],'PROGRAM_PRODUCT_BASE_CHANGED')
+        self.services.loaded_services(False)
+
+    @_program_file_operation
+    def publish_immutable_pair(self):
+        self.services.require();self.verify_old_and_candidate()
+        target=Path(program_pair.ROOT);secure_dir(target.parent)
+        c.need(not os.path.lexists(target),'PROGRAM_RELEASE_ALREADY_EXISTS')
+        reserve(8*1024**2,64,(target.parent,))
+        stage=Path(tempfile.mkdtemp(prefix='.'+target.name+'-',dir=target.parent))
+        identity=(stage.stat().st_dev,stage.stat().st_ino)
+        self.record('PUBLICATION_INTENT',{'stage':str(stage),'identity':identity,'target':str(target)})
+        for name,pin in program_pair.FILES.items():
+            raw=regular(self.source/name,2*1024*1024)
+            c.need(c.digest(raw)==pin,'PROGRAM_RELEASE_SOURCE')
+            write_new(stage/name,raw,0o444)
+        stage.chmod(0o555);fsync_dir(stage)
+        program_tree(stage,program_pair.FILES,immutable=True)
+        self.services.require();self.verify_old_and_candidate()
+        noreplace(stage,target)
+        self.published=program_tree(target,program_pair.FILES,immutable=True)
+        c.need(tuple(map(int,self.published['identity'][:2]))==identity,'PROGRAM_PUBLICATION_MOVED')
+        self.record('PUBLISHED',self.published)
+
+    def switch_owned_units(self):
+        self.services.require()
+        c.need(program_tree(Path(program_pair.ROOT),program_pair.FILES,immutable=True)==self.published,
+               'PROGRAM_PUBLICATION_CHANGED')
+        self.transaction.switch()
+
+    def reload_and_verify_new(self):
+        self.services.require()
+        run('systemctl','daemon-reload',timeout=15)
+        self.services.require();self.services.loaded_services(True)
+
+    def check_window_and_fences(self):
+        self.window();self.services.require()
+        c.need(program_tree(Path(program_pair.ROOT),program_pair.FILES,immutable=True)==self.published,
+               'PROGRAM_PUBLICATION_CHANGED')
+        c.need(self.sdk_context()==self.planned['before']['sdk']
+               and self.product_snapshot()==self.planned['before']['product'], 'PROGRAM_PRODUCT_BASE_CHANGED')
+        self.product.counts()
+        self.window();self.services.require();self.services.loaded_services(True)
+
+    @_program_file_operation
+    def mark_admission_possible(self):
+        self.admission_possible=True
+        self.record('ADMISSION_POSSIBLE',{'possible':True})
+
+    def release_and_start_socket(self):
+        c.need(self.admission_possible,'PROGRAM_ADMISSION_MARKER_REQUIRED')
+        self.services.release_and_start(True, admission_guard=self.window)
+
+    def verify_installed_pair(self):
+        observed=program_pair.inspect_pair(ProgramPairObserver(),program_pair.CLIENT_SHA256)
+        c.need(observed['root_identity']==self.published['identity'],'PROGRAM_PUBLICATION_CHANGED')
+        c.need(self.sdk_context()==self.planned['before']['sdk']
+               and self.product_snapshot()==self.planned['before']['product'],'PROGRAM_PRODUCT_BASE_CHANGED')
+        reserve(roots=(Path(program_pair.ROOT).parent,))
+
+    @_program_file_operation
+    def restore_before_admission(self):
+        if self.admission_possible:
+            return False
+        try:
+            self.services.require()
+            if not self.transaction.restore():
+                return False
+            run('systemctl','daemon-reload',timeout=15)
+            self.services.require();self.services.loaded_services(False)
+            c.need(program_tree(self.OLD_ROOT,self.OLD_PINS)==self.planned['before']['old_program']
+                   and self.product_snapshot()==self.planned['before']['product']
+                   and self.sdk_context()==self.planned['before']['sdk'],'PROGRAM_RECOVERY_BASE_CHANGED')
+            self.admission_possible=True
+            self.record('OLD_ADMISSION_POSSIBLE',{'possible':True})
+            self.services.release_and_start(False)
+            return True
+        except BaseException:
+            return False
+
+
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('plan', 'prepare', 'apply'))
+    parser.add_argument('command', choices=('plan', 'prepare', 'apply', 'program-plan', 'program-apply'))
     parser.add_argument('--builder', type=Path, required=True)
     parser.add_argument('--bundle', type=Path, required=True)
     parser.add_argument('--prepared-sha256', required=True)
@@ -1787,15 +2264,49 @@ def main():
     parser.add_argument('--activation-plan-sha256')
     parser.add_argument('--coordination', type=Path)
     parser.add_argument('--coordination-sha256')
+    parser.add_argument('--program-source', type=Path)
+    parser.add_argument('--program-units', type=Path)
+    parser.add_argument('--program-plan', type=Path)
+    parser.add_argument('--program-plan-sha256')
     args = parser.parse_args()
     try:
         c.need(os.geteuid() == 0 and sys.flags.isolated == 1 and sys.dont_write_bytecode
                and tool_hash() == args.tool_sha256, 'TOOL_IDENTITY')
         public_tool_directory(args.tool_sha256)
+        program_command = args.command in ('program-plan', 'program-apply')
+        prefix = 'alisa-program-pair-' if program_command else 'alisa-r15-activation-'
         c.need(c.absolute(str(args.attempt)) and args.attempt.parent == Path('/root')
-               and re.fullmatch('alisa-r15-activation-'+c.PRODUCT[:8]+'-[0-9a-f]{16}', args.attempt.name),
+               and re.fullmatch(prefix+c.PRODUCT[:8]+'-[0-9a-f]{16}', args.attempt.name),
                'ATTEMPT_SCOPE')
         builder = builder_at(args.builder)
+        if program_command:
+            c.need(args.program_source is not None and args.program_units is not None,
+                   'PROGRAM_SOURCE_REQUIRED')
+            with ProgramPairExclusion() as exclusion:
+                product = LiveHost(builder,args.bundle,args.prepared_sha256,args.attempt,exclusion._stream)
+                planned = coordination = None
+                if args.command == 'program-apply':
+                    c.need(args.program_plan is not None and args.coordination is not None,
+                           'PROGRAM_PLAN_AND_WINDOW_REQUIRED')
+                    raw=regular(args.program_plan)
+                    c.need(c.is_hash(args.program_plan_sha256) and c.digest(raw)==args.program_plan_sha256,
+                           'PROGRAM_PLAN_HASH_CHANGED')
+                    planned=c.strict_json(raw)
+                    raw=regular(args.coordination)
+                    c.need(c.is_hash(args.coordination_sha256) and c.digest(raw)==args.coordination_sha256,
+                           'COORDINATION_CHANGED')
+                    coordination=c.strict_json(raw)
+                host=ProgramPairDeployment(product,args.program_source,args.program_units,args.attempt,
+                    exclusion,planned,coordination,args.program_plan_sha256)
+                if args.command == 'program-plan':
+                    result=host.make_plan()
+                    print(c.encoded(result).decode(),end='')
+                    return 0
+                status=program_pair.rollout_pair(host)
+                result=c.public_result(status)
+                result['installed_synthetic']='NOT_RUN'
+                print(c.encoded(result).decode(),end='')
+                return 0 if status=='PROGRAM_PAIR_TECHNICAL_PASS' else 2
         with lock() as stream:
             host = LiveHost(builder, args.bundle, args.prepared_sha256, args.attempt, stream)
             if args.command in ('plan', 'prepare'):
