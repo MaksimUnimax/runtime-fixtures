@@ -31,18 +31,18 @@ class Fixture(BaseHTTPRequestHandler):
         elif self.path.endswith('/question-catalog'):
             sid = body['store_id']; query = body['query']
             value = {'items': [{'id': 'orders', 'version': 1, 'kind': 'scalar',
-                      'description': 'Количество заказанных товаров', 'platforms': ['ozon', 'wb'], 'units': ['шт'],
+                      'description': 'Количество заказанных товаров', 'platforms': ['ozon', 'wb'], 'units': ['item'],
                       'dependencies': [], 'input_policy': {'time_axis': 'order_period', 'snapshot': False,
                       'period_required': True, 'comparison_supported': True, 'filters_supported': True},
                       'availability': [{'store_id': sid, 'status': 'ELIGIBLE'}]},
                      {'id': 'accruals', 'version': 2, 'kind': 'dataset', 'description': 'Начисления по дате начисления',
-                      'platforms': ['ozon', 'wb'], 'units': ['RUB'], 'dependencies': [],
+                      'platforms': ['ozon', 'wb'], 'units': ['currency'], 'dependencies': [],
                       'input_policy': {'time_axis': 'accrual_date', 'snapshot': False, 'period_required': True,
                       'comparison_supported': False, 'filters_supported': False},
                       'availability': [{'store_id': sid, 'status': 'UNAVAILABLE'}]}], 'next_offset': None}
             value['items'].extend([
                 {'id': 'snapshot', 'version': 1, 'kind': 'scalar', 'description': 'Текущие остатки',
-                 'platforms': ['ozon', 'wb'], 'units': ['шт'], 'dependencies': [],
+                 'platforms': ['ozon', 'wb'], 'units': ['item'], 'dependencies': [],
                  'input_policy': {'time_axis': 'snapshot', 'snapshot': True, 'period_required': False,
                                   'comparison_supported': False, 'filters_supported': False},
                  'availability': [{'store_id': sid, 'status': 'ELIGIBLE'}]},
@@ -129,6 +129,12 @@ def run():
                         expect(dated.get_by_role('link', name='Подготовить вопрос в форме')).to_have_count(0)
                         snapshot = page.get_by_role('heading', name='Текущие остатки', exact=True).locator('..')
                         coefficient = page.get_by_role('heading', name='Коэффициент потерь', exact=True).locator('..')
+                        ordered = page.get_by_role('heading', name='Количество заказанных товаров', exact=True).locator('..')
+                        expect(ordered.get_by_text('шт.', exact=True)).to_be_visible()
+                        expect(dated.get_by_text('Деньги (валюта отчёта)', exact=True)).to_be_visible()
+                        expect(coefficient.get_by_text('доля (в ответе — проценты)', exact=True)).to_be_visible()
+                        # A generic currency unit must not be relabelled as a specific RUB amount.
+                        expect(dated.get_by_text('₽', exact=True)).to_have_count(0)
                         expect(snapshot.get_by_text('Пример: Покажи Текущие остатки сейчас', exact=True)).to_be_visible()
                         expect(coefficient.get_by_text('Пример: Покажи Коэффициент потерь', exact=True)).to_be_visible()
                         page.get_by_label('Дата начала', exact=True).fill('2026-11-01')
@@ -159,6 +165,7 @@ def run():
                         expect(page.get_by_label('Дата окончания', exact=True)).to_have_value('2026-11-10')
                         page.get_by_label('Магазин', exact=True).select_option(IDS[1])
                         expect(page.get_by_text('Площадка: WB.', exact=True)).to_be_visible()
+                        expect(dated.get_by_text('Деньги (валюта отчёта)', exact=True)).to_be_visible()
                         expect(dated.get_by_text('Пример: '+expected, exact=True)).to_be_visible()
                         if os.environ.get('CATALOG_SCREENSHOTS'):
                             output = Path(os.environ['CATALOG_SCREENSHOTS']); output.mkdir(parents=True, exist_ok=True)
@@ -187,7 +194,7 @@ def run():
                             'draft_store_and_text', 'invalid_period_blocks_draft', 'custom_period_visible',
                             'seven_complete_days', 'open_tab_midnight_rollover', 'date_input_max_rollover', 'device_sleep_wake', 'click_refreshes_stale_period', 'custom_dates_preserved', 'snapshot_ignores_report_dates',
                             'parameter_keeps_own_period', 'platform_switch', 'explicit_period_prefill',
-                            'zero_submissions', 'zero_external_browser_requests']}))
+                            'readable_units_from_raw_metadata', 'generic_currency_does_not_assume_RUB', 'zero_submissions', 'zero_external_browser_requests']}))
                     finally: browser.close()
             finally:
                 try: os.killpg(process.pid, signal.SIGTERM)
