@@ -2607,14 +2607,14 @@
     },
     "B14.card_views": {
       "id": "B14.card_views",
-      "version": 1,
+      "version": 2,
       "purpose": "переходов в карточки",
       "platforms": [
         "wb"
       ],
       "kind": "scalar",
       "input_policy": {
-        "time_axis": "order_period",
+        "time_axis": "analytics_period",
         "snapshot": false,
         "period_required": true,
         "comparison_supported": true,
@@ -2728,14 +2728,14 @@
     },
     "B14.cart_additions": {
       "id": "B14.cart_additions",
-      "version": 1,
+      "version": 2,
       "purpose": "добавлений в корзину",
       "platforms": [
         "wb"
       ],
       "kind": "scalar",
       "input_policy": {
-        "time_axis": "order_period",
+        "time_axis": "analytics_period",
         "snapshot": false,
         "period_required": true,
         "comparison_supported": true,
