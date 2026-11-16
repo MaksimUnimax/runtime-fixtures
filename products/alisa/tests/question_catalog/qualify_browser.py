@@ -52,6 +52,14 @@ class Fixture(BaseHTTPRequestHandler):
                                   'comparison_supported': False, 'filters_supported': True},
                  'availability': [{'store_id': sid, 'status': 'ELIGIBLE' if sid == IDS[0] else 'UNAVAILABLE'}]}
             ])
+            if sid == IDS[1]:
+                for tid, title in [('B14.card_views', 'переходов в карточки'),
+                                   ('B14.cart_additions', 'добавлений в корзину')]:
+                    value['items'].append({'id': tid, 'version': 2, 'kind': 'scalar',
+                        'description': title, 'platforms': ['wb'], 'units': ['count'],
+                        'dependencies': [], 'input_policy': {'time_axis': 'analytics_period',
+                        'snapshot': False, 'period_required': True, 'comparison_supported': True,
+                        'filters_supported': True}, 'availability': [{'store_id': sid, 'status': 'ELIGIBLE'}]})
             value['items'] = [r for r in value['items'] if query['search'].casefold() in r['description'].casefold()
                               and (not query['kind'] or r['kind'] == query['kind'])]
             value['total'] = len(value['items'])
@@ -103,7 +111,7 @@ def run():
                         expect(page.get_by_role('heading', name='Поддерживаемые вопросы', exact=True)).to_be_visible()
                         expect(page.get_by_text('Дата финансового начисления', exact=False)).to_be_visible()
                         page.get_by_label('Магазин', exact=True).select_option(IDS[1])
-                        expect(page.get_by_role('status')).to_contain_text('Найдено: 4')
+                        expect(page.get_by_role('status')).to_contain_text('Найдено: 6')
                         page.get_by_role('button', name='Показать ещё магазины', exact=True).click()
                         expect(page.get_by_role('status')).to_contain_text('Текущий выбор сохранён')
                         expect(page.get_by_label('Магазин', exact=True)).to_have_value(IDS[1])
@@ -188,12 +196,38 @@ def run():
                         dated.get_by_role('link', name='Подготовить вопрос в форме').click()
                         expect(page.get_by_role('textbox', name='Вопрос', exact=True)).to_have_value('Покажи Начисления по дате начисления с '+click_dates[0]+' по '+click_dates[1])
                         expect(page.get_by_label('Второй магазин · WB', exact=True)).to_be_checked()
+                        for title in ['переходов в карточки', 'добавлений в корзину']:
+                            page.goto(origin+'/app/catalog', wait_until='networkidle')
+                            page.get_by_label('Магазин', exact=True).select_option(IDS[1])
+                            page.get_by_role('searchbox', name='Найти вопрос').fill(title)
+                            page.get_by_role('button', name='Найти', exact=True).click()
+                            activity = page.get_by_role('heading', name=title, exact=True).locator('..')
+                            expect(activity.get_by_text('Период статистики действий в карточках WB', exact=False)).to_be_visible()
+                            expect(activity.get_by_text('Дата оформления заказа', exact=False)).to_have_count(0)
+                            expect(activity.get_by_text('ед.', exact=True)).to_be_visible()
+                            activity.locator('summary').click()
+                            expect(activity.get_by_text('версия 2', exact=False)).to_be_visible()
+                            page.get_by_label('Период', exact=True).select_option('custom')
+                            page.get_by_label('Дата начала', exact=True).fill('2026-11-01')
+                            page.get_by_label('Дата окончания', exact=True).fill('2026-11-10')
+                            page.get_by_label('Магазин', exact=True).select_option(IDS[0])
+                            expect(page.get_by_role('status')).to_contain_text('Найдено: 0')
+                            page.get_by_label('Магазин', exact=True).select_option(IDS[1])
+                            expect(activity.get_by_text('Период статистики действий в карточках WB', exact=False)).to_be_visible()
+                            expect(page.get_by_label('Дата начала', exact=True)).to_have_value('2026-11-01')
+                            expected_activity = 'Покажи '+title+' с 01.11.2026 по 10.11.2026'
+                            expect(activity.get_by_text('Пример: '+expected_activity, exact=True)).to_be_visible()
+                            activity.get_by_role('link', name='Подготовить вопрос в форме').click()
+                            expect(page.get_by_label('Второй магазин · WB', exact=True)).to_be_checked()
+                            expect(page.locator('input[type=checkbox]:checked')).to_have_count(1)
+                            expect(page.get_by_role('textbox', name='Вопрос', exact=True)).to_have_value(expected_activity)
                         assert not state['submissions'] and not state['external'], state
                         print(json.dumps({'status':'PASS', 'checks': ['rendered_catalog', 'date_axis',
                             'selected_store_preserved', 'repeated_cursor_recovery', 'search', 'repeat_search',
                             'draft_store_and_text', 'invalid_period_blocks_draft', 'custom_period_visible',
                             'seven_complete_days', 'open_tab_midnight_rollover', 'date_input_max_rollover', 'device_sleep_wake', 'click_refreshes_stale_period', 'custom_dates_preserved', 'snapshot_ignores_report_dates',
                             'parameter_keeps_own_period', 'platform_switch', 'explicit_period_prefill',
+                            'wb_activity_period', 'wb_order_cohort_axis_not_reused', 'wb_activity_version', 'wb_activity_prefill',
                             'readable_units_from_raw_metadata', 'generic_currency_does_not_assume_RUB', 'zero_submissions', 'zero_external_browser_requests']}))
                     finally: browser.close()
             finally:
