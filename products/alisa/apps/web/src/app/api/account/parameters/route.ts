@@ -11,6 +11,10 @@ export async function POST(request:Request){
  if(!c||Array.isArray(c)||typeof c!=='object'||typeof c.store_id!=='string'||!uuid.test(c.store_id)||typeof c.action!=='string')return response({code:'INVALID_PAYLOAD'},422);
  const base=['action','store_id','parameter','scope','sku_reference'];
  const fields:Record<string,string[]>={catalog:['action','store_id'],read:base,status:[...base,'command_id'],prepare_calculation:[...base,'period','mode'],start_calculation:[...base,'period','mode','command_id','expected_revision','confirmed','not_after'],collection_status:[...base,'command_id'],recover_collection:[...base,'command_id'],cancel_collection:[...base,'command_id'],set_manual:[...base,'value','unit','command_id','expected_revision','confirmed','not_after'],use_general:[...base,'command_id','expected_revision','confirmed','not_after']};
+ if(c.action==='start_calculation'&&Object.hasOwn(c,'period_reference')){
+  if(typeof c.period_reference!=='string'||c.period_reference.length===0||c.period_reference.length>4096)return response({code:'INVALID_PAYLOAD'},422);
+  fields.start_calculation=[...fields.start_calculation,'period_reference'];
+ }
  if(!Object.hasOwn(fields,c.action)||Object.keys(c).sort().join(',')!==[...fields[c.action]].sort().join(','))return response({code:'INVALID_PAYLOAD'},422);
  if(c.action!=='catalog'){
   const area=c.scope as {kind?:unknown;sku?:unknown};

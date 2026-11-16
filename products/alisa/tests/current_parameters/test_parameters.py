@@ -314,3 +314,62 @@ class ParameterDefinitionCompatibility(UnitCase):
   view=self.view('0.1');view['effective']['unit']='RUB'
   with self.assertRaises(c.ParameterError)as e:self.plan(view)
   self.assertEqual(e.exception.code,'PARAMETER_UNIT_CHANGED')
+
+
+class BoundPreparation(Fixture,TestCase):
+ def setUp(self):
+  self.create()
+  from alisa_platform.owner_data import parameter_periods
+  self.periods=parameter_periods
+ def prepared(self,request=None,mode='preview'):
+  q=self.command('read');q.update(action='prepare_calculation',period=request,mode=mode)
+  return q,s.execute(self.token,q)
+ def accept(self,q,r,**changes):
+  fields={'actor':self.session,'store':self.store,'key':q['parameter'],'area':q['scope'],
+          'request':q['period'],'mode':q['mode'],'reference':r['period_reference']}
+  fields.update(changes);return self.periods.accept(**fields)
+ def test_preparation_does_not_create_value_or_command(self):
+  q,r=self.prepared();self.assertFalse(r['dispatched']);self.assertTrue(r['period_reference'])
+  self.assertFalse(CurrentParameter.objects.exists());self.assertFalse(OwnerCommand.objects.exists())
+ def test_admission_preserves_prepared_period_across_day_change(self):
+  with patch.object(self.periods,'resolve_period',side_effect=lambda today,request:c.resolve_period(date(2026,11,16),request)):
+   q,r=self.prepared()
+  with patch.object(self.periods,'resolve',side_effect=AssertionError('PERIOD_RECOMPUTED')):
+   self.assertEqual(self.accept(q,r),r['period'])
+ def test_internal_confirmed_short_period_is_preserved(self):
+  short=c.resolve_period(date(2026,11,16),available_from=date(2026,8,16),short_history_confirmed=True)
+  with patch.object(self.periods,'resolve',return_value=short):q,r=self.prepared()
+  self.assertEqual(self.accept(q,r),short)
+ def test_reference_integrity_is_checked(self):
+  q,r=self.prepared();r['period_reference']=r['period_reference'][:-1]+('a'if r['period_reference'][-1]!='a'else'b')
+  with self.assertRaises(Rejected):self.accept(q,r)
+ def test_reference_bound_to_request_mode_parameter_and_scope(self):
+  q,r=self.prepared()
+  for changes in [{'request':{'months':6}},{'mode':'replace'},{'key':'delivery_mean'},{'area':{'kind':'sku','sku':'123'}}]:
+   with self.subTest(changes=changes):
+    with self.assertRaises(Rejected):self.accept(q,r,**changes)
+ def test_reference_bound_to_current_store_revision(self):
+  q,r=self.prepared();self.store.revision+=1;self.store.save()
+  with self.assertRaises(Rejected):self.accept(q,r)
+ def test_reference_bound_to_current_identity(self):
+  q,r=self.prepared();self.store.verified_identity='different-native-cabinet';self.store.save()
+  with self.assertRaises(Rejected):self.accept(q,r)
+ def test_reference_bound_to_current_security_revision(self):
+  q,r=self.prepared();self.customer.security_revision+=1;self.customer.save();self.session.customer.refresh_from_db()
+  with self.assertRaises(Rejected):self.accept(q,r)
+ def test_other_session_cannot_use_preparation(self):
+  q,r=self.prepared();self.session.pk=uuid.uuid4()
+  with self.assertRaises(Rejected):self.accept(q,r)
+ def test_catalog_revision_change_invalidates_preparation(self):
+  q,r=self.prepared()
+  for name in ['CATALOG_HASH','PRODUCER_HASH']:
+   with self.subTest(name=name),patch.object(self.periods,name,'changed'):
+    with self.assertRaises(Rejected):self.accept(q,r)
+ def test_expired_reference_is_a_typed_rejection(self):
+  q,r=self.prepared()
+  with patch.object(self.periods,'MAX_AGE',-1):
+   with self.assertRaises(Rejected)as e:self.accept(q,r)
+  self.assertEqual(e.exception.code,'PARAMETER_PREPARATION_EXPIRED')
+ def test_legacy_request_does_not_accept_client_actual_or_short_flag(self):
+  q,r=self.prepared();self.assertEqual(self.accept(q,r,reference=None),r['period'])
+  with self.assertRaises(c.ParameterError):self.accept(q,r,reference=None,request=r['period'])
