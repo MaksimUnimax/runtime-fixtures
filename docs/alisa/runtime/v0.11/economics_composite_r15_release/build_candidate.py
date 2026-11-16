@@ -113,8 +113,7 @@ def snapshot(spec):
             item['venv_link'] = entry['venv_link']
         observed['bases'][role] = item
     core = c.strict_json(regular(spec['bases']['native']['root'], 'CURRENT_CORE_MANIFEST.json')[0])
-    c.need(core.get('files') == {n: h for n, h in manifests['native']['files'].items()
-                               if n != 'CURRENT_CORE_MANIFEST.json'}, 'CORE_MANIFEST_MISMATCH')
+    c.check_native_core_provenance(core, manifests['native'])
     publisher = spec['publisher']
     c.need(c.digest(read_file(publisher['path'])[0]) == publisher['sha256'], 'PUBLISHER_CHANGED')
     observed['publisher'] = deepcopy(publisher)

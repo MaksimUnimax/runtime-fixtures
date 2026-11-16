@@ -175,6 +175,43 @@ def check_plan(plan, baseline, tools):
          'PLAN_BEFORE_SCOPE')
 
 
+# Exact admitted WB publication preserves the frozen R5 core provenance while
+# changing only two public metadata files. The live manifest is still fully
+# hashed by verify_manifest before this relation is considered.
+WB_CORE_PROVENANCE_SHA256 = 'acbf9a1f8ff4269efcd7c6112327ae5e24ad4d5ccdd43185e1fac30e6a8ba9bf'
+WB_CORE_METADATA_DELTA = {
+    'base_blocks.json': (
+        'd96af17568ae241c530ee2a0b22a8b645871bd550b456809f8756e366b37f292',
+        'ab0be86975ee62a11301741d389f8fd431873b583159d55a04737342b8ecad05'),
+    'template_catalog.json': (
+        '257546629babaf0184e1ccb1cdb0ec7869d65f90e612b35a107c92f0320db26d',
+        'f17710716c186396869b4868a9d1650972414ccceaeba023e6c0ef1a8d0a933e'),
+}
+
+
+def check_native_core_provenance(core, manifest):
+    """Accept exact current core or the one byte-pinned published WB overlay.
+
+    This does not excuse file hash mismatches: snapshot first verifies every
+    live manifest file, including CURRENT_CORE_MANIFEST.json itself. The
+    exception binds its exact frozen bytes, both before/after metadata hashes,
+    the full 183-file map and no other addition/deletion/change.
+    """
+    before = core.get('files')
+    files = manifest['files']
+    after = {name: h for name, h in files.items() if name != 'CURRENT_CORE_MANIFEST.json'}
+    if before == after:
+        return 'EXACT_CURRENT_CORE'
+    need(type(before) is dict and len(before) == len(after) == 183
+         and files.get('CURRENT_CORE_MANIFEST.json') == WB_CORE_PROVENANCE_SHA256,
+         'CORE_MANIFEST_MISMATCH')
+    need(all(before.get(name) == old and after.get(name) == new
+             for name, (old, new) in WB_CORE_METADATA_DELTA.items()), 'CORE_MANIFEST_MISMATCH')
+    expected = {**before, **{name: new for name, (_, new) in WB_CORE_METADATA_DELTA.items()}}
+    need(expected == after, 'CORE_MANIFEST_MISMATCH')
+    return 'PINNED_WB_METADATA_OVERLAY'
+
+
 def check_catalog(before, after):
     need(type(before) is dict and type(after) is dict
          and type(before.get('templates')) is dict and type(after.get('templates')) is dict,
