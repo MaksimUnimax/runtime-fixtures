@@ -245,6 +245,23 @@ class ProgramSocket(TransactionTestCase):
   self.assertEqual(producer.errors,[]);self.assertEqual(producer.denied,[]);self.assertEqual(len(producer.seeded),2)
   self.assertEqual(self.provider_ops(),['ozon_orders']);self.assertNotIn('model_answer_program',[c.operation for c in self.e.transport.calls])
 
+ def test_real_retained_binding_recovers_unchanged_generation_to_ready_before_ack(self):
+  self.filled();self.e.engine.program_answers=True;self.start()
+  content='Сохранённый ответ при неизменных коэффициентах.'
+  def seed(request,producer):
+   if request['protocol']==2 and not request['resume_only']:producer.seed_complete(request,content)
+  with self.producer(seed=seed,lose_delivery=True)as producer:row=self.ready()
+  self.assertEqual(len(producer.requests),2);fresh,recovery=producer.requests;fingerprint=producer.binding(fresh)
+  self.assertEqual(fresh['protocol'],2);self.assertFalse(fresh['resume_only'])
+  self.assertEqual(recovery,{'protocol':3,'job_id':fresh['job_id'],'fingerprint':fingerprint,'resume_only':True})
+  self.assertEqual(producer.inputs[0],producer.inputs[1])
+  pair={'job_id':fresh['job_id'],'fingerprint':fingerprint}
+  self.assertEqual([snapshot['progress']['_program_request_binding']for snapshot in producer.snapshots],[pair,pair])
+  self.assertEqual(len(producer.acks),1);self.assertEqual(producer.acks[0]['committed']['state'],'READY')
+  self.assertEqual(producer.store.read(fresh['job_id'],fingerprint)['state'],'acknowledged');self.assertIn(content,row['result'])
+  self.assertEqual(producer.seeded,[(fresh['job_id'],fingerprint)]);self.assertEqual(producer.errors,[]);self.assertEqual(producer.denied,[])
+  self.assertEqual(self.provider_ops(),['ozon_orders']);self.assertNotIn('model_answer_program',[c.operation for c in self.e.transport.calls])
+
  def test_recovery_rejects_changed_echo_digest_and_calls_without_ack(self):
   worker,row,messages,data,generation,envelope=self.claimed_program();change=[lambda reply:reply]
   with self.producer(alter_reply=lambda reply:change[0](reply))as producer:

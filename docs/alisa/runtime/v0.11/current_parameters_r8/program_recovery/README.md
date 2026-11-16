@@ -113,6 +113,12 @@ automatically acquire this new build input. A later package must include and pin
 the new consumer and qualify its compatible broker. This source change does not
 alter the existing R15 candidate or establish INSTALLED_SYNTHETIC/LIVE_OWNER.
 
+The prospective R15 builder now declares 97 source files. The existing activation
+contract's 96-file source index and tool pins still qualify their frozen product
+and package; they are not updated or weakened by this change. Activating a new
+97-file candidate requires a fresh PLAN/package and a separately qualified
+activation source index and tool pins.
+
 ## Focused qualification
 
 Use the actual broker and `Results` code against disposable storage and a

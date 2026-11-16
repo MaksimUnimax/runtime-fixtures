@@ -66,6 +66,7 @@ LATER_SUPPORT = ('economics_accruals.py', 'economics_realization.py',
                  'economics_orders.py', 'economics_order_catalog.json',
                  'economics_other.py', 'economics_other_catalog.json')
 LEAVES = {
+    'model_program.py': 'current_parameters_r8/program_recovery/model_program.py',
     'parameter_report_runtime.py': 'current_parameters_r8/parameter_report_runtime.py',
     'accrual_source_runtime.py': 'economics_ledger_r11/accrual_source_runtime.py',
     'realization_source_runtime.py': 'economics_flow_r13/realization_source_runtime.py',
