@@ -6,9 +6,29 @@ ROOT=Path(__file__).resolve().parent
 def change(path,old,new):
  text=path.read_text();assert text.count(old)==1,(path.name,old[:90]);path.write_text(text.replace(old,new))
 
+# Reviewed complete metadata pairs. The immutable legacy BASELINE stays intact.
+# A catalog from one variant and base_blocks from another must never be mixed.
+CATALOG_PAIRS = frozenset((
+ ('257546629babaf0184e1ccb1cdb0ec7869d65f90e612b35a107c92f0320db26d',
+  'd96af17568ae241c530ee2a0b22a8b645871bd550b456809f8756e366b37f292'),
+ ('f17710716c186396869b4868a9d1650972414ccceaeba023e6c0ef1a8d0a933e',
+  'ab0be86975ee62a11301741d389f8fd431873b583159d55a04737342b8ecad05'),
+))
+
+def validate_baseline(target):
+ expected=json.loads((ROOT/'BASELINE.json').read_text())
+ catalog_hash=hashlib.sha256((target/'template_catalog.json').read_bytes()).hexdigest()
+ blocks_hash=hashlib.sha256((target/'base_blocks.json').read_bytes()).hexdigest()
+ assert (catalog_hash,blocks_hash) in CATALOG_PAIRS,'BASELINE_CATALOG_PAIR'
+ # Only the exact reviewed metadata variant changes. Every executable input
+ # continues to require its original pinned bytes before the first write.
+ expected['template_catalog.json']=catalog_hash
+ for name,digest in expected.items():
+  assert hashlib.sha256((target/name).read_bytes()).hexdigest()==digest,('BASELINE_CHANGED',name)
+
 def prepare(target,platform):
  target=target.resolve();assert target.is_dir()and not str(target).startswith('/opt/')
- for name,digest in json.loads((ROOT/'BASELINE.json').read_text()).items():assert hashlib.sha256((target/name).read_bytes()).hexdigest()==digest,('BASELINE_CHANGED',name)
+ validate_baseline(target)
  shutil.copy2(ROOT/'program_recovery'/'model_program.py',target/'model_program.py')
  shutil.copy2(ROOT/'parameter_report_runtime.py',target/'parameter_report_runtime.py')
  for name in ['parameter_dependencies.py','parameter_dependency_catalog.json','parameter_resolution.py','parameter_report_catalog.json','parameter_report_contract.py']:

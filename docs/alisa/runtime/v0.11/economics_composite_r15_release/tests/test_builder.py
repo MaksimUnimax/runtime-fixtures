@@ -558,7 +558,13 @@ class LiveReferencePaths(unittest.TestCase):
 
 class NativeSourceChain(unittest.TestCase):
     def test_actual_source_prepare_chain_preserves_r5_catalog_and_probe_boundary(self):
-        """Real source integration on a reproduced R5 test input, not a release."""
+        self._actual_source_prepare_chain(wb_activity=False)
+
+    def test_actual_wb_activity_source_prepare_chain_preserves_all_existing_templates(self):
+        self._actual_source_prepare_chain(wb_activity=True)
+
+    def _actual_source_prepare_chain(self, *, wb_activity):
+        """Real prepare chain with exact legacy or observed WB input bytes."""
         repo = HERE.parents[4]
         blobs, hashes = b.source_bytes(repo)
         c.check_source_imports(blobs)
@@ -590,6 +596,62 @@ class NativeSourceChain(unittest.TestCase):
                 self.assertEqual(c.digest((target / path).read_bytes()), h)
             self.assertEqual(c.digest((target / 'read_surface.py').read_bytes()),
                              '4a8d913906afea360a275c75343db25736141e215f42a2a967bab450de2271a1')
+            if wb_activity:
+                import json
+                blocks_path = target / 'base_blocks.json'
+                catalog_path = target / 'template_catalog.json'
+                old_blocks = blocks_path.read_bytes()
+                old_catalog = catalog_path.read_bytes()
+                blocks = c.strict_json(old_blocks)
+                value = c.strict_json(old_catalog)
+                self.assertEqual(c.digest(blocks_path.read_bytes()),
+                    'd96af17568ae241c530ee2a0b22a8b645871bd550b456809f8756e366b37f292')
+                changed = []
+                for entry in blocks['entries']:
+                    if entry['id'] in ('B14.card_views', 'B14.cart_additions'):
+                        self.assertEqual(entry['time_axis'], 'order_period')
+                        entry['time_axis'] = 'analytics_period'
+                        changed.append(entry['id'])
+                self.assertEqual(set(changed), {'B14.card_views', 'B14.cart_additions'})
+                for tid in changed:
+                    self.assertEqual(value['templates'][tid]['version'], 1)
+                    self.assertEqual(value['templates'][tid]['input_policy']['time_axis'], 'order_period')
+                    value['templates'][tid]['version'] = 2
+                    value['templates'][tid]['input_policy']['time_axis'] = 'analytics_period'
+                blocks_path.write_text(json.dumps(blocks, ensure_ascii=False, indent=2) + '\n')
+                catalog_path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
+                self.assertEqual(c.digest(blocks_path.read_bytes()),
+                    'ab0be86975ee62a11301741d389f8fd431873b583159d55a04737342b8ecad05')
+                self.assertEqual(c.digest(catalog_path.read_bytes()),
+                    'f17710716c186396869b4868a9d1650972414ccceaeba023e6c0ef1a8d0a933e')
+                new_catalog, new_blocks = catalog_path.read_bytes(), blocks_path.read_bytes()
+                script = repo / c.RUNTIME / 'current_parameters_r8/prepare_candidate.py'
+                spec = importlib.util.spec_from_file_location('test_r8_wb_input_contract', script)
+                r8 = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(r8)
+                # Every mismatched pair or extra mutation must fail BEFORE copy/write.
+                for bad_catalog, bad_blocks in ((old_catalog, new_blocks),
+                        (new_catalog, old_blocks), (new_catalog+b' ', new_blocks),
+                        (new_catalog, new_blocks+b' ')):
+                    with self.subTest(catalog=c.digest(bad_catalog), blocks=c.digest(bad_blocks)):
+                        catalog_path.write_bytes(bad_catalog); blocks_path.write_bytes(bad_blocks)
+                        before_files = b.file_hashes(target)
+                        with patch.object(r8.shutil, 'copy2') as copied:
+                            with self.assertRaisesRegex(AssertionError, 'BASELINE_CATALOG_PAIR'):
+                                r8.prepare(target, platform)
+                        copied.assert_not_called()
+                        self.assertEqual(b.file_hashes(target), before_files)
+                catalog_path.write_bytes(new_catalog); blocks_path.write_bytes(new_blocks)
+                engine = target / 'engine.py'; engine_raw = engine.read_bytes()
+                engine.write_bytes(engine_raw+b'\n# unexpected executable change\n')
+                before_files = b.file_hashes(target)
+                with patch.object(r8.shutil, 'copy2') as copied:
+                    with self.assertRaisesRegex(AssertionError, 'BASELINE_CHANGED'):
+                        r8.prepare(target, platform)
+                copied.assert_not_called()
+                self.assertEqual(b.file_hashes(target), before_files)
+                engine.write_bytes(engine_raw)
+            preserved_blocks = (target / 'base_blocks.json').read_bytes()
             catalog = c.strict_json((target / 'template_catalog.json').read_bytes())
             old_probe = b.native_probe(target, sys.executable)
             # Match build(): the prepares see only the declared staged inputs,
@@ -606,7 +668,49 @@ class NativeSourceChain(unittest.TestCase):
             self.assertNotEqual(old_probe['parameter_sources_pin'], probe['parameter_sources_pin'])
             self.assertTrue(c.sha(probe['economics_composites_pin']))
             self.assertFalse(any(target.rglob('__pycache__')))
+            self.assertEqual((target / 'base_blocks.json').read_bytes(), preserved_blocks)
+            if wb_activity:
+                actual = c.strict_json((target / 'template_catalog.json').read_bytes())
+                for tid in ('B14.card_views', 'B14.cart_additions'):
+                    self.assertEqual(actual['templates'][tid], catalog['templates'][tid])
 
+
+
+
+class NativeCoreProvenance(unittest.TestCase):
+    def setUp(self):
+        self.before = {'file-%03d.py' % i: 'a'*64 for i in range(181)}
+        self.before.update({name: old for name, (old, _) in c.WB_CORE_METADATA_DELTA.items()})
+        self.after = {**self.before, **{name: new for name, (_, new) in c.WB_CORE_METADATA_DELTA.items()}}
+        self.core = {'files': self.before}
+        self.manifest = {'files': {**self.after, 'CURRENT_CORE_MANIFEST.json': c.WB_CORE_PROVENANCE_SHA256}}
+
+    def test_exact_legacy_current_core_still_accepted(self):
+        self.assertEqual(c.check_native_core_provenance(self.core, {'files': self.before}), 'EXACT_CURRENT_CORE')
+
+    def test_only_exact_frozen_core_and_complete_metadata_pair_accepted(self):
+        self.assertEqual(c.check_native_core_provenance(self.core, self.manifest), 'PINNED_WB_METADATA_OVERLAY')
+        for name in ('base_blocks.json', 'template_catalog.json', 'CURRENT_CORE_MANIFEST.json'):
+            with self.subTest(name=name):
+                bad = deepcopy(self.manifest); bad['files'][name] = 'b'*64
+                with self.assertRaisesRegex(c.ReleaseError, 'CORE_MANIFEST_MISMATCH'):
+                    c.check_native_core_provenance(self.core, bad)
+
+    def test_other_executable_change_addition_or_deletion_is_refused(self):
+        for mutation in ('change', 'add', 'delete'):
+            with self.subTest(mutation=mutation):
+                bad = deepcopy(self.manifest)
+                if mutation == 'change': bad['files']['file-000.py'] = 'b'*64
+                if mutation == 'add': bad['files']['new.py'] = 'b'*64
+                if mutation == 'delete': del bad['files']['file-000.py']
+                with self.assertRaisesRegex(c.ReleaseError, 'CORE_MANIFEST_MISMATCH'):
+                    c.check_native_core_provenance(self.core, bad)
+
+    def test_unrelated_or_partial_provenance_is_refused(self):
+        for name in ('base_blocks.json', 'template_catalog.json'):
+            bad = deepcopy(self.core); bad['files'][name] = 'f'*64
+            with self.assertRaisesRegex(c.ReleaseError, 'CORE_MANIFEST_MISMATCH'):
+                c.check_native_core_provenance(bad, self.manifest)
 
 if __name__ == '__main__':
     unittest.main()
