@@ -10,10 +10,10 @@ import json
 import re
 
 PRODUCT = '1964d60f9a7598fefa2e10a0affcda0cce0f1f34'
-PRODUCT_PLAN = '7e86513fd831d74d89eb0ab3aaf5ce8f851ec936d5e09a0684516a7eee25cb73'
+PRODUCT_PLAN = 'eee23a47dcb3c47a66e5bd85bbdc011deaa1a31ff09aff14b36d8050179be50d'
 SOURCE_INDEX = '3b6bee51f233398d46c15646b3435edf147ee19e9cdf7abe74ae8908472dc26b'
 BUILD_TOOLS = {
-    'baseline_20261115.json': '1644351c664b3f2550d0e9fec67a7a60f499b91aa530f64041cef46f82624a51',
+    'baseline_20261115.json': 'f91345ecef7efdea485cc914dc18b9baaf1b2a6002501e0a9fcf23bae6301e3e',
     'build_candidate.py': '68f502a20d4f869a7d6e0bd81dab37e174693cd1a673ded195331a832cf47839',
     'compatibility_review.json': 'a6f8eecbb603b82afa578de626df4f1e9af02250434df9a19b58efbbab3dc97a',
     'inspect_native.py': 'e310616f618ee63ca27372404e0f6639d01e4235975d0ae35f1aec5921d5a3e7',
