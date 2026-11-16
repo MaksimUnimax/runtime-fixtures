@@ -1,6 +1,6 @@
 {
   "schema": "alisa-economics-release-readback/v1",
-  "observed_on": "2026-11-15",
+  "observed_on": "2026-11-16",
   "bases": {
     "platform": {
       "root": "/opt/alisa-platform/stage/releases/alisa-customer-catalog-8b8b919993c38128",
@@ -17,9 +17,9 @@
       "manifest_sha256": "20c5afddbc8f07c86e72a33676d4475c4b23b7c0316bc73f814e51dc5a60e95e"
     },
     "web": {
-      "root": "/opt/alisa-platform/stage/releases/alisa-public-guidance-e0cc5b5aea966213",
-      "manifest_sha256": "6eb0e9987ab0383ab259e64cdb5f36dc78dd607dcba7a3379b1525f1da1f3d2b",
-      "venv_link": "/opt/alisa-platform/stage/releases/alisa-customer-catalog-8b8b919993c38128/.venv"
+      "root": "/opt/alisa-platform/stage/releases/alisa-catalog-period-dea0498f51980cdc",
+      "manifest_sha256": "f9724dfdad8eb8b197863e83b658bdeeb9002a942409babd94bb05e2a6cef42f",
+      "venv_link": "/opt/alisa-platform/stage/releases/alisa-public-guidance-e0cc5b5aea966213/.venv"
     }
   },
   "publisher": {
