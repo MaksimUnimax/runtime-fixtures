@@ -46,50 +46,63 @@ credential directory through a checked descriptor. The installer retains its
 strict namespace; the native service, shared helpers and credential stores are
 unchanged. A successful source gate is required before another real PLAN.
 
-## Current rebaseline proposal — 16 November 2026
+## Current units rebaseline proposal — 16 November 2026
 
-This Phase B proposal changes only two identity constants in
-`activation_contract.py`. [Phase A](https://github.com/MaksimUnimax/runtime-fixtures/blob/de9abcb160f39aad0f762ce2b7d0b681fd85cea4/docs/alisa/implementation/economics_composite_r15_release/WEB_BASELINE_REQUALIFICATION_20261116.md)
-qualified the installed period web baseline at source
-`de9abcb160f39aad0f762ce2b7d0b681fd85cea4`: Source workflow `43797911831`
-and Documentation workflow `43797911813` passed, including the existing
-36 builder tests. Its baseline file SHA-256 is
-`f91345ecef7efdea485cc914dc18b9baaf1b2a6002501e0a9fcf23bae6301e3e`.
+This Phase B proposal changes only `PRODUCT_PLAN` and the baseline entry in
+`activation_contract.BUILD_TOOLS`. [Units Phase A](https://github.com/MaksimUnimax/runtime-fixtures/blob/72ee6d5b76ca98bb04361e6172e3803501b05fff/docs/alisa/implementation/economics_composite_r15_release/UNITS_WEB_BASELINE_REQUALIFICATION_20261116.md)
+is exact source `72ee6d5b76ca98bb04361e6172e3803501b05fff`. Root accepted completed
+Source workflow `43803816158` and Documentation workflow `43803816226` for that
+source before the one actual PLAN dispatch. The 2,872-byte baseline has SHA-256
+`29bd890109a31707c189be18313c9595f608c54c0118a47ff34978586209aef7`.
 
-The reviewed finite builder PLAN then completed once at 03:43:29 UTC on
-16 November. Its exact 22,491 output bytes are retained as
-`/root/alisa-economics-r15-rebaseline-1964d60f-20261116/PLAN.json`, SHA-256
-`eee23a47dcb3c47a66e5bd85bbdc011deaa1a31ff09aff14b36d8050179be50d`.
-The separately retained result receipt has SHA-256
-`bf4d30e7de78f723a34023518ffedd5455a704ca5de2b073a7c1b960c6506aa9`.
-It reports exit 0, empty stderr, finished own cgroup, immutable PLAN and
-`ACTUAL_PLAN_VERIFIED_NOT_BUILT`; no candidate build, application change,
-database call or readiness grant occurred.
+The reviewed finite builder PLAN ran once from 04:46:31.615931 to
+04:46:47.603696 UTC on 16 November. Its exact 22,484 output bytes are retained as
+`/root/alisa-economics-r15-units-rebaseline-1964d60f-20261116/PLAN.json`, SHA-256
+`f36079ff506d52a4c06c2c12712bb0f9a642063def9414d72292201697d6c30e`.
+The separately retained 2,583-byte `PLAN_RESULT_R1.json` has SHA-256
+`dab2e115c5c6c899f692f622d337a6b9ac019e597c88a62945bd53f95872acf9`.
+The result is `ACTUAL_PLAN_VERIFIED_NOT_BUILT`, exit 0, empty stderr, immutable
+PLAN, and an absent/empty own cgroup. No candidate build, application change,
+database/provider call or readiness grant occurred in that operation.
 
-The contract now binds that measured PLAN and the Phase A baseline hash.
-Product `1964d60f…`, the 96-input source index, the other four builder inputs,
-all helper pins and runtime behavior remain unchanged. The proposed four-file
+The preserved web root is now
+`/opt/alisa-platform/stage/releases/alisa-catalog-units-0e00c848d3a4ad58`, with
+manifest SHA-256
+`c1fcd96cedb2278d06c9e384c883d38d471e0cb8a3743ce66022bdf1f4a15fba`.
+Its literal `.venv` target remains
+`/opt/alisa-platform/stage/releases/alisa-catalog-period-dea0498f51980cdc/.venv`,
+resolving to the retained store-enrollment environment. The existing PLAN checks
+all four installed bases, source/tool identities, and the live references before
+and after collection. The full PLAN digest binds its recorded bytes; this change
+does not add a separate byte-count constant or relax a validation rule.
+
+Product `1964d60f…`, all 96 source inputs, the source index, the other four builder
+files, helper pins and runtime behavior remain unchanged. The proposed four-file
 activation tool identity is
-`586bf05f08b97ba2bd5bab8dbd90b75ff59169f1dca6fdf362e70e4989527f4b`.
-The earlier PLAN
-`7e86513fd831d74d89eb0ab3aaf5ce8f851ec936d5e09a0684516a7eee25cb73`,
-PREPARED `2f83b12b…`, tool `db2af005…` and their failed attempts remain
-historical evidence; they are not the new package's identities.
+`62c4c71b14192c16fc8e7f7485f9f6575afeb5c97a4207c4bebc5336559a6ec2`.
+The [preceding period-web Phase B](https://github.com/MaksimUnimax/runtime-fixtures/pull/444),
+its PLAN `eee23a47dcb3c47a66e5bd85bbdc011deaa1a31ff09aff14b36d8050179be50d`,
+baseline `f91345ec…` and tool `586bf05f…` remain qualified historical evidence.
+The original PLAN `7e86513f…`, PREPARED `2f83b12b…`, tool `db2af005…`, and all
+retained failed attempts are likewise preserved. None supplies the new package's
+identity; the old operational roots are not overwritten.
 
-This proposal's current-head activation CI and the new immutable package are
-still pending. Require the unchanged 134 source tests plus the 10 private-bundle,
-15 native-lifecycle, 6 real selector and 20 PostgreSQL checks, with owned cleanup,
-and Documentation CI before transferring the new tool. A stacked PR based on
-the exact Phase A branch changes only this activation directory: existing path
-selectors run Activation and Docs without changing filters or bypassing a
-check. Any additional applicable check must still pass. The new package needs
-its own measured PREPARED hash; four UNKNOWN and the existing coordination,
-readiness and admission requirements are unaffected.
+This proposal still requires independent exact-source review, its own completed
+Activation and Documentation CI, and a new immutable package. The existing gates
+remain the 134 source tests, 10 private-bundle checks, 15 native-lifecycle checks,
+6 real selector checks, and 20 PostgreSQL checks with owned cleanup. No new tests
+or workflow changes are introduced for these two observed identity constants.
+The stacked PR is based on exact units Phase A and changes only this activation
+directory; the existing path selectors apply without being changed. Any other
+applicable check must also pass. Transfer requires the resulting exact tool
+identity; package qualification requires its own measured PREPARED hash.
+Four unresolved UNKNOWN, fresh readiness and coordination, admission boundaries,
+InstalledSynthetic, and LiveOwner acceptance remain separate requirements.
 
 ## Fixed identities and scope
 
 The exact product PLAN is
-`eee23a47dcb3c47a66e5bd85bbdc011deaa1a31ff09aff14b36d8050179be50d`.
+`f36079ff506d52a4c06c2c12712bb0f9a642063def9414d72292201697d6c30e`.
 The 96-input source index is
 `3b6bee51f233398d46c15646b3435edf147ee19e9cdf7abe74ae8908472dc26b`.
 Its encoding is the frozen builder's sorted, indented JSON with a final newline.
@@ -110,7 +123,7 @@ permission, readiness receipt, or skip-check CLI option.
 | Platform | `alisa-customer-catalog-8b8b919993c38128` | `alisa-economics-r15-platform-1964d60f9a7598fe` |
 | Authority | `alisa-parameters-1d572aebf6b05b88` | `alisa-economics-r15-authority-1964d60f9a7598fe` |
 | Native | `alisa-parameters-1d572aebf6b05b88` | `alisa-economics-r15-native-1964d60f9a7598fe` |
-| Web, preserved | `alisa-public-guidance-e0cc5b5aea966213` | No replacement |
+| Web, preserved | `alisa-catalog-units-0e00c848d3a4ad58` | No replacement |
 
 Platform and authority are distinct releases. Their unit and process working
 directories are checked separately. Web's unit works from its release root,
