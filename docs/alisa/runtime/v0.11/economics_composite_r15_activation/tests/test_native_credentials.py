@@ -304,6 +304,90 @@ class HmacGenerationCoupling(unittest.TestCase):
         self.assertEqual(self.views, [(self.new, Path('/opt/old'))])
         self.host.projection_data.assert_called_once_with(Path('/opt/old'), expected_states=self.states)
 
+    def automatic_projection(self):
+        _, current, _ = owner_fixture(self.binding, self.new)
+        states = deepcopy(self.states)
+        states['projection']['identity'] = 'automatic'
+        def inputs(expected=None):
+            if expected is not None and expected != states:
+                raise c.Blocked('PROJECTION_INPUTS_MOVED')
+            return self.pair, self.binding, deepcopy(current), deepcopy(self.config), deepcopy(states)
+        self.host._projection_inputs = inputs
+        self.host._intent = Mock()
+        self.state_patch.stop()
+        self.state_patch = patch.object(a, 'path_state', side_effect=lambda p:
+            deepcopy(states['projection'] if p == c.PROJECTION else states['config']))
+        self.state_patch.start()
+        self.addCleanup(self.state_patch.stop)
+        return current, states
+
+    def test_automatic_refresh_accepts_both_hmac_generations_without_write_or_restart(self):
+        current, states = self.automatic_projection()
+        with patch.object(a, 'NativeCredentialView', self.view_type()), patch.object(a, 'run') as run:
+            self.host.refresh()
+        self.assertEqual(self.host.intent['ours'], states)
+        self.host._intent.assert_called_once_with()
+        self.assertEqual(self.writes, [])
+        run.assert_not_called()
+        self.assertEqual(self.host.old_projection, self.data)
+        self.assertEqual(self.views, [(self.new,Path('/opt/new'))]*3)
+
+    def test_automatic_refresh_changed_binding_is_not_adopted(self):
+        current, _ = self.automatic_projection()
+        current['bindings'][0]['store_id'] = 'foreign'
+        with patch.object(a, 'NativeCredentialView') as view, self.assertRaisesRegex(c.Blocked,'PROJECTION_RACE'):
+            self.host.refresh()
+        view.assert_not_called()
+        self.host._intent.assert_not_called()
+
+    def test_automatic_refresh_invalid_new_hmac_is_not_adopted(self):
+        current, _ = self.automatic_projection()
+        current['bindings'][0]['source_hmac'] = '0'*64
+        with patch.object(a, 'NativeCredentialView', self.view_type()), self.assertRaisesRegex(c.Blocked,'OWNER_PAIR_MOVED'):
+            self.host.refresh()
+        self.host._intent.assert_not_called()
+
+    def test_automatic_refresh_valid_new_hmac_cannot_hide_changed_old_credentials(self):
+        current, _ = self.automatic_projection()
+        self.material['performance_client_secret'] = 'different'
+        row = current['bindings'][0]
+        context = self.binding.native_context(self.config,self.material,row,environment=current['environment'],
+            product_id=current['product_id'],generation=self.new)
+        row['source_hmac'] = self.binding.mac(bytes.fromhex(current['mac_key']),'native-owner-source-v1',context)
+        with patch.object(a, 'NativeCredentialView', self.view_type()), self.assertRaisesRegex(c.Blocked,'OWNER_PAIR_CHANGED_DURING_RESTART'):
+            self.host.refresh()
+        self.host._intent.assert_not_called()
+
+    def test_automatic_refresh_changed_configuration_is_not_adopted(self):
+        _, states = self.automatic_projection()
+        states['config'] = {'identity':'foreign'}
+        with patch.object(a, 'NativeCredentialView') as view, self.assertRaisesRegex(c.Blocked,'PROJECTION_INPUTS_MOVED'):
+            self.host.refresh()
+        view.assert_not_called()
+        self.host._intent.assert_not_called()
+
+    def test_automatic_refresh_generation_change_before_acceptance_is_not_journaled(self):
+        self.automatic_projection()
+        with patch.object(a, 'NativeCredentialView', self.view_type(fail_check=True)), self.assertRaisesRegex(c.Blocked,'NATIVE_GENERATION_MOVED'):
+            self.host.refresh()
+        self.host._intent.assert_not_called()
+
+    def test_automatic_refresh_handles_racing_publication_before_owned_cas(self):
+        _, states = self.automatic_projection()
+        self.host._refresh_owned_projection = Mock(side_effect=c.Blocked('COMPONENT_CHANGED'))
+        with patch.object(a, 'NativeCredentialView', self.view_type()), patch.object(a, 'run') as run:
+            self.host.refresh()
+        self.assertEqual(self.host.intent['ours'],states)
+        self.host._intent.assert_called_once_with()
+        run.assert_not_called()
+
+    def test_unrelated_refresh_failure_does_not_enter_adoption(self):
+        self.host._refresh_owned_projection = Mock(side_effect=c.Blocked('COMMAND_FAILED'))
+        self.host._accept_current_projection = Mock()
+        with self.assertRaisesRegex(c.Blocked,'COMMAND_FAILED'):
+            self.host.refresh()
+        self.host._accept_current_projection.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()

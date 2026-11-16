@@ -433,7 +433,7 @@ def gate(workspace, source_sha):
             def before_write(self):
                 original_check(self)
                 # refresh explicitly calls check after its credential read.
-                if sys._getframe(1).f_code.co_name == 'refresh':
+                if sys._getframe(1).f_code.co_name == '_refresh_owned_projection':
                     raise a.c.Blocked('NATIVE_GENERATION_MOVED')
             with patch.object(a.NativeCredentialView, 'check', before_write):
                 blocked(host.refresh, 'NATIVE_GENERATION_MOVED')

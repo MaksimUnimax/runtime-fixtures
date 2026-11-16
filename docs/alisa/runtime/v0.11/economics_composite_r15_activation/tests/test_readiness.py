@@ -106,7 +106,7 @@ class NativeReadiness(unittest.TestCase):
         paths = (self.state_path, self.gap_path, Path(str(self.state_path) + '-wal'), Path(str(self.gap_path) + '-wal'))
         fingerprints = {p: sha256(p.read_bytes()).hexdigest() for p in paths}
         result = self.sample()
-        self.assertEqual(result, dict(zip(r.NATIVE_KEYS, (1, 0, 0, 0, 1, 1, 0))))
+        self.assertEqual(result, dict(zip(r.NATIVE_KEYS, (1, 0, 0, 0, 0, 1, 1, 0))))
         self.assertEqual(fingerprints, {p: sha256(p.read_bytes()).hexdigest() for p in paths})
         self.assertNotIn('PRIVATE', json.dumps(result))
         self.assertEqual(self.state.execute('SELECT count(*) FROM jobs').fetchone(), (1,))
@@ -120,7 +120,7 @@ class NativeReadiness(unittest.TestCase):
         self.job('READY', expires=NOW-1, lease=NOW+1)
         self.job('READY', expires=NOW, lease=NOW)
         self.job('ALIASED')
-        self.assertEqual(self.sample(), dict(zip(r.NATIVE_KEYS, (2, 1, 1, 1, 0, 0, 0))))
+        self.assertEqual(self.sample(), dict(zip(r.NATIVE_KEYS, (2, 1, 1, 1, 0, 0, 0, 0))))
 
     def test_each_call_uses_a_fresh_clock_and_read_snapshot(self):
         self.job(expires=NOW+10)
@@ -412,7 +412,8 @@ class IdleContract(unittest.TestCase):
         for target in (native, postgres):
             for key in target:
                 target[key] = 1
-                with self.assertRaisesRegex(r.Blocked, '^READINESS_BUSY$'):
+                code = 'READINESS_SCHEMA' if key == 'native_quiescent_unknown_jobs' else 'READINESS_BUSY'
+                with self.assertRaisesRegex(r.Blocked, '^'+code+'$'):
                     r.check_idle(native, postgres)
                 target[key] = 0
 
