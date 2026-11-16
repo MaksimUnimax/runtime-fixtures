@@ -2,7 +2,8 @@
 
 ## Status and scope
 
-**Source draft; qualification execution NOT_RUN at this freeze.**
+**Corrected source qualification R2: PASS, seven of seven cases.**
+The earlier R1 assertion failure is retained below as a separate observation.
 This adds one standalone qualification script and this document. It adds no
 runtime implementation. This qualifier does not execute the full acceptance
 cases **AL-N16-03** or **AL-T08-03**. Its receipt records that execution boundary
@@ -247,7 +248,7 @@ fixture.
 | --- | --- | --- |
 | Worker loss and restart | Existing template selection, marketplace request, Worker failure handling, SQLite commit; child exits after persisted UNKNOWN | Synthetic journal is exactly one selector plus one `ozon_orders`; calls ledger is RECEIVED then UNKNOWN/`UNEXPECTED_TRANSPORT_OUTCOME`; same job/key after reopen |
 | Same acceptance, cancel and clarification | RuntimePort submit replay, same logical identity, changed-body rejection, result read, cancel, clarify and Worker claim | Old receipt remains ACCEPTED; separate status is UNKNOWN/`UNKNOWN_OUTCOME`, retryable false; cancel false, clarify RESULT_EXPIRED; job unchanged, no new sends |
-| Retention and exact-key refresh | Actual retention sweep after payload/replay/ledger deadlines, then Repository.enqueue of saved original admission | Payload removed, UNKNOWN/key/slot retained, refs/receipts/call ledger independently expire; same admitted key joins UNKNOWN; durable synthetic send journal unchanged |
+| Retention and exact-key refresh | Actual sweeps after the non-model 90000-second and model 604800-second deadlines, then Repository.enqueue of saved original admission | After the first sweep, non-model calls are 0 and model calls are 1; after the second both are 0. Payload/refs/receipts expire separately, UNKNOWN/key/slot and the synthetic send journal remain; the exact admitted key joins UNKNOWN |
 | Unsafe crash | Actual Repository.claim/reserve with default `resume_safe=0`, durable marker, abrupt child exit before receipt | Parent first sees RUNNING/SENDING, then lease recovery yields UNKNOWN/`LEASE_EXPIRED`; stale owner rejected, no new marker |
 | Safe read crash control | Actual Worker read sets `resume_safe=1`; transport marks send and abruptly exits | Parent first sees RUNNING/SENDING, then QUEUED before redispatch; new claim owner, stale owner rejected, normal completion READY |
 | Legacy pending branch | Real station-guarded template job becomes UNKNOWN; real selected-reader scope and `continue_selected` | Answer/cancel/result do not enter pending continuation; job and journal unchanged; no Station IPC/authentication claim |
@@ -259,7 +260,8 @@ The existing archive already has narrower tests such as
 This qualification adds the combined current-version boundaries: independent
 durable send journal, process exit and reopen, actual template marketplace loss,
 port acceptance versus outcome, legacy selection, retained tombstone after
-all three TTLs, safe recovery control, and unrelated work progress.
+the distinct payload, replay, non-model and model windows, safe recovery
+control, and unrelated work progress.
 It does not redefine the product's state machine.
 
 ### Exact interpretation of retry and visibility
@@ -284,10 +286,13 @@ A submit replay can correctly return the historical ACCEPTED receipt even
 though current status is UNKNOWN. The receipt does not rename the current job
 to success. The script checks the separate status and immutable job identity.
 
-After 24 hours the public references/acceptance receipts may expire; the call
-ledger has a distinct 90000-second TTL. Their absence does not mean a request
-was never sent. The independent synthetic sent journal remains available to
-prove that distinction.
+After 24 hours the public references/acceptance receipts may expire. Non-model
+call records have a separate 90000-second TTL. Model calls have the independent
+seven-day accounting window, `model_usage.WINDOW_SECONDS = 604800`;
+`retention.sweep` excludes them from the non-model deletion. Their eventual
+absence does not mean a request was never sent. The independent synthetic sent
+journal remains available to prove that distinction. The corrected qualifier
+records each observed category count before asserting it, including on failure.
 
 The retention check uses the exact saved admission plan/key. A different
 question, request identity or calendar date can produce a distinct key in
@@ -339,9 +344,111 @@ This is an explicit standalone source qualification. It is **not integrated
 into existing CI**. The current exact suite inventory and existing pipelines
 are not changed merely to route this new script.
 
+## Actual R1 result and narrow correction
+
+The first approved execution used script SHA256
+`c76616eefbca9f2a6847194a42b1f7b6786aa7741b9d194a3546332e092ea12b`
+and document SHA256
+`99e402be960aa5cc64bcc3a3a23d300096d7fb63703d6a6fda311c773b095801`.
+Those exact files are preserved in historical source commit
+`e913c97e0d3f9485e302329c0b1c24e1081e4e98` on
+`feat/alisa-unknown-lifecycle-source-20261116`; publishing that source was not a
+qualification PASS or installation.
+It exited **2 / FAIL** after **1.640 seconds**, with two completed case PASS
+records and `SEPARATE_RETENTION_WINDOWS` at the third case. The four later
+cases were not reached. This failed observation is retained and is not a
+seven-case qualification PASS.
+
+R1 receipt `QUALIFICATION_R1.json`, 5195 bytes, SHA256
+`e51f6cd6bcea33f59f38ed3fb2e613a75f5ab89c6dbb7b3148f3e7761c7f2a57`;
+execution record `RUN_R1_EXECUTION.json`, 1049 bytes, SHA256
+`42d975416c674a363c37f1f5946331679a987e423a643aa12f726b73038fea0e`;
+immediate source precheck `RUN_R1_PRECHECK.json`, 449 bytes, SHA256
+`37961d47c3edbc55e584a49731ac752cfddb435b327db792d96a70cae1e2c8f4`.
+
+The actual environment was Python 3.12.14 / SQLite 3.53.1 on Linux. All 183
+fixture files passed the pre-import source gate; fixture manifest SHA256 was
+`d6db7ffac22ecb729e85ef60a81eef227e223492af81ee3a8c0a43cc87bb9be1`.
+The first child exited 75 with zero output and was reaped. Product captured
+output and network attempts were both zero. Both cleanup observations were
+true: temporary tree removed and children reaped. The final post-run source
+gate was not reached, so this result does not claim that final gate passed.
+
+The failed assertion incorrectly expected the entire call ledger to be empty
+after 90000 seconds. Source review of `repository.py:69-70`,
+`model_usage.py:15,19-32`, and `retention.py:110-119` established the separate
+model seven-day window. R1 did not record per-category counts, so a surviving
+model count is a source-supported explanation, not a measured R1 value.
+
+The correction changes only qualification assertions/observations and this
+document: require non-model 0 / model 1 after the first window, then model 0
+after its own window, while retaining the UNKNOWN/key/slot/journal and final
+exact-key join checks. It does not change retention or any runtime module.
+The corrected source received independent delta review and a separately
+authorized single execution. Its actual result follows; no automatic retry
+was performed.
+
+## Actual corrected-source R2 result
+
+The first execution of the corrected script, SHA256
+`7b9889c6272dc9428c65130e73e4615d43d5cef13190838844d4832d07db5e53`,
+completed **PASS / exit 0**, **7 of 7 cases**, in **3.376 seconds**. The exact
+pre-run document SHA256 was
+`ff8de8eb8a4e85f83cbd2d017fa86ea5587fffda2a600dcdcfabc7bf687ed400`;
+this subsequent update adds observed results only, without changing the
+qualified executable. No further executions were needed.
+
+The actual command, after an immediate check of both source hashes and absence
+of the new receipt, was:
+
+```bash
+python3 -I -B /workspace/scratch/764c6b17e9de/unknown-lifecycle-source-20261116/products/alisa/tests/runtime_authority/unknown_lifecycle.py --output /workspace/scratch/764c6b17e9de/unknown-lifecycle-inputs-20261116/QUALIFICATION_R2.json
+```
+
+The wrapper executed Python with only `PATH=/usr/bin:/bin` and `LANG=C.UTF-8`.
+Stdout and stderr were captured separately into new files. These are observation
+paths from the qualifying workspace; the reusable public CLI above remains
+checkout-relative and does not require those paths.
+
+| Actual check | Result and measured evidence |
+| --- | --- |
+| Worker lost response and reopen | PASS. One synthetic template selector and one synthetic `ozon_orders` dispatch; persisted `UNKNOWN` / `UNEXPECTED_TRANSPORT_OUTCOME`; public `UNKNOWN_OUTCOME`, private detail absent |
+| Existing acceptance, cancel and clarify | PASS. Original receipt `ACCEPTED`, actual state `UNKNOWN`, one job; cancel false; clarification `RESULT_EXPIRED`; stored safe bit 1 did not revive UNKNOWN; zero new dispatches |
+| Retention and exact-key refresh | PASS. After 90000 seconds: model calls 1, non-model calls 0, refs 0, receipts 0. After 604800 seconds from model dispatch: both call categories 0. Payload removed, UNKNOWN/key/slot/journal retained; exact-key refresh JOIN remained UNKNOWN with no dispatch |
+| Default unsafe repository crash | PASS. Actual child exited after one durable synthetic marker; recovery `UNKNOWN` / `LEASE_EXPIRED`; stale owner rejected; no redispatch |
+| Safe Worker crash control | PASS. Recovery was QUEUED before a new claim; the new owner was observed, old-owner write rejected without row mutation; normal completion READY, two synthetic sends across crash/recovery |
+| Legacy pending branch | PASS. Actual selected row carried the synthetic station guard and remained UNKNOWN; no pending continuation and no additional sends |
+| Independent new work | PASS. A distinct job reached READY while the original stayed UNKNOWN; exact additional selector/marketplace/final-answer sequence |
+
+The environment was **Linux / Python 3.12.14 / SQLite 3.53.1** with isolation
+and bytecode suppression enabled. The same **183-file** fixture manifest
+`d6db7ffac22ecb729e85ef60a81eef227e223492af81ee3a8c0a43cc87bb9be1`
+passed the pre-import and final post-run gates. The recorded 13 source input
+pins, archive pin, and ten installed-source comparison pins were unchanged.
+
+The three child exit statuses were **75, 73, 73** for persisted UNKNOWN,
+unsafe crash, and safe crash respectively. Each child had **zero output** and
+was **reaped**. Captured product output was **0 bytes**; network attempts were
+**0**. Both cleanup observations were true: the temporary tree was removed and
+all children reaped. Limits remained 60-second outer wall, 8-second child alarm /
+10-second parent wait, 45 CPU seconds and 256 MiB address space per process,
+maximum two simultaneous processes, 16 MiB file size and 128 descriptors.
+
+| Retained R2 artifact | Bytes | SHA256 |
+| --- | ---: | --- |
+| `QUALIFICATION_R2.json` | 7438 | `80740a0e800f72fdd66202a4dbad411b38962ee6f3cf1b8d39d453b02905b176` |
+| `RUN_R2_EXECUTION.json` | 875 | `10781afead157b67be067186c22a36617e8b8bc19399c59f5265ccadb149a8b0` |
+| `RUN_R2_PRECHECK.json` | 465 | `e76473ef83629710241187cecc5596a3076818c5c031f31834c9a1fba22a9000` |
+| `RUN_R2_STDOUT.txt` | 118 | `eec54091c7cf60994f6768c6f84bb02d62d8a15dd17ed175cea7226da5ffb472` |
+| `RUN_R2_STDERR.txt` | 0 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+
+These results are standalone synthetic source evidence. Existing roadmap
+PARTIAL evidence is preserved; this execution does not qualify the operator
+screen, reconciliation endpoint, actual provider outcome, or live deployment.
+
 ## Remaining limits and next action
 
-Independent source review must precede the first bounded execution. A pin or
+Independent source review preceded each bounded execution. A pin or
 fixture failure is recorded as such; it is not repaired by weakening a pin,
 changing installed code, skipping a case, or replacing a real module with a stub.
 

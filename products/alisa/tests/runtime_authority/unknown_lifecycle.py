@@ -44,6 +44,7 @@ NETWORK_ATTEMPTS = []
 CHILDREN = []
 CHECKS = []
 CHILD_OBSERVATIONS = []
+OBSERVATIONS = {}
 QUERY = "Сколько товаров заказали и на какую сумму 2 ноября 2026 на Озоне?"
 STANDARD_QUERY = "сводка заказов за октябрь 2026 на озоне"
 
@@ -476,9 +477,35 @@ def port_checks(modules, root):
          tombstone["draft"] == "{}" and all(tombstone[key] is None for key in ("plan", "result", "progress")),
          "UNKNOWN_TOMBSTONE")
     need(rows(fixture.repo, "SELECT jid FROM slots") == [(fixture.jid,)], "UNKNOWN_SLOT")
-    need(rows(fixture.repo, "SELECT count(*) FROM rt_job_refs") == [(0,)] and
-         rows(fixture.repo, "SELECT count(*) FROM rt_job_receipts") == [(0,)] and
-         rows(fixture.repo, "SELECT count(*) FROM calls") == [(0,)], "SEPARATE_RETENTION_WINDOWS")
+    def retention_counts():
+        with fixture.repo.connection() as connection:
+            return {
+                "port_refs": connection.execute("SELECT count(*) FROM rt_job_refs").fetchone()[0],
+                "port_receipts": connection.execute("SELECT count(*) FROM rt_job_receipts").fetchone()[0],
+                "model_calls": connection.execute(
+                    "SELECT count(*) FROM calls WHERE source LIKE 'model:%'").fetchone()[0],
+                "non_model_calls": connection.execute(
+                    "SELECT count(*) FROM calls WHERE source NOT LIKE 'model:%'").fetchone()[0],
+            }
+    after_provider_ttl = retention_counts()
+    OBSERVATIONS["retention_after_non_model_ttl"] = after_provider_ttl
+    need(after_provider_ttl == {"port_refs": 0, "port_receipts": 0,
+                               "model_calls": 1, "non_model_calls": 0}, "SEPARATE_RETENTION_WINDOWS")
+    # The pinned core has independent seven-day model accounting. A model
+    # reservation must survive the 90000-second non-model ledger expiration.
+    from model_usage import WINDOW_SECONDS
+    need(WINDOW_SECONDS == 604800, "MODEL_RETENTION_WINDOW")
+    model_at = rows(fixture.repo, "SELECT max(COALESCE(dispatched,at)) FROM calls "
+                                 "WHERE source LIKE 'model:%'")[0][0]
+    fixture.clock.advance(max(0, model_at + WINDOW_SECONDS + 1 - fixture.clock()))
+    modules["retention"].sweep(fixture.repo)
+    after_model_ttl = retention_counts()
+    OBSERVATIONS["retention_after_model_ttl"] = after_model_ttl
+    need(after_model_ttl == {"port_refs": 0, "port_receipts": 0,
+                            "model_calls": 0, "non_model_calls": 0}, "MODEL_RETENTION_EXPIRY")
+    need(job(fixture.repo, fixture.jid) == tombstone and
+         rows(fixture.repo, "SELECT jid FROM slots") == [(fixture.jid,)] and
+         journal(root / "port/sent.sqlite") == sends, "MODEL_TTL_CHANGED_UNKNOWN")
     draft = modules["semantics"].strict_json(original.admission["draft"])
     draft["refresh"] = True
     plan = modules["semantics"].strict_json(original.admission["plan"])
@@ -490,6 +517,8 @@ def port_checks(modules, root):
     need(worker.step() is False and journal(root / "port/sent.sqlite") == sends, "TTL_REDISPATCH")
     record("retention_and_exact_key_refresh", payload_redacted=True, tombstone_retained=True,
            slot_retained=True, port_refs=0, port_receipts=0, call_ledger=0,
+           after_non_model_ttl=after_provider_ttl, after_model_ttl=after_model_ttl,
+           non_model_window_seconds=modules["retention"].LEDGER_TTL, model_window_seconds=WINDOW_SECONDS,
            synthetic_sent_journal_retained=True, join_state="UNKNOWN", new_synthetic_sends=0)
 
 
@@ -667,7 +696,7 @@ def main():
              "full_acceptance_execution_by_this_qualifier": {
                  "AL-N16-03": "NOT_RUN", "AL-T08-03": "NOT_RUN"},
              "existing_roadmap_status_unmodified": True,
-             "checks": CHECKS, "children": CHILD_OBSERVATIONS}
+             "checks": CHECKS, "children": CHILD_OBSERVATIONS, "observations": OBSERVATIONS}
     with tempfile.TemporaryFile(mode="w+t", encoding="utf-8") as captured:
         try:
             with redirect_stdout(captured), redirect_stderr(captured):
