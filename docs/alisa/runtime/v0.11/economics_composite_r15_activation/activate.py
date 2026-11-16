@@ -1439,6 +1439,54 @@ class LiveHost:
                'START_UNIT_CHANGED')
 
     def refresh(self, *, old=False):
+        try:
+            return self._refresh_owned_projection(old=old)
+        except c.Blocked as error:
+            # The accepted checker also refreshes on native restart. Its
+            # successful publication can race this installer, including our CAS.
+            # A changed file alone is never sufficient to accept the writer.
+            if error.code not in ('PROJECTION_INPUTS_MOVED', 'PROJECTION_RACE',
+                                  'COMPONENT_CHANGED', 'INSTALLED_COMPONENT_CHANGED'):
+                raise
+            return self._accept_current_projection(old=old)
+
+    def _accept_current_projection(self, *, old=False):
+        self.helper_guard()
+        pair, module, current, config, states = self._projection_inputs(None)
+        c.need(states['config'] == self.intent['ours']['config'], 'PROJECTION_INPUTS_MOVED')
+        def semantics(data):
+            value = deepcopy(data)
+            c.need(type(value) is dict and 'native_generation' in value
+                   and type(value.get('bindings')) is list, 'PROJECTION_RACE')
+            del value['native_generation']
+            for row in value['bindings']:
+                c.need(type(row) is dict and 'source_hmac' in row, 'PROJECTION_RACE')
+                del row['source_hmac']
+            return value
+        c.need(semantics(current) == semantics(self.old_projection)
+               and current['native_generation'] != self.old_projection['native_generation'], 'PROJECTION_RACE')
+        root = Path(self.baseline['bases']['native']['root']) if old else self.targets['native']
+        # Validate the actual current PID/socket/source and every new source HMAC.
+        self.projection_data(root, expected=current, expected_states=states)
+        names = [row['credential_name'] for row in current['bindings']]
+        key = bytes.fromhex(self.old_projection['mac_key'])
+        with NativeCredentialView(module, pair, current['native_generation'], root, config, names) as view:
+            for row in self.old_projection['bindings']:
+                previous = module.native_context(config, view.read(row['credential_name']), row,
+                    environment=self.old_projection['environment'], product_id=self.old_projection['product_id'],
+                    generation=self.old_projection['native_generation'])
+                c.need(module.hmac.compare_digest(module.mac(key, 'native-owner-source-v1', previous),
+                                                  row['source_hmac']), 'OWNER_PAIR_CHANGED_DURING_RESTART')
+            view.check()
+            c.need(states == {'projection': path_state(c.PROJECTION), 'config': path_state(c.CONFIG)},
+                   'PROJECTION_INPUTS_MOVED')
+        # Journal the verified external publication; do not rewrite its bytes or
+        # restart its checker, and never replace the original binding proof.
+        self.intent['ours']['projection'] = states['projection']
+        self._intent()
+        self.projection_data(root, expected=current, expected_states=states)
+
+    def _refresh_owned_projection(self, *, old=False):
         self.helper_guard()
         expected_states = {name: self.intent['ours'][name] for name in ('projection', 'config')}
         pair, module, current, config, states = self._projection_inputs(expected_states)
