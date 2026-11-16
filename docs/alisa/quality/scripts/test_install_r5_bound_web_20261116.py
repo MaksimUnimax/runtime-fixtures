@@ -22,8 +22,16 @@ class ReviewedBoundWebDriver(unittest.TestCase):
             return ast.dump(tree,include_attributes=False)
         old_functions = {n.name:n for n in old.body if isinstance(n,ast.FunctionDef)}
         new_functions = {n.name:n for n in new.body if isinstance(n,ast.FunctionDef)}
-        for name in set(old_functions)-{'capture','prepare','main'}:
+        for name in set(old_functions)-{'capture','prepare','main','read_plan','apply'}:
             self.assertEqual(ast.dump(old_functions[name]),ast.dump(new_functions[name]),name)
+        class StripCandidateGuard(ast.NodeTransformer):
+            def visit_Expr(self,node):
+                if isinstance(node.value,ast.Call) and isinstance(node.value.func,ast.Name) and node.value.func.id=='require_candidate':return None
+                return self.generic_visit(node)
+        for name in ['read_plan','apply']:
+            normalized=StripCandidateGuard().visit(deepcopy(new_functions[name]))
+            self.assertEqual(ast.dump(normalized),ast.dump(old_functions[name]),name)
+            self.assertGreaterEqual(sum(isinstance(n,ast.Call) and isinstance(n.func,ast.Name) and n.func.id=='require_candidate' for n in ast.walk(new_functions[name])),2)
         captured = deepcopy(new_functions['capture']);captured.body.pop(0)
         self.assertEqual(ast.dump(captured),ast.dump(old_functions['capture']))
         expected_main = ast.get_source_segment((root/'install_r5_preview_web_20261116.py').read_text(),old_functions['main']).replace(
@@ -32,7 +40,7 @@ class ReviewedBoundWebDriver(unittest.TestCase):
         self.assertEqual(ast.dump(ast.parse(expected_main).body[0]),ast.dump(new_functions['main']))
         authority = ast.parse((root/'install_r5_bound_authority_20261116.py').read_text())
         authority_functions = {n.name:n for n in authority.body if isinstance(n,ast.FunctionDef)}
-        for name in ['publish_record','remove_owned','discard_owned','stage_candidate','recover_preparation']:
+        for name in ['candidate_identity','require_candidate','publish_record','remove_owned','discard_owned','stage_candidate','recover_preparation']:
             self.assertEqual(ast.dump(authority_functions[name]),ast.dump(new_functions[name]),name)
         self.assertTrue(any(isinstance(n,ast.Call) and isinstance(n.func,ast.Name) and n.func.id=='stage_candidate' for n in ast.walk(new_functions['prepare'])))
         def assignments(t):
@@ -67,6 +75,7 @@ class ReviewedBoundWebDriver(unittest.TestCase):
 class BoundWebRollbackBoundaries(reviewed.RolloutBoundaries):
     def setUp(self):
         super().setUp()
+        self.g['require_candidate']=lambda plan:None
         path = Path(__file__).with_name('install_r5_bound_web_20261116.py')
         tree = ast.parse(path.read_text())
         functions = [n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name in {'select','apply','need','baseline_tree'}]

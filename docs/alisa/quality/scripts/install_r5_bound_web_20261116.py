@@ -100,7 +100,9 @@ def read_plan(expected):
     need(v['protected'] == capture() and v['web_static'] == h.static(WEB), 'BASE_CHANGED')
     need(sha(BASE/'manifest.json') == PINS[BASE], 'BASE_PIN')
     need(h.path_state(h.WEB_LINK) == tuple(v['web_selector_state']), 'SELECTOR_CHANGED')
+    require_candidate(v)
     h.candidate_manifest(APP, BASE)
+    require_candidate(v)
     need(sha(APP/'manifest.json') == v['candidate_manifest'], 'CANDIDATE_CHANGED')
     h.reserve()
     h.idle()
@@ -239,6 +241,15 @@ def recover_preparation():
         raise RuntimeError('PREPARATION_PROOF_CHANGED')
     h.record('PREPARATION_RECOVERED.json',{'source':SOURCE,'removed_only_owned_staging':True})
 
+def candidate_identity(path):
+    w.secure(path)
+    st = path.lstat()
+    need(path.is_dir() and not path.is_symlink(), 'CANDIDATE_NOT_DIRECTORY')
+    return (st.st_dev,st.st_ino,st.st_mode,st.st_uid,st.st_gid)
+
+def require_candidate(plan):
+    need(candidate_identity(APP) == tuple(plan['candidate_identity']), 'CANDIDATE_REPLACED')
+
 def stage_candidate(value, sources, pool, build_plan):
     need(not APP.exists() and not APP.is_symlink() and not (ROOT/PREPARATION_PLAN).exists()
          and not (ROOT/PREPARATION_PLAN).is_symlink(), 'CANDIDATE_EXISTS')
@@ -260,12 +271,15 @@ def stage_candidate(value, sources, pool, build_plan):
         h.candidate_manifest(inner,BASE)
         st = inner.lstat()
         child_identity = (st.st_dev,st.st_ino)
+        child_state = candidate_identity(inner)
         proof.update(candidate_identity=child_identity,candidate_manifest=sha(inner/'manifest.json'))
         proof_state = publish_record('PREPARING.json',proof,proof_state)
         h.rename_no_replace(inner,APP)
         st = APP.lstat()
         need((st.st_dev,st.st_ino) == child_identity, 'PUBLISHED_CANDIDATE_CHANGED')
         plan = build_plan()
+        need(candidate_identity(APP) == child_state, 'CANDIDATE_REPLACED_DURING_PREPARE')
+        plan['candidate_identity'] = child_state
         h.reserve()
         def own_plan(state):
             nonlocal plan_owned
@@ -354,10 +368,12 @@ def select(target, expected):
 
 def apply(expected, on_restore=None):
     plan = read_plan(expected)
+    require_candidate(plan)
     need(h.WEB_LINK.resolve(strict=True) == BASE, 'WEB_BASE')
     h.record('BEFORE.json', plan)
     installed = None
     try:
+        require_candidate(plan)
         installed = select(APP, tuple(plan['web_selector_state']))
         h.run('systemctl', 'restart', WEB)
         h.ready_web(False)
@@ -365,6 +381,7 @@ def apply(expected, on_restore=None):
         need(capture() == plan['protected'] and h.static(WEB) == plan['web_static'],
              'PROTECTED_CHANGED')
         need(h.path_state(h.WEB_LINK) == installed, 'WEB_SELECTOR_CHANGED_AFTER_START')
+        require_candidate(plan)
         h.reserve()
         h.record('APPLIED.json', {'source':SOURCE, 'web':str(APP),
                                  'manifest_sha256':sha(APP/'manifest.json'),

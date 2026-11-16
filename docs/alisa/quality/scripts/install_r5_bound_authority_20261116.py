@@ -271,6 +271,15 @@ def recover_preparation():
         raise RuntimeError('PREPARATION_PROOF_CHANGED')
     h.record('PREPARATION_RECOVERED.json',{'source':SOURCE,'removed_only_owned_staging':True})
 
+def candidate_identity(path):
+    w.secure(path)
+    st = path.lstat()
+    need(path.is_dir() and not path.is_symlink(), 'CANDIDATE_NOT_DIRECTORY')
+    return (st.st_dev,st.st_ino,st.st_mode,st.st_uid,st.st_gid)
+
+def require_candidate(plan):
+    need(candidate_identity(APP) == tuple(plan['candidate_identity']), 'CANDIDATE_REPLACED')
+
 def stage_candidate(value, sources, pool, build_plan):
     need(not APP.exists() and not APP.is_symlink() and not (ROOT/PREPARATION_PLAN).exists()
          and not (ROOT/PREPARATION_PLAN).is_symlink(), 'CANDIDATE_EXISTS')
@@ -292,12 +301,15 @@ def stage_candidate(value, sources, pool, build_plan):
         h.candidate_manifest(inner,BASE)
         st = inner.lstat()
         child_identity = (st.st_dev,st.st_ino)
+        child_state = candidate_identity(inner)
         proof.update(candidate_identity=child_identity,candidate_manifest=sha(inner/'manifest.json'))
         proof_state = publish_record('PREPARING.json',proof,proof_state)
         h.rename_no_replace(inner,APP)
         st = APP.lstat()
         need((st.st_dev,st.st_ino) == child_identity, 'PUBLISHED_CANDIDATE_CHANGED')
         plan = build_plan()
+        need(candidate_identity(APP) == child_state, 'CANDIDATE_REPLACED_DURING_PREPARE')
+        plan['candidate_identity'] = child_state
         h.reserve()
         def own_plan(state):
             nonlocal plan_owned
@@ -380,7 +392,9 @@ def read_plan(expected):
     need(h.path_state(SELECTOR) is None and sha(BASE/'manifest.json') == BASE_SHA, 'BASE_PIN')
     raw = overlay(managed(OLD_SELECTOR))
     need(hashlib.sha256(raw).hexdigest() == plan['overlay_sha'], 'OVERLAY_CHANGED')
+    require_candidate(plan)
     h.candidate_manifest(APP,BASE)
+    require_candidate(plan)
     need(sha(APP/'manifest.json') == plan['candidate_manifest'], 'CANDIDATE_CHANGED')
     h.reserve()
     h.idle()
@@ -428,6 +442,7 @@ def service_state():
 
 def apply(expected):
     plan,raw = read_plan(expected)
+    require_candidate(plan)
     need(not (ROOT/'AUTHORITY_STARTED.json').exists(), 'ALREADY_ATTEMPTED')
     h.record('AUTHORITY_STARTED.json',{'source':SOURCE,'installer_sha':sha(__file__)})
     installed = None
@@ -441,11 +456,13 @@ def apply(expected):
         h.idle()
         need(captured() == plan['protected'] and inventory() == plan['inventory']
              and h.static(UNIT) == plan['authority_static'], 'BASE_CHANGED_DURING_DRAIN')
+        require_candidate(plan)
         installed = publish(raw)
         h.run('systemctl','daemon-reload')
         target_static = expected_static(plan['authority_static'],plan['overlay_sha'])
         target_inventory = dict(plan['inventory'],**{str(SELECTOR):plan['overlay_sha']})
         need(h.static(UNIT) == target_static and inventory() == target_inventory, 'LOADED_CONFIG_CHANGED')
+        require_candidate(plan)
         h.run('systemctl','start',UNIT)
         owned_state = service_state()
         wait_ready(plan['health_label'])
@@ -455,6 +472,7 @@ def apply(expected):
              and h.path_state(SELECTOR) == installed, 'CONFIG_CHANGED_AFTER_START')
         need(captured() == plan['protected'] and service_state() == owned_state, 'PROTECTED_CHANGED')
         h.active([UNIT]+h.PRESERVE)
+        require_candidate(plan)
         h.manifest(APP)
         h.reserve()
         h.record('AUTHORITY_APPLIED.json',{'source':SOURCE,'status':'APPLIED_AUTHORITY_ONLY',

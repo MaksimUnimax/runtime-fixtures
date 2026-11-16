@@ -22,6 +22,7 @@ exec(compile(ast.Module(body=keep,type_ignores=[]),M.__file__,'exec'),M.__dict__
 
 ORIGINAL_READ_PLAN = M.read_plan
 ORIGINAL_MANAGED = M.managed
+ORIGINAL_CANDIDATE_IDENTITY = M.candidate_identity
 
 class BoundAuthorityTests(unittest.TestCase):
     def setUp(self):
@@ -83,11 +84,12 @@ class BoundAuthorityTests(unittest.TestCase):
         M.w = types.SimpleNamespace(secure=lambda p:None)
         self.plan = {'protected':{'fixed':True},'inventory':inventory(),'authority_static':self.old,
                      'health_label':'legacy','overlay_sha':hashlib.sha256(M.overlay(self.raw)).hexdigest(),
-                     'environment_sha':'same','candidate_manifest':'qualified'}
+                     'environment_sha':'same','candidate_manifest':'qualified','candidate_identity':['synthetic']}
         self.patches = [patch.object(M,'read_plan',lambda x:(self.plan,M.overlay(self.raw))),
                         patch.object(M,'inventory',inventory),patch.object(M,'captured',lambda:{'fixed':True}),
                         patch.object(M,'environment',lambda:'same'),patch.object(M,'wait_ready',wait),
-                        patch.object(M,'managed',lambda p:p.read_bytes())]
+                        patch.object(M,'managed',lambda p:p.read_bytes()),
+                        patch.object(M,'candidate_identity',lambda p:('synthetic',))]
         for p in self.patches:p.start()
         self.addCleanup(lambda:[p.stop() for p in reversed(self.patches)])
 
@@ -188,6 +190,7 @@ class BoundAuthorityTests(unittest.TestCase):
 
 
     def plan_fixture(self):
+        self.enterContext(patch.object(M,'candidate_identity',ORIGINAL_CANDIDATE_IDENTITY))
         M.BASE.mkdir()
         (M.BASE/'.venv').mkdir()
         (M.BASE/'manifest.json').write_text('{}')
@@ -198,7 +201,7 @@ class BoundAuthorityTests(unittest.TestCase):
         M.h.candidate_manifest = P.candidate_manifest
         # Root ownership is exercised by ORIGINAL_MANAGED; this plane is synthetic.
         value = dict(self.plan,source=M.SOURCE,installer_sha=M.sha(M.__file__),
-                     candidate_manifest=P.sha(M.APP/'manifest.json'))
+                     candidate_manifest=P.sha(M.APP/'manifest.json'),candidate_identity=list(M.candidate_identity(M.APP)))
         path = M.ROOT/'AUTHORITY_PLAN.json'
         path.write_text(json.dumps(value))
         return path,value
@@ -318,6 +321,7 @@ class BoundAuthorityTests(unittest.TestCase):
 
 
     def stage_fixture(self):
+        self.enterContext(patch.object(M,'candidate_identity',ORIGINAL_CANDIDATE_IDENTITY))
         M.BASE.mkdir()
         (M.BASE/'.venv').mkdir()
         (M.BASE/'same').write_bytes(b'old')
@@ -502,6 +506,37 @@ class BoundAuthorityTests(unittest.TestCase):
         self.assertEqual(self.trace.count(('stop',M.UNIT)),1)
         self.assertEqual(self.trace.count(('systemctl','start',M.UNIT)),1)
         self.assertFalse(self.records['AUTHORITY_FAILED.json']['authority_rolled_back'])
+
+
+    def test_same_content_replacement_after_preparation_is_rejected_by_read_plan(self):
+        path,value=self.plan_fixture()
+        original=M.ROOT/'original-candidate'
+        M.APP.rename(original)
+        M.shutil.copytree(original,M.APP,symlinks=True)
+        M.APP.chmod(0o777);(M.APP/'leaf').chmod(0o666)
+        with patch.object(M,'BASE_SHA',P.sha(M.BASE/'manifest.json')):
+            with self.assertRaisesRegex(RuntimeError,'CANDIDATE_REPLACED'):ORIGINAL_READ_PLAN(P.sha(path))
+        self.assertTrue(M.APP.exists())
+        self.assertNotEqual(tuple(value['candidate_identity']),M.candidate_identity(M.APP))
+
+    def test_same_content_replacement_during_plan_creation_is_preserved(self):
+        v,s,p=self.stage_fixture()
+        def race():
+            original=M.ROOT/'original-candidate'
+            M.APP.rename(original)
+            M.shutil.copytree(original,M.APP,symlinks=True)
+            (M.APP/'changed').chmod(0o666)
+            return {'source':M.SOURCE}
+        with self.assertRaises(RuntimeError):M.stage_candidate(v,s,p,race)
+        self.assertEqual((M.APP/'changed').read_bytes(),b'new')
+        self.assertFalse((M.ROOT/M.PREPARATION_PLAN).exists())
+
+    def test_plan_contains_original_candidate_inode_owner_and_mode(self):
+        v,s,p=self.stage_fixture()
+        M.stage_candidate(v,s,p,lambda:{'source':M.SOURCE})
+        plan=json.loads((M.ROOT/M.PREPARATION_PLAN).read_text())
+        self.assertEqual(tuple(plan['candidate_identity']),M.candidate_identity(M.APP))
+        self.assertEqual(len(plan['candidate_identity']),5)
 
 if __name__ == '__main__':
     unittest.main()
