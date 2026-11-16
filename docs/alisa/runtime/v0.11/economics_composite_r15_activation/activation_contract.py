@@ -21,7 +21,8 @@ BUILD_TOOLS = {
 }
 VERSION_SYNC_FILE = 'runtime_versions_sync.py'
 VERSION_SYNC_SHA = '10421a4ec0000a5e26ecc92e5fbeed0a31f48133698a84b92935b04700615dd4'
-TOOL_FILES = ('activation_contract.py', 'activate.py', 'readiness.py', VERSION_SYNC_FILE)
+TOOL_FILES = ('activation_contract.py', 'activate.py', 'readiness.py', VERSION_SYNC_FILE,
+              'program_pair.py')
 ROLES = ('platform', 'authority', 'native')
 UNITS = {'web': 'alisa-web@stage.service', 'platform': 'alisa-platform@stage.service',
          'authority': 'alisa-runtime-authority-stage.service', 'native': 'alice-market.service'}

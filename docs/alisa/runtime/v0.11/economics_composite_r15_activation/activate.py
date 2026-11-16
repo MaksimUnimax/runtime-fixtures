@@ -34,7 +34,7 @@ OWNER_UID = 0  # Fixed production owner; tests patch this in their disposable tr
 
 def _raw_tools():
     result = {}
-    for name in ('activation_contract.py', 'activate.py', 'readiness.py', 'runtime_versions_sync.py'):
+    for name in ('activation_contract.py', 'activate.py', 'readiness.py', 'runtime_versions_sync.py', 'program_pair.py'):
         fd = os.open(HERE/name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
         try:
             before = os.fstat(fd)
@@ -81,6 +81,7 @@ if __name__ == '__main__':
         raise SystemExit(2) from None
 c = _execute_bytes('activation_contract', HERE/'activation_contract.py', _tool_blobs['activation_contract.py'])
 readiness = _execute_bytes('readiness', HERE/'readiness.py', _tool_blobs['readiness.py'])
+program_pair = _execute_bytes('program_pair', HERE/'program_pair.py', _tool_blobs['program_pair.py'])
 
 
 def secure_dir(path):
@@ -742,6 +743,38 @@ def unit_static(unit, rewrite=None):
     return values
 
 
+class ProgramPairObserver:
+    """Read-only adapter. No broker request or result-store read is performed."""
+    def identity(self, path, *, immutable, directory):
+        path = Path(path)
+        secure_dir(path if directory else path.parent)
+        info = path.lstat()
+        c.need(info.st_uid == OWNER_UID and info.st_gid == 0,
+               'PROGRAM_PAIR_OWNER')
+        c.need(stat.S_ISDIR(info.st_mode) if directory else
+               stat.S_ISREG(info.st_mode) and info.st_nlink == 1, 'PROGRAM_PAIR_TYPE')
+        c.need(not info.st_mode & (0o222 if immutable else 0o022), 'PROGRAM_PAIR_MODE')
+        return [str(x) for x in (info.st_dev, info.st_ino, info.st_mode, info.st_uid,
+                info.st_gid, info.st_size, info.st_mtime_ns, info.st_ctime_ns)]
+
+    def names(self, root):
+        secure_dir(Path(root))
+        return [item.name for item in Path(root).iterdir()]
+
+    def file(self, path):
+        return regular(Path(path), maximum=2*1024*1024)
+
+    def unit(self, name):
+        c.need(name in program_pair.UNIT_QUERIES, 'PROGRAM_PAIR_UNIT_SCOPE')
+        keys = ('LoadState', 'FragmentPath', 'DropInPaths', 'NeedDaemonReload')
+        if name == 'alisa-program.socket':
+            keys += ('ActiveState', 'SubState', 'Accept', 'Listen', 'SocketUser',
+                     'SocketGroup', 'SocketMode')
+        else:
+            keys += ('ExecStart',)
+        return {key: prop(name, key) for key in keys}
+
+
 class LiveHost:
     """Fixed installed surfaces. Internal sampler subprocesses expose counts only."""
     def __init__(self, builder, bundle, prepared_hash, attempt, lock_stream):
@@ -802,6 +835,13 @@ class LiveHost:
         c.need({key for key in old if old[key] != new[key]} <= {'catalog_bundle_hash'}, 'VERSION_SCOPE')
         return (json.dumps(new, indent=2)+'\n').encode()
 
+    def program_pair(self):
+        try:
+            client = c.digest(regular(self.bundle/'releases/native/model_program.py'))
+            return program_pair.inspect_pair(ProgramPairObserver(), client)
+        except program_pair.PairBlocked as error:
+            raise c.Blocked(error.code) from None
+
     def capture(self):
         self.helper_guard()
         unit_paths = fence_environment()
@@ -831,7 +871,8 @@ class LiveHost:
                 'components': {name: path_state(path) for name, path in self.components.items()},
                 'web_pointer': path_state(c.WEB_LINK),
                 'publisher': c.digest(regular(Path(self.baseline['publisher']['path']))),
-                'helpers': dict(c.HELPERS), 'unit_load_paths': unit_paths}
+                'helpers': dict(c.HELPERS), 'unit_load_paths': unit_paths,
+                'program_pair': self.program_pair()}
 
     def _projection_inputs(self, expected_states=None):
         pair = self.helpers()
@@ -1125,6 +1166,8 @@ class LiveHost:
         return expected
 
     def validate_start(self, role, planned, *, old=False):
+        if role == 'native' and not old:
+            c.need(self.program_pair() == planned['before']['program_pair'], 'PROGRAM_PAIR_CHANGED')
         self.unit_files_unchanged(planned['before']['units'][role])
         c.need(unit_static(c.UNITS[role]) == self.expected_unit(role, planned, old=old),
                'START_UNIT_CHANGED')
@@ -1174,6 +1217,7 @@ class LiveHost:
 
     def protected(self, planned):
         before = planned['before']
+        c.need(self.program_pair() == before['program_pair'], 'PROGRAM_PAIR_CHANGED')
         c.need(path_state(c.WEB_LINK) == before['web_pointer']
                and c.digest(regular(Path(self.baseline['publisher']['path']))) == before['publisher'],
                'PRESERVED_COMPONENT_CHANGED')
