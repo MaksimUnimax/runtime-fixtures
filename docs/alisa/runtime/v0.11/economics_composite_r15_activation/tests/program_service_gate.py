@@ -12,6 +12,7 @@ from unittest.mock import patch
 import argparse
 import fcntl
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -23,8 +24,7 @@ import sys
 import time
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent))
-import activate as a
+a = None  # Loaded from a verified root-owned test copy, not the runner checkout.
 
 
 def need(ok, code):
@@ -65,10 +65,37 @@ def wait_idle(fence):
             time.sleep(.1)
 
 
+def stage_tools(root):
+    names=('activation_contract.py','activate.py','readiness.py','runtime_versions_sync.py','program_pair.py')
+    source={}
+    for name in names:
+        p=HERE.parent/name
+        need(p.is_file() and not p.is_symlink() and p.stat().st_size<=2*1024*1024,'TOOL_SOURCE_SHAPE')
+        source[name]=p.read_bytes()
+    expected={n:hashlib.sha256(raw).hexdigest() for n,raw in source.items()}
+    tools=root/'tools';tools.mkdir(mode=0o700)
+    for name,raw in source.items():
+        p=tools/name
+        with p.open('xb') as f:f.write(raw);f.flush();os.fsync(f.fileno())
+        p.chmod(0o444)
+    tools.chmod(0o555)
+    spec=importlib.util.spec_from_file_location('actual_program_fixture_activation',tools/'activate.py')
+    module=importlib.util.module_from_spec(spec)
+    module.__dict__['__r15_verified_tool_bytes__']=source
+    exec(compile(source['activate.py'],str(tools/'activate.py'),'exec',dont_inherit=True),module.__dict__)
+    need(tuple(module.c.TOOL_FILES)==names,'TOOL_CLOSURE')
+    pin=module.c.canonical_hash(expected)
+    need(module.tool_hash()==pin,'ROOT_OWNED_TOOL_READBACK')
+    need(all((HERE.parent/n).read_bytes()==raw for n,raw in source.items()),'CHECKOUT_CHANGED')
+    return module,tools,pin
+
+
 def gate(root, broker_source, result_source):
     need(os.geteuid()==0 and root.parent in (Path('/run'),Path('/root'))
          and re.fullmatch(r'alisa-r15-program-ci-[0-9]+-[0-9]+',root.name), 'FIXTURE_SCOPE')
     need(root.is_dir() and not root.is_symlink() and root.stat().st_uid==0, 'FIXTURE_ROOT')
+    global a
+    a,tools,tool_pin=stage_tools(root)
     need(hashlib.sha256(broker_source.read_bytes()).hexdigest()==a.program_pair.FILES['program_broker.py'], 'BROKER_PIN')
     need(hashlib.sha256(result_source.read_bytes()).hexdigest()==a.program_pair.FILES['program_results.py'], 'RESULTS_PIN')
     need(shutil.rmtree.avoids_symlink_attacks, 'FIXTURE_CLEANUP_SUPPORT')
@@ -264,8 +291,11 @@ def gate(root, broker_source, result_source):
             need(all(property_value(n,'LoadState')=='not-found' for k,n in names.items() if k != 'template'),'FIXTURE_NOT_UNLOADED')
             need(not (folder/'FRESH_DISPATCH_FORBIDDEN').exists(),'FRESH_EXECUTOR_INVOKED')
             shutil.rmtree(folder)
+    need(a.tool_hash()==tool_pin,'FINAL_TOOL_CHANGED')
+    need({p.name for p in tools.iterdir()}==set(a.c.TOOL_FILES),'FINAL_TOOL_INVENTORY')
+    shutil.rmtree(tools)
     return {'status':'PASS','checks':report,'checks_count':len(report),'real_systemd':True,
-            'tool_sha256':a.tool_hash(),'test_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            'tool_sha256':tool_pin,'test_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
             'real_retained_protocols':[2,3],'product_readiness_and_sdk':'fixture substitutes; not live qualification','provider_calls':0,'production_configuration_read':False,
             'fixture_units_removed':True,'fixture_result_data_removed':True}
 
