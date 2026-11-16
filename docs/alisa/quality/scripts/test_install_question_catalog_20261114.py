@@ -96,4 +96,6 @@ from test_install_question_catalog_period_20261116 import (
     RolloutBoundaries as PeriodRolloutBoundaries, EffectiveReleaseBoundary,
 )
 
+from test_install_wb_activity_metadata_20261116 import MetadataScope, NativeRollbackBoundaries
+
 if __name__=='__main__':unittest.main()
