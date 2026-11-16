@@ -51,3 +51,7 @@ python -I -B -m unittest discover -s products/alisa/tests/operations -p test_rec
 ```
 
 The existing platform CI receives one named invocation of this suite; no additional workflow, runner, timer or daemon is added. Its exact-commit results must be read separately after publication. Alisa's working package and four UNKNOWN records are not modified by this source task.
+
+## Initial CI integration finding
+
+The first exact-head platform run43852574230 refused the new operations test directory with TEST_SUITE_ENVIRONMENT_UNASSIGNED:operations. Its complete-inventory guard correctly detected that the new named CI step alone was not an environment assignment. The fix registers exactly test_reconciliation in the existing EXTERNAL map with that named step, retains all previous assignments and adds routing regressions for the explicit invocation and an unassigned extra operations module. No suite is skipped or test disabled. The failed run is preserved; corrected exact-head CI is separate evidence.
