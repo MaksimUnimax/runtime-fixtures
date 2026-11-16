@@ -7,10 +7,10 @@
   "required_cases": 91,
   "counts": {
     "HISTORICAL_ACCEPTED": 25,
-    "PARTIAL": 37,
+    "PARTIAL": 36,
     "SOURCE_ONLY": 27,
     "SYNTHETIC_PASS": 1,
-    "INSTALLED_ACCEPTED": 1
+    "INSTALLED_ACCEPTED": 2
   },
   "per_stage": [
     {
@@ -80,8 +80,8 @@
     {
       "stage": "AL-S11",
       "total": 4,
-      "PARTIAL": 3,
-      "INSTALLED_ACCEPTED": 1
+      "INSTALLED_ACCEPTED": 2,
+      "PARTIAL": 2
     }
   ],
   "criteria": "Exact AL-S00..AL-S11 sections and explicit ROADMAP test references; stage numbers are not test numbers.",
@@ -1112,9 +1112,9 @@
       "id": "AL-T09-01",
       "title": "POSITIVE",
       "test_plan_line": 1638,
-      "verdict": "PARTIAL",
-      "evidence": "B: поиск «продажи»=7, B08.finance_sales v5, фильтр «Показатель» и перенос без отправки повторно проверены в сохранённой Cloud Browser сессии. NATIVE_FIXTURE: 88 compile.",
-      "remaining_or_scope_limit": "В текущем каталоге нет выбора периода; пример всегда «за вчера». В аккаунте один свой Ozon, смена площадки не принята. Единица показана техническим currency. Сценарий остаётся частичным."
+      "verdict": "INSTALLED_ACCEPTED",
+      "evidence": "LIVE16Nov product e0a10bb4 / installer38ff4c52: WB_ACTIVITY_ROLLOUT_20261116.md; both B14 v2 analytics_period/new label/units; custom period and WB-Ozon-WB; both prefills one WB without submit; admin 88 and fingerprint matched; no new jobs/calls; four UNKNOWN unchanged.",
+      "remaining_or_scope_limit": "Current catalog acceptance only; physical Station and report execution belong to separate cases."
     },
     {
       "stage": "AL-S11",
@@ -1169,5 +1169,27 @@
     "original_suite_green": false,
     "all_88_compile": true,
     "roadmap_counts_unchanged": true
+  },
+  "updated_at_client": "2026-11-16T12:42:36.214854+05:00",
+  "wb_activity_live_followup": {
+    "report": "WB_ACTIVITY_ROLLOUT_20261116.md",
+    "status": "INSTALLED_AND_LIVE_BROWSER_PASS",
+    "product_source": "e0a10bb47fe1cd83bbc4aaa47fa1f05ae3a4b725",
+    "installer_source": "38ff4c52311db3ccf7dd572a76249c4337b7e8e5",
+    "exact_ci": [
+      43823140229,
+      43823140302
+    ],
+    "native_files_unchanged": 182,
+    "metadata_files_changed": 2,
+    "definitions": 88,
+    "new_jobs": 0,
+    "new_native_calls": 0,
+    "unknown_unchanged": 4,
+    "all_nine_active": true,
+    "protected_six_unchanged": true,
+    "physical_station_tested": false,
+    "business_values_written": false,
+    "screenshot_library_file_id": "libfile_b182d79fe4548191978b1dc8b4dfb622"
   }
 }
