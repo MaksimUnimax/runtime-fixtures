@@ -275,7 +275,7 @@ def fence_answer(worker,row,progress,fences):
   if value!={'current':True}:
    # Discard the stale response, not the fetched marketplace facts. The next
    # final-answer pass rebinds current values (or fills only newly empty slots).
-   for key in ('_program_started','_program_started_at','_program_recovery_at','_compound_answer_fences','_compound_answer_generation'):
+   for key in ('_program_started','_program_started_at','_program_recovery_at','_program_request_binding','_compound_answer_fences','_compound_answer_generation'):
     progress.pop(key,None)
    worker.repo.reschedule(row['id'],row['owner'],progress)
    return False

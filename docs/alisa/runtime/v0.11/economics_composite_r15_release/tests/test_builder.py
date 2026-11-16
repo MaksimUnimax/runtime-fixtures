@@ -170,6 +170,30 @@ class CandidateBuilder(unittest.TestCase):
         self.assertEqual(value['base_provenance']['acceptance']['status'], 'OLD_ACCEPTED')
         self.assertEqual(value['migrations'], {'old-migration': 'untouched'})
 
+    def test_program_recovery_consumer_is_pinned_staged_and_copied_exactly(self):
+        name = c.RUNTIME + 'current_parameters_r8/program_recovery/model_program.py'
+        expected = (self.source / name).read_bytes()
+        self.assertEqual(self.plan['source_files'][name], c.digest(expected))
+
+        def staged(target, source):
+            self.assertNotEqual(source, self.source)
+            self.assertEqual(set(b.file_hashes(source)), set(self.plan['source_files']))
+            self.assertEqual((source / name).read_bytes(), expected)
+            self.native(target, source)
+
+        self.build(apply=staged)
+        native = self.out / 'releases/native'
+        self.assertEqual((native / 'model_program.py').read_bytes(), expected)
+        manifest = c.strict_json((native / 'manifest.json').read_bytes())
+        self.assertEqual(manifest['files']['model_program.py'], self.plan['source_files'][name])
+
+    def test_missing_program_recovery_consumer_cannot_get_a_plan(self):
+        name = c.RUNTIME + 'current_parameters_r8/program_recovery/model_program.py'
+        self.assertIn(name, self.plan['source_files'])
+        (self.source / name).unlink()
+        with self.assertRaises(FileNotFoundError):
+            b.make_plan(self.source, 'd' * 40)
+
     def test_owner_source_and_query_adapter_are_copied_to_both_platform_roles(self):
         self.assertIn('owner_data/source.py', c.EXISTING_PLATFORM)
         self.assertNotIn('owner_data/source.py', c.COMPATIBILITY_FILES)
@@ -366,12 +390,14 @@ class CandidateBuilder(unittest.TestCase):
                         c.check_compatibility(self.plan['source_files'], bases, wrong)
 
     def test_direct_copy_must_match_source_even_inside_allowed_scope(self):
-        def mutate(target, source):
-            self.native(target, source)
-            (target / 'other_source_runtime.py').write_bytes(b'wrong but allowlisted')
-        with self.assertRaisesRegex(c.ReleaseError, 'DIRECT_SOURCE_OUTPUT_CHANGED'):
-            self.build(apply=mutate)
-        self.assert_no_partial()
+        for name in ('other_source_runtime.py', 'model_program.py'):
+            with self.subTest(path=name):
+                def mutate(target, source):
+                    self.native(target, source)
+                    (target / name).write_bytes(b'wrong but allowlisted')
+                with self.assertRaisesRegex(c.ReleaseError, 'DIRECT_SOURCE_OUTPUT_CHANGED'):
+                    self.build(apply=mutate)
+                self.assert_no_partial()
 
     def test_existing_target_is_not_reused_or_deleted(self):
         self.out.mkdir()
@@ -534,7 +560,8 @@ class NativeSourceChain(unittest.TestCase):
     def test_actual_source_prepare_chain_preserves_r5_catalog_and_probe_boundary(self):
         """Real source integration on a reproduced R5 test input, not a release."""
         repo = HERE.parents[4]
-        c.check_source_imports(b.source_bytes(repo)[0])
+        blobs, hashes = b.source_bytes(repo)
+        c.check_source_imports(blobs)
         fixture = repo / 'products/alisa/tests/current_parameters/native_fixture'
         manifest = c.strict_json((fixture / 'MANIFEST.json').read_bytes())
         archive = fixture / 'qualified_core_source.tar.gz'
@@ -565,7 +592,14 @@ class NativeSourceChain(unittest.TestCase):
                              '4a8d913906afea360a275c75343db25736141e215f42a2a967bab450de2271a1')
             catalog = c.strict_json((target / 'template_catalog.json').read_bytes())
             old_probe = b.native_probe(target, sys.executable)
-            b.apply_native(target, repo)
+            # Match build(): the prepares see only the declared staged inputs,
+            # never undeclared files that happen to exist in a full checkout.
+            source = Path(name) / 'source'
+            for path, raw in blobs.items():
+                b.write_new(source / path, raw, 0o444)
+            b.apply_native(target, source)
+            consumer = c.RUNTIME + 'current_parameters_r8/program_recovery/model_program.py'
+            self.assertEqual(c.digest((target / 'model_program.py').read_bytes()), hashes[consumer])
             c.check_catalog(catalog, c.strict_json((target / 'template_catalog.json').read_bytes()))
             probe = b.native_probe(target, sys.executable)
             self.assertEqual(old_probe['read_surface_pin'], probe['read_surface_pin'])

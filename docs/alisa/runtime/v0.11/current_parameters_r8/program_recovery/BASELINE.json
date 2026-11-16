@@ -1,0 +1,34 @@
+{
+  "schema": "alisa-program-recovery-source-baseline/v1",
+  "git_base": "f1f140819147f9b9503da46888cf25e76d9d9b8c",
+  "native_input": {
+    "archive": "products/alisa/tests/current_parameters/native_fixture/qualified_core_source.tar.gz",
+    "archive_git_blob": "6b887696ea61294e1b7a114c5a06d5d0d85e5bfb",
+    "manifest": "products/alisa/tests/current_parameters/native_fixture/MANIFEST.json",
+    "manifest_git_blob": "71b691f07754c9533d76c647dce4cf53ca06d650",
+    "file": "model_program.py",
+    "bytes": 7021,
+    "sha256": "64ff75cd5292ebd4721853a9cf4bd35b8ed13fe9d812a49a593577e2d2c9d872"
+  },
+  "previous_r8_consumer": {
+    "file": "model_program.py",
+    "bytes": 7102,
+    "sha256": "3dde368ab040aca99aac6bcc99ed1bd1d9ac6065ed0f76c17b6ec17567f3a5ff",
+    "generation_key": "sha256(tenant + NUL + job_id + optional NUL + parameter-revision: + generation)"
+  },
+  "observed_program_producer": {
+    "directory": "/opt/alisa-program/releases/20261113-reliability-r1",
+    "source_kind": "Exact public installed source read without execution or private result access",
+    "files": {
+      "program_broker.py": {
+        "bytes": 11332,
+        "sha256": "915d9b328b87ee4acc21c052f1fb4c19c3747f921916022d0e5cabb1071a5156"
+      },
+      "program_results.py": {
+        "bytes": 2789,
+        "sha256": "1bf19d8d15587efecc88a4b1cf5c2609c5731a7fc7dcf2e4f7152a9b565ae952"
+      }
+    }
+  },
+  "qualification_scope": "Source baseline and compatibility inputs; no deployment or installed-feature claim"
+}
