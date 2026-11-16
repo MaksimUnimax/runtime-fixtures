@@ -342,7 +342,7 @@ class BoundAuthorityTests(unittest.TestCase):
                 other = BoundAuthorityTests(methodName='runTest');other.setUp()
                 try:
                     v,s,p = other.stage_fixture()
-                    original_record = M.h.record
+                    original_publish = M.publish_record
                     if failure=='materialize':
                         def broken(*args):
                             target=args[1];target.mkdir();(target/'partial').write_bytes(b'partial')
@@ -351,12 +351,12 @@ class BoundAuthorityTests(unittest.TestCase):
                     elif failure=='validate':
                         M.h.candidate_manifest=lambda *a:(_ for _ in ()).throw(RuntimeError('SYNTHETIC_PREPARATION'))
                     else:
-                        def broken(name,value):
+                        def broken(name,value,*args,**kwargs):
                             if name==M.PREPARATION_PLAN:
-                                if failure=='plan_after':original_record(name,value)
+                                if failure=='plan_after':original_publish(name,value,*args,**kwargs)
                                 raise RuntimeError('SYNTHETIC_PREPARATION')
-                            original_record(name,value)
-                        M.h.record=broken
+                            return original_publish(name,value,*args,**kwargs)
+                        change=patch.object(M,'publish_record',broken);change.start();other.addCleanup(change.stop)
                     with self.assertRaisesRegex(RuntimeError,'SYNTHETIC_PREPARATION'):M.stage_candidate(v,s,p,lambda:{'source':M.SOURCE})
                     self.assertFalse(M.APP.exists())
                     self.assertFalse((M.ROOT/M.PREPARATION_PLAN).exists())
@@ -438,6 +438,70 @@ class BoundAuthorityTests(unittest.TestCase):
         self.assertFalse((M.ROOT/'PREPARING.json').exists())
         M.stage_candidate(v,s,p,lambda:{'source':M.SOURCE})
         self.assertTrue(M.APP.exists())
+
+
+    def test_record_publication_refuses_foreign_file_in_check_to_write_window(self):
+        for name in ['PREPARING.json',M.PREPARATION_PLAN]:
+            with self.subTest(name=name):
+                path=M.ROOT/name
+                original=M.h.rename_no_replace
+                def race(src,dst):
+                    if dst==path:path.symlink_to('foreign dangling target')
+                    return original(src,dst)
+                with patch.object(M.h,'rename_no_replace',race):
+                    with self.assertRaises(RuntimeError):M.publish_record(name,{'owned':True})
+                self.assertEqual(path.readlink(),Path('foreign dangling target'))
+                path.unlink()
+        self.assertEqual(list(M.ROOT.glob('.r5-receipt-*')),[])
+
+    def test_record_update_rejects_foreign_replacement_inode(self):
+        state=M.publish_record('PREPARING.json',{'phase':'old'})
+        original=M.h.replace_selection
+        def race(path,temp,expected,staged=None):
+            if path.name=='PREPARING.json':
+                path.unlink();path.write_bytes(b'foreign')
+            return original(path,temp,expected,staged)
+        with patch.object(M.h,'replace_selection',race):
+            with self.assertRaisesRegex(RuntimeError,'SELECTOR_CHANGED'):
+                M.publish_record('PREPARING.json',{'phase':'new'},state)
+        self.assertEqual((M.ROOT/'PREPARING.json').read_bytes(),b'foreign')
+
+    def test_recovery_retries_its_own_detached_recovered_envelope(self):
+        self.stage_fixture()
+        folder=Path(tempfile.mkdtemp(prefix='.r5-preparation-',dir=M.APP.parent))
+        st=folder.stat();(folder/'partial').write_bytes(b'owned')
+        M.h.WEB_LINK=M.ROOT/'current';M.h.WEB_LINK.symlink_to(M.BASE)
+        M.h.prop=lambda *a:str(M.BASE/'services/platform')
+        M.h.record('PREPARING.json',{'source':M.SOURCE,'installer_sha':M.sha(M.__file__),'envelope':str(folder),'envelope_identity':[st.st_dev,st.st_ino],'candidate_identity':None})
+        with patch.object(M.shutil,'rmtree',side_effect=RuntimeError('SYNTHETIC_INTERRUPTION')):
+            with self.assertRaisesRegex(RuntimeError,'SYNTHETIC_INTERRUPTION'):M.recover_preparation()
+        recovered=folder.with_name(folder.name+'-recovered')
+        self.assertTrue(recovered.exists())
+        self.assertTrue((M.ROOT/'PREPARING.json').exists())
+        M.recover_preparation()
+        self.assertFalse(recovered.exists())
+        self.assertFalse((M.ROOT/'PREPARING.json').exists())
+
+    def test_stop_failure_never_restarts_unconfirmed_service_state(self):
+        def fail(unit):
+            self.trace.append(('stop',unit))
+            raise RuntimeError('SYNTHETIC_STOP_FAILURE')
+        M.h.stop=fail
+        with self.assertRaisesRegex(RuntimeError,'STOP_NOT_CONFIRMED'):M.apply('plan')
+        self.assertEqual(self.trace,[('stop',M.UNIT)])
+        self.assertFalse(M.SELECTOR.exists())
+        self.assertFalse(self.records['AUTHORITY_FAILED.json']['authority_rolled_back'])
+
+    def test_later_service_stop_is_preserved_on_health_failure(self):
+        epoch=[0]
+        def fail(label):
+            epoch[0]+=1
+            raise RuntimeError('SYNTHETIC_LATER_STOP')
+        with patch.object(M,'service_state',lambda:{'epoch':epoch[0]}),patch.object(M,'wait_ready',fail):
+            with self.assertRaisesRegex(RuntimeError,'ROLLBACK_SERVICE_STATE_CHANGED'):M.apply('plan')
+        self.assertEqual(self.trace.count(('stop',M.UNIT)),1)
+        self.assertEqual(self.trace.count(('systemctl','start',M.UNIT)),1)
+        self.assertFalse(self.records['AUTHORITY_FAILED.json']['authority_rolled_back'])
 
 if __name__ == '__main__':
     unittest.main()

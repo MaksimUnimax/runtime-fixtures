@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import stat
 import shutil
 import tempfile
 
@@ -131,6 +132,57 @@ def baseline_tree(root, value):
 
 PREPARATION_PLAN = 'PLAN.json'
 
+def publish_record(name, value, expected=None, on_stage=None):
+    path = ROOT/name
+    raw = (json.dumps(value,indent=2)+'\n').encode()
+    temp = ROOT/('.r5-receipt-'+os.urandom(16).hex())
+    stream = None
+    fd = None
+    identity = None
+    staged = None
+    try:
+        fd = os.open(temp,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+        st = os.fstat(fd)
+        identity = (st.st_dev,st.st_ino)
+        stream = os.fdopen(fd,'wb')
+        fd = None
+        stream.write(raw)
+        stream.flush()
+        os.fsync(stream.fileno())
+        staged = h.path_state(temp)
+        need(staged[:2] == identity and staged[-1] == hashlib.sha256(raw).hexdigest(),
+             'STAGED_RECORD_CHANGED')
+        if on_stage is not None:
+            on_stage(staged)
+        need(h.path_state(temp) == staged, 'STAGED_RECORD_CHANGED')
+        if expected is None:
+            h.rename_no_replace(temp,path)
+        else:
+            h.replace_selection(path,temp,expected,staged)
+        need(h.path_state(path) == staged, 'PUBLISHED_RECORD_CHANGED')
+        return staged
+    finally:
+        # Hold the original fd until cleanup, so its inode cannot be recycled.
+        try:
+            if identity is not None and (temp.exists() or temp.is_symlink()):
+                st = temp.lstat()
+                if (st.st_dev,st.st_ino) == identity and stat.S_ISREG(st.st_mode):
+                    actual = h.path_state(temp)
+                    if raw.startswith(temp.read_bytes()) and h.path_state(temp) == actual:
+                        h.replace_selection(temp,None,actual)
+        finally:
+            if stream is not None:
+                stream.close()
+            elif fd is not None:
+                os.close(fd)
+
+def remove_owned(path, identity):
+    st = path.lstat()
+    need((st.st_dev,st.st_ino) == tuple(identity) and path.is_dir()
+         and not path.is_symlink(), 'PREPARATION_OWNER_CHANGED')
+    need(shutil.rmtree.avoids_symlink_attacks, 'FD_SAFE_CLEANUP_REQUIRED')
+    shutil.rmtree(path)
+
 def discard_owned(path, identity, held):
     need(not held.exists() and not held.is_symlink(), 'RECOVERY_NAME_OCCUPIED')
     st = path.lstat()
@@ -142,11 +194,11 @@ def discard_owned(path, identity, held):
         if not path.exists() and not path.is_symlink():
             h.rename_no_replace(held,path)
         raise RuntimeError('PREPARATION_OWNER_CHANGED')
-    need(shutil.rmtree.avoids_symlink_attacks, 'FD_SAFE_CLEANUP_REQUIRED')
-    shutil.rmtree(held)
+    remove_owned(held,identity)
 
 def recover_preparation():
     need(not (ROOT/PREPARATION_PLAN).exists() and not (ROOT/PREPARATION_PLAN).is_symlink(), 'PREPARATION_ALREADY_COMPLETE')
+    need((ROOT/'PREPARING.json').is_file() and not (ROOT/'PREPARING.json').is_symlink(), 'FOREIGN_PREPARATION')
     proof = json.loads(h.bounded(ROOT/'PREPARING.json'))
     need(proof['source'] == SOURCE and proof['installer_sha'] == sha(__file__),
          'FOREIGN_PREPARATION')
@@ -156,9 +208,12 @@ def recover_preparation():
     proof_path = ROOT/'PREPARING.json'
     proof_state = h.path_state(proof_path)
     # Cleanup itself may have been interrupted after detaching the private envelope.
-    held = envelope.with_name(envelope.name+'-discarded')
-    actual_envelope = envelope if envelope.exists() or envelope.is_symlink() else held
-    if actual_envelope.exists() or actual_envelope.is_symlink():
+    recovered = envelope.with_name(envelope.name+'-recovered')
+    choices = [envelope,envelope.with_name(envelope.name+'-discarded'),recovered]
+    present = [p for p in choices if p.exists() or p.is_symlink()]
+    need(len(present) <= 1, 'RECOVERY_AMBIGUOUS')
+    actual_envelope = present[0] if present else envelope
+    if present:
         st = actual_envelope.lstat()
         need((st.st_dev,st.st_ino) == tuple(proof['envelope_identity']), 'PREPARATION_OWNER_CHANGED')
     need(h.WEB_LINK.resolve() != APP and Path(h.prop('alisa-runtime-authority-stage.service','WorkingDirectory')) != APP/'services/platform',
@@ -171,7 +226,10 @@ def recover_preparation():
         need(sha(APP/'manifest.json') == proof['candidate_manifest'], 'RECOVERY_CANDIDATE_CHANGED')
         discard_owned(APP,proof['candidate_identity'],actual_envelope/'published-recovery')
     if actual_envelope.exists() or actual_envelope.is_symlink():
-        discard_owned(actual_envelope,proof['envelope_identity'],actual_envelope.with_name(actual_envelope.name+'-recovered'))
+        if actual_envelope == recovered:
+            remove_owned(recovered,proof['envelope_identity'])
+        else:
+            discard_owned(actual_envelope,proof['envelope_identity'],recovered)
     saved = ROOT/('PREPARING.recovered-'+envelope.name+'.json')
     need(h.path_state(proof_path) == proof_state, 'PREPARATION_PROOF_CHANGED')
     h.rename_no_replace(proof_path,saved)
@@ -190,27 +248,30 @@ def stage_candidate(value, sources, pool, build_plan):
     identity = (st.st_dev,st.st_ino)
     inner = envelope/APP.name
     child_identity = None
-    plan_digest = None
+    plan_owned = None
+    proof_state = None
     complete = False
     proof = {'source':SOURCE,'installer_sha':sha(__file__),'envelope':str(envelope),
              'envelope_identity':identity,'candidate_identity':None}
     try:
         # Persist the private envelope identity before materializing any release file.
-        h.record('PREPARING.json',proof)
+        proof_state = publish_record('PREPARING.json',proof,proof_state)
         h.materialize(BASE,inner,value,sources,pool)
         h.candidate_manifest(inner,BASE)
         st = inner.lstat()
         child_identity = (st.st_dev,st.st_ino)
         proof.update(candidate_identity=child_identity,candidate_manifest=sha(inner/'manifest.json'))
-        h.record('PREPARING.json',proof)
+        proof_state = publish_record('PREPARING.json',proof,proof_state)
         h.rename_no_replace(inner,APP)
         st = APP.lstat()
         need((st.st_dev,st.st_ino) == child_identity, 'PUBLISHED_CANDIDATE_CHANGED')
         plan = build_plan()
         h.reserve()
-        plan_digest = hashlib.sha256((json.dumps(plan,indent=2)+'\n').encode()).hexdigest()
+        def own_plan(state):
+            nonlocal plan_owned
+            plan_owned = state
         need(not (ROOT/PREPARATION_PLAN).exists() and not (ROOT/PREPARATION_PLAN).is_symlink(), 'PLAN_OCCUPIED')
-        h.record(PREPARATION_PLAN,plan)
+        publish_record(PREPARATION_PLAN,plan,on_stage=own_plan)
         complete = True
     except BaseException:
         if child_identity is not None and (APP.exists() or APP.is_symlink()):
@@ -221,8 +282,7 @@ def stage_candidate(value, sources, pool, build_plan):
             discard_owned(APP,child_identity,envelope/'published-recovery')
         plan_path = ROOT/PREPARATION_PLAN
         if plan_path.exists() or plan_path.is_symlink():
-            need(not plan_path.is_symlink() and plan_path.is_file() and plan_digest is not None
-                 and sha(plan_path) == plan_digest, 'FOREIGN_PLAN_RETAINED')
+            need(plan_owned is not None and h.path_state(plan_path) == plan_owned, 'FOREIGN_PLAN_RETAINED')
             saved = ROOT/(PREPARATION_PLAN+'.failed-'+envelope.name)
             expected = h.path_state(plan_path)
             h.rename_no_replace(plan_path,saved)

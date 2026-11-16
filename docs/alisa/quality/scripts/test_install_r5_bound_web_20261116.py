@@ -32,7 +32,7 @@ class ReviewedBoundWebDriver(unittest.TestCase):
         self.assertEqual(ast.dump(ast.parse(expected_main).body[0]),ast.dump(new_functions['main']))
         authority = ast.parse((root/'install_r5_bound_authority_20261116.py').read_text())
         authority_functions = {n.name:n for n in authority.body if isinstance(n,ast.FunctionDef)}
-        for name in ['discard_owned','stage_candidate','recover_preparation']:
+        for name in ['publish_record','remove_owned','discard_owned','stage_candidate','recover_preparation']:
             self.assertEqual(ast.dump(authority_functions[name]),ast.dump(new_functions[name]),name)
         self.assertTrue(any(isinstance(n,ast.Call) and isinstance(n.func,ast.Name) and n.func.id=='stage_candidate' for n in ast.walk(new_functions['prepare'])))
         def assignments(t):
