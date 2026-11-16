@@ -9,15 +9,15 @@ from pathlib import Path
 import json
 import re
 
-PRODUCT = '1964d60f9a7598fefa2e10a0affcda0cce0f1f34'
-PRODUCT_PLAN = 'f36079ff506d52a4c06c2c12712bb0f9a642063def9414d72292201697d6c30e'
-SOURCE_INDEX = '3b6bee51f233398d46c15646b3435edf147ee19e9cdf7abe74ae8908472dc26b'
+PRODUCT = 'cafb743c94672104d4afa2c471398e5c81d904f5'
+PRODUCT_PLAN = '733a2d1ded5702f4233524263946a41e14bf26428f8adc7519d4ab5432501616'
+SOURCE_INDEX = '7342caa174709952744104dd156e38441c0caf15a01bc7442043dca100623562'
 BUILD_TOOLS = {
-    'baseline_20261115.json': '29bd890109a31707c189be18313c9595f608c54c0118a47ff34978586209aef7',
-    'build_candidate.py': '68f502a20d4f869a7d6e0bd81dab37e174693cd1a673ded195331a832cf47839',
+    'baseline_20261115.json': '86fba9b040912c9a6b35b8ac116d7b6634c0c321c3471bc72dc7656fc1c5cdce',
+    'build_candidate.py': 'efbcba35fc182af58ca68accfaae9bc43152316f4092fc5305ccf6e3ec80aca0',
     'compatibility_review.json': 'a6f8eecbb603b82afa578de626df4f1e9af02250434df9a19b58efbbab3dc97a',
     'inspect_native.py': 'e310616f618ee63ca27372404e0f6639d01e4235975d0ae35f1aec5921d5a3e7',
-    'release_contract.py': '48a7f0ebb53213e38b188af169fab54f6101ccadf478200f1770b36a31198633',
+    'release_contract.py': 'b070a29b1bc27edb159875c67c48781b9ede3d9f0dd8ee26884be71674fa2020',
 }
 VERSION_SYNC_FILE = 'runtime_versions_sync.py'
 VERSION_SYNC_SHA = '10421a4ec0000a5e26ecc92e5fbeed0a31f48133698a84b92935b04700615dd4'
@@ -146,7 +146,7 @@ def product_identity(plan, prepared):
     need(plan.get('source_commit') == PRODUCT and prepared.get('source_commit') == PRODUCT,
          'PRODUCT_CHANGED')
     need(plan.get('tool_files') == BUILD_TOOLS, 'BUILDER_CHANGED')
-    need(type(plan.get('source_files')) is dict and len(plan['source_files']) == 96
+    need(type(plan.get('source_files')) is dict and len(plan['source_files']) == 97
          and canonical_hash(plan['source_files']) == SOURCE_INDEX, 'PRODUCT_INPUTS_CHANGED')
     need(prepared.get('plan_sha256') == PRODUCT_PLAN
          and prepared.get('schema') == 'alisa-economics-candidate/v1'

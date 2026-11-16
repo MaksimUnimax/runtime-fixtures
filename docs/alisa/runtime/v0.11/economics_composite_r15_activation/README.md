@@ -1,3 +1,7 @@
+## Latest WB97 source checkpoint (16 November 2026)
+
+The current branch binds the measured WB97 PLAN/package and adds reviewed real-file recovery and lock-lifetime primitives. **The actual broker service-control/admission-fence adapter is still unfinished; do not deploy this checkpoint as a completed paired installer.** See [PROGRAM_PAIR_FILE_RECOVERY_20261116.md](PROGRAM_PAIR_FILE_RECOVERY_20261116.md) for the183-method result, exact package pins, review findings and specific remaining work. Earlier source notes below are preserved history, not current deployment approval.
+
 ## Current source checkpoint: program pair guard (16 November 2026)
 
 This branch contains a reviewed pairing guard and tested phase ordering, **not a deployable R15 installer**. See [PROGRAM_PAIR_SOURCE_20261116.md](PROGRAM_PAIR_SOURCE_20261116.md) for the exact 36-method result, independent review, concurrent WB baseline change and unfinished live-adapter/pin qualification. Existing descriptions and commands below are historical qualified scopes; they do not authorize using this partial checkpoint on Alisa.

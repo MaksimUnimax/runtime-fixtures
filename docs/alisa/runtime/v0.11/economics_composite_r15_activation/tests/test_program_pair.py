@@ -280,6 +280,17 @@ class R15IntegrationTests(unittest.TestCase):
         self.assertIn('program_pair.py', self.a.c.TOOL_FILES)
         self.assertEqual(set(self.a._raw_tools()), set(self.a.c.TOOL_FILES))
 
+    def test_privileged_gate_copies_use_the_exact_five_file_tool_closure(self):
+        import ast
+        for name in ('private_probe_gate.py', 'native_credential_gate.py', 'selector_consumer_gate.py'):
+            with self.subTest(gate=name):
+                tree = ast.parse((HERE/'tests'/name).read_bytes())
+                values = [ast.literal_eval(node.value) for node in tree.body
+                          if isinstance(node, ast.Assign)
+                          and any(isinstance(target, ast.Name) and target.id == 'NAMES'
+                                  for target in node.targets)]
+                self.assertEqual(values, [self.a.c.TOOL_FILES])
+
     def test_actual_host_converts_pair_error_to_bounded_activation_code(self):
         a = self.a
         host = object.__new__(a.LiveHost)
@@ -310,10 +321,11 @@ class R15IntegrationTests(unittest.TestCase):
                 host.protected({'before': {'program_pair': {'pair': 'expected'}}})
         self.assertEqual(err.exception.code, 'PROGRAM_PAIR_CHANGED')
 
-    def test_source_input_pins_were_not_silently_requalified(self):
+    def test_source_input_pins_match_the_verified_wb_97_input_plan(self):
         a = self.a
-        self.assertEqual(a.c.PRODUCT, '1964d60f9a7598fefa2e10a0affcda0cce0f1f34')
-        self.assertEqual(a.c.SOURCE_INDEX, '3b6bee51f233398d46c15646b3435edf147ee19e9cdf7abe74ae8908472dc26b')
+        self.assertEqual(a.c.PRODUCT, 'cafb743c94672104d4afa2c471398e5c81d904f5')
+        self.assertEqual(a.c.SOURCE_INDEX, '7342caa174709952744104dd156e38441c0caf15a01bc7442043dca100623562')
+        self.assertEqual(a.c.PRODUCT_PLAN, '733a2d1ded5702f4233524263946a41e14bf26428f8adc7519d4ab5432501616')
 
 
 if __name__ == '__main__':

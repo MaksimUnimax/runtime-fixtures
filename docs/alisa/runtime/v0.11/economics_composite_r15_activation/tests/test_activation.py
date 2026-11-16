@@ -240,7 +240,7 @@ class ContractTests(unittest.TestCase):
         spec.loader.exec_module(builder_contract)
         sources = {name: sha256((root/name).read_bytes()).hexdigest()
                    for name in sorted(builder_contract.SOURCE_FILES)}
-        self.assertEqual(len(sources), 96)
+        self.assertEqual(len(sources), 97)
         self.assertEqual(c.canonical_hash(sources), c.SOURCE_INDEX)
         self.assertEqual(sha256(builder_contract.encoded(sources)).hexdigest(), c.SOURCE_INDEX)
         self.assertNotEqual(sha256(json.dumps(sources, sort_keys=True, separators=(',', ':')).encode()).hexdigest(),

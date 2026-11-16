@@ -775,6 +775,269 @@ class ProgramPairObserver:
         return {key: prop(name, key) for key in keys}
 
 
+class ProgramPairExclusion:
+    """Own both existing kernel flocks for serialized unit-file publication.
+
+    Project writers must use the existing rollout lock. These are advisory
+    locks, not protection against a privileged actor deliberately bypassing
+    the deployment protocol. No lock file is created or chmodded. The live
+    host must additionally retain its real admission fence for all mutations.
+    """
+    PROGRAM_LOCK = Path('/run/lock/alisa-program.lock')
+
+    def __init__(self):
+        import threading
+        self._mutex = threading.RLock()
+        self._in_use = 0
+        self._context = None
+        self._stream = None
+        self._parent_fd = None
+        self._program_fd = None
+        self._active = False
+        self._used = False
+
+    @staticmethod
+    def _held(fd):
+        # Do not reacquire silently: an explicit unlock must invalidate the
+        # transaction even when nobody else has acquired the lock afterwards.
+        lines = [line.split() for line in Path('/proc/self/fdinfo/'+str(fd)).read_text().splitlines()
+                 if line.startswith('lock:')]
+        c.need(len(lines) == 1 and len(lines[0]) == 9
+               and lines[0][2:5] == ['FLOCK', 'ADVISORY', 'WRITE']
+               and lines[0][5] == str(os.getpid()) and lines[0][-2:] == ['0', 'EOF'],
+               'PROGRAM_EXCLUSION_NOT_HELD')
+
+    def __enter__(self):
+        with self._mutex:
+            return self._enter()
+
+    def _enter(self):
+        c.need(not self._used, 'PROGRAM_EXCLUSION_REUSED')
+        self._used = True
+        try:
+            self._context = lock()
+            self._stream = self._context.__enter__()
+            self._parent = _lock_parent_state()
+            self._parent_fd = os.open(c.LOCK.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            c.need(_lock_identity(os.fstat(self._parent_fd)) == self._parent, 'UNTRUSTED_LOCK')
+            self._stage = _lock_file_state(os.fstat(self._stream.fileno()))
+            c.need(self.PROGRAM_LOCK.parent == c.LOCK.parent
+                   and self.PROGRAM_LOCK.name == 'alisa-program.lock', 'PROGRAM_LOCK_PATH')
+            self._program_fd = os.open(self.PROGRAM_LOCK.name,
+                os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=self._parent_fd)
+            self._program = _lock_file_state(os.fstat(self._program_fd))
+            try:
+                fcntl.flock(self._program_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise c.Blocked('PROGRAM_EXECUTOR_BUSY') from None
+            self._active = True
+            self.require()
+            return self
+        except BaseException:
+            self.__exit__(None, None, None)
+            raise
+
+    def require(self):
+        c.need(self._active, 'PROGRAM_EXCLUSION_NOT_HELD')
+        _check_lock(self._parent_fd, self._stream.fileno(), self._parent, self._stage)
+        for info in (os.fstat(self._program_fd),
+                     os.stat(self.PROGRAM_LOCK.name, dir_fd=self._parent_fd, follow_symlinks=False),
+                     self.PROGRAM_LOCK.lstat()):
+            c.need(_lock_file_state(info) == self._program, 'PROGRAM_LOCK_CHANGED')
+        self._held(self._stream.fileno())
+        self._held(self._program_fd)
+
+    @contextmanager
+    def operation(self):
+        with self._mutex:
+            self.require()
+            self._in_use += 1
+            try:
+                yield
+            finally:
+                self._in_use -= 1
+
+    def __exit__(self, exc_type, exc, tb):
+        with self._mutex:
+            c.need(self._in_use == 0, 'PROGRAM_EXCLUSION_IN_USE')
+            self._active = False
+            errors = []
+            for field in ('_program_fd', '_parent_fd'):
+                fd = getattr(self, field)
+                setattr(self, field, None)
+                if fd is not None:
+                    try:
+                        os.close(fd)
+                    except OSError as error:
+                        errors.append(error)
+            if self._context is not None:
+                context, self._context = self._context, None
+                try:
+                    context.__exit__(exc_type, exc, tb)
+                finally:
+                    self._stream = None
+            c.need(not errors, 'PROGRAM_EXCLUSION_CLOSE_FAILED')
+
+
+def _program_file_operation(function):
+    """Keep both locks owned through every filesystem mutation and callback."""
+    def protected(self, *args, **kwargs):
+        with self._exclusion.operation():
+            return function(self, *args, **kwargs)
+    return protected
+
+
+class ProgramPairUnitTransaction:
+    """Real-file transaction for the two exact program unit definitions.
+
+    No service operation, process control or result-store access is provided.
+    ProgramPairExclusion enforces ownership of both existing kernel flocks.
+    Project writers must honor that shared deployment mutex; source-inode
+    checks are not a kernel atomic compare-and-swap against a privileged
+    writer bypassing the protocol. A qualified host must also keep actual
+    socket/cleanup admission fenced through require_fence(). There is no crash
+    auto-resume: an existing attempt is retained for explicit reviewed recovery.
+    """
+    UNIT_ROOT = Path('/etc/systemd/system')
+    BEFORE = {
+        'alisa-program@.service': '3c43c55005df17629264894a43c131b3169bf74ea329c92a8ed7257f12dd5601',
+        'alisa-program-cleanup.service': 'cc0efc384714001098f3e0891a3f9bcfb9eb80c9e2a72a4707416232533b0b0a',
+    }
+
+    def __init__(self, attempt, candidates, require_fence, exclusion):
+        self.attempt = Path(attempt)
+        self.candidates = Path(candidates)
+        self.require_fence = require_fence
+        c.need(isinstance(exclusion, ProgramPairExclusion), 'PROGRAM_EXCLUSION_REQUIRED')
+        self._exclusion = exclusion
+        self._exclusion.require()
+        self.nonce = os.urandom(16).hex()
+        self.event = 0
+        self.before = {}
+        self.ours = {}
+        self.old_bytes = {}
+        self.new_bytes = {}
+        self.prepared = False
+        c.need(callable(require_fence), 'PROGRAM_UNIT_FENCE_REQUIRED')
+        secure_dir(self.UNIT_ROOT)
+        secure_dir(self.candidates)
+        secure_dir(self.attempt.parent)
+        c.need(not os.path.lexists(self.attempt), 'PROGRAM_ATTEMPT_EXISTS')
+        c.need(set(self.BEFORE) == {'alisa-program@.service', 'alisa-program-cleanup.service'},
+               'PROGRAM_UNIT_SCOPE')
+        for name, expected in self.BEFORE.items():
+            path = self.UNIT_ROOT/name
+            before = path_state(path)
+            c.need(before is not None and before['kind'] == 'file'
+                   and before['content'] == expected, 'PROGRAM_UNIT_BASE_CHANGED')
+            raw = regular(path)
+            candidate = self.candidates/name
+            proposed = regular(candidate)
+            c.need(c.digest(proposed) == program_pair.UNIT_FILES[name], 'PROGRAM_UNIT_CANDIDATE')
+            c.need(path_state(path) == before and c.digest(raw) == expected,
+                   'PROGRAM_UNIT_BASE_CHANGED')
+            self.before[name] = before
+            self.ours[name] = before
+            self.old_bytes[name] = raw
+            self.new_bytes[name] = proposed
+
+    @_program_file_operation
+    def record(self, name, value):
+        write_new(self.attempt/(name+'.json'), c.encoded(value))
+
+    @_program_file_operation
+    def checkpoint(self):
+        self.record('STATE-'+str(self.event).zfill(4), {
+            'before': self.before, 'ours': self.ours, 'nonce': self.nonce,
+            'scope': 'two_program_unit_files_only'})
+        self.event += 1
+
+    def require_fenced(self):
+        self._exclusion.require()
+        self.require_fence()
+        self._exclusion.require()
+
+    @_program_file_operation
+    def backup(self):
+        self._exclusion.require()
+        c.need(not self.prepared and not os.path.lexists(self.attempt), 'PROGRAM_ATTEMPT_EXISTS')
+        c.need(all(path_state(self.UNIT_ROOT/n) == s for n, s in self.before.items()),
+               'PROGRAM_UNIT_BASE_CHANGED')
+        self.attempt.mkdir(mode=0o700)
+        fsync_dir(self.attempt.parent)
+        for name, raw in self.old_bytes.items():
+            write_new(self.attempt/(name+'.before'), raw)
+        self.checkpoint()
+        c.need(all(path_state(self.UNIT_ROOT/n) == s for n, s in self.before.items()),
+               'PROGRAM_UNIT_BASE_CHANGED')
+        self.prepared = True
+
+    @_program_file_operation
+    def stage(self, path, raw, old):
+        self.require_fenced()
+        staged = path.with_name('.'+path.name+'.r15-new-'+self.nonce+'-'+os.urandom(4).hex())
+        write_new(staged, raw, old['mode'], owner=(old['uid'], old['gid']))
+        return staged, path_state(staged)
+
+    @_program_file_operation
+    def switch(self):
+        c.need(self.prepared, 'PROGRAM_UNIT_BACKUP_REQUIRED')
+        for name in self.BEFORE:
+            self.require_fenced()
+            path = self.UNIT_ROOT/name
+            expected = self.ours[name]
+            c.need(expected == self.before[name] and path_state(path) == expected,
+                   'PROGRAM_UNIT_CHANGED')
+            staged, state = self.stage(path, self.new_bytes[name], expected)
+            self.ours[name] = state
+            self.checkpoint()  # staged inode retained even if rename/fsync fails
+            self.require_fenced()
+            replace_managed(path, staged, expected, state, nonce=self.nonce)
+        self.require_fenced()
+        c.need(all(path_state(self.UNIT_ROOT/n) == s for n, s in self.ours.items()),
+               'PROGRAM_UNIT_CHANGED')
+
+    @_program_file_operation
+    def restore(self):
+        """Independent CAS restore; a failed component never overwrites a later writer."""
+        c.need(self.prepared, 'PROGRAM_UNIT_BACKUP_REQUIRED')
+        errors = []
+        for name, before in self.before.items():
+            try:
+                self.require_fenced()
+                path = self.UNIT_ROOT/name
+                actual = path_state(path)
+                if actual == before:
+                    self.ours[name] = before
+                    continue
+                held = path.with_name('.'+path.name+'.r15-held-'+self.nonce)
+                if path_state(held) == before:
+                    c.need(actual in (None, self.ours[name]), 'PROGRAM_RECOVERY_LATER_WRITER')
+                    self.require_fenced()
+                    if actual is None:
+                        noreplace(held, path)
+                    else:
+                        replace_managed(path, held, actual, before, nonce=self.nonce+'-restore')
+                    self.ours[name] = before
+                else:
+                    c.need(actual == self.ours[name], 'PROGRAM_RECOVERY_LATER_WRITER')
+                    staged, state = self.stage(path, self.old_bytes[name], before)
+                    self.require_fenced()
+                    replace_managed(path, staged, actual, state, nonce=self.nonce+'-restore')
+                    self.ours[name] = state
+                c.need(path_state(path) == self.ours[name]
+                       and c.digest(regular(path)) == before['content'], 'PROGRAM_RECOVERY_VERIFY')
+            except BaseException:
+                errors.append(name)
+        try:
+            self._exclusion.require()
+            self.checkpoint()
+            self.record('RESTORE_RESULT', {'restored': not errors, 'failed_components': errors})
+        except BaseException:
+            errors.append('receipt')
+        return not errors
+
+
 class LiveHost:
     """Fixed installed surfaces. Internal sampler subprocesses expose counts only."""
     def __init__(self, builder, bundle, prepared_hash, attempt, lock_stream):
@@ -1530,7 +1793,7 @@ def main():
                and tool_hash() == args.tool_sha256, 'TOOL_IDENTITY')
         public_tool_directory(args.tool_sha256)
         c.need(c.absolute(str(args.attempt)) and args.attempt.parent == Path('/root')
-               and re.fullmatch('alisa-r15-activation-1964d60f-[0-9a-f]{16}', args.attempt.name),
+               and re.fullmatch('alisa-r15-activation-'+c.PRODUCT[:8]+'-[0-9a-f]{16}', args.attempt.name),
                'ATTEMPT_SCOPE')
         builder = builder_at(args.builder)
         with lock() as stream:
