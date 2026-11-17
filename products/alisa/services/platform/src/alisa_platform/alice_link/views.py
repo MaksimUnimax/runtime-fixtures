@@ -40,7 +40,11 @@ def projection(link):
                                          refresh_expires_at__gt=timezone.now()).exists()
         if live:
             state = 'CONNECTED' if link.confirmed_at else 'WAITING_FOR_ALICE'
-    return {'state': state, 'voice_private': link.voice_private if link else True}
+    result={'state': state, 'voice_private': link.voice_private if link else True}
+    if getattr(settings,'OWNER_PARAMETER_VOICE_ENABLED',False):
+        from alisa_platform.owner_data.parameter_voice import permission
+        result['parameter_writes']=permission(link)
+    return result
 
 
 def customer_lock(customer_id):
@@ -193,6 +197,10 @@ def webhook(data):
         if not link.confirmed_at:
             link.confirmed_at = timezone.now()
             link.save(update_fields=['confirmed_at'])
+    if getattr(settings,'OWNER_PARAMETER_VOICE_ENABLED',False):
+        from alisa_platform.owner_data.parameter_voice import dispatch
+        value=dispatch(token,payload)
+        if value is not None:return reply({'skill_response':value})
     if getattr(settings, 'QUERIES_ENABLED', False):
         from alisa_platform.queries.voice import handle as query_voice
         from alisa_platform.runtime_adapter.job_client import RuntimeFailure
@@ -216,7 +224,7 @@ def handle(request, data):
         return oauth_response(data)
     if action == 'webhook':
         return webhook(data)
-    if action not in {'status', 'preview', 'approve', 'deny', 'unlink', 'privacy'}:
+    if action not in {'status', 'preview', 'approve', 'deny', 'unlink', 'privacy', 'parameter_permission'}:
         raise ValueError()
     with transaction.atomic():
         row = session(data)
@@ -231,6 +239,12 @@ def handle(request, data):
             return reply({'code': 'AUTHENTICATION_REQUIRED'}, 401)
         if action in {'preview', 'approve', 'deny'}:
             return consent(data, row)
+        if action=='parameter_permission':
+            from alisa_platform.owner_data.parameter_voice import consent as parameter_consent
+            from alisa_platform.owner_data.service import Rejected
+            try:parameter_consent(find_link(row),data)
+            except Rejected as error:return reply({'code':error.code},error.status)
+            return reply({'alice':projection(find_link(row))})
         exact(data, {'action', 'session_token'}, {'voice_private'} if action == 'privacy' else ())
         link = find_link(row)
         if action == 'privacy':

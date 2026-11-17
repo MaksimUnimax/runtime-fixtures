@@ -11,6 +11,12 @@ class AliceLink(models.Model):
     revision = models.PositiveIntegerField(default=1)
     security_revision = models.PositiveIntegerField()
     voice_private = models.BooleanField(default=True)
+    # Explicit cabinet consent, separate from reports:read identity. Binding
+    # revision invalidates the grant on unlink/relink; permission revision
+    # invalidates pending confirmations after disable/re-enable.
+    parameter_write_binding_revision = models.PositiveIntegerField(default=0, db_default=0)
+    parameter_write_consent_revision = models.PositiveIntegerField(default=0, db_default=0)
+    parameter_write_consented_at = models.DateTimeField(null=True)
     authorized_at = models.DateTimeField(null=True)
     confirmed_at = models.DateTimeField(null=True)
     revoked_at = models.DateTimeField(null=True)

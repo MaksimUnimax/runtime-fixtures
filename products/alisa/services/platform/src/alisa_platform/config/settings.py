@@ -239,3 +239,8 @@ if os.environ.get("ALISA_OWNER_PARAMETERS_ENABLED", "0") not in {"0","1"} or OWN
 OWNER_PARAMETER_COLLECTION_ENABLED=os.environ.get("ALISA_OWNER_PARAMETER_COLLECTION_ENABLED","0")=="1"
 if os.environ.get("ALISA_OWNER_PARAMETER_COLLECTION_ENABLED","0")not in {"0","1"} or OWNER_PARAMETER_COLLECTION_ENABLED and not(OWNER_PARAMETERS_ENABLED and QUERIES_ENABLED and RUNTIME_AUTHORITY_ENABLED):
     raise ImproperlyConfigured("Coefficient collection requires current parameters, Query and runtime authority")
+
+# Opt-in only; existing voice read grants remain unchanged.
+OWNER_PARAMETER_VOICE_ENABLED=os.environ.get("ALISA_OWNER_PARAMETER_VOICE_ENABLED","0")=="1"
+if os.environ.get("ALISA_OWNER_PARAMETER_VOICE_ENABLED","0") not in {"0","1"} or OWNER_PARAMETER_VOICE_ENABLED and not (OWNER_PARAMETERS_ENABLED and ALICE_LINK_ENABLED):
+    raise RuntimeError("Invalid voice-parameter feature configuration")

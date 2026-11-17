@@ -1,0 +1,18 @@
+{
+  "schema": "alisa-parameter-voice-manual/v1",
+  "verbs": ["установи", "запиши", "сохрани"],
+  "parameters": {
+    "loss_rate": {
+      "aliases": ["коэффициент потерь", "потери заказов"],
+      "unit_words": ["процент", "процента", "процентов", "%"],
+      "input_multiplier": "0.01",
+      "spoken_unit": "процентов"
+    },
+    "delivery_mean": {
+      "aliases": ["среднюю доставку", "средняя доставка", "среднюю стоимость доставки"],
+      "unit_words": ["рубль", "рубля", "рублей", "руб"],
+      "input_multiplier": "1",
+      "spoken_unit": "рублей"
+    }
+  }
+}
