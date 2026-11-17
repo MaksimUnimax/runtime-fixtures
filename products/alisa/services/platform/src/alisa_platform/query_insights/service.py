@@ -57,6 +57,9 @@ def save_event(original):
             previous.update(redaction_state='TEXT_SAFE',safe_utterance=event['safe_utterance']);changed=True
         if changed:row.event=previous;row.save(update_fields=['event','occurred_at','received_at'])
     Inbox.objects.create(event_id=event['event_id'],payload_hash=mark)
+    if getattr(settings,'QUERY_DEMAND_ENABLED',False):
+        from .demand import capture
+        capture(row)
 
 @transaction.atomic
 def ingest(payload):
