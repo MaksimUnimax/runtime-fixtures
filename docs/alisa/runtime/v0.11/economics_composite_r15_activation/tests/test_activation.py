@@ -230,7 +230,7 @@ class ContractTests(unittest.TestCase):
         for raw in (b'{"x":1,"x":2}', b'{"x":NaN}', b'{"x":Infinity}'):
             with self.subTest(raw=raw), self.assertRaises(c.Blocked): c.strict_json(raw)
 
-    def test_actual_product_source_index_uses_frozen_builder_encoding(self):
+    def test_current_source_index_preserves_encoding_but_cannot_reuse_historical_activation(self):
         root = HERE.parents[4]
         source = root/'products/alisa/services/platform/src/alisa_platform'
         self.assertTrue(source.exists())
@@ -240,11 +240,15 @@ class ContractTests(unittest.TestCase):
         spec.loader.exec_module(builder_contract)
         sources = {name: sha256((root/name).read_bytes()).hexdigest()
                    for name in sorted(builder_contract.SOURCE_FILES)}
-        self.assertEqual(len(sources), 97)
-        self.assertEqual(c.canonical_hash(sources), c.SOURCE_INDEX)
-        self.assertEqual(sha256(builder_contract.encoded(sources)).hexdigest(), c.SOURCE_INDEX)
-        self.assertNotEqual(sha256(json.dumps(sources, sort_keys=True, separators=(',', ':')).encode()).hexdigest(),
-                            c.SOURCE_INDEX)
+        self.assertEqual(len(sources), 101)
+        current_index=c.canonical_hash(sources)
+        self.assertEqual(sha256(builder_contract.encoded(sources)).hexdigest(),current_index)
+        self.assertNotEqual(current_index,c.SOURCE_INDEX)
+        self.assertNotEqual(sha256(json.dumps(sources,sort_keys=True,separators=(',',':')).encode()).hexdigest(),current_index)
+        with self.assertRaises(c.Blocked) as error:
+            c.product_identity({'source_commit':c.PRODUCT,'tool_files':c.BUILD_TOOLS,
+                                'source_files':sources},{'source_commit':c.PRODUCT})
+        self.assertEqual(error.exception.code,'PRODUCT_INPUTS_CHANGED')
 
 
 class OwnedFilesystem(unittest.TestCase):

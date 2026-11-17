@@ -23,10 +23,17 @@ class WebContextBinding(unittest.TestCase):
         del value['bases']['web']
         self.assertEqual(c.canonical_hash(value), NONWEB_HASH)
 
-    def test_builder_five_file_closure_matches_the_activation_contract(self):
+    def test_extended_builder_cannot_reuse_historical_activation_contract(self):
         root=HERE.with_name('economics_composite_r15_release')
         actual={n:hashlib.sha256((root/n).read_bytes()).hexdigest() for n in c.BUILD_TOOLS}
-        self.assertEqual(actual,c.BUILD_TOOLS)
+        changed={n for n in actual if actual[n]!=c.BUILD_TOOLS[n]}
+        self.assertEqual(changed,{'release_contract.py'})
+        self.assertEqual(c.BUILD_TOOLS['release_contract.py'],
+                         'b070a29b1bc27edb159875c67c48781b9ede3d9f0dd8ee26884be71674fa2020')
+        with self.assertRaises(c.Blocked) as error:
+            c.product_identity({'source_commit':c.PRODUCT,'tool_files':actual},
+                               {'source_commit':c.PRODUCT})
+        self.assertEqual(error.exception.code,'BUILDER_CHANGED')
         self.assertEqual(c.PRODUCT,'cafb743c94672104d4afa2c471398e5c81d904f5')
         self.assertEqual(c.SOURCE_INDEX,'7342caa174709952744104dd156e38441c0caf15a01bc7442043dca100623562')
         self.assertEqual(c.PRODUCT_PLAN,'982d137e067c533374e7254b5ac04008d0f7483e4c38c45e8d98f97e268ba422')
