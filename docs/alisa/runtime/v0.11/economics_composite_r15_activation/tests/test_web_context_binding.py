@@ -23,6 +23,14 @@ class WebContextBinding(unittest.TestCase):
         del value['bases']['web']
         self.assertEqual(c.canonical_hash(value), NONWEB_HASH)
 
+    def test_historical_probe_uses_exact_retained_verifier_not_new_builder(self):
+        raw=(HERE/'tests/fixtures/accepted_97_release_contract.py').read_bytes()
+        self.assertEqual(hashlib.sha256(raw).hexdigest(),c.BUILD_TOOLS['release_contract.py'])
+        newer=(HERE.with_name('economics_composite_r15_release')/'release_contract.py').read_bytes()
+        self.assertNotEqual(hashlib.sha256(newer).hexdigest(),c.BUILD_TOOLS['release_contract.py'])
+        gate=(HERE/'tests/private_probe_gate.py').read_text()
+        self.assertIn("need(module.c.digest(raw) == module.c.BUILD_TOOLS[name], 'FROZEN_BUILDER_PIN')",gate)
+
     def test_extended_builder_cannot_reuse_historical_activation_contract(self):
         root=HERE.with_name('economics_composite_r15_release')
         actual={n:hashlib.sha256((root/n).read_bytes()).hexdigest() for n in c.BUILD_TOOLS}
