@@ -1,0 +1,21 @@
+{
+  "source": "13f01118c7402814ba96cf42e8a75635220fbb45",
+  "product_source_ci": 44080835358,
+  "product_documentation_ci": 44080835409,
+  "product_ci_result": "SUCCESS",
+  "s12_contracts": {
+    "tests": 12,
+    "failures": 0,
+    "errors": 0,
+    "scope": "S12_DEMAND_REAL_PG_SYNTHETIC_JOURNAL"
+  },
+  "preparer_sha256": "e6c98facaee60e92817929e17bd9e950c9c99760dd3158563dad463494a3bd7f",
+  "accepted_primitive_sha256": "73a13e0d510901aed20b0aace60387720769f184e6b2c5c653b60dcb1b3b7862",
+  "independent_preparer_review": {
+    "reviewer": "gpt-6-luna independent participant",
+    "outcome": "PASS_STATIC_NO_BLOCKERS",
+    "resolved_finding": "Mixed execute modes now replace only the inactive candidate link with a private inode before mode correction; shared/base inodes are never chmodded.",
+    "limits": "Static review only. No installer, live migration or activation reviewed/performed."
+  },
+  "scope": "Prepare inactive platform/admin candidates; no DB/env/selector/service/Station-state writes"
+}
