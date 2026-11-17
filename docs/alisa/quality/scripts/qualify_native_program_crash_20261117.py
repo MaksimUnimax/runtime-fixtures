@@ -52,10 +52,72 @@ def network_guard(case, broker, port):
     sys.addaudithook(audit)
 
 
+
+def recovery_broker(cfg, case):
+    """Run exact broker.serve, injecting only private paths and fixture peer UID."""
+    import builtins
+    import importlib.util
+    from types import SimpleNamespace
+    producer = Path(cfg["producer_root"])
+    sys.path.insert(0, str(producer))
+    import program_results
+    spec = importlib.util.spec_from_file_location("qualified_broker", producer / "program_broker.py")
+    broker = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(broker)
+    trace = {"requests": [], "fresh_start_attempts": 0, "executor_attempts": 0,
+             "ack_after_ready": False, "fixture_peer_lookup": True}
+    def save_trace():
+        write_json(case / "broker_trace.json", trace)
+    def forbidden_start(*args, **kwargs):
+        trace["fresh_start_attempts"] += 1
+        save_trace()
+        raise AssertionError("RECOVERY_MUST_NOT_START_PAID_WORK")
+    def forbidden_executor(*args, **kwargs):
+        trace["executor_attempts"] += 1
+        save_trace()
+        raise AssertionError("RECOVERY_MUST_NOT_RUN_EXECUTOR")
+    def fixture_open(path, *args, **kwargs):
+        assert str(path) == "/run/lock/alisa-program.lock"
+        return builtins.open(case / "producer-state" / "broker.lock", *args, **kwargs)
+    def fixture_user(name):
+        assert name == "alice-market"
+        return SimpleNamespace(pw_uid=os.getuid())
+    class ObservedJSON:
+        def __getattr__(self, name):
+            return getattr(json, name)
+        def loads(self, value, *args, **kwargs):
+            parsed = json.loads(value, *args, **kwargs)
+            if isinstance(parsed, dict) and "protocol" in parsed:
+                trace["requests"].append(parsed)
+            elif isinstance(parsed, dict) and parsed.get("kind") == "ack":
+                trace["requests"].append(parsed)
+                seed = json.loads((case / "seed.json").read_text())
+                assert Path(seed["db"]).resolve().is_relative_to(case)
+                with sqlite3.connect("file:" + seed["db"] + "?mode=ro", uri=True) as db:
+                    trace["ack_after_ready"] = db.execute(
+                        "SELECT state FROM jobs WHERE id=?", (seed["job"],)).fetchone()[0] == "READY"
+            save_trace()
+            return parsed
+    os.set_blocking(0, True)  # socket activation presents a blocking connection
+    broker.BASE = case / "producer-state"
+    broker.open = fixture_open
+    broker.pwd = SimpleNamespace(getpwnam=fixture_user)
+    broker.active = lambda name: False  # no real service lookup for a synthetic workspace
+    broker.subprocess = SimpleNamespace(run=forbidden_executor, Popen=forbidden_executor)
+    broker.json = ObservedJSON()
+    program_results.Results.start = forbidden_start
+    broker.serve()
+    trace["serve_returned"] = True
+    save_trace()
+
+
 def child(config_path, phase):
     cfg = json.loads(config_path.read_text())
     root, case = Path(cfg["native_root"]), config_path.parent
     network_guard(case, cfg["broker"], cfg["port"])
+    if phase == "broker-recovery":
+        recovery_broker(cfg, case)
+        return
     if phase.startswith("outbox-"):
         sys.path.insert(0, cfg["producer_root"])
         from program_results import Results
@@ -176,7 +238,7 @@ def child(config_path, phase):
         claimed = worker.step()
     row = repo.get("A", seed["job"])
     checks = {"same_job": row["id"] == seed["job"]}
-    if cfg["mode"] == "retained":
+    if cfg["mode"] in ("retained", "promoted"):
         checks["ready_from_retained_result"] = row["state"] == "READY"
         checks["expected_retained_answer"] = "Synthetic retained answer." in row["result"]
     elif cfg["mode"] == "unknown":
@@ -204,12 +266,20 @@ def child(config_path, phase):
     assert all(checks.values()), checks
 
 
-def exercise(script, root, output, mode):
+def exercise(script, root, output, mode, producer=None):
     case = output / mode
     case.mkdir(mode=0o700)
     sent, retained, release = threading.Event(), threading.Event(), threading.Event()
     stop = threading.Event()
-    observed = {"http_requests": 0, "envelopes": [], "ack_after_ready": False}
+    observed = {"http_requests": 0, "envelopes": [], "ack_after_ready": False,
+                "actual_broker_processes": 0}
+    store = None
+    if producer:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("qualification_results", producer / "program_results.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        store = module.Results(case / "producer-state" / "results")
     failures = []
     native = None
     listener = socket.socket(socket.AF_UNIX)
@@ -226,7 +296,7 @@ def exercise(script, root, output, mode):
             assert json.loads(body) == {"fixture": "program-model-call"}
             observed["http_requests"] += 1
             sent.set()
-            if mode != "retained":
+            if mode not in ("retained", "promoted"):
                 release.wait(15)
             data = json.dumps({"content": "Synthetic model reply.", "finish_reason": "stop"}).encode()
             try:
@@ -241,6 +311,29 @@ def exercise(script, root, output, mode):
     server.daemon_threads = True
     port = server.server_port
 
+    def actual_recovery(conn, first):
+        with (case / "BROKER_PRIVATE.log").open("a") as log:
+            result = subprocess.run(command + ["--phase", "broker-recovery"], env=env,
+                                    stdin=conn, stdout=conn, stderr=log, timeout=12)
+        assert result.returncode == 0, "actual broker failed"
+        trace = json.loads((case / "broker_trace.json").read_text())
+        expected = {"protocol": 3, **first, "resume_only": True}
+        assert trace["requests"][0] == expected
+        assert trace["serve_returned"] and not trace["fresh_start_attempts"] and not trace["executor_attempts"]
+        observed["envelopes"].append({"protocol": 3, "keys": sorted(expected), "resume_only": True})
+        observed["ack_after_ready"] = trace["ack_after_ready"]
+        value = store.read(first["job_id"], first["fingerprint"])
+        observed["outbox_state"] = value["state"]
+        if mode in ("retained", "promoted"):
+            assert value["state"] == "acknowledged" and "content" not in value
+            assert len(trace["requests"]) == 2 and trace["requests"][1]["kind"] == "ack"
+            if mode == "promoted":
+                assert not (case / "producer-state" / "jobs" / ("e" * 32)).exists()
+                observed["completed_workspace_promoted_and_removed"] = True
+        else:
+            assert value["state"] == "started" and len(trace["requests"]) == 1
+        observed["actual_broker_processes"] += 1  # publish completion after every assertion
+
     def broker_loop():
         first = None
         while not stop.is_set():
@@ -253,6 +346,9 @@ def exercise(script, root, output, mode):
             try:
                 with conn:
                     conn.settimeout(15)
+                    if first is not None and producer:
+                        actual_recovery(conn, first)
+                        continue
                     with conn.makefile("rwb") as stream:
                         raw = stream.readline(65537)
                         assert raw and len(raw) <= 65536
@@ -269,12 +365,22 @@ def exercise(script, root, output, mode):
                             binding = hashlib.sha256(json.dumps(fields, ensure_ascii=False, sort_keys=True,
                                                                 separators=(",", ":")).encode()).hexdigest()
                             first = {"job_id": envelope["job_id"], "fingerprint": binding}
+                            if store:
+                                store.start(first["job_id"], binding, "e" * 32 if mode == "promoted" else None)
                             send({"kind": "call", "payload": {"model": "deepseek-flash", "messages": [],
                                                            "stream": True, "max_tokens": 64}})
                             line = stream.readline(65537)
-                            if mode == "retained":
+                            if mode in ("retained", "promoted"):
                                 value = json.loads(line)
                                 assert value["kind"] == "response" and value["content"] == "Synthetic model reply."
+                                if store:
+                                    if mode == "promoted":
+                                        workspace = case / "producer-state" / "jobs" / ("e" * 32)
+                                        workspace.mkdir(parents=True)
+                                        write_json(workspace / "result.private.json", {
+                                            "finish_reason": "stop", "final_response": "Synthetic retained answer."})
+                                    else:
+                                        store.complete(first["job_id"], binding, "Synthetic retained answer.")
                                 retained.set()
                                 release.wait(15)
                             else:
@@ -303,7 +409,8 @@ def exercise(script, root, output, mode):
     for thread in threads:
         thread.start()
     cfg = case / "config.json"
-    write_json(cfg, {"native_root": str(root), "port": port, "broker": broker, "mode": mode})
+    write_json(cfg, {"native_root": str(root), "port": port, "broker": broker, "mode": mode,
+                     "producer_root": str(producer) if producer else None})
     env = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "TZ": "UTC",
            "PYTHONDONTWRITEBYTECODE": "1", "TMPDIR": str(case)}
     command = [sys.executable, "-B", "-X", "pycache_prefix=" + str(case / "unused-pyc"),
@@ -312,7 +419,7 @@ def exercise(script, root, output, mode):
     try:
         with (case / "PRIVATE.log").open("w") as log:
             native = subprocess.Popen(command + ["--phase", "start"], env=env, stdout=log, stderr=log)
-            event = retained if mode == "retained" else sent
+            event = retained if mode in ("retained", "promoted") else sent
             assert event.wait(20), "worker did not reach crash boundary"
             seed = json.loads((case / "seed.json").read_text())
             with sqlite3.connect(seed["db"]) as db:
@@ -329,7 +436,7 @@ def exercise(script, root, output, mode):
             write_json(case / "before.json", before)
             assert before["state"] == "RUNNING" and before["persisted_started"]
             assert before["persisted_binding"] == ["fingerprint", "job_id"]
-            assert before["model_states"] == (["RECEIVED"] if mode == "retained" else ["SENDING"])
+            assert before["model_states"] == (["RECEIVED"] if mode in ("retained", "promoted") else ["SENDING"])
             if mode == "cancelled":
                 subprocess.run(command + ["--phase", "cancel"], env=env, stdout=log,
                                stderr=log, timeout=10, check=True)
@@ -342,15 +449,21 @@ def exercise(script, root, output, mode):
             assert resumed.returncode == 0, "resume child failed"
             after = json.loads((case / "after.json").read_text())
             # Wait for the protocol ACK after the durable callback, not a new model call.
-            if mode == "retained":
+            if mode in ("retained", "promoted"):
                 deadline = time.monotonic() + 2
                 while not observed["ack_after_ready"] and not failures and time.monotonic() < deadline:
+                    stop.wait(.01)
+            if producer and mode != "cancelled":
+                deadline = time.monotonic() + 2
+                while not observed["actual_broker_processes"] and not failures and time.monotonic() < deadline:
                     stop.wait(.01)
             assert not failures, failures
             assert observed["http_requests"] == 1 and after["all_passed"]
             assert len(observed["envelopes"]) == (1 if mode == "cancelled" else 2)
-            assert mode != "retained" or observed["ack_after_ready"]
+            assert mode not in ("retained", "promoted") or observed["ack_after_ready"]
             assert not (case / "FORBIDDEN_NETWORK").exists()
+            if producer:
+                assert observed["actual_broker_processes"] == (0 if mode == "cancelled" else 1)
             return {"mode": mode, "status": "PASS", "first_pid": native.pid,
                     "first_exit": -signal.SIGKILL, "resume_exit": resumed.returncode,
                     "before_model_state": before["model_states"][0],
@@ -400,7 +513,8 @@ def main():
     parser.add_argument("--pins", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--producer-root", type=Path)
-    parser.add_argument("--phase", choices=["start", "resume", "cancel", "outbox-write", "outbox-ack", "outbox-read", "outbox-tests"])
+    parser.add_argument("--real-recovery-broker", action="store_true")
+    parser.add_argument("--phase", choices=["start", "resume", "cancel", "broker-recovery", "outbox-write", "outbox-ack", "outbox-read", "outbox-tests"])
     parser.add_argument("--config", type=Path)
     args = parser.parse_args()
     os.umask(0o077)
@@ -411,6 +525,7 @@ def main():
     checked = snapshot(root, args.pins)
     producer = args.producer_root.resolve() if args.producer_root else None
     producer_checked = snapshot(producer, args.pins, "producer") if producer else None
+    assert not args.real_recovery_broker or producer is not None
     output.mkdir(mode=0o700)
     cases = []
     record = {"scope": "AUTHOR_SYNTHETIC_WORKER_SIGKILL_PROGRAM_RECOVERY",
@@ -419,12 +534,18 @@ def main():
               "real_provider_or_model_requests": 0,
               "real_executor_outbox_qualified": False, "cases": cases}
     try:
-        for mode in ("unknown", "retained", "cancelled"):
-            cases.append(exercise(Path(__file__).resolve(), root, output, mode))
+        modes = ("unknown", "retained", "cancelled", "promoted") if args.real_recovery_broker else ("unknown", "retained", "cancelled")
+        for mode in modes:
+            cases.append(exercise(Path(__file__).resolve(), root, output, mode,
+                                  producer if args.real_recovery_broker else None))
         assert snapshot(root, args.pins) == checked
         record["snapshot_unchanged"] = True
         if producer:
-            record["outbox"] = cold_outbox(Path(__file__).resolve(), producer, output)
+            if args.real_recovery_broker:
+                record["paired_actual_broker_recovery"] = True
+                record["real_broker_fresh_work_or_sdk_executed"] = False
+            else:
+                record["outbox"] = cold_outbox(Path(__file__).resolve(), producer, output)
             assert snapshot(producer, args.pins, "producer") == producer_checked
             record["producer_snapshot"] = producer_checked
         record["status"] = "PASS"
