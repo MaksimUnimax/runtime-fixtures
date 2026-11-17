@@ -14,6 +14,8 @@ class ImmutableModel(models.Model):
  class Meta:abstract=True
  def save(self,*args,**kwargs):
   if not self._state.adding:raise TypeError('Catalog evidence is immutable')
+  if kwargs.get('force_update')or kwargs.get('update_fields'):raise TypeError('Catalog evidence is immutable')
+  kwargs['force_insert']=True
   return super().save(*args,**kwargs)
  def delete(self,*args,**kwargs):raise TypeError('Catalog evidence is immutable')
 
@@ -51,7 +53,8 @@ class CatalogRelease(ImmutableModel):
 
 
 class CatalogAssignment(models.Model):
- tenant=models.OneToOneField('accounts.Tenant',on_delete=models.PROTECT,primary_key=True)
+ # Audit metadata must not add a reverse FK to the existing account-cleanup ORM.
+ tenant_id=models.UUIDField(primary_key=True,editable=False)
  release=models.ForeignKey(CatalogRelease,on_delete=models.PROTECT,null=True)
  revision=models.PositiveIntegerField(default=0)
  applied_revision=models.PositiveIntegerField(default=0)
@@ -64,7 +67,7 @@ class CatalogAssignment(models.Model):
 class CatalogPublication(models.Model):
  id=models.UUIDField(primary_key=True,editable=False)
  actor_id=models.UUIDField()
- tenant=models.ForeignKey('accounts.Tenant',on_delete=models.PROTECT)
+ tenant_id=models.UUIDField()
  fingerprint=models.CharField(max_length=64)
  revision=models.PositiveIntegerField()
  expected_revision=models.PositiveIntegerField()
@@ -73,13 +76,14 @@ class CatalogPublication(models.Model):
  template_hash=models.CharField(max_length=64)
  runtime_tenant=models.CharField(max_length=256)
  binding_sha256=models.CharField(max_length=64)
+ qualification_sha256=models.CharField(max_length=64)
  outcome=models.JSONField(default=dict)
  created_at=models.DateTimeField(auto_now_add=True)
 
 
 class CatalogDecision(ImmutableModel):
  id=models.UUIDField(primary_key=True,default=uuid.uuid4,editable=False)
- actor_id=models.UUIDField()
+ actor_id=models.UUIDField(null=True)
  action=models.CharField(max_length=32)
  object_id=models.CharField(max_length=64)
  facts=models.JSONField(default=dict)

@@ -4,7 +4,7 @@ import re
 import uuid
 
 PRODUCT='alisa_market'
-ADMIN_PERMISSIONS=frozenset({'users.read','users.block','users.unblock','leads.read','sessions.revoke','audit.read','access.grant','insights.read','insights.export'})
+ADMIN_PERMISSIONS=frozenset({'users.read','users.block','users.unblock','leads.read','sessions.revoke','audit.read','access.grant','insights.read','insights.export','catalog.edit','catalog.approve','catalog.publish'})
 OWNER_PERMISSIONS=ADMIN_PERMISSIONS|{'staff.manage'}
 REASONS=frozenset({'SUPPORT_REQUEST','SECURITY_REVIEW','OWNER_ASSIGNMENT','STAFF_REVOCATION','STAFF_READ','BOOTSTRAP','PILOT_ACCESS','ACCESS_REVOCATION'})
 

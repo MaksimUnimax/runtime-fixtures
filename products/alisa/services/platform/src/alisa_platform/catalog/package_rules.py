@@ -15,7 +15,7 @@ LIMIT=24576
 MAX_ADDITIONS=20
 ID=re.compile(r'[A-Za-z][A-Za-z0-9_.-]{0,119}')
 HEX=re.compile(r'[0-9a-f]{64}')
-FIELDS={'schema','engine_sha256','base_template_hash','additions'}
+FIELDS={'schema','engine_sha256','base_template_hash','qualification_sha256','additions'}
 
 
 class ReleaseFailure(Exception):
@@ -37,10 +37,10 @@ def digest(value):return hashlib.sha256(canonical(value)).hexdigest()
 def exact(value,keys):need(type(value)is dict and set(value)==set(keys))
 
 
-def text(value,limit):
+def text(value,limit,multiline=False):
  need(type(value)is str and 0<len(value)<=limit and value==value.strip()and
-      all(unicodedata.category(c)[0]!='C'for c in value))
- need(not re.search(r'(https?://|sk-[\w-]{12,}|eyJ[\w-]{25,}\.|api.?key|authorization|bearer|парол|токен|секрет)',value,re.I),
+      all(unicodedata.category(c)[0]!='C'or multiline and c=='\n'for c in value))
+ need(not re.search(r'(https?://|sk-[\w-]{12,}|eyJ[\w-]{25,}\.|api.?key|authorization|bearer|парол|токен|секрет|[\w.+-]+@[\w.-]+\.\w+|\+?\d(?:[\s()-]*\d){9,})',value,re.I),
       'CATALOG_SENSITIVE_CONTENT')
  return value
 
@@ -61,7 +61,7 @@ def normalize(value):
 
 def package(value):
  exact(value,FIELDS);need(value['schema']==SCHEMA)
- hash_value(value['engine_sha256']);hash_value(value['base_template_hash'])
+ hash_value(value['engine_sha256']);hash_value(value['base_template_hash']);hash_value(value['qualification_sha256'])
  rows=value['additions'];need(type(rows)is list and 1<=len(rows)<=MAX_ADDITIONS)
  seen=set()
  for row in rows:
@@ -75,7 +75,7 @@ def package(value):
   need(row['kind']!='ALIAS'or len(ids)==1)
   # Human semantic review is explicit and hash bound; model output is not proof.
   spec=row['answer_spec'];exact(spec,{'meaning','known_negatives'})
-  text(spec['meaning'],1200);need(type(spec['known_negatives'])is list and 1<=len(spec['known_negatives'])<=10)
+  text(spec['meaning'],1200,True);need(type(spec['known_negatives'])is list and 1<=len(spec['known_negatives'])<=10)
   for item in spec['known_negatives']:text(item,300)
  need(len(canonical(value))<=LIMIT,'CATALOG_PACKAGE_TOO_LARGE')
  return deepcopy(value)

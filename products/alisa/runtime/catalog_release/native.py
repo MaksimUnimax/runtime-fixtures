@@ -10,6 +10,7 @@ from copy import deepcopy
 import hashlib
 import json
 from pathlib import Path
+import sys
 import threading
 from types import ModuleType,SimpleNamespace
 from uuid import UUID
@@ -24,7 +25,8 @@ def code_seal(root):
  for path in sorted(root.rglob('*')):
   if not path.is_file()or path.suffix not in {'.py','.json','.mjs','.gz'}:continue
   if path.name in {'manifest.json','CURRENT_CORE_MANIFEST.json','BASE_INSTALLED_MANIFEST.json',
-                   'SOURCE_SNAPSHOT.json','config.json','config.example.json'}:continue
+                   'SOURCE_SNAPSHOT.json','config.json','config.example.json',
+                   'base_qualification.json','base_qualification_report.json'}:continue
   name=str(path.relative_to(root))
   if any(part.startswith('.')or part in {'__pycache__','tests','test'}for part in Path(name).parts):continue
   need(not path.is_symlink(),'CATALOG_ENGINE_SOURCE_CHANGED')
@@ -78,7 +80,7 @@ def module(name,path,tree,namespace):
 
 class SnapshotFactory:
  def __init__(self,root):
-  import template_catalog,template_runtime
+  import template_catalog,template_runtime,question_catalog_extension
   from . import rules
   self.root=Path(root).resolve();self.engine_sha256=code_seal(self.root)
   need(Path(__file__).resolve()==self.root/'catalog_release/native.py'and
@@ -87,17 +89,49 @@ class SnapshotFactory:
   need(Path(template_catalog.__file__).resolve()==self.root/'template_catalog.py'and
        Path(template_runtime.__file__).resolve()==self.root/'template_runtime.py',
        'CATALOG_ENGINE_MODULE_MISMATCH')
+  for name,loaded in tuple(sys.modules.items()):
+   expected=self.root/(name.replace('.','/')+'.py')
+   if expected.is_file():
+    need(hasattr(loaded,'__file__')and Path(loaded.__file__).resolve()==expected.resolve(),
+         'CATALOG_ENGINE_MODULE_MISMATCH')
   need(template_catalog.CATALOG==json.loads((self.root/'template_catalog.json').read_text()),
        'CATALOG_ENGINE_DATA_MISMATCH')
   self.base_catalog=deepcopy(template_catalog.CATALOG);self.base_hash=template_catalog.HASH
   self.gap_type=template_catalog.TemplateGap
   self.runtime_source=(self.root/'template_runtime.py').read_text()
   self.catalog_source=(self.root/'template_catalog.py').read_text()
+  self.question_source=(self.root/'question_catalog_extension.py').read_text()
+  self.speech_sha256=hashlib.sha256((self.root/'speech_catalog.json').read_bytes()).hexdigest()
   # Capture originals before installing routing functions into the base module.
   original={n:getattr(template_runtime,n)for n in ('authorized','submit','gap_result',
    'worker_step','_gap','_compile_and_save_selection')}
   self.base=SimpleNamespace(package_sha256='',template_hash=self.base_hash,
-   catalog=template_catalog,runtime=SimpleNamespace(**original),evidence={})
+   catalog=template_catalog,runtime=SimpleNamespace(**original),
+   question=SimpleNamespace(read=question_catalog_extension.read),evidence={})
+
+ def qualification(self):
+  receipt=self.root/'catalog_release/base_qualification.json'
+  report=self.root/'catalog_release/base_qualification_report.json'
+  need(receipt.is_file()and report.is_file()and not receipt.is_symlink()and not report.is_symlink(),
+       'CATALOG_QUALIFICATION_MISSING')
+  need(receipt.stat().st_size<=8192 and report.stat().st_size<=2*1024**2,'CATALOG_QUALIFICATION_INVALID')
+  raw=receipt.read_bytes();value=json.loads(raw)
+  exact(value,{'schema','engine_sha256','base_template_hash','proof_id','level','report_sha256',
+               'scope','tests_run','failures','errors','status'})
+  need(value['schema']=='alisa-catalog-base-qualification/v1'and value['status']=='PASS'and
+       value['engine_sha256']==self.engine_sha256 and value['base_template_hash']==self.base_hash and
+       value['level']=='INTEGRATION_FIXTURE'and value['scope']=='BYTE_IDENTICAL_BASE_BINDINGS'and
+       type(value['tests_run'])is int and value['tests_run']>0 and
+       type(value['failures'])is int and value['failures']==0 and
+       type(value['errors'])is int and value['errors']==0,'CATALOG_QUALIFICATION_INVALID')
+  text(value['proof_id'],128);hash_value(value['report_sha256'])
+  hashed=hashlib.sha256()
+  with report.open('rb')as stream:
+   for block in iter(lambda:stream.read(1024*1024),b''):hashed.update(block)
+  need(hashed.hexdigest()==value['report_sha256'],'CATALOG_QUALIFICATION_INVALID')
+  return {'qualification_sha256':hashlib.sha256(raw).hexdigest(),
+   'proof':{'proof_id':value['proof_id'],'level':value['level'],
+    'artifact_sha256':value['report_sha256'],'scope':value['scope']}}
 
  def build(self,payload):
   need(code_seal(self.root)==self.engine_sha256,'CATALOG_ENGINE_SOURCE_CHANGED')
@@ -113,14 +147,17 @@ class SnapshotFactory:
   need(change.replaced==1,'CATALOG_ENGINE_SOURCE_CHANGED')
   runtime=module('_catalog_runtime_'+package_hash,self.root/'template_runtime.py',tree,
    {'__catalog_module':catalog,'__package_sha256':package_hash,'__engine_sha256':self.engine_sha256})
+  question=module('_catalog_question_'+package_hash,self.root/'question_catalog_extension.py',
+   CatalogImports().visit(ast.parse(self.question_source)),{'__catalog_module':catalog})
   return SimpleNamespace(package_sha256=package_hash,template_hash=catalog.HASH,
-   catalog=catalog,runtime=runtime,evidence=evidence)
+   catalog=catalog,runtime=runtime,question=question,evidence=evidence)
 
 
 class ReleaseRegistry:
  def __init__(self,repo,factory,verify_control):
   need(callable(verify_control),'CATALOG_CONTROL_VERIFIER_REQUIRED')
   self.repo,self.factory,self.verify_control=repo,factory,verify_control
+  self.admissions_enabled=True
   self.cache=OrderedDict();self.lock=threading.RLock()
   with repo.connection(True)as c:
    for statement in [
@@ -132,10 +169,12 @@ class ReleaseRegistry:
     c.execute(statement)
 
  def validate(self,payload):
-  value=package(payload);snapshot=self.factory.build(value)
+  value=package(payload);snapshot=self.factory.build(value);qualification=self.factory.qualification()
+  need(value['qualification_sha256']==qualification['qualification_sha256'],'CATALOG_QUALIFICATION_CHANGED')
+  evidence=deepcopy(snapshot.evidence);evidence['qualification_sha256']=qualification['qualification_sha256']
   return {'package_sha256':snapshot.package_sha256,'template_hash':snapshot.template_hash,
    'engine_sha256':self.factory.engine_sha256,'base_template_hash':self.factory.base_hash,
-   'evidence':deepcopy(snapshot.evidence)}
+   'speech_sha256':self.factory.speech_sha256,'evidence':evidence,'proof':qualification['proof']}
 
  def snapshot(self,package_hash):
   if package_hash=='':return self.factory.base
@@ -143,14 +182,17 @@ class ReleaseRegistry:
   with self.lock:
    if package_hash in self.cache:
     value=self.cache.pop(package_hash);self.cache[package_hash]=value;return value
-   with self.repo.connection()as c:row=c.execute('SELECT * FROM catalog_packages WHERE package_sha256=?',(package_hash,)).fetchone()
-   need(row is not None,'CATALOG_PACKAGE_NOT_INSTALLED')
-   value=json.loads(row['payload']);need(digest(value)==package_hash,'CATALOG_PACKAGE_HASH_MISMATCH')
-   need(row['engine_sha256']==self.factory.engine_sha256,'CATALOG_ENGINE_MISMATCH')
-   snapshot=self.factory.build(value);need(snapshot.template_hash==row['template_hash'],'CATALOG_PACKAGE_HASH_MISMATCH')
+  # Never hold the cache lock while entering SQLite. RuntimePort already holds
+  # its admission write transaction before selecting the catalog.
+  with self.repo.connection()as c:row=c.execute('SELECT * FROM catalog_packages WHERE package_sha256=?',(package_hash,)).fetchone()
+  need(row is not None,'CATALOG_PACKAGE_NOT_INSTALLED')
+  value=json.loads(row['payload']);need(digest(value)==package_hash,'CATALOG_PACKAGE_HASH_MISMATCH')
+  need(row['engine_sha256']==self.factory.engine_sha256,'CATALOG_ENGINE_MISMATCH')
+  snapshot=self.factory.build(value);need(snapshot.template_hash==row['template_hash'],'CATALOG_PACKAGE_HASH_MISMATCH')
+  with self.lock:
    self.cache[package_hash]=snapshot
    while len(self.cache)>4:self.cache.popitem(last=False)
-   return snapshot
+  return snapshot
 
  def for_plan(self,plan):
   if 'catalog_package_sha256'not in plan:
@@ -163,7 +205,9 @@ class ReleaseRegistry:
   return value
 
  def for_tenant(self,tenant):
+  if not self.admissions_enabled:return self.factory.base
   with self.repo.connection()as c:row=c.execute('SELECT package_sha256 FROM catalog_assignments WHERE tenant=?',(tenant,)).fetchone()
+  if row and row['package_sha256']:self.factory.qualification()
   return self.snapshot(row['package_sha256']if row else'')
 
  def readback(self,tenant):
@@ -180,9 +224,12 @@ class ReleaseRegistry:
  def control_proof(self,ticket):
   need(type(ticket)is str and 1<=len(ticket)<=4096,'CATALOG_CONTROL_DENIED')
   proof=self.verify_control(ticket)
-  exact(proof,{'request_id','runtime_tenant','expected_revision','revision','package_sha256','engine_sha256','template_hash'})
+  exact(proof,{'request_id','runtime_tenant','expected_revision','revision','package_sha256','engine_sha256',
+               'template_hash','qualification_sha256'})
   need(proof['engine_sha256']==self.factory.engine_sha256,'CATALOG_ENGINE_MISMATCH')
   hash_value(proof['template_hash'])
+  qualification=self.factory.qualification()
+  need(qualification['qualification_sha256']==proof['qualification_sha256'],'CATALOG_QUALIFICATION_CHANGED')
   return proof
 
  def apply(self,command,ticket):
@@ -198,10 +245,12 @@ class ReleaseRegistry:
   need(type(proof['expected_revision'])is int and 0<=proof['expected_revision']<2147483647 and
        type(proof['revision'])is int and proof['revision']==proof['expected_revision']+1)
   snapshot=self.factory.base if command['package']is None else self.factory.build(package(command['package']))
+  if command['package']is not None:
+   need(command['package']['qualification_sha256']==proof['qualification_sha256'],'CATALOG_QUALIFICATION_CHANGED')
   need(snapshot.package_sha256==proof['package_sha256'],'CATALOG_PACKAGE_HASH_MISMATCH')
   need(snapshot.template_hash==proof['template_hash'],'CATALOG_VALIDATION_HASH_MISMATCH')
   mark=digest({'command':command,'proof':proof})
-  with self.lock,self.repo.connection(True)as c:
+  with self.repo.connection(True)as c:
    old=c.execute('SELECT * FROM catalog_commands WHERE request_id=?',(identifier,)).fetchone()
    if old:
     need(old['fingerprint']==mark,'CATALOG_IDEMPOTENCY_CONFLICT')
@@ -229,6 +278,8 @@ def route(registry):
  """Route by admitted plan first; assignment is consulted only on new submit."""
  import template_runtime
  from semantics import Rejected,strict_json
+ need(not hasattr(template_runtime,'_catalog_release_router'),'CATALOG_ALREADY_ATTACHED')
+ template_runtime._catalog_release_router=registry
  def call(name,snapshot,args,kwargs):
   try:return getattr(snapshot.runtime,name)(*args,**kwargs)
   except ReleaseFailure as error:raise Rejected(error.code)from None
@@ -236,7 +287,11 @@ def route(registry):
   try:return call('authorized',registry.for_plan(plan),(engine,plan),{})
   except ReleaseFailure:return False
  def submit(engine,tenant,*args,**kwargs):
-  try:return call('submit',registry.for_tenant(tenant),(engine,tenant,*args),kwargs)
+  try:
+   # Assignment selection and durable admission share the repository's existing
+   # thread-local transaction, also for the legacy voice entry point.
+   with registry.repo.connection(True):
+    return call('submit',registry.for_tenant(tenant),(engine,tenant,*args),kwargs)
   except ReleaseFailure as error:raise Rejected(error.code)from None
  def on_plan(name):
   def wrapped(worker,row,plan,*args,**kwargs):
@@ -250,3 +305,75 @@ def route(registry):
  template_runtime.authorized=authorized;template_runtime.submit=submit;template_runtime.gap_result=gap_result
  for name in ['worker_step','_gap','_compile_and_save_selection']:
   setattr(template_runtime,name,on_plan(name))
+
+
+def install(port,controls_enabled=True):
+ """Explicit attachment after existing dispatch overlays; import is inert."""
+ import runtime_port_ipc,question_catalog_extension
+ from semantics import Rejected
+ need(not hasattr(port,'catalog_release_registry'),'CATALOG_ALREADY_ATTACHED')
+ need(port.engine.template_mode and callable(getattr(port.authority,'_call',None)),
+      'CATALOG_CONTROL_VERIFIER_REQUIRED')
+ root=Path(sys.modules['template_runtime'].__file__).resolve().parent
+ factory=SnapshotFactory(root)
+ def verify(ticket):return port.authority._call('catalog_control',{'ticket':ticket})
+ registry=ReleaseRegistry(port.repo,factory,verify);port.catalog_release_registry=registry
+ registry.admissions_enabled=controls_enabled
+ route(registry)
+ old_dispatch=runtime_port_ipc.dispatch
+ def dispatch(actual,peer,value):
+  operation=value.get('operation')if type(value)is dict else None
+  if operation not in {'catalog_info','catalog_templates','catalog_validate','catalog_apply','catalog_readback'}:
+   return old_dispatch(actual,peer,value)
+  actual._peer(peer)
+  if not controls_enabled:raise Rejected('CAPABILITY_UNAVAILABLE')
+  try:
+   exact(value,{'schema_version','operation','payload'})
+   from runtime_port_contract import CONTRACT
+   need(value['schema_version']==CONTRACT)
+   body=value['payload']
+   if operation=='catalog_info':
+    exact(body,set());qualification=factory.qualification()
+    return {'capability':'catalog_release_v1','engine_sha256':factory.engine_sha256,
+     'base_template_hash':factory.base_hash,'speech_sha256':factory.speech_sha256,**qualification}
+   if operation=='catalog_templates':
+    exact(body,{'query','offset'})
+    need(type(body['query'])is str and len(body['query'])<=200 and
+         type(body['offset'])is int and 0<=body['offset']<=1000)
+    rows=[t for t in factory.base.catalog.TEMPLATES.values()if t['kind']not in {'parameter','information'}and
+     body['query'].casefold()in (t['id']+' '+t['purpose']).casefold()]
+    need(len(rows)<=1000);rows.sort(key=lambda t:t['id']);end=body['offset']+20
+    return {'items':[{k:deepcopy(t[k])for k in ['id','purpose','kind','platforms','input_policy']}
+     for t in rows[body['offset']:end]],'next_offset':end if end<len(rows)else None}
+   if operation=='catalog_validate':
+    exact(body,{'package'})
+    try:return {'valid':True,**registry.validate(body['package'])}
+    except ReleaseFailure as error:return {'valid':False,'code':error.code}
+   if operation=='catalog_readback':
+    exact(body,{'ticket'});return registry.control_readback(body['ticket'])
+   exact(body,{'request_id','package','ticket'})
+   return registry.apply({'request_id':body['request_id'],'package':body['package']},body['ticket'])
+  except ReleaseFailure as error:
+   code=('PERMISSION_DENIED'if'DENIED'in error.code else
+         'IDEMPOTENCY_CONFLICT'if'CONFLICT'in error.code else'CATALOG_INCOMPATIBLE')
+   raise Rejected(code)from None
+ def read(actual,peer,context=None,query=None):
+  actual._peer(peer)
+  try:
+   snapshot=factory.base
+   if context is not None:
+    _,_,scope=actual._auth(context,peer,'capabilities');snapshot=registry.for_tenant(scope.tenant)
+   return snapshot.question.read(actual,peer,context,query)
+  except ReleaseFailure:raise Rejected('CATALOG_INCOMPATIBLE')from None
+ runtime_port_ipc.dispatch=dispatch;question_catalog_extension.read=read
+ return registry
+
+
+def attach(port,enabled):
+ """A disabled publication path still preserves already admitted old plans."""
+ need(type(enabled)is bool,'CATALOG_CONFIG_INVALID')
+ if not enabled:
+  with port.repo.connection()as c:
+   retained=c.execute("SELECT 1 FROM sqlite_master WHERE type='table'AND name='catalog_packages'").fetchone()
+  if retained is None:return None
+ return install(port,controls_enabled=enabled)

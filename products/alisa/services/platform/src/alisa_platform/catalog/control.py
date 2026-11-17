@@ -23,7 +23,11 @@ def enabled():
 
 
 def binding(authority,tenant):
+ from alisa_platform.accounts.models import Tenant,Membership
  enabled();need(tenant in settings.CATALOG_PILOT_TENANTS,'CATALOG_TENANT_NOT_ALLOWED')
+ need(Tenant.objects.filter(pk=tenant).exists(),'CATALOG_TENANT_NOT_BOUND')
+ need(Membership.objects.filter(tenant_id=tenant,role='OWNER_CLIENT',customer__is_active=True).exists(),
+      'CATALOG_TENANT_NOT_BOUND')
  value=authority.bindings.for_tenant(tenant,environment=settings.ALISA_ENV,
   service_id=authority.service_id,catalog_release_id=authority.catalog_release_id)
  need(value is not None,'CATALOG_TENANT_NOT_BOUND')
@@ -81,7 +85,7 @@ def rpc(authority,payload):
   return {'request_id':str(publication.pk),'runtime_tenant':publication.runtime_tenant,
    'expected_revision':publication.expected_revision,'revision':publication.revision,
    'package_sha256':publication.package_sha256,'engine_sha256':publication.engine_sha256,
-   'template_hash':publication.template_hash}
+   'template_hash':publication.template_hash,'qualification_sha256':publication.qualification_sha256}
  except ReleaseFailure as error:
   raise RuntimeFailure('PERMISSION_DENIED'if error.code=='CATALOG_FORBIDDEN'else'CATALOG_INCOMPATIBLE')from None
 
