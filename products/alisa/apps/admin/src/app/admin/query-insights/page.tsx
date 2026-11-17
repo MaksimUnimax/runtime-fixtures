@@ -10,5 +10,6 @@ export default async function Page(){
   catch{return <main><h1>Журнал временно недоступен</h1><a href="/admin">Вернуться в админку</a></main>;}
   if(!staff)redirect('/login');
   if(!staff.permissions.includes('insights.read'))return <main><h1>Нет разрешения на просмотр журнала</h1><a href="/admin">Вернуться в админку</a></main>;
-  return <Journal canExport={staff.permissions.includes('insights.export')}/>;
+  return <Journal canExport={staff.permissions.includes('insights.export')}
+    canDemand={process.env.ALISA_QUERY_DEMAND_ENABLED==='1'}/>;
 }

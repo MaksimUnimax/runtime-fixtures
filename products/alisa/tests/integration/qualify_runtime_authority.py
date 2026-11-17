@@ -136,6 +136,7 @@ def main():
                     cases.append(('store_enrollment', ROOT / 'tests/runtime_authority/store_enrollment.py'))
                 cases.append(('report_roundtrip', ROOT / 'tests/runtime_authority/report_roundtrip.py'))
                 cases.append(('query_insights', ROOT / 'tests/runtime_authority/query_insights.py'))
+                cases.append(('query_demand', ROOT / 'tests/runtime_authority/query_demand.py'))
             for label, script in cases:
                 output = temp / (label + '.json')
                 result = subprocess.run([sys.executable, str(script), '--output', str(output)],

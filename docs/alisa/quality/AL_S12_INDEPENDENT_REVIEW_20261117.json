@@ -1,0 +1,43 @@
+{
+  "schema": "alisa_independent_source_review_v1",
+  "base_commit": "485a2034ac0dc36fea2590666075b54c24b12174",
+  "reviewer": "independent gpt-6-luna participant",
+  "scope": "AL-S12 backend/models/migration/frontend and CI fixture integration",
+  "outcome": "PASS_STATIC_NO_BLOCKING_FINDINGS",
+  "source_sha256": {
+    "docs/alisa/quality/AL_S12_DEMAND_QUEUE_20261117.md": "bfc4aa09a65795da6b599ea48c3fa0596cbf11ed7c5373fbfbf2bb41ecaabe65",
+    "products/alisa/apps/admin/src/app/admin/query-insights/demand.tsx": "2bba0d546a5be3fd59ef60f928f117a4068bb28c51c27b70ff6216cb1977a4bd",
+    "products/alisa/apps/admin/src/app/admin/query-insights/journal.tsx": "e05c826e84955d814026d58df249de7e0456273a3772b050b068af37a4fcb57a",
+    "products/alisa/apps/admin/src/app/admin/query-insights/page.tsx": "3ffcc3a1a36cb81a4da327b4ec761ddeca8fc109ba7c37202efe656181951115",
+    "products/alisa/services/platform/src/alisa_platform/config/settings.py": "a009954bc7e9731d865b5922425a87b4b7de531e5de68660322578992bf8b1ac",
+    "products/alisa/services/platform/src/alisa_platform/query_insights/demand.py": "56a2c8831118f24fb81e2b035941a63babb663c1d60d6ac54de16537bb2c085c",
+    "products/alisa/services/platform/src/alisa_platform/query_insights/demand_rules.py": "a50bb2527bd24f7e01c3f1795e5aeff0b26169cfba86fde8da3db192bc89cfc1",
+    "products/alisa/services/platform/src/alisa_platform/query_insights/migrations/0002_demand_queue.py": "80fe0eff327e578cdeda714475bb866e8eb45bae01a58147363cd2ec538254fe",
+    "products/alisa/services/platform/src/alisa_platform/query_insights/models.py": "b3eec4d8c145dd8a6ae5e91c50d899ea454b4a4cab11f6aba1db5535c1fa8a65",
+    "products/alisa/services/platform/src/alisa_platform/query_insights/service.py": "20161d893df98a1a6b0060d6c66d7a26e86f20170c69a462cd2b1045e7c92536",
+    "products/alisa/services/platform/src/alisa_platform/query_insights/views.py": "81a829f98aa93c70825887523bc634e87856b78c52f09716504959e9674a7416",
+    "products/alisa/tests/integration/qualify_runtime_authority.py": "185e178ee9a35c47746a32f107c1ebb2066185519efbf649f2114ac40d474089",
+    "products/alisa/tests/runtime_authority/query_demand.py": "8e007d7ab3efd7588df894bb3298944fe730ce9d534518a9a8a9813bee566bf0"
+  },
+  "reviewed_boundaries": [
+    "PostgreSQL aggregation and tenant/day cap",
+    "Paid-at-event snapshot and internal-test exclusion",
+    "Candidate uniqueness and revision-controlled edits",
+    "Conservative normalization and merge/split lineage",
+    "Owner-only mutation and final authority rollback",
+    "Model/migration consistency",
+    "Product-scoped assignee/actor name projections",
+    "Existing CI helper import and fixture cleanup"
+  ],
+  "initial_findings_resolved": [
+    "Fingerprint now uses the normalized conservative profile",
+    "Creation is explicitly idempotent; updates use candidate revision instead of changing a card through stale create retries",
+    "Merge captures both prior workflow snapshots and documents target precedence"
+  ],
+  "helper_import_confirmation": "The unchanged query_insights.py helper exists beside query_demand.py in parent485a2034; direct script execution adds that directory to sys.path.",
+  "limitations": [
+    "Static review only; no runtime, type check or installed acceptance claimed",
+    "Name projection fields have no separate assertion in the new fixture",
+    "Owner physical Station tests remain with the owner"
+  ]
+}
