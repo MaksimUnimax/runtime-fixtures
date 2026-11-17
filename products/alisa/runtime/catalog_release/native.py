@@ -112,6 +112,7 @@ class SnapshotFactory:
   self.report_source=(self.root/'report_archive.py').read_text()
   self.report_globals=dict(vars(report_archive))
   self.base_compile_selection=template_catalog.compile_selection
+  self.fragment_repo_type=template_runtime._FragmentRepo
   self.speech_sha256=hashlib.sha256((self.root/'speech_catalog.json').read_bytes()).hexdigest()
   # Capture originals before installing routing functions into the base module.
   original={n:getattr(template_runtime,n)for n in ('authorized','submit','gap_result',
@@ -162,6 +163,9 @@ class SnapshotFactory:
   need(change.replaced==1,'CATALOG_ENGINE_SOURCE_CHANGED')
   runtime=module('_catalog_runtime_'+package_hash,self.root/'template_runtime.py',tree,
    {'__catalog_module':catalog,'__package_sha256':package_hash,'__engine_sha256':self.engine_sha256})
+  # R15's worker admits fragment adapters by this exact original type. Its
+  # methods carry the parent plan and call the routed _finish_fragment above.
+  runtime._FragmentRepo=self.fragment_repo_type
   question=module('_catalog_question_'+package_hash,self.root/'question_catalog_extension.py',
    CatalogImports().visit(ast.parse(self.question_source)),{'__catalog_module':catalog})
   # Retain original archive class/type identities and helper implementations.

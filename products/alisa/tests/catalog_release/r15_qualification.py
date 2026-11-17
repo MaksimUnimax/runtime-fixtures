@@ -58,9 +58,14 @@ def bounded(path):
 
 
 def prepare(context,core,output):
-    provenance=ci();core=Path(core).resolve();output=Path(output).resolve()
-    need(str(core).startswith('/dev/shm/alisa-parameter-ci-s13-')and not core.exists(),
+    provenance=ci();raw_core=Path(core);output=Path(output).resolve()
+    suffixes=['base-0','collection-0','ledger-0',*(f'compound-{i}'for i in range(4))]
+    owned={Path('/dev/shm')/('alisa-parameter-ci-s13-'+provenance['run_id']+'-'+
+        provenance['run_attempt']+'-'+suffix)for suffix in suffixes}
+    need(raw_core in owned and not raw_core.is_symlink()and not raw_core.exists(),
          'NEW_OWNED_R15_NATIVE_REQUIRED')
+    core=raw_core.resolve()
+    need(core==raw_core,'NEW_OWNED_R15_NATIVE_REQUIRED')
     need(not output.exists(),'NEW_R15_REPORT_REQUIRED')
     context=Path(context).resolve()
     subprocess.run(['git','diff','--exit-code','--quiet'],cwd=context,check=True)

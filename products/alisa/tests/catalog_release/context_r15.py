@@ -34,6 +34,17 @@ def build(context,destination):
         shutil.copytree(source,destination)
     finally:
         if source.is_dir():shutil.rmtree(source)
+    # The installed R15 retains a separately delivered dataset-selection
+    # clarification. Reproduce that admitted protocol byte-for-byte instead of
+    # replacing the installed selector with the older archive's prompt.
+    protocol=destination/'template_protocol.py'
+    fixture=Path(__file__).with_name('fixtures')/'template_protocol.py'
+    if (hashlib.sha256(protocol.read_bytes()).hexdigest()!=
+        'f5a59b25cd8b405eb3c0f4de4593d381b649680db9b47d34cb65a7bbbecee228' or
+        hashlib.sha256(fixture.read_bytes()).hexdigest()!=
+        '260c5ef0f761f2755cdf50fc5b8cb1ea2cb77b5541403c40a4cc777ae2cdfbf0'):
+        raise RuntimeError('R15_INSTALLED_SELECTOR_CONTEXT_MOVED')
+    protocol.write_bytes(fixture.read_bytes())
     # Reconcile current question and consent overlays with the historical R15
     # financial sources. No R15 financial file is replaced by frozen R4/R5.
     for name,path in [('question',ROOT/'runtime/question_catalog/build_overlay.py'),
