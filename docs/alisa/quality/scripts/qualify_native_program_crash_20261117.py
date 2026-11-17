@@ -6,6 +6,7 @@ This tests the worker/program protocol; it does not qualify a real executor.
 """
 from __future__ import annotations
 import argparse
+from contextlib import ExitStack
 import hashlib
 import http.client
 import http.server
@@ -19,6 +20,10 @@ import subprocess
 import sys
 import threading
 import time
+
+RETAINED_MODES = ("retained", "promoted", "lost_ack", "stale_generation")
+PROGRAM_KEYS = ("_program_started", "_program_started_at", "_program_recovery_at",
+                "_program_request_binding", "_compound_answer_fences", "_compound_answer_generation")
 
 
 def write_json(path, value):
@@ -94,8 +99,14 @@ def recovery_broker(cfg, case):
                 seed = json.loads((case / "seed.json").read_text())
                 assert Path(seed["db"]).resolve().is_relative_to(case)
                 with sqlite3.connect("file:" + seed["db"] + "?mode=ro", uri=True) as db:
-                    trace["ack_after_ready"] = db.execute(
-                        "SELECT state FROM jobs WHERE id=?", (seed["job"],)).fetchone()[0] == "READY"
+                    row = db.execute("SELECT state,result,progress FROM jobs WHERE id=?",
+                                     (seed["job"],)).fetchone()
+                    trace["ack_after_ready"] = row[0] == "READY"
+                    progress = json.loads(row[2]) if row[2] else {}
+                    trace["ack_after_stale_discard"] = (
+                        row[0] == "QUEUED" and not row[1]
+                        and all(key not in progress for key in PROGRAM_KEYS)
+                        and progress.get("_answer_api_data") == {"blob": "x" * 11000})
             save_trace()
             return parsed
     os.set_blocking(0, True)  # socket activation presents a blocking connection
@@ -165,6 +176,35 @@ def child(config_path, phase):
     import model_program
     import read_surface
 
+    def generation_fixture(engine):
+        """Inject source revision replies; keep real generation/fence/callback code."""
+        import parameter_report_runtime as reports
+        stack = ExitStack()
+        if cfg["mode"] != "stale_generation":
+            return stack
+        revision = 1 if phase == "start" else 2
+        reference = "r8:synthetic-report"
+        class FixtureAuthority(reports.Authority):
+            def __init__(self):
+                pass
+            def call(self, request):
+                assert request["reference"] == reference
+                if request["method"] == "report_current":
+                    return {"current": True}
+                assert request["method"] == "report_fence"
+                assert phase == "resume" and request["checkpoint"] == {"revision": 1}
+                write_json(case / "stale_fence.json", {
+                    "original_checkpoint_checked": True, "current_revision": revision})
+                return {"current": False}
+        def prepared(*args):
+            value = ([{"fixture_revision": revision}], [(reference, {"revision": revision})])
+            write_json(case / ("prepared_" + phase + ".json"), {
+                "context": value[0], "fences": value[1]})
+            return value
+        engine.parameter_intent_authority = FixtureAuthority()
+        stack.enter_context(patch("parameter_report_runtime.prepare_answer", prepared))
+        return stack
+
     class WireTransport(Transport):
         model_source = "model:deepseek-flash"
 
@@ -220,7 +260,7 @@ def child(config_path, phase):
         write_json(case / "seed.json", seed)
         flow.transport = WireTransport()
         flow.worker = Worker(flow.engine, flow.transport)
-        with patch("model_program.run", run_at_fixture):
+        with generation_fixture(flow.engine), patch("model_program.run", run_at_fixture):
             flow.worker.step()
         raise AssertionError("START_WORKER_WAS_NOT_KILLED")
 
@@ -240,11 +280,34 @@ def child(config_path, phase):
             assert repo.cancel("A")
         write_json(case / "cancel.json", {"state": repo.get("A", seed["job"])["state"]})
         return
-    with patch("model_program.run", run_at_fixture):
-        claimed = worker.step()
+    if phase == "read-discarded":
+        claimed = False  # inspect persisted state without admitting a new generation
+    else:
+        with generation_fixture(engine), patch("model_program.run", run_at_fixture):
+            claimed = worker.step()
     row = repo.get("A", seed["job"])
     checks = {"same_job": row["id"] == seed["job"]}
-    if cfg["mode"] in ("retained", "promoted", "lost_ack"):
+    if cfg["mode"] == "stale_generation":
+        progress = strict_json(row["progress"])
+        checks["stale_not_ready"] = row["state"] == "QUEUED" and not row["result"]
+        checks["old_generation_cleared"] = all(key not in progress for key in PROGRAM_KEYS)
+        checks["facts_and_pending_preserved"] = progress.get(API_DATA) == {"blob": "x" * 11000} and PENDING in progress
+        checks["original_checkpoint_checked"] = json.loads((case / "stale_fence.json").read_text()) == {
+            "original_checkpoint_checked": True, "current_revision": 2}
+        checks["changed_preparation_observed"] = all(
+            json.loads((case / ("prepared_" + prepared_phase + ".json")).read_text()) == {
+                "context": [{"fixture_revision": revision}],
+                "fences": [["r8:synthetic-report", {"revision": revision}]]}
+            for prepared_phase, revision in (("start", 1), ("resume", 2)))
+        before = json.loads((case / "before.json").read_text())
+        try:
+            repo.complete(seed["job"], before["owner"], {"complete": True, "pages": ["late"]})
+            checks["old_owner_fenced"] = False
+        except Rejected:
+            checks["old_owner_fenced"] = True
+        if phase == "read-discarded":
+            checks["cold_discard_readback"] = True
+    elif cfg["mode"] in RETAINED_MODES:
         checks["ready_from_retained_result"] = row["state"] == "READY"
         checks["expected_retained_answer"] = "Synthetic retained answer." in row["result"]
         if cfg["mode"] == "lost_ack":
@@ -307,7 +370,7 @@ def exercise(script, root, output, mode, producer=None):
             assert json.loads(body) == {"fixture": "program-model-call"}
             observed["http_requests"] += 1
             sent.set()
-            if mode not in ("retained", "promoted", "lost_ack"):
+            if mode not in RETAINED_MODES:
                 release.wait(15)
             data = json.dumps({"content": "Synthetic model reply.", "finish_reason": "stop"}).encode()
             try:
@@ -333,11 +396,15 @@ def exercise(script, root, output, mode, producer=None):
         assert trace["serve_returned"] and not trace["fresh_start_attempts"] and not trace["executor_attempts"]
         observed["envelopes"].append({"protocol": 3, "keys": sorted(expected), "resume_only": True})
         observed["ack_after_ready"] = trace["ack_after_ready"]
+        if mode == "stale_generation":
+            observed["ack_after_stale_discard"] = trace.get("ack_after_stale_discard", False)
         value = store.read(first["job_id"], first["fingerprint"])
         observed["outbox_state"] = value["state"]
-        if mode in ("retained", "promoted"):
+        if mode in ("retained", "promoted", "stale_generation"):
             assert value["state"] == "acknowledged" and "content" not in value
             assert len(trace["requests"]) == 2 and trace["requests"][1]["kind"] == "ack"
+            if mode == "stale_generation":
+                assert observed["ack_after_stale_discard"] and not observed["ack_after_ready"]
             if mode == "promoted":
                 assert not (case / "producer-state" / "jobs" / ("e" * 32)).exists()
                 observed["completed_workspace_promoted_and_removed"] = True
@@ -385,7 +452,7 @@ def exercise(script, root, output, mode, producer=None):
                             send({"kind": "call", "payload": {"model": "deepseek-flash", "messages": [],
                                                            "stream": True, "max_tokens": 64}})
                             line = stream.readline(65537)
-                            if mode in ("retained", "promoted", "lost_ack"):
+                            if mode in RETAINED_MODES:
                                 value = json.loads(line)
                                 assert value["kind"] == "response" and value["content"] == "Synthetic model reply."
                                 if store:
@@ -434,7 +501,7 @@ def exercise(script, root, output, mode, producer=None):
     try:
         with (case / "PRIVATE.log").open("w") as log:
             native = subprocess.Popen(command + ["--phase", "start"], env=env, stdout=log, stderr=log)
-            event = retained if mode in ("retained", "promoted", "lost_ack") else sent
+            event = retained if mode in RETAINED_MODES else sent
             assert event.wait(20), "worker did not reach crash boundary"
             seed = json.loads((case / "seed.json").read_text())
             with sqlite3.connect(seed["db"]) as db:
@@ -451,7 +518,7 @@ def exercise(script, root, output, mode, producer=None):
             write_json(case / "before.json", before)
             assert before["state"] == "RUNNING" and before["persisted_started"]
             assert before["persisted_binding"] == ["fingerprint", "job_id"]
-            assert before["model_states"] == (["RECEIVED"] if mode in ("retained", "promoted", "lost_ack") else ["SENDING"])
+            assert before["model_states"] == (["RECEIVED"] if mode in RETAINED_MODES else ["SENDING"])
             if mode == "cancelled":
                 subprocess.run(command + ["--phase", "cancel"], env=env, stdout=log,
                                stderr=log, timeout=10, check=True)
@@ -469,6 +536,11 @@ def exercise(script, root, output, mode, producer=None):
                                         stdout=log, stderr=log, timeout=15)
                 ready_reader_exit = reader.returncode
                 assert ready_reader_exit == 0, "cold READY reader failed"
+            if mode == "stale_generation":
+                reader = subprocess.run(command + ["--phase", "read-discarded"], env=env,
+                                        stdout=log, stderr=log, timeout=15)
+                ready_reader_exit = reader.returncode
+                assert ready_reader_exit == 0, "cold discard readback failed"
             after = json.loads((case / "after.json").read_text())
             # Wait for the protocol ACK after the durable callback, not a new model call.
             if mode in ("retained", "promoted"):
@@ -537,7 +609,8 @@ def main():
     parser.add_argument("--output", type=Path)
     parser.add_argument("--producer-root", type=Path)
     parser.add_argument("--real-recovery-broker", action="store_true")
-    parser.add_argument("--phase", choices=["start", "resume", "read-ready", "cancel", "broker-recovery", "outbox-write", "outbox-ack", "outbox-read", "outbox-tests"])
+    parser.add_argument("--only-case", choices=["unknown", "retained", "cancelled", "promoted", "lost_ack", "stale_generation"])
+    parser.add_argument("--phase", choices=["start", "resume", "read-ready", "read-discarded", "cancel", "broker-recovery", "outbox-write", "outbox-ack", "outbox-read", "outbox-tests"])
     parser.add_argument("--config", type=Path)
     args = parser.parse_args()
     os.umask(0o077)
@@ -557,7 +630,10 @@ def main():
               "real_provider_or_model_requests": 0,
               "real_executor_outbox_qualified": False, "cases": cases}
     try:
-        modes = ("unknown", "retained", "cancelled", "promoted", "lost_ack") if args.real_recovery_broker else ("unknown", "retained", "cancelled")
+        modes = ("unknown", "retained", "cancelled", "promoted", "lost_ack", "stale_generation") if args.real_recovery_broker else ("unknown", "retained", "cancelled")
+        if args.only_case:
+            assert args.only_case in modes, "case requires --real-recovery-broker"
+            modes = (args.only_case,)
         for mode in modes:
             cases.append(exercise(Path(__file__).resolve(), root, output, mode,
                                   producer if args.real_recovery_broker else None))
