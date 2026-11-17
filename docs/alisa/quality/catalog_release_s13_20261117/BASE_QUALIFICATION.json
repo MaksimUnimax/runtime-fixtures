@@ -1,0 +1,13 @@
+{
+  "base_template_hash": "b9352169fed63d5bd74414e6539f05f6a996f5a9e2a07303a8f6786e42c4732e",
+  "engine_sha256": "94e336ad0c6966b30d471ba7c04dbc7a21f37166d6d7672a716d34c23abfb281",
+  "errors": 0,
+  "failures": 0,
+  "level": "INTEGRATION_FIXTURE",
+  "proof_id": "ci-base-3e7da3b230be277d",
+  "report_sha256": "24699d32a10f0381c93e0e57b3cb635ef2d181e5473e5d7eb9b33571b07168b3",
+  "schema": "alisa-catalog-base-qualification/v1",
+  "scope": "BYTE_IDENTICAL_BASE_BINDINGS",
+  "status": "PASS",
+  "tests_run": 1015
+}

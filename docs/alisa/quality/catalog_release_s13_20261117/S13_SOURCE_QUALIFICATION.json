@@ -1,0 +1,60 @@
+{
+  "scope": "S07_DISPOSABLE_POSTGRES_AUTHORITY_NOT_INSTALLED",
+  "status": "PASS",
+  "phase": "COMPLETE",
+  "catalog_base": {
+    "base_evidence_scope": "CURRENT_RUNTIME_OFFLINE_AND_LOOPBACK_TLS_NOT_LIVE_PROVIDER",
+    "base_template_hash": "fb99a6ed750fde4660a980bb752a35f012da6fbb3941571e18f101788c9adde1",
+    "engine_sha256": "74cecd52dedf847132037bb5f6a8a5a5b245220c2b0f4d77738d02c5a9f91a9a",
+    "errors": 0,
+    "failures": 0,
+    "installed": false,
+    "provider_calls": 0,
+    "qualification_sha256": "ffc200ddeff39915e33549662bd0b04f823040900ef8100a68165e4b7e7003e1",
+    "report_sha256": "68299f67bc7d50867bf7d2fd710f745fe46ad366436a66998e646afe8fc840a2",
+    "scope": "S13_BASE_REGRESSION_GENERATED_CORE_NOT_LIVE",
+    "source": "3e7da3b230be277d42cbb65f004ab15ec112899f",
+    "status": "PASS",
+    "tests_run": 1986
+  },
+  "catalog_release": {
+    "scope": "S13_REAL_PG_UNIX_SYNTHETIC_IO_NOT_INSTALLED",
+    "status": "PASS",
+    "tests_run": 13,
+    "failures": 0,
+    "errors": 0,
+    "provider_calls": 0,
+    "installed": false
+  },
+  "catalog_r15_base": {
+    "base_evidence_scope": "R15_QUALIFIED_PARAMETER_ECONOMICS_SUITES_CURRENT_RUN_NOT_LIVE",
+    "base_template_hash": "b9352169fed63d5bd74414e6539f05f6a996f5a9e2a07303a8f6786e42c4732e",
+    "engine_sha256": "94e336ad0c6966b30d471ba7c04dbc7a21f37166d6d7672a716d34c23abfb281",
+    "errors": 0,
+    "failures": 0,
+    "installed": false,
+    "provider_calls": 0,
+    "qualification_sha256": "e2b5b93a0ab5d339ca2101147df7cd8e9755d4f643277f45fd6db7ae766ae4c8",
+    "report_sha256": "24699d32a10f0381c93e0e57b3cb635ef2d181e5473e5d7eb9b33571b07168b3",
+    "scope": "S13_BASE_REGRESSION_GENERATED_CORE_NOT_LIVE",
+    "source": "3e7da3b230be277d42cbb65f004ab15ec112899f",
+    "status": "PASS",
+    "tests_run": 1015
+  },
+  "catalog_r15_release": {
+    "scope": "S13_REAL_PG_UNIX_SYNTHETIC_IO_NOT_INSTALLED",
+    "status": "PASS",
+    "tests_run": 13,
+    "failures": 0,
+    "errors": 0,
+    "provider_calls": 0,
+    "installed": false
+  },
+  "voice_migration_upgrade_rollback": "PASS",
+  "voice_preference_upgrade_rollback": "PASS",
+  "query_continuation_upgrade_rollback": "PASS",
+  "store_registry_upgrade_rollback": "PASS",
+  "migrations_and_model_consistency": "PASS",
+  "append_only_runtime_role": "PASS",
+  "owned_database_and_role_cleanup": true
+}
