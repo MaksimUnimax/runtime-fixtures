@@ -185,6 +185,12 @@ def child(config_path, phase):
 
     actual_run = model_program.run
     def run_at_fixture(*args, **kwargs):
+        if cfg["mode"] == "lost_ack" and phase == "resume":
+            callback = kwargs["on_complete"]
+            def commit_then_exit(response):
+                callback(response)
+                os._exit(25)  # durable native callback succeeded; ACK not yet sent
+            kwargs = dict(kwargs, on_complete=commit_then_exit)
         return actual_run(*args, **dict(kwargs, socket_path=cfg["broker"]))
 
     if phase == "start":
@@ -238,9 +244,14 @@ def child(config_path, phase):
         claimed = worker.step()
     row = repo.get("A", seed["job"])
     checks = {"same_job": row["id"] == seed["job"]}
-    if cfg["mode"] in ("retained", "promoted"):
+    if cfg["mode"] in ("retained", "promoted", "lost_ack"):
         checks["ready_from_retained_result"] = row["state"] == "READY"
         checks["expected_retained_answer"] = "Synthetic retained answer." in row["result"]
+        if cfg["mode"] == "lost_ack":
+            checks["ready_not_claimed_again"] = not claimed
+            with repo.reader_scope("A", seed["conversation"]):
+                reply = engine.control("A", "результат")
+            checks["answer_read_without_recalculation"] = "Synthetic retained answer." in reply["text"]
     elif cfg["mode"] == "unknown":
         checks["unknown_without_result"] = row["state"] == "UNKNOWN" and not row["result"]
         with repo.reader_scope("A", seed["conversation"]):
@@ -296,7 +307,7 @@ def exercise(script, root, output, mode, producer=None):
             assert json.loads(body) == {"fixture": "program-model-call"}
             observed["http_requests"] += 1
             sent.set()
-            if mode not in ("retained", "promoted"):
+            if mode not in ("retained", "promoted", "lost_ack"):
                 release.wait(15)
             data = json.dumps({"content": "Synthetic model reply.", "finish_reason": "stop"}).encode()
             try:
@@ -330,6 +341,10 @@ def exercise(script, root, output, mode, producer=None):
             if mode == "promoted":
                 assert not (case / "producer-state" / "jobs" / ("e" * 32)).exists()
                 observed["completed_workspace_promoted_and_removed"] = True
+        elif mode == "lost_ack":
+            assert value["state"] == "complete" and value["content"] == "Synthetic retained answer."
+            assert len(trace["requests"]) == 1 and not trace["ack_after_ready"]
+            observed["unacknowledged_answer_retained"] = True
         else:
             assert value["state"] == "started" and len(trace["requests"]) == 1
         observed["actual_broker_processes"] += 1  # publish completion after every assertion
@@ -370,7 +385,7 @@ def exercise(script, root, output, mode, producer=None):
                             send({"kind": "call", "payload": {"model": "deepseek-flash", "messages": [],
                                                            "stream": True, "max_tokens": 64}})
                             line = stream.readline(65537)
-                            if mode in ("retained", "promoted"):
+                            if mode in ("retained", "promoted", "lost_ack"):
                                 value = json.loads(line)
                                 assert value["kind"] == "response" and value["content"] == "Synthetic model reply."
                                 if store:
@@ -419,7 +434,7 @@ def exercise(script, root, output, mode, producer=None):
     try:
         with (case / "PRIVATE.log").open("w") as log:
             native = subprocess.Popen(command + ["--phase", "start"], env=env, stdout=log, stderr=log)
-            event = retained if mode in ("retained", "promoted") else sent
+            event = retained if mode in ("retained", "promoted", "lost_ack") else sent
             assert event.wait(20), "worker did not reach crash boundary"
             seed = json.loads((case / "seed.json").read_text())
             with sqlite3.connect(seed["db"]) as db:
@@ -436,7 +451,7 @@ def exercise(script, root, output, mode, producer=None):
             write_json(case / "before.json", before)
             assert before["state"] == "RUNNING" and before["persisted_started"]
             assert before["persisted_binding"] == ["fingerprint", "job_id"]
-            assert before["model_states"] == (["RECEIVED"] if mode in ("retained", "promoted") else ["SENDING"])
+            assert before["model_states"] == (["RECEIVED"] if mode in ("retained", "promoted", "lost_ack") else ["SENDING"])
             if mode == "cancelled":
                 subprocess.run(command + ["--phase", "cancel"], env=env, stdout=log,
                                stderr=log, timeout=10, check=True)
@@ -446,7 +461,14 @@ def exercise(script, root, output, mode, producer=None):
             release.set()
             resumed = subprocess.run(command + ["--phase", "resume"], env=env,
                                      stdout=log, stderr=log, timeout=15)
-            assert resumed.returncode == 0, "resume child failed"
+            expected_resume_exit = 25 if mode == "lost_ack" else 0
+            assert resumed.returncode == expected_resume_exit, "resume child failed"
+            ready_reader_exit = None
+            if mode == "lost_ack":
+                reader = subprocess.run(command + ["--phase", "read-ready"], env=env,
+                                        stdout=log, stderr=log, timeout=15)
+                ready_reader_exit = reader.returncode
+                assert ready_reader_exit == 0, "cold READY reader failed"
             after = json.loads((case / "after.json").read_text())
             # Wait for the protocol ACK after the durable callback, not a new model call.
             if mode in ("retained", "promoted"):
@@ -466,6 +488,7 @@ def exercise(script, root, output, mode, producer=None):
                 assert observed["actual_broker_processes"] == (0 if mode == "cancelled" else 1)
             return {"mode": mode, "status": "PASS", "first_pid": native.pid,
                     "first_exit": -signal.SIGKILL, "resume_exit": resumed.returncode,
+                    "ready_reader_exit": ready_reader_exit,
                     "before_model_state": before["model_states"][0],
                     "after": after, "wire": observed, "external_attempts": 0}
     finally:
@@ -514,7 +537,7 @@ def main():
     parser.add_argument("--output", type=Path)
     parser.add_argument("--producer-root", type=Path)
     parser.add_argument("--real-recovery-broker", action="store_true")
-    parser.add_argument("--phase", choices=["start", "resume", "cancel", "broker-recovery", "outbox-write", "outbox-ack", "outbox-read", "outbox-tests"])
+    parser.add_argument("--phase", choices=["start", "resume", "read-ready", "cancel", "broker-recovery", "outbox-write", "outbox-ack", "outbox-read", "outbox-tests"])
     parser.add_argument("--config", type=Path)
     args = parser.parse_args()
     os.umask(0o077)
@@ -534,7 +557,7 @@ def main():
               "real_provider_or_model_requests": 0,
               "real_executor_outbox_qualified": False, "cases": cases}
     try:
-        modes = ("unknown", "retained", "cancelled", "promoted") if args.real_recovery_broker else ("unknown", "retained", "cancelled")
+        modes = ("unknown", "retained", "cancelled", "promoted", "lost_ack") if args.real_recovery_broker else ("unknown", "retained", "cancelled")
         for mode in modes:
             cases.append(exercise(Path(__file__).resolve(), root, output, mode,
                                   producer if args.real_recovery_broker else None))
