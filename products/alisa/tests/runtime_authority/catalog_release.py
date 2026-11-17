@@ -65,7 +65,7 @@ class ReleaseChecks(unittest.TestCase):
         self.f.transport=Transport();self.f.worker=Worker(self.f.engine,self.f.transport)
         self.f.transport.selection=selection(['B01.ordered_units','B01.ordered_revenue'],store='native-store')
         originals={name:getattr(template_runtime,name)for name in
-            ('authorized','submit','gap_result','worker_step','_gap','_compile_and_save_selection')}
+            ('authorized','submit','gap_result','worker_step','_gap','_compile_and_save_selection','_finish_fragment')}
         for name,value in originals.items():self.addCleanup(setattr,template_runtime,name,value)
         self.addCleanup(setattr,template_catalog,'compile_selection',template_catalog.compile_selection)
         self.addCleanup(setattr,report_archive,'capture',report_archive.capture)

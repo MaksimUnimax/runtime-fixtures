@@ -115,7 +115,7 @@ class SnapshotFactory:
   self.speech_sha256=hashlib.sha256((self.root/'speech_catalog.json').read_bytes()).hexdigest()
   # Capture originals before installing routing functions into the base module.
   original={n:getattr(template_runtime,n)for n in ('authorized','submit','gap_result',
-   'worker_step','_gap','_compile_and_save_selection')}
+   'worker_step','_gap','_compile_and_save_selection','_finish_fragment')}
   self.base=SimpleNamespace(package_sha256='',template_hash=self.base_hash,
    catalog=template_catalog,runtime=SimpleNamespace(**original),
    question=SimpleNamespace(read=question_catalog_extension.read),
@@ -331,7 +331,7 @@ def route(registry):
   try:return call('gap_result',registry.for_plan(strict_json(row['plan'])),(engine,row),{})
   except ReleaseFailure as error:raise Rejected(error.code)from None
  template_runtime.authorized=authorized;template_runtime.submit=submit;template_runtime.gap_result=gap_result
- for name in ['worker_step','_gap','_compile_and_save_selection']:
+ for name in ['worker_step','_gap','_compile_and_save_selection','_finish_fragment']:
   setattr(template_runtime,name,on_plan(name))
  def compile_selection(engine,root,selection):
   try:

@@ -32,11 +32,14 @@ def main():
     parser.add_argument('--catalog-release-overlay', action='store_true')
     parser.add_argument('--catalog-r15-context', type=Path)
     parser.add_argument('--catalog-release-only', action='store_true')
+    parser.add_argument('--catalog-r15-evidence', type=Path)
     args = parser.parse_args()
     if args.catalog_release_overlay and not (args.current_core_source and args.question_catalog_overlay):
         parser.error('--catalog-release-overlay requires current core and question catalogue')
     if args.catalog_r15_context and not args.catalog_release_overlay:
         parser.error('--catalog-r15-context requires --catalog-release-overlay')
+    if bool(args.catalog_r15_context)!=bool(args.catalog_r15_evidence):
+        parser.error('R15 context requires all current-run qualified-suite evidence')
     if args.catalog_release_only and not args.catalog_release_overlay:
         parser.error('--catalog-release-only requires --catalog-release-overlay')
     if args.question_catalog_overlay and not args.current_core_source:
@@ -102,6 +105,9 @@ def main():
         if args.catalog_release_overlay:
             if os.environ.get('GITHUB_ACTIONS')!='true':raise RuntimeError('Owned GitHub catalog CI required')
             runtime['GITHUB_ACTIONS']='true'
+            for key in ['GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT']:
+                if not os.environ.get(key,'').isdigit():raise RuntimeError('Owned GitHub run identity required')
+                runtime[key]=os.environ[key]
         if args.report_browser_artifact:
             if os.geteuid()!=0 or os.environ.get('GITHUB_ACTIONS')!='true':raise RuntimeError('Owned CI root browser context required')
             runtime.update(ALISA_REPORT_BROWSER_ARTIFACT=str(args.report_browser_artifact.resolve()),GITHUB_ACTIONS='true',PLAYWRIGHT_BROWSERS_PATH=os.environ['PLAYWRIGHT_BROWSERS_PATH'])
@@ -187,7 +193,7 @@ def main():
                 record['phase']='R15_BASE_QUALIFICATION'
                 output=temp/'r15-catalog-base.json'
                 result=subprocess.run([sys.executable,'-B',str(ROOT/'tests/catalog_release/qualify_base.py'),
-                    '--core',str(source),'--output',str(output)],
+                    '--core',str(source),'--output',str(output),'--r15-evidence',str(args.catalog_r15_evidence.resolve())],
                     env={**runtime,'GITHUB_ACTIONS':os.environ.get('GITHUB_ACTIONS','')},
                     stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=280)
                 print(result.stdout[-8000:])

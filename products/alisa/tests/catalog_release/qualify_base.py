@@ -18,7 +18,7 @@ def need(ok,code):
  if not ok:raise RuntimeError(code)
 
 
-def qualify(core,output):
+def qualify(core,output,r15_evidence=None):
  core,output=Path(core).resolve(),Path(output).resolve()
  need(os.environ.get('GITHUB_ACTIONS')=='true','OWNED_GITHUB_CI_REQUIRED')
  relative=core.relative_to(ROOT)
@@ -30,11 +30,19 @@ def qualify(core,output):
  raw_report=output.with_name(output.stem+'-full.json');log=output.with_suffix('.log')
  need(not raw_report.exists()and not log.exists(),'REVIEW_PREVIOUS_QUALIFICATION')
  env=dict(os.environ);env['PYTHONDONTWRITEBYTECODE']='1';env['ALISA_CATALOG_RELEASE_ENABLED']='0'
- with log.open('xb')as stream:
-  result=subprocess.run([sys.executable,'-B',str(core/'run_checks.py'),'--output',str(raw_report)],
-   cwd=core,env=env,stdout=stream,stderr=subprocess.STDOUT,timeout=240)
+ if r15_evidence is not None:
+  from r15_qualification import aggregate,R15
+  manifest=json.loads((core/'CURRENT_CORE_MANIFEST.json').read_text())
+  need(manifest.get('s13_r15_test_context',{}).get('source')==R15,'PINNED_R15_CONTEXT_REQUIRED')
+  data=aggregate(r15_evidence,before)
+  raw_report.write_text(json.dumps(data,sort_keys=True,indent=2)+'\n')
+  result=None
+ else:
+  with log.open('xb')as stream:
+   result=subprocess.run([sys.executable,'-B',str(core/'run_checks.py'),'--output',str(raw_report)],
+    cwd=core,env=env,stdout=stream,stderr=subprocess.STDOUT,timeout=240)
  need(code_seal(core)==before,'CORE_CHANGED_DURING_REGRESSION')
- if result.returncode:
+ if result is not None and result.returncode:
   with log.open('rb')as stream:stream.seek(max(0,log.stat().st_size-7800));print(stream.read().decode(errors='replace'),file=sys.stderr)
   raise RuntimeError('BASE_REGRESSION_FAILED')
  need(raw_report.is_file()and raw_report.stat().st_size<=2*1024**2,'BASE_REPORT_BOUND')
@@ -63,6 +71,7 @@ def qualify(core,output):
  manifest_path.write_text(json.dumps(manifest,sort_keys=True,indent=2)+'\n')
  factory.qualification()
  summary={'scope':'S13_BASE_REGRESSION_GENERATED_CORE_NOT_LIVE','status':'PASS','source':source,
+  'base_evidence_scope':data.get('scope'),
   'engine_sha256':before,'base_template_hash':factory.base_hash,'tests_run':data['tests_run'],
   'failures':0,'errors':0,'report_sha256':value['report_sha256'],
   'qualification_sha256':hashlib.sha256(receipt.read_bytes()).hexdigest(),'installed':False,'provider_calls':0}
@@ -71,4 +80,5 @@ def qualify(core,output):
 
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('--core',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
- a=p.parse_args();print(json.dumps(qualify(a.core,a.output)))
+ p.add_argument('--r15-evidence',type=Path)
+ a=p.parse_args();print(json.dumps(qualify(a.core,a.output,a.r15_evidence)))

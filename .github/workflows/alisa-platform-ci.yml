@@ -9,6 +9,7 @@ permissions:
   contents: read
 jobs:
   source:
+    needs: r15-catalog-parameters
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
@@ -36,6 +37,12 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Record exact checked out source
         run: echo "ALISA_SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Read exact current-run R15 source qualification
+        uses: actions/download-artifact@v4
+        with:
+          pattern: s13-r15-qualification-*-${{ github.event.pull_request.head.sha || github.sha }}
+          path: .s13-r15-evidence
+          merge-multiple: true
       - name: Read pinned R15 source context for catalog compatibility
         uses: actions/checkout@v4
         with:
@@ -69,7 +76,8 @@ jobs:
             --current-core-source "$GITHUB_WORKSPACE/docs/alisa/runtime/v0.11/rt_job_r02" \
             --platform-stores-overlay --template-clarification-overlay --question-catalog-overlay \
             --catalog-release-overlay --catalog-release-only \
-            --catalog-r15-context "$GITHUB_WORKSPACE/.s13-r15-context"
+            --catalog-r15-context "$GITHUB_WORKSPACE/.s13-r15-context" \
+            --catalog-r15-evidence "$GITHUB_WORKSPACE/.s13-r15-evidence"
       - name: Explicit voice coefficient consent and shared writer on isolated PostgreSQL
         shell: bash
         run: |
@@ -236,3 +244,106 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  r15-catalog-parameters:
+    name: R15 catalog context (${{ matrix.suite }} ${{ matrix.shard_index }}/${{ matrix.shard_count }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {suite: base, shard_count: 1, shard_index: 0}
+          - {suite: collection, shard_count: 1, shard_index: 0}
+          - {suite: ledger, shard_count: 1, shard_index: 0}
+          - {suite: compound, shard_count: 4, shard_index: 0}
+          - {suite: compound, shard_count: 4, shard_index: 1}
+          - {suite: compound, shard_count: 4, shard_index: 2}
+          - {suite: compound, shard_count: 4, shard_index: 3}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Read pinned R15 test and platform sources
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: cafb743c94672104d4afa2c471398e5c81d904f5
+          path: .s13-r15-context
+          sparse-checkout: |
+            docs/alisa/runtime/v0.11
+            products/alisa/tests
+            products/alisa/services/platform/src
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.1'
+      - name: Install locked Python test dependencies
+        run: |
+          python -m venv products/alisa/.venv
+          products/alisa/.venv/bin/python -m pip install --require-hashes -r products/alisa/requirements-dev.lock
+      - name: Compose the exact S13 plugin on the pinned R15 test core
+        run: |
+          native="/dev/shm/alisa-parameter-ci-s13-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.suite }}-${{ matrix.shard_index }}"
+          echo "PARAMETER_TEST_RUNTIME_ROOT=$native" >> "$GITHUB_ENV"
+          products/alisa/.venv/bin/python -B products/alisa/tests/catalog_release/r15_qualification.py prepare \
+            --context "$GITHUB_WORKSPACE/.s13-r15-context" --core "$native" \
+            --output "products/alisa/dist/s13-r15-${{ matrix.suite }}-${{ matrix.shard_index }}-prepared.json"
+      - name: Existing R15 qualified suite on an owned Unix PostgreSQL
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+          name="alisa-s13-r15-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.suite }}-${{ matrix.shard_index }}"
+          root="/dev/shm/alisa-current-parameters-pg-ci-s13-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.suite }}-${{ matrix.shard_index }}"
+          test ! -e "$root"
+          mkdir -m 700 "$root"
+          mkdir -m 700 "$root/socket"
+          sudo chown 999:999 "$root/socket"
+          export PARAMETER_TEST_SOCKET="$root/socket"
+          export ALISA_TEST_NODE="$(command -v node)"
+          cleanup() {
+            label="$(docker inspect -f '{{ index .Config.Labels "alisa.task" }}' "$name" 2>/dev/null || true)"
+            if [ "$label" = "$name" ]; then docker rm -f "$name" >/dev/null; fi
+          }
+          trap cleanup EXIT
+          docker run -d --name "$name" --label "alisa.task=$name" --network none \
+            --memory 384m --memory-swap 384m --cpus 1 --pids-limit 128 \
+            --tmpfs /var/lib/postgresql/data:rw,size=192m \
+            -v "$root/socket:/var/run/postgresql" \
+            -e POSTGRES_DB=parameter_test -e POSTGRES_HOST_AUTH_METHOD=trust postgres:16.15
+          ready=0
+          for attempt in $(seq 1 60); do
+            if docker exec "$name" pg_isready -U postgres -d parameter_test; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" = 1
+          docker exec "$name" psql -U postgres -d parameter_test -v ON_ERROR_STOP=1 \
+            -c 'CREATE ROLE test_parameter_test_runtime NOLOGIN; CREATE ROLE parameter_test_runtime NOLOGIN;'
+          sudo --preserve-env=PARAMETER_TEST_SOCKET,PARAMETER_TEST_RUNTIME_ROOT,ALISA_TEST_NODE \
+            products/alisa/.venv/bin/python -B \
+            .s13-r15-context/products/alisa/tests/current_parameters/ci_qualified_suites.py \
+            --suite '${{ matrix.suite }}' \
+            --shard-count '${{ matrix.shard_count }}' --shard-index '${{ matrix.shard_index }}' \
+            --output "$GITHUB_WORKSPACE/products/alisa/dist/s13-r15-${{ matrix.suite }}-${{ matrix.shard_index }}-suite.json"
+      - name: Seal the actual executed suite and unchanged native source
+        run: |
+          products/alisa/.venv/bin/python -B products/alisa/tests/catalog_release/r15_qualification.py attest \
+            --core "$PARAMETER_TEST_RUNTIME_ROOT" \
+            --prepared "products/alisa/dist/s13-r15-${{ matrix.suite }}-${{ matrix.shard_index }}-prepared.json" \
+            --report "products/alisa/dist/s13-r15-${{ matrix.suite }}-${{ matrix.shard_index }}-suite.json" \
+            --output "products/alisa/dist/s13-r15-${{ matrix.suite }}-${{ matrix.shard_index }}-attestation.json"
+      - name: Retain source qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: s13-r15-qualification-${{ matrix.suite }}-${{ matrix.shard_index }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: products/alisa/dist/s13-r15-${{ matrix.suite }}-${{ matrix.shard_index }}-*.json
+          if-no-files-found: error
+      - name: Clean only this job's native and PostgreSQL fixtures
+        if: always()
+        run: |
+          native="/dev/shm/alisa-parameter-ci-s13-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.suite }}-${{ matrix.shard_index }}"
+          root="/dev/shm/alisa-current-parameters-pg-ci-s13-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.suite }}-${{ matrix.shard_index }}"
+          sudo rm -rf -- "$native" "$root"
