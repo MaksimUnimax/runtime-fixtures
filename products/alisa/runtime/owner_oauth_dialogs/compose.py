@@ -159,6 +159,40 @@ def lab_sources(root):
     return {'alice_lab.py':text,'lab_oauth.py':(ROOT/'lab_oauth.py').read_text()}
 
 
+def platform_sources(root):
+    """Minimal delta for the already installed LEGACY_STATION_ONLY variant.
+
+    Do not install the full branch views/models: the admitted deployment omits
+    modern voice-permission columns. Only these private read-only OAuth actions
+    are added, retaining all old login/consent/projection behavior and schema.
+    """
+    import ast
+    root=Path(root)
+    old=pinned(root/'views.py','c6d539f6e153a0e41a69a747265b13237c52244ad864895120b14eb5f502aa47')
+    pinned(root/'models.py','008ed4876fd87c8bf4bf22061c64740ab8a0aa37ee77cace40786d9122d4bc3c')
+    pinned(root/'oauth.py','3332f79ff8eb97c20a29b2418b5a77d77854a826a4f0555c377db6991213a989')
+    source=ROOT.parents[1]/'services/platform/src/alisa_platform/alice_link/views.py'
+    text=source.read_text();lines=text.splitlines(keepends=True)
+    names={'legacy_station_identity','legacy_station_token_current'}
+    chosen=[node for node in ast.parse(text).body if isinstance(node,ast.FunctionDef) and node.name in names]
+    if {n.name for n in chosen}!=names or len(chosen)!=2:raise ValueError('OAUTH_PLATFORM_FUNCTIONS_MOVED')
+    extra='\n\n'.join(''.join(lines[n.lineno-1:n.end_lineno]) for n in chosen)
+    result=one(old,'\n\ndef webhook(data):\n','\n\n'+extra+'\n\ndef webhook(data):\n')
+    marker="    if action == 'request':\n        return authorize_request(data)\n"
+    actions="""    if action == 'legacy_station_identity':
+        return legacy_station_identity(data)
+    if action == 'legacy_station_token_current':
+        return legacy_station_token_current(data)
+    if action == 'legacy_station_token_refreshable':
+        return legacy_station_token_current(data, refreshable=True)
+"""
+    result=one(result,marker,marker+actions)
+    compile(result,'alice_link/views.py','exec')
+    if 'parameter_write_binding_revision' in result or 'parameter_voice import dispatch' in result:
+        raise ValueError('OAUTH_UNREQUESTED_MODERN_VOICE_EXPANSION')
+    return {'views.py':result}
+
+
 def nginx_source(path):
     text=pinned(path,NGINX)
     # Exact locations win before the old regex. Keep the old block as a

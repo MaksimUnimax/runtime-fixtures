@@ -87,7 +87,7 @@ jobs:
           ! docker inspect "$name" >/dev/null 2>&1
           test ! -e "$root"
           trap - EXIT TERM INT
-      - name: Owner OAuth real HTTP and Station reverse-proof chain
+      - name: Owner OAuth minimal installed schema and real HTTP reverse proof
         shell: bash
         run: |
           set -euo pipefail
@@ -122,7 +122,7 @@ jobs:
             /usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 PYTHONDONTWRITEBYTECODE=1 \
             ALISA_ISOLATED_OAUTH_HTTP_TEST=1 PARAMETER_TEST_SOCKET="$root" \
             "$GITHUB_WORKSPACE/products/alisa/.venv/bin/python" -I -B \
-            "$GITHUB_WORKSPACE/products/alisa/tests/current_parameters/qualify_owner_chain.py" \
+            "$GITHUB_WORKSPACE/products/alisa/tests/current_parameters/qualify_owner_minimal.py" \
             --output "$GITHUB_WORKSPACE/products/alisa/dist/owner-oauth-http-qualification.json"
           cleanup
           ! docker inspect "$name" >/dev/null 2>&1
