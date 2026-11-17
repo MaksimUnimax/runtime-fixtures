@@ -240,9 +240,9 @@ def handle(request, data):
         if action in {'preview', 'approve', 'deny'}:
             return consent(data, row)
         if action=='parameter_permission':
-            from alisa_platform.owner_data.parameter_voice import consent
+            from alisa_platform.owner_data.parameter_voice import consent as parameter_consent
             from alisa_platform.owner_data.service import Rejected
-            try:consent(find_link(row),data)
+            try:parameter_consent(find_link(row),data)
             except Rejected as error:return reply({'code':error.code},error.status)
             return reply({'alice':projection(find_link(row))})
         exact(data, {'action', 'session_token'}, {'voice_private'} if action == 'privacy' else ())
