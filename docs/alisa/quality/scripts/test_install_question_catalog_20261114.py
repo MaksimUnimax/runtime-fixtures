@@ -103,4 +103,7 @@ from test_install_r5_preview_web_20261116 import ReviewedR5WebDriver
 from test_install_r5_bound_authority_20261116 import BoundAuthorityTests
 from test_install_r5_bound_web_20261116 import ReviewedBoundWebDriver, BoundWebRollbackBoundaries, BoundWebCommandBoundary
 
+from test_install_r5_bound_api_r15_20261117 import BoundAuthorityTests as BoundApiR15Tests
+from test_install_r5_bound_web_r15_20261117 import (ReviewedBoundWebDriver as ReviewedBoundR15WebDriver, BoundWebRollbackBoundaries as BoundR15WebRollbackBoundaries, BoundWebCommandBoundary as BoundR15WebCommandBoundary, BoundApiContentAtWebApply)
+
 if __name__=='__main__':unittest.main()
