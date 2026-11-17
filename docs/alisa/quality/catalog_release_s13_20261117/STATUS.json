@@ -1,0 +1,24 @@
+{
+  "activated": false,
+  "checks": {
+    "base_runtime": 1986,
+    "new_s13_base": 13,
+    "new_s13_r15": 13,
+    "r15_parameter_economics": 1015
+  },
+  "documentation_ci": 44139809953,
+  "independent_review": "QUALIFIED_STATIC_NO_BLOCKER",
+  "live_changed": false,
+  "manual_owner_tests": "OWNER_WILL_RUN",
+  "native_delta_archive_sha256": "ca089550b9a528bca88e26b81be9a2df35d6098fc74259e79aa7f4b5ad6ba4a4",
+  "native_engine_sha256": "94e336ad0c6966b30d471ba7c04dbc7a21f37166d6d7672a716d34c23abfb281",
+  "native_legacy_bundle_sha256": "3a07340521b2a7d54f3728d071019cd9e539b0b65173cb0df4291616dca7575d",
+  "next_roadmap": "AL-S14 support, wrong-semantics workflow and service notifications",
+  "pending": "Backend/admin hybrid candidate must preserve installed R15/S12 and parallel OAuth changes; migrate and activate only after exact candidate verification",
+  "qualified_native_candidate": "/root/alisa-catalog-s13-3c115a4c-prepare-20261117/core",
+  "source_ci": 44139809928,
+  "source_pr": 470,
+  "source_sha": "3e7da3b230be277d42cbb65f004ab15ec112899f",
+  "stage": "AL-S13",
+  "status": "SOURCE_READY_NATIVE_COMPONENT_QUALIFIED_NOT_ACTIVATED"
+}
