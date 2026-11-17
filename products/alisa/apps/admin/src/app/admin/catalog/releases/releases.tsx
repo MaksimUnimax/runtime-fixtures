@@ -38,6 +38,7 @@ const newAddition=():Addition=>({id:'C'+crypto.randomUUID().replaceAll('-',''),k
 async function request<T>(action:string,filters:Record<string,unknown>):Promise<T>{
  const r=await fetch('/api/staff/catalog-changes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,filters})});
  const data=await r.json() as Record<string,unknown>;
+ if(r.status===409&&['CONFLICT','SUPERSEDED'].includes(String(data.state)))return data as T;
  if(!r.ok){if(r.status===401||r.status===403)throw new Error(messages.CATALOG_FORBIDDEN);throw new Error(messages[String(data.code)]||'Не удалось выполнить действие. Обновите состояние и повторите.');}
  return data as T;
 }
@@ -89,7 +90,7 @@ export function Releases({permissions,initialCandidate}:{permissions:string[];in
    {edit&&<button disabled={busy} onClick={()=>{setDraft(null);setRows([newAddition()]);setDirty(false);setReviewed(false);}}>Новый черновик</button>}
   </section>
   {(edit||draft)&&<section><h2>{draft?'Карточка черновика':'Новый шаблон из потребности'}</h2>
-   {edit&&<form onSubmit={e=>{e.preventDefault();void perform(()=>find());}}><label>Найти готовый шаблон<input value={query} maxLength={200} onChange={e=>setQuery(e.target.value)}/></label><button disabled={busy}>Найти</button>{next!==null&&<button type="button" disabled={busy} onClick={()=>void perform(()=>find(next))}>Загрузить ещё</button>}</form>}
+   {edit&&<form onSubmit={e=>{e.preventDefault();void perform(()=>find());}}><label>Найти готовый шаблон<input value={query} maxLength={200} onChange={e=>setQuery(e.target.value)}/></label><button disabled={busy}>Найти</button>{next!==null&&<button type="button" disabled={busy} onClick={()=>void perform(()=>find(next??0))}>Загрузить ещё</button>}</form>}
    <form onSubmit={e=>{e.preventDefault();void perform(save);}}><label>Карточка потребности<input required readOnly={!!draft||!edit} value={candidate} pattern="[0-9a-f-]{36}" onChange={e=>setCandidate(e.target.value)}/></label>
     {rows.map((row,index)=><fieldset key={row.id} disabled={busy||!edit}><legend>Шаблон {index+1}</legend>
      <label>Название и назначение<input required maxLength={800} value={row.purpose} onChange={e=>patch(index,{purpose:e.target.value})}/></label>
@@ -118,7 +119,7 @@ export function Releases({permissions,initialCandidate}:{permissions:string[];in
     <label>Версия для отката<select value={rollback} disabled={busy} onChange={e=>setRollback(e.target.value)}><option value="">Исходный каталог</option>{overview?.releases.map(r=><option key={r.package_sha256} value={r.package_sha256}>{r.title} · {r.release_id}</option>)}</select></label>
     <button disabled={busy||!tenant||current?.state==='PENDING'} onClick={()=>void perform(()=>assign('rollback'))}>Откатить выбранного клиента</button>
    </>}
-   <ul>{overview?.assignments.map(a=><li key={a.tenant_id}>{overview.pilot_tenants.find(p=>p.id===a.tenant_id)?.label||a.tenant_id} · {stateLabel[a.state]||a.state} · назначение {a.revision}, подтверждено {a.applied_revision}</li>)}</ul>
+   <ul>{overview?.assignments.map(a=><li key={a.tenant_id}>{overview?.pilot_tenants.find(p=>p.id===a.tenant_id)?.label||a.tenant_id} · {stateLabel[a.state]||a.state} · назначение {a.revision}, подтверждено {a.applied_revision}</li>)}</ul>
    {publish&&uncertain&&!overview?.pending.some(x=>x.request_id===uncertain)&&<button disabled={busy} onClick={()=>void perform(async()=>showOutcome(await request<Outcome>('retry',{request_id:uncertain})))}>Проверить отправленную публикацию</button>}
    <ul>{overview?.pending.map(p=><li key={p.request_id}>{p.tenant_id} · {stateLabel[p.outcome.state]||'Ожидает сверки'} {publish&&<button disabled={busy} onClick={()=>void perform(async()=>showOutcome(await request<Outcome>('retry',{request_id:p.request_id})))}>Сверить с ядром</button>}</li>)}</ul>
   </section>

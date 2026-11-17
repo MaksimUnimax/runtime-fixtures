@@ -56,7 +56,21 @@ class Migration(migrations.Migration):
     FOR EACH ROW EXECUTE FUNCTION alisa_catalog_release_immutable_row();
    CREATE TRIGGER catalog_decision_immutable BEFORE UPDATE OR DELETE ON catalog_catalogdecision
     FOR EACH ROW EXECUTE FUNCTION alisa_catalog_release_immutable_row();
+   CREATE FUNCTION alisa_catalog_publication_intent_immutable() RETURNS trigger
+   LANGUAGE plpgsql AS $$ BEGIN
+    IF TG_OP='DELETE' THEN
+     RAISE EXCEPTION 'catalog publication intent is immutable' USING ERRCODE='23000';
+    END IF;
+    IF (to_jsonb(NEW)-'outcome') IS DISTINCT FROM (to_jsonb(OLD)-'outcome') THEN
+     RAISE EXCEPTION 'catalog publication intent is immutable' USING ERRCODE='23000';
+    END IF;
+    RETURN NEW;
+   END $$;
+   CREATE TRIGGER catalog_publication_intent_immutable BEFORE UPDATE OR DELETE ON catalog_catalogpublication
+    FOR EACH ROW EXECUTE FUNCTION alisa_catalog_publication_intent_immutable();
    ''',reverse_sql='''
+   DROP TRIGGER catalog_publication_intent_immutable ON catalog_catalogpublication;
+   DROP FUNCTION alisa_catalog_publication_intent_immutable();
    DROP TRIGGER catalog_decision_immutable ON catalog_catalogdecision;
    DROP TRIGGER catalog_release_immutable ON catalog_catalogrelease;
    DROP TRIGGER catalog_validation_immutable ON catalog_catalogvalidation;

@@ -29,7 +29,10 @@ def main():
     parser.add_argument('--platform-stores-overlay', action='store_true')
     parser.add_argument('--template-clarification-overlay', action='store_true')
     parser.add_argument('--question-catalog-overlay', action='store_true')
+    parser.add_argument('--catalog-release-overlay', action='store_true')
     args = parser.parse_args()
+    if args.catalog_release_overlay and not (args.current_core_source and args.question_catalog_overlay):
+        parser.error('--catalog-release-overlay requires current core and question catalogue')
     if args.question_catalog_overlay and not args.current_core_source:
         parser.error('--question-catalog-overlay requires --current-core-source')
     if args.runtime_source and args.current_core_source:
@@ -123,6 +126,18 @@ def main():
                     spec=importlib.util.spec_from_file_location('catalog_overlay',ROOT/'runtime/question_catalog/build_overlay.py')
                     extension=importlib.util.module_from_spec(spec);spec.loader.exec_module(extension)
                     source=extension.build(source,temp/'question-catalog-core')
+                if args.catalog_release_overlay:
+                    import importlib.util
+                    spec=importlib.util.spec_from_file_location('catalog_release_overlay',ROOT/'runtime/catalog_release/build_overlay.py')
+                    extension=importlib.util.module_from_spec(spec);spec.loader.exec_module(extension)
+                    source=extension.build(source,temp/'catalog-release-core')
+                    result=subprocess.run([sys.executable,'-B',str(ROOT/'tests/catalog_release/qualify_base.py'),
+                        '--core',str(source),'--output',str(temp/'catalog-base-qualification.json')],
+                        env={**runtime,'GITHUB_ACTIONS':os.environ.get('GITHUB_ACTIONS','')},
+                        stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=280)
+                    print(result.stdout[-8000:])
+                    if result.returncode:raise RuntimeError('Catalog base qualification failed')
+                    record['catalog_base']=json.loads((temp/'catalog-base-qualification.json').read_text())
                 runtime['ALISA_RT_JOB_TEST_SOURCE']=str(source)
                 runtime['ALISA_RT_JOB_MANIFEST_SHA256']=hashlib.sha256((source/'CURRENT_CORE_MANIFEST.json').read_bytes()).hexdigest()
                 cases.append(('current_core_roundtrip', ROOT / 'tests/runtime_authority/current_core_roundtrip.py'))
@@ -137,6 +152,8 @@ def main():
                 cases.append(('report_roundtrip', ROOT / 'tests/runtime_authority/report_roundtrip.py'))
                 cases.append(('query_insights', ROOT / 'tests/runtime_authority/query_insights.py'))
                 cases.append(('query_demand', ROOT / 'tests/runtime_authority/query_demand.py'))
+                if args.catalog_release_overlay:
+                    cases.append(('catalog_release', ROOT / 'tests/runtime_authority/catalog_release.py'))
             for label, script in cases:
                 output = temp / (label + '.json')
                 result = subprocess.run([sys.executable, str(script), '--output', str(output)],

@@ -124,7 +124,10 @@ class SnapshotFactory:
        type(value['tests_run'])is int and value['tests_run']>0 and
        type(value['failures'])is int and value['failures']==0 and
        type(value['errors'])is int and value['errors']==0,'CATALOG_QUALIFICATION_INVALID')
-  text(value['proof_id'],128);hash_value(value['report_sha256'])
+  need(type(value['proof_id'])is str and 1<=len(value['proof_id'])<=128 and
+       all(c.isascii()and(c.isalnum()or c in '_.:-')for c in value['proof_id']),
+       'CATALOG_QUALIFICATION_INVALID')
+  hash_value(value['report_sha256'])
   hashed=hashlib.sha256()
   with report.open('rb')as stream:
    for block in iter(lambda:stream.read(1024*1024),b''):hashed.update(block)
@@ -167,6 +170,10 @@ class ReleaseRegistry:
     'package_sha256 TEXT NOT NULL,request_id TEXT NOT NULL)',
     'CREATE TABLE IF NOT EXISTS catalog_commands(request_id TEXT PRIMARY KEY,fingerprint TEXT NOT NULL,receipt TEXT NOT NULL)']:
     c.execute(statement)
+   for table in ('catalog_packages','catalog_commands'):
+    for action in ('UPDATE','DELETE'):
+     c.execute(f"CREATE TRIGGER IF NOT EXISTS {table}_{action.lower()}_immutable BEFORE {action} ON {table} "
+               "BEGIN SELECT RAISE(ABORT,'catalog evidence is immutable'); END")
 
  def validate(self,payload):
   value=package(payload);snapshot=self.factory.build(value);qualification=self.factory.qualification()
@@ -323,7 +330,7 @@ def install(port,controls_enabled=True):
  old_dispatch=runtime_port_ipc.dispatch
  def dispatch(actual,peer,value):
   operation=value.get('operation')if type(value)is dict else None
-  if operation not in {'catalog_info','catalog_templates','catalog_validate','catalog_apply','catalog_readback'}:
+  if type(operation)is not str or operation not in {'catalog_info','catalog_templates','catalog_validate','catalog_apply','catalog_readback'}:
    return old_dispatch(actual,peer,value)
   actual._peer(peer)
   if not controls_enabled:raise Rejected('CAPABILITY_UNAVAILABLE')
