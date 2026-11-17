@@ -50,8 +50,18 @@ def run(*args,timeout=15):
 
 
 def props(unit):
- raw=run('systemctl','show',unit,*['--property='+p for p in PROPS])
- return dict(line.split('=',1)for line in raw.splitlines())
+ raw=run('systemctl','show',unit,'--all',*['--property='+p for p in PROPS])
+ values=dict(line.split('=',1)for line in raw.splitlines())
+ if 'EnvironmentFiles'not in values:
+  # systemctl may omit even an explicitly requested empty array with --all.
+  # Accept absence only after the typed D-Bus property proves zero files.
+  label=''.join(c if c.isascii()and c.isalnum()else'_'+format(ord(c),'02x')for c in unit)
+  empty=run('busctl','get-property','org.freedesktop.systemd1',
+   '/org/freedesktop/systemd1/unit/'+label,'org.freedesktop.systemd1.Service','EnvironmentFiles')
+  need(empty=='a(sb) 0','ENVIRONMENT_FILES_METADATA_UNAVAILABLE')
+  values['EnvironmentFiles']=''
+ need(set(PROPS)<=set(values),'UNIT_METADATA_INCOMPLETE')
+ return values
 
 
 def drop(role):return Path('/etc/systemd/system')/(ROLES[role][0]+'.d')/NAME

@@ -8,7 +8,7 @@
 | admin | alisa-demand-admin-13f01118c7402814 | d27bc1c64f7104ffaf02091cc65fc695dfcf93684748fac9cae9196346b53ff7 |
 | gap-ingest authority | alisa-demand-authority-13f01118c7402814 | 58261d96e9140bf402e5a3d60809b4305683298e327b4929c0533eede2a4a2cf |
 
-`scripts/activate_demand_s12_20261117.py` — конечная операция под прежним rollout lock. Точная версия SHA256 `11ba106d6407e5c481fe2ccbe0beb81a5b31e2255f45e4fff183b69782644f8d` получила независимое статическое ревью без блокирующих замечаний (см. AL_S12_ACTIVATION_REVIEW_20261117.json). Это не проверка исполнения. Контроллер ограничивается systemd RuntimeMaxSec=240, MemoryMax=256M, MemorySwapMax=0, TasksMax=32, KillMode=control-group и TimeoutStopSec=5; повтор после прерывания начинается с чтения результата, а не нового apply.
+`scripts/activate_demand_s12_20261117.py` — конечная операция под прежним rollout lock. Точная версия SHA256 `c3de589e20358a77c78d5c4898437e24b13a149fa2429371ee51c7d5723062dd` получила независимое статическое ревью без блокирующих замечаний (см. AL_S12_ACTIVATION_REVIEW_20261117.json). Это не проверка исполнения. Контроллер ограничивается systemd RuntimeMaxSec=240, MemoryMax=256M, MemorySwapMax=0, TasksMax=32, KillMode=control-group и TimeoutStopSec=5; повтор после прерывания начинается с чтения результата, а не нового apply.
 
 ## План и включение
 

@@ -1,13 +1,20 @@
 {
   "source": "13f01118c7402814ba96cf42e8a75635220fbb45",
-  "helper_sha256": "11ba106d6407e5c481fe2ccbe0beb81a5b31e2255f45e4fff183b69782644f8d",
+  "helper_sha256": "c3de589e20358a77c78d5c4898437e24b13a149fa2429371ee51c7d5723062dd",
   "reviewer": "independent gpt-6-luna participant",
   "outcome": "PASS_STATIC_NO_BLOCKERS",
   "resolved_findings": [
     "Final success/recovery verifies exact selected drop-in bytes, effective drop-in paths, target working directory, RefuseManualStart and restart policy; another helper-owned mode is not accepted.",
-    "Interrupted-activation receipt I/O cannot skip recovery because recovery is in finally. Explicit recovery requires an activation intent."
+    "Interrupted-activation receipt I/O cannot skip recovery because recovery is in finally. Explicit recovery requires an activation intent.",
+    "When systemctl omits empty EnvironmentFiles even with --all, typed D-Bus readback must prove exactly a(sb) 0 before normalization. Missing or nonempty properties fail closed."
   ],
   "limits": "Read-only static review only. No helper, services or tests executed by reviewer. Installation and owner acceptance not claimed.",
   "initial_state": "three inactive candidates, no migration, no activation plan",
-  "existing_source_ci": "PASS including 12 disposable PostgreSQL demand contracts"
+  "existing_source_ci": "PASS including 12 disposable PostgreSQL demand contracts",
+  "plan_only_failure": {
+    "helper_sha256": "11ba106d6407e5c481fe2ccbe0beb81a5b31e2255f45e4fff183b69782644f8d",
+    "cause": "systemctl omitted empty EnvironmentFiles for SMTP",
+    "result": "failed before activation plan or DB/unit changes",
+    "logs_preserved": true
+  }
 }
