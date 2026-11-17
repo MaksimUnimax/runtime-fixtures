@@ -50,7 +50,13 @@ def load_tools(root):
     builder_root = root/'builder'
     builder_root.mkdir(mode=0o755)
     for name in ('release_contract.py', 'build_candidate.py'):
-        raw = (SOURCE.with_name('economics_composite_r15_release')/name).read_bytes()
+        # This gate exercises the historical activator's REAL pinned verifier,
+        # not the newer S16 source-closure contract. Preserve exact historical
+        # bytes instead of changing BUILD_TOOLS or bypassing its hash check.
+        origin = (Path(__file__).parent/'fixtures/accepted_97_release_contract.py'
+                  if name == 'release_contract.py'
+                  else SOURCE.with_name('economics_composite_r15_release')/name)
+        raw = origin.read_bytes()
         need(module.c.digest(raw) == module.c.BUILD_TOOLS[name], 'FROZEN_BUILDER_PIN')
         (builder_root/name).write_bytes(raw)
         (builder_root/name).chmod(0o444)

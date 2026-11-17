@@ -144,6 +144,15 @@ class CandidateBuilder(unittest.TestCase):
         self.assertFalse(self.out.exists())
         self.assertEqual(list(self.root.glob('.candidate-*')), [])
 
+    def test_base_without_new_staff_dependency_is_not_silently_accepted(self):
+        observed,manifests,sizes=b.snapshot(self.spec)
+        missing=c.PLATFORM+'operations/staff_read_authority.py'
+        manifests['authority']['files'].pop(missing)
+        source={n:c.digest((self.source/n).read_bytes()) for n in c.SOURCE_FILES}
+        with self.assertRaisesRegex(c.ReleaseError,'SOURCE_BASE_COMPATIBILITY_REQUIRED:authority:operations/staff_read_authority.py'):
+            c.check_compatibility(source,manifests,self.review)
+        self.assert_no_partial()
+
     def test_complete_candidate_preserves_distinct_bases_and_runtime_environment(self):
         result = self.build()
         self.assertEqual(result['status'], 'BUILT_NOT_ACTIVATED')
@@ -557,6 +566,19 @@ class LiveReferencePaths(unittest.TestCase):
 
 
 class NativeSourceChain(unittest.TestCase):
+    def test_staff_rpc_requires_explicit_transitive_source_closure(self):
+        repo=HERE.parents[4]
+        blobs,hashes=b.source_bytes(repo)
+        required={'operations/__init__.py','operations/reconciliation.py',
+                  'operations/platform_adapter.py','operations/staff_read_authority.py'}
+        self.assertTrue(required <= c.COMPATIBILITY_FILES)
+        self.assertFalse(required & set(c.PLATFORM_OVERLAY))
+        c.check_source_imports(blobs)
+        for missing in ('operations/staff_read_authority.py','operations/reconciliation.py'):
+            with self.subTest(missing=missing),patch.object(c,'COMPATIBILITY_FILES',
+                    c.COMPATIBILITY_FILES-{missing}),self.assertRaisesRegex(c.ReleaseError,'SOURCE_DEPENDENCY_UNDECLARED'):
+                c.check_source_imports(blobs)
+
     def test_actual_source_prepare_chain_preserves_r5_catalog_and_probe_boundary(self):
         self._actual_source_prepare_chain(wb_activity=False)
 

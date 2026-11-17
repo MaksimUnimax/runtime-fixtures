@@ -59,3 +59,17 @@ class StaffPolicyTests(unittest.TestCase):
         self.session['created_at']=self.now+30;self.assertFalse(self.allowed())
     def test_block_permission_does_not_allow_unblock(self):
         self.member['permissions']=['users.block'];self.assertTrue(self.allowed('users.block'));self.assertFalse(self.allowed('users.unblock'))
+
+    def test_reconcile_requires_explicit_permission_not_reader_or_other_admin_power(self):
+        for perms in (['users.read'],['audit.read'],['access.grant']):
+            self.member['permissions']=perms;self.assertFalse(self.allowed('ops.reconcile'))
+        self.member['permissions']=['ops.reconcile'];self.assertTrue(self.allowed('ops.reconcile'))
+        self.assertFalse(self.allowed('users.block'));self.assertFalse(self.allowed('staff.manage'))
+    def test_reconcile_does_not_bypass_existing_mfa_revision_or_product(self):
+        self.member['permissions']=['ops.reconcile'];self.assertTrue(self.allowed('ops.reconcile'))
+        for key,value in [('revoked',True),('mfa_at',self.now-301),('revision',2),('product_id','other_product')]:
+            old=self.session[key];self.session[key]=value;self.assertFalse(self.allowed('ops.reconcile'));self.session[key]=old
+    def test_declared_reconcile_follows_existing_owner_policy_without_new_grant(self):
+        self.member['role']='OWNER';self.assertTrue(self.allowed('ops.reconcile'))
+        self.assertEqual(p.permissions(['ops.reconcile']),['ops.reconcile'])
+        with self.assertRaises(ValueError):p.permissions(['ops.reconcile','ops.reconcile'])

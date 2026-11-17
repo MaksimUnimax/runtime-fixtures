@@ -38,6 +38,11 @@ COMPATIBILITY_PY = (
     'owner_data/owner_inputs.py', 'owner_data/parameter_contract.py',
     'owner_data/parameter_producers.py', 'owner_data/parameter_readset.py',
     'owner_data/parameter_resolution.py', 'owner_data/parameter_service.py',
+    # The staff-read RPC now imports these existing-base modules. They are
+    # compatibility requirements, NOT files silently installed by the R15
+    # overlay: old bases missing them must still fail exact compatibility.
+    'operations/reconciliation.py', 'operations/platform_adapter.py',
+    'operations/staff_read_authority.py',
     'queries/__init__.py', 'queries/models.py',
     'queries/voice_dialogue.py', 'query_insights/models.py',
     'query_insights/service.py', 'query_insights/wire.py',

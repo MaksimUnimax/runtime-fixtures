@@ -18,6 +18,33 @@ def configured_authority():
         service_id=settings.RUNTIME_SERVICE_ID, catalog_release_id=settings.RUNTIME_CATALOG_RELEASE_ID)
 
 
+def configured_staff_read_authority():
+    from .client import configured_versions
+    from .job_client import VERSION_FIELDS, CONTRACT, TASK_SHA256
+    from alisa_platform.operations.staff_read_authority import StaffReadAuthority
+    versions=configured_versions()
+    exact(versions,VERSION_FIELDS)
+    need(versions['runtime_contract_version']==CONTRACT
+         and versions['task_schema_version']=='runtime_task_v1'
+         and versions['task_schema_sha256']==TASK_SHA256
+         and versions['catalog_release_id']==settings.RUNTIME_CATALOG_RELEASE_ID,
+         'CATALOG_INCOMPATIBLE')
+    return StaffReadAuthority(configured_authority(),versions['catalog_bundle_hash'])
+
+
+def staff_read(payload):
+    from alisa_platform.operations.reconciliation import ReconcileError
+    exact(payload,{'ticket','request_id','target_sha256','budget_ms'})
+    need(type(payload['budget_ms']) is int and 5<=payload['budget_ms']<=2000)
+    try:
+        return configured_staff_read_authority().verify(payload['ticket'],payload['request_id'],
+            payload['target_sha256'],remaining=payload['budget_ms']/1000)
+    except ReconcileError as error:
+        code=('AUTH_REQUIRED' if error.code=='AUTH_REQUIRED' else
+              'PERMISSION_DENIED' if error.code=='AUTH_CHANGED' else 'DEPENDENCY_UNAVAILABLE')
+        raise RuntimeFailure(code) from None
+
+
 def signed_reply(value, status=200):
     mac = hmac.new(settings.RUNTIME_AUTHORITY_TOKEN.encode(), encode(value), hashlib.sha256).hexdigest()
     return JsonResponse({'payload': value, 'mac': mac}, status=status,
@@ -55,6 +82,8 @@ def check(request):
         elif body['operation'] == 'credentials':
             from .store_registry import credentials
             data = credentials(configured_authority(), body['payload'])
+        elif body['operation'] == 'staff_reconciliation_read':
+            data = staff_read(body['payload'])
         elif body['operation'] == 'verify':
             authority=configured_authority()
             exact(body['payload'], {'ticket'})

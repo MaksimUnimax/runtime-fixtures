@@ -39,6 +39,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: AL-S16 reconciliation assessment and idempotent receipts (isolated)
+        run: |
+          set -euo pipefail
+          mkdir -p products/alisa/dist
+          python -I -B -m unittest discover -s products/alisa/tests/operations -p 'test_*.py' -v \
+            2>&1 | tee products/alisa/dist/s16-reconciliation-unit-tests.log
       - uses: actions/setup-node@v4
         with:
           node-version: '24.22.1'
@@ -51,6 +57,10 @@ jobs:
       - name: Locked toolchain dependencies before runtime extensions
         working-directory: products/alisa
         run: ./bin/alisa bootstrap --locked
+      - name: Native staff MFA and command policies on isolated PostgreSQL
+        working-directory: products/alisa
+        run: |
+          .venv/bin/python tests/integration/qualify_staff_core.py --output dist/s03-core-qualification.json
       - name: Read-only question catalogue and selected-store draft
         run: |
           export PYTHONPATH="$GITHUB_WORKSPACE/products/alisa/services/platform/src:$GITHUB_WORKSPACE/docs/alisa/runtime/v0.11/question_catalog_r1:$GITHUB_WORKSPACE/products/alisa/tests/question_catalog:$GITHUB_WORKSPACE/docs/alisa/runtime/v0.11/rt_job_r02:$GITHUB_WORKSPACE/docs/alisa/runtime/v0.11/rt_job_r02/tests"
@@ -91,10 +101,6 @@ jobs:
       - name: Question catalogue in real Next and isolated browser fixture
         working-directory: products/alisa
         run: .venv/bin/python -B tests/question_catalog/qualify_browser.py
-      - name: Native staff MFA and command policies on isolated PostgreSQL
-        working-directory: products/alisa
-        run: |
-          .venv/bin/python tests/integration/qualify_staff_core.py --output dist/s03-core-qualification.json
       - name: Access ledger, replay and partial bulk on isolated PostgreSQL
         working-directory: products/alisa
         run: |
@@ -150,6 +156,7 @@ jobs:
           name: alisa-foundation-qualification-${{ env.ALISA_SOURCE_SHA }}
           path: |
             products/alisa/dist/postgresql-browser-qualification.json
+            products/alisa/dist/s16-reconciliation-unit-tests.log
             products/alisa/dist/s01-home-*.png
             products/alisa/dist/s02-*.json
             products/alisa/dist/s02-empty-state.png

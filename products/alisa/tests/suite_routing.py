@@ -18,6 +18,7 @@ SPECIALIZED={
 # The catalogue already has an unchanged separate CI step. The legacy client
 # requires its frozen R01.1 package and is not counted in current-core PASS.
 EXTERNAL={
+ 'operations':{name:'existing alisa-platform-ci AL-S16 reconciliation assessment and idempotent receipts (isolated) step' for name in ('test_reconciliation','test_native_snapshot','test_native_binding','test_read_channel','test_gateway','test_program_evidence','test_program_probe')},
  'question_catalog':{'test_catalog':'existing alisa-platform-ci Read-only question catalogue step'},
  'runtime_client':{'test_job_client':'historical RT-JOB-R01.1 package qualification; NOT_RUN by this change'},
 }
