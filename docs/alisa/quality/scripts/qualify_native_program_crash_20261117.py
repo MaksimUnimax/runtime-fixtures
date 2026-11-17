@@ -21,7 +21,9 @@ import sys
 import threading
 import time
 
-RETAINED_MODES = ("retained", "promoted", "lost_ack", "stale_generation")
+STALE_MODES = ("stale_generation", "stale_lost_ack")
+LOST_ACK_MODES = ("lost_ack", "stale_lost_ack")
+RETAINED_MODES = ("retained", "promoted", "lost_ack", *STALE_MODES)
 PROGRAM_KEYS = ("_program_started", "_program_started_at", "_program_recovery_at",
                 "_program_request_binding", "_compound_answer_fences", "_compound_answer_generation")
 
@@ -180,7 +182,7 @@ def child(config_path, phase):
         """Inject source revision replies; keep real generation/fence/callback code."""
         import parameter_report_runtime as reports
         stack = ExitStack()
-        if cfg["mode"] != "stale_generation":
+        if cfg["mode"] not in STALE_MODES:
             return stack
         revision = 1 if phase == "start" else 2
         reference = "r8:synthetic-report"
@@ -192,10 +194,14 @@ def child(config_path, phase):
                 if request["method"] == "report_current":
                     return {"current": True}
                 assert request["method"] == "report_fence"
-                assert phase == "resume" and request["checkpoint"] == {"revision": 1}
-                write_json(case / "stale_fence.json", {
-                    "original_checkpoint_checked": True, "current_revision": revision})
-                return {"current": False}
+                if phase == "resume":
+                    assert request["checkpoint"] == {"revision": 1}
+                    write_json(case / "stale_fence.json", {
+                        "original_checkpoint_checked": True, "current_revision": revision})
+                    return {"current": False}
+                assert phase == "regenerate" and request["checkpoint"] == {"revision": 2}
+                write_json(case / "current_fence.json", {"revision": 2, "current": True})
+                return {"current": True}
         def prepared(*args):
             value = ([{"fixture_revision": revision}], [(reference, {"revision": revision})])
             write_json(case / ("prepared_" + phase + ".json"), {
@@ -225,7 +231,11 @@ def child(config_path, phase):
 
     actual_run = model_program.run
     def run_at_fixture(*args, **kwargs):
-        if cfg["mode"] == "lost_ack" and phase == "resume":
+        if cfg["mode"] in STALE_MODES:
+            write_json(case / ("dispatch_" + phase + ".json"), {
+                "generation": kwargs["generation"],
+                "source_facts_sha256": hashlib.sha256(canonical_json(args[3]["responses"]).encode()).hexdigest()})
+        if cfg["mode"] in LOST_ACK_MODES and phase == "resume":
             callback = kwargs["on_complete"]
             def commit_then_exit(response):
                 callback(response)
@@ -267,7 +277,7 @@ def child(config_path, phase):
     seed = json.loads((case / "seed.json").read_text())
     assert Path(seed["db"]).resolve().is_relative_to(case)
     clock = Clock()
-    clock.now = seed["clock"] + (1 if phase == "cancel" else seed["lease"] + 1)
+    clock.now = seed["clock"] + (1 if phase == "cancel" else seed["lease"] + (2 if phase == "regenerate" else 1))
     repo = Repository(seed["db"], clock)
     reads = ReadSurface(lambda: {"enabled": True, "pin": read_surface.PIN,
                                 "max_model_steps": None, "max_provider_calls": None})
@@ -287,7 +297,23 @@ def child(config_path, phase):
             claimed = worker.step()
     row = repo.get("A", seed["job"])
     checks = {"same_job": row["id"] == seed["job"]}
-    if cfg["mode"] == "stale_generation":
+    if phase == "regenerate":
+        assert cfg["mode"] == "stale_lost_ack"
+        checks["ready_with_current_answer"] = row["state"] == "READY" and "Synthetic revision two answer." in row["result"]
+        checks["stale_answer_absent"] = "Synthetic retained answer." not in row["result"]
+        with repo.reader_scope("A", seed["conversation"]):
+            reply = engine.control("A", "результат")
+        checks["current_answer_readable"] = "Synthetic revision two answer." in reply["text"]
+        dispatched = {name: json.loads((case / ("dispatch_" + name + ".json")).read_text())
+                      for name in ("start", "resume", "regenerate")}
+        checks["old_generation_only_retrieved"] = dispatched["start"]["generation"] == dispatched["resume"]["generation"]
+        checks["new_generation_identity"] = dispatched["regenerate"]["generation"] != dispatched["start"]["generation"]
+        checks["same_source_facts"] = len({v["source_facts_sha256"] for v in dispatched.values()}) == 1
+        checks["new_preparation_observed"] = json.loads((case / "prepared_regenerate.json").read_text()) == {
+            "context": [{"fixture_revision": 2}], "fences": [["r8:synthetic-report", {"revision": 2}]]}
+        checks["current_checkpoint_checked"] = json.loads((case / "current_fence.json").read_text()) == {"revision": 2, "current": True}
+        checks["ready_not_claimed_again"] = not worker.step()
+    elif cfg["mode"] in STALE_MODES:
         progress = strict_json(row["progress"])
         checks["stale_not_ready"] = row["state"] == "QUEUED" and not row["result"]
         checks["old_generation_cleared"] = all(key not in progress for key in PROGRAM_KEYS)
@@ -333,9 +359,10 @@ def child(config_path, phase):
     with repo.connection() as connection:
         model_rows = connection.execute(
             "SELECT count(*) FROM calls WHERE jid=? AND json_extract(model_context, '$.stage')='model_answer_program'", (seed["job"],)).fetchone()[0]
-    checks["single_model_ledger_row"] = model_rows == 1
-    checks["no_new_ledger_rows"] = repo.call_count() == seed["calls_before_program"] + 1
-    write_json(case / "after.json", {"checks": checks, "state": row["state"],
+    expected_models = 2 if phase == "regenerate" else 1
+    checks["expected_model_ledger_rows"] = model_rows == expected_models
+    checks["no_source_recollection"] = repo.call_count() == seed["calls_before_program"] + expected_models
+    write_json(case / ("regenerated.json" if phase == "regenerate" else "after.json"), {"checks": checks, "state": row["state"],
                                     "model_rows": model_rows, "all_passed": all(checks.values())})
     assert all(checks.values()), checks
 
@@ -408,13 +435,60 @@ def exercise(script, root, output, mode, producer=None):
             if mode == "promoted":
                 assert not (case / "producer-state" / "jobs" / ("e" * 32)).exists()
                 observed["completed_workspace_promoted_and_removed"] = True
-        elif mode == "lost_ack":
+        elif mode in LOST_ACK_MODES:
             assert value["state"] == "complete" and value["content"] == "Synthetic retained answer."
             assert len(trace["requests"]) == 1 and not trace["ack_after_ready"]
             observed["unacknowledged_answer_retained"] = True
         else:
             assert value["state"] == "started" and len(trace["requests"]) == 1
         observed["actual_broker_processes"] += 1  # publish completion after every assertion
+
+    def fresh_generation(conn, first):
+        """Synthetic fresh producer; actual native generation/callback and Results IO."""
+        assert mode == "stale_lost_ack" and observed["actual_broker_processes"] == 1
+        old_bytes = store.path(first["job_id"]).read_bytes()
+        with conn.makefile("rwb") as stream:
+            envelope = json.loads(stream.readline(65537))
+            assert set(envelope) == {"protocol", "job_id", "resume_only", "messages", "document", "model", "user_id"}
+            assert envelope["protocol"] == 2 and envelope["resume_only"] is False
+            assert envelope["job_id"] != first["job_id"]
+            document = json.loads(envelope["document"])
+            assert document["responses"] == {"blob": "x" * 11000}
+            assert document["compound_parameter_context"] == [{"fixture_revision": 2}]
+            fields = {k: envelope[k] for k in ("job_id", "user_id", "messages", "document", "model")}
+            binding = hashlib.sha256(json.dumps(fields, ensure_ascii=False, sort_keys=True,
+                                                separators=(",", ":")).encode()).hexdigest()
+            assert binding != first["fingerprint"]
+            observed["envelopes"].append({"protocol": 2, "keys": sorted(envelope), "resume_only": False})
+            store.start(envelope["job_id"], binding)
+            def send(value):
+                stream.write((json.dumps(value) + "\n").encode())
+                stream.flush()
+            send({"kind": "call", "payload": {"model": "deepseek-flash", "messages": [],
+                                               "stream": True, "max_tokens": 64}})
+            value = json.loads(stream.readline(65537))
+            assert value["kind"] == "response" and value["content"] == "Synthetic model reply."
+            content = "Synthetic revision two answer."
+            digest = hashlib.sha256(content.encode()).hexdigest()
+            store.complete(envelope["job_id"], binding, content)
+            send({"kind": "complete", "job_id": envelope["job_id"], "fingerprint": binding,
+                  "content": content, "digest": digest})
+            assert json.loads(stream.readline(65537)) == {"kind": "ack", "digest": digest}
+            seed = json.loads((case / "seed.json").read_text())
+            assert Path(seed["db"]).resolve().is_relative_to(case)
+            with sqlite3.connect("file:" + seed["db"] + "?mode=ro", uri=True) as db:
+                row = db.execute("SELECT state,result FROM jobs WHERE id=?", (seed["job"],)).fetchone()
+                assert row[0] == "READY" and content in row[1] and "Synthetic retained answer." not in row[1]
+            store.ack(envelope["job_id"], binding, digest)
+            old = store.read(first["job_id"], first["fingerprint"])
+            new = store.read(envelope["job_id"], binding)
+            assert old["state"] == "complete" and old["content"] == "Synthetic retained answer."
+            assert store.path(first["job_id"]).read_bytes() == old_bytes
+            assert new["state"] == "acknowledged" and "content" not in new
+            observed["new_generation"] = {"different_key_and_binding": True, "same_source_facts": True,
+                "current_revision": 2, "ack_after_ready": True, "old_unacknowledged_result_unchanged": True,
+                "old_outbox_state": old["state"], "new_outbox_state": new["state"],
+                "fresh_producer_is_synthetic": True}
 
     def broker_loop():
         first = None
@@ -429,7 +503,10 @@ def exercise(script, root, output, mode, producer=None):
                 with conn:
                     conn.settimeout(15)
                     if first is not None and producer:
-                        actual_recovery(conn, first)
+                        if mode == "stale_lost_ack" and observed["actual_broker_processes"]:
+                            fresh_generation(conn, first)
+                        else:
+                            actual_recovery(conn, first)
                         continue
                     with conn.makefile("rwb") as stream:
                         raw = stream.readline(65537)
@@ -528,7 +605,7 @@ def exercise(script, root, output, mode, producer=None):
             release.set()
             resumed = subprocess.run(command + ["--phase", "resume"], env=env,
                                      stdout=log, stderr=log, timeout=15)
-            expected_resume_exit = 25 if mode == "lost_ack" else 0
+            expected_resume_exit = 25 if mode in LOST_ACK_MODES else 0
             assert resumed.returncode == expected_resume_exit, "resume child failed"
             ready_reader_exit = None
             if mode == "lost_ack":
@@ -536,7 +613,7 @@ def exercise(script, root, output, mode, producer=None):
                                         stdout=log, stderr=log, timeout=15)
                 ready_reader_exit = reader.returncode
                 assert ready_reader_exit == 0, "cold READY reader failed"
-            if mode == "stale_generation":
+            if mode in STALE_MODES:
                 reader = subprocess.run(command + ["--phase", "read-discarded"], env=env,
                                         stdout=log, stderr=log, timeout=15)
                 ready_reader_exit = reader.returncode
@@ -558,11 +635,23 @@ def exercise(script, root, output, mode, producer=None):
             assert not (case / "FORBIDDEN_NETWORK").exists()
             if producer:
                 assert observed["actual_broker_processes"] == (0 if mode == "cancelled" else 1)
+            regenerated = None
+            if mode == "stale_lost_ack":
+                result = subprocess.run(command + ["--phase", "regenerate"], env=env,
+                                        stdout=log, stderr=log, timeout=15)
+                assert result.returncode == 0, "new generation failed"
+                deadline = time.monotonic() + 2
+                while "new_generation" not in observed and not failures and time.monotonic() < deadline:
+                    stop.wait(.01)
+                regenerated = json.loads((case / "regenerated.json").read_text())
+                assert not failures and observed.get("new_generation") and regenerated["all_passed"], failures
+                assert observed["http_requests"] == 2 and len(observed["envelopes"]) == 3
+                assert observed["actual_broker_processes"] == 1 and not (case / "FORBIDDEN_NETWORK").exists()
             return {"mode": mode, "status": "PASS", "first_pid": native.pid,
                     "first_exit": -signal.SIGKILL, "resume_exit": resumed.returncode,
                     "ready_reader_exit": ready_reader_exit,
                     "before_model_state": before["model_states"][0],
-                    "after": after, "wire": observed, "external_attempts": 0}
+                    "after": after, "regeneration": regenerated, "wire": observed, "external_attempts": 0}
     finally:
         if native is not None and native.poll() is None:
             native.kill()
@@ -609,8 +698,8 @@ def main():
     parser.add_argument("--output", type=Path)
     parser.add_argument("--producer-root", type=Path)
     parser.add_argument("--real-recovery-broker", action="store_true")
-    parser.add_argument("--only-case", choices=["unknown", "retained", "cancelled", "promoted", "lost_ack", "stale_generation"])
-    parser.add_argument("--phase", choices=["start", "resume", "read-ready", "read-discarded", "cancel", "broker-recovery", "outbox-write", "outbox-ack", "outbox-read", "outbox-tests"])
+    parser.add_argument("--only-case", choices=["unknown", "retained", "cancelled", "promoted", "lost_ack", *STALE_MODES])
+    parser.add_argument("--phase", choices=["start", "resume", "read-ready", "read-discarded", "regenerate", "cancel", "broker-recovery", "outbox-write", "outbox-ack", "outbox-read", "outbox-tests"])
     parser.add_argument("--config", type=Path)
     args = parser.parse_args()
     os.umask(0o077)
@@ -630,7 +719,7 @@ def main():
               "real_provider_or_model_requests": 0,
               "real_executor_outbox_qualified": False, "cases": cases}
     try:
-        modes = ("unknown", "retained", "cancelled", "promoted", "lost_ack", "stale_generation") if args.real_recovery_broker else ("unknown", "retained", "cancelled")
+        modes = ("unknown", "retained", "cancelled", "promoted", "lost_ack", *STALE_MODES) if args.real_recovery_broker else ("unknown", "retained", "cancelled")
         if args.only_case:
             assert args.only_case in modes, "case requires --real-recovery-broker"
             modes = (args.only_case,)
