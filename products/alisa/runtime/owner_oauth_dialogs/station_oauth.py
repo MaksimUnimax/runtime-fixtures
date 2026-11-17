@@ -9,6 +9,67 @@ import json
 import os
 import time
 import http.client
+import io
+
+
+class _AbsoluteDeadlineRaw(io.RawIOBase):
+    """Enforce a single deadline across status, headers and body fragments.
+
+    HTTPResponse normally creates BufferedReader(socket.SocketIO), whose
+    socket timeout resets on each successful recv. Here every underlying
+    readinto recomputes remaining time before waiting for the next bytes.
+    """
+    def __init__(self, sock, deadline):
+        super().__init__()
+        self.sock=sock
+        self.deadline=deadline
+
+    def readable(self):return True
+
+    def readinto(self,buffer):
+        remaining=self.deadline-time.monotonic()
+        if remaining<=0:raise TimeoutError('OAUTH_RPC_TIMEOUT')
+        self.sock.settimeout(remaining)
+        return self.sock.recv_into(buffer)
+
+    def close(self):
+        try:self.sock.close()
+        finally:super().close()
+
+
+class _AbsoluteDeadlineSocket:
+    def __init__(self, sock, deadline):self.sock,self.deadline=sock,deadline
+    def makefile(self, mode, *args, **kwargs):
+        if mode!='rb':raise ValueError('OAUTH_RPC_STREAM_MODE')
+        # HTTPConnection closes its socket after Connection: close headers.
+        # A duplicate fd survives until HTTPResponse finishes reading the body.
+        return io.BufferedReader(_AbsoluteDeadlineRaw(self.sock.dup(),self.deadline))
+
+
+class _AbsoluteDeadlineHTTPResponse(http.client.HTTPResponse):
+    def __init__(self, sock, *, method=None, deadline):
+        super().__init__(_AbsoluteDeadlineSocket(sock,deadline),method=method)
+
+
+class _AbsoluteDeadlineHTTPConnection(http.client.HTTPConnection):
+    # Separate sendall calls for headers/body cannot each reset the budget.
+    def __init__(self, host, port, deadline):
+        self.deadline=deadline
+        super().__init__(host,port,timeout=1.5)
+
+    def connect(self):
+        remaining=self.deadline-time.monotonic()
+        if remaining<=0:raise TimeoutError('OAUTH_RPC_TIMEOUT')
+        self.timeout=remaining
+        super().connect()
+
+    def send(self, payload):
+        remaining=self.deadline-time.monotonic()
+        if remaining<=0:raise TimeoutError('OAUTH_RPC_TIMEOUT')
+        if self.sock is not None:self.sock.settimeout(remaining)
+        return super().send(payload)
+
+
 
 
 def platform(data):
@@ -30,11 +91,22 @@ def platform(data):
     raw=json.dumps(data,ensure_ascii=False,separators=(',',':'),allow_nan=False).encode()
     if len(raw)>4096:raise ValueError('OAUTH_RPC_SIZE')
     deadline=time.monotonic()+1.5
-    connection=http.client.HTTPConnection('127.0.0.1',ports[base],timeout=1.5)
+    connection=_AbsoluteDeadlineHTTPConnection('127.0.0.1',ports[base],deadline)
+    response=None
     try:
+        def remaining():
+            value=deadline-time.monotonic()
+            if value<=0:raise TimeoutError('OAUTH_RPC_TIMEOUT')
+            return value
+        connection.connect()
+        connection.sock.settimeout(remaining())
         connection.request('POST','/api/v1/account/alice',raw,
             {'Authorization':'Bearer '+secret,'Content-Type':'application/json','Connection':'close'})
+        connection.sock.settimeout(remaining())
+        connection.response_class=lambda sock,method=None:_AbsoluteDeadlineHTTPResponse(sock,method=method,deadline=deadline)
         response=connection.getresponse()
+        if response.getheader('Content-Type','').split(';',1)[0].strip()!='application/json':
+            raise ValueError('OAUTH_RPC_CONTENT_TYPE')
         if response.status!=200:raise ValueError('OAUTH_RPC_REJECTED')
         if response.getheader('Transfer-Encoding') or response.getheader('Content-Encoding'):
             raise ValueError('OAUTH_RPC_ENCODING')
@@ -45,9 +117,8 @@ def platform(data):
         # read1 makes progress with available bytes; each wait uses the remaining
         # whole-call budget instead of resetting a timeout for every fragment.
         while left:
-            remaining=deadline-time.monotonic()
-            if remaining<=0:raise TimeoutError('OAUTH_RPC_TIMEOUT')
-            response.fp.raw._sock.settimeout(remaining)
+            remaining_budget=deadline-time.monotonic()
+            if remaining_budget<=0:raise TimeoutError('OAUTH_RPC_TIMEOUT')
             part=response.read1(left)
             if not part:raise ValueError('OAUTH_RPC_TRUNCATED')
             chunks.append(part);left-=len(part)
@@ -57,10 +128,22 @@ def platform(data):
                 if key in result:raise ValueError('OAUTH_RPC_DUPLICATE')
                 result[key]=value
             return result
+        # Allow a small CPU parsing reserve for the <=4096-byte bounded JSON.
+        # Wall-clock thread preemption cannot be interrupted, so authorization
+        # is also checked again strictly after parsing, before any success.
+        if remaining()<=.025:raise TimeoutError('OAUTH_RPC_TIMEOUT')
         value=json.loads(b''.join(chunks),object_pairs_hook=unique)
         if type(value)is not dict:raise ValueError('OAUTH_RPC_RESPONSE')
+        # A completely buffered response still cannot authorize after the
+        # absolute operation deadline (including header and JSON processing).
+        if time.monotonic()>deadline:raise TimeoutError('OAUTH_RPC_TIMEOUT')
         return value
-    finally:connection.close()
+    finally:
+        # A dup() fd backs the response even after HTTPConnection.close(); both
+        # must be closed explicitly on success, rejection and malformed input.
+        try:
+            if response is not None:response.close()
+        finally:connection.close()
 
 
 

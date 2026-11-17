@@ -51,3 +51,39 @@ A15610byte two-file historical fixture reproduces that installed input in shallo
 Independent gpt-6-luna review R2 returned REQUEST_CHANGES for a conditional lock-cycle concern and a real non-total HTTP deadline. After examining the complete actual callback, R3 explicitly RETRACT_LOCK_FINDING: it uses immutable published views and never acquires the ingress locks. The reviewer did NOT approve the patch; the HTTP deadline remains OPEN. The exact pending tool-review refinement has not executed, been retried or routed through another writer. Parent source and tests above do not replace independent acceptance.
 
 Latest previously published headcbf74fb7 CI had all job steps green by the final observation. Exact new-head CI after this minimal composition must be read separately. No production OAuth/token/speaker mutation or coefficient write was performed. Next executable source operation is the exact pending HTTP deadline refinement, then its timing regressions/review and a coordinated platform+Station+lab+Nginx install with existing source guards. No blanket repeat of accepted R15 deployment.
+
+
+## Concurrent installed lab baseline (17 Nov 14:17 UTC)
+A parallel authorized installation changed the legacy Yandex Lab working root to
+station-auth-renewal-dfc2a54a-20261117-b0e559215333e42f. The active
+alice_lab.py SHA256 is dfc2a54adba774daf22dcabacc4c5b91f26c803b5104e3bb6ef3366c9443b14a.
+This adds a controlled refresh of the existing demo login form before legacy
+submission. The OAuth composer pins this new accepted baseline instead of
+restoring the older diagnostics-only Lab file. It must compose against the
+exact freshly observed installed file and preserve all parallel changes;
+it does not deploy the old form or change owner authorization. Original
+Station and Nginx pins still match. Rerun combined Station tests after
+composing this current lab source.
+
+
+## Source follow-up: absolute HTTP boundary and current Lab compatibility
+17 November 2026 (reviewed source before deployment): Independent gpt-6-luna
+static review R8 returned APPROVE for exact station_oauth.py and
+test_http_transport.py bytes, after R6/R7 REQUEST_CHANGES were individually
+resolved; final response is checked against the monotonic deadline, real
+socket reads are limited under that deadline, parse is reserved 25ms and
+late authorization is denied. A test intentionally delays even a fully
+buffered JSON decode to prove no late success. External scheduling preemption
+cannot be forcibly interrupted, so the security guarantee is fail-closed
+authorization, not real-time CPU execution.
+
+The minimal already-installed old-schema chain passed 167/167 tests, zero
+failures, skips or external connections (source-only owned PostgreSQL).
+On the actual server, exact current station baseline and concurrent Lab
+renewal dfc2a54a compose cleanly with preserved original OAuth and form
+source; 67/67 legacy and new Station unit tests passed under alice-lab with
+PrivateNetwork. A separate test_lab_session invocation found no tests and is
+not counted. Existing Nginx exact source passed isolated nginx -t previously.
+No service restart, real coefficient write, token issuance or owner OAuth
+approval was performed by these source tests. Exact-head GitHub CI after
+publication is a separate gate, as is a guarded activation and LiveOwner.

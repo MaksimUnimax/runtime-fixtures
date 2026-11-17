@@ -6,6 +6,7 @@ import json
 import os
 import threading
 import time
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import station_oauth
@@ -30,16 +31,35 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_response(307);self.send_header('Location','http://127.0.0.1:18102/not-allowed')
             self.send_header('Content-Length','0');self.end_headers();return
         if kind=='rejected':self.send_error(403);return
+        if kind=='drip_headers':
+            # Multiple individually fast header fragments must not reset
+            # the single 1.5s whole-operation deadline.
+            parts=[b'HTTP/1.1 200 OK\r\n',
+                   b'Content-Type: application/json\r\n',
+                   b'X-Fragment: 1\r\n',b'X-Fragment: 2\r\n',
+                   b'X-Fragment: 3\r\n',b'X-Fragment: 4\r\n',
+                   b'Content-Length: 2\r\n',b'Connection: close\r\n\r\n',b'{}']
+            for part in parts:
+                try:self.wfile.write(part);self.wfile.flush()
+                except (BrokenPipeError,ConnectionResetError):break
+                time.sleep(.30)
+            return
         if data['action']=='legacy_station_identity':value={'identity':IDENTITY,'environment':'synthetic','release':'test'}
         else:value={'current':self.server.current,'environment':'synthetic','release':'test'}
         raw=json.dumps(value).encode()
         if kind=='duplicate':raw=b'{"current":false,"current":true}'
         if kind=='malformed':raw=b'not-json'
-        self.send_response(200);self.send_header('Content-Type','application/json')
+        self.send_response(200);self.send_header('Content-Type','text/plain' if kind=='wrong_type' else 'application/json')
         self.send_header('Content-Length',str(5000 if kind=='large' else len(raw)+4 if kind=='truncated' else len(raw)))
         self.send_header('Connection','close');self.end_headers()
         if kind=='stall':time.sleep(1.8)
-        try:self.wfile.write(raw)
+        try:
+            if kind=='drip_body':
+                step=max(1,len(raw)//9)
+                for start in range(0,len(raw),step):
+                    self.wfile.write(raw[start:start+step]);self.wfile.flush()
+                    time.sleep(.27)
+            else:self.wfile.write(raw)
         except (BrokenPipeError,ConnectionResetError):pass
 
 class Transport(unittest.TestCase):
@@ -96,6 +116,36 @@ class Transport(unittest.TestCase):
     def test_missing_private_service_configuration_fails_closed(self):
         with patch.dict(os.environ,{'ALISA_AUTH_SERVICE_TOKEN':''}),self.assertRaises(station_oauth.InvalidOAuth):station_oauth.owner(TOKEN)
         self.assertEqual(self.server.observed,[])
+    def test_trickled_response_headers_obey_one_absolute_deadline(self):
+        self.server.mode='drip_headers';start=time.monotonic()
+        with self.assertRaises(station_oauth.InvalidOAuth):station_oauth.owner(TOKEN)
+        elapsed=time.monotonic()-start
+        self.assertLess(elapsed,1.65,'Header bytes must not reset the total budget')
+        self.assertEqual(len(self.server.observed),1)
+
+    def test_trickled_body_obeys_one_absolute_deadline(self):
+        self.server.mode='drip_body';start=time.monotonic()
+        with self.assertRaises(station_oauth.InvalidOAuth):station_oauth.owner(TOKEN)
+        elapsed=time.monotonic()-start
+        self.assertLess(elapsed,1.65,'Body bytes must not reset the total budget')
+        self.assertEqual(len(self.server.observed),1)
+
+    def test_fully_buffered_reply_after_deadline_is_not_authorized(self):
+        # The server may send bytes immediately yet the final JSON decode
+        # may exceed the absolute deadline. This is not a valid late grant.
+        def deliberately_slow_json_decode(data,**kwargs):
+            time.sleep(1.55)
+            return json.loads(data,**kwargs)
+        wrapped=SimpleNamespace(dumps=json.dumps,loads=deliberately_slow_json_decode)
+        with patch.object(station_oauth,'json',wrapped):
+            with self.assertRaises(station_oauth.InvalidOAuth):station_oauth.owner(TOKEN)
+        self.assertEqual(len(self.server.observed),1)
+
+    def test_content_type_is_required_for_private_oauth_response(self):
+        self.server.mode='wrong_type'
+        with self.assertRaises(station_oauth.InvalidOAuth):station_oauth.owner(TOKEN)
+        self.assertEqual(len(self.server.observed),1)
+
     def test_slow_response_has_finite_budget_without_retry(self):
         self.server.mode='stall';start=time.monotonic()
         with self.assertRaises(station_oauth.InvalidOAuth):station_oauth.owner(TOKEN)
