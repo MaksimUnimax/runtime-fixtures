@@ -46,5 +46,10 @@
   },
   "installed": false,
   "feature_enabled": false,
-  "manual_acceptance": "OWNER_WILL_RUN"
+  "manual_acceptance": "OWNER_WILL_RUN",
+  "preparation_documentation_ci": {
+    "head": "938c98c3ed054c47e4af5823d581efa05cd1a8e4",
+    "run": 44090132835,
+    "result": "SUCCESS"
+  }
 }
