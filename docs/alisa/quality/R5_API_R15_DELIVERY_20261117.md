@@ -14,7 +14,7 @@ The separate web step overlays the qualified web build on `alisa-r5-preview-5e5e
 
 ## Evidence and remaining checks
 
-71 installer boundaries pass locally, including actual health response parsing and rejection of the previous API release label. The exact installed-source R15 hybrid passed all35tests and another7withcompounds enabled, zero external attempts. The complete catalog test entry point also passes188checks; independent review is in progress; source, package, installed synthetic and live owner evidence remain separate. No new release has been selected at this checkpoint. A prior installer revision prepared an unselected candidate; its source and evidence will be retained while rebuilding under the reviewed final installer.
+72 installer boundaries pass locally, including actual health response parsing and rejection of the previous API release label. The exact installed-source R15 hybrid passed all35tests and another7withcompounds enabled, zero external attempts. The complete catalog test entry point also passes189checks; independent review is in progress; source, package, installed synthetic and live owner evidence remain separate. No new release has been selected at this checkpoint. A prior installer revision prepared an unselected candidate; its source and evidence will be retained while rebuilding under the reviewed final installer.
 
 Next: finish exact hybrid qualification and independent review; publish the concrete installer revision, pass its CI, prepare and apply API then web, and verify the live preparation/UI. Owner acceptance must confirm that a prepared period is retained and changing the form during preparation prevents dispatch. Do not resubmit UNKNOWN commands or overwrite existing business values to test.
 

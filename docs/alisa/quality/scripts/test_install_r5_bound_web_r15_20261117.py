@@ -101,16 +101,25 @@ class BoundWebRollbackBoundaries(reviewed.RolloutBoundaries):
             if self.web.resolve()==self.app:tamper()
             return result
         self.h.run=run
-        if before:tamper()
+        if before is True:tamper()
+        if before=='after_select':
+            select=self.g['select']
+            def changed(target,state):
+                result=select(target,state)
+                if target==self.app:tamper()
+                return result
+            self.g['select']=changed
         with self.assertRaises(RuntimeError):self.g['apply']('plan')
         self.assertEqual(self.web.resolve(),self.base)
-        if not before:self.assertTrue(self.records['FAILED.json']['web_rolled_back'])
+        if before is not True:self.assertTrue(self.records['FAILED.json']['web_rolled_back'])
         self.assertNotIn('APPLIED.json',self.records)
-        if before:self.assertEqual(self.calls,[])
+        if before is True:self.assertEqual(self.calls,[])
+        if before=='after_select':self.assertEqual(self.calls,[('systemctl','restart','web.service')])
 
     def test_post_start_extra_web_file_rolls_back(self):self.candidate_drift('extra')
     def test_post_start_web_venv_change_rolls_back(self):self.candidate_drift('venv')
     def test_post_start_web_manifest_change_rolls_back(self):self.candidate_drift('manifest')
+    def test_web_drift_after_selection_never_starts_candidate(self):self.candidate_drift('extra','after_select')
     def test_web_drift_before_selection_never_restarts(self):self.candidate_drift('extra',True)
 
     def test_later_writer_between_restore_and_restart_is_preserved(self):
