@@ -5,6 +5,7 @@ from copy import deepcopy
 from datetime import timedelta
 import hashlib
 import json
+import os
 from pathlib import Path
 import socket
 import sqlite3
@@ -31,6 +32,16 @@ import template_runtime
 import template_catalog
 import question_catalog_extension
 from catalog_release import native
+
+# Negative evidence-file cases below may only mutate the source fixture owned
+# by this existing CI launcher. Never accept an installed or caller-picked core.
+_source=Path(os.environ['ALISA_RT_JOB_TEST_SOURCE']).resolve()
+_product=Path(__file__).resolve().parents[2]
+_relative=_source.relative_to(_product)
+if (os.environ.get('GITHUB_ACTIONS')!='true' or
+    not _relative.parts[0].startswith('s07-qual-') or
+    json.loads((_source/'CURRENT_CORE_MANIFEST.json').read_text()).get('catalog_release_overlay')!='catalog-release-v1'):
+    raise RuntimeError('OWNED_GENERATED_CATALOG_CORE_REQUIRED')
 
 
 class ReleaseChecks(unittest.TestCase):
@@ -153,6 +164,12 @@ class ReleaseChecks(unittest.TestCase):
 
     def test_alias_executes_existing_numeric_source_without_new_operator(self):
         value=self.payload();target=self.approve(value);self.publish(target)
+        catalog=question_catalog_extension.read(self.f.port,self.f.peer,
+            self.f.authorizer.prepare('capabilities'),
+            {'search':value['additions'][0]['id'],'kind':'','offset':0})
+        self.assertEqual([row['id']for row in catalog['items']],[value['additions'][0]['id']])
+        self.assertEqual(catalog['template_hash'],self.registry.snapshot(target).template_hash)
+        self.assertEqual(self.f.transport.calls,[])
         self.f.transport.selection=selection([value['additions'][0]['id']],store='native-store')
         receipt=self.submit();self.finish(receipt)
         self.assertEqual([c.operation for c in self.f.transport.calls],

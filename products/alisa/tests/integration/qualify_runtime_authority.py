@@ -31,11 +31,14 @@ def main():
     parser.add_argument('--question-catalog-overlay', action='store_true')
     parser.add_argument('--catalog-release-overlay', action='store_true')
     parser.add_argument('--catalog-r15-context', type=Path)
+    parser.add_argument('--catalog-release-only', action='store_true')
     args = parser.parse_args()
     if args.catalog_release_overlay and not (args.current_core_source and args.question_catalog_overlay):
         parser.error('--catalog-release-overlay requires current core and question catalogue')
     if args.catalog_r15_context and not args.catalog_release_overlay:
         parser.error('--catalog-r15-context requires --catalog-release-overlay')
+    if args.catalog_release_only and not args.catalog_release_overlay:
+        parser.error('--catalog-release-only requires --catalog-release-overlay')
     if args.question_catalog_overlay and not args.current_core_source:
         parser.error('--question-catalog-overlay requires --current-core-source')
     if args.runtime_source and args.current_core_source:
@@ -96,6 +99,9 @@ def main():
             'PYTHONPATH': str(ROOT / 'services/platform/src'), 'PYTHONDONTWRITEBYTECODE': '1'}
         migration = {**env, 'ALISA_DB_USER': NAME + '_migration', 'ALISA_DB_PASSWORD': passwords['migration']}
         runtime = {**env, 'ALISA_DB_USER': NAME + '_runtime', 'ALISA_DB_PASSWORD': passwords['runtime']}
+        if args.catalog_release_overlay:
+            if os.environ.get('GITHUB_ACTIONS')!='true':raise RuntimeError('Owned GitHub catalog CI required')
+            runtime['GITHUB_ACTIONS']='true'
         if args.report_browser_artifact:
             if os.geteuid()!=0 or os.environ.get('GITHUB_ACTIONS')!='true':raise RuntimeError('Owned CI root browser context required')
             runtime.update(ALISA_REPORT_BROWSER_ARTIFACT=str(args.report_browser_artifact.resolve()),GITHUB_ACTIONS='true',PLAYWRIGHT_BROWSERS_PATH=os.environ['PLAYWRIGHT_BROWSERS_PATH'])
@@ -130,10 +136,12 @@ def main():
                     extension=importlib.util.module_from_spec(spec);spec.loader.exec_module(extension)
                     source=extension.build(source,temp/'question-catalog-core')
                 if args.catalog_release_overlay:
+                    record['phase']='CATALOG_OVERLAY_COMPOSITION'
                     import importlib.util
                     spec=importlib.util.spec_from_file_location('catalog_release_overlay',ROOT/'runtime/catalog_release/build_overlay.py')
                     extension=importlib.util.module_from_spec(spec);spec.loader.exec_module(extension)
                     source=extension.build(source,temp/'catalog-release-core')
+                    record['phase']='CATALOG_BASE_QUALIFICATION'
                     result=subprocess.run([sys.executable,'-B',str(ROOT/'tests/catalog_release/qualify_base.py'),
                         '--core',str(source),'--output',str(temp/'catalog-base-qualification.json')],
                         env={**runtime,'GITHUB_ACTIONS':os.environ.get('GITHUB_ACTIONS','')},
@@ -157,7 +165,10 @@ def main():
                 cases.append(('query_demand', ROOT / 'tests/runtime_authority/query_demand.py'))
                 if args.catalog_release_overlay:
                     cases.append(('catalog_release', ROOT / 'tests/runtime_authority/catalog_release.py'))
+            if args.catalog_release_only:
+                cases=[case for case in cases if case[0]=='catalog_release']
             for label, script in cases:
+                record['phase']=label
                 output = temp / (label + '.json')
                 result = subprocess.run([sys.executable, str(script), '--output', str(output)],
                     env=runtime, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=150)
@@ -165,6 +176,7 @@ def main():
                 if output.exists(): record[label] = json.loads(output.read_text())
                 if result.returncode: raise RuntimeError('Authority qualification failed')
             if args.catalog_r15_context:
+                record['phase']='R15_SOURCE_CONTEXT'
                 import importlib.util
                 spec=importlib.util.spec_from_file_location('s13_r15_context',ROOT/'tests/catalog_release/context_r15.py')
                 context=importlib.util.module_from_spec(spec);spec.loader.exec_module(context)
@@ -172,6 +184,7 @@ def main():
                 spec=importlib.util.spec_from_file_location('s13_r15_overlay',ROOT/'runtime/catalog_release/build_overlay.py')
                 extension=importlib.util.module_from_spec(spec);spec.loader.exec_module(extension)
                 source=extension.build(historical,temp/'r15-catalog-core')
+                record['phase']='R15_BASE_QUALIFICATION'
                 output=temp/'r15-catalog-base.json'
                 result=subprocess.run([sys.executable,'-B',str(ROOT/'tests/catalog_release/qualify_base.py'),
                     '--core',str(source),'--output',str(output)],
@@ -183,6 +196,7 @@ def main():
                 runtime['ALISA_RT_JOB_TEST_SOURCE']=str(source)
                 runtime['ALISA_RT_JOB_MANIFEST_SHA256']=hashlib.sha256((source/'CURRENT_CORE_MANIFEST.json').read_bytes()).hexdigest()
                 output=temp/'r15-catalog-release.json'
+                record['phase']='R15_CATALOG_AUTHORITY'
                 result=subprocess.run([sys.executable,str(ROOT/'tests/runtime_authority/catalog_release.py'),
                     '--output',str(output)],env=runtime,
                     stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=150)
@@ -224,7 +238,7 @@ def main():
                 # A fixture setup must not have weakened append-only history.
                 rights = conn.execute("SELECT has_table_privilege(current_user,'entitlements_accessgrant','UPDATE'), has_table_privilege(current_user,'entitlements_accessgrant','TRUNCATE')").fetchone()
                 if rights != (False, False): raise RuntimeError('Append-only rights weakened')
-            record.update(status='PASS', migrations_and_model_consistency='PASS', append_only_runtime_role='PASS')
+            record.update(status='PASS', phase='COMPLETE', migrations_and_model_consistency='PASS', append_only_runtime_role='PASS')
     except Exception as error:
         record.update(status='FAILED', error_type=type(error).__name__)
     finally:

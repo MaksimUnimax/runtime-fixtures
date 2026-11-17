@@ -61,6 +61,15 @@ jobs:
       - name: Locked toolchain dependencies before runtime extensions
         working-directory: products/alisa
         run: ./bin/alisa bootstrap --locked
+      - name: Catalog release contracts on disposable PostgreSQL and pinned R15
+        working-directory: products/alisa
+        run: |
+          .venv/bin/python -B tests/integration/qualify_runtime_authority.py \
+            --output dist/s13-catalog-qualification.json \
+            --current-core-source "$GITHUB_WORKSPACE/docs/alisa/runtime/v0.11/rt_job_r02" \
+            --platform-stores-overlay --template-clarification-overlay --question-catalog-overlay \
+            --catalog-release-overlay --catalog-release-only \
+            --catalog-r15-context "$GITHUB_WORKSPACE/.s13-r15-context"
       - name: Explicit voice coefficient consent and shared writer on isolated PostgreSQL
         shell: bash
         run: |
@@ -157,8 +166,7 @@ jobs:
             .venv/bin/python tests/integration/qualify_runtime_authority.py \
             --output dist/s07-authority-qualification.json \
             --current-core-source "$GITHUB_WORKSPACE/docs/alisa/runtime/v0.11/rt_job_r02" \
-            --platform-stores-overlay --template-clarification-overlay --question-catalog-overlay --catalog-release-overlay \
-            --catalog-r15-context "$GITHUB_WORKSPACE/.s13-r15-context" \
+            --platform-stores-overlay --template-clarification-overlay --question-catalog-overlay \
             --report-browser-artifact "dist/alisa-${ALISA_SOURCE_SHA:0:16}.tar.gz"
       - name: Current-core RuntimePort, reader isolation and seven-day model accounting
         working-directory: docs/alisa/runtime/v0.11/rt_job_r02
@@ -202,6 +210,7 @@ jobs:
             products/alisa/dist/s06-*.json
             products/alisa/dist/voice-parameter-qualification.json
             products/alisa/dist/s07-*.json
+            products/alisa/dist/s13-*.json
             products/alisa/dist/rt-check-*.json
             products/alisa/dist/runtime-qualification.json
             products/alisa/dist/runtime-version-sync-qualification.json
