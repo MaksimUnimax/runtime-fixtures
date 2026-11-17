@@ -41,7 +41,11 @@ class ReviewedBoundWebDriver(unittest.TestCase):
         authority = ast.parse((root/'install_r5_bound_authority_20261116.py').read_text())
         authority_functions = {n.name:n for n in authority.body if isinstance(n,ast.FunctionDef)}
         for name in ['candidate_identity','require_candidate','publish_record','remove_owned','discard_owned','stage_candidate','recover_preparation']:
-            self.assertEqual(ast.dump(authority_functions[name]),ast.dump(new_functions[name]),name)
+            expected=deepcopy(authority_functions[name])
+            if name=='candidate_identity':
+                for call in ast.walk(expected):
+                    if isinstance(call,ast.Call) and isinstance(call.func,ast.Attribute) and isinstance(call.func.value,ast.Name) and call.func.value.id=='w' and call.func.attr=='secure':call.func=ast.Name(id='secure',ctx=ast.Load())
+            self.assertEqual(ast.dump(expected),ast.dump(new_functions[name]),name)
         self.assertTrue(any(isinstance(n,ast.Call) and isinstance(n.func,ast.Name) and n.func.id=='stage_candidate' for n in ast.walk(new_functions['prepare'])))
         def assignments(t):
             return {n.targets[0].id:n.value for n in t.body if isinstance(n,ast.Assign) and len(n.targets)==1 and isinstance(n.targets[0],ast.Name)}
@@ -189,3 +193,15 @@ class BoundApiContentAtWebApply(unittest.TestCase):
             with self.assertRaises(RuntimeError):g['read_plan'](backend.P.sha(plan))
             extra.unlink();(api/'.venv').unlink();(api/'.venv').symlink_to(root/'foreign-dependency')
             with self.assertRaisesRegex(RuntimeError,'CANDIDATE_VENV'):g['read_plan'](backend.P.sha(plan))
+
+class BoundWebModuleNamespace(unittest.TestCase):
+    def test_candidate_identity_runs_with_the_actual_web_module_globals(self):
+        import tempfile,stat,os
+        path=Path(__file__).with_name('install_r5_bound_web_r15_20261117.py')
+        tree=ast.parse(path.read_text());functions=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name in {'candidate_identity','need'}]
+        checked=[]
+        g={'Path':Path,'stat':stat,'os':os,'secure':lambda p:checked.append(p)}
+        exec(compile(ast.Module(body=functions,type_ignores=[]),str(path),'exec'),g)
+        with tempfile.TemporaryDirectory() as folder:
+            p=Path(folder);actual=g['candidate_identity'](p)
+            self.assertEqual(checked,[p]);self.assertEqual(actual[:2],(p.stat().st_dev,p.stat().st_ino))

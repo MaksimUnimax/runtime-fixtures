@@ -249,7 +249,7 @@ def recover_preparation():
     h.record('PREPARATION_RECOVERED.json',{'source':SOURCE,'removed_only_owned_staging':True})
 
 def candidate_identity(path):
-    w.secure(path)
+    secure(path)
     st = path.lstat()
     need(path.is_dir() and not path.is_symlink(), 'CANDIDATE_NOT_DIRECTORY')
     return (st.st_dev,st.st_ino,st.st_mode,st.st_uid,st.st_gid)
