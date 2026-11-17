@@ -1,0 +1,7 @@
+# Existing lab OAuth rejection diagnostics
+
+The live lab source b33686666b30a1fa40b67a4ba1a39124ed514c6c309468efb3fa1825d9e66efd returns the same invalid_demo_login for missing/expired forms, an invalid account, and a password mismatch. This small addition records only that non-secret rejection category in the existing private product log; HTTP status and response, credential comparison, form expiration and consumption, authorization codes and token lifetimes are unchanged. No fields, values, nonce, state, account, token or credential are logged. Log-write failures preserve denial. No credentials or permissions change.
+
+12 real-handler tests use a disposable SQLite database and synthetic credentials, with no network or live state. Cases cover each rejection, boundaries, unchanged successful redirect and code lifetime, form replay, and log failure.
+
+Operational diagnosis: real speaker requests on17November arrived at the OAuth webhook without a token and were never forwarded to Station. Prior no-ingress claims referred only to Station and were incomplete.16November still has a refresh_token success. The live token table is now empty; the configured refresh lifetime is14days and successful refresh does not extend it. Expiry is consistent with this evidence; historical expired rows are no longer available. An authenticated end-to-end continuation remains separate from these source checks.
