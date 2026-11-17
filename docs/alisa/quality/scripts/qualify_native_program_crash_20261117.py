@@ -25,8 +25,8 @@ def write_json(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n")
 
 
-def snapshot(root, pins_path):
-    pins = json.loads(pins_path.read_text())["native"]
+def snapshot(root, pins_path, section="native"):
+    pins = json.loads(pins_path.read_text())[section]
     assert pins and all(isinstance(k, str) and isinstance(v, str) for k, v in pins.items())
     for name, expected in pins.items():
         path = root / name
@@ -56,6 +56,40 @@ def child(config_path, phase):
     cfg = json.loads(config_path.read_text())
     root, case = Path(cfg["native_root"]), config_path.parent
     network_guard(case, cfg["broker"], cfg["port"])
+    if phase.startswith("outbox-"):
+        sys.path.insert(0, cfg["producer_root"])
+        from program_results import Results
+        store = Results(case / "results")
+        key, binding = "a" * 64, "b" * 64
+        if phase == "outbox-write":
+            store.start(key, binding)
+            store.complete(key, binding, "Synthetic durable answer.")
+            os._exit(23)  # no destructor/normal interpreter cleanup
+        elif phase == "outbox-ack":
+            saved = store.read(key, binding)
+            assert saved["state"] == "complete" and saved["content"] == "Synthetic durable answer."
+            assert hashlib.sha256(saved["content"].encode()).hexdigest() == saved["digest"]
+            before = store.path(key).read_bytes()
+            try:
+                store.read(key, "c" * 64)
+            except ValueError as exc:
+                assert str(exc) == "job_binding"
+            else:
+                raise AssertionError("wrong binding accepted")
+            assert store.path(key).read_bytes() == before
+            store.ack(key, binding, saved["digest"])
+            os._exit(24)
+        elif phase == "outbox-read":
+            saved = store.read(key, binding)
+            assert saved["state"] == "acknowledged" and "content" not in saved
+            assert store.read("d" * 64, binding) is None
+            assert not list(store.root.glob(".pending-*"))
+        elif phase == "outbox-tests":
+            import unittest
+            suite = unittest.defaultTestLoader.discover(cfg["producer_root"], pattern="test_result_retention.py")
+            result = unittest.TextTestRunner(verbosity=2).run(suite)
+            assert result.wasSuccessful() and result.testsRun == 4
+        return
     sys.path[:0] = [str(root), str(root / "tests")]
     from unittest.mock import patch
     from engine import Engine, Worker
@@ -334,12 +368,39 @@ def exercise(script, root, output, mode):
             thread.join(timeout=2)
 
 
+
+def cold_outbox(script, producer, output):
+    """Exact installed Results code; cold processes, synthetic private storage."""
+    case = output / "outbox"
+    case.mkdir(mode=0o700)
+    cfg = case / "config.json"
+    write_json(cfg, {"native_root": str(producer), "producer_root": str(producer),
+                     "broker": "", "port": -1})
+    env = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "TZ": "UTC",
+           "PYTHONDONTWRITEBYTECODE": "1", "TMPDIR": str(case)}
+    exits = []
+    with (case / "PRIVATE.log").open("w") as log:
+        for phase, expected in [("outbox-write", 23), ("outbox-ack", 24),
+                                ("outbox-read", 0), ("outbox-tests", 0)]:
+            command = [sys.executable, "-B", "-X", "pycache_prefix=" + str(case / "unused-pyc"),
+                       str(script), "--config", str(cfg), "--phase", phase]
+            child_process = subprocess.run(command, env=env, stdout=log, stderr=log, timeout=15)
+            exits.append({"phase": phase, "exit": child_process.returncode})
+            assert child_process.returncode == expected, phase
+    assert not (case / "FORBIDDEN_NETWORK").exists()
+    return {"status": "PASS", "processes": exits, "complete_and_ack_survive_abrupt_exit": True,
+            "wrong_binding_rejected_without_mutation": True, "ack_removes_content": True,
+            "existing_retention_tests": 4, "external_attempts": 0,
+            "actual_broker_serve_or_sdk_executed": False}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--native-root", type=Path)
     parser.add_argument("--pins", type=Path)
     parser.add_argument("--output", type=Path)
-    parser.add_argument("--phase", choices=["start", "resume", "cancel"])
+    parser.add_argument("--producer-root", type=Path)
+    parser.add_argument("--phase", choices=["start", "resume", "cancel", "outbox-write", "outbox-ack", "outbox-read", "outbox-tests"])
     parser.add_argument("--config", type=Path)
     args = parser.parse_args()
     os.umask(0o077)
@@ -348,6 +409,8 @@ def main():
         return
     root, output = args.native_root.resolve(), args.output.resolve()
     checked = snapshot(root, args.pins)
+    producer = args.producer_root.resolve() if args.producer_root else None
+    producer_checked = snapshot(producer, args.pins, "producer") if producer else None
     output.mkdir(mode=0o700)
     cases = []
     record = {"scope": "AUTHOR_SYNTHETIC_WORKER_SIGKILL_PROGRAM_RECOVERY",
@@ -360,6 +423,10 @@ def main():
             cases.append(exercise(Path(__file__).resolve(), root, output, mode))
         assert snapshot(root, args.pins) == checked
         record["snapshot_unchanged"] = True
+        if producer:
+            record["outbox"] = cold_outbox(Path(__file__).resolve(), producer, output)
+            assert snapshot(producer, args.pins, "producer") == producer_checked
+            record["producer_snapshot"] = producer_checked
         record["status"] = "PASS"
     except Exception as exc:
         record["status"] = "FAIL"
