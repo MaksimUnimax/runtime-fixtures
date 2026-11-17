@@ -6,7 +6,7 @@ from django.conf import settings
 from .job_client import RuntimeClient, RuntimeFailure, decode, need
 
 
-def configured_client(authorizer):
+def configured_versions():
     path = Path(settings.RUNTIME_VERSIONS_PATH)
     try:
         need(path.is_absolute() and '..' not in path.parts)
@@ -24,7 +24,14 @@ def configured_client(authorizer):
                  (after.st_size, after.st_mtime_ns))
         finally:
             os.close(fd)
+        return decode(raw)
+    except (OSError, ValueError, TypeError, RuntimeFailure):
+        raise RuntimeFailure('DEPENDENCY_UNAVAILABLE') from None
+
+
+def configured_client(authorizer):
+    try:
         return RuntimeClient(settings.RUNTIME_JOB_SOCKET, settings.RUNTIME_JOB_UID,
-                             decode(raw), authorizer)
+                             configured_versions(), authorizer)
     except (OSError, ValueError, TypeError, RuntimeFailure):
         raise RuntimeFailure('DEPENDENCY_UNAVAILABLE') from None

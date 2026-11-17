@@ -12,6 +12,7 @@ import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -70,7 +71,7 @@ def main():
     now=timezone.now()
     AccessGrant.objects.create(tenant_id=row.tenant_id,source='GIFT',source_id=uuid.uuid4(),days=1,
         starts_at=now-timedelta(minutes=2),ends_at=now+timedelta(hours=1),actor_id=operator.pk,reason='PILOT_ACCESS')
-    with tempfile.TemporaryDirectory(prefix='s16-auth-',dir=root/'dist') as temporary:
+    with tempfile.TemporaryDirectory(prefix='s16-auth-',dir=root/'dist') as temporary, ExitStack() as cleanup:
         private=Path(temporary);private.chmod(0o700)
         mapping={'schema':'alisa-runtime-bindings/v1','environment':'dev','service_id':'s16-source-test',
             'catalog_release_id':'s16-catalog-test','tenants':[{'tenant_id':str(row.tenant_id),
@@ -191,6 +192,7 @@ def main():
             n=secrets.token_hex(32);tmp_ticket=authorizer.prepare(n,t.binding,remaining=2.)
             g=authority.verify(tmp_ticket,n,t.binding,remaining=2.);scope=native.NativeScope(**g['scope'])
             database=private/'native.sqlite3';db=sqlite3.connect(database,isolation_level=None)
+            cleanup.callback(db.close)
             db.executescript(native_fixture.SCHEMA);database.chmod(0o600)
             now=time.time();jid=uuid.uuid4().hex
             db.execute('INSERT INTO rt_job_refs VALUES(?,?,?,?,?,?,?,?,?)',(scope.runtime_job_ref,scope.tenant_id,
@@ -200,11 +202,93 @@ def main():
             db.execute('INSERT INTO reader_cursors VALUES(?,?,?,?,?)',(scope.runtime_tenant,
                 'rt_'+scope.runtime_job_ref.replace('-',''),jid,0,now-1))
             before=list(db.iterdump())
-            class NativeVerifier:
-                def verify(self,ticket,nonce,target_sha256,*,remaining):
-                    value=authority.verify(ticket,nonce,target_sha256,remaining=remaining)
-                    value['scope']=native.NativeScope(**value['scope'])
-                    return channel.Grant(**value)
+            # The native callback now traverses the actual existing HTTP-over-
+            # Unix client, bearer check, signed RPC response and DB verifier.
+            # Only startup configuration is injected: never a verifier result.
+            from django.test import RequestFactory
+            from alisa_platform.runtime_adapter import authority_rpc as rpc
+            import socketserver
+            sys.path.insert(0,str(root.parents[1]/'docs/alisa/runtime/v0.11/rt_job_r02'))
+            from platform_authority_client import PlatformAuthorityClient,scope_shape
+            from dataclasses import asdict
+            from semantics import fingerprint
+            from runtime.reconciliation.authority_verifier import PrivateStaffVerifier
+            rpc_path=private/'a';rpc_secret=secrets.token_urlsafe(40)
+            with transaction.atomic():
+                pins,native_scope,_=runtime.read_state(t.customer_id,t.tenant_id,[s[0] for s in t.store_scope])
+            expected_guard={'version':'runtime_guard_v1','pins':pins,
+                'scope_hash':fingerprint(asdict(scope_shape(native_scope))),
+                'runtime_tenant':native_scope['tenant'],'catalog_bundle_hash':authority.catalog}
+            check('scope_guard_matches_existing_native_serialization',scope.guard_sha256==fingerprint(expected_guard))
+            rpc_calls=[];rpc_fault=[False]
+            class RpcHandler(socketserver.StreamRequestHandler):
+                def handle(self):
+                    connections.close_all()
+                    try:
+                        self.connection.settimeout(2.)
+                        line=self.rfile.readline(8193)
+                        if line != b'POST /internal/runtime/authority HTTP/1.1\r\n':return
+                        headers={};size=len(line)
+                        while True:
+                            line=self.rfile.readline(8193);size+=len(line)
+                            if size>8192:return
+                            if line==b'\r\n':break
+                            key,sep,value=line.decode('ascii').partition(':')
+                            if not sep or key.lower() in headers:return
+                            headers[key.lower()]=value.strip()
+                        length=int(headers.get('content-length','0'))
+                        if not 0<length<=131072:return
+                        body=self.rfile.read(length)
+                        if len(body)!=length:return
+                        req=RequestFactory().post('/internal/runtime/authority',data=body,
+                            content_type='application/json',HTTP_AUTHORIZATION=headers.get('authorization',''))
+                        response=rpc.check(req);rpc_calls.append(response.status_code)
+                        if rpc_fault[0] and response.status_code==200:
+                            tampered=json.loads(response.content);tampered['mac']='0'*64
+                            response.content=json.dumps(tampered).encode()
+                        self.wfile.write(('HTTP/1.1 '+str(response.status_code)+' Test\r\n'
+                            'Content-Type: application/json\r\nContent-Length: '+str(len(response.content))+
+                            '\r\nConnection: close\r\n\r\n').encode()+response.content)
+                    finally:connections.close_all()
+            class RpcServer(socketserver.ThreadingUnixStreamServer):
+                daemon_threads=True
+                block_on_close=True
+                def handle_error(self,request,address):rpc_calls.append('fixture_handler_error')
+            rpc_server=RpcServer(str(rpc_path),RpcHandler);rpc_path.chmod(0o600)
+            rpc_thread=threading.Thread(target=lambda:rpc_server.serve_forever(poll_interval=.02))
+            rpc_config=override_settings(RUNTIME_AUTHORITY_TOKEN=rpc_secret,RUNTIME_SERVICE_ID='s16-source-test')
+            cleanup.enter_context(rpc_config)
+            config_patch=patch.object(rpc,'configured_staff_read_authority',return_value=authority)
+            cleanup.enter_context(config_patch)
+            cleanup.callback(rpc_path.unlink,missing_ok=True)
+            cleanup.callback(rpc_server.server_close)
+            def stop_rpc():
+                rpc_server.shutdown();rpc_thread.join(timeout=3)
+                check('private_rpc_fixture_thread_finished',not rpc_thread.is_alive())
+            cleanup.callback(stop_rpc)
+            rpc_thread.start()
+            authority_client=PlatformAuthorityClient(str(rpc_path),expected_uid=os.getuid(),service_token=rpc_secret,
+                                                      service_id='s16-source-test',timeout=2.)
+            verifier=PrivateStaffVerifier(authority_client)
+            verified=verifier.verify(tmp_ticket,n,t.binding,remaining=2.)
+            check('real_signed_private_rpc_grant',type(verified) is channel.Grant and verified.scope==scope)
+            rpc_fault[0]=True
+            try:
+                try:verifier.verify(tmp_ticket,n,t.binding,remaining=2.)
+                except channel.ChannelError:check('actual_rpc_bad_mac_rejected',True)
+                else:check('actual_rpc_bad_mac_rejected',False)
+            finally:rpc_fault[0]=False
+            original_timeout=authority_client.timeout
+            try:verifier.verify(tmp_ticket,secrets.token_hex(32),t.binding,remaining=2.)
+            except channel.ChannelError:check('rpc_nonce_mismatch_refused',True)
+            else:check('rpc_nonce_mismatch_refused',False)
+            check('shared_rpc_timeout_not_mutated',authority_client.timeout==original_timeout)
+            invalid=RequestFactory().post('/internal/runtime/authority',data=b'{}',content_type='application/json',
+                                           HTTP_AUTHORIZATION='Bearer wrong')
+            check('existing_rpc_bearer_still_required',rpc.check(invalid).status_code==401)
+            invalid=RequestFactory().post('/internal/runtime/authority',data=b'{}',content_type='application/json',
+                HTTP_AUTHORIZATION='Bearer '+rpc_secret,HTTP_ORIGIN='https://example.invalid')
+            check('browser_origin_never_reaches_private_staff_verification',rpc.check(invalid).status_code==422)
             endpoint=private/'s';listener=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)
             listener.bind(str(endpoint));endpoint.chmod(0o600);listener.listen(1);listener.settimeout(3)
             outcome=[]
@@ -212,7 +296,7 @@ def main():
                 connections.close_all()
                 try:
                     with listener.accept()[0] as peer:
-                        outcome.append(channel.serve_connected(peer,allowed_uid=os.getuid(),authority=NativeVerifier(),
+                        outcome.append(channel.serve_connected(peer,allowed_uid=os.getuid(),authority=verifier,
                                       database=database,native_uid=os.getuid(),timeout=2.))
                 finally:connections.close_all()
             thread=threading.Thread(target=serve);thread.start()
