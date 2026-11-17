@@ -21,7 +21,7 @@
     ],
     "limits": "Static review only. No live migration or activation reviewed/performed."
   },
-  "scope": "Three inactive platform/admin/authority candidates; no DB/env/selector/service/Station-state writes",
+  "scope": "Preparation scope: three inactive candidates; subsequent qualified activation is documented separately",
   "authority_dependency": "Actual gap_ingest runs in the separate authority role. Platform-only delivery would not capture new journal events.",
   "candidates": {
     "platform": {
@@ -44,12 +44,18 @@
     "database_session": "default_transaction_read_only=on",
     "applied": false
   },
-  "installed": false,
-  "feature_enabled": false,
+  "installed": true,
+  "feature_enabled": true,
   "manual_acceptance": "OWNER_WILL_RUN",
   "preparation_documentation_ci": {
     "head": "938c98c3ed054c47e4af5823d581efa05cd1a8e4",
     "run": 44090132835,
+    "result": "SUCCESS"
+  },
+  "final_readback": "AL_S12_INSTALLED_READBACK_20261117.json",
+  "activation_documentation_ci": {
+    "head": "c0c22af1d624c692d93c5e0cd1704ec8d0a41c3d",
+    "run": 44092929215,
     "result": "SUCCESS"
   }
 }
