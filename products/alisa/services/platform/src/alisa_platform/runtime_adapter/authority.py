@@ -9,7 +9,7 @@ import hashlib
 
 from django.conf import settings
 from django.core import signing
-from django.db import DatabaseError, transaction
+from django.db import DatabaseError, transaction, connection
 from django.utils import timezone
 
 from alisa_platform.accounts.models import Customer, Membership, Tenant, WebSession
@@ -17,7 +17,7 @@ from alisa_platform.accounts.views import session
 from alisa_platform.alice_link.models import TokenFamily
 from alisa_platform.alice_link.oauth import SCOPE, server, valid_link
 from alisa_platform.entitlements.models import AccessLedger
-from alisa_platform.entitlements.service import snapshot as access_snapshot
+from alisa_platform.entitlements.service import snapshot as access_snapshot, readonly_snapshot as access_readonly_snapshot
 from alisa_platform.stores.models import CredentialRevision, Store
 from .bindings import BindingFile, revision
 from .job_client import (CONTEXT_FIELDS, RuntimeFailure, context_shape, encode, exact,
@@ -107,31 +107,46 @@ class RuntimeAuthority:
 
     @transaction.atomic
     def state(self, actor_id, tenant_id, store_ids):
+        return self._state(actor_id, tenant_id, store_ids, lock_rows=True)
+
+    def read_state(self, actor_id, tenant_id, store_ids):
+        """Current rights without row locks; caller owns the read snapshot/budget.
+
+        This does not issue customer execution tickets or confer staff rights.
+        The existing state()/resolve()/verify() paths still take their locks.
+        """
+        need(connection.vendor == 'postgresql' and connection.in_atomic_block,
+             'DEPENDENCY_UNAVAILABLE')
+        return self._state(actor_id, tenant_id, store_ids, lock_rows=False)
+
+    def _state(self, actor_id, tenant_id, store_ids, *, lock_rows):
+        def rows(model, **kwargs):
+            return model.objects.select_for_update(**kwargs) if lock_rows else model.objects.all()
         self.enabled(); identifier(actor_id); identifier(tenant_id)
         need(type(store_ids) is list and 1 <= len(store_ids) <= 1000)
         ids = sorted(identifier(value) for value in store_ids); need(len(set(ids)) == len(ids))
         # Block account changes without conflicting with KEY SHARE acquired by
         # grant/notification foreign keys while their writer holds the ledger.
-        actor = Customer.objects.select_for_update(no_key=True).filter(pk=actor_id).first()
+        actor = rows(Customer, no_key=True).filter(pk=actor_id).first()
         need(actor is not None and actor.is_active, 'ACCOUNT_BLOCKED')
-        need(Tenant.objects.select_for_update(no_key=True).filter(pk=tenant_id).exists() and
+        need(rows(Tenant, no_key=True).filter(pk=tenant_id).exists() and
              Membership.objects.filter(customer=actor, tenant_id=tenant_id, role='OWNER_CLIENT').exists(),
              'PERMISSION_DENIED')
-        need(AccessLedger.objects.select_for_update().filter(product_id=PRODUCT, tenant_id=tenant_id).exists(),
+        need(rows(AccessLedger).filter(product_id=PRODUCT, tenant_id=tenant_id).exists(),
              'ACCESS_REQUIRED')
-        access = access_snapshot(tenant_id)
+        access = (access_snapshot if lock_rows else access_readonly_snapshot)(tenant_id)
         need(access['status'] == 'ACTIVE' and access['active_until'], 'ACCESS_REQUIRED')
         mapping = self.bindings.for_tenant(tenant_id, environment=settings.ALISA_ENV,
             service_id=self.service_id, catalog_release_id=self.catalog_release_id)
         need(mapping is not None, 'CAPABILITY_UNAVAILABLE')
         store_pins, selected = [], []
         for sid in ids:
-            store = Store.objects.select_for_update().filter(pk=sid, product_id=PRODUCT, tenant_id=tenant_id).first()
+            store = rows(Store).filter(pk=sid, product_id=PRODUCT, tenant_id=tenant_id).first()
             need(store is not None, 'NOT_FOUND'); need(store.status == 'ACTIVE', 'PERMISSION_DENIED')
             binding = mapping['stores'].get(sid)
             need(binding is not None and store.verified_identity and binding['provider'] == store.provider
                  and binding['verified_identity'] == store.verified_identity, 'CAPABILITY_UNAVAILABLE')
-            credentials = list(CredentialRevision.objects.select_for_update().filter(product_id=PRODUCT,
+            credentials = list(rows(CredentialRevision).filter(product_id=PRODUCT,
                 tenant_id=tenant_id, store=store, status='ACTIVE').values('id', 'kind', 'revision', 'check_code'))
             actual = []
             for credential in credentials:

@@ -69,6 +69,55 @@ class RuntimeEvidenceSource(Protocol):
         ...
 
 
+def target_snapshot(object_id, *, lock_rows):
+    """Shared exact Query projection; authority callbacks must use no row locks."""
+    core.need(type(lock_rows) is bool and connection.vendor == 'postgresql'
+              and connection.in_atomic_block, 'TRANSACTION_CONTEXT_INVALID', 503)
+    def rows(model):
+        return model.objects.select_for_update() if lock_rows else model.objects.all()
+    core.identifier(object_id)
+    first = Query.objects.filter(pk=object_id).only('customer_id', 'tenant_id').first()
+    if first is None:
+        return None
+    # Lock identities before the query as in existing authority consumers.
+    customer = rows(Customer).filter(pk=first.customer_id).first()
+    membership = rows(Membership).filter(
+        customer_id=first.customer_id, tenant_id=first.tenant_id, role='OWNER_CLIENT').first()
+    if customer is None or membership is None:
+        return None
+    preliminary = Query.objects.filter(pk=object_id).only('store_ids').first()
+    if preliminary is None:
+        return None
+    ids = preliminary.store_ids
+    core.need(type(ids) is list and 1 <= len(ids) <= 1000,
+              'OPERATION_CONTEXT_INVALID', 503)
+    for value in ids:
+        core.identifier(value)
+    core.need(len(set(ids)) == len(ids), 'OPERATION_CONTEXT_INVALID', 503)
+    stores = list(rows(MarketplaceStore).filter(
+        pk__in=ids, product_id=core.PRODUCT, tenant_id=first.tenant_id).order_by('pk'))
+    core.need(len(stores) == len(ids) and all(s.status == 'ACTIVE' for s in stores),
+              'FORBIDDEN', 403)
+    row = rows(Query).filter(pk=object_id,
+        customer_id=first.customer_id, tenant_id=first.tenant_id).first()
+    if row is None:
+        return None
+    core.need(row.store_ids == ids, 'REVISION_CONFLICT', 409)
+    core.need(row.runtime_job_ref is not None, 'OPERATION_BINDING_UNAVAILABLE', 503)
+    # input_hash/attempt are merely platform race-detection metadata below;
+    # neither is assigned to native request_sha256/dispatch_id.
+    metadata = {'object_id': str(row.pk), 'customer_id': str(row.customer_id),
+        'tenant_id': str(row.tenant_id), 'runtime_job_ref': str(row.runtime_job_ref),
+        'store_ids': sorted(ids), 'state': row.state, 'input_hash': row.input_hash,
+        'attempt': str(row.attempt) if row.attempt is not None else None,
+        'lease_until': row.lease_until.isoformat() if row.lease_until else None,
+        'created_at': row.created_at.isoformat(), 'expires_at': row.expires_at.isoformat(),
+        'customer_active': customer.is_active, 'customer_revision': customer.security_revision}
+    return Target(core.PRODUCT, str(row.pk), str(row.tenant_id), str(row.customer_id),
+                  str(row.runtime_job_ref), tuple((str(s.pk), s.revision, s.status) for s in stores),
+                  core.mark(metadata))
+
+
 class PlatformAdapter:
     """One request-local adapter shared by Authority and Store ports.
 
@@ -122,47 +171,7 @@ class PlatformAdapter:
 
     def _target_now(self, object_id):
         self._inside()
-        core.identifier(object_id)
-        first = Query.objects.filter(pk=object_id).only('customer_id', 'tenant_id').first()
-        if first is None:
-            return None
-        # Lock identities before the query as in existing authority consumers.
-        customer = Customer.objects.select_for_update().filter(pk=first.customer_id).first()
-        membership = Membership.objects.select_for_update().filter(
-            customer_id=first.customer_id, tenant_id=first.tenant_id, role='OWNER_CLIENT').first()
-        if customer is None or membership is None:
-            return None
-        preliminary = Query.objects.filter(pk=object_id).only('store_ids').first()
-        if preliminary is None:
-            return None
-        ids = preliminary.store_ids
-        core.need(type(ids) is list and 1 <= len(ids) <= 1000,
-                  'OPERATION_CONTEXT_INVALID', 503)
-        for value in ids:
-            core.identifier(value)
-        core.need(len(set(ids)) == len(ids), 'OPERATION_CONTEXT_INVALID', 503)
-        stores = list(MarketplaceStore.objects.select_for_update().filter(
-            pk__in=ids, product_id=core.PRODUCT, tenant_id=first.tenant_id).order_by('pk'))
-        core.need(len(stores) == len(ids) and all(s.status == 'ACTIVE' for s in stores),
-                  'FORBIDDEN', 403)
-        row = Query.objects.select_for_update().filter(pk=object_id,
-            customer_id=first.customer_id, tenant_id=first.tenant_id).first()
-        if row is None:
-            return None
-        core.need(row.store_ids == ids, 'REVISION_CONFLICT', 409)
-        core.need(row.runtime_job_ref is not None, 'OPERATION_BINDING_UNAVAILABLE', 503)
-        # input_hash/attempt are merely platform race-detection metadata below;
-        # neither is assigned to native request_sha256/dispatch_id.
-        metadata = {'object_id': str(row.pk), 'customer_id': str(row.customer_id),
-            'tenant_id': str(row.tenant_id), 'runtime_job_ref': str(row.runtime_job_ref),
-            'store_ids': sorted(ids), 'state': row.state, 'input_hash': row.input_hash,
-            'attempt': str(row.attempt) if row.attempt is not None else None,
-            'lease_until': row.lease_until.isoformat() if row.lease_until else None,
-            'created_at': row.created_at.isoformat(), 'expires_at': row.expires_at.isoformat(),
-            'customer_active': customer.is_active, 'customer_revision': customer.security_revision}
-        return Target(core.PRODUCT, str(row.pk), str(row.tenant_id), str(row.customer_id),
-                      str(row.runtime_job_ref), tuple((str(s.pk), s.revision, s.status) for s in stores),
-                      core.mark(metadata))
+        return target_snapshot(object_id, lock_rows=True)
 
     def operation(self, object_id):
         self._inside()

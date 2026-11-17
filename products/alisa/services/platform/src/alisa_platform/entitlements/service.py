@@ -51,8 +51,22 @@ def effective_end(grant):
 
 @transaction.atomic
 def snapshot(tenant_id, now=None):
+    # Existing mutation callers keep the same row-locking behavior.
+    return _snapshot(tenant_id, now, lock_ledger=True)
+
+
+def readonly_snapshot(tenant_id, now=None):
+    """Same projection in the caller's consistent read transaction, no row lock."""
+    from django.db import connection
+    if connection.vendor != 'postgresql' or not connection.in_atomic_block:
+        raise ValueError('Explicit PostgreSQL snapshot required')
+    return _snapshot(tenant_id, now, lock_ledger=False)
+
+
+def _snapshot(tenant_id, now, *, lock_ledger):
     now = now or timezone.now()
-    ledger = AccessLedger.objects.select_for_update().filter(product_id=PRODUCT, tenant_id=tenant_id).first()
+    rows = AccessLedger.objects.select_for_update() if lock_ledger else AccessLedger.objects.all()
+    ledger = rows.filter(product_id=PRODUCT, tenant_id=tenant_id).first()
     grants = grants_for(tenant_id)
     intervals = [(g.starts_at, effective_end(g)) for g in grants]
     state, until = access_state(now, intervals)
