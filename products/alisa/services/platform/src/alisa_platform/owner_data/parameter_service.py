@@ -122,6 +122,38 @@ def _write(actor,store,key,area,command,payload,action,extra=None):
         security_revision=actor.customer.security_revision,result=result)
     return {'replayed':False,'written':True,'receipt':result,**_read(actor,store,key,area)}
 
+def _manual_for_actor(actor,store,command):
+    """Shared manual mutation; caller has locked and authenticated this owner.
+
+    No public route accepts an actor. Cabinet and separately consented voice
+    adapters establish current owner/store identity before this private seam.
+    """
+    _enabled()
+    need(transaction.get_connection().in_atomic_block,'OWNER_TRANSACTION_REQUIRED',503)
+    need(type(command)is dict,'PARAMETER_SCHEMA',422)
+    action=command.get('action')
+    need(action in ('set_manual','use_general'),'PARAMETER_ACTION',422)
+    fields={'action','store_id','parameter','scope','sku_reference','command_id',
+            'expected_revision','confirmed','not_after'}
+    if action=='set_manual':fields|={'value','unit'}
+    need(set(command)==fields,'PARAMETER_SCHEMA',422)
+    need(str(store.pk)==command['store_id'] and store.tenant_id==actor.tenant_id
+         and store.status=='ACTIVE','OWNER_SOURCE_STORE_DISABLED',403)
+    key,area=command['parameter'],command['scope']
+    try:
+        rule=_target(actor,store,key,area,command['sku_reference'])
+        need(command['confirmed']is True,'OWNER_CONFIRMATION_REQUIRED',422)
+        if action=='set_manual':
+            value=validate_value(rule,command['value'],command['unit']);state='VALUE';origin='manual'
+        else:
+            need(area['kind']=='sku','PARAMETER_GENERAL_NOT_AN_EXCEPTION',422)
+            value=None;state='INHERIT';origin=''
+        payload={'value':value,'state':state,'unit':rule['unit'],'origin':origin,'collected_at':None,
+                 'calculated_at':None,'requested_period':None,'actual_period':None,'evidence':{}}
+        return _write(actor,store,key,area,command,payload,action)
+    except ParameterError as error:raise Rejected(error.code,422)from None
+
+
 @transaction.atomic
 def execute(token,command):
     _enabled();need(type(command)is dict,'PARAMETER_SCHEMA',422)
@@ -165,15 +197,7 @@ def execute(token,command):
             return {**_read(actor,store,key,area),'prepared':True,'dispatched':False,
                 'period':period,'period_reference':reference,'mode':command['mode'],'producer_template':rule['producer_template'],
                 'collection':{'available':False,'code':'PARAMETER_SOURCE_NOT_QUALIFIED'}}
-        need(command['confirmed']is True,'OWNER_CONFIRMATION_REQUIRED',422)
-        if action=='set_manual':
-            value=validate_value(rule,command['value'],command['unit']);state='VALUE';origin='manual'
-        else:
-            need(area['kind']=='sku','PARAMETER_GENERAL_NOT_AN_EXCEPTION',422)
-            value=None;state='INHERIT';origin=''
-        payload={'value':value,'state':state,'unit':rule['unit'],'origin':origin,'collected_at':None,
-                 'calculated_at':None,'requested_period':None,'actual_period':None,'evidence':{}}
-        return _write(actor,store,key,area,command,payload,action)
+        return _manual_for_actor(actor,store,command)
     except ParameterError as e:raise Rejected(e.code,422)from None
 
 @transaction.atomic

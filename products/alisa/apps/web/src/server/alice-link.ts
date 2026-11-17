@@ -12,7 +12,7 @@ function redirect(path:string,clear=false){
   if(clear)headers.append('Set-Cookie',cookie(ALICE_FLOW_COOKIE,'',0));
   return new Response(null,{status:303,headers});
 }
-export type AliceStatus={state:'DISCONNECTED'|'WAITING_FOR_ALICE'|'CONNECTED';voice_private:boolean};
+export type AliceStatus={state:'DISCONNECTED'|'WAITING_FOR_ALICE'|'CONNECTED';voice_private:boolean;parameter_writes?:{enabled:boolean;revision:number}};
 export async function getAlice(token:string):Promise<AliceStatus>{
   const result=await accountApi('alice',{action:'status',session_token:token});
   if(result.status!==200||!result.body.alice)throw new Error('ALICE_UNAVAILABLE');
@@ -43,9 +43,9 @@ export async function command(request:Request){
   if(!validBrowserRequest(request,true))return response({code:'ORIGIN_DENIED'},403);
   if(new URL(request.url).search||request.headers.get('content-type')!=='application/x-www-form-urlencoded')return response({code:'INVALID_PAYLOAD'},422);
   const form=new URLSearchParams(await boundedBody(request,1024));
-  if([...form.keys()].some(k=>!['action','voice_private'].includes(k))||form.getAll('action').length!==1||form.getAll('voice_private').length>1)return response({code:'INVALID_PAYLOAD'},422);
   const action=form.get('action')||'';
-  if(!['approve','deny','unlink','privacy'].includes(action)||action!=='privacy'&&form.has('voice_private'))return response({code:'INVALID_PAYLOAD'},422);
+  const allowed=action==='parameter_permission'?['action','enabled','expected_revision','confirmed']:action==='privacy'?['action','voice_private']:['action'];
+  if([...form.keys()].some(k=>!allowed.includes(k))||allowed.some(k=>form.getAll(k).length!==1)||!['approve','deny','unlink','privacy','parameter_permission'].includes(action))return response({code:'INVALID_PAYLOAD'},422);
   const token=readCookie(request,SESSION_COOKIE);
   if(!/^[A-Za-z0-9_-]{43}$/.test(token))return redirect('/login');
   const data:Record<string,unknown>={action,session_token:token};
@@ -57,6 +57,11 @@ export async function command(request:Request){
   if(action==='privacy'){
     if(!['on','off'].includes(form.get('voice_private')||''))return response({code:'INVALID_PAYLOAD'},422);
     data.voice_private=form.get('voice_private')==='on';
+  }
+  if(action==='parameter_permission'){
+    const revision=form.get('expected_revision')||'';
+    if(!['on','off'].includes(form.get('enabled')||'')||!/^\d{1,9}$/.test(revision)||form.get('confirmed')!=='yes')return response({code:'INVALID_PAYLOAD'},422);
+    data.enabled=form.get('enabled')==='on';data.expected_revision=Number(revision);data.confirmed=true;
   }
   const result=await accountApi('alice',data);
   if(result.status===401)return redirect('/login');
