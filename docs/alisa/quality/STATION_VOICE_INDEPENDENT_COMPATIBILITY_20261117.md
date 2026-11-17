@@ -1,6 +1,6 @@
 # Existing Station voice write: independent compatibility review
 
-Review of PR464 source `485a2034ac0dc36fea2590666075b54c24b12174`, 17 November 2026. Source compatibility passes for the declared existing-Station scope. Delivery is not approved: the author's first native candidate has a stale internal core seal. No working release, owner permission or coefficient was changed by this review.
+Review of PR464 source `485a2034ac0dc36fea2590666075b54c24b12174`, 17 November 2026. Source compatibility passes for the declared existing-Station scope. The author's first native candidate had a stale internal core seal; a corrected, checked immutable revision is now prepared separately. Activation/rollback is not yet qualified. No working release, owner permission or coefficient was changed by this review.
 
 ## Existing owner path
 
@@ -38,9 +38,17 @@ The unmodified installed `runtime.py --check` passes, reporting zero external ca
 
 Source review comments5936035491 and5936125658 and delivery finding5936350988 are attached to PR464. They are technical review comments by a separate dialogue, not a GitHub formal approval of one's own account. The source author adopted the minimal no-migration variant in SELECTED_VARIANT.json.
 
+### Corrected inactive revision
+
+The review subsequently prepared `/opt/alice-market/releases/alisa-coefficient-station-native-485a2034ac0dc36f-core-r2` using the author's exact assembly helper9477ae87 and its pinned accepted release primitives. This is a fresh candidate over the original installed R15 base; the author's first candidate was not edited. Payload equality to the independent reviewed candidate and complete inner/outer seal equality pass. It has211declared files, manifest SHA256`14735e33aa5e830f34c98f4c3a76045fd1d190db3b05a0c65a82e500daf03151`, core manifest SHA256`dbd45835064190c1851ae65f944c8b64ff3b2c52cec971f013dc70cdd92454ac`.
+
+Both unchanged installed configuration and version checks pass; only catalog_bundle_hash requires publication. CORE_CORRECTION_R2_RESULT.json SHA256`e6b0f88b729d3a7a1894f8b2bc8dbb32fee55d00a9d7be08535a0ea48faa2745` records the result. A first correction attempt stopped before assembly because the shared rollout lock was held by the author's fixture qualification. Its outcome was preserved; after lock release a fresh bounded attempt used the same guards and succeeded. There was no selector switch or live service change.
+
+The source author separately recorded24checks on an actual owned systemd selector fixture, including inherited EnvironmentFile preservation, feature0, pre-admission restore and later-writer refusal. That is mechanical fixture evidence; it does not qualify a post-admission rollback of the real product. These24checks are not added to parameter test counts.
+
 ## Remaining work and acceptance
 
-The author must qualify a bounded assembled-release activation/rollback procedure and obtain independent delivery review before switching. Keep inherited environment/credentials, R15 owner-source projection and unknown-job semantics. The core seal correction must be included in that qualification.
+The author must qualify a bounded assembled-release activation/rollback procedure and obtain independent delivery review before switching. Keep inherited environment/credentials, R15 owner-source projection and unknown-job semantics. The corrected core-r2 candidate must be explicitly repinned into that qualification.
 
 After installation, verify live site/proof behavior with owner permission absent. The owner then explicitly opts in on the existing Station page; physical proposal→confirmation→cabinet current value→economics recomputation is still open. Do not invent a real coefficient value for acceptance or grant permission on the owner's behalf. Source-only and isolated PostgreSQL results are not installed or acoustic acceptance. Ozon's source-attested historical lower bound remains an independent open item.
 

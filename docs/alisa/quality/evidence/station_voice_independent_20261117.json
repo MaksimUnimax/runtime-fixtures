@@ -1,6 +1,6 @@
 {
   "source_head": "485a2034ac0dc36fea2590666075b54c24b12174",
-  "status": "SOURCE_COMPATIBILITY_PASS_DELIVERY_CORE_SEAL_REQUIRES_CORRECTION",
+  "status": "SOURCE_COMPATIBILITY_PASS_CORRECTED_CORE_CANDIDATE_PREPARED_ACTIVATION_UNQUALIFIED",
   "suites": {
     "voice-hybrid-r1": {
       "result": {
@@ -134,9 +134,23 @@
     "manual_acceptance": "NOT_PERFORMED"
   },
   "remaining": [
-    "Author prepares new immutable native candidate with consistent core and outer manifests",
+    "Author adopts/pins corrected native core-r2 and qualifies bounded activation/rollback procedure",
     "Bounded activation/rollback qualification, then independent delivery review",
     "Installed synthetic acceptance with owner consent absent",
     "Actual owner opt-in and physical voice confirmation acceptance"
-  ]
+  ],
+  "corrected_native_candidate": {
+    "root": "/opt/alice-market/releases/alisa-coefficient-station-native-485a2034ac0dc36f-core-r2",
+    "manifest_sha256": "14735e33aa5e830f34c98f4c3a76045fd1d190db3b05a0c65a82e500daf03151",
+    "files": 211,
+    "core_manifest_sha256": "dbd45835064190c1851ae65f944c8b64ff3b2c52cec971f013dc70cdd92454ac",
+    "core_equals_outer_except_self": true,
+    "matches_independent_reviewed_payload": true,
+    "configuration_check": "PASS",
+    "versions_check": "UPDATE_REQUIRED_catalog_bundle_hash_only",
+    "receipt_sha256": "e6b0f88b729d3a7a1894f8b2bc8dbb32fee55d00a9d7be08535a0ea48faa2745",
+    "assembled_with_author_builder_sha256": "9477ae87b6243c20545b5c95e27f0e9f5141c9b5d1862b3642b1da24d0f45c2c",
+    "author_candidate_modified": false,
+    "selected": false
+  }
 }
