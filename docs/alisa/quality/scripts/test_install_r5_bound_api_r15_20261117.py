@@ -152,9 +152,9 @@ class BoundAuthorityTests(unittest.TestCase):
     def test_overlay_changes_only_three_source_paths(self):
         new = M.overlay(self.raw)
         self.assertEqual(new.count(str(M.APP).encode()),3)
-        self.assertEqual(new.replace(str(M.APP).encode(),str(M.BASE).encode()),self.raw)
-        self.assertIn(b'ALISA_RELEASE=legacy',new)
-        self.assertIn(b'EnvironmentFile=/private/config',new)
+        self.assertEqual(new.replace(str(M.APP).encode(),str(M.BASE).encode()), b'[Service]\n'+b'\n'.join(line for line in self.raw.splitlines() if line.startswith((b'WorkingDirectory=',b'ExecStart=')))+b'\n')
+        self.assertNotIn(b'Environment=',new)
+        self.assertNotIn(b'EnvironmentFile=',new)
 
     def test_overlay_rejects_wrong_hash_count_and_non_execution_lines(self):
         cases = [self.raw+b'x',self.raw.replace(str(M.BASE).encode(),b'missing',1),
@@ -647,3 +647,12 @@ class BoundAuthorityTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+@unittest.skipUnless(__import__('os').geteuid()==0 and Path('/run/systemd/system').is_dir(),'Actual root systemd fixture required')
+class BoundApiRealSystemdOverlay(unittest.TestCase):
+    def test_overlay_inherits_environment_files_in_actual_systemd(self):
+        from qualify_r5_api_systemd_20261117 import qualify
+        value=qualify(HERE/'install_r5_bound_api_r15_20261117.py',P)
+        self.assertTrue(value['legacy_duplicate_reproduced'])
+        self.assertTrue(value['execution_only_static_matches'])
+        self.assertTrue(value['fixture_never_started'])

@@ -116,7 +116,12 @@ def overlay(raw):
     for line in raw.splitlines():
         if old in line:
             need(line.startswith((b'WorkingDirectory=',b'ExecStart=')), 'SELECTOR_REPLACEMENT_SCOPE')
-    return raw.replace(old,new)
+    # Inherit environment/flags from the accepted drop-in. Repeating EnvironmentFile
+    # changes systemd's effective file list even when the values are identical.
+    selected = [line for line in raw.splitlines() if line.startswith((b'WorkingDirectory=',b'ExecStart='))]
+    need(sum(line.startswith(b'WorkingDirectory=') for line in selected) == 1
+         and sum(line.startswith(b'ExecStart=') for line in selected) == 2, 'SELECTOR_EXECUTION_SHAPE')
+    return b'[Service]\n'+b'\n'.join(line.replace(old,new) for line in selected)+b'\n'
 
 def expected_static(before, digest):
     value = json.loads(json.dumps(before))
