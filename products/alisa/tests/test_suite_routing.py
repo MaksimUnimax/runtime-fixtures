@@ -55,7 +55,7 @@ class SuiteRouting(TestCase):
    with self.assertRaisesRegex(RuntimeError,'SYMLINK'):inventory(root)
 
  def test_operations_exact_inventory_is_bound_to_existing_named_ci_step(self):
-  self.assertEqual(EXTERNAL['operations'],{name:'existing alisa-platform-ci AL-S16 reconciliation assessment and idempotent receipts (isolated) step' for name in ('test_reconciliation','test_native_snapshot','test_native_binding','test_read_channel')})
+  self.assertEqual(EXTERNAL['operations'],{name:'existing alisa-platform-ci AL-S16 reconciliation assessment and idempotent receipts (isolated) step' for name in ('test_reconciliation','test_native_snapshot','test_native_binding','test_read_channel','test_gateway')})
   self.assertNotIn('operations',SPECIALIZED)
   self.assertFalse(any(x.startswith('operations.')for group in ('base','collection','compound','ledger')for x in labels(group)))
   workflow=Path(__file__).resolve().parents[3]/'.github/workflows/alisa-platform-ci.yml'

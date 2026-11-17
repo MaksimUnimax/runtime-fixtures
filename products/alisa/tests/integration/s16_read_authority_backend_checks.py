@@ -311,6 +311,81 @@ def main():
                 thread.join(timeout=3);listener.close();endpoint.unlink()
             check('actual_handler_finished_and_no_replay',not thread.is_alive() and outcome==['SENT']
                   and before==list(db.iterdump()) and result['replay_permitted'] is False)
+            # Opt-in exact bootstrap transform: same RuntimePort attachment,
+            # same socket/close lifecycle, actual Engine/Repository/authority.
+            from types import ModuleType
+            import pwd
+            from engine import Engine
+            from repository import Repository
+            from runtime_port_ipc import request as old_request,Gateway as OriginalGateway
+            from runtime.reconciliation.gateway import service_source
+            from alisa_platform.operations.native_source import NativeBindingSource
+            from alisa_platform.operations import platform_adapter as adapter
+            sys.path.insert(0,str(root/'runtime'))
+            native_source=root.parents[1]/'docs/alisa/runtime/v0.11/rt_job_r02/runtime_port_service.py'
+            bootstrap=ModuleType('s16_owned_gateway_bootstrap')
+            exec(compile(service_source(native_source.read_text()),str(native_source),'exec'),bootstrap.__dict__)
+            credentials=private/'credentials';credentials.mkdir(mode=0o700)
+            secret_file=credentials/'authority';secret_file.write_text(rpc_secret);secret_file.chmod(0o600)
+            repo=Repository(private/'gateway.sqlite3')
+            engine=Engine(repo,lambda _:None)  # no worker or provider is started
+            endpoint2=private/'g'
+            config={'runtime_port':{'enabled':True,'socket':str(endpoint2),
+                'allowed_user':pwd.getpwuid(os.getuid()).pw_name,'service_id':'s16-source-test',
+                'catalog_release_id':'s16-catalog-test','authority_socket':str(rpc_path),
+                'authority_user':pwd.getpwuid(os.getuid()).pw_name,'authority_credential':'authority'}}
+            gateway=bootstrap.attach(engine,config,credentials)
+            native_thread=threading.Thread(target=lambda:gateway.serve_forever(poll_interval=.02))
+            native_thread.start()
+            try:
+                check('existing_bootstrap_attaches_subclass_and_shared_budget',
+                      isinstance(gateway,OriginalGateway) and gateway.port is engine.execution_policy)
+                with repo.connection(True) as c:
+                    c.execute('INSERT INTO jobs(id,tenant,key,state,draft,created,updated,due) VALUES(?,?,?,?,?,?,?,?)',
+                        (jid,scope.runtime_tenant,'gateway-fixture','UNKNOWN','{}',now-2,now-1,now-2))
+                    c.execute('INSERT INTO rt_job_refs VALUES(?,?,?,?,?,?,?,?,?)',(scope.runtime_job_ref,scope.tenant_id,
+                        scope.customer_id,scope.object_id,'b'*64,scope.guard_sha256,scope.runtime_tenant,jid,now-1))
+                    c.execute('INSERT INTO reader_cursors(tenant,conversation,jid,updated) VALUES(?,?,?,?)',
+                        (scope.runtime_tenant,'rt_'+scope.runtime_job_ref.replace('-',''),jid,now-1))
+                with sqlite3.connect(repo.path) as c:before_gateway=list(c.iterdump())
+                versions=old_request(str(endpoint2),'current_versions',{})
+                check('existing_legacy_versions_on_same_native_socket',
+                      versions==gateway.port.versions_for(gateway.peer))
+                channel_client=channel.Client(str(endpoint2),expected_uid=os.getuid(),expected_pid=os.getpid(),
+                    expected_producer=channel.producer_pin(),timeout=2.)
+                source=NativeBindingSource(channel_client,authority,token)
+                platform=adapter.PlatformAdapter(token,source)
+                with platform.atomic():
+                    actor=platform.actor();operation=platform.operation(str(row.pk))
+                    check('platform_locked_target_resolves_over_same_listener_without_deadlock',
+                          operation.native_identity is not None and platform.allowed(actor,operation,core.PERMISSION))
+                command=str(uuid.uuid4())
+                receipts_before=StaffCommandReceipt.objects.count();audits_before=StaffAuditEvent.objects.count()
+                rejected('metadata_cannot_mint_primary_proof_or_success_receipt',
+                    lambda:adapter.execute(token,{'object_id':str(row.pk),'kind':'RUNTIME_UNKNOWN',
+                        'reason':'source boundary test'},command,source=source),code='EVIDENCE_UNAVAILABLE')
+                check('missing_primary_source_never_writes_receipt_or_audit',
+                      not StaffCommandReceipt.objects.filter(pk=command).exists()
+                      and StaffCommandReceipt.objects.count()==receipts_before
+                      and StaffAuditEvent.objects.count()==audits_before)
+                check('native_source_rejects_caller_supplied_primary_proof',
+                      source.verify(core.PrimaryProof(b'{}',b'forged'),operation) is False)
+                old_binding=operation.binding
+                with repo.connection(True) as c:c.execute('UPDATE jobs SET updated=updated+0.000001 WHERE id=?',(jid,))
+                changed=source.resolve(t)
+                check('native_source_uses_fresh_fractional_binding',changed.operation.binding!=old_binding)
+                with repo.connection(True) as c:c.execute('UPDATE jobs SET updated=? WHERE id=?',(now-1,jid))
+                check('legacy_protocol_still_responds_after_staff_source_failures',
+                      old_request(str(endpoint2),'current_versions',{})==versions)
+                revoked=StaffSession.objects.get(token_hash=hashlib.sha256(token.encode()).hexdigest())
+                StaffSession.objects.filter(pk=revoked.pk).update(revoked_at=timezone.now())
+                rejected('real_source_observes_staff_session_revocation',lambda:source.resolve(t))
+                with sqlite3.connect(repo.path) as c:after_gateway=list(c.iterdump())
+                check('complete_read_path_keeps_native_logical_state',before_gateway==after_gateway)
+            finally:
+                gateway.shutdown();native_thread.join(timeout=3);bootstrap.close(gateway)
+            check('existing_bootstrap_closes_owned_socket_and_thread',
+                  not native_thread.is_alive() and not endpoint2.exists())
             db.close()
             check('real_key_ticket_no_new_secret_or_model',len(ticket)<=4096 and len(CASES)>20)
     return CASES
