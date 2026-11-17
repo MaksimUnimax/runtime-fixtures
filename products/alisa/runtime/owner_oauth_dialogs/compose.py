@@ -9,7 +9,7 @@ import hashlib
 
 STATION='26efc00fdae78ae37005da2f817665a09b9f97b8fade11b108368ab2f9bf338f'
 CLIENT='46869ad571a7e6a24a41f9890d25f6742938dfb8c4775394a22d6f0384ea4f0c'
-LAB='b33686666b30a1fa40b67a4ba1a39124ed514c6c309468efb3fa1825d9e66efd'
+LAB='9d11c4af39cd2876b096b551cc239c146982c054ec78dab8a180d8d4eb517785'
 NGINX='32a3caaa78fc990bcc1b664c7dd2a3b59e1246cd4c6746e05bf2feb4469bc71e'
 ROOT=Path(__file__).resolve().parent
 
@@ -25,7 +25,7 @@ def one(text,source,target):
     return text.replace(source,target)
 
 
-def station_sources(root):
+def station_core_sources(root):
     src=pinned(Path(root)/'service.py',STATION)
     src=one(src,"    def ingress(self, data):\n        with self.lock:\n            if not isinstance(data, dict)",
             "    def ingress(self, data, oauth_identity=None):\n        with self.lock:\n            if not isinstance(data, dict)")
@@ -98,15 +98,28 @@ def station_sources(root):
             if match and self.state['job']:
                 self.state['job']['token_hash'] = data['token_hash']; self.save()"""
     src=one(src,before,after)
+    # Preserve report delivery after switching to the modern token store.
+    # Expired access permits only a status wake-up when refresh is still valid.
+    src=one(src,"""                self.state['job']['token_hash'] = data['token_hash']; self.save()""",
+        """                self.state['job']['token_hash'] = data['token_hash']
+                if oauth_identity is not None:self.state['job']['auth_scheme']='modern'
+                else:self.state['job'].pop('auth_scheme',None)
+                self.save()""")
+    src=one(src,"""                    self.save()
+                if self.state['job']['delivery'] == 'waiting':""",
+        """                    if oauth_identity is not None:self.state['job']['auth_scheme']='modern'
+                    self.save()
+                if self.state['job']['delivery'] == 'waiting':""")
+    src=one(src,"""        active = self.auth(job['tenant'], job['token_hash'])
+        if not active and not token_refresh_possible(job['tenant']): return {'state': 'REVOKED', 'text': ''}""",
+        """        if job.get('auth_scheme')=='modern':
+            from station_oauth import job_access
+            active,possible=job_access(self.state['owner'],job['tenant'],job['token_hash'])
+        else:
+            active = self.auth(job['tenant'], job['token_hash'])
+            possible=active or token_refresh_possible(job['tenant'])
+        if not possible:return {'state':'REVOKED','text':''}""")
     compile(src,'service.py','exec')
-    client=pinned(Path(root)/'station_client.py',CLIENT)
-    client=one(client,'def call(value, path=SOCKET):','def call(value, path=SOCKET, timeout=.35):')
-    client=one(client,'s.settimeout(.35)','s.settimeout(timeout)')
-    client=one(client,"attempts = 1 if internal and internal.startswith('привязать колонку') else 2","attempts = 1 if value.get('oauth_token') or internal and internal.startswith('привязать колонку') else 2")
-    client=one(client,'answer = call(value)', "answer = call(value,timeout=4.5) if value.get('oauth_token') else call(value)")
-    client=one(client,'def handle_turn(marketplace, account, command, rid, body_hash, conversation, mid, application, token_hash):','def handle_turn(marketplace, account, command, rid, body_hash, conversation, mid, application, token_hash, oauth_token=None):')
-    client=one(client,'identity = dict(tenant=account, application=application, token_hash=token_hash)',"identity = dict(tenant=account, application=application, token_hash=token_hash)\n    if oauth_token is not None:\n        if not isinstance(oauth_token,str) or not oauth_token.startswith('as6_'):\n            raise StationUnavailable('voice_revoked')\n        identity['oauth_token']=oauth_token")
-    compile(client,'station_client.py','exec')
     authority=pinned(Path(root)/'station_authority.py',
                      '1b9133d87becdd008aab26a70e45074a7f4b3701c9b36c1121db571293c118de')
     before="""            and delivery.auth(delivery.state['binding']['tenant'], auth.get('token_hash', '')))"""
@@ -117,9 +130,25 @@ def station_sources(root):
                     delivery.state['binding']['tenant'], auth.get('token_hash','')))))"""
     authority=one(authority,before,after)
     compile(authority,'station_authority.py','exec')
-    return {'service.py':src, 'station_client.py':client,
+    return {'service.py':src,
             'station_oauth.py':(ROOT/'station_oauth.py').read_text(),
             'station_authority.py':authority}
+
+
+def station_client_source(root):
+    client=pinned(Path(root)/'station_client.py',CLIENT)
+    client=one(client,'def call(value, path=SOCKET):','def call(value, path=SOCKET, timeout=.35):')
+    client=one(client,'s.settimeout(.35)','s.settimeout(timeout)')
+    client=one(client,"attempts = 1 if internal and internal.startswith('привязать колонку') else 2","attempts = 1 if value.get('oauth_token') or internal and internal.startswith('привязать колонку') else 2")
+    client=one(client,'answer = call(value)', "answer = call(value,timeout=4.5) if value.get('oauth_token') else call(value)")
+    client=one(client,'def handle_turn(marketplace, account, command, rid, body_hash, conversation, mid, application, token_hash):','def handle_turn(marketplace, account, command, rid, body_hash, conversation, mid, application, token_hash, oauth_token=None):')
+    client=one(client,'identity = dict(tenant=account, application=application, token_hash=token_hash)',"identity = dict(tenant=account, application=application, token_hash=token_hash)\n    if oauth_token is not None:\n        if not isinstance(oauth_token,str) or not oauth_token.startswith('as6_'):\n            raise StationUnavailable('voice_revoked')\n        identity['oauth_token']=oauth_token")
+    compile(client,'station_client.py','exec')
+    return client
+
+
+def station_sources(root):
+    return {**station_core_sources(root),"station_client.py":station_client_source(root)}
 
 
 def lab_sources(root):

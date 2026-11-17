@@ -87,6 +87,47 @@ jobs:
           ! docker inspect "$name" >/dev/null 2>&1
           test ! -e "$root"
           trap - EXIT TERM INT
+      - name: Owner OAuth real HTTP and Station reverse-proof chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="alisa-oauth-chain-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          root="/dev/shm/alisa-current-parameters-pg-oauth-chain-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          test ! -e "$root"
+          ! docker inspect "$name" >/dev/null 2>&1
+          mkdir -m 700 "$root"
+          cleanup() {
+            set +e
+            label=$(docker inspect -f '{{index .Config.Labels "alisa.task"}}' "$name" 2>/dev/null)
+            if [ "$label" = "$name" ]; then docker stop -t 3 "$name" >/dev/null; docker rm "$name" >/dev/null; fi
+            rmdir "$root" 2>/dev/null
+          }
+          trap cleanup EXIT TERM INT
+          docker run -d --name "$name" --label "alisa.task=$name" --network none \
+            --memory 384m --memory-swap 384m --cpus 1 --pids-limit 128 \
+            --tmpfs /var/lib/postgresql/data:rw,size=192m -v "$root:/var/run/postgresql" \
+            -e POSTGRES_DB=parameter_test -e POSTGRES_HOST_AUTH_METHOD=trust postgres:16.15
+          ready=0
+          for attempt in $(seq 1 30); do
+            if docker exec "$name" pg_isready -U postgres -d parameter_test; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" = 1
+          docker exec "$name" psql -U postgres -d parameter_test -v ON_ERROR_STOP=1 \
+            -c 'CREATE ROLE test_parameter_test_runtime NOLOGIN; CREATE ROLE parameter_test_runtime NOLOGIN;'
+          sudo systemd-run --quiet --wait --pipe --collect --unit="$name" \
+            -p Type=exec -p PrivateNetwork=yes -p RuntimeMaxSec=90 -p TimeoutStopSec=5 \
+            -p KillMode=control-group -p SendSIGKILL=yes -p OOMPolicy=stop \
+            -p MemoryAccounting=yes -p MemoryMax=256M -p MemorySwapMax=0 -p TasksMax=128 \
+            /usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 PYTHONDONTWRITEBYTECODE=1 \
+            ALISA_ISOLATED_OAUTH_HTTP_TEST=1 PARAMETER_TEST_SOCKET="$root" \
+            "$GITHUB_WORKSPACE/products/alisa/.venv/bin/python" -I -B \
+            "$GITHUB_WORKSPACE/products/alisa/tests/current_parameters/qualify_owner_chain.py" \
+            --output "$GITHUB_WORKSPACE/products/alisa/dist/owner-oauth-http-qualification.json"
+          cleanup
+          ! docker inspect "$name" >/dev/null 2>&1
+          test ! -e "$root"
+          trap - EXIT TERM INT
       - name: Read-only question catalogue and selected-store draft
         run: |
           export PYTHONPATH="$GITHUB_WORKSPACE/products/alisa/services/platform/src:$GITHUB_WORKSPACE/docs/alisa/runtime/v0.11/question_catalog_r1:$GITHUB_WORKSPACE/products/alisa/tests/question_catalog:$GITHUB_WORKSPACE/docs/alisa/runtime/v0.11/rt_job_r02:$GITHUB_WORKSPACE/docs/alisa/runtime/v0.11/rt_job_r02/tests"
@@ -190,6 +231,7 @@ jobs:
             products/alisa/dist/s05-*.json
             products/alisa/dist/s06-*.json
             products/alisa/dist/voice-parameter-qualification.json
+            products/alisa/dist/owner-oauth-http-qualification.json
             products/alisa/dist/s07-*.json
             products/alisa/dist/rt-check-*.json
             products/alisa/dist/runtime-qualification.json

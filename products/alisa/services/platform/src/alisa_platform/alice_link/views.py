@@ -193,7 +193,7 @@ def legacy_station_identity(data):
                                'platform_tenant': str(link.tenant_id)}})
 
 
-def legacy_station_token_current(data):
+def legacy_station_token_current(data, *, refreshable=False):
     """Private read-only currentness of one already verified modern Station turn.
 
     Station supplies the SHA256 of the bearer from an immutable accepted turn,
@@ -215,8 +215,13 @@ def legacy_station_token_current(data):
     if not isinstance(native,str) or re.fullmatch(r'[A-Za-z0-9_:-]{1,128}',native) is None:
         return reply({'current':False})
     from alisa_platform.stores.models import RuntimeTenantBinding
-    row=TokenFamily.objects.select_related('link__customer','link__tenant').filter(
-        access_hash=value,revoked_at__isnull=True,access_expires_at__gt=timezone.now()).first()
+    families=TokenFamily.objects.select_related('link__customer','link__tenant').filter(
+        access_hash=value,revoked_at__isnull=True)
+    # Refreshability permits only waking a pending legacy skill to refresh.
+    # The write/authority currentness path still requires an unexpired access.
+    families=(families.filter(refresh_expires_at__gt=timezone.now()) if refreshable
+              else families.filter(access_expires_at__gt=timezone.now()))
+    row=families.first()
     if (row is None or row.link.customer_id!=customer or
         row.link.client_id!=settings.ALICE_CLIENT_ID or
         row.revision!=row.link.revision or not valid_link(row.link)):
@@ -291,6 +296,8 @@ def handle(request, data):
         return legacy_station_identity(data)
     if action == 'legacy_station_token_current':
         return legacy_station_token_current(data)
+    if action == 'legacy_station_token_refreshable':
+        return legacy_station_token_current(data, refreshable=True)
     if action in {'token', 'revoke'}:
         return oauth_response(data)
     if action == 'webhook':
