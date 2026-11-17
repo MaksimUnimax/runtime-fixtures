@@ -1,0 +1,71 @@
+{
+  "source": "13f01118c7402814ba96cf42e8a75635220fbb45",
+  "status": "INSTALLED_TECHNICAL_READBACK_PASS",
+  "roles": {
+    "platform": {
+      "unit": "alisa-platform@stage.service",
+      "root": "/opt/alisa-platform/stage/releases/alisa-demand-platform-13f01118c7402814",
+      "pid": 1714593,
+      "manifest_sha256": "3de5506935f76e482560076facc683815e4963aecede144f88b8fb267a563d1a",
+      "flag_enabled": true,
+      "ready_status": 200,
+      "ready_release": "alisa-demand-platform-13f01118c7402814",
+      "selector_sha256": "2fd8c338882bddfee558c522fbb6945903590c3764f4e909b8c9fe5727dde840"
+    },
+    "admin": {
+      "unit": "alisa-admin@stage.service",
+      "root": "/opt/alisa-platform/stage/releases/alisa-demand-admin-13f01118c7402814",
+      "pid": 1714683,
+      "manifest_sha256": "d27bc1c64f7104ffaf02091cc65fc695dfcf93684748fac9cae9196346b53ff7",
+      "flag_enabled": true,
+      "ready_status": 200,
+      "ready_release": "alisa-demand-admin-13f01118c7402814",
+      "selector_sha256": "f6e1b4287665cfb77cb9a712a42717e210a0d1623f7f9c986cbd306ba20bc080"
+    },
+    "authority": {
+      "unit": "alisa-runtime-authority-stage.service",
+      "root": "/opt/alisa-platform/stage/releases/alisa-demand-authority-13f01118c7402814",
+      "pid": 1714595,
+      "manifest_sha256": "58261d96e9140bf402e5a3d60809b4305683298e327b4929c0533eede2a4a2cf",
+      "flag_enabled": true,
+      "ready_status": 200,
+      "ready_release": "alisa-demand-authority-13f01118c7402814",
+      "selector_sha256": "63ca76f26380f53c562dbe1d25dfb15f492940be01a02db30c9ae190df204f28"
+    }
+  },
+  "preserved_units": {
+    "alice-market.service": {
+      "pid": 1702538,
+      "unchanged": true
+    },
+    "alisa-identity@stage.service": {
+      "pid": 1475937,
+      "unchanged": true
+    },
+    "alisa-smtp-sandbox-stage.service": {
+      "pid": 1268881,
+      "unchanged": true
+    },
+    "alisa-station.service": {
+      "pid": 1704047,
+      "unchanged": true
+    },
+    "alisa-store-check.service": {
+      "pid": 1702582,
+      "unchanged": true
+    },
+    "alisa-web@stage.service": {
+      "pid": 1667298,
+      "unchanged": true
+    }
+  },
+  "owner_acceptance": "NOT_RUN",
+  "provider_calls": "NOT_RUN",
+  "database": {
+    "migration_records": 1,
+    "new_tables": 6,
+    "runtime_privileges": true
+  },
+  "activated_receipt_sha256": "aaddcc6d91593ce35ff02e1c0db8aec1c62816a7cc0d6ec1cad632d279dad3f5",
+  "controller": "MainPID=0\nControlGroup=\nLoadState=not-found"
+}

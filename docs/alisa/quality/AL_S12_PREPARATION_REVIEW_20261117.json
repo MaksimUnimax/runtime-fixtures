@@ -1,0 +1,61 @@
+{
+  "source": "13f01118c7402814ba96cf42e8a75635220fbb45",
+  "product_source_ci": 44080835358,
+  "product_documentation_ci": 44080835409,
+  "product_ci_result": "SUCCESS",
+  "s12_contracts": {
+    "tests": 12,
+    "failures": 0,
+    "errors": 0,
+    "scope": "S12_DEMAND_REAL_PG_SYNTHETIC_JOURNAL"
+  },
+  "preparer_sha256": "e6c98facaee60e92817929e17bd9e950c9c99760dd3158563dad463494a3bd7f",
+  "authority_preparer_sha256": "d8243c0f232a52a4d720619f9886c92a6e6706ae83f6b9fa3ba87a1f551e883e",
+  "accepted_primitive_sha256": "73a13e0d510901aed20b0aace60387720769f184e6b2c5c653b60dcb1b3b7862",
+  "independent_preparer_review": {
+    "reviewer": "gpt-6-luna independent participant",
+    "outcome": "PASS_STATIC_NO_BLOCKERS",
+    "resolved_findings": [
+      "Mixed execute modes replace only an inactive candidate link with a private inode before mode correction; shared/base inodes are never chmodded.",
+      "Authority root and preparer-pin checks use explicit runtime guards, not optimization-sensitive assertions."
+    ],
+    "limits": "Static review only. No live migration or activation reviewed/performed."
+  },
+  "scope": "Preparation scope: three inactive candidates; subsequent qualified activation is documented separately",
+  "authority_dependency": "Actual gap_ingest runs in the separate authority role. Platform-only delivery would not capture new journal events.",
+  "candidates": {
+    "platform": {
+      "manifest_sha256": "3de5506935f76e482560076facc683815e4963aecede144f88b8fb267a563d1a",
+      "files": 4727
+    },
+    "admin": {
+      "manifest_sha256": "d27bc1c64f7104ffaf02091cc65fc695dfcf93684748fac9cae9196346b53ff7",
+      "files": 4623
+    },
+    "authority": {
+      "manifest_sha256": "58261d96e9140bf402e5a3d60809b4305683298e327b4929c0533eede2a4a2cf",
+      "files": 4657
+    }
+  },
+  "migration_plan": {
+    "target": "query_insights.0002_demand_queue",
+    "result": "PASS",
+    "operations": "Create six new demand models",
+    "database_session": "default_transaction_read_only=on",
+    "applied": false
+  },
+  "installed": true,
+  "feature_enabled": true,
+  "manual_acceptance": "OWNER_WILL_RUN",
+  "preparation_documentation_ci": {
+    "head": "938c98c3ed054c47e4af5823d581efa05cd1a8e4",
+    "run": 44090132835,
+    "result": "SUCCESS"
+  },
+  "final_readback": "AL_S12_INSTALLED_READBACK_20261117.json",
+  "activation_documentation_ci": {
+    "head": "c0c22af1d624c692d93c5e0cd1704ec8d0a41c3d",
+    "run": 44092929215,
+    "result": "SUCCESS"
+  }
+}
