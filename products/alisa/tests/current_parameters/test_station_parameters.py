@@ -225,7 +225,22 @@ class StationParameters(Fixture,TestCase):
 
     def test_wrong_native_peer_denied_without_write(self):
         self.enable();self.native.allowed_uid=os.getuid()+12345
-        result=self.say();self.assertIn('не подтверждено',result['reply']);self.assertEqual(CurrentParameter.objects.count(),0)
+        self.calls.clear();started=time.monotonic()
+        # A rejected Unix peer may receive AUTH_REQUIRED or a reset/EOF when
+        # the kernel closes the socket with its unread request. Neither is a
+        # permission to dispatch or write; do not assume one diagnostic text.
+        with patch.object(self.ipc,'dispatch',wraps=self.ipc.dispatch) as dispatch:
+            result=self.say()
+            dispatch.assert_not_called()
+        self.assertIn(result['reply'],(
+            'Изменение не подтверждено. Проверьте доступ и текущее значение в кабинете.',
+            'Не удалось подтвердить сохранение. Проверьте значение в кабинете. Автоматического повтора нет.'))
+        self.assertLess(time.monotonic()-started,3)
+        self.assertEqual(self.calls,['turn'])
+        self.assertEqual(CurrentParameter.objects.count(),0)
+        self.assertEqual(OwnerCommand.objects.count(),0)
+        self.assertNotIn('parameter_pending',self.delivery.state)
+        self.assertFalse(any(x.get('parameter_done') for x in self.delivery.state.get('turn_receipts',{}).values()))
 
     def test_unknown_outcome_does_not_auto_repeat(self):
         self.enable();self.say();self.lose_reply=True;self.say('подтверждаю',2)

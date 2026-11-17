@@ -160,6 +160,78 @@ def oauth_response(data):
         return reply({'oauth_body': json.loads(body) if body else {}, 'oauth_status': status})
 
 
+def legacy_station_identity(data):
+    """Verify the *existing* confidential-client bearer for the legacy skill.
+
+    Private platform service boundary only; not a browser API or a grant. This
+    does not issue, refresh, consume or mirror OAuth tokens and never touches
+    the legacy lab SQLite database. Native alias is derived from the current
+    owner membership, not from a caller-provided tenant/string.
+    """
+    exact(data, {'action', 'access_token'})
+    token = data['access_token']
+    if not isinstance(token, str) or not token.startswith('as6_') or len(token) > 2048:
+        return reply({'code': 'INVALID_BEARER'}, 401)
+    headers = {'Authorization': 'Bearer ' + token}
+    valid, request = server().verify_request(TOKEN, http_method='POST', headers=headers, scopes=[SCOPE])
+    if not valid:
+        return reply({'code': 'INVALID_BEARER'}, 401)
+    from alisa_platform.stores.models import RuntimeTenantBinding
+    link = request.user
+    if link.client_id != settings.ALICE_CLIENT_ID:
+        return reply({'code': 'INVALID_BEARER'}, 401)
+    tenant = RuntimeTenantBinding.objects.filter(tenant_id=link.tenant_id).values_list('native_tenant', flat=True).first()
+    if not isinstance(tenant, str) or not 1 <= len(tenant) <= 128:
+        return reply({'code': 'LEGACY_BINDING_UNAVAILABLE'}, 403)
+    # Revalidation catches already revoked tokens before returning the native
+    # alias; the Station rechecks the owner/binding on every incoming turn.
+    valid, request = server().verify_request(TOKEN, http_method='POST', headers=headers, scopes=[SCOPE])
+    if not valid or request.user.pk != link.pk:
+        return reply({'code': 'INVALID_BEARER'}, 401)
+    return reply({'identity': {'owner': str(link.customer_id),
+                               'native_tenant': tenant,
+                               'platform_tenant': str(link.tenant_id)}})
+
+
+def legacy_station_token_current(data, *, refreshable=False):
+    """Private read-only currentness of one already verified modern Station turn.
+
+    Station supplies the SHA256 of the bearer from an immutable accepted turn,
+    never a raw credential. Unlike the legacy lab, currentness is determined
+    by the existing OAuthlib-backed owner's TokenFamily and revocation state.
+    No token is issued or prolonged. The service boundary alone is not a user
+    grant and the result is an exact boolean with no owner/token disclosure.
+    """
+    exact(data, {'action','token_hash','owner','native_tenant'})
+    value=data['token_hash']
+    if not isinstance(value,str) or re.fullmatch(r'[a-f0-9]{64}',value) is None:
+        return reply({'current':False})
+    try:
+        import uuid
+        customer=uuid.UUID(data['owner'])
+    except (TypeError,ValueError,AttributeError):
+        return reply({'current':False})
+    native=data['native_tenant']
+    if not isinstance(native,str) or re.fullmatch(r'[A-Za-z0-9_:-]{1,128}',native) is None:
+        return reply({'current':False})
+    from alisa_platform.stores.models import RuntimeTenantBinding
+    families=TokenFamily.objects.select_related('link__customer','link__tenant').filter(
+        access_hash=value,revoked_at__isnull=True)
+    # Refreshability permits only waking a pending legacy skill to refresh.
+    # The write/authority currentness path still requires an unexpired access.
+    families=(families.filter(refresh_expires_at__gt=timezone.now()) if refreshable
+              else families.filter(access_expires_at__gt=timezone.now()))
+    row=families.first()
+    if (row is None or row.link.customer_id!=customer or
+        row.link.client_id!=settings.ALICE_CLIENT_ID or
+        row.revision!=row.link.revision or not valid_link(row.link)):
+        return reply({'current':False})
+    binding=RuntimeTenantBinding.objects.filter(tenant_id=row.link.tenant_id).values_list('native_tenant',flat=True).first()
+    if binding!=native:
+        return reply({'current':False})
+    return reply({'current':True})
+
+
 def webhook(data):
     exact(data, {'action', 'payload', 'authorization'})
     payload = data['payload']
@@ -220,6 +292,12 @@ def handle(request, data):
     action = data.get('action')
     if action == 'request':
         return authorize_request(data)
+    if action == 'legacy_station_identity':
+        return legacy_station_identity(data)
+    if action == 'legacy_station_token_current':
+        return legacy_station_token_current(data)
+    if action == 'legacy_station_token_refreshable':
+        return legacy_station_token_current(data, refreshable=True)
     if action in {'token', 'revoke'}:
         return oauth_response(data)
     if action == 'webhook':
