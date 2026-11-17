@@ -28,7 +28,7 @@ def digest(value):
     return hashlib.sha256(value.encode()).hexdigest()
 
 
-def boundary(view):
+def boundary(view, *, body_limit=None):
     @wraps(view)
     def wrapped(request):
         if not settings.STAFF_ENABLED:
@@ -38,14 +38,26 @@ def boundary(view):
             return reply({'code': 'UNAUTHORIZED'}, 401)
         if request.method != 'POST':
             return reply({'code': 'METHOD_NOT_ALLOWED'}, 405)
-        if request.content_type != 'application/json' or request.META.get('QUERY_STRING') or len(request.body) > 32768:
+        if request.content_type != 'application/json' or request.META.get('QUERY_STRING'):
             return reply({'code': 'INVALID_PAYLOAD'}, 422)
         try:
-            data = json.loads(request.body)
+            if body_limit is None:
+                raw = request.body
+                if len(raw) > 32768: raise ValueError()
+            else:
+                # Only the explicit catalog editor uses this private bounded
+                # stream; existing public form limits are unchanged.
+                if type(body_limit) is not int or not 1 <= body_limit <= 32768: raise ValueError()
+                length = request.headers.get('Content-Length', '')
+                if (not length.isascii() or not length.isdigit() or not 0 < int(length) <= body_limit
+                    or request.headers.get('Transfer-Encoding')): raise ValueError()
+                raw = request.read(body_limit + 1)
+                if len(raw) != int(length) or len(raw) > body_limit: raise ValueError()
+            data = json.loads(raw)
             if not isinstance(data, dict):
                 raise ValueError()
             return view(request, data)
-        except (ValueError, KeyError, TypeError, AttributeError, OverflowError):
+        except (ValueError, KeyError, TypeError, AttributeError, OverflowError, RecursionError):
             return reply({'code': 'INVALID_PAYLOAD'}, 422)
         except DatabaseError:
             return reply({'code': 'DATABASE_UNAVAILABLE'}, 503)

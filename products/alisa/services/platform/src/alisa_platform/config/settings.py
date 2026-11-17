@@ -247,3 +247,17 @@ if os.environ.get("ALISA_OWNER_PARAMETER_VOICE_ENABLED","0") not in {"0","1"} or
 QUERY_DEMAND_ENABLED = os.environ.get('ALISA_QUERY_DEMAND_ENABLED', '0') == '1'
 if os.environ.get('ALISA_QUERY_DEMAND_ENABLED', '0') not in {'0','1'} or QUERY_DEMAND_ENABLED and not QUERY_INSIGHTS_ENABLED:
     raise ImproperlyConfigured('Demand queue requires the existing query journal')
+
+# Catalog release decisions are a separate product app and default off.
+INSTALLED_APPS += ['alisa_platform.catalog']
+CATALOG_RELEASE_ENABLED = os.environ.get('ALISA_CATALOG_RELEASE_ENABLED', '0') == '1'
+if os.environ.get('ALISA_CATALOG_RELEASE_ENABLED', '0') not in {'0','1'} or CATALOG_RELEASE_ENABLED and not (QUESTION_CATALOG_ENABLED and QUERY_INSIGHTS_ENABLED):
+    raise ImproperlyConfigured('Catalog releases require the existing journal and question catalog')
+from uuid import UUID as _CatalogTenantUUID
+try:
+    _catalog_pilots = [v.strip() for v in os.environ.get('ALISA_CATALOG_PILOT_TENANTS', '').split(',') if v.strip()]
+    if len(_catalog_pilots)>10 or len(set(_catalog_pilots))!=len(_catalog_pilots) or any(str(_CatalogTenantUUID(v))!=v for v in _catalog_pilots):
+        raise ValueError()
+except (ValueError, TypeError, AttributeError):
+    raise ImproperlyConfigured('Catalog pilot tenant list must contain at most ten canonical UUIDs') from None
+CATALOG_PILOT_TENANTS = tuple(_catalog_pilots)

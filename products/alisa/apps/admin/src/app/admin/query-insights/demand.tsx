@@ -18,7 +18,7 @@ async function request(action:string, filters:Record<string,unknown>){
   return body;
 }
 
-export function Demand(){
+export function Demand({canCatalogEdit=false}:{canCatalogEdit?:boolean}){
   const [queue,setQueue]=useState<Queue|null>(null),[policy,setPolicy]=useState<Policy|null>(null);
   const [detail,setDetail]=useState<Cluster|null>(null),[cursor,setCursor]=useState<string|undefined>();
   const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[selected,setSelected]=useState<string[]>([]);
@@ -63,6 +63,7 @@ export function Demand(){
       {detail&&<section aria-label="Карточка потребности"><h3>{detail.example}</h3>
         {detail.general.daily&&<details><summary>Динамика по дням</summary><table><thead><tr><th>Дата (UTC)</th><th>Эпизоды</th><th>Вклады</th><th>Клиенты</th></tr></thead><tbody>{detail.general.daily.map(day=><tr key={day.day}><td>{day.day}</td><td>{day.raw}</td><td>{day.contributions}</td><td>{day.clients}</td></tr>)}</tbody></table></details>}
         {detail.candidate&&<p>Карточка создана по версии порогов {detail.candidate.policy_revision}. Решение сохраняется при последующем снижении спроса.</p>}
+        {canCatalogEdit&&detail.candidate&&detail.candidate.state!=='MERGED'&&<p><a href={'/admin/catalog/releases?candidate='+encodeURIComponent(detail.candidate.id)}>Подготовить шаблон из потребности</a></p>}
         {queue.can_manage&&!detail.candidate&&<form onSubmit={event=>{event.preventDefault();void mutate('create',{cluster:detail.id,expected_revision:detail.revision,reason:createReason});}}>
           <label>Основание ручной карточки<select disabled={busy} value={createReason} onChange={event=>setCreateReason(event.target.value)}>{['CONFIRMED_FINANCIAL_ERROR','CONFIRMED_DEFECT','PROVIDER_DEPENDENCY'].map(code=><option key={code} value={code}>{reasons[code]}</option>)}</select></label><button disabled={busy}>Создать карточку без ожидания порога</button></form>}
         {queue.can_manage&&detail.candidate&&<form onSubmit={event=>{event.preventDefault();void mutate('update',{cluster:detail.id,expected_revision:detail.revision,candidate_revision:detail.candidate!.revision,state,priority,assignee_id:assignee||null,reason});}}>

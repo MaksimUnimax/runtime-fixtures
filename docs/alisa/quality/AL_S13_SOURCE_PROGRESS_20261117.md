@@ -1,0 +1,52 @@
+# AL-S13 · управляемые версии шаблонов
+
+Статус: IMPLEMENTING, не установленная функция. База — установленный AL-S12, `e90b7b8d39c94f91cc439f28397d38e6be1c42f4`. Ветка `feat/alisa-catalog-release-s13-20261117`. Параллельные OAuth PR467/469 и S16 не редактируются. Ручную приёмку выполняет владелец.
+
+## Реализуемая граница
+
+Черновик привязан к кандидату AL-S12. Проверка, одобрение и назначение клиенту разделены. Права `catalog.edit`, `catalog.approve`, `catalog.publish` принадлежат прежнему продукту и прежней staff-сессии; issuer, customer access и Store/work tickets не меняются. Возможность по умолчанию выключена; публикация ограничена явно настроенными тестовыми tenant UUID.
+
+Первый data-only пакет допускает переиспользование и композицию существующих шаблонов. Новые источники, финансовые выражения и операторы требуют отдельной квалификации ядра. Пакет содержит конкретные engine/base/qualification SHA и формулировку смысла с известными отрицательными примерами. Его canonical SHA меняется вместе с данными или подтверждением проверки.
+
+Нативное ядро хранит неизменяемые пакеты и CAS-назначения в прежней SQLite. Копии `template_catalog`/`template_runtime` используют отдельные пространства имён; код компилируется только из допущенных локальных файлов, JSON не становится Python. Данные пакета и точный materialized template hash закрепляются в плане задания. Выбор назначения и durable admission используют прежнюю thread-local транзакцию Repository. Cache lock не удерживается при входе в SQLite.
+
+Пакет выбирается по плану принятого задания, а назначение — только для нового submit. Уточнение уже сохраняет исходный план и остаётся на прежнем пакете. При выключении публикации сохраняется совместимая маршрутизация принятых пакетов; новые задания получают исходный каталог. Возврат к старому ORM/ядру после admission не является откатом возможности.
+
+## Подтверждение публикации
+
+Platform сохраняет PENDING-намерение одной транзакцией с повторной проверкой текущих полномочий. Короткий подписанный control ticket проверяется через существующий authority RPC: текущая staff-сессия, MFA, member revision, право publish, сохранённая publication/assignment revision и актуальная привязка тестового клиента. Native registry сам вызывает этот verifier; plain dict не является доказательством.
+
+Proof закрепляет package, engine, materialized template и qualification hashes. Native assignment и idempotency receipt фиксируются одной SQLite-транзакцией. После потери ответа сначала читается фактическая ревизия; повтор использует тот же request ID. APPLIED появляется только при совпадении фактического назначения, хешей и last_request_id. Один эффект получает один аудит подтверждения; новая запись намерения им не считается.
+
+Проверка пакета требует сохранённый отчёт реальной изолированной CI-проверки базовых привязок. Уровень — INTEGRATION_FIXTURE, scope BYTE_IDENTICAL_BASE_BINDINGS; это не LIVE_PROVIDER. Producer выполняет фактический regression на новой CI-копии ядра; отчёт и receipt связаны SHA. Добавлены тринадцать сценариев PostgreSQL/Unix: pinning, rollback, потеря ACK, текущие права, отзыв доступа, отрицательные пакеты и неизменяемость. Результат CI пока не получен. Отсутствующий или несогласованный отчёт не разрешает публикацию.
+
+## Сохранность
+
+Новая миграция создаёт шесть таблиц каталога. Release/Validation/Decision защищены от изменения ORM и PostgreSQL triggers. Publication intent допускает изменение только результата наблюдения; native packages и command receipts защищены SQLite triggers. Tenant UUID хранятся без нового reverse FK к прежнему account-cleanup ORM; при публикации существование и активная owner membership проверяются отдельно. Прежние значения коэффициентов, consent и рабочие службы не изменялись.
+
+В админке подготовлены форма пакета, отдельные проверка/одобрение, назначение тестовому клиенту, откат и сверка PENDING. Редактор ограничен прежним staff/BFF token, same-origin проверкой и 32-КиБ private stream; глобальный лимит обычных форм не расширяется. Пользовательские вопросы, финансовые ответы и секреты не попадают в пакет или release history.
+
+## Незавершённое
+
+1. Навигация из очереди и роли редактора включены в исходник; подтвердить сборкой интерфейса.
+2. Получить результаты CI producer и тринадцати native/real-PG сценариев. Дополнительно готовится тот же прогон на закреплённом R15 source context cafb743c с нынешними question/voice overlays. Это тестовый контекст, не пакет установки.
+3. Независимое static review текущей границы не нашло blocker. Завершить ревью окончательного SHA и штатные CI/build проверки. Локальные Node/native helpers не запускались.
+4. Получить проверенный пакет; подготовить поставку поверх свежих R15/S12/OAuth ролей, не теряя параллельные изменения. До технического readback не заявлять INSTALLED/APPLIED или пользовательскую приёмку.
+
+## Текущий источник
+
+PR #470: https://github.com/MaksimUnimax/runtime-fixtures/pull/470. Первый полный исходник fe396d8cadda048ac77c2c5276d0530ce78b34de. CI 44123275398: штатные runtime/voice/question проверки прошли; foundation остановлен на старом policy-тесте, который называл catalog.publish ещё незарегистрированным. Тест обновлён на введённые S13 права с отдельной проверкой, что edit/approve/publish не дают друг друга, а catalog.future запрещён. Полный повтор CI ещё необходим. Documentation CI 44123275486 прошёл. Новые S13 роли/миграции/флаги на действующей установке не включались. Отдельный модуль запуска сохраняет корневые runtime.py/runtime_port_service.py и прежний RuntimePort bundle hash; это подтверждено read-only сверкой установленной R15.
+
+CI f48807c: сборка интерфейса, systemd startup, browser/catalog, staff/access/store/OAuth проверки прошли. Следующий этап остановился при создании вложенного native package: прежний общий composer создаёт только корневые файлы. Исправлено в собственном S13 composer: прежняя проверка/copy базы сохраняется, вложенный пакет создаётся затем только в новом owned output; общий composer и корневые файлы не изменяются. Добавлена безопасная метка фазы в отчёт CI.
+
+CI d18c718: фактически прошли 1986 checks composed base и 11/12 S13 сценариев; многозадачный сценарий остановился на рассогласовании часов fixture/authority. Исправлен общий тестовый clock без изменения срока/проверок авторизации. Read-only анализ установленной R15 выявил дополнительные потребители Root TEMPLATES/compile_selection в архиве и financial helpers. В S13 добавлена маршрутизация по durable parent plan для архива и pinned/context-local компиляция вложенных источников; исходные классы архива и файлы ядра сохраняются. Добавлен тринадцатый сценарий: архив alias сохраняет id, title и hash его версии. Контекст всегда сбрасывается в finally; для корневого legacy compile сохраняется исходная функция. Новый прогон ещё не выполнен.
+
+CI e97b23a: 1986 composed-base checks и все 13 S13 checks PASS, включая архив alias. Полный старый run_checks на R15 дал 3 ошибки ожидания числа 86 вместо 90 и 8 ошибок старой AllTemplates fixture без включённых финансовых возможностей; этот результат сохранён как FAILED. Исторические тесты не меняются. Для R15 подключены прежние canonical suites base/collection/ledger/compound (4 shards), точный cafb743c source context, owned network-none Unix PG и новый S13 native source. Attestation проверяет реально начавшиеся/завершённые cases, inventory/shard coverage, неизменный engine SHA, текущие source SHA/run ID/attempt. Source job принимает только все 7 результатов этого же CI и того же engine SHA, затем выполняет S13 PG/Unix сценарии. Предыдущие результаты не заменяют новый прогон. Дополнительно маршрутизирован Root _finish_fragment, используемый financial helpers; корневые исходники по-прежнему не меняются.
+
+CI 3c115a4: base (690 tests), collection и compound shards 1/2/3 прошли. Ledger остановился на 9 import/Server-signature errors из-за неполного sparse checkout R15 runtime; compound shard0 дал только несовпадение B14.card_views с историческим WB golden. В CI добавлены все R15 runtime sources и отдельная копия canonical test context; runner/tests неизменны, только два golden hash для уже установленной S11 WB metadata v2 заменены явными old→new pins. Другие 86 hashes и строгий old-templates test сохранены. SHA golden/runner проверяются до/после и во всех 7 attestations. Это версионирование fixture, не принятие падающих тестов. Очистка проверяет marker текущего run/attempt; имена artifacts включают run/attempt. Добавлен технический native inventory для побайтовой сверки поставки.
+
+На Alisa создан только неактивный кандидат /root/alisa-catalog-s13-3c115a4c-prepare-20261117/core: копия всех 212 исходных файлов (3 254 570 байт) + четыре S13 package files. Все исходные файлы совпали с действующим Native, прежний bundle SHA 3a07340521b2a7d54f3728d071019cd9e539b0b65173cb0df4291616dca7575d сохранён. Его engine SHA 045c94dcdc386941c3b96d2b53854b3b0881a0533ba52cf8ae73eef3b011bfd3 отличается от CI fixture 4910fbf4547c06e8f724f2f6d7ff9f4fa8ef54ec3f9938b6022032f154ac1bff: до объяснения разницы, exact qualification и final readback он не активируется. Рабочие PID/флаги/БД не менялись.
+
+CI b308: ledger и collection уже PASS после полного R15 runtime checkout. Base выполнил 690 tests: один существующий exact-token assertion пересёк границу секунды TimestampSigner, 689 PASS; canonical test оставлен без ослабления, failure не объявляется устранённым. Новые S13 изменения требуют нового прогона. Read-only byte comparison 145 engine files показал единственную разницу CI/установки — template_protocol.py (остальные файлы совпали). В tests/catalog_release/fixtures добавлен точный установленный protocol SHA 260c5ef0…; context проверяет исходный f5a59b25… и fixture SHA, затем воспроизводит существующую installed dataset-selection policy без смены рабочей версии. Это не новый selector behavior.
+
+Read-only callback audit также показал R15 engine isinstance check для Root template_runtime._FragmentRepo. Private runtime теперь использует тот же исходный class; его parent-plan callback уже маршрутизирован через _finish_fragment. Иначе отдельная copied class не прошла бы worker guard. Эти изменения пока не квалифицированы новым CI и не устанавливались. CLI fixture destination дополнительно проверяется до resolve: точный один из семи run/attempt/suite/shard путей, отсутствие symlink и прежнего объекта.

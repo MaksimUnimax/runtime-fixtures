@@ -35,7 +35,14 @@ class StaffPolicyTests(unittest.TestCase):
         self.session['mfa_type']='recovery_codes';self.assertTrue(self.allowed());self.member['client_id']='foreign';self.assertFalse(self.allowed())
     def test_owner_has_no_unregistered_or_future_command(self):
         self.member['role']='OWNER';self.assertTrue(self.allowed('staff.manage'))
-        for invalid in ['catalog.publish','payments.refund','global.person.block','OWNER',None]:self.assertFalse(self.allowed(invalid))
+        for registered in ['catalog.edit','catalog.approve','catalog.publish']:self.assertTrue(self.allowed(registered))
+        for invalid in ['catalog.future','payments.refund','global.person.block','OWNER',None]:self.assertFalse(self.allowed(invalid))
+    def test_catalog_roles_do_not_imply_each_other(self):
+        for permission in ['catalog.edit','catalog.approve','catalog.publish']:
+            self.member['permissions']=[permission]
+            self.assertTrue(self.allowed(permission))
+            for other in {'catalog.edit','catalog.approve','catalog.publish'}-{permission}:
+                self.assertFalse(self.allowed(other))
     def test_admin_cannot_submit_owner_permission_or_opaque_values(self):
         for values in [['staff.manage'],['users.read','users.read'],[{}],[True],None,'users.read']:
             with self.assertRaises(ValueError):p.permissions(values)
@@ -59,3 +66,4 @@ class StaffPolicyTests(unittest.TestCase):
         self.session['created_at']=self.now+30;self.assertFalse(self.allowed())
     def test_block_permission_does_not_allow_unblock(self):
         self.member['permissions']=['users.block'];self.assertTrue(self.allowed('users.block'));self.assertFalse(self.allowed('users.unblock'))
+

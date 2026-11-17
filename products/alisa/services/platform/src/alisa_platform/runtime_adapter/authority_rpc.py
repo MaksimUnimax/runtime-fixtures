@@ -49,6 +49,9 @@ def check(request):
         if body['operation']=='parameter_collection':
             from alisa_platform.owner_data.parameter_collection import rpc
             data=rpc(configured_authority(),body['payload'])
+        elif body['operation']=='catalog_control':
+            from alisa_platform.catalog.control import rpc as catalog_control
+            data=catalog_control(configured_authority(),body['payload'])
         elif body['operation']=='gap_ingest':
             from alisa_platform.query_insights.service import ingest
             data=ingest(body['payload'])

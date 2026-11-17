@@ -11,5 +11,5 @@ export default async function Page(){
   if(!staff)redirect('/login');
   if(!staff.permissions.includes('insights.read'))return <main><h1>Нет разрешения на просмотр журнала</h1><a href="/admin">Вернуться в админку</a></main>;
   return <Journal canExport={staff.permissions.includes('insights.export')}
-    canDemand={process.env.ALISA_QUERY_DEMAND_ENABLED==='1'}/>;
+    canDemand={process.env.ALISA_QUERY_DEMAND_ENABLED==='1'} canCatalogEdit={process.env.ALISA_CATALOG_RELEASE_ENABLED==='1'&&staff.permissions.includes('catalog.edit')}/>;
 }

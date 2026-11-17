@@ -50,3 +50,6 @@ urlpatterns += [path("api/v1/account/parameters", current_parameters)]
 
 from alisa_platform.owner_data.station_parameters import handle as station_parameters
 urlpatterns += [path("api/v1/account/station-parameters",station_parameters)]
+
+from alisa_platform.catalog.release_views import handle as catalog_changes
+urlpatterns += [path('api/v1/staff/catalog-changes',catalog_changes)]
