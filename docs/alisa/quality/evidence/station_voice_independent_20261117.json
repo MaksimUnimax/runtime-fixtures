@@ -1,0 +1,142 @@
+{
+  "source_head": "485a2034ac0dc36fea2590666075b54c24b12174",
+  "status": "SOURCE_COMPATIBILITY_PASS_DELIVERY_CORE_SEAL_REQUIRES_CORRECTION",
+  "suites": {
+    "voice-hybrid-r1": {
+      "result": {
+        "elapsed_seconds": 5.976,
+        "errors": 0,
+        "external_connections": 0,
+        "failures": 0,
+        "identities_and_grants": "SYNTHETIC",
+        "installed_station_acceptance": false,
+        "live_grants_migrations_or_services_changed": false,
+        "real_postgresql_and_oauth_validation": true,
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 140,
+        "utc": "2026-11-17T08:56:44.847129+00:00"
+      },
+      "result_sha256": "20597227121154f385e8e662eb4b3ac694de50ba180429650c83865fc089932a",
+      "source": {
+        "base": "3f2527482db8fd7edb240258fae814d38adc0f4f",
+        "candidate": "7ac223542747f3a534a95c8b5326a07320bc77de",
+        "configuration_merge": "exact candidate suffix appended to exact installed settings; original installed bytes preserved",
+        "installed_base_files": 154,
+        "installed_base_map_digest": "f28a87b110bfb8a09ef766a2c53132f320ddc79314ca53ed2fdf59e0b82986cc",
+        "scope": "owned isolated platform source; no author worktree/live writes"
+      },
+      "source_sha256": "f7c612b6e9cbc73b9809851ab8f3d2d2e6a5f745fcf30b1f5f2187ff25fe984a"
+    },
+    "voice-station-hybrid-r1": {
+      "result": {
+        "elapsed_seconds": 7.417,
+        "errors": 0,
+        "external_connections": 0,
+        "failures": 0,
+        "identities_and_grants": "SYNTHETIC",
+        "installed_station_acceptance": false,
+        "live_grants_migrations_or_services_changed": false,
+        "real_postgresql_and_oauth_validation": true,
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 168,
+        "utc": "2026-11-17T09:32:13.240182+00:00"
+      },
+      "result_sha256": "86e6eca5f8d1f6d10107f34432b5e23787b14e4952719063fc1247f4a618cf56",
+      "source": {
+        "candidate_repo_ipc_base": "d42c2df28fb19c59c5b558f7006e371b3b3a07fc4c8f2d6fef595b3a6ac93eb0",
+        "head": "485a2034ac0dc36fea2590666075b54c24b12174",
+        "installed_native_files": 210,
+        "installed_platform_files": 154,
+        "live_changed": false,
+        "native_ipc_base": "ac059ff23efa44516436ac20b3a567c4bb17dfe28896d49745a036e8988e02fc",
+        "native_map_digest": "38588f45b740b963459af93db04abb4d453021a260313011ef16499e82aeecba",
+        "platform_map_digest": "f28a87b110bfb8a09ef766a2c53132f320ddc79314ca53ed2fdf59e0b82986cc",
+        "station_base_matched_live": true,
+        "test_files_modified": false
+      },
+      "source_sha256": "e5bde8ab87d8229ead2802fe40b195c2d81a32a7de2c095531eeffaed7e8fb13"
+    },
+    "voice-station-minimal-r1": {
+      "result": {
+        "elapsed_seconds": 6.217,
+        "errors": 0,
+        "external_connections": 0,
+        "failures": 0,
+        "identities_and_grants": "SYNTHETIC",
+        "installed_station_acceptance": false,
+        "live_grants_migrations_or_services_changed": false,
+        "real_postgresql_and_legacy_station_validation": true,
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 129,
+        "utc": "2026-11-17T09:39:57.338965+00:00"
+      },
+      "result_sha256": "765e4149a87d553c1abf037c65b7fe2c06a4517b7253d66994e75f3107c8a955",
+      "source": {
+        "backend_overlay_files": {
+          "config/settings.py": "715421db8a44f5d54f9c662622063d62f1f6750c51dcae321633961b69020ddd",
+          "config/urls.py": "f909b748bbd54d9c80e17d160af6c659e38755a6c5d28be00b7ba8c4a654dca2",
+          "owner_data/parameter_service.py": "9eeb097148f621e571a1d44f1197d6650f2308446d22df0840e883486f76d7b3",
+          "owner_data/parameter_voice.py": "b2b229b4fe060bcad45dbbc3d0f289c12380d453846a8191e58fd22f51beebbc",
+          "owner_data/parameter_voice_catalog.json": "87b0224693b2e222be39f30585179549742b04eed8e34553b6677f081e7449f2",
+          "owner_data/station_parameters.py": "28042440d6c739be20f466f6161478b3710178b6f4e7bc5c0531bc0b212759c6"
+        },
+        "candidate": "485a2034ac0dc36fea2590666075b54c24b12174",
+        "final_platform_files": 157,
+        "initial_platform_files": 154,
+        "migrations_added": false,
+        "modern_oauth_route_changed": false,
+        "native_ipc_base": "ac059ff23efa44516436ac20b3a567c4bb17dfe28896d49745a036e8988e02fc",
+        "new_test_methods": 0,
+        "only_launcher_labels_and_result_scope_changed": true,
+        "scope": "legacy Station only; old platform AliceLink model/views/schema retained",
+        "scoped_tests_expected": 129
+      },
+      "source_sha256": "1a3b09aeb53e476df9669eef2030cd7924d08f1dc2873a57680162a5036af5e2"
+    }
+  },
+  "source_reviews": [
+    5936035491,
+    5936125658
+  ],
+  "delivery_review": 5936350988,
+  "artifact": {
+    "id": 14315374671,
+    "sha256": "de1025c8f4570a010e9f8b65e7b7ef9542d88022370fb0262cf108d5c5e6b92f",
+    "bytes": 52379279,
+    "source_ci": 44054235750,
+    "documentation_ci": 44054235806
+  },
+  "independent_private_candidates": {
+    "receipt_sha256": "93c55e71f0d71121e7674eca5c18fe6d059c13b36f1c2c111d260441af1ecded",
+    "native_manifest": "006d7529354d484f9eab01daa3fd9cedf6d498477f2d29502f3d85efda41880a",
+    "platform_manifest": "632c1ca6f5b9ce3efdb007f135819ea454bf054d7e7980d06c192c96c38ff210",
+    "station_manifest": "59e1b491b8fb186eb4f9bc30efe56f04991764852f161451552d085c8230f7a0"
+  },
+  "author_native_candidate": {
+    "manifest": "12b4dd614ea3c27788a0b1ba750743b88b85827759d1271916b8ee3c40bd3d0b",
+    "configuration_check": "PASS",
+    "versions_check": "UPDATE_REQUIRED_catalog_bundle_hash_only",
+    "core_seal_equal_to_outer_files_except_self": false,
+    "core_stale_entry": "runtime_port_ipc.py",
+    "core_missing_entry": "station_parameter_proxy.py",
+    "receipt_sha256": "e097d2415e899c96ce0f74ff4c1975727e356534e3070d70f7064849f9dc1fc2"
+  },
+  "live": {
+    "existing_station_connected": true,
+    "platform_alice_link": "DISCONNECTED",
+    "services_unchanged": 9,
+    "owner_permission_enabled": false,
+    "live_coefficient_written": false,
+    "migrations_run": false,
+    "manual_acceptance": "NOT_PERFORMED"
+  },
+  "remaining": [
+    "Author prepares new immutable native candidate with consistent core and outer manifests",
+    "Bounded activation/rollback qualification, then independent delivery review",
+    "Installed synthetic acceptance with owner consent absent",
+    "Actual owner opt-in and physical voice confirmation acceptance"
+  ]
+}
