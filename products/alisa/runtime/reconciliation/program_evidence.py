@@ -249,7 +249,7 @@ def observe(root, binding, *, owner_uid, timeout=.25, clock=time.time, monotonic
         return result
     except EvidenceUnavailable:
         raise
-    except (OSError,ValueError,TypeError,UnicodeError,RecursionError,OverflowError):
+    except (OSError,ValueError,TypeError,UnicodeError,RuntimeError,OverflowError):
         raise EvidenceUnavailable('PROGRAM_STORE_UNAVAILABLE') from None
     finally:
         if file_fd is not None:os.close(file_fd)

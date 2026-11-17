@@ -174,6 +174,10 @@ class RetainedProgramEvidence(unittest.TestCase):
         link=self.parent/'link';link.symlink_to(self.root)
         self.refused(lambda:e.observe(link,self.binding,owner_uid=os.getuid(),clock=lambda:103.),'PROGRAM_STORE_IDENTITY')
 
+    def test_symlink_loop_returns_safe_unavailability_not_private_path(self):
+        loop=self.parent/'loop';loop.symlink_to(loop)
+        self.refused(lambda:e.observe(loop,self.binding,owner_uid=os.getuid(),clock=lambda:103.))
+
     def test_hardlinked_record_refused(self):
         self.complete();os.link(self.path,self.parent/'hardlink')
         self.refused(self.observe,'PROGRAM_STORE_IDENTITY')
