@@ -257,3 +257,13 @@ jobs:
             products/alisa/dist/rt-check-*.tar.gz.sha256
           if-no-files-found: error
           retention-days: 14
+
+      - name: Save exact owner OAuth compatibility source
+        uses: actions/upload-artifact@v4
+        with:
+          name: alisa-owner-oauth-source-${{ env.ALISA_SOURCE_SHA }}
+          path: |
+            products/alisa/runtime/owner_oauth_dialogs/
+            products/alisa/services/platform/src/alisa_platform/alice_link/views.py
+          if-no-files-found: error
+          retention-days: 14
