@@ -55,7 +55,7 @@ class SuiteRouting(TestCase):
    with self.assertRaisesRegex(RuntimeError,'SYMLINK'):inventory(root)
 
  def test_operations_exact_inventory_is_bound_to_existing_named_ci_step(self):
-  self.assertEqual(EXTERNAL['operations'],{'test_reconciliation':'existing alisa-platform-ci AL-S16 reconciliation assessment and idempotent receipts (isolated) step'})
+  self.assertEqual(EXTERNAL['operations'],{name:'existing alisa-platform-ci AL-S16 reconciliation assessment and idempotent receipts (isolated) step' for name in ('test_reconciliation','test_native_snapshot')})
   self.assertNotIn('operations',SPECIALIZED)
   self.assertFalse(any(x.startswith('operations.')for group in ('base','collection','compound','ledger')for x in labels(group)))
   workflow=Path(__file__).resolve().parents[3]/'.github/workflows/alisa-platform-ci.yml'
@@ -63,7 +63,7 @@ class SuiteRouting(TestCase):
   self.assertEqual(text.count(name),1)
   block=text.split(name,1)[1].split('      - ',1)[0]
   self.assertIn('set -euo pipefail',block)
-  self.assertIn('python -I -B -m unittest discover -s products/alisa/tests/operations -p test_reconciliation.py -v',block)
+  self.assertIn("python -I -B -m unittest discover -s products/alisa/tests/operations -p 'test_*.py' -v",block)
   self.assertIn('s16-reconciliation-unit-tests.log',block)
 
  def test_another_operations_module_is_not_silently_external(self):
