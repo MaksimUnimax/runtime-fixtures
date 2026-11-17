@@ -41,7 +41,7 @@ def connect(sock,address):
 started=time.monotonic();runner=Runner(verbosity=2,interactive=False)
 with patch.object(socket.socket,'connect',connect),patch('socket.getaddrinfo',side_effect=AssertionError('DNS forbidden')):
     call_command('makemigrations','owner_data','alice_link',check=True,dry_run=True,verbosity=0)
-    failures=runner.run_tests(['current_parameters.test_parameters','current_parameters.test_voice_parameters'])
+    failures=runner.run_tests(['current_parameters.test_parameters','current_parameters.test_voice_parameters','current_parameters.test_station_parameters'])
 result=runner.result
 record={'utc':datetime.now(timezone.utc).isoformat(),'status':'PASS' if not failures and not attempts and not result.skipped else 'FAIL',
         'tests':result.testsRun,'failures':len(result.failures),'errors':len(result.errors),'skipped':len(result.skipped),

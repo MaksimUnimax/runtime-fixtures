@@ -142,59 +142,73 @@ def _pending(payload):
     return session.get(STATE_KEY) if type(session) is dict else None
 
 
-def handle(token, payload):
-    """Return None for ordinary report utterances; never fallback after a write."""
-    if not enabled():return None
-    need(type(payload) is dict and type(payload.get('request')) is dict,'PARAMETER_VOICE_INPUT',422)
-    original=payload['request'].get('original_utterance',payload['request'].get('command',''))
-    text=_normalize(original);pending=_pending(payload)
+def turn(actor,authority,original,pending,sid,mid,*,private=True):
+    """Internal common turn; each transport supplies independently verified identity.
+
+    Call only inside that transport's current authorization transaction. A raw
+    customer ID or browser-supplied authority dictionary is never an entrypoint.
+    """
+    need(transaction.get_connection().in_atomic_block,'OWNER_TRANSACTION_REQUIRED',503)
+    text=_normalize(original)
     parsed=parse(original) if not pending else None
     if parsed is None and not pending:return None
     if pending and text in {'отмена','отмени','нет'}:
         return _reply('Новое изменение отменено. Уже выполненное сохранение эта команда не откатывает.')
+    if pending:
+        need(type(pending) is str and len(pending)<=4096,'PARAMETER_VOICE_CONFIRMATION',422)
+        try:intent=signing.loads(pending,salt=SALT,max_age=120)
+        except (signing.BadSignature,ValueError,TypeError):raise Rejected('PARAMETER_VOICE_CONFIRMATION_EXPIRED',409)from None
+        fields={'schema','customer','tenant','authority','session','message_id','store_revision','command'}
+        need(type(intent) is dict and set(intent)==fields and intent['schema']==SCHEMA,'PARAMETER_VOICE_CONFIRMATION',422)
+        need(intent['customer']==str(actor.customer_id) and intent['tenant']==str(actor.tenant_id)
+             and intent['authority']==authority
+             and intent['session']==sid and type(intent['message_id']) is int and mid>intent['message_id'],
+             'PARAMETER_VOICE_CONFIRMATION_CHANGED',409)
+        if text not in {'да','подтверждаю','сохрани'}:
+            return _reply('Изменение не сохранено. Назовите коэффициент и значение заново.')
+        command=intent['command'];need(type(command) is dict,'PARAMETER_SCHEMA',422)
+        store=owned(actor,uuid.UUID(command['store_id']))
+        need(store.revision==intent['store_revision'],'PARAMETER_VOICE_CONFIRMATION_CHANGED',409)
+        result=parameters._manual_for_actor(actor,store,command)
+        # No success is returned until the surrounding transaction commits.
+        # Old receipt contains no old number; never speak stale value.
+        if result.get('replayed') and result['receipt']['revision']!=result['revision']:
+            return _reply('Эта команда уже была выполнена. После неё коэффициент изменили; в кабинете показано актуальное значение.')
+        return _reply('Коэффициент сохранён для магазина «'+store.name+'». Изменение видно в кабинете.')
+    store=_store(actor,parsed['store_hint'],parsed['parameter'])
+    current=parameters._read(actor,store,parsed['parameter'],AREA)
+    now=int(timezone.now().timestamp())
+    command={'action':'set_manual','store_id':str(store.pk),'parameter':parsed['parameter'],
+             'scope':dict(AREA),'sku_reference':None,'value':parsed['value'],'unit':parsed['unit'],
+             'command_id':str(uuid.uuid5(NAMESPACE,json.dumps(authority,sort_keys=True)+':'+sid+':'+str(mid))),
+             'expected_revision':current['revision'],'confirmed':True,'not_after':now+120}
+    intent={'schema':SCHEMA,'customer':str(actor.customer_id),'tenant':str(actor.tenant_id),
+            'authority':authority,
+            'session':sid,'message_id':mid,'store_revision':store.revision,'command':command}
+    signed=signing.dumps(intent,salt=SALT,compress=True)
+    echo='указанное значение'
+    if not private:
+        rule=CATALOG['parameters'][parsed['parameter']]
+        spoken=format(Decimal(parsed['value'])/Decimal(rule['input_multiplier']),'f')
+        if '.' in spoken:spoken=spoken.rstrip('0').rstrip('.')
+        echo=spoken.replace('.',',')+' '+rule['spoken_unit']
+    return _reply('Сохранить '+echo+' для параметра «'+definition(parsed['parameter'])['label']+
+                  '» магазина «'+store.name+'»? Скажите «подтверждаю» или «отмена».',signed)
+
+def handle(token,payload):
+    """Platform OAuth entry; Station has a separate verified binding entry."""
+    if not enabled():return None
+    need(type(payload)is dict and type(payload.get('request'))is dict,'PARAMETER_VOICE_INPUT',422)
+    original=payload['request'].get('original_utterance',payload['request'].get('command',''))
+    pending=_pending(payload)
+    if not pending and parse(original) is None:return None
     with transaction.atomic():
         parameters._enabled();actor,link=_owner(token);sid,mid=_session(payload)
-        if pending:
-            need(type(pending) is str and len(pending)<=4096,'PARAMETER_VOICE_CONFIRMATION',422)
-            try:intent=signing.loads(pending,salt=SALT,max_age=120)
-            except (signing.BadSignature,ValueError,TypeError):raise Rejected('PARAMETER_VOICE_CONFIRMATION_EXPIRED',409)from None
-            fields={'schema','customer','tenant','link','link_revision','permission_revision','session','message_id','store_revision','command'}
-            need(type(intent) is dict and set(intent)==fields and intent['schema']==SCHEMA,'PARAMETER_VOICE_CONFIRMATION',422)
-            need(intent['customer']==str(actor.customer_id) and intent['tenant']==str(actor.tenant_id)
-                 and intent['link']==str(link.pk) and intent['link_revision']==link.revision
-                 and intent['permission_revision']==link.parameter_write_consent_revision
-                 and intent['session']==sid and type(intent['message_id']) is int and mid>intent['message_id'],
-                 'PARAMETER_VOICE_CONFIRMATION_CHANGED',409)
-            if text not in {'да','подтверждаю','сохрани'}:
-                return _reply('Изменение не сохранено. Назовите коэффициент и значение заново.')
-            command=intent['command'];need(type(command) is dict,'PARAMETER_SCHEMA',422)
-            store=owned(actor,uuid.UUID(command['store_id']))
-            need(store.revision==intent['store_revision'],'PARAMETER_VOICE_CONFIRMATION_CHANGED',409)
-            result=parameters._manual_for_actor(actor,store,command)
-            # No success is returned until the surrounding transaction commits.
-            # Old receipt contains no old number; never speak stale value.
-            if result.get('replayed') and result['receipt']['revision']!=result['revision']:
-                return _reply('Эта команда уже была выполнена. После неё коэффициент изменили; в кабинете показано актуальное значение.')
-            return _reply('Коэффициент сохранён для магазина «'+store.name+'». Изменение видно в кабинете.')
-        store=_store(actor,parsed['store_hint'],parsed['parameter'])
-        current=parameters._read(actor,store,parsed['parameter'],AREA)
-        now=int(timezone.now().timestamp())
-        command={'action':'set_manual','store_id':str(store.pk),'parameter':parsed['parameter'],
-                 'scope':dict(AREA),'sku_reference':None,'value':parsed['value'],'unit':parsed['unit'],
-                 'command_id':str(uuid.uuid5(NAMESPACE,str(link.pk)+':'+sid+':'+str(mid))),
-                 'expected_revision':current['revision'],'confirmed':True,'not_after':now+120}
-        intent={'schema':SCHEMA,'customer':str(actor.customer_id),'tenant':str(actor.tenant_id),
-                'link':str(link.pk),'link_revision':link.revision,'permission_revision':link.parameter_write_consent_revision,
-                'session':sid,'message_id':mid,'store_revision':store.revision,'command':command}
-        signed=signing.dumps(intent,salt=SALT,compress=True)
-        echo='указанное значение'
-        if not link.voice_private:
-            rule=CATALOG['parameters'][parsed['parameter']]
-            spoken=format(Decimal(parsed['value'])/Decimal(rule['input_multiplier']),'f')
-            if '.' in spoken:spoken=spoken.rstrip('0').rstrip('.')
-            echo=spoken.replace('.',',')+' '+rule['spoken_unit']
-        return _reply('Сохранить '+echo+' для параметра «'+definition(parsed['parameter'])['label']+
-                      '» магазина «'+store.name+'»? Скажите «подтверждаю» или «отмена».',signed)
+        authority={'kind':'PLATFORM_ALICE','id':str(link.pk),'revision':link.revision,
+                   'permission_revision':link.parameter_write_consent_revision,
+                   'security_revision':actor.customer.security_revision}
+        return turn(actor,authority,original,pending,sid,mid,private=link.voice_private)
+
 
 
 MESSAGES={
