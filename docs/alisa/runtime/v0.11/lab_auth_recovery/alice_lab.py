@@ -138,7 +138,37 @@ class Handler(BaseHTTPRequestHandler):
                     self.send(400,{"error":"invalid_authorization_request"});return
                 nonce=new()
                 with db() as c:c.execute("INSERT INTO forms VALUES(?,?,?)",(digest(nonce),json.dumps(qs),now()+300))
-                page=("""<!doctype html><html lang="ru"><meta charset="UTF-8"><title>Учебная связка Алисы</title><meta name="viewport" content="width=device-width,initial-scale=1"><body><main style="font:18px sans-serif;max-width:560px;margin:3rem auto"><h2>Учебный вход в лабораторию</h2><p>Только искусственные магазины. Не вводите настоящие пароли от Ozon/WB.</p><form method="post" action="/oauth/authorize"><input type="hidden" name="nonce" value="%s"><label>Учётная запись<select name="account"><option value="demo-a">Учебный A</option><option value="demo-b">Учебный B</option></select></label><p><label>Учебный пароль <input name="password" type="password" required autocomplete="off"></label></p><button type="submit">Разрешить тестовую связку</button></form></main></body></html>"""%html.escape(nonce,quote=True)).encode()
+                page=("""<!doctype html><html lang="ru"><meta charset="UTF-8"><title>Учебная связка Алисы</title><meta name="viewport" content="width=device-width,initial-scale=1"><body><main style="font:18px sans-serif;max-width:560px;margin:3rem auto"><h2>Учебный вход в лабораторию</h2><p>Только искусственные магазины. Не вводите настоящие пароли от Ozon/WB.</p><form method="post" action="/oauth/authorize"><input type="hidden" name="nonce" value="%s"><label>Учётная запись<select name="account"><option value="demo-a">Учебный A</option><option value="demo-b">Учебный B</option></select></label><p><label>Учебный пароль <input name="password" type="password" required autocomplete="off"></label></p><button type="submit">Разрешить тестовую связку</button></form><p id="auth-status" role="status">Перед отправкой форма обновляется автоматически.</p><script>// Get a fresh, validated, single-use form nonce immediately before submission.
+// The credential stays in its original field and is sent only by native POST.
+(() => {
+  const form = document.querySelector('form[action="/oauth/authorize"]');
+  const button = form.querySelector('button[type="submit"]');
+  const status = document.getElementById('auth-status');
+  let busy = false;
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (busy) return;
+    busy = true;
+    button.disabled = true;
+    status.textContent = 'Проверяю актуальность формы…';
+    try {
+      const response = await fetch(window.location.href, {
+        method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error'
+      });
+      if (!response.ok) throw new Error('form_unavailable');
+      const refreshed = new DOMParser().parseFromString(await response.text(), 'text/html');
+      const nonce = refreshed.querySelector('form[action="/oauth/authorize"] input[name="nonce"]');
+      if (!nonce || !nonce.value) throw new Error('form_unavailable');
+      form.elements.namedItem('nonce').value = nonce.value;
+      HTMLFormElement.prototype.submit.call(form);
+    } catch (_) {
+      status.textContent = 'Не удалось обновить форму. Повторите отправку.';
+      button.disabled = false;
+      busy = false;
+    }
+  });
+})();
+</script></main></body></html>"""%html.escape(nonce,quote=True)).encode()
                 self.send(200,page,kind="text/html; charset=utf-8");return
             self.send(404,{"error":"not_found"})
         except Exception:

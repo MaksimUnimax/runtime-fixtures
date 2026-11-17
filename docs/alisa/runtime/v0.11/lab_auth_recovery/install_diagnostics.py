@@ -1,19 +1,19 @@
-"""One finite diagnostic-only web release. No credential, grant or DB writes."""
+"""One finite form-renewal web release. No credential, grant or DB writes."""
 from pathlib import Path
 from copy import deepcopy
 import hashlib,json,os,shutil,sqlite3,subprocess,sys,time
 
 ROOT=Path('/root/alisa-column-acceptance-20261117')
-BASELINE=ROOT/'AUTH_DIAGNOSTIC_BASELINE.json'
-BASELINE_SHA='5fc2070a2e4a0d65bd5b1224e182a258c34f1c489c0c07299db2bc562126b5c8'
+BASELINE=ROOT/'AUTH_FORM_RENEWAL_BASELINE.json'
+BASELINE_SHA='50b74e02374cca3e80384d86b2cd51a1319e82110f54450a4c1a95194da84581'
 SOURCE=Path(__file__).with_name('alice_lab.py')
-SOURCE_SHA='9d11c4af39cd2876b096b551cc239c146982c054ec78dab8a180d8d4eb517785'
+SOURCE_SHA='dfc2a54adba774daf22dcabacc4c5b91f26c803b5104e3bb6ef3366c9443b14a'
 NONCE=os.urandom(8).hex()
-NEW_BASE=Path('/opt/alisa-station/releases/station-auth-reasons-9d11c4af-20261117-'+NONCE)
-NEW_ENTRY=Path('/opt/alice-lab/releases/20261117-auth-reasons-9d11c4af-'+NONCE)
-DROP=Path('/etc/systemd/system/alice-lab-web.service.d')/(128*'z'+'-auth-reasons-20261117.conf')
+NEW_BASE=Path('/opt/alisa-station/releases/station-auth-renewal-dfc2a54a-20261117-'+NONCE)
+NEW_ENTRY=Path('/opt/alice-lab/releases/20261117-auth-renewal-dfc2a54a-'+NONCE)
+DROP=Path('/etc/systemd/system/alice-lab-web.service.d')/(129*'z'+'-auth-renewal-20261117.conf')
 UNIT='alice-lab-web.service'
-ATTEMPT=ROOT/('auth-diagnostic-install-'+NONCE)
+ATTEMPT=ROOT/('auth-renewal-install-'+NONCE)
 sys.path.insert(0,'/usr/local/libexec/alisa-r15-activation-7b0cdab47871a302')
 import activate as a
 
@@ -67,7 +67,7 @@ def main():
         protected={u:{k:prop(u,k)for k in ['MainPID','InvocationID','ActiveState']}
                    for u in ['alice-market.service','alisa-station.service','alisa-platform@stage.service']}
         record('DIAGNOSTIC_INSTALL_INTENT',{'source_sha256':SOURCE_SHA,'unit':UNIT,'base':str(NEW_BASE),
-            'entry':str(NEW_ENTRY),'dropin':str(DROP),'protected':protected,'diagnostic_only':True})
+            'entry':str(NEW_ENTRY),'dropin':str(DROP),'protected':protected,'form_renewal':True})
         # Each preparation gets separate, initially unselected coordinates.
         # Interrupted copies remain evidence and cannot block another reviewed
         # attempt from the same unchanged baseline or be mistaken for a release.
@@ -146,7 +146,7 @@ def prepare(baseline):
         expected_entry['targets.json']=sha(p.read_bytes())
         need(files(NEW_ENTRY)==expected_entry,'ENTRY_TREE_CHANGED')
         for folder,index in [(NEW_BASE,expected_base),(NEW_ENTRY,expected_entry)]:
-            a.write_new(folder/'manifest.json',(json.dumps({'schema':'lab-auth-diagnostics/v1',
+            a.write_new(folder/'manifest.json',(json.dumps({'schema':'lab-auth-form-renewal/v1',
                 'baseline_sha256':BASELINE_SHA,'files':index},sort_keys=True,indent=2)+'\n').encode(),mode=0o444)
             freeze(folder)
 
