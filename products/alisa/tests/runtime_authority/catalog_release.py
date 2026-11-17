@@ -79,7 +79,7 @@ class ReleaseChecks(unittest.TestCase):
         return token,member,session
 
     def payload(self):
-        suffix=uid().replace('-','')
+        suffix=uid().replace('-','').translate(str.maketrans('0123456789','klmnopqrst'))
         return {'schema':'alisa-catalog-package/v1',
             **{k:self.info[k]for k in ['engine_sha256','base_template_hash','qualification_sha256']},
             'additions':[{'kind':'ALIAS','id':'PILOT.'+suffix,
@@ -157,8 +157,15 @@ class ReleaseChecks(unittest.TestCase):
         receipt=self.submit();self.finish(receipt)
         self.assertEqual([c.operation for c in self.f.transport.calls],
             ['template_select','ozon_orders','model_answer'])
-        raw=json.dumps(self.f.transport.calls[-1].body,ensure_ascii=False)
-        self.assertIn('4',raw)
+        raw=self.f.transport.calls[-1].body['messages'][-1]['content']
+        data=json.loads(raw.split('\n',1)[1])
+        def metrics(value):
+            if isinstance(value,dict):
+                if 'metrics'in value:yield value['metrics']
+                for child in value.values():yield from metrics(child)
+            elif isinstance(value,list):
+                for child in value:yield from metrics(child)
+        self.assertIn([4],list(metrics(data)))
         snapshot=self.registry.snapshot(target)
         self.assertEqual(snapshot.catalog.TEMPLATES['B01.ordered_units'],
             template_catalog.TEMPLATES['B01.ordered_units'])

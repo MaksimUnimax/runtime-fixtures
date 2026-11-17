@@ -30,9 +30,12 @@ def main():
     parser.add_argument('--template-clarification-overlay', action='store_true')
     parser.add_argument('--question-catalog-overlay', action='store_true')
     parser.add_argument('--catalog-release-overlay', action='store_true')
+    parser.add_argument('--catalog-r15-context', type=Path)
     args = parser.parse_args()
     if args.catalog_release_overlay and not (args.current_core_source and args.question_catalog_overlay):
         parser.error('--catalog-release-overlay requires current core and question catalogue')
+    if args.catalog_r15_context and not args.catalog_release_overlay:
+        parser.error('--catalog-r15-context requires --catalog-release-overlay')
     if args.question_catalog_overlay and not args.current_core_source:
         parser.error('--question-catalog-overlay requires --current-core-source')
     if args.runtime_source and args.current_core_source:
@@ -161,6 +164,31 @@ def main():
                 print(result.stdout[-20000:])
                 if output.exists(): record[label] = json.loads(output.read_text())
                 if result.returncode: raise RuntimeError('Authority qualification failed')
+            if args.catalog_r15_context:
+                import importlib.util
+                spec=importlib.util.spec_from_file_location('s13_r15_context',ROOT/'tests/catalog_release/context_r15.py')
+                context=importlib.util.module_from_spec(spec);spec.loader.exec_module(context)
+                historical=context.build(args.catalog_r15_context,temp/'r15-source-context')
+                spec=importlib.util.spec_from_file_location('s13_r15_overlay',ROOT/'runtime/catalog_release/build_overlay.py')
+                extension=importlib.util.module_from_spec(spec);spec.loader.exec_module(extension)
+                source=extension.build(historical,temp/'r15-catalog-core')
+                output=temp/'r15-catalog-base.json'
+                result=subprocess.run([sys.executable,'-B',str(ROOT/'tests/catalog_release/qualify_base.py'),
+                    '--core',str(source),'--output',str(output)],
+                    env={**runtime,'GITHUB_ACTIONS':os.environ.get('GITHUB_ACTIONS','')},
+                    stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=280)
+                print(result.stdout[-8000:])
+                if result.returncode:raise RuntimeError('R15 catalog base qualification failed')
+                record['catalog_r15_base']=json.loads(output.read_text())
+                runtime['ALISA_RT_JOB_TEST_SOURCE']=str(source)
+                runtime['ALISA_RT_JOB_MANIFEST_SHA256']=hashlib.sha256((source/'CURRENT_CORE_MANIFEST.json').read_bytes()).hexdigest()
+                output=temp/'r15-catalog-release.json'
+                result=subprocess.run([sys.executable,str(ROOT/'tests/runtime_authority/catalog_release.py'),
+                    '--output',str(output)],env=runtime,
+                    stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=150)
+                print(result.stdout[-12000:])
+                if output.exists():record['catalog_r15_release']=json.loads(output.read_text())
+                if result.returncode:raise RuntimeError('R15 catalog authority qualification failed')
             with connect(dbname=NAME) as conn:
                 receipts = conn.execute('SELECT count(*) FROM queries_query').fetchone()[0]
             for target in ['0003', '0004', '0002', '0003', '0001', '0004']:

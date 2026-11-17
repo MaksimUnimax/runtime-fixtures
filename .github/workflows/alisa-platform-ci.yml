@@ -36,6 +36,16 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Record exact checked out source
         run: echo "ALISA_SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Read pinned R15 source context for catalog compatibility
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: cafb743c94672104d4afa2c471398e5c81d904f5
+          path: .s13-r15-context
+          sparse-checkout: |
+            docs/alisa/runtime/v0.11
+            products/alisa/tests/current_parameters
+            products/alisa/services/platform/src/alisa_platform/owner_data
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -148,6 +158,7 @@ jobs:
             --output dist/s07-authority-qualification.json \
             --current-core-source "$GITHUB_WORKSPACE/docs/alisa/runtime/v0.11/rt_job_r02" \
             --platform-stores-overlay --template-clarification-overlay --question-catalog-overlay --catalog-release-overlay \
+            --catalog-r15-context "$GITHUB_WORKSPACE/.s13-r15-context" \
             --report-browser-artifact "dist/alisa-${ALISA_SOURCE_SHA:0:16}.tar.gz"
       - name: Current-core RuntimePort, reader isolation and seven-day model accounting
         working-directory: docs/alisa/runtime/v0.11/rt_job_r02
