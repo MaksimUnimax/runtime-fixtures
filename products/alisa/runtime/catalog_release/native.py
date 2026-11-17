@@ -7,6 +7,7 @@ is created. Existing execution guards and source checks remain authoritative.
 import ast
 from collections import OrderedDict
 from copy import deepcopy
+from contextvars import ContextVar
 import hashlib
 import json
 from pathlib import Path
@@ -18,6 +19,13 @@ from .rules import (ReleaseFailure,canonical,digest,exact,hash_value,materialize
                     package,text)
 
 MAX_PACKAGES=100
+ACTIVE_SNAPSHOT=ContextVar('catalog_release_snapshot',default=None)
+
+
+def within(snapshot,function,*args,**kwargs):
+ token=ACTIVE_SNAPSHOT.set(snapshot)
+ try:return function(*args,**kwargs)
+ finally:ACTIVE_SNAPSHOT.reset(token)
 
 
 def code_seal(root):
@@ -80,7 +88,7 @@ def module(name,path,tree,namespace):
 
 class SnapshotFactory:
  def __init__(self,root):
-  import template_catalog,template_runtime,question_catalog_extension
+  import template_catalog,template_runtime,question_catalog_extension,report_archive
   from . import rules
   self.root=Path(root).resolve();self.engine_sha256=code_seal(self.root)
   need(Path(__file__).resolve()==self.root/'catalog_release/native.py'and
@@ -101,13 +109,17 @@ class SnapshotFactory:
   self.runtime_source=(self.root/'template_runtime.py').read_text()
   self.catalog_source=(self.root/'template_catalog.py').read_text()
   self.question_source=(self.root/'question_catalog_extension.py').read_text()
+  self.report_source=(self.root/'report_archive.py').read_text()
+  self.report_globals=dict(vars(report_archive))
+  self.base_compile_selection=template_catalog.compile_selection
   self.speech_sha256=hashlib.sha256((self.root/'speech_catalog.json').read_bytes()).hexdigest()
   # Capture originals before installing routing functions into the base module.
   original={n:getattr(template_runtime,n)for n in ('authorized','submit','gap_result',
    'worker_step','_gap','_compile_and_save_selection')}
   self.base=SimpleNamespace(package_sha256='',template_hash=self.base_hash,
    catalog=template_catalog,runtime=SimpleNamespace(**original),
-   question=SimpleNamespace(read=question_catalog_extension.read),evidence={})
+   question=SimpleNamespace(read=question_catalog_extension.read),
+   report=SimpleNamespace(capture=report_archive.capture),evidence={})
 
  def qualification(self):
   receipt=self.root/'catalog_release/base_qualification.json'
@@ -152,8 +164,17 @@ class SnapshotFactory:
    {'__catalog_module':catalog,'__package_sha256':package_hash,'__engine_sha256':self.engine_sha256})
   question=module('_catalog_question_'+package_hash,self.root/'question_catalog_extension.py',
    CatalogImports().visit(ast.parse(self.question_source)),{'__catalog_module':catalog})
+  # Retain original archive class/type identities and helper implementations.
+  # Only the two functions that dereference template IDs need a private view.
+  nodes=[node for node in ast.parse(self.report_source).body if isinstance(node,ast.FunctionDef)
+         and node.name in {'capture','template_operations'}]
+  need(len(nodes)==2,'CATALOG_ENGINE_SOURCE_CHANGED')
+  report=module('_catalog_report_'+package_hash,self.root/'report_archive.py',
+   CatalogImports().visit(ast.Module(body=nodes,type_ignores=[])),
+   {**self.report_globals,'__catalog_module':catalog,
+    'TEMPLATES':catalog.TEMPLATES,'dependencies':catalog.dependencies})
   return SimpleNamespace(package_sha256=package_hash,template_hash=catalog.HASH,
-   catalog=catalog,runtime=runtime,question=question,evidence=evidence)
+   catalog=catalog,runtime=runtime,question=question,report=report,evidence=evidence)
 
 
 class ReleaseRegistry:
@@ -283,12 +304,12 @@ class ReleaseRegistry:
 
 def route(registry):
  """Route by admitted plan first; assignment is consulted only on new submit."""
- import template_runtime
+ import template_runtime,template_catalog,report_archive
  from semantics import Rejected,strict_json
  need(not hasattr(template_runtime,'_catalog_release_router'),'CATALOG_ALREADY_ATTACHED')
  template_runtime._catalog_release_router=registry
  def call(name,snapshot,args,kwargs):
-  try:return getattr(snapshot.runtime,name)(*args,**kwargs)
+  try:return within(snapshot,getattr(snapshot.runtime,name),*args,**kwargs)
   except ReleaseFailure as error:raise Rejected(error.code)from None
  def authorized(engine,plan):
   try:return call('authorized',registry.for_plan(plan),(engine,plan),{})
@@ -312,6 +333,29 @@ def route(registry):
  template_runtime.authorized=authorized;template_runtime.submit=submit;template_runtime.gap_result=gap_result
  for name in ['worker_step','_gap','_compile_and_save_selection']:
   setattr(template_runtime,name,on_plan(name))
+ def compile_selection(engine,root,selection):
+  try:
+   snapshot=(registry.for_plan(root)if type(root)is dict and'template_execution'in root else
+             ACTIVE_SNAPSHOT.get()or registry.factory.base)
+   function=(snapshot.catalog.compile_selection if snapshot.package_sha256 else
+             registry.factory.base_compile_selection)
+   return within(snapshot,function,engine,root,selection)
+  except ReleaseFailure as error:raise Rejected(error.code)from None
+ def capture(engine,row,event,request,store,value,meta):
+  try:
+   if (getattr(engine,'report_archive',None)is None or store is None or
+       meta.get('authentication_only')or meta.get('_report_archive_original_saved')or request.source.startswith('model:')):
+    return registry.factory.base.report.capture(engine,row,event,request,store,value,meta)
+   # A fragment adapter may pass its child plan. Select from the durable parent
+   # row using the same lease/transaction boundary as the original capture.
+   with engine.repo.connection(True)as connection:
+    current=dict(engine.repo._owned(connection,row['id'],row['owner']))
+    plan=strict_json(current['plan'])if current.get('plan')else {}
+    snapshot=registry.for_plan(plan)if plan.get('schema')=='alice-template-execution/v1'else registry.factory.base
+    return within(snapshot,snapshot.report.capture,engine,row,event,request,store,value,meta)
+  except ReleaseFailure as error:raise Rejected(error.code)from None
+ template_catalog.compile_selection=compile_selection
+ report_archive.capture=capture
 
 
 def install(port,controls_enabled=True):
@@ -370,7 +414,7 @@ def install(port,controls_enabled=True):
    snapshot=factory.base
    if context is not None:
     _,_,scope=actual._auth(context,peer,'capabilities');snapshot=registry.for_tenant(scope.tenant)
-   return snapshot.question.read(actual,peer,context,query)
+   return within(snapshot,snapshot.question.read,actual,peer,context,query)
   except ReleaseFailure:raise Rejected('CATALOG_INCOMPATIBLE')from None
  runtime_port_ipc.dispatch=dispatch;question_catalog_extension.read=read
  return registry

@@ -2,7 +2,7 @@
 """S13 real PostgreSQL, current signed authority and Unix worker; synthetic IO."""
 import argparse
 from copy import deepcopy
-from datetime import timedelta
+from datetime import datetime,timezone as datetime_timezone,timedelta
 import hashlib
 import json
 import os
@@ -30,6 +30,7 @@ from test_template_only import Transport, selection
 import runtime_port_ipc
 import template_runtime
 import template_catalog
+import report_archive
 import question_catalog_extension
 from catalog_release import native
 
@@ -48,6 +49,10 @@ class ReleaseChecks(unittest.TestCase):
     def setUp(self):
         self.f=QueryChecks('runTest');self.f.setUp()
         self.addCleanup(self.f.doCleanups);self.addCleanup(self.f.tearDown)
+        # One clock for current authority claims and worker scheduling. Never
+        # extend a ticket lifetime or bypass expiry for the multi-job scenario.
+        clock=patch.object(timezone,'now',side_effect=lambda:datetime.fromtimestamp(self.f.clock(),datetime_timezone.utc))
+        clock.start();self.addCleanup(clock.stop)
         flags=override_settings(CATALOG_RELEASE_ENABLED=True,QUESTION_CATALOG_ENABLED=True,
             QUERY_INSIGHTS_ENABLED=True,STAFF_ENABLED=True,STAFF_CLIENT_ID='fixture-staff',
             STAFF_SERVICE_TOKEN='S'*48,CATALOG_PILOT_TENANTS=(str(self.f.tenant.pk),))
@@ -62,6 +67,8 @@ class ReleaseChecks(unittest.TestCase):
         originals={name:getattr(template_runtime,name)for name in
             ('authorized','submit','gap_result','worker_step','_gap','_compile_and_save_selection')}
         for name,value in originals.items():self.addCleanup(setattr,template_runtime,name,value)
+        self.addCleanup(setattr,template_catalog,'compile_selection',template_catalog.compile_selection)
+        self.addCleanup(setattr,report_archive,'capture',report_archive.capture)
         self.addCleanup(lambda:template_runtime.__dict__.pop('_catalog_release_router',None))
         self.addCleanup(setattr,question_catalog_extension,'read',question_catalog_extension.read)
         self.addCleanup(setattr,runtime_port_ipc,'dispatch',runtime_port_ipc.dispatch)
@@ -171,9 +178,12 @@ class ReleaseChecks(unittest.TestCase):
         self.assertEqual(catalog['template_hash'],self.registry.snapshot(target).template_hash)
         self.assertEqual(self.f.transport.calls,[])
         self.f.transport.selection=selection([value['additions'][0]['id']],store='native-store')
-        receipt=self.submit();self.finish(receipt)
+        receipt=self.submit()
+        self.assertEqual(len(template_catalog.compile_selection(self.f.engine,self.plan(receipt),self.f.transport.selection)),1)
+        self.finish(receipt)
         self.assertEqual([c.operation for c in self.f.transport.calls],
             ['template_select','ozon_orders','model_answer'])
+        self.assertEqual(self.f.transport.calls[1].body['metrics'],['ordered_units'])
         raw=self.f.transport.calls[-1].body['messages'][-1]['content']
         data=json.loads(raw.split('\n',1)[1])
         def metrics(value):
@@ -187,6 +197,19 @@ class ReleaseChecks(unittest.TestCase):
         self.assertEqual(snapshot.catalog.TEMPLATES['B01.ordered_units'],
             template_catalog.TEMPLATES['B01.ordered_units'])
         self.assertEqual(snapshot.evidence['inherited'][0]['base_template_ids'],['B01.ordered_units'])
+
+    def test_report_archive_preserves_alias_identity_and_package_template_hash(self):
+        value=self.payload();target=self.approve(value);self.publish(target)
+        self.f.transport.selection=selection([value['additions'][0]['id']],store='native-store')
+        archive=report_archive.Archive(self.f.repo);self.f.engine.report_archive=archive
+        receipt=self.submit();self.finish(receipt)
+        with archive.connection()as conn:
+            rows=conn.execute('SELECT template_id,template_name,catalog_hash FROM reports WHERE tenant=?',
+                ['native-tenant']).fetchall()
+        self.assertEqual(len(rows),1)
+        self.assertEqual(rows[0]['template_id'],value['additions'][0]['id'])
+        self.assertEqual(rows[0]['template_name'],value['additions'][0]['purpose'])
+        self.assertEqual(rows[0]['catalog_hash'],self.registry.snapshot(target).template_hash)
 
     def test_lost_ack_requires_actual_readback_same_id_and_one_effect(self):
         target=self.approve();command=self.command(target);real=self.client.apply
