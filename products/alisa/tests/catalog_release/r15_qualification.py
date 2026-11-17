@@ -4,6 +4,7 @@ Only owned GitHub CI fixtures are supported. No installed release, owner data,
 new worker or organizational runner is involved.
 """
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
@@ -16,6 +17,13 @@ import tempfile
 ROOT=Path(__file__).resolve().parents[2]
 R15='cafb743c94672104d4afa2c471398e5c81d904f5'
 SCHEMA='alisa-s13-r15-suite/v1'
+BASELINE='docs/alisa/runtime/v0.11/current_parameters_r8/BASELINE_TEMPLATE_HASHES.json'
+RUNNER='products/alisa/tests/current_parameters/ci_qualified_suites.py'
+WB_ACTIVITY={
+    'B14.card_views':('b45389f3e6c8a2e2662842802468802d9e624a8cbb8361a59a7002f0a20b1fa9',
+                      '5724d209566add1199765721dd23d0576c46cb0a22dca0f395920ba4f4be3bb5'),
+    'B14.cart_additions':('48c6bce7a45c2b5ccd50811aaccee1d5e761f41a2bb6fa85360a9270d177808e',
+                          'f3fbcc630eb8064209aa51ccc42f71996940eb9bc4ef0c09a23b85004cd9e12b')}
 
 
 def need(value,code):
@@ -54,13 +62,38 @@ def prepare(context,core,output):
     need(str(core).startswith('/dev/shm/alisa-parameter-ci-s13-')and not core.exists(),
          'NEW_OWNED_R15_NATIVE_REQUIRED')
     need(not output.exists(),'NEW_R15_REPORT_REQUIRED')
+    context=Path(context).resolve()
+    subprocess.run(['git','diff','--exit-code','--quiet'],cwd=context,check=True)
     with tempfile.TemporaryDirectory(prefix='s07-qual-',dir=ROOT)as folder:
         temp=Path(folder)
         historical=load('s13_r15_source',Path(__file__).with_name('context_r15.py')).build(context,temp/'source')
         composed=load('s13_r15_overlay',ROOT/'runtime/catalog_release/build_overlay.py').build(historical,temp/'composed')
-        shutil.copytree(composed,core)
-    value={'schema':SCHEMA,**provenance,'engine_sha256':seal(core)}
+        need(not(composed/'.s13-fixture-owner').exists(),'R15_FIXTURE_MARKER_COLLISION')
+        core.mkdir(mode=0o700)
+        (core/'.s13-fixture-owner').write_text(provenance['run_id']+':'+provenance['run_attempt']+'\n')
+        shutil.copytree(composed,core,dirs_exist_ok=True)
+    # Keep the canonical runner and tests unchanged. Their explicit golden
+    # fixture advances only the two WB metadata contracts already installed by
+    # S11; the other 86 expected template hashes remain byte-identical.
+    test_context=core/'.s13-test-context'
+    shutil.copytree(context,test_context,symlinks=True,ignore=shutil.ignore_patterns('.git','__pycache__'))
+    baseline=test_context/BASELINE;golden=json.loads(baseline.read_text())
+    need(len(golden)==88 and all(golden.get(key)==pins[0]for key,pins in WB_ACTIVITY.items()),
+         'R15_BASELINE_FIXTURE_CONTEXT_MOVED')
+    for key,pins in WB_ACTIVITY.items():golden[key]=pins[1]
+    baseline.write_text(json.dumps(golden,sort_keys=True,indent=2)+'\n')
+    value={'schema':SCHEMA,**provenance,'engine_sha256':seal(core),
+        'test_runner_sha256':hashlib.sha256((test_context/RUNNER).read_bytes()).hexdigest(),
+        'test_baseline_sha256':hashlib.sha256(baseline.read_bytes()).hexdigest(),
+        'fixture_overlay':{key:pins[1]for key,pins in WB_ACTIVITY.items()}}
     output.parent.mkdir(parents=True,exist_ok=True);output.write_text(json.dumps(value,indent=2)+'\n')
+    inventory={str(path.relative_to(core)):hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(core.rglob('*'))if path.is_file()and
+        not any(part.startswith('.')or part=='__pycache__'for part in path.relative_to(core).parts)}
+    inventory_path=output.with_name(output.name.removesuffix('-prepared.json')+'-inventory.json')
+    need(not inventory_path.exists(),'NEW_R15_INVENTORY_REQUIRED')
+    inventory_path.write_text(json.dumps({'schema':'alisa-s13-r15-source-inventory/v1',
+        **provenance,'engine_sha256':value['engine_sha256'],'files':inventory},sort_keys=True,indent=2)+'\n')
     return value
 
 
@@ -69,6 +102,11 @@ def attest(core,prepared,report,output):
     need(all(prepared.get(k)==v for k,v in provenance.items())and prepared.get('schema')==SCHEMA,
          'R15_PROVENANCE_CHANGED')
     need(prepared['engine_sha256']==seal(core),'R15_NATIVE_CHANGED_DURING_SUITE')
+    test_context=Path(core)/'.s13-test-context'
+    need(hashlib.sha256((test_context/RUNNER).read_bytes()).hexdigest()==prepared['test_runner_sha256']and
+         hashlib.sha256((test_context/BASELINE).read_bytes()).hexdigest()==prepared['test_baseline_sha256']and
+         prepared['fixture_overlay']=={key:pins[1]for key,pins in WB_ACTIVITY.items()},
+         'R15_TEST_CONTEXT_CHANGED_DURING_SUITE')
     need(report.get('status')=='PASS'and report.get('execution_complete')is True and
          type(report.get('tests'))is int and report['tests']>0 and
          all(report.get(k)==0 for k in ['failures','errors','skipped','external_connections'])and
@@ -104,6 +142,9 @@ def aggregate(folder,engine):
              'R15_EXECUTION_COVERAGE_MISMATCH')
         seen.add(key);records.append(row)
     need(seen==expected,'R15_ALL_CURRENT_RUN_SUITES_REQUIRED')
+    need(len({(row.get('test_runner_sha256'),row.get('test_baseline_sha256'))for row in records})==1 and
+         all(row.get('fixture_overlay')=={key:pins[1]for key,pins in WB_ACTIVITY.items()}for row in records),
+         'R15_TEST_CONTEXT_MISMATCH')
     for suite in ['base','collection','ledger','compound']:
         shards=[row for row in records if row['suite']==suite]
         need(len({(row['inventory_count'],row['inventory_sha256'])for row in shards})==1 and

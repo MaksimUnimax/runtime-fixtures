@@ -40,7 +40,7 @@ jobs:
       - name: Read exact current-run R15 source qualification
         uses: actions/download-artifact@v4
         with:
-          pattern: s13-r15-qualification-*-${{ github.event.pull_request.head.sha || github.sha }}
+          pattern: s13-r15-qualification-*-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.event.pull_request.head.sha || github.sha }}
           path: .s13-r15-evidence
           merge-multiple: true
       - name: Read pinned R15 source context for catalog compatibility
@@ -274,6 +274,7 @@ jobs:
             docs/alisa/runtime/v0.11
             products/alisa/tests
             products/alisa/services/platform/src
+            products/alisa/runtime
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -299,6 +300,7 @@ jobs:
           root="/dev/shm/alisa-current-parameters-pg-ci-s13-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.suite }}-${{ matrix.shard_index }}"
           test ! -e "$root"
           mkdir -m 700 "$root"
+          printf '%s\n' "${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}" > "$root/.s13-fixture-owner"
           mkdir -m 700 "$root/socket"
           sudo chown 999:999 "$root/socket"
           export PARAMETER_TEST_SOCKET="$root/socket"
@@ -323,7 +325,7 @@ jobs:
             -c 'CREATE ROLE test_parameter_test_runtime NOLOGIN; CREATE ROLE parameter_test_runtime NOLOGIN;'
           sudo --preserve-env=PARAMETER_TEST_SOCKET,PARAMETER_TEST_RUNTIME_ROOT,ALISA_TEST_NODE \
             products/alisa/.venv/bin/python -B \
-            .s13-r15-context/products/alisa/tests/current_parameters/ci_qualified_suites.py \
+            "$PARAMETER_TEST_RUNTIME_ROOT/.s13-test-context/products/alisa/tests/current_parameters/ci_qualified_suites.py" \
             --suite '${{ matrix.suite }}' \
             --shard-count '${{ matrix.shard_count }}' --shard-index '${{ matrix.shard_index }}' \
             --output "$GITHUB_WORKSPACE/products/alisa/dist/s13-r15-${{ matrix.suite }}-${{ matrix.shard_index }}-suite.json"
@@ -338,7 +340,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: s13-r15-qualification-${{ matrix.suite }}-${{ matrix.shard_index }}-${{ github.event.pull_request.head.sha || github.sha }}
+          name: s13-r15-qualification-${{ matrix.suite }}-${{ matrix.shard_index }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.event.pull_request.head.sha || github.sha }}
           path: products/alisa/dist/s13-r15-${{ matrix.suite }}-${{ matrix.shard_index }}-*.json
           if-no-files-found: error
       - name: Clean only this job's native and PostgreSQL fixtures
@@ -346,4 +348,10 @@ jobs:
         run: |
           native="/dev/shm/alisa-parameter-ci-s13-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.suite }}-${{ matrix.shard_index }}"
           root="/dev/shm/alisa-current-parameters-pg-ci-s13-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.suite }}-${{ matrix.shard_index }}"
-          sudo rm -rf -- "$native" "$root"
+          for owned in "$native" "$root"; do
+            marker="$owned/.s13-fixture-owner"
+            if [ -d "$owned" ] && [ ! -L "$owned" ] && [ -f "$marker" ] && [ ! -L "$marker" ] && \
+               [ "$(cat "$marker")" = "${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}" ]; then
+              sudo rm -rf -- "$owned"
+            fi
+          done
