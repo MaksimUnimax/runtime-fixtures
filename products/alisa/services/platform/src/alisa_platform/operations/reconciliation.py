@@ -11,7 +11,7 @@ Real staff/BFF/native adapters and their acceptance are separate work.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, fields
 from hashlib import sha256
 import json
 import math
@@ -57,7 +57,8 @@ def digest_shape(value):
 
 
 def stamp(value):
-    need(type(value) is int and 0 <= value <= 253402300799)
+    need(type(value) in (int, float) and math.isfinite(value)
+         and 0 <= value <= 253402300799)
     return value
 
 
@@ -65,7 +66,7 @@ def now_seconds(clock):
     value = clock()
     need(type(value) in (int, float) and math.isfinite(value)
          and 0 <= value <= 253402300799, 'EVIDENCE_CLOCK_INVALID', 503)
-    return int(value)
+    return value  # Preserve SQLite fractional timestamps; never round an identity.
 
 
 def canonical(value):
@@ -107,35 +108,151 @@ def request_shape(value):
 
 
 @dataclass(frozen=True, repr=False)
+class NativeIdentity:
+    """Exact metadata identity, not an authorization or a terminal receipt.
+
+    The native database has no UUID dispatch or positive row revision. Keep
+    its actual dispatch sequence (including zero), times and scoped job hash.
+    """
+    product_id: str
+    object_id: str
+    tenant_id: str
+    customer_id: str
+    runtime_job_ref: str
+    request_sha256: str
+    guard_sha256: str
+    reference_created_at: int | float
+    native_job_ref_sha256: str
+    native_created_at: int | float
+    native_updated_at: int | float
+    dispatch_sequence: int
+    state: str
+    due: int | float
+    lease: int | float | None
+    expires: int | float | None
+    has_owner: bool
+    resume_safe: bool
+    reader_updated_at: int | float
+
+    def __repr__(self):
+        return '<NativeIdentity; validated metadata, not authority>'
+
+    def validate(self):
+        need(self.product_id == PRODUCT and type(self.product_id) is str)
+        for name in ('object_id','tenant_id','customer_id','runtime_job_ref'):
+            identifier(getattr(self,name))
+        for name in ('request_sha256','guard_sha256','native_job_ref_sha256'):
+            digest_shape(getattr(self,name))
+        for name in ('reference_created_at','native_created_at','native_updated_at',
+                     'due','reader_updated_at'):
+            stamp(getattr(self,name))
+        for value in (self.lease,self.expires):
+            if value is not None:stamp(value)
+        need(self.native_created_at <= self.native_updated_at
+             and self.native_created_at <= self.reference_created_at)
+        need(type(self.dispatch_sequence) is int and 0 <= self.dispatch_sequence < 2**63)
+        need(type(self.state) is str and self.state in {
+            'UNKNOWN','QUEUED','RUNNING','READY','NEEDS_INPUT','FAILED','CANCELLED','EXPIRED'})
+        need(type(self.has_owner) is bool and type(self.resume_safe) is bool)
+        return self
+
+
+@dataclass(frozen=True, repr=False)
 class Operation:
     product_id: str
     object_id: str
     tenant_id: str
     runtime_job_ref: str
-    dispatch_id: str
+    dispatch_id: str | None
     request_sha256: str
-    revision: int
-    created_at: int
+    revision: int | None
+    created_at: int | float
     state: str
+    native_identity: NativeIdentity | None = None
 
     def __repr__(self):
         return '<Operation; server-resolved identity>'
 
     def validate(self):
         need(type(self.product_id) is str and self.product_id == PRODUCT, 'NOT_FOUND', 404)
-        for name in ('object_id', 'tenant_id', 'runtime_job_ref', 'dispatch_id'):
+        for name in ('object_id', 'tenant_id', 'runtime_job_ref'):
             identifier(getattr(self, name))
         digest_shape(self.request_sha256)
-        need(type(self.revision) is int and 1 <= self.revision <= 2147483647)
         stamp(self.created_at)
-        need(type(self.state) is str and self.state in {
-            'UNKNOWN', 'QUEUED', 'RUNNING', 'READY', 'FAILED', 'CANCELLED', 'EXPIRED', 'ALIASED'})
+        if self.native_identity is None:
+            # Preserve the earlier draft identity only when explicitly supplied.
+            identifier(self.dispatch_id)
+            need(type(self.revision) is int and 1 <= self.revision <= 2147483647)
+            need(type(self.state) is str and self.state in {
+                'UNKNOWN','QUEUED','RUNNING','READY','FAILED','CANCELLED','EXPIRED','ALIASED'})
+        else:
+            need(type(self.native_identity) is NativeIdentity)
+            n = self.native_identity.validate()
+            need(self.dispatch_id is None and self.revision is None)
+            need((self.product_id,self.object_id,self.tenant_id,self.runtime_job_ref,
+                  self.request_sha256,self.created_at,self.state) ==
+                 (n.product_id,n.object_id,n.tenant_id,n.runtime_job_ref,
+                  n.request_sha256,n.native_created_at,n.state))
         return self
+
+    @property
+    def receipt_revision(self):
+        self.validate()
+        # Native-mode revision is the immutable command-receipt version, NOT
+        # a fabricated native row revision. Exact native changes use binding.
+        return 1 if self.native_identity is not None else self.revision
 
     @property
     def binding(self):
         self.validate()
-        return mark(asdict(self))
+        value = asdict(self)
+        if self.native_identity is None:
+            value.pop('native_identity')  # Keep old draft receipt hashes stable.
+        return mark(value)
+
+
+def operation_from_native_snapshot(value, *, object_id, tenant_id, customer_id, runtime_job_ref):
+    """Validate already-received data; caller MUST authenticate its transport.
+
+    No source discovery, signing key, verified flag, DB read or authorization
+    is performed. A recomputed SHA alone must never satisfy a source verifier.
+    """
+    try:
+        need(type(value) is dict and set(value) == {
+            'schema','binding','binding_sha256','observed_at','retained_calls',
+            'retained_calls_truncated','call_history_complete','whole_job_outcome',
+            'job_state_changed','replay_permitted'})
+        need(value['schema'] == 'alisa-native-reconciliation-snapshot/v1')
+        need(len(canonical(value)) <= MAX_PROOF_BYTES)
+        data = value['binding']
+        need(type(data) is dict and set(data) == {f.name for f in fields(NativeIdentity)})
+        identity = NativeIdentity(**data).validate()
+        need((identity.object_id,identity.tenant_id,identity.customer_id,identity.runtime_job_ref) ==
+             (identifier(object_id),identifier(tenant_id),identifier(customer_id),identifier(runtime_job_ref)))
+        need(digest_shape(value['binding_sha256']) == mark(data))
+        observed = stamp(value['observed_at'])
+        need(max(identity.native_updated_at,identity.reference_created_at,
+                 identity.reader_updated_at) <= observed)
+        need(value['call_history_complete'] is False and value['whole_job_outcome'] == 'UNPROVEN'
+             and value['job_state_changed'] is False and value['replay_permitted'] is False
+             and type(value['retained_calls_truncated']) is bool)
+        calls = value['retained_calls']
+        need(type(calls) is list and len(calls) <= MAX_PROOFS)
+        need(not value['retained_calls_truncated'] or len(calls) == MAX_PROOFS)
+        previous = 2**63
+        for call in calls:
+            need(type(call) is dict and set(call) == {'id','at','state','http','elapsed_ms','response_bytes'})
+            need(type(call['id']) is int and 0 < call['id'] < previous)
+            previous = call['id']
+            need(identity.native_created_at <= stamp(call['at']) <= observed)
+            need(type(call['state']) is str and call['state'] in {'SENDING','RECEIVED','UNKNOWN','HTTP_ERROR'})
+            need(call['http'] is None or (type(call['http']) is int and 100 <= call['http'] <= 599))
+            for name in ('elapsed_ms','response_bytes'):
+                need(call[name] is None or (type(call[name]) is int and 0 <= call[name] < 2**63))
+        return Operation(PRODUCT,identity.object_id,identity.tenant_id,identity.runtime_job_ref,
+            None,identity.request_sha256,None,identity.native_created_at,identity.state,identity).validate()
+    except (ReconcileError,TypeError,ValueError,KeyError,OverflowError):
+        raise ReconcileError('OPERATION_BINDING_INVALID',503) from None
 
 
 @dataclass(frozen=True, repr=False)
@@ -153,8 +270,8 @@ class Assessment:
     code: str
     evidence_digest: str
     verified_count: int
-    assessed_at: int
-    valid_until: int
+    assessed_at: int | float
+    valid_until: int | float
     job_state_changed: bool = False
     replay_permitted: bool = False
 
@@ -375,7 +492,7 @@ def reconcile(request, command_id, *, authority: Authority, store: Store,
                 return saved.public(), 202
             assessment.require_fresh(clock)
             receipt = CommandReceipt(command_id, actor, fingerprint, binding,
-                                     fresh.revision, str(uuid4()), assessment)
+                                     fresh.receipt_revision, str(uuid4()), assessment)
             store.insert_receipt(receipt)
             need(current().binding == binding, 'REVISION_CONFLICT', 409)
             assessment.require_fresh(clock)

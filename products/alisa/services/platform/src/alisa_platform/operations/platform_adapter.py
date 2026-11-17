@@ -181,6 +181,9 @@ class PlatformAdapter:
             core.need((op.product_id, op.object_id, op.tenant_id, op.runtime_job_ref) ==
                       (target.product_id, target.object_id, target.tenant_id, target.runtime_job_ref),
                       'OPERATION_BINDING_INVALID', 503)
+            if op.native_identity is not None:
+                core.need(op.native_identity.customer_id == target.customer_id,
+                          'OPERATION_BINDING_INVALID', 503)
         except core.ReconcileError as error:
             if error.status == 422:
                 raise core.ReconcileError('OPERATION_BINDING_INVALID', 503) from None
@@ -221,7 +224,7 @@ class PlatformAdapter:
             raise core.ReconcileError('RECEIPT_INVALID', 503) from None
         core.need(self._target is not None and self._operation is not None
                   and value['target_binding'] == self._target.binding
-                  and saved.revision == self._operation.revision, 'REVISION_CONFLICT', 409)
+                  and saved.revision == self._operation.receipt_revision, 'REVISION_CONFLICT', 409)
         return saved
 
     def insert_receipt(self, receipt):
@@ -231,7 +234,7 @@ class PlatformAdapter:
         core.need(self._target is not None and self._operation is not None
                   and self._actor is not None and str(self._actor.pk) == receipt.actor_id
                   and receipt.operation_binding == self._operation.binding
-                  and receipt.revision == self._operation.revision, 'REVISION_CONFLICT', 409)
+                  and receipt.revision == self._operation.receipt_revision, 'REVISION_CONFLICT', 409)
         value = {'schema': RECEIPT_SCHEMA, 'action': ACTION, 'target_binding': self._target.binding,
                  'operation_binding': receipt.operation_binding, 'revision': receipt.revision,
                  'trace_id': receipt.trace_id, 'assessment': asdict(receipt.assessment)}

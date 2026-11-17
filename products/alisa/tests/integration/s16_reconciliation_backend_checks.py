@@ -126,6 +126,19 @@ class FixtureSource:
         return hmac.compare_digest(proof.authentication, hmac.digest(self.key, proof.payload, 'sha256'))
 
 
+class NativeFixtureSource(FixtureSource):
+    """Native-shaped identity; primary transport remains explicitly synthetic."""
+    def __init__(self, row):
+        super().__init__(row)
+        start = int(timezone.now().timestamp())-60+0.125
+        native = core.NativeIdentity(core.PRODUCT, str(row.pk), str(row.tenant_id),
+            str(row.customer_id), str(row.runtime_job_ref), '2'*64, '6'*64,
+            start+0.125, '5'*64, start, start+0.25, 0, 'UNKNOWN', start,
+            None, None, False, False, start+0.5)
+        self.op = core.Operation(core.PRODUCT, str(row.pk), str(row.tenant_id),
+            str(row.runtime_job_ref), None, '2'*64, None, start, 'UNKNOWN', native).validate()
+
+
 def invoke(token, row, source, command=None, reason='Synthetic operator check'):
     request = {'object_id': str(row.pk), 'kind': 'RUNTIME_UNKNOWN', 'reason': reason}
     try:
@@ -281,6 +294,72 @@ def main():
             release.set(); held.result(timeout=5)
     check('real_pg_lock_contention_is_bounded_and_has_no_receipt', status == 503
           and not StaffCommandReceipt.objects.filter(pk=key).exists())
+    # Native identity does not invent a dispatch UUID or native row revision.
+    target = query(); port = NativeFixtureSource(target); key = uuid.uuid4()
+    initial = dict(Query.objects.filter(pk=target.pk).values().get())
+    native_reply, status = invoke(token, target, port, str(key))
+    check('native_identity_receipt_uses_command_revision_not_native_revision',
+          status == 202 and native_reply['revision'] == 1 and native_reply['state'] == 'UNKNOWN'
+          and port.op.revision is None and port.op.dispatch_id is None)
+    check('native_identity_record_and_audit_once_query_unchanged',
+          StaffCommandReceipt.objects.filter(pk=key).count() == 1
+          and StaffAuditEvent.objects.filter(action=adapter.ACTION, target_id=target.pk).count() == 1
+          and dict(Query.objects.filter(pk=target.pk).values().get()) == initial)
+    reads = port.reads
+    check('native_identity_cached_receipt_rechecks_binding_without_primary_reread',
+          invoke(token, target, port, str(key)) == (native_reply,202) and port.reads == reads)
+    port.op = replace(port.op, native_identity=replace(port.op.native_identity,
+                       native_updated_at=port.op.native_identity.native_updated_at+0.000001))
+    check('fractional_native_change_rejects_original_pg_receipt',
+          invoke(token, target, port, str(key))[1] == 409
+          and StaffCommandReceipt.objects.get(pk=key).result['revision'] == 1 and port.reads == reads)
+
+    target = query(); port = NativeFixtureSource(target); key = uuid.uuid4()
+    port.on_read = lambda: setattr(port, 'op', replace(port.op,
+        native_identity=replace(port.op.native_identity, dispatch_sequence=1)))
+    check('native_dispatch_sequence_change_rolls_back_final_pg_receipt',
+          invoke(token, target, port, str(key))[1] == 409
+          and not StaffCommandReceipt.objects.filter(pk=key).exists())
+    target = query(); port = NativeFixtureSource(target); key = uuid.uuid4()
+    port.op = replace(port.op, native_identity=replace(port.op.native_identity,
+                                                     customer_id=str(uuid.uuid4())))
+    check('native_customer_scope_is_checked_by_platform_adapter',
+          invoke(token, target, port, str(key))[1] == 503 and port.reads == 0
+          and not StaffCommandReceipt.objects.filter(pk=key).exists())
+    target = query(); port = NativeFixtureSource(target); port.mode = 'confirmed'
+    initial = dict(Query.objects.filter(pk=target.pk).values().get())
+    result, status = invoke(token, target, port)
+    check('native_fractional_primary_time_can_assess_but_not_mutate',
+          status == 202 and result['state'] == 'NO_CHANGE' and result['revision'] == 1
+          and dict(Query.objects.filter(pk=target.pk).values().get()) == initial)
+
+    target = query(); port = NativeFixtureSource(target); key = uuid.uuid4()
+    with patch.object(service, 'audit', side_effect=audit_failure):
+        result, status = invoke(token, target, port, str(key))
+    check('native_pg_receipt_rolls_back_on_real_audit_failure',
+          status == 503 and not StaffCommandReceipt.objects.filter(pk=key).exists())
+    target = query(); port = NativeFixtureSource(target); key = uuid.uuid4(); port.barrier = Barrier(2)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        replies = list(pool.map(concurrent, range(2)))
+    check('two_native_pg_commands_preserve_one_exact_receipt', replies[0] == replies[1]
+          and replies[0][1] == 202 and replies[0][0]['revision'] == 1
+          and StaffCommandReceipt.objects.filter(pk=key).count() == 1
+          and StaffAuditEvent.objects.filter(action=adapter.ACTION, target_id=target.pk).count() == 1)
+    target = query(); port = NativeFixtureSource(target); key = uuid.uuid4(); commits = 0
+    with patch.object(connection, 'commit', side_effect=lost_reply):
+        result, status = invoke(token, target, port, str(key))
+    check('native_pg_lost_commit_reply_not_reexecuted', status == 503 and commits == 3
+          and StaffCommandReceipt.objects.filter(pk=key).count() == 1)
+    reads = port.reads
+    result, status = invoke(token, target, port, str(key))
+    check('native_pg_committed_receipt_recovers_with_same_version',
+          status == 202 and result['revision'] == 1 and port.reads == reads)
+    native_saved = StaffCommandReceipt.objects.get(pk=key)
+    check('native_metadata_identifiers_not_persisted_in_command_result',
+          port.op.native_identity.native_job_ref_sha256 not in json.dumps(native_saved.result)
+          and str(target.runtime_job_ref) not in json.dumps(native_saved.result)
+          and token not in json.dumps(native_saved.result))
+
     route = Client(HTTP_HOST='localhost').post('/api/v1/staff/operations/reconciliations',
         data='{}', content_type='application/json', HTTP_AUTHORIZATION='Bearer '+settings.STAFF_SERVICE_TOKEN)
     check('unfinished_live_endpoint_not_registered', route.status_code == 404)

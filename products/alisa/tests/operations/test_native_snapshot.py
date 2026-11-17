@@ -19,7 +19,8 @@ from unittest.mock import patch
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[4]
-SOURCE = ROOT/'docs/alisa/runtime/v0.11/rt_job_r02/reconciliation_snapshot.py'
+SOURCE = ROOT/'products/alisa/runtime/reconciliation/native_snapshot.py'
+FROZEN = ROOT/'docs/alisa/runtime/v0.11/rt_job_r02'
 spec = importlib.util.spec_from_file_location('s16_native_snapshot', SOURCE)
 n = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = n
@@ -288,7 +289,7 @@ class NativeSnapshot(unittest.TestCase):
             with self.subTest(timeout=value):self.assert_closed('TIMEOUT_INVALID',lambda:self.read(timeout=value))
 
     def test_actual_repository_ddl_not_only_handwritten_fixture(self):
-        native=SOURCE.parent
+        native=FROZEN
         sql=[]
         for filename in ('repository.py','runtime_port.py','reader_state.py'):
             tree=ast.parse((native/filename).read_text())
@@ -330,6 +331,16 @@ class NativeSnapshot(unittest.TestCase):
         try:self.assert_closed('NATIVE_SNAPSHOT_UNAVAILABLE',lambda:self.read(timeout=0.1))
         finally:self.c.rollback()
         self.assertLess(time.monotonic()-start,1.5)
+
+    def test_extension_does_not_change_frozen_inventory_or_hashes(self):
+        manifest=json.loads((FROZEN/'CURRENT_CORE_MANIFEST.json').read_text())
+        actual={p.name for p in FROZEN.glob('*.py')}
+        actual.update(str(p.relative_to(FROZEN)) for p in (FROZEN/'read_surface_data').rglob('*')
+                      if p.is_file() and '__pycache__' not in p.parts)
+        self.assertLessEqual(actual,set(manifest['files']))
+        self.assertFalse((FROZEN/'reconciliation_snapshot.py').exists())
+        for name in actual:
+            self.assertEqual(hashlib.sha256((FROZEN/name).read_bytes()).hexdigest(),manifest['files'][name])
 
     def test_import_opens_no_database_and_starts_no_process(self):
         with patch.object(sqlite3,'connect',side_effect=AssertionError('no db on import')):
