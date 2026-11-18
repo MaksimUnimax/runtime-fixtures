@@ -1,0 +1,8 @@
+{
+  "name": "harness-native-lab",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24.9.0", "dsh": "0.2.2-rc.1" },
+  "scripts": { "test": "node --test test/*.test.mjs", "start": "node launch.mjs" }
+}
