@@ -42,6 +42,8 @@ with tempfile.TemporaryDirectory(prefix='labportal-fixture-') as d:
     wrong=submit('WRONG')
     ok=submit(code)
     disallowed=submit(code,'https://untrusted.invalid')
+    alternate=submit('THIS—IS—ONLY—A—TEST—CODE')
+    assert alternate[0]==303
     result={
         'bad_code':wrong[0],
         'good_code':ok[0],

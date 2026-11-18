@@ -16,6 +16,7 @@ from time import monotonic
 from urllib.parse import parse_qs, urlsplit
 import os
 import secrets
+import unicodedata
 
 ROOT = Path("/var/lib/harness-native-lab/dsh/private")
 ENTRY = ROOT / "entry-url.txt"
@@ -26,6 +27,8 @@ LOCK = Lock()
 FAILURES = defaultdict(deque)
 WINDOW = 15 * 60
 MAX_FAILURES = 6
+# Prevent accidental Cyrillic lookalikes when the operator types a Latin code.
+CODE_CONFUSABLES = str.maketrans("АВСЕНКМОРТХ", "ABCEHKMOPTX")
 
 def page(error="", status=200):
     notice = f'<p class="err" role="alert">{escape(error)}</p>' if error else ""
@@ -46,7 +49,7 @@ small{display:block;color:#a6a6af;margin-top:17px} .err{color:#ffbaba}
 REPLACE_NOTICE
 <form action="/lab-login" method="post" autocomplete="off">
 <label for="code">Код доступа</label>
-<input id="code" name="code" type="password" required minlength="12" maxlength="80" autofocus autocomplete="one-time-code">
+<input id="code" name="code" type="password" required minlength="12" maxlength="80" autofocus autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text">
 <button type="submit">Войти в Harness</button></form>
 <small>Это приватный стенд разработчика, а не регистрация пользователей.</small>
 </main></body></html>""".replace("REPLACE_NOTICE", notice)
@@ -100,7 +103,8 @@ class Handler(BaseHTTPRequestHandler):
         if limited:
             return self.send_body(429, page("Слишком много попыток. Повторите вход позже."))
         fields = parse_qs(self.rfile.read(length).decode("utf-8", errors="replace"))
-        code = fields.get("code", [""])[0].strip().replace("-", "").upper()
+        raw = unicodedata.normalize("NFKC", fields.get("code", [""])[0])
+        code = "".join(ch for ch in raw.upper().translate(CODE_CONFUSABLES) if ch.isalnum())
         digest = sha256(code.encode("utf-8")).hexdigest()
         try:
             allowed = secrets.compare_digest(digest, HASH.read_text().strip())
