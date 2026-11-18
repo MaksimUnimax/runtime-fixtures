@@ -1,0 +1,36 @@
+[Unit]
+Description=Octoport Harness API engine
+After=network.target
+
+[Service]
+Type=simple
+User=alisa-platform-stage
+Group=alisa-platform-stage
+WorkingDirectory=/opt/octoport-harness-api/current/engine
+ExecStart=/usr/local/bin/node /opt/octoport-harness-api/current/engine/server.mjs
+Environment=HARNESS_NODE_MODULES=/opt/octoport-harness-api/runtime/node_modules
+Environment=OCTOPORT_ENGINE_STATE=/var/lib/octoport-harness-engine
+Environment=OCTOPORT_ENGINE_PORT=18132
+Environment=OCTOPORT_PIPELINE_URL=http://127.0.0.1:18131/internal/harness/query
+LoadCredential=bridge.key:/etc/octoport-harness/bridge.key
+LoadCredential=deepseek.key:/var/lib/alice-lab/secrets/deepseek.key
+StateDirectory=octoport-harness-engine
+StateDirectoryMode=0700
+UMask=0077
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=768M
+MemorySwapMax=0
+CPUQuota=100%
+TasksMax=128
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

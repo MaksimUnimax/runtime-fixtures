@@ -1,0 +1,52 @@
+[Unit]
+Description=Octoport authenticated Harness and Alisa matrix adapter
+After=network.target postgresql.service octoport-harness-engine.service
+Wants=octoport-harness-engine.service
+
+[Service]
+Type=simple
+User=alisa-platform-stage
+Group=alisa-platform-stage
+WorkingDirectory=/opt/octoport-harness-api/current/backend
+ExecStart=@@PLATFORM@@/.venv/bin/python -B /opt/octoport-harness-api/current/backend/gateway.py
+Environment=ALISA_PLATFORM_SOURCE=@@PLATFORM@@
+Environment=ALISA_CORE_ROOT=@@CORE@@
+Environment=ALISA_RELEASE=@@PLATFORM_NAME@@
+Environment=ALISA_OWNER_PARAMETERS_ENABLED=1
+Environment=ALISA_OWNER_PARAMETER_COLLECTION_ENABLED=1
+Environment=OCTOPORT_GATEWAY_STATE=/var/lib/octoport-harness-gateway
+Environment=OCTOPORT_GATEWAY_PORT=18131
+Environment=OCTOPORT_ENGINE_URL=http://127.0.0.1:18132
+Environment=OCTOPORT_STATIC_DIRECTORY=/opt/octoport-harness-api/current/static
+EnvironmentFile=/etc/alisa-platform/stage/platform.env
+EnvironmentFile=/etc/alisa-platform/stage/runtime-link.env
+EnvironmentFile=/etc/alisa-platform/stage/alice-link.env
+EnvironmentFile=-/etc/alisa-platform/stage/query-insights.env
+EnvironmentFile=-/etc/alisa-platform/stage/question-catalog.env
+EnvironmentFile=-/etc/alisa-platform/stage/economics-r15-flags.env
+LoadCredential=bridge.key:/etc/octoport-harness/bridge.key
+LoadCredential=deepseek:/var/lib/alice-lab/secrets/deepseek.key
+LoadCredential=market_config:/etc/alice-market/market-runtime.json
+LoadCredential=answer_settings:/var/lib/alice-market/answer-settings.json
+LoadCredential=ozon:/etc/alice-lab/marketplaces/ozon.json
+LoadCredential=wb:/etc/alice-lab/marketplaces/wb.json
+StateDirectory=octoport-harness-gateway
+StateDirectoryMode=0700
+UMask=0077
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=512M
+MemorySwapMax=0
+CPUQuota=100%
+TasksMax=128
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
