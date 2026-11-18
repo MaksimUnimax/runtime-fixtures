@@ -2,6 +2,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { HarnessEngine } from './engine.mjs';
 import { createPipelineClient } from './pipeline-client.mjs';
 import { PipelineError } from './provider.mjs';
@@ -67,7 +68,7 @@ async function main() {
   server.requestTimeout = 15000;
   server.headersTimeout = 10000;
   const port = Number(process.env.OCTOPORT_ENGINE_PORT || 18132);
-  server.listen(port,'127.0.0.1',()=>console.log(JSON.stringify({event:'harness_engine_ready',port,harness_version:engine.runtime.version})));
+  server.listen(port,'127.0.0.1',()=>console.log(JSON.stringify({event:'harness_engine_ready',port:server.address().port,harness_version:engine.runtime.version})));
   let closing = false;
   for (const signal of ['SIGTERM','SIGINT']) process.on(signal,async()=>{
     if (closing) return;
@@ -78,4 +79,13 @@ async function main() {
   });
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) main().catch(()=>{console.error('harness_engine_start_failed');process.exitCode=1;});
+function isMainModule() {
+  if (!process.argv[1]) return false;
+  try {
+    // Node resolves imported module URLs through release symlinks; argv retains
+    // the path used to launch current/engine/server.mjs. Compare actual files.
+    return fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
+  } catch { return false; }
+}
+
+if (isMainModule()) main().catch(()=>{console.error('harness_engine_start_failed');process.exitCode=1;});
