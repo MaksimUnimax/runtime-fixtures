@@ -27,7 +27,9 @@ export function buildProfile(options) {
     'entry-customization', 'harness-dev-context', 'tool-working-directory',
     'session-title-llm', 'llm-pi-ai', 'llm-deepseek-account',
     'terminal-controller', 'ui-sidebar-terminal', 'workspace-files', 'ui-sidebar-files', 'ui-deliverables',
-    'open-in-app', 'ui-open-in-app', 'directory-picker',
+    'open-in-app', 'ui-open-in-app',
+    // Keep the official directory picker: new native chats require a Workspace.
+    // Public trustedHost selects its browser flow; rc.1 has no browse-root option.
     // Native ui-chat requires fileDrag even in a text-only deployment. Keep
     // that service mounted; the attachment UI and provider capability stay off.
     'ui-settings-account', 'ui-attachment',

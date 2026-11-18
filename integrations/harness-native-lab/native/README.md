@@ -31,6 +31,8 @@ Preparation creates a named `native-lab` profile with the installed base and web
 
 The underlying command is `node <runtime>/@deepseek-ai/dsh/lib/bin.js --profile native-lab --host 127.0.0.1 --port 18440 --no-open`, plus `--public-url` and the exact `--trusted-host` when configured. Native state stays under the lab's separate `DSH_HOME`; launching twice over the same home is not supported.
 
+On first use, choose `/srv/harness-native-lab` through the native **Choose workspace** / **Select Workspace Directory** flow. The official adaptive directory picker selects its in-browser backend for this public trusted Host; no OS desktop dialog is needed. Harness rc.1 provides no browse-root restriction: this picker can browse directories throughout the filesystem subject to the service user's Unix permissions. `ProtectSystem` limits writes, not reads. This is a private operator workflow, not a tenant security boundary. A public product needs a separate container/filesystem boundary or an explicit Workspace admission gate.
+
 The signed native entry URL is captured into `$HARNESS_LAB_HOME/private/entry-url.txt`, mode 0600. The wrapper redacts query tokens from stdout/stderr. Do not commit that URL, cookies, connector config, real business results or runtime state. An HTTPS reverse proxy to the HTTP loopback listener must preserve `Host` and WebSocket upgrades and add `Secure` to native cookies; the rc.1 listener does not infer TLS from forwarded headers. The public origin has no path prefix in this stand.
 
 ## Actual model and tool flow

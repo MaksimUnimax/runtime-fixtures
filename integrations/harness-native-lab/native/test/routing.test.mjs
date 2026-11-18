@@ -80,4 +80,5 @@ test('profile retains the native loop/provider/UI and isolates the controlled to
   assert.match(names, /dsh-compaction-basic/);
   assert.equal(patch.some(row => row.id === 'ui-chat' && row.disabled), false);
   assert.equal(patch.some(row => row.id === 'ui-file-drag' && row.disabled), false, 'native Chat requires the fileDrag service before any composer can mount');
+  assert.equal(patch.some(row => row.id === 'directory-picker' && row.disabled), false, 'new native chats need the official Workspace directory flow');
 });

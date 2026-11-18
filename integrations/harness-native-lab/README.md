@@ -15,6 +15,8 @@ This is a private **single-operator, text-only** test stand. Product registratio
 
 ## Try in the native chat
 
+On first use, accept the native preview notice, select **Choose workspace**, and choose `/srv/harness-native-lab` in the official directory dialog. This laboratory uses a private operator account. The future customer product must bind its workspace automatically and enforce filesystem isolation; the native directory picker is not a tenant boundary.
+
 1. `В общих чертах объясни разницу FBO и FBS без данных моего магазина.` — ordinary model answer; no business API is needed.
 2. `Покажи текущие остатки моего магазина: отдельно FBO и FBS, отдельно резерв.` — native tool call to real MCP, followed by an answer grounded in the returned data.
 3. `Проанализируй эти данные: какие выводы можно и нельзя сделать по одному снимку?` — one Pro/high analysis of existing evidence.
