@@ -1,100 +1,141 @@
-# Harness API — результат развёртывания 18 ноября 2026
+# Harness — результат обновления 18 ноября 2026
 
-## Состояние
+## Рабочий выпуск
 
 **Опубликовано и включено:** https://alisa.octoport.ru/harness/
 
-Четыре прежних адреса на openscript.ru — `/harness`, `/harness/`, `/harness-dev`, `/harness-dev/` — возвращают 303 на этот фиксированный URL. Запросы записи к старым prefix endpoints прекращены с 410, без пересылки или повторного выполнения. Старые containers, файлы, профили браузеров и Web история сохранены; в API историю они не импортировались.
+Переключение выполнено 18 ноября 2026 в **08:22 по Asia/Qyzylorda** (03:22 UTC). Изменения закрывают замечания владельца по дизайну, плагинам, краткости ответов, счётчику разработки и многопользовательской работе.
 
 | Компонент | Зафиксированное состояние |
 | --- | --- |
-| Source commit приложения | `5431873d9d167bdb5c372e9c00b91079a50eec7b` |
+| Source commit приложения | `6235d5e11707cad6de077f22660a0156a0eb5b4a` |
+| Source tree | `ae1d352f31f90962d22b3f250d0783f27969089b` |
 | Ветка | `feature/harness-deepseek-api-20261118` |
 | Путь в репозитории | `integrations/harness-api` |
-| Active release | `/opt/octoport-harness-api/releases/api-20261118-5431873d9d16` |
+| Active release | `/opt/octoport-harness-api/releases/api-20261118-6235d5e11707` |
 | Текущая ссылка | `/opt/octoport-harness-api/current` |
-| Engine | `octoport-harness-engine.service`, active/running, enabled |
-| Gateway | `octoport-harness-gateway.service`, active/running, enabled |
-| Harness | Настоящий установленный `@deepseek-ai/dsh` **0.2.2-rc.1** |
+| Engine / gateway | Оба active/running, health HTTP 200 |
+| Harness | Установленный `@deepseek-ai/dsh` **0.2.2-rc.1** |
 | Default provider/model | `octoport-templates` / `alisa-matrix` |
-| Каталог | **90** шаблонов установленной Алисы |
+| Матрица | **90** шаблонов исходной Алисы |
 | Catalog hash | `b9352169fed63d5bd74414e6539f05f6a996f5a9e2a07303a8f6786e42c4732e` |
+| Source verification | **72/72 SHA256 совпали** до и после переключения |
+| Работа в момент финальной проверки | 0 активных jobs, прежняя история сохранена |
 
-Все **46 исходных файлов** active release проверены по SHA256 в `SOURCE.json`; независимая проверка подтвердила совпадение. Данный документ добавлен отдельным documentation commit после установки; исполняемый source commit указан выше.
+Независимый review подтвердил фактические cwd новых engine/gateway, хеши выпуска, права файлов, оба plugin entry hashes, загруженное разрешение разработчика и неизменность native Query guard. Этот отчёт завершения записан отдельным documentation commit; исполняемый commit указан в таблице.
 
-## Рабочий путь запроса
+## Дизайн по установленному Harness
 
-Существующий аккаунт Octoport → чат Harness → прежний DeepSeek selector Алисы → зарегистрированный шаблон → разрешённый API магазина → штатный обработчик и расчёт → текст Harness → браузерное озвучивание.
+В изолированном контейнере запущен установленный Harness 0.2.2-rc.1 и снят его исходный интерфейс. Новая оболочка воспроизводит его боковую панель 280 px, колонку переписки 748 px, расположение composer, нейтральную палитру, чёрную основную кнопку, светлую и тёмную темы. Используются оригинальные design-platform CSS tokens и векторный wordmark с MIT attribution.
 
-Первый модельный этап сохранён как фильтр выбора шаблонов. К нему не добавляется отдельный агентный LLM-вызов. Финальный DeepSeek не вызывается: результат формируется детерминированными обработчиками, а запрещённые финальные модельные операции блокируются транспортом отдельного gateway process.
+Пользовательские функции подключены к авторизованному BFF. Общий Host-owner UI не публикуется. Удалены прежние рекламные карточки Octoport, диктовка, переключатель озвучивания, кнопки голоса и browser SpeechSynthesis/SpeechRecognition. HTTP Permissions Policy запрещает микрофон.
 
-Каталог, qualifications, store permissions, selector serialization, native compiler, runtime authority и parameter RPC используются из существующих серверных источников. Фактическая production policy проверена: `layout=catalog_prefix_v2`, `isolation=tenant_v1`.
+Проверены широкая и мобильная компоновка, страница плагинов, per-request meter, сводка расходов, тёмная тема и публичная страница входа. Assets `api-r2` опубликованы; все шесть публичных HTML/CSS/JS/SVG ресурсов дали HTTP 200, включая оригинальный wordmark.
 
-Поддерживаются scalar, event, dataset, information, parameter, parameterized и economics paths. Расчётные дополнения закрывают те зарегистрированные вычисления, которые раньше выполняла финальная модель. Общие проценты вычисляются из исходных величин. Разные валюты и несовместимые определения сумм не складываются. Большой dataset показывает первые 100 строк и ссылку на полный результат с повторной проверкой владельца и прав.
+## Матрица и лаконичный результат
 
-## Вход и рабочий ключ
+Рабочая цепочка:
 
-Вход выполняется через штатный аккаунт Алисы на том же HTTPS origin. Gateway проверяет `__Host-alisa_session` через исходный platform account code. Actor и tenant не принимаются из запроса клиента. История принадлежит сочетанию customer/tenant; доступ к магазинам подтверждается действующей authority.
+`чат → plugin-manager → matrix → прежний DeepSeek selector → шаблон → разрешённый API магазина → проверенный обработчик → Harness`
 
-`/harness/login` направляет на существующий `/login` и устанавливает краткоживущий Secure/HttpOnly/SameSite=Lax marker только для возврата. После обычного callback `/app` открывает `/harness/`; без marker native `/app` сохраняет прежний маршрут. Marker не авторизует запросы.
+Управляющая команда плагина обрабатывается локально до selector. При обычном вопросе сохраняются исходные template catalog, валидация, фильтр, стабильный prompt prefix и tenant isolation. Дополнительного LLM-диспетчера нет. Финальный model answer блокируется transport этого процесса и не вызывается.
 
-Рабочий DeepSeek key читается по умолчанию из исходного `/var/lib/alice-lab/secrets/deepseek.key` через systemd `LoadCredential`. Официальный Harness provider получает тот же серверный key; основной provider остаётся матрицей. Пользователь не вводит и не выбирает ключ. Его значение не включено в этот отчёт, репозиторий, frontend или историю сообщений.
+Новые ответы сохраняются как `text = presentation.summary`, отдельно `details` и защищённые `report_urls`. Простой результат в выполненной проверке:
 
-Служебный bridge credential находится в root-owned файле 0600; оба state directories имеют 0700. UI выполняет только same-origin API-запросы. Внешние записи требуют точного Origin; внутренний execution endpoint остаётся на loopback.
+```text
+Ozon · 17.11.2026
+заказано товаров: 17 шт.
+```
 
-## Реальный DeepSeek и кэш
+Это тестовая величина из synthetic marketplace fixture. Голосовая пагинация, «Скажите: дальше», повторные даты и технические страницы источника не входят в короткий ответ. Подробности открываются отдельно. В табличном ответе показывается сводка либо до восьми строк; размер полной выборки и путь к полному результату явны.
 
-За время проверки выполнены **два реальных selector API-вызова** существующим ключом. Marketplace ответы и account scope в этой проверке были строго синтетическими; production user session и account DB не использовались.
+Проверки сохраняют смысл величин: общий процент считается из сумм исходных величин, изменение долей — в процентных пунктах, разные валюты не складываются, неизвестные данные не принимаются за ноль, финансовый остаток не объявляется чистой прибылью. Магазины с одинаковыми названиями различаются по структурным IDs/периодам/фильтрам, а не объединяются по тексту заголовка.
 
-| Вызов | Prompt tokens | Completion tokens | Cache hit tokens | Cache miss tokens |
-| --- | ---: | ---: | ---: | ---: |
-| Первый | 14 814 | 125 | 0 | 14 814 |
-| Повтор с прогретым prefix | 14 814 | 114 | 14 592 | 222 |
+## Постоянный диспетчер и расширения
 
-Во втором вызове **98,5% входных токенов** обслужены кэшем. Это измеренная доля cache hit этого запроса, а не обещание такого процента экономии для любого вопроса или всего счёта.
-
-В обоих случаях selector выбрал `B01.ordered_units`, родной Ozon decoder обработал сырой fixture response, direct renderer вернул тестовое количество **17**. Это тестовые цифры, не данные магазина владельца. Измерено: selector calls = 1, final model calls = 0; повтор admission не вызвал новый dispatch.
-
-Остальные тесты не выполняли оплачиваемых модельных вызовов. Missing/inconsistent usage остаётся неизвестным (`usage: null`), не подменяется нулевым расходом и не уничтожает готовый ответ.
-
-## Проверки
-
-| Уровень | Итог и предел доказательства |
+| Плагин | Поведение |
 | --- | --- |
-| Backend | **26/26 PASS**, включая native RuntimePort/Worker/decoder, session/tenant isolation, Origin, повтор, отзыв доступа, уточнения, восстановление чтения после restart, I/O thread context, usage uncertainty |
-| Renderer | **21/21 PASS** на установленном core: зарегистрированные расчёты, 3 000 строк, joins/coverage, unknown vs zero, currencies, взвешенный общий ДРР |
-| Platform patch / installer | **15/15 PASS**, original source preservation, native query guards, ORM filter before limit, подготовка и rollback conditions |
-| Реальный Harness engine | **13/13 PASS, 0 skipped**, exact rc.1, owner/history/job persistence, точный ответ каждого receipt, symlink entrypoint, clean shutdown |
-| Синтетический браузер | **10 сценариев PASS**: anonymous screen, double submit, XSS/table/report links, history reload, desktop/mobile viewport, lost send receipt, interrupted job, navigation race, logout race, JS errors |
-| Живой браузер | Anonymous UI загрузился с настоящим API401; кнопка открыла `/login`; Secure/HttpOnly return marker и `/app` →303 в чат проверены; JS errors = 0 |
-| Live HTTPS с другого сервера | `/harness/`200, api/me401, foreign Origin403, private execution paths404, login303, fixed return303, все старые ссылки303 |
-| Live службы | Engine и gateway active/running, enabled, health200; default key configured; 90 templates; на финальной проверке active_jobs=0 |
-| Source verification | 46/46 hashes совпали, включая повторную независимую проверку опубликованного release |
+| `plugin-manager` | Всегда включён; список, включение и вызов установленных возможностей |
+| `matrix` | Включён по умолчанию; matrix/handler path |
+| `dev-meter` | По умолчанию включён только для пользователей с server capability `developer_meter` |
 
-Итого **75 Python/Node тестов** и **10 синтетических браузерных сценариев**, плюс описанные live HTTP/browser/API checks. Viewport 390px проверяет адаптивность, но не является проверкой физического телефона владельца.
+Это отдельные модули настоящего Cordis: manager extends installed `Service`, установка выполняется через `ctx.plugin()`, регистрация принадлежит `ctx.effect()`. Тест подключил третий модуль только через его каталог и manifest без изменения dispatcher.
 
-Во время первоначального service bootstrap обнаружено, что Node разрешает `current` symlink в `import.meta.url`, тогда как argv содержит ссылочный путь. Исправлено сравнением реальных путей; отдельный процессный тест проверяет запуск через symlink, путь с пробелами, health200 и SIGTERM exit0. В production установлен исправленный commit.
+Команды:
 
-**Не выполнялись:** вход под настоящим пользовательским аккаунтом, получение OTP/письма, использование сохранённой пользовательской сессии, запрос к настоящему marketplace от имени владельца, проверка микрофона и звука на его физическом устройстве. Эти уровни не объявляются пройденными. Обычный пользовательский вход и подключённые к нему магазины используются при работе опубликованного чата; обхода входа не добавлено.
+```text
+покажи плагины
+включи плагин матрица
+отключи плагин matrix
+включи счётчик токенов
+покажи расход
+/plugins account enable dev-meter
+/plugin dev-meter requests {"limit":20}
+```
 
-## Сосуществование с Алисой
+Псевдонимы и действия задаются манифестом модуля. Обычная команда переключает текущий чат; `account` — значение по умолчанию для собственного аккаунта. Явный chat override имеет приоритет. Уже принятый запрос использует сохранённый снимок возможностей.
 
-Отдельная очередь Harness требует genuine WEB Query metadata receipts для исходных parameter/economics RPC. Native platform теперь использует минимальный overlay `/opt/alisa-platform/stage/releases/alisa-harness-query-20261118-v1`.
+Установка доверенного серверного кода и включение возможности разделены. Пользователь не получает npm, shell, произвольный путь модуля или управление общим profile composition. Штатный native plugin manager меняет профиль всех сессий, поэтому для аккаунтов реализован scoped manager. Полный контракт: [engine/PLUGINS.md](engine/PLUGINS.md).
 
-Guard исключает marker `harness_runtime_v1` из native list/read/recover/clarify/cancel до runtime dispatch. Сохраняются исходные owner, principal, TTL, proof и store checks; схема БД не менялась. QueryService SHA256: `ff7596001a538306133b5d26053c6e8e056a0278de6ea6fe039f2b62bc571f0e`.
+## Многопользовательская схема
 
-Проверены active состояния `alice-market.service`, `alisa-platform@stage.service`, `alisa-runtime-authority-stage.service`, `alisa-web@stage.service`. Core voice, authority и web releases не переключались. Platform `/health/ready` вернул READY с новым release; его поле `runtime=RUNTIME_NOT_CONNECTED` совпадало с исходным состоянием до работ и не используется как доказательство выполнения business request.
+Вход выполняется через штатную сессию Octoport. Каждому запросу gateway назначает подтверждённые actor/tenant. Browser JSON и текст сообщения не могут выбрать чужую личность или capabilities. Чаты, jobs и настройки плагинов разделены по точной паре actor/tenant, включая пользователей одного tenant.
 
-## Эксплуатация и откат
+Доступ к магазинам, параметрам и отчётам подтверждается существующей authority. Key модели общий серверный, user session и store credentials не переходят в историю. Отзыв сессии закрывает новые обращения; original admitted session повторно проверяется перед dispatch. Polling/reload не повторяют выполнение.
 
-Подробный порядок находится в [deploy/OPERATIONS.md](deploy/OPERATIONS.md), guard — в [deploy/PLATFORM_QUERY_OVERLAY.md](deploy/PLATFORM_QUERY_OVERLAY.md).
+Разрешение разработчика выдано ровно подтверждённой паре аккаунта и tenant в приватном root-owned allowlist. Роль владельца обычного клиентского аккаунта такого доступа не даёт. Загруженный systemd credential проверен в mount namespace gateway под его фактическим UID/GID: parser выдаёт ровно `developer_meter`.
 
-На Alisa сохранены:
+Обычные пользователи не получают meter, цены и token usage через history/status. После отзыва developer capability скрывается также текст прежней private команды, включая сбой между native assistant commit и записью receipt. Developer dashboard показывает собственные запросы; глобальный просмотр всех клиентов не включён.
 
-- `/root/octoport-harness-deploy-20261118/` — nginx before/candidate, activation state и final check;
-- `/root/alisa-harness-query-20261118-v1-plan/` — source hashes, drop-in, activation record и guarded rollback;
-- предыдущий application release `api-20261118-deff25e583b2`.
+Это логическое разделение нескольких пользователей на общем сервере. Персональные коммерческие бюджеты/счета и отдельные процессы на клиента не добавлены. Подробная схема: [MULTIUSER.md](MULTIUSER.md).
 
-На server80 сохранён `/root/octoport-harness-api-redirect-20261118/` с original nginx, новой конфигурацией и хешами. Обе nginx configuration проверки прошли до reload.
+## Реальная проверка токенов и рублей
 
-Откат UI/engine/gateway сохраняет native guard, пока есть unexpired Harness receipts; иначе появился бы путь к повторному native исполнению. Состояние и receipts не удаляются. Неизвестный исход после рестарта автоматически не переисполняется. Смена ключа, configuration snapshot или pinned core требует обновления соответствующей привязки и перезапуска services вне активного запроса.
+На новом выпуске выполнен **один реальный DeepSeek selector API-вызов** действующим серверным ключом. Marketplace response, account scope и runtime DB в этой проверке были изолированными synthetic fixtures. Реальная пользовательская сессия и реальные магазины не использовались.
+
+| Показатель | Результат |
+| --- | ---: |
+| Входные токены | 14 814 |
+| Вход из кэша | 14 592 |
+| Вход без кэша | 222 |
+| Выходные токены | 125 |
+| Всего | **14 939** |
+| Вызовы selector | **1** |
+| Финальные вызовы модели | **0** |
+| Оценка рублей | **0,0250782144408 ₽** |
+| Повтор admission | Нового dispatch нет |
+
+98,5% входа этого контрольного запроса пришло из кэша. Это измеренная доля cache hit, не гарантия экономии для любого запроса.
+
+Зафиксирован peak quote: USD на миллион tokens — cached input 0.006, uncached input 0.30, output 1.20; FX **82.4529 RUB/USD от 18.11.2026**. Тариф проверен по [официальной документации DeepSeek](https://api-docs.deepseek.com/quick_start/pricing/), курс — по [ЦБ РФ](https://www.cbr.ru/currency_base/daily/?UniDbQuery.Posted=True&UniDbQuery.To=18.11.2026). Историческая quote сохраняется с каждой попыткой и не переоценивается при изменении настроек.
+
+Рублёвое значение — оценка по API-квитанции и курсу, не банковское списание. Ошибки после dispatch учитываются. Отсутствующая квитанция или цена остаётся `null`; известная часть суммы показана отдельно. Управляющие local команды имеют нулевой расход модели. В isolated helper `request_id` meter равен null; binding к настоящему job ID проверяется отдельными gateway/actual-runtime engine тестами и не подменяется synthetic login.
+
+В первом выпуске отдельно были выполнены два реальных selector smoke calls. Их исторический отчёт доступен в commit `8e1911e7ba22f4581087c3eeea6b8b329321e3ed`. Новая проверка выше относится к текущему исходному коду. Все остальные проверки этой итерации не использовали платную модель.
+
+## Проверки текущего выпуска
+
+| Уровень | Результат |
+| --- | --- |
+| Backend | **41/41 PASS**: сессии, tenant/store boundaries, Origin, no replay, grants, credential loading, billing redaction, missing/failed receipts, pricing quotes |
+| Renderer | **43/43 PASS**: scalar/event/dataset/compound, суммы/валюты/проценты, неизвестные данные, short/details, одинаковые имена магазинов и разные фильтры |
+| Настоящий Harness 0.2.2-rc.1 | **21/21 PASS, 0 skipped**; финальная проверка plugin subset **7/7**, входит в тот же набор |
+| Синтетический Chromium | **15 сценариев PASS**: anonymous boundary, native layout, double submit, детали/XSS/report URLs, обычный/developer пользователь, receipt merge и reload, account/chat overrides, failed unknown cost, navigation/logout races, desktop/mobile, JS errors |
+| Публичный HTTP с другого сервера | **19/19 PASS**: UI/assets, me/plugins/meter401, foreign Origin403, private path404, login/return303, старые redirects303, старый POST410 |
+| Живой Chromium | Публичная страница входа и original wordmark загрузились; настоящий API401; переход в `/login`, Secure/HttpOnly return marker, `/app`→303, JS errors0 |
+| Реальный DeepSeek | Один успешный selector, actual usage/price quote, короткий ответ на fixture, final0, replay0 |
+| Независимая проверка выпуска | **72/72 hashes**, root-owned trusted code, manifest hashes, loaded developer grant, current cwd, native guard, services |
+
+Итого **105 Python/Node тестов** и **15 браузерных сценариев** для текущих изменений, плюс перечисленные live HTTP/browser/API checks. Ранее принятые 15 тестов platform patch/installer относятся к неизменённому guard и не пересчитываются как новые.
+
+Фактический вход под владельцем с OTP/реальной сессией и запрос к его настоящему marketplace в этих проверках не выполнялись. Viewport 390 px проверяет компоновку, а не физическое устройство. Эти уровни не объявляются пройденными; новый сервер использует штатный пользовательский вход и его разрешённые магазины.
+
+## Сосуществование и откат
+
+Перезапущены только Harness engine/gateway. `alice-market`, runtime authority, native platform и web оставались active/running с прежними PID и start times. Схема БД и основной release Алисы не менялись в этом обновлении.
+
+Native QueryService guard сохранён: SHA256 `ff7596001a538306133b5d26053c6e8e056a0278de6ea6fe039f2b62bc571f0e`. Platform live/ready отвечают200; ready содержит `status: READY` и существующее `runtime: RUNTIME_NOT_CONNECTED`, которое не используется как доказательство выполнения business запроса.
+
+План, предыдущие units и state snapshot, activation record и live selector report сохранены на сервере в `/root/octoport-harness-plugins-deploy-20261118/`. Предыдущий release `api-20261118-5431873d9d16` сохранён. Внешний nginx и старые redirects в этой итерации не менялись.
+
+Порядок восстановления: [deploy/OPERATIONS.md](deploy/OPERATIONS.md). При rollback сохранять native Query guard, пока есть живые Harness receipts, и новую capability/enablement projection для private developer history. Pre-plugin engine не является безопасной целью полного отката после приёма private developer-команд. Состояние не удаляется, неизвестный исход автоматически не переисполняется.
