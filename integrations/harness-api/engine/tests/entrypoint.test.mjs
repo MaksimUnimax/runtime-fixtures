@@ -26,6 +26,7 @@ test('real Harness entrypoint starts through current symlink and stops cleanly',
   fs.mkdirSync(engine,{recursive:true});
   const source=fileURLToPath(new URL('../',import.meta.url));
   for(const name of fs.readdirSync(source)) if(name.endsWith('.mjs')) fs.copyFileSync(path.join(source,name),path.join(engine,name));
+  fs.cpSync(path.join(source,'plugins'),path.join(engine,'plugins'),{recursive:true});
   fs.symlinkSync(release,path.join(root,'current'),'dir');
   const credentials=path.join(root,'credentials');
   fs.mkdirSync(credentials,{mode:0o700});

@@ -46,12 +46,13 @@ export function harnessUsage(usage) {
 /** Dependencies are supplied by the installed Harness, not a copied agent loop. */
 export function templateAdapterClass({ LlmAdapter, LlmError }) {
   return class TemplatePipelineAdapter extends LlmAdapter {
-    constructor({ resolveScope, execute, recordResult, recordFailure }) {
+    constructor({ resolveScope, execute, recordResult, recordFailure, route }) {
       super();
       this.resolveScope = resolveScope;
       this.execute = execute;
       this.recordResult = recordResult;
       this.recordFailure = recordFailure;
+      this.route = route;
     }
 
     providerInfo() { return { id: PROVIDER, name: 'Octoport · матрица Алисы' }; }
@@ -76,7 +77,7 @@ export function templateAdapterClass({ LlmAdapter, LlmError }) {
         if (!scope || scope.session_id !== options.sessionId || scope.message_id !== message.id || scope.text !== message.text) {
           throw new PipelineError('REQUEST_SCOPE_MISMATCH', 'Сообщение не соответствует авторизованному запросу.', 403);
         }
-        const result = await this.execute({
+        const result = this.route ? await this.route(scope,message.text,options.signal) : await this.execute({
           actor_id: scope.actor_id,
           tenant_id: scope.tenant_id,
           session_id: scope.session_id,

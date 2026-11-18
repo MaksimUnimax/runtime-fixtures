@@ -12,6 +12,7 @@ import urllib.parse
 import urllib.request
 
 from security import Bindings, Failure, identifier, question, require_bearer, require_origin, session_cookie
+from developer_access import NoDeveloperAccess, DeveloperAccess, public_metadata, public_message
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -74,10 +75,12 @@ def public_chat(value):
 
 
 class Application:
-    def __init__(self, identity, pipeline, engine, secret, *, origin='https://alisa.octoport.ru', bindings=None):
+    def __init__(self, identity, pipeline, engine, secret, *, origin='https://alisa.octoport.ru', bindings=None,
+                 developer_access=None):
         self.identity, self.pipeline, self.engine, self.secret = identity, pipeline, engine, secret
         self.origin, self.bindings = origin, bindings or Bindings()
         self.condition = threading.Condition(threading.RLock())
+        self.developer_access = developer_access or NoDeveloperAccess()
 
     def authenticate(self, headers):
         # The browser cannot pick an actor or tenant in an API payload.
@@ -86,9 +89,9 @@ class Application:
         identifier(profile['customer_id']); identifier(profile['tenant_id'])
         return token, profile
 
-    @staticmethod
-    def owner(profile):
-        return {'actor_id': profile['customer_id'], 'tenant_id': profile['tenant_id']}
+    def owner(self, profile):
+        return {'actor_id': profile['customer_id'], 'tenant_id': profile['tenant_id'],
+                'capabilities': self.developer_access.capabilities(profile)}
 
     def internal(self, headers, data):
         require_bearer(headers.get('Authorization'), self.secret)
@@ -119,7 +122,8 @@ class Application:
             return 200, result, {}
         except Failure as error:
             with self.condition:
-                binding.completed = {'_failure': {'code': error.code, 'status': error.status, 'message': error.message}}
+                binding.completed = {'_failure': {'code': error.code, 'status': error.status,
+                    'message': error.message, 'meter': error.meter}}
             raise
         except Exception as error:
             # Fail closed and keep the no-replay receipt even for an unexpected
@@ -129,9 +133,10 @@ class Application:
             if not isinstance(code, str) or not re.fullmatch('[A-Z][A-Z0-9_]{1,80}', code):
                 code = 'MATRIX_UNAVAILABLE'
             status = 401 if code == 'AUTH_REQUIRED' else 409
-            failure = Failure(code, status)
+            failure = Failure(code, status, meter=getattr(error, 'meter', None))
             with self.condition:
-                binding.completed = {'_failure': {'code': failure.code, 'status': failure.status, 'message': failure.message}}
+                binding.completed = {'_failure': {'code': failure.code, 'status': failure.status,
+                    'message': failure.message, 'meter': failure.meter}}
             raise failure from None
         finally:
             with self.condition:
@@ -154,20 +159,41 @@ class Application:
             require_origin(headers.get('Host'), headers.get('Origin'), self.origin)
         token, profile = self.authenticate(headers)
         scope = self.owner(profile)
+        developer = 'developer_meter' in scope['capabilities']
         if method == 'GET' and path == '/harness/api/me':
             stores = self.identity.stores(profile)
             engine = self.engine.health()
-            return 200, {'user': {'id': profile['customer_id'], 'name': profile.get('display_name') or profile.get('email') or 'Ваш аккаунт',
+            return 200, {'user': {'id': profile['customer_id'], 'tenant_id': profile['tenant_id'],
+                                 'name': profile.get('display_name') or profile.get('email') or 'Ваш аккаунт',
                                  'email': profile.get('email')},
+                'permissions': {'developer_meter': developer},
                 'stores': stores, 'ready': bool(engine.get('ok')),
                 'templates_count': self.pipeline.templates_count, 'catalog_hash': self.pipeline.catalog_hash,
-                'harness_version': engine.get('harness_version'), 'mode': 'matrix_direct_v1',
+                'harness_version': engine.get('harness_version'), 'mode': 'matrix_chat_v2',
                 'default_api_key_configured': bool(engine.get('default_api_key_configured')),
                 'stores_url': '/app/stores/', 'login_url': '/harness/login'}, {}
         if method == 'POST' and path == '/harness/api/logout':
             self.identity.logout(token)
             return 200, {'ok': True, 'login_url': '/login'}, {
                 'Set-Cookie': '__Host-alisa_session=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0'}
+        matched = re.fullmatch(r'/harness/api/(?:chats/([^/]+)/)?plugins(?:/([a-z][a-z0-9_.-]{0,63}))?', path)
+        if matched:
+            chat_id = identifier(matched.group(1)) if matched.group(1) else None
+            plugin_scope = {**scope, **({'chat_id': chat_id} if chat_id else {})}
+            if method == 'GET' and not matched.group(2):
+                return 200, self.engine.call('plugins/list', plugin_scope), {}
+            if method == 'POST' and matched.group(2):
+                if not isinstance(data, dict) or set(data) != {'enabled'} or type(data['enabled']) is not bool:
+                    raise Failure('INVALID_PAYLOAD', 422)
+                return 200, self.engine.call('plugins/set', {**plugin_scope,
+                    'scope': 'chat' if chat_id else 'account', 'plugin_id': matched.group(2), 'enabled': data['enabled']}), {}
+        matched = re.fullmatch(r'/harness/api/developer/(?:requests/([^/]+)/)?meter', path)
+        if method == 'GET' and matched:
+            if not developer:
+                raise Failure('NOT_FOUND', 404)
+            arguments = {'job_id': identifier(matched.group(1))} if matched.group(1) else {'limit': 50}
+            return 200, self.engine.call('plugins/call', {**scope, 'plugin_id': 'dev-meter',
+                'action': 'requests', 'arguments': arguments}), {}
         matched = re.fullmatch(r'/harness/api/reports/([^/]+)/([a-f0-9]{64})', path)
         if method == 'GET' and matched:
             ref = identifier(matched.group(1))
@@ -192,7 +218,8 @@ class Application:
                 if chat is None:
                     raise Failure('FORBIDDEN', 403)
                 value = self.engine.call('chats/history', {**scope, 'chat_id': chat_id})
-                return 200, {'chat': public_chat(chat), 'messages': value['messages']}, {}
+                return 200, {'chat': public_chat(chat), 'messages': [public_message(message, developer=developer)
+                    for message in value['messages'] if isinstance(message, dict)]}, {}
             if method == 'POST' and matched.group(2):
                 if not isinstance(data, dict) or set(data) - {'text', 'request_id', 'store_ids'}:
                     raise Failure('INVALID_PAYLOAD', 422)
@@ -201,12 +228,16 @@ class Application:
                 # History performs the engine's durable owner check before
                 # the gateway grants any right to the internal adapter.
                 self.engine.call('chats/history', {**scope, 'chat_id': chat_id})
-                stores = [entry['id'] for entry in self.identity.stores(profile) if entry['status'] == 'ACTIVE']
-                chosen = data.get('store_ids', stores)
-                if not isinstance(chosen, list) or not chosen or len(chosen) > 1000 or len(set(chosen)) != len(chosen):
-                    raise Failure('NO_STORES' if chosen == [] else 'INVALID_STORES', 409)
-                if any(identifier(store) not in stores for store in chosen):
-                    raise Failure('FORBIDDEN', 403)
+                local = self.engine.call('plugins/parse', {**scope, 'chat_id': chat_id, 'text': text})
+                if local.get('handled') is True:
+                    chosen = []
+                else:
+                    stores = [entry['id'] for entry in self.identity.stores(profile) if entry['status'] == 'ACTIVE']
+                    chosen = data.get('store_ids', stores)
+                    if not isinstance(chosen, list) or not chosen or len(chosen) > 1000 or len(set(chosen)) != len(chosen):
+                        raise Failure('NO_STORES' if chosen == [] else 'INVALID_STORES', 409)
+                    if any(identifier(store) not in stores for store in chosen):
+                        raise Failure('FORBIDDEN', 403)
                 self.bindings.admit(profile, token, chat_id, request_id, text, chosen)
                 value = self.engine.call('chats/send', {**scope, 'chat_id': chat_id,
                                         'request_id': request_id, 'text': text})
@@ -223,12 +254,19 @@ class Application:
                 raise
             state = {'queued': 'pending', 'running': 'running', 'completed': 'completed',
                      'interrupted': 'unknown', 'cancelled': 'failed', 'failed': 'failed'}.get(value.get('state'), 'unknown')
+            metadata = public_metadata(value.get('metadata'))
+            meter = (value.get('metadata') or {}).get('meter') if developer else None
+            if meter is not None:
+                metadata['meter'] = meter
+            presentation = value.get('presentation') or (value.get('message') or {}).get('presentation')
             message = ({'id': value.get('assistant_message_id') or 'request-result-' + request_id,
-                        'role': 'assistant', 'text': value['text'], 'metadata': value.get('metadata') or {}}
+                        'role': 'assistant', 'text': value['text'], 'metadata': metadata,
+                        **({'presentation': presentation} if presentation else {})}
                        if state == 'completed' and isinstance(value.get('text'), str) else None)
             return 200, {'request_id': request_id, 'status': state, 'message': message if state == 'completed' else None,
                          'text': value.get('text'), 'error': value.get('error'),
-                         'usage': value.get('usage'), 'metadata': value.get('metadata'), 'chat_id': value.get('chat_id')}, {}
+                         'metadata': metadata, 'chat_id': value.get('chat_id'),
+                         **({'meter': meter, 'usage': value.get('usage')} if meter is not None else {})}, {}
         raise Failure('NOT_FOUND', 404)
 
 
@@ -254,7 +292,7 @@ class Handler(BaseHTTPRequestHandler):
         headers = {'Content-Type': content_type, 'Content-Length': str(len(body)), 'Cache-Control': 'no-store',
             'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin',
             'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
-            'Permissions-Policy': 'microphone=(self), camera=(), geolocation=()'}
+            'Permissions-Policy': 'microphone=(), camera=(), geolocation=()'}
         headers.update(extra or {})
         for name, value in headers.items():
             self.send_header(name, value)
@@ -274,7 +312,10 @@ class Handler(BaseHTTPRequestHandler):
         self.connection.settimeout(650)
         try:
             parsed = urllib.parse.urlsplit(self.path)
-            static_path = parsed.path in ('/harness/style.css', '/harness/app.js')
+            static_assets = ('/harness/style.css', '/harness/app.js',
+                             '/harness/harness-theme.css', '/harness/harness-mark.svg',
+                             '/harness/harness-wordmark.svg')
+            static_path = parsed.path in static_assets
             version_query = not parsed.query or (static_path and re.fullmatch(r'v=[A-Za-z0-9._-]{1,80}', parsed.query))
             if parsed.scheme or parsed.netloc or not version_query or parsed.fragment:
                 raise Failure('INVALID_PATH', 400)
@@ -289,7 +330,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond(200, target.read_bytes(), {'Set-Cookie':
                     '__Host-octoport_harness_return=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0'},
                     content_type='text/html; charset=utf-8')
-            if method == 'GET' and path in ('/harness/style.css', '/harness/app.js'):
+            if method == 'GET' and path in static_assets:
                 target = self.server.static_directory / path.rsplit('/', 1)[1]
                 return self.respond(200, target.read_bytes(), content_type=(mimetypes.guess_type(target.name)[0] or 'application/octet-stream') + '; charset=utf-8')
             data = None
@@ -314,6 +355,7 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(status, value, headers)
         except Failure as error:
             self.respond(error.status, {'code': error.code, 'error': error.message,
+                **({'meter': error.meter} if self.path == '/internal/harness/query' and error.meter is not None else {}),
                 **({'login_url': '/harness/login'} if error.status == 401 else {})})
         except Exception as error:
             print('gateway_error ' + type(error).__name__, flush=True)
@@ -331,7 +373,8 @@ def main():
         raise ValueError('invalid service credential')
     pipeline = AlisaPipeline(os.environ.get('OCTOPORT_GATEWAY_STATE', '/var/lib/octoport-harness/gateway'), identity)
     engine = EngineClient(secret, os.environ.get('OCTOPORT_ENGINE_URL', 'http://127.0.0.1:18132'))
-    app = Application(identity, pipeline, engine, secret)
+    app = Application(identity, pipeline, engine, secret, developer_access=DeveloperAccess(
+        os.environ.get('OCTOPORT_DEVELOPER_PRINCIPALS')))
     server = GatewayServer(('127.0.0.1', int(os.environ.get('OCTOPORT_GATEWAY_PORT', '18131'))), app,
         os.environ.get('OCTOPORT_STATIC_DIRECTORY', str(Path(__file__).resolve().parent.parent / 'static')))
     print('harness_gateway_ready', flush=True)

@@ -19,6 +19,9 @@ class InstalledRuntimeTests(unittest.TestCase):
         self.assertEqual(value['metadata']['selector_calls'], 1)
         self.assertEqual(value['metadata']['provider_calls'], 1)
         self.assertEqual(value['usage']['prompt_cache_hit_tokens'], 80)
+        self.assertEqual(value['presentation']['summary'], value['text'])
+        self.assertNotIn('Проверочные цифры', value['text'])
+        self.assertNotIn('Скажите', value['text'])
 
     def test_native_clarification_keeps_original_job_and_no_final_model(self):
         value = exercise(CORE, clarification=True)

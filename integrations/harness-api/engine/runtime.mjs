@@ -1,8 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import { templateAdapterClass, PROVIDER, MODEL } from './provider.mjs';
+import { managerPluginClass } from './plugins/manager.mjs';
+import { loadInstalledPlugins } from './plugins/loader.mjs';
 
 export function harnessRequire() {
   return process.env.HARNESS_NODE_MODULES
@@ -10,20 +12,23 @@ export function harnessRequire() {
     : createRequire(import.meta.url);
 }
 
-export async function createHarnessRuntime({ stateDirectory, resolveScope, execute, recordResult, recordFailure, deepseekKey }) {
+export async function createHarnessRuntime({ stateDirectory, resolveScope, execute, recordResult, recordFailure, deepseekKey, store, readJobs, pluginsDirectory }) {
   const resolver = harnessRequire();
   const load = name => import(pathToFileURL(resolver.resolve(`@deepseek-ai/${name}`)).href);
-  const { Context } = await load('cordis');
+  const { Context, Service } = await load('cordis');
   const { LlmAdapter, LlmError } = await load('dsh-llm');
   const ctx = new Context();
   const mounted = [];
-  async function mount(name, config = {}) {
-    const module = await load(name);
-    const fiber = ctx.plugin(module.default ?? module, config);
+  async function mountPlugin(plugin, config = {}) {
+    const fiber = ctx.plugin(plugin, config);
     await fiber.await();
     if (fiber._error) throw fiber._error;
     mounted.push(fiber);
     return fiber;
+  }
+  async function mount(name,config={}){
+    const module=await load(name);
+    return mountPlugin(module.default??module,config);
   }
   try {
     const { createLaunchEnvironmentSnapshot, DSH_LAUNCH_ENVIRONMENT_KEY } = await load('dsh-launch-environment');
@@ -38,8 +43,10 @@ export async function createHarnessRuntime({ stateDirectory, resolveScope, execu
     await mount('dsh-session-persistence-jsonl', { root: path.join(stateDirectory, 'harness-sessions'), compression: 'none' });
     await mount('dsh-session-checkpoint-policy');
     if (deepseekKey) await mount('dsh-llm-deepseek-api-key', { apiKeyEnv: 'DEEPSEEK_API_KEY', maxTokens: 4096, modelsMaxAgeMs: 0 });
+    await mountPlugin(managerPluginClass(Service),{store,readJobs});
+    await loadInstalledPlugins({directory:pluginsDirectory??process.env.OCTOPORT_PLUGINS_DIRECTORY??fileURLToPath(new URL('./plugins/installed/',import.meta.url)),mount:mountPlugin,manager:ctx.octoportPlugins,execute});
     const Adapter = templateAdapterClass({ LlmAdapter, LlmError });
-    const adapter = new Adapter({ resolveScope, execute, recordResult, recordFailure });
+    const adapter = new Adapter({ resolveScope, execute, recordResult, recordFailure,route:(scope,text,signal)=>ctx.octoportPlugins.execute(scope,text,signal) });
     ctx.llm.registerAdapter([PROVIDER], adapter);
     await mount('dsh-agent-loop', { agents: [], maxParallelToolCalls: 1 });
     const packageFile = resolver.resolve('@deepseek-ai/dsh/package.json');

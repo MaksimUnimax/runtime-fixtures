@@ -27,3 +27,14 @@ test('pipeline rejects non-loopback endpoints and does not retry transport error
  await assert.rejects(client({text:'question'}),{code:'PIPELINE_UNAVAILABLE'});
  assert.equal(calls,1);
 });
+
+test('trusted failure meter is retained only for its exact request without retry',async()=>{
+ const meter={schema:'octoport-request-meter/v1',request_id:'request-one',tokens:{prompt:12},rub:{known:'0.01',complete:false}};
+ let calls=0;
+ const client=createPipelineClient({url:'http://127.0.0.1:18131/internal/harness/query',serviceKey:'fixture-service-key-at-least-32-characters',fetchImpl:async()=>{
+  calls++;return new Response(JSON.stringify({code:'PROVIDER_FAILED',error:'Запрос не завершён.',meter}),{status:502});
+ }});
+ await assert.rejects(client({request_id:'request-one'}),error=>{assert.deepEqual(error.meter,meter);return true;});
+ await assert.rejects(client({request_id:'different-request'}),error=>{assert.equal(error.meter,undefined);return true;});
+ assert.equal(calls,2);
+});

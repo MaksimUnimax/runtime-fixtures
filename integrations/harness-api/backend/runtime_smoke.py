@@ -211,6 +211,7 @@ def exercise(core_root, *, live_selector=False, credential_directory=None, clari
             return {'ok': True, 'fixture_data': True, 'live_selector': live_selector,
                     'clarification': clarification, 'restart_before_read': restart_before_read,
                     'text': text, 'usage': usage, 'metadata': metadata,
+                    'presentation': AlisaPipeline._presentation(SimpleNamespace(repo=repo), ref),
                     'operations': transport.operations, 'no_final_model': True, 'replay_no_dispatch': True}
     finally:
         model_answer.step = previous_answer

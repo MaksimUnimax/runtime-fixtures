@@ -1,0 +1,20 @@
+{
+  "api_version": "octoport.harness-plugin/v1",
+  "harness_version": "0.2.2-rc.1",
+  "id": "matrix",
+  "version": "1.0.0",
+  "default_enabled": true,
+  "required": false,
+  "entry": "plugin.mjs",
+  "sha256": "e6a667796e519445ac88e0acf4c4d13a320159a9efa29c3269350332e4a972d0",
+  "name": "Матрица Алисы",
+  "description": "Шаблоны, DeepSeek selector с кэшем и прямой ответ обработчика.",
+  "aliases": [
+    "матрица",
+    "шаблоны",
+    "шаблоны алисы"
+  ],
+  "priority": 1000,
+  "capability": null,
+  "actions": {}
+}

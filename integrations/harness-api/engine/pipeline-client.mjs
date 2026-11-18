@@ -36,11 +36,14 @@ export function createPipelineClient({ url, serviceKey, timeoutMs = 600000, fetc
     let result;
     try { result = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
     catch { throw new PipelineError('INVALID_PIPELINE_RESPONSE', 'Сервис шаблонов вернул некорректный ответ.', 502); }
+    if(!result||typeof result!=='object'||Array.isArray(result))throw new PipelineError('INVALID_PIPELINE_RESPONSE','Сервис шаблонов вернул некорректный ответ.',502);
     if (!response.ok) {
       const code = typeof result.code === 'string' && /^[A-Z][A-Z0-9_]{1,80}$/.test(result.code) ? result.code : 'PIPELINE_REJECTED';
       const message = typeof result.error === 'string' ? result.error : 'Запрос отклонён сервисом шаблонов.';
       const sanitized = message.replaceAll(key, '[скрыто]').replace(/(?:sk-[A-Za-z0-9_-]{10,}|Bearer\s+\S+)/g, '[скрыто]').slice(0,700);
-      throw new PipelineError(code, sanitized, response.status);
+      const error=new PipelineError(code,sanitized,response.status);
+      if(result.meter?.schema==='octoport-request-meter/v1'&&result.meter.request_id===payload.request_id)error.meter=structuredClone(result.meter);
+      throw error;
     }
     return result;
   };

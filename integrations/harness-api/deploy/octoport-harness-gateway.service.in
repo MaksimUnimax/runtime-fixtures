@@ -25,6 +25,7 @@ EnvironmentFile=-/etc/alisa-platform/stage/query-insights.env
 EnvironmentFile=-/etc/alisa-platform/stage/question-catalog.env
 EnvironmentFile=-/etc/alisa-platform/stage/economics-r15-flags.env
 LoadCredential=bridge.key:/etc/octoport-harness/bridge.key
+LoadCredential=developer_principals:/etc/octoport-harness/developer-principals.json
 LoadCredential=deepseek:/var/lib/alice-lab/secrets/deepseek.key
 LoadCredential=market_config:/etc/alice-market/market-runtime.json
 LoadCredential=answer_settings:/var/lib/alice-market/answer-settings.json

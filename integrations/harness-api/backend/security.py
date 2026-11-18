@@ -9,7 +9,8 @@ import uuid
 
 
 class Failure(Exception):
-    def __init__(self, code, status=400, message=None):
+    def __init__(self, code, status=400, message=None, meter=None):
+        self.meter = meter
         self.code, self.status = code, status
         self.message = message or {
             'AUTH_REQUIRED': 'Войдите в свой аккаунт Octoport.',

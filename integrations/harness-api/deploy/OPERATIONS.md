@@ -15,6 +15,8 @@
 
 Сохранить существующие unit files и symlink, если они есть. Создать отдельный случайный credential `/etc/octoport-harness/bridge.key` длиной не менее 32 символов с владельцем root и правами 0600, каталог 0700. Не печатать credential и не включать его в manifests.
 
+Создать `/etc/octoport-harness/developer-principals.json` с владельцем root и правами 0600. Начальное значение без разработчиков: `{"schema":"octoport-developer-principals/v1","principals":[]}`. Проверенные пары actor/tenant добавляются только в приватный файл по схеме `MULTIUSER.md`. Gateway получает его как `LoadCredential=developer_principals`; изменение файла применяется после перезапуска gateway. Не печатать реальные идентификаторы в отчёт выпуска.
+
 В `octoport-harness-gateway.service.in` заменить:
 
 | Placeholder | Значение |
@@ -35,7 +37,7 @@ Gateway использует те же platform EnvironmentFiles, а также 
 
 Проверить через HTTPS:
 
-- `/harness/` и assets с `?v=api-r1` — 200;
+- `/harness/` и assets с `?v=api-r2` — 200;
 - `/harness/api/me` без сессии и с несуществующей сессией — 401;
 - POST с чужим Origin — 403;
 - `/harness/login` — 303 в существующий `/login` с фиксированным marker cookie;
@@ -67,3 +69,11 @@ HARNESS_NODE_MODULES=/opt/octoport-harness-api/runtime/node_modules node --test 
 При обновлении не перезапускать сервисы во время активного запроса. После неожиданного рестарта сомнительный исход не исполняется автоматически ещё раз. Готовая история и авторизованные отчёты доступны после нового входа; новую реплику пользователь отправляет явно.
 
 При смене рабочего DeepSeek key, конфигурации или matrix release обновить серверный source и перезапустить соответствующие Harness services: `LoadCredential` создаёт snapshot на старте. Не переносить key в frontend или Git.
+
+## Обновление плагинов и UI
+
+Модули устанавливаются в `engine/plugins/installed/` внутри неизменяемого release; каталоги и код не должны быть group/world writable. Проверить SHA256 entry каждого manifest. Обновление не должно менять пользовательские preferences в engine state. Диспетчер всегда включён; matrix по умолчанию включён; dev-meter доступен только private allowlist.
+
+Проверить загрузку native theme/mark, отсутствие voice controls, короткий ответ с подробностями, отдельные настройки аккаунта/чата и скрытие счётчика для обычных пользователей. Для счётчика проверить реальные token receipts, исходную цену и FX quote, unknown вместо ложного нуля на отсутствующей квитанции и отсутствие повторного списания при polling/reload.
+
+После сохранения private developer-команд rollback engine должен сохранять capability/enablement projection и скрытие служебной истории. Pre-plugin engine из первого выпуска этих проверок не имеет и не является безопасной целью полного отката после приёма новых private запросов. При необходимости откатить интерфейс сохранять новую авторизацию/проекции либо подготовить проверенный исправляющий release; сами histories не удалять.

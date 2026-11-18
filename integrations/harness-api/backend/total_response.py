@@ -7,10 +7,12 @@ handled by the installed native compiler/renderer, never by adding chat text.
 from copy import deepcopy
 
 
-def append_totals(plan, result_data, *, store_names=None, fetched_at=None):
+def append_totals(plan, result_data, *, store_names=None, fetched_at=None, renderer=None):
     from semantics import Rejected, Scope, Store, canonical_json
     from query_program import make_composed_plan
     from providers import render
+    if renderer is not None:
+        render = renderer
 
     def need(condition, code):
         if not condition:
@@ -94,4 +96,5 @@ def append_totals(plan, result_data, *, store_names=None, fetched_at=None):
         for page in rendered['pages']:
             suffix = ' Скажите: дальше.'
             pages.append(page[:-len(suffix)] if page.endswith(suffix) else page)
+        pages.extend(rendered.get('notes', []))
     return pages

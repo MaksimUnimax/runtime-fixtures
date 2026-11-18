@@ -8,7 +8,7 @@ import { harnessRequire } from '../runtime.mjs';
 
 let available=true;
 try{harnessRequire().resolve('@deepseek-ai/dsh/package.json');}catch{available=false;}
-const tenant={actor_id:'actor-a',tenant_id:'tenant-a'};
+const tenant={actor_id:'actor-a',tenant_id:'tenant-a',capabilities:['developer_meter']};
 const usage={prompt_tokens:100,prompt_cache_hit_tokens:80,prompt_cache_miss_tokens:20,completion_tokens:10};
 async function done(engine,id){
  for(let i=0;i<1000;i++){

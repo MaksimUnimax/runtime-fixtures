@@ -55,6 +55,7 @@ class Pipeline:
 class Engine:
     def __init__(self):
         self.chats, self.jobs, self.calls = {}, {}, []
+        self.messages = []
 
     def health(self):
         return {'ok': True, 'harness_version': 'fixture', 'default_api_key_configured': True}
@@ -73,11 +74,23 @@ class Engine:
             if result is None:
                 raise Failure('JOB_NOT_FOUND', 404)
             return result
+        if operation in ('plugins/list', 'plugins/set', 'plugins/call'):
+            if value.get('chat_id'):
+                found = self.chats.get(value['chat_id'])
+                if not found or found[0] != scope:
+                    raise Failure('FORBIDDEN', 403)
+            if operation == 'plugins/call':
+                if 'developer_meter' not in value.get('capabilities', []):
+                    raise Failure('NOT_FOUND', 404)
+                return {'requests': []}
+            return {'plugins': [], 'scope': value.get('scope', 'account')}
         found = self.chats.get(value['chat_id'])
         if not found or found[0] != scope:
             raise Failure('FORBIDDEN', 403)
         if operation == 'chats/history':
-            return {'messages': []}
+            return {'messages': self.messages}
+        if operation == 'plugins/parse':
+            return {'handled': value['text'] in ('/plugins', 'плагины'), 'kind': 'manager'}
         if operation == 'chats/send':
             key = (scope, value['request_id'])
             self.jobs.setdefault(key, {'state': 'running', 'finished': False, 'chat_id': value['chat_id']})
@@ -212,7 +225,7 @@ class GatewayTests(unittest.TestCase):
 
     def test_http_static_version_and_fixed_login_return(self):
         with tempfile.TemporaryDirectory() as directory:
-            for name in ('index.html', 'app.js', 'style.css'):
+            for name in ('index.html', 'app.js', 'style.css', 'harness-theme.css', 'harness-mark.svg', 'harness-wordmark.svg'):
                 Path(directory, name).write_text('fixture')
             server = GatewayServer(('127.0.0.1', 0), self.app, directory)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -226,6 +239,10 @@ class GatewayTests(unittest.TestCase):
                     connection.close()
                     return result
                 self.assertEqual(get('/harness/app.js?v=api-r1')[0], 200)
+                self.assertEqual(get('/harness/harness-theme.css?v=chat-r2')[0], 200)
+                self.assertEqual(get('/harness/harness-mark.svg')[0], 200)
+                self.assertEqual(get('/harness/harness-wordmark.svg?v=chat-r2')[0], 200)
+                self.assertIn('microphone=()', get('/harness/')[1]['Permissions-Policy'])
                 self.assertEqual(get('/harness/app.js?redirect=https://attacker.invalid')[0], 400)
                 self.assertEqual(get('/harness/api/me?actor_id=' + A)[0], 400)
                 status, headers, _ = get('/harness/login')
@@ -235,6 +252,83 @@ class GatewayTests(unittest.TestCase):
                 self.assertEqual(get('/harness/../backend/security.py')[0], 404)
             finally:
                 server.shutdown(); server.server_close(); thread.join(2)
+
+    def test_plugin_commands_without_stores_do_not_grant_business_access(self):
+        self.identity.stores = lambda _profile: []
+        for text in ('/plugins', 'плагины'):
+            request_id = str(uuid.uuid4())
+            result = self.app.route('POST', f'/harness/api/chats/{self.chat}/messages', self.headers,
+                                    {'request_id': request_id, 'text': text})
+            self.assertEqual(result[0], 202)
+            self.assertEqual(self.app.bindings._values[request_id].store_ids, ())
+        with self.assertRaises(Failure) as failed:
+            self.app.route('POST', f'/harness/api/chats/{self.chat}/messages', self.headers,
+                           {'request_id': str(uuid.uuid4()), 'text': 'Сумма заказов'})
+        self.assertEqual(failed.exception.code, 'NO_STORES')
+        self.assertEqual(self.pipeline.calls, 0)
+
+    def test_meter_hidden_from_ordinary_poll_and_history_even_if_engine_returns_it(self):
+        data = self.admitted()
+        meter = {'rub': {'estimated': '12.34'}, 'tokens': {'prompt': 100}}
+        presentation = {'schema': 'octoport-chat-presentation/v1', 'summary': 'Коротко', 'details': 'Данные', 'report_urls': []}
+        self.engine.jobs[((A, T), data['request_id'])] = {'state': 'completed', 'text': 'Коротко',
+            'metadata': {'meter': meter, 'known_usage': {'prompt_tokens': 100}, 'state': 'READY'},
+            'usage': {'prompt_tokens': 100}, 'presentation': presentation}
+        self.engine.messages = [{'id': 'm', 'role': 'assistant', 'text': 'Коротко', 'presentation': presentation,
+                                 'metadata': {'meter': meter, 'pricing_quote': {'secret': 'not-public'}}, 'usage': {'prompt_tokens': 100}}]
+        for path in ('/harness/api/requests/' + data['request_id'], '/harness/api/chats/' + self.chat):
+            value = self.app.route('GET', path, self.headers)[1]
+            raw = json.dumps(value)
+            self.assertNotIn('12.34', raw)
+            self.assertNotIn('prompt_tokens', raw)
+            self.assertNotIn('not-public', raw)
+            self.assertIn('octoport-chat-presentation/v1', raw)
+        with self.assertRaises(Failure) as failed:
+            self.app.route('GET', '/harness/api/developer/meter', self.headers)
+        self.assertEqual(failed.exception.status, 404)
+
+    def test_developer_scope_comes_only_from_current_server_policy(self):
+        class Policy:
+            allowed = True
+            def capabilities(inner, profile):
+                return ['developer_meter'] if inner.allowed and profile['customer_id'] == A and profile['tenant_id'] == T else []
+        policy = Policy()
+        self.app.developer_access = policy
+        self.assertTrue(self.app.route('GET', '/harness/api/me', self.headers)[1]['permissions']['developer_meter'])
+        self.app.route('GET', '/harness/api/developer/meter', self.headers)
+        operation, body = self.engine.calls[-1]
+        self.assertEqual(operation, 'plugins/call')
+        self.assertEqual(body['capabilities'], ['developer_meter'])
+        self.assertEqual((body['actor_id'], body['tenant_id']), (A, T))
+        policy.allowed = False
+        with self.assertRaises(Failure):
+            self.app.route('GET', '/harness/api/developer/meter', self.headers)
+        with self.assertRaises(Failure):
+            self.app.route('POST', '/harness/api/plugins/dev-meter', self.headers,
+                           {'enabled': True, 'capabilities': ['developer_meter']})
+
+    def test_chat_plugin_settings_keep_owner_and_tenant(self):
+        self.app.route('POST', '/harness/api/chats/' + self.chat + '/plugins/octoport-templates',
+                       self.headers, {'enabled': False})
+        _, body = self.engine.calls[-1]
+        self.assertEqual((body['actor_id'], body['tenant_id'], body['chat_id']), (A, T, self.chat))
+        self.assertEqual(body['capabilities'], [])
+        with self.assertRaises(Failure):
+            self.app.route('POST', '/harness/api/chats/' + self.chat + '/plugins/octoport-templates',
+                           self.other, {'enabled': False})
+
+    def test_failed_request_meter_is_cached_without_paid_replay(self):
+        data = self.admitted()
+        meter = {'schema': 'octoport-request-meter/v1', 'request_id': data['request_id'], 'rub': {'complete': False}}
+        def failure(*_args):
+            self.pipeline.calls += 1
+            raise Failure('SOURCE_TIMEOUT', 409, meter=meter)
+        self.pipeline.query = failure
+        for _ in range(2):
+            with self.assertRaises(Failure) as failed:
+                self.app.internal({'Authorization': 'Bearer ' + SECRET}, data)
+            self.assertEqual(failed.exception.meter, meter)
+        self.assertEqual(self.pipeline.calls, 1)
 
 
 if __name__ == '__main__':

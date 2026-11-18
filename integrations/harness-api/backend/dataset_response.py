@@ -14,7 +14,7 @@ def cell(value):
     return str(value).replace('\\', '\\\\').replace('|', '¦').replace('\r', ' ').replace('\n', ' ')
 
 
-def render(plan, completed, stamp, *, full_report_url=None):
+def render(plan, completed, stamp, *, full_report_url=None, include_context=True):
     from dataset_pipeline import CATALOG, valid, projected_rows, fail
     from dataset_relations import apply_relations
     from matrix_core import MatrixError, money
@@ -31,8 +31,8 @@ def render(plan, completed, stamp, *, full_report_url=None):
         fail('DIRECT_REPORT_URL')
 
     query = CATALOG['queries'][plan['dataset']['id']]
-    pages = ['Текущий снимок.' if query['snapshot'] else
-             'Период ' + plan['period']['from'] + ' — ' + plan['period']['to'] + '.']
+    pages = (['Текущий снимок.' if query['snapshot'] else
+             'Период ' + plan['period']['from'] + ' — ' + plan['period']['to'] + '.'] if include_context else [])
     join_coverage, row_counts, reports = [], [], []
 
     # Complete validation and projection for EVERY store precedes formatting.
@@ -104,10 +104,14 @@ def render(plan, completed, stamp, *, full_report_url=None):
             lines.append(f'В чате показано {limit} из {count} строк; все строки доступны в полном отчёте: '
                          f'[Скачать полный отчёт]({full_report_url}).')
         pages.append('\n'.join(lines))
-    pages.extend(query['notes'])
-    pages.append('Получено ' + stamp + '.')
+    if include_context:
+        pages.extend(query['notes'])
+        pages.append('Получено ' + stamp + '.')
     result = {'complete': True, 'pages': pages, 'data': completed, 'fetched_at': stamp,
-              'row_counts': row_counts, 'details_omitted': any(r['shown'] < r['total'] for r in row_counts)}
+              'row_counts': row_counts, 'details_omitted': any(r['shown'] < r['total'] for r in row_counts),
+              'notes': list(query['notes']),
+              'tables': [{'store_id': store['id'], 'columns': [cell(c['label']) for c in query['columns']],
+                          'rows': formatted, 'total': len(output)} for store, output, formatted, _ in reports]}
     if full_report_url is not None:
         result['full_report_url'] = full_report_url
     if join_coverage:

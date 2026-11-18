@@ -41,6 +41,8 @@ export function createServer(engine, serviceKey) {
     '/v1/chats/create': ['create',201], '/v1/chats/list':['list',200],
     '/v1/chats/history':['history',200], '/v1/chats/send':['send',202],
     '/v1/jobs/status':['status',200], '/v1/chats/cancel':['cancel',200],
+    '/v1/plugins/list':['pluginList',200], '/v1/plugins/set':['pluginSet',200],
+    '/v1/plugins/call':['pluginCall',200], '/v1/plugins/parse':['pluginParse',200],
   };
   return http.createServer(async (request,response) => {
     try {

@@ -141,6 +141,8 @@ class AuthorityAdapter:
 class AlisaPipeline:
     def __init__(self, state_directory, identity):
         self.root = bootstrap()
+        from pricing_snapshot import install as install_pricing_snapshot
+        install_pricing_snapshot(os.environ.get('OCTOPORT_PRICING_CONFIG'))
         from runtime import Configuration
         from engine import Engine, Worker, CallError
         from repository import Repository
@@ -379,7 +381,7 @@ class AlisaPipeline:
                 raise Failure('IDEMPOTENCY_CONFLICT', 409)
         return row
 
-    def _usage(self, ref, baseline):
+    def _usage(self, ref, baseline, request_id=None):
         from semantics import strict_json
         with self.repo.connection() as connection:
             linked = connection.execute('SELECT jid FROM rt_job_refs WHERE ref=?', (ref,)).fetchone()
@@ -390,43 +392,25 @@ class AlisaPipeline:
                 'WHERE jid=? AND id>?', (linked['jid'], baseline)).fetchall()
         plan = strict_json(row['plan']) if row and row['plan'] else {}
         ids = [v['template_id'] for v in plan.get('selection', {}).get('invocations', [])]
-        counts = {'prompt_tokens': 0, 'completion_tokens': 0,
-                  'prompt_cache_hit_tokens': 0, 'prompt_cache_miss_tokens': 0}
+        from request_meter import measure, object_value
+        meter = measure(calls, request_id)
+        mapping = {'prompt_tokens': 'prompt', 'completion_tokens': 'completion',
+                   'prompt_cache_hit_tokens': 'cache_hit', 'prompt_cache_miss_tokens': 'cache_miss'}
+        counts = {key: meter['tokens'][value] for key, value in mapping.items()
+                  if meter['tokens'][value] is not None}
         model_calls = [call for call in calls if call['source'].startswith('model:') and call['dispatched'] is not None]
-        known = {key: True for key in counts}
         stages = []
         layouts = set()
         for call in model_calls:
-            receipt = strict_json(call['model_usage']) if call['model_usage'] else {}
-            usage = receipt.get('usage', {})
-            # Missing receipts remain unknown. A reported cache component can
-            # be complemented from the reported total, never guessed as zero.
-            prompt = usage.get('prompt_tokens')
-            hit = usage.get('prompt_cache_hit_tokens', usage.get('prompt_tokens_details', {}).get('cached_tokens'))
-            miss = usage.get('prompt_cache_miss_tokens')
-            if type(prompt) is int and prompt >= 0:
-                if type(hit) is int and 0 <= hit <= prompt and miss is None:
-                    usage = {**usage, 'prompt_cache_hit_tokens': hit, 'prompt_cache_miss_tokens': prompt - hit}
-                elif type(miss) is int and 0 <= miss <= prompt and hit is None:
-                    usage = {**usage, 'prompt_cache_hit_tokens': prompt - miss}
-                elif type(hit) is int:
-                    usage = {**usage, 'prompt_cache_hit_tokens': hit}
-            ctx = strict_json(call['model_context']) if call['model_context'] else {}
+            ctx = object_value(call['model_context'])
             stages.append(ctx.get('stage'))
             if ctx.get('prompt_layout'):
                 layouts.add(ctx['prompt_layout'])
-            for key in counts:
-                value = usage.get(key)
-                if type(value) is int and 0 <= value < 2**53:
-                    counts[key] += value
-                else:
-                    known[key] = False
-        counts = {key: value for key, value in counts.items() if known[key]}
-        complete = all(known.values()) and counts.get('prompt_tokens') == counts.get('prompt_cache_hit_tokens', 0) + counts.get('prompt_cache_miss_tokens', 0)
+        complete = len(counts) == len(mapping) and meter['tokens']['total'] is not None
         return counts if complete else None, {'template_ids': ids, 'selector_calls': stages.count('template_select'),
             'model_calls': len(model_calls), 'final_model_calls': 0,
             'provider_calls': sum(1 for call in calls if not call['source'].startswith('model:') and call['http'] is not None),
-            'response_mode': 'matrix_direct_v1',
+            'response_mode': 'matrix_chat_v2', 'meter': meter,
             'catalog_hash': self.catalog_hash, 'selector_layout': next(iter(layouts)) if len(layouts) == 1 else
                 ('mixed' if layouts else (strict_json(row['draft']).get('selector_prompt') or {}).get('layout')),
             'usage_complete': complete, **({'known_usage': counts} if not complete else {})}
@@ -446,6 +430,30 @@ class AlisaPipeline:
             return json.loads(row['payload']) if row else None
 
     def query(self, binding, text):
+        tracking = {'ref': None, 'baseline': 0}
+        try:
+            return self._query(binding, text, tracking)
+        except Exception as error:
+            # The immutable ledger also accounts for selector calls preceding
+            # a failed provider/handler. An accounting problem must never
+            # trigger paid replay or replace the original execution error.
+            if tracking['ref']:
+                try:
+                    error.meter = self._usage(tracking['ref'], tracking['baseline'], binding.request_id)[1].get('meter')
+                except Exception:
+                    error.meter = None
+            raise
+
+    def _presentation(self, ref):
+        from semantics import strict_json
+        # Called only after RuntimePort.read_result authorizes this current
+        # session, query owner, stores and unchanged access revision.
+        with self.repo.connection() as connection:
+            row = connection.execute('SELECT j.result FROM jobs j JOIN rt_job_refs r ON r.jid=j.id WHERE r.ref=?',
+                                     (ref,)).fetchone()
+        return strict_json(row['result']).get('chat_presentation') if row and row['result'] else None
+
+    def _query(self, binding, text, tracking):
         from semantics import strict_json
         from alisa_platform.queries.models import Query
         from django.utils import timezone
@@ -456,6 +464,7 @@ class AlisaPipeline:
         with chat_lock:
             with self.repo.connection() as connection:
                 baseline = connection.execute('SELECT COALESCE(MAX(id),0) FROM calls').fetchone()[0]
+                tracking['baseline'] = baseline
             context = self._context(authorizer, 'submit', binding.portal_token)
             prior = self._continuation(key)
             with self.admission_lock:
@@ -467,6 +476,7 @@ class AlisaPipeline:
                     # Use the registered continuation contract; never reinterpret
                     # an answer as a brand-new financial question.
                     accepted = self.port.clarify(task, self.peer)
+                    tracking['ref'] = accepted['job_ref']
                     logical_id = prior['logical_query_id']
                 else:
                     self._receipt(binding, text, context)
@@ -474,6 +484,7 @@ class AlisaPipeline:
                         'logical_query_id': binding.request_id, 'trace_id': binding.request_id,
                         'context': context, 'query_input': {'kind': 'utterance', 'text': text}}
                     accepted = self.port.submit(task, self.peer)
+                    tracking['ref'] = accepted['job_ref']
                     logical_id = binding.request_id
                     Query.objects.filter(pk=logical_id, customer_id=binding.actor_id,
                         tenant_id=binding.tenant_id).update(runtime_job_ref=accepted['job_ref'], state='QUEUED')
@@ -489,7 +500,7 @@ class AlisaPipeline:
                 if state in ('READY', 'NEEDS_INPUT'):
                     context = self._context(authorizer, 'read_result', binding.portal_token)
                     result = self.port.read_result(ref, context, self.peer)
-                    usage, metadata = self._usage(ref, baseline)
+                    usage, metadata = self._usage(ref, baseline, binding.request_id)
                     metadata['state'] = state
                     metadata['result_expires_at'] = status.get('result_expires_at')
                     if state == 'NEEDS_INPUT':
@@ -501,7 +512,9 @@ class AlisaPipeline:
                         self._continuation(key, save=True)
                     Query.objects.filter(pk=logical_id, customer_id=binding.actor_id,
                         tenant_id=binding.tenant_id).update(state=state, checked_at=timezone.now())
-                    return {'text': '\n\n'.join(result['pages']), 'usage': usage, 'metadata': metadata}
+                    presentation = self._presentation(ref) if state == 'READY' else None
+                    return {'text': '\n\n'.join(result['pages']), 'usage': usage, 'metadata': metadata,
+                            **({'presentation': presentation} if presentation else {})}
                 if state in ('FAILED', 'CANCELLED', 'EXPIRED', 'UNKNOWN'):
                     Query.objects.filter(pk=logical_id, customer_id=binding.actor_id,
                         tenant_id=binding.tenant_id).update(state=state, checked_at=timezone.now())

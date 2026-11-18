@@ -176,6 +176,8 @@ def answer_step(worker, row, plan, progress):
         code = pending.get('failure_code', 'SOURCE_ACCESS')
         failure = pending.get('provider_error') or {}
         pages = [failure.get('message') or explain(code)['text']]
+        chat = {'schema': 'octoport-chat-presentation/v1', 'summary': pages[0],
+                'details': pages[0], 'report_urls': []}
         fences = []
     else:
         contexts, fences = prepare_answer(worker, row, plan, progress)
@@ -183,13 +185,15 @@ def answer_step(worker, row, plan, progress):
             return
         names = getattr(worker.engine, 'harness_store_names', lambda _plan: {})(plan)
         urls = getattr(worker.engine, 'harness_report_urls', lambda _row, _plan: {})(row, plan)
-        pages = render_fragments(plan, pending.get('data'), pending['fetched_at'], contexts,
-                                 store_names=names, full_report_urls=urls)
+        from chat_response import presentation
+        chat = presentation(plan, pending.get('data'), pending['fetched_at'], contexts,
+                            store_names=names, full_report_urls=urls)
+        pages = [chat['summary']]
     if not fence_answer(worker, row, progress, fences):
         return
     if not authorized():
         raise Rejected('SOURCE_ACCESS')
-    result = dict(pending, complete=True, pages=pages, response_mode='matrix_direct_v1')
+    result = dict(pending, complete=True, pages=pages, response_mode='matrix_chat_v2', chat_presentation=chat)
     from model_usage import finish_request
     with worker.repo.connection(True):
         finish_request(worker.repo, row)
