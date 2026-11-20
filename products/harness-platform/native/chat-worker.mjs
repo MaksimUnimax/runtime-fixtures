@@ -142,7 +142,22 @@ export async function openWorker(env) {
   }
 
   async function execute(req, key) {
-    if (req.guestHistory?.length) await adoptGuestHistory(key, req.guestHistory);
+    if (req.claimedGuest && firstBatches.get(key, 1)?.action !== 'guest') {
+      // The guest handler never starts this worker. Only an authenticated chat
+      // can import its frozen FAQ transcript. An atomic import also covers restarts.
+      const source = new DatabaseSync(env.HARNESS_PLATFORM_DATABASE, { readOnly: true });
+      let history;
+      try {
+        const { actorId, workspaceId, chatId } = req.scope;
+        history = source.prepare(`SELECT t.request_id AS requestId, t.text, t.answer, t.at_ms AS at
+          FROM guest_turns t JOIN guest_chats g USING (chat_id)
+          JOIN identity_accounts a ON a.actor_id=g.claimed_actor
+          WHERE a.actor_id=? AND a.workspace_id=? AND g.chat_id=? ORDER BY t.rowid`)
+          .all(actorId, workspaceId, chatId);
+      } finally { source.close(); }
+      if (!history.length) fail('unavailable');
+      await adoptGuestHistory(key, history);
+    }
     if (req.action === 'history' || req.action === 'events') {
       const limit = req.limit ?? 30;
       const offset = req.offset ?? 0;

@@ -12,7 +12,7 @@ from .browser_session import (
     BROWSER_BACK_SCRIPT, _PRIVATE_HEADERS, _cookie_name, _form_fields, _redirect,
     _secure, browser_token, clear_guest_cookie, guest_cookie, require_browser_origin,
 )
-from .guest_registration import GUEST_LIFETIME, GuestLimit, RegistrationConflict
+from .guest_registration import GUEST_LIFETIME, RegistrationConflict
 from .identity import AuthenticationError, ChatUnavailable
 
 
@@ -69,16 +69,23 @@ async def start(request):
 async def guest_page(request, chat):
     token = request.cookies.get(guest_cookie(request))
     try:
-        history = await run_in_threadpool(request.app.state.identity.guest_history, token, chat)
+        try:
+            before = int(request.query_params.get("before", 2**63 - 1))
+            if not 0 < before <= 2**63 - 1:
+                raise ValueError
+        except ValueError:
+            raise HTTPException(400, "Invalid history cursor") from None
+        history, cursor = await run_in_threadpool(request.app.state.identity.guest_page, token, chat, before)
     except AuthenticationError:
         return _redirect("/login")
     except ChatUnavailable:
         return _html("Чат недоступен", '<a href="/login">Войти</a>', 404)
     turns = "".join(f'<li><strong>Вы</strong><p>{escape(t["text"])}</p>'
                     f'<strong>Справка Harness</strong><p>{escape(t["answer"])}</p></li>' for t in history)
-    return _html("Гостевой чат", f"""<p>Здесь можно спросить о возможностях сервиса и работе с чатами.</p>
+    older = f'<a href="?before={cursor}">Предыдущие сообщения</a>' if cursor else ""
+    return _html("Гостевой чат", f"""<p>Что умеет сервис, как зарегистрироваться и сколько стоит доступ? Спросите здесь.</p>
         <nav><a href="/register">Создать аккаунт и сохранить чат</a></nav>
-        <ol aria-label="История сообщений">{turns}</ol>
+        {older}<ol aria-label="История сообщений">{turns}</ol>
         <form method="post" action="/guest/chats/{chat}/turns">
           <input type="hidden" name="request_id" value="{secrets.token_hex(16)}">
           <label>Сообщение<textarea name="text" required rows="3" maxlength="8192"></textarea></label>
@@ -93,8 +100,6 @@ async def send_turn(request):
     fields = await _form_fields(request, {"text", "request_id"}, max_bytes=32 * 1024)
     try:
         await run_in_threadpool(request.app.state.identity.guest_turn, token, chat, **fields)
-    except GuestLimit:
-        return _html("Гостевой чат", '<p>Гостевой диалог заполнен.</p><a href="/register">Создать аккаунт и продолжить</a>', 429)
     except RegistrationConflict:
         raise HTTPException(409, "Message already submitted with different text") from None
     return _redirect(f"/app/chats/{chat}")

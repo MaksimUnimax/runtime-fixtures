@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { openWorker } from './chat-worker.mjs';
 
@@ -82,17 +83,25 @@ test('two chats in one host have distinct, live native MCP capabilities', native
 test('concurrent first reads import the guest transcript exactly once', native, async t => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'platform-guest-session-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
-  const env = { ...process.env, HARNESS_CHAT_DIRECTORY: directory };
+  const database = path.join(directory, 'registered.sqlite3');
+  const source = new DatabaseSync(database);
+  t.after(() => source.close());
+  source.exec(`CREATE TABLE guest_turns(chat_id,request_id,text,answer,at_ms);
+    CREATE TABLE guest_chats(chat_id,claimed_actor);
+    CREATE TABLE identity_accounts(actor_id,workspace_id);
+    INSERT INTO guest_chats VALUES ('claimed-chat','owner');
+    INSERT INTO identity_accounts VALUES ('owner','workspace');
+    INSERT INTO guest_turns VALUES ('claimed-chat','a','first','help one',1000),
+      ('claimed-chat','a','second','help two',1200)`);
+  const env = { ...process.env, HARNESS_CHAT_DIRECTORY: directory, HARNESS_PLATFORM_DATABASE: database };
   const workers = await Promise.all([openWorker(env), openWorker(env)]);
   try {
     const scope = { actorId: 'owner', workspaceId: 'workspace', chatId: 'claimed-chat' };
-    const transcript = [
-      { requestId: 'a', text: 'first', answer: 'help one', at: 1000 },
-      { requestId: 'b', text: 'second', answer: 'help two', at: 1200 },
-    ];
-    const request = { scope, action: 'events', guestHistory: transcript };
+    const request = { scope, action: 'events', claimedGuest: true };
+    await assert.rejects(workers[0].run({ ...request, scope: { ...scope, actorId: 'other' } }), /unavailable/);
     // A failed batch leaves the entire journal available for a retry.
-    await assert.rejects(workers[0].run({ ...request, guestHistory: [transcript[0], transcript[0]] }));
+    await assert.rejects(workers[0].run(request));
+    source.exec("UPDATE guest_turns SET request_id='b' WHERE at_ms=1200");
     const [first, second] = await Promise.all(workers.map(worker => worker.run(request)));
     assert.deepEqual(first, second);
     assert.deepEqual(first.messages.map(m => m.text), ['first', 'help one', 'second', 'help two']);
