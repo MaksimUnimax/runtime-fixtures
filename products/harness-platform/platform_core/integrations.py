@@ -17,7 +17,7 @@ from . import chat_connections
 PROVIDERS = {
     "ozon": {"title": "Ozon", "fields": {"client_id": "Client-Id продавца", "api_key": "Api-Key продавца",
              "performance_id": "Client ID Performance", "performance_secret": "Client Secret Performance"}},
-    "wb": {"title": "Wildberries", "fields": {"token": "API-токен со скоупом «Статистика»"}},
+    "wb": {"title": "Wildberries", "fields": {"token": "API-токен WB с доступом к нужным отчётам (например, «Аналитика» и «Статистика»)"}},
     "wordstat": {"title": "Яндекс Вордстат", "fields": {"token": "OAuth-токен с доступом к Wordstat"}},
 }
 SECRET_TEXT = re.compile(r'(?i)(?:["\']?(?:api[-_ ]?key|client[-_ ]?secret|performance_secret|oauth[-_ ]?(?:token|токен)|токен|token|ключ)["\']?\s*[:=]\s*["\']?[\w./+=-]{5,}|(?:eyJ[\w-]{8,}\.[\w-]+\.[\w-]+|y0_[\w-]{12,}))')
