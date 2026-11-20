@@ -7,12 +7,13 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Barrier
 from unittest import TestCase, skipUnless
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from starlette.testclient import TestClient
 
 from platform_core.chat_api import create_app
-from platform_core.guest_registration import GuestLimit, MAX_GUEST_TURNS, RegistrationConflict, RegistrationStore
+from platform_core.chat_worker import ChatWorker
+from platform_core.guest_registration import RegistrationConflict, RegistrationStore
 from platform_core.identity import AuthenticationError, ChatUnavailable, IdentityStore
 
 
@@ -37,7 +38,6 @@ class GuestRegistrationTests(TestCase):
         with self.assertRaises(AuthenticationError):
             self.store.register(guest, "new", PASSWORD, secrets.token_urlsafe(32))
         self.store.guest_turn(guest, chat, "first", "Моя история")
-        original = self.store.guest_history(guest, chat)
         other = self.enterContext(RegistrationStore(self.path))
         barrier = Barrier(2)
 
@@ -51,7 +51,7 @@ class GuestRegistrationTests(TestCase):
         self.assertEqual(first, second)
         self.assertEqual(saved_chat, chat)
         self.assertEqual(self.store.list_chats(token), [chat])
-        self.assertEqual(self.store.claimed_history(self.store.resolve_chat(token, chat)), original)
+        self.assertTrue(self.store.has_claimed_guest_turns(self.store.resolve_chat(token, chat)))
         with sqlite3.connect(self.path) as db:
             self.assertEqual([db.execute(f"SELECT count(*) FROM {table}").fetchone()[0] for table in
                               ("identity_accounts", "workspaces", "identity_sessions", "guest_turns")], [2, 2, 1, 1])
@@ -70,22 +70,24 @@ class GuestRegistrationTests(TestCase):
         independent = self.store.login("new", PASSWORD + " revised")
         self.assertEqual(self.store.list_chats(independent), [chat])
 
-    def test_draft_isolation_limit_expiry_and_name_collision(self):
+    def test_draft_isolation_pagination_expiry_and_name_collision(self):
         token, chat = self.store.start_guest()
         recovery = self.store.guest_recovery(token)
         other, _ = self.store.start_guest()
         with self.assertRaises(ChatUnavailable):
             self.store.guest_history(other, chat)
-        for i in range(MAX_GUEST_TURNS):
+        for i in range(35):
             self.store.guest_turn(token, chat, str(i), f"Текст {i}")
         self.store.guest_turn(token, chat, "0", "Текст 0")
         with self.assertRaises(RegistrationConflict):
             self.store.guest_turn(token, chat, "0", "Изменение")
-        with self.assertRaises(GuestLimit):
-            self.store.guest_turn(token, chat, "more", "Ещё")
+        latest, cursor = self.store.guest_page(token, chat, 2**63 - 1)
+        older, end = self.store.guest_page(token, chat, cursor)
+        self.assertIsNone(end)
+        self.assertEqual([turn["text"] for turn in older + latest], [f"Текст {i}" for i in range(35)])
         with self.assertRaises(RegistrationConflict):
             self.store.register(token, "existing", PASSWORD, recovery)
-        self.assertEqual(len(self.store.guest_history(token, chat)), MAX_GUEST_TURNS)
+        self.assertEqual(len(self.store.guest_history(token, chat)), 35)
         with sqlite3.connect(self.path) as db:
             db.execute("UPDATE guest_chats SET expires_at=0 WHERE chat_id=?", (chat,))
         with self.assertRaises(AuthenticationError):
@@ -134,6 +136,56 @@ class GuestRegistrationTests(TestCase):
             self.assertEqual((repeated.status_code, repeated.headers["location"]), (303, path))
             self.assertEqual(replay.cookies.get("__Host-harness_session"), token)
             self.assertEqual(replay.get("/api/chats").json(), [chat])
+
+    def test_memory_store_keeps_its_faq_in_memory(self):
+        with RegistrationStore(":memory:") as store:
+            token, chat = store.start_guest()
+            store.guest_turn(token, chat, "hi", "Что ты умеешь?")
+            self.assertIn("Сервис создан", store.guest_history(token, chat)[0]["answer"])
+
+    def test_shared_service_faq_runs_without_credentials_or_external_dispatch(self):
+        self.enterContext(patch.dict(os.environ, {"PATH": os.defpath}, clear=True))
+        dispatch = self.enterContext(patch.object(ChatWorker, "request", new_callable=AsyncMock))
+        dispatch.side_effect = AssertionError("A guest must never start the account worker")
+        self.enterContext(patch("socket.socket.connect", side_effect=AssertionError("Unexpected network request")))
+        with self.client() as a, self.client() as b:
+            paths = [client.post("/guest/start", headers=HEADERS).headers["location"] for client in (a, b)]
+            chats = [path.rsplit("/", 1)[1] for path in paths]
+            self.assertNotEqual(*chats)
+            questions = [
+                ("Что ты умеешь?", "Сервис создан для продавцов"),
+                ("Как зарегистрироваться?", "подтвердите регистрацию"),
+                ("Сколько стоит?", "Публичный тариф"),
+                ("Заказов столько же, почему денег пришло меньше?", "Разбор своего магазина"),
+                ("Что такое ДРР?", "Я отвечаю на вопросы о нашем сервисе"),
+                ("Напиши стих про Ozon", "Я отвечаю на вопросы о нашем сервисе"),
+                ("Посчитай прибыль на данных любого магазина", "Я отвечаю на вопросы о нашем сервисе"),
+                ("Сколько стоит доставка на Ozon?", "Я отвечаю на вопросы о нашем сервисе"),
+                ("Расскажи погоду и сколько стоит подписка", "Я отвечаю на вопросы о нашем сервисе"),
+            ]
+            for i, (question, expected) in enumerate(questions):
+                result = a.post(f"/guest/chats/{chats[0]}/turns", headers=HEADERS,
+                                data={"request_id": str(i), "text": question})
+                self.assertEqual(result.status_code, 303)
+                turn = self.store.guest_history(a.cookies.get("__Host-harness_guest"), chats[0])[-1]
+                self.assertIn(expected, turn["answer"])
+                self.assertNotIn("₽", turn["answer"])
+            self.assertNotIn(questions[3][0], b.get(paths[1]).text)
+            for endpoint in ("tools", "messages", "events"):
+                self.assertEqual(a.get(f"/api/chats/{chats[0]}/{endpoint}").status_code, 401)
+            self.assertEqual(a.post(f"/api/chats/{chats[0]}/tools/read_sales", headers=HEADERS,
+                                    json={"arguments": {}}).status_code, 401)
+            # A temporary published FAQ change reaches both visitors via the same public DB.
+            with sqlite3.connect(str(self.path) + ".public-faq.sqlite3") as db:
+                self.assertEqual(db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall(),
+                                 [("public_faq",)])
+                db.execute("UPDATE public_faq SET answer='Проверка опубликованного тарифа' WHERE topic='price'")
+            for client, path, chat in zip((a, b), paths, chats):
+                result = client.post(f"/guest/chats/{chat}/turns", headers=HEADERS,
+                                     data={"request_id": "price", "text": "Сколько стоит ваш сервис?"})
+                self.assertEqual(result.status_code, 303)
+                self.assertIn("Проверка опубликованного тарифа", client.get(path).text)
+        dispatch.assert_not_awaited()
 
     @skipUnless(os.environ.get("HARNESS_NODE_MODULES"), "requires native Harness")
     def test_native_retry_and_restart_preserve_messages_and_context(self):

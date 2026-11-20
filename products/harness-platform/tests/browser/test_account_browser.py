@@ -203,7 +203,7 @@ class BrowserIsolation(unittest.IsolatedAsyncioTestCase):
             await expect(client.get_by_role("heading", name="Гостевой чат")).to_be_visible()
         original_url = page.url
         self.assertNotEqual(original_url, other.url)
-        marker = "Как сохранить мою историю? Метка 521."
+        marker = "Как сохранить мою историю?"
         await self.send_turn(page, marker)
         public_history = page.get_by_role("list", name="История сообщений")
         await expect(public_history).to_contain_text(marker)
