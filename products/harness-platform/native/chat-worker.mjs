@@ -6,6 +6,7 @@ import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { modelDispatchStore } from './model-dispatch-store.mjs';
 import { mountPlatformMcp } from './platform-mcp.mjs';
 
 class RequestError extends Error {}
@@ -51,8 +52,12 @@ export async function openWorker(env) {
     )`);
   const byRequest = db.prepare('SELECT * FROM native_batches WHERE scope_key=? AND request_id=?');
   const all = db.prepare('SELECT * FROM native_batches WHERE scope_key=? ORDER BY revision');
-  const recent = db.prepare('SELECT request_id, events FROM native_batches WHERE scope_key=? ORDER BY revision DESC LIMIT ? OFFSET ?');
+
   const insert = db.prepare('INSERT INTO native_batches VALUES (?,?,?,?,?,?,?)');
+  const dispatch = modelDispatchStore(db, fail);
+  const recent = db.prepare(`SELECT b.request_id, b.events, d.operation_id FROM native_batches b
+    LEFT JOIN native_model_dispatch d USING (scope_key, request_id)
+    WHERE b.scope_key=? ORDER BY b.revision DESC LIMIT ? OFFSET ?`);
   const active = new Map();
   let count = 0;
 
@@ -67,7 +72,9 @@ export async function openWorker(env) {
     const row = byRequest.get(key, req.requestId);
     if (!row) return undefined;
     if (row.action !== req.action || row.input !== req.text) fail('conflict');
-    return visible(JSON.parse(row.events), req.requestId).at(-1);
+    const answer = visible(JSON.parse(row.events), req.requestId).at(-1);
+    const operationId = dispatch.operationId(key, req.requestId);
+    return operationId ? { ...answer, operationId } : answer;
   }
 
   async function execute(req, key) {
@@ -77,21 +84,36 @@ export async function openWorker(env) {
       if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50 ||
           !Number.isSafeInteger(offset) || offset < 0) fail('invalid_request');
       return recent.all(key, limit, offset).reverse()
-        .flatMap(row => visible(JSON.parse(row.events), row.request_id));
+        .flatMap(row => {
+          const messages = visible(JSON.parse(row.events), row.request_id);
+          const last = messages.at(-1);
+          if (row.operation_id && last?.role === 'assistant') last.operationId = row.operation_id;
+          return messages;
+        });
     }
+    const metered = req.action === 'turn' && Boolean(env.HARNESS_MODEL_GATEWAY_URL);
     const write = req.action === 'append' || req.action === 'turn';
     if (write) {
       if (typeof req.text !== 'string' || !req.text.trim() || Buffer.byteLength(req.text) > 8192 ||
           typeof req.requestId !== 'string' || !req.requestId.length || req.requestId.length > 128) {
         fail('invalid_request');
       }
-      const result = previous(key, req);
+      const result = dispatch.atomic(() => {
+        const cached = previous(key, req);
+        if (!cached) dispatch.check(key, req);
+        return cached;
+      });
       if (result) return result;
-      if (req.action === 'turn' && env.HARNESS_OFFLINE_MODEL !== '1') fail('unavailable');
+      if (metered) {
+        if (!Number.isSafeInteger(req.deadline) || !/^[A-Za-z0-9_-]{43}$/.test(req.grant?.token ?? '') ||
+            !/^[a-f0-9]{32}$/.test(req.grant?.operationId ?? '')) fail('invalid_request');
+      } else if (req.action === 'turn' && env.HARNESS_OFFLINE_MODEL !== '1') fail('unavailable');
     } else if (req.action !== 'tools' && req.action !== 'call') {
       fail('invalid_request');
     }
     const ctx = new Context();
+    let reserved = false;
+    let transportStarted = false;
     try {
       if (req.action !== 'append') {
         await mount(ctx, 'dsh-system-prompt');
@@ -123,6 +145,15 @@ export async function openWorker(env) {
       // Capture the complete native delta, including the unpublished end-of-seed
       // marker inserted by the native session constructor before its first event.
       await mount(ctx, 'dsh-session');
+      if (metered) {
+        const cached = dispatch.atomic(() => {
+          const answer = previous(key, req);
+          if (answer) return answer;
+          dispatch.reserve(key, req);
+          reserved = true;
+        });
+        if (cached) return cached;
+      }
       const rows = all.all(key);
       const seed = rows.flatMap(row => JSON.parse(row.events));
       const createdAt = rows[0]?.created_at ?? Date.now();
@@ -134,8 +165,18 @@ export async function openWorker(env) {
         session.append('user/message', message, { surfaceOp: 'append' });
         events = session.snapshotEvents(seed.length);
       } else {
-        const { runOfflineTurn } = await import('./offline-turn.mjs');
-        const turn = await runOfflineTurn({ load, ctx, chatId: key, seed, text: req.text, requestId: req.requestId });
+        const input = { load, ctx, chatId: key, seed, text: req.text, requestId: req.requestId };
+        let turn;
+        if (metered) {
+          const { runGatewayTurn } = await import('./gateway-turn.mjs');
+          turn = await runGatewayTurn({ ...input, grant: req.grant,
+            onTransport: () => { transportStarted = true; },
+            gatewayUrl: env.HARNESS_MODEL_GATEWAY_URL, model: env.HARNESS_CHAT_MODEL,
+            signal: AbortSignal.timeout(Math.max(1, req.deadline - Date.now())) });
+        } else {
+          const { runOfflineTurn } = await import('./offline-turn.mjs');
+          turn = await runOfflineTurn(input);
+        }
         events = turn.events.slice(seed.length);
       }
       const messages = visible(events, req.requestId);
@@ -143,16 +184,34 @@ export async function openWorker(env) {
       if (messages[0]?.role !== 'user' || messages[0]?.text !== req.text || messages.at(-1)?.role !== role) {
         throw new Error('Incomplete native turn');
       }
-      // Optimistic revision also detects a second worker serving the same directory.
-      try {
-        insert.run(key, rows.length, req.requestId, req.action, req.text, createdAt, JSON.stringify(events));
-      } catch (error) {
-        if (error.errcode !== 1555 && error.errcode !== 2067) throw error;
-        return previous(key, req) ?? fail('conflict');
-      }
-      return messages.at(-1);
+      const answer = dispatch.atomic(() => {
+        const cached = previous(key, req);
+        if (cached) return cached;
+        if (metered && req.deadline <= Date.now()) fail('turn_unconfirmed');
+        if (!metered) dispatch.check(key, req);
+        try {
+          insert.run(key, rows.length, req.requestId, req.action, req.text, createdAt, JSON.stringify(events));
+        } catch (error) {
+          if (error.errcode === 1555 || error.errcode === 2067) fail('conflict');
+          throw error;
+        }
+        if (metered) dispatch.release(key, req.requestId);
+        return metered ? { ...messages.at(-1), operationId: req.grant.operationId } : messages.at(-1);
+      });
+      reserved = false;
+      return answer;
+    } catch (error) {
+      if (transportStarted && !(error instanceof RequestError)) fail('turn_unconfirmed');
+      throw error;
     } finally {
-      await ctx.fiber.dispose();
+      try {
+        if (reserved) {
+          if (transportStarted) dispatch.release(key, req.requestId);
+          else dispatch.discard(key, req.requestId);
+        }
+      } finally {
+        await ctx.fiber.dispose();
+      }
     }
   }
 

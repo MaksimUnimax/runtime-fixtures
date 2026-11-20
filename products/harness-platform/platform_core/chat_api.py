@@ -132,10 +132,12 @@ def create_app(database_path, chat_directory, *, composition_module=None):
             return JSONResponse({"error": "Chat unavailable"}, status_code=404)
         if isinstance(exc, WorkerError):
             statuses = {"invalid_request": 400, "conflict": 409, "unavailable": 404, "busy": 503,
-                        "result_too_large": 502}
+                        "result_too_large": 502, "turn_unconfirmed": 409}
             status = statuses.get(exc.code, 503)
-            return JSONResponse({"error": exc.code if exc.code in statuses else "worker_unavailable"},
-                                status_code=status)
+            body = {"error": exc.code if exc.code in statuses else "worker_unavailable"}
+            if exc.operation_id is not None:
+                body["operationId"] = exc.operation_id
+            return JSONResponse(body, status_code=status)
         if isinstance(exc, HTTPException):
             return JSONResponse({"error": exc.detail}, status_code=exc.status_code, headers=exc.headers)
         return JSONResponse({"error": "Invalid input"}, status_code=400)

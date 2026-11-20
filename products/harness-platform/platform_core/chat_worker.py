@@ -4,16 +4,20 @@ import asyncio
 import json
 import os
 import sys
+import time
 import uuid
 from pathlib import Path
+from urllib.parse import urlsplit
 
+from .operation_grants import initialize_grants, issue_grant, revoke_grant
 from .storage import Scope
 
 
 class WorkerError(Exception):
-    def __init__(self, code):
+    def __init__(self, code, *, operation_id=None):
         super().__init__(code)
         self.code = code
+        self.operation_id = operation_id
 
 
 class ChatWorker:
@@ -28,6 +32,20 @@ class ChatWorker:
             "HARNESS_PLATFORM_DATABASE": str(Path(database_path).resolve()),
             "HARNESS_TEST_PYTHON": sys.executable,
         }
+        self.database_path = database_path
+        self.gateway = os.environ.get("HARNESS_MODEL_GATEWAY_URL")
+        if self.gateway is not None:
+            endpoint = urlsplit(self.gateway)
+            if (endpoint.scheme not in {"http", "https"} or not endpoint.hostname
+                    or endpoint.username is not None or endpoint.password is not None
+                    or endpoint.query or endpoint.fragment
+                    or (endpoint.scheme == "http" and endpoint.hostname not in {"127.0.0.1", "::1", "localhost"})):
+                raise ValueError("Expected a trusted HTTPS or loopback gateway URL")
+            if os.environ.get("HARNESS_OFFLINE_MODEL") == "1":
+                raise ValueError("Select one chat model transport")
+            self.env["HARNESS_MODEL_GATEWAY_URL"] = self.gateway
+            self.env["HARNESS_CHAT_MODEL"] = os.environ.get("HARNESS_CHAT_MODEL", "deepseek-flash")
+            initialize_grants(database_path)
         if os.environ.get("HARNESS_OFFLINE_MODEL") == "1":
             self.env["HARNESS_OFFLINE_MODEL"] = "1"
         if composition_module:
@@ -62,6 +80,34 @@ class ChatWorker:
             await process.wait()
 
     async def request(self, scope: Scope, action, **fields):
+        if action == "turn" and self.gateway:
+            issue = asyncio.create_task(asyncio.to_thread(
+                issue_grant, self.database_path, scope, source="chat.turn",
+                run_key=fields["requestId"], ttl_seconds=150,
+            ))
+            try:
+                grant = await asyncio.shield(issue)
+            except asyncio.CancelledError:
+                # Issuance runs in a thread and can commit after the HTTP caller leaves.
+                grant = await issue
+                await asyncio.to_thread(revoke_grant, self.database_path, grant.token)
+                raise
+            except PermissionError:
+                raise WorkerError("unavailable") from None
+            try:
+                return await self._request(scope, action, {
+                    **fields, "grant": {"token": grant.token, "operationId": grant.operation_id},
+                    "deadline": int(time.time() * 1000) + 120_000,
+                }, timeout=135)
+            except WorkerError as error:
+                if error.code == "turn_unconfirmed":
+                    raise WorkerError(error.code, operation_id=grant.operation_id) from error
+                raise
+            finally:
+                await asyncio.to_thread(revoke_grant, self.database_path, grant.token)
+        return await self._request(scope, action, fields, timeout=45)
+
+    async def _request(self, scope, action, fields, *, timeout):
         packet_id = uuid.uuid4().hex
         packet = {"id": packet_id, "action": action, "scope": {
             "actorId": scope.actor_id, "workspaceId": scope.workspace_id, "chatId": scope.chat_id,
@@ -87,7 +133,7 @@ class ChatWorker:
             process = self.process
         try:
             process.stdin.write(data)
-            async with asyncio.timeout(45):
+            async with asyncio.timeout(timeout):
                 await process.stdin.drain()
                 return await future
         except (BrokenPipeError, ConnectionResetError, TimeoutError) as exc:

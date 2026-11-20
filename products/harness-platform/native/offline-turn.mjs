@@ -1,3 +1,5 @@
+import { runNativeTurn } from './model-turn.mjs';
+
 // Explicit local acceptance route. No network client or paid provider is mounted.
 export async function runOfflineTurn({ load, ctx, chatId, seed, text, requestId }) {
   if (process.env.HARNESS_OFFLINE_MODEL !== '1') {
@@ -22,38 +24,8 @@ export async function runOfflineTurn({ load, ctx, chatId, seed, text, requestId 
     }
   }
 
-  // The worker supplies a fresh Context with sessions, tools and system prompt.
-  for (const name of ['dsh-llm', 'dsh-session-projection', 'dsh-tool-executor-native', 'dsh-agent', 'dsh-agent-loop']) {
-    const plugin = name === 'dsh-llm' ? llm : await load(name);
-    const fiber = ctx.plugin(plugin.default ?? plugin, {});
-    await fiber.await();
-    if (fiber._error) throw fiber._error;
-  }
-  const provider = 'platform-offline';
-  const unregister = ctx.llm.registerAdapter([provider], new OfflineAdapter());
-  try {
-    const handle = await ctx.agents.create({
-      sessionId: chatId, seed, agentOptions: { provider, model: 'acceptance-echo' },
-    });
-    try {
-      const { agent } = handle;
-      agent.followup({
-        role: 'user', id: requestId, content: [{ type: 'text', text }], source: { kind: 'user' },
-      });
-      await agent.whenIdle();
-      const events = agent.session.snapshotEvents();
-      const reply = agent.session.deriveMessages().at(-1);
-      if (reply?.role !== 'assistant' ||
-          !events.slice(seed.length).some(event => event.type === 'assistant/message')) {
-        throw new Error('Native agent did not complete the offline turn');
-      }
-      return { reply: plainText(reply), events };
-    } finally {
-      await handle.dispose();
-    }
-  } finally {
-    unregister();
-  }
+  return runNativeTurn({ load, ctx, chatId, seed, text, requestId, provider: 'platform-offline',
+    model: 'acceptance-echo', adapter: new OfflineAdapter() });
 }
 
 function plainText(message) {
