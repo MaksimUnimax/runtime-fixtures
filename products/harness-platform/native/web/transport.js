@@ -67,7 +67,8 @@ export async function createTransport(data) {
   const running = new Set();
   const pending = new Map();
   const live = new LiveTurns();
-  const nonempty = new Set(ids);
+  // An unread chat is distinct from a chat confirmed empty by the server.
+  const hasHistory = new Map();
   const titles = new Map(), updated = new Map();
   const openedAt = Date.now();
   const account = {guest, selected, panel:data.panel, error:data.error, recovery:data.recovery,
@@ -76,7 +77,10 @@ export async function createTransport(data) {
   const view = () => ({items:[{workspaceId:workspace, path:'/personal', title:guest?'Справка octoport':'Мои чаты',
     sessionIds:[...ids], createdAt:'1970-01-01T00:00:00Z', updatedAt:'1970-01-01T00:00:00Z'}],
     archivedSessionIds:[], pinnedSessionIds:[]});
-  const projection = (id,seq=-1) => ({asOfSeq:seq, values:{title:titles.get(id) ?? (guest?'Справка octoport':label(id)), cwd:'/personal'}});
+  const projection = (id,seq=-1) => ({asOfSeq:seq, values:{
+    title:titles.get(id) ?? (guest?'Справка octoport':label(id)), cwd:'/personal',
+    ...(hasHistory.has(id) ? {sessionListMetadata:{blank:!hasHistory.get(id)}} : {})
+  }});
   const failure = (message) => ({ok:false,error:{code:'gateway/method-unavailable',message,details:{}}});
   function check(id) { if (!ids.includes(id)) throw new Error('Чат недоступен'); }
   async function page(id, before, signal) {
@@ -106,11 +110,11 @@ export async function createTransport(data) {
       records.push({type:'event',event});
     }
     if (records.length) {
-      nonempty.add(id);
+      hasHistory.set(id,true);
       const last = records.at(-1).event.time;
       updated.set(id,Math.max(updated.get(id) ?? 0,last));
     } else if (before == null) {
-      nonempty.delete(id);
+      hasHistory.set(id,false);
     }
     const first = records[0]?.event.seq;
     if (result.nextBefore!=null && first!=null) cuts.set(id+'|'+(first-1),result.nextBefore);
@@ -120,7 +124,7 @@ export async function createTransport(data) {
   }
   const params = payload => payload.args.request ?? payload.args.input ?? payload.args;
   function summary(id) { return {agentAvailable:true,sessionId:id,updatedAt:updated.get(id) ?? openedAt,running:running.has(id),
-    blank:!nonempty.has(id),cwd:'/personal',projections:{kind:'cached',...projection(id)}}; }
+    blank:!hasHistory.get(id),cwd:'/personal',projections:{kind:'cached',...projection(id)}}; }
   async function call(channel, endpoint, payload, signal) {
     if (channel !== '/api') return failure('Действие недоступно');
     const p=params(payload);
@@ -137,9 +141,9 @@ export async function createTransport(data) {
         }
         case 'session/create': {
           if(guest){ if(!ids.length) throw new Error('Требуется вход'); value={sessionId:ids[0]}; break;}
-          if(p.sessionId && ids.includes(p.sessionId) && !nonempty.has(p.sessionId)) {value={sessionId:p.sessionId};break;}
+          if(hasHistory.get(p.sessionId) === false) {value={sessionId:p.sessionId};break;}
           const {chatId}=await api('/api/chats',{method:'POST',signal});
-          ids.push(chatId); changes.notify(); value={sessionId:chatId}; break;
+          ids.push(chatId); hasHistory.set(chatId,false); changes.notify(); value={sessionId:chatId}; break;
         }
         case 'session/projections': check(p.sessionId); value={kind:'sequenced',...projection(p.sessionId)}; break;
         case 'session/page': {
@@ -173,7 +177,7 @@ export async function createTransport(data) {
               await api(url,guest ? {method:'POST',signal,headers:{Accept:'application/json'},
                   body:new URLSearchParams({text,request_id:turn.requestId})} :
                 {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:turn.requestId,text})});
-              nonempty.add(id);
+              hasHistory.set(id,true);
               if(!guest){
                 const view=live.views.get(id);
                 if(view?.rid===turn.requestId)live.update(id,{...view,committed:true});
