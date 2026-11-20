@@ -44,6 +44,7 @@ function guestWire(turn, index) {
 // a committed turn cannot fall between the snapshot and the next notification.
 class Changes {
   listeners = new Set();
+  revision = 0;
   next(signal) {
     let finish;
     const promise = new Promise(resolve => { finish = () => { this.listeners.delete(finish);
@@ -53,7 +54,7 @@ class Changes {
     if (signal.aborted) finish();
     return promise;
   }
-  notify() { for (const finish of [...this.listeners]) finish(); }
+  notify() { this.revision++; for (const finish of [...this.listeners]) finish(); }
 }
 export async function createTransport(data) {
   const guest = data.mode === 'guest';
@@ -120,7 +121,12 @@ export async function createTransport(data) {
   }
   // The native client needs the first page to distinguish an existing conversation
   // from an empty one. Start it alongside the UI and share it with the first subscriber.
-  let opening = selected ? page(selected,null).then(value => ({value}), error => ({error})) : null;
+  const initialRevision = changes.revision;
+  const historyNotice = document.getElementById('chat-history-error');
+  // Allow the worker its 45-second read deadline plus network transit.
+  const readSignal = signal => signal
+    ? AbortSignal.any([signal, AbortSignal.timeout(60_000)]) : AbortSignal.timeout(60_000);
+  let opening = selected ? page(selected,null,readSignal()).then(value => ({value}), error => ({error})) : null;
   const params = payload => payload.args.request ?? payload.args.input ?? payload.args;
   function summary(id) { return {agentAvailable:true,sessionId:id,updatedAt:updated.get(id) ?? openedAt,running:running.has(id),
     blank:!nonempty.has(id),cwd:'/personal',projections:{kind:'cached',...projection(id)}}; }
@@ -226,15 +232,23 @@ export async function createTransport(data) {
           finally {live.clear(id,requestId);changes.notify();}
         }).catch(()=>{}).finally(()=>signal.removeEventListener('abort',abort));
       }
-      let first;
-      if (id === selected && opening) {
-        const request = opening;
-        first = await request;
+      let window;
+      if (historyNotice) historyNotice.hidden = true;
+      try {
+        if (id === selected && opening) {
+          const request = opening;
+          const first = await request;
+          if (signal.aborted) return;
+          if (opening === request) opening = null;
+          if (first.error) throw first.error;
+          if (changes.revision === initialRevision) window = first.value;
+        }
+        window ??= await page(id,null,readSignal(signal));
+      } catch (error) {
         if (signal.aborted) return;
-        if (opening === request) opening = null;
-        if (first.error) throw first.error;
+        if (historyNotice && error.status !== 401) historyNotice.hidden = false;
+        throw error;
       }
-      let window=first?.value ?? await page(id,null,signal);
       let seq=window.records.at(-1)?.event.seq ?? -1;
       if(live.views.get(id)?.committed)live.clear(id,live.views.get(id).rid);
       yield {type:'snapshot',header:{version:3,id,createdAt:0,cwd:'/personal',isSeeded:false},

@@ -180,6 +180,22 @@ class BrowserIsolation(ProductBrowser):
         await expect(page.locator('[data-composer-input]')).to_be_visible()
         self.assertEqual(urlsplit(page.url).path, urlsplit(direct_link).path)
 
+    async def test_failed_history_can_retry_without_creating_a_chat(self):
+        page = await self.open_chat("first-browser")
+        marker = "Переписка после временной ошибки"
+        await self.send_turn(page, marker)
+        history = page.locator('[data-slot="conversation.view"]')
+        await expect(history).to_contain_text(f"Тестовая модель (ход 1): {marker}", timeout=45_000)
+        direct_link = page.url
+        await page.route("**/events", lambda route: route.fulfill(status=503, body="{}"))
+        await page.reload()
+        await expect(page.get_by_text("Не удалось загрузить историю чата.", exact=True)).to_be_visible()
+        await page.unroute("**/events")
+        await page.get_by_role("button", name="Повторить загрузку").click()
+        await expect(history).to_contain_text(marker)
+        self.assertEqual(urlsplit(page.url).path, urlsplit(direct_link).path)
+        self.assertEqual(len(await (await page.request.get("/api/chats")).json()), 1)
+
     async def test_two_browser_profiles_keep_their_own_chat(self):
         first, second = await asyncio.gather(self.open_chat("first-browser"), self.open_chat("second-browser"))
         first_url, second_url = first.url, second.url

@@ -4,6 +4,10 @@
 <style>
   #chat-opening { position:fixed; inset:0; display:grid; place-content:center; text-align:center;
     font:16px/1.5 system-ui,sans-serif; color:#444c56; background:#e9ecf0; }
+  #chat-history-error:not([hidden]) {position:fixed; inset:1rem 1rem auto auto; z-index:1000;
+    padding:.75rem 1rem; border:1px solid #bcc3cd; border-radius:8px; background:Canvas; color:CanvasText;
+    font:14px/1.5 system-ui,sans-serif}
+  #chat-history-error button {margin-left:.5rem; font:inherit; cursor:pointer}
   #chat-opening p {margin:0}
   #chat-opening button {margin:.65rem auto 0; font:inherit; color:inherit; cursor:pointer}
   #root:has([data-dsh-boot]:not(:has([data-dsh-boot-spinner]))) #chat-opening {display:none}
@@ -24,4 +28,6 @@
 <script type="module" src="/ui-assets/project/start.js"></script></head>
 <body data-account="@@account@@" data-mode="@@mode@@" data-panel="@@panel@@" data-chat="@@chat@@" data-error="@@error@@" data-recovery="@@recovery@@"><div id="root"><div id="chat-opening">
 <p role="status">Открываем чат…</p><form method="get"><button type="submit">Обновить страницу</button></form>
-</div></div></body></html>
+</div></div>
+<form id="chat-history-error" method="get" hidden><span role="alert">Не удалось загрузить историю чата.</span>
+<button type="submit">Повторить загрузку</button></form></body></html>
