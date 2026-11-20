@@ -1,0 +1,13 @@
+{
+  "schema": "ozon-paired-statistics/v1",
+  "report_date": "2001-02-03",
+  "ordered_units": "3",
+  "rows": {
+    "Оборот": {"without_coefficient_total_unrounded": "960"},
+    "Остаётся до налога": {
+      "with_coefficient_total_unrounded": "90.012",
+      "without_coefficient_total_unrounded": "120.30"
+    }
+  },
+  "advertising_totals": {"spend_RUB_unrounded": "54.37"}
+}

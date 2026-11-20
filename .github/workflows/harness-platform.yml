@@ -43,8 +43,17 @@ jobs:
           .venv/bin/python -m playwright install --with-deps chromium
       - name: Verify two independent browser sessions
         env:
+          HARNESS_BROWSER_EVIDENCE: ${{ runner.temp }}/harness-browser-evidence
           HARNESS_OFFLINE_MODEL: "1"
         run: |
           export HARNESS_NODE_MODULES="$RUNNER_TEMP/harness-foundation/node_modules"
           export HARNESS_TEST_PYTHON="$PWD/.venv/bin/python"
           .venv/bin/python -m unittest discover -s tests/browser -v
+      - name: Save synthetic browser acceptance evidence
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: harness-browser-evidence
+          path: ${{ runner.temp }}/harness-browser-evidence/*.png
+          if-no-files-found: error
+          retention-days: 7

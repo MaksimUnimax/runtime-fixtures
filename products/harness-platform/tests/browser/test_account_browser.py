@@ -26,8 +26,8 @@ def browser_error(text):
 
 
 @asynccontextmanager
-async def running_product(database, journals):
-    app = create_app(database, journals, composition_module="examples.reference_plugin")
+async def running_product(database, journals, composition):
+    app = create_app(database, journals, composition_module=composition)
     server = uvicorn.Server(uvicorn.Config(app, log_level="warning", access_log=False))
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
         listener.bind(("127.0.0.1", 0))
@@ -46,18 +46,23 @@ async def running_product(database, journals):
             await task
 
 
-class BrowserIsolation(unittest.IsolatedAsyncioTestCase):
+class ProductBrowser(unittest.IsolatedAsyncioTestCase):
+    composition = "examples.reference_plugin"
+    offline_adapter = None
+
     async def asyncSetUp(self):
         if not os.environ.get("HARNESS_NODE_MODULES"):
             self.fail("Set HARNESS_NODE_MODULES to the pinned native installation")
         self.enterContext(patch.dict(os.environ, {"HARNESS_OFFLINE_MODEL": "1"}))
+        if self.offline_adapter:
+            self.enterContext(patch.dict(os.environ, {"HARNESS_OFFLINE_ADAPTER": self.offline_adapter}))
         scratch = Path(self.enterContext(TemporaryDirectory()))
         self.database = scratch / "identity.sqlite3"
         self.password = "Ephemeral browser test password"
         with IdentityStore(self.database) as store:
             for handle in ("first-browser", "second-browser"):
                 store.create_account(handle, self.password)
-        self.base_url = await self.enterAsyncContext(running_product(self.database, scratch / "journals"))
+        self.base_url = await self.enterAsyncContext(running_product(self.database, scratch / "journals", self.composition))
         playwright = await self.enterAsyncContext(async_playwright())
         self.browser = await playwright.chromium.launch(
             executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"),
@@ -95,6 +100,8 @@ class BrowserIsolation(unittest.IsolatedAsyncioTestCase):
             self.fail(f"{error}\nVisible product errors: {[browser_error(s) for s in alert]}")
         await button.click()
 
+
+class BrowserIsolation(ProductBrowser):
     async def test_two_browser_profiles_keep_their_own_chat(self):
         first, second = await asyncio.gather(self.open_chat("first-browser"), self.open_chat("second-browser"))
         first_url, second_url = first.url, second.url

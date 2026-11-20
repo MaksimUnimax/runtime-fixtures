@@ -30,6 +30,8 @@ class ChatWorker:
         }
         if os.environ.get("HARNESS_OFFLINE_MODEL") == "1":
             self.env["HARNESS_OFFLINE_MODEL"] = "1"
+            if adapter := os.environ.get("HARNESS_OFFLINE_ADAPTER"):
+                self.env["HARNESS_OFFLINE_ADAPTER"] = adapter
         if composition_module:
             self.env["HARNESS_PLATFORM_COMPOSITION"] = composition_module
         self.lock = asyncio.Lock()
