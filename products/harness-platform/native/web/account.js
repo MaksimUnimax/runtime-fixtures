@@ -132,6 +132,11 @@ window.__ModuleLoader__.load({
       if(a.canGrant)ctx.slots.inject('conversation.chat.turnTail',()=>ctx.slots.register({
         name:'conversation.chat.turnTail',id:'harness-cost',inject:sessionId=>({sessionId})
       },Cost));
+      ctx.effect(()=>{
+        const update=({detail})=>ctx.sessions.handleSessionActivity(detail.id,detail.at);
+        a.activityEvents.addEventListener('activity', update);
+        return ()=>a.activityEvents.removeEventListener('activity', update);
+      },'account chat activity');
       const selection=ctx.uiWorkspace.selection;
       const sync=()=>{
         const current=selection.getSnapshot().sessionId;

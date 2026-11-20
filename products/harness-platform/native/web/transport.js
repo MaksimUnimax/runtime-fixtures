@@ -70,9 +70,22 @@ export async function createTransport(data) {
   const pending = new Map();
   const live = new LiveTurns();
   const nonempty = new Set(ids);
+  const activityEvents = new EventTarget();
   const titles = new Map(), updated = new Map(Object.entries(activity));
   const account = {guest, selected, panel:data.panel, error:data.error, recovery:data.recovery,
-    canGrant:flags.canGrant, modelChoice:flags.modelChoice, api, changes, live, costs:new Map()};
+    canGrant:flags.canGrant, modelChoice:flags.modelChoice, api, changes, live, activityEvents, costs:new Map()};
+  function recordActivity(id, at) {
+    if (!ids.includes(id) || !Number.isSafeInteger(at) || at <= (updated.get(id) ?? 0)) return;
+    updated.set(id, at);
+    activityEvents.dispatchEvent(new CustomEvent('activity', {detail:{id, at}}));
+  }
+  if (!guest) document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState !== 'visible') return;
+    try {
+      const current = await api('/api/chats?view=activity');
+      for (const [id, at] of Object.entries(current)) recordActivity(id, at);
+    } catch { /* The next foreground refresh can retry. */ }
+  });
   account.deleteChat = async id => {
     check(id);
     try {await api('/api/chats/'+encodeURIComponent(id), {method:'DELETE'});}
@@ -118,7 +131,7 @@ export async function createTransport(data) {
     if (records.length) {
       nonempty.add(id);
       const last = records.at(-1).event.time;
-      updated.set(id,Math.max(updated.get(id) ?? 0,last));
+      recordActivity(id,last);
     } else if (before == null) {
       nonempty.delete(id);
     }

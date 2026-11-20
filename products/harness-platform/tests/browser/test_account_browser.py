@@ -285,6 +285,7 @@ class BrowserIsolation(ProductBrowser):
         await self.send_turn(page, "Второй вопрос")
         await expect(page.locator('[data-chat-flow-kind="assistant-step"]')).to_be_visible(timeout=45000)
         await expect(page.locator('[data-slot="conversation.view"]')).to_contain_text("Тестовая модель (ход 1): Второй вопрос")
+        await expect(page.locator(f'[data-row-key="session:{other}"]')).to_contain_text("сейчас")
         await page.reload()
         await expect(page.locator(f'[data-row-key="session:{other}"]')).to_contain_text("сейчас")
         await expect(old_row).not_to_contain_text("сейчас")
