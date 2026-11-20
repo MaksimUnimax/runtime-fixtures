@@ -38,6 +38,22 @@ class ServicePlugins(unittest.TestCase):
     def client(self):
         return TestClient(create_app(self.db,self.root/"chats"))
 
+    def test_admin_rotates_independent_provider_keys(self):
+        from platform_core import provider_keys
+        directory=self.root/"provider-keys"
+        with patch.dict(os.environ,{"HARNESS_PROVIDER_KEYS_DIR":str(directory)}), self.client() as client:
+            route="/api/admin/provider-keys"
+            for provider,key in (("deepseek","sk-direct-test-first"),("openrouter","sk-or-owner-test"),("deepseek","sk-direct-test-second")):
+                self.assertEqual(client.post(route+"/"+provider,headers=self.other,json={"key":key}).status_code,403)
+                result=client.post(route+"/"+provider,headers=self.headers,json={"key":key})
+                self.assertTrue(result.json()[provider]["configured"])
+                self.assertNotIn(key,result.text)
+            self.assertEqual(provider_keys.read("deepseek"),"sk-direct-test-second")
+            self.assertEqual(client.app.state.model_router.headers["Authorization"],"Bearer sk-or-owner-test")
+            self.assertEqual((directory/"deepseek").stat().st_mode & 0o777,0o600)
+            self.assertEqual(client.get(route,headers=self.other).status_code,403)
+            self.assertNotIn("providerMeters",client.get("/api/wallet",headers=self.other).json())
+
     def test_connections_scope_checks_and_semantics(self):
         with self.client() as client:
             route="/api/integrations"
@@ -88,7 +104,7 @@ class ServicePlugins(unittest.TestCase):
             self.assertEqual(response.status_code,200,response.text)
             result=response.json()
             self.assertEqual(result["text"],"Ответ маршрутизатора")
-            self.assertEqual(result["modelUsage"],{"tokens":{"input":4,"cache":2,"output":2},"rub":"0.0008","coins":"0.0008","pending":False})
+            self.assertEqual(result["modelUsage"],{"providers":{"OpenRouter":{"input":4,"cache":2,"output":2}},"tokens":{"input":4,"cache":2,"output":2},"rub":"0.0008","coins":"0.0008","pending":False})
             self.assertEqual(client.post(route,headers=self.headers,json=data).json(),result)
             self.assertEqual(len(seen),1)
         gateway=subprocess.Popen(["node",str(Path(__file__).parent/"metered-chat-gateway.mjs"),str(self.db),

@@ -98,7 +98,7 @@ class MeteredChatAcceptance(unittest.TestCase):
             self.assertEqual(len(wallet["charges"][0]["meter"]["attempts"]), 2)
             self.assertEqual(first, duplicate)
             self.assertEqual(first["modelUsage"], {"coins":"0.00144","rub":"0.00144","pending":False,
-                "tokens":{"input":20,"cache":0,"output":10}})
+                "tokens":{"input":20,"cache":0,"output":10},"providers":{"DeepSeek":{"input":20,"cache":0,"output":10}}})
             self.assertEqual(first["text"], "tool result received")
             self.assertEqual(second["text"], "answer to second fixture")
             self.assertNotEqual(first["operationId"], second["operationId"])

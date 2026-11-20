@@ -22,7 +22,7 @@ from starlette.routing import Route
 from .admin_costs import AdminCosts, present_chat
 from .browser_session import browser_routes, browser_token
 from .chat_worker import ChatWorker, WorkerError
-from . import integrations
+from . import integrations, provider_keys
 from .identity import AuthenticationError, ChatUnavailable
 from .guest_registration import RegistrationStore
 from .guest_web import guest_routes
@@ -135,7 +135,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
             raise HTTPException(403, "Administrator required") from None
         except LookupError:
             raise HTTPException(404, "Account unavailable") from None
-        result["modelChoice"] = req.app.state.model_router is not None
+        result["modelChoice"] = req.app.state.model_router is not None and req.app.state.model_router.available()
         return JSONResponse(result)
 
     async def pricing(req):
@@ -244,6 +244,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         *guest_routes(),
         *web_routes(),
         *integrations.routes(_token, _body),
+        *provider_keys.routes(_token, _body),
         *(router_plugin.routes(_token, _body) if router_plugin else [Route("/api/model-settings",disabled_models,methods=["GET","POST"])]),
         Route("/api/wallet", wallet),
         Route("/api/admin/accounts/{login}/wallet", wallet),

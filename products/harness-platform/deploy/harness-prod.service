@@ -1,7 +1,6 @@
 [Unit]
 Description=Harness public seller service
-After=network.target harness-native-model-gateway.service
-Wants=harness-native-model-gateway.service
+After=network.target
 
 [Service]
 DynamicUser=yes
@@ -16,11 +15,10 @@ ProtectHome=yes
 WorkingDirectory=/opt/harness-prod/current/products/harness-platform
 LoadCredential=integrations:/etc/harness-prod/integrations.key
 Environment=HARNESS_INTEGRATIONS_KEY_FILE=%d/integrations
-LoadCredential=model-relay:/etc/harness-native-lab/gateway.key
-Environment=HARNESS_PROVIDER_RELAY_KEY_FILE=%d/model-relay
-Environment=HARNESS_PROVIDER_RELAY_URL=http://127.0.0.1:18442
 Environment=HARNESS_NODE_MODULES=/opt/harness-prod/runtime/v1/node_modules
 Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=HARNESS_PROVIDER_KEYS_DIR=/var/lib/harness-prod/provider-keys
+Environment=HARNESS_OPENROUTER_ENABLED=1
 Environment=HARNESS_RUB_PER_USD=81.9290
 ExecStart=/opt/harness-prod/runtime/v1/venv/bin/python -m platform_core.serve --state /var/lib/harness-prod --port 18763 --model live
 Restart=on-failure

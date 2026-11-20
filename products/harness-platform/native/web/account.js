@@ -13,26 +13,16 @@ window.__ModuleLoader__.load({
         return h('div',{className:'account-actions'},
           h('button',{type:'button',title,onClick:()=>select(a.guest?'login':'wallet')},wide?title:(a.guest?'↪':'◉')),
           wide && a.guest && h('a',{href:'/register'},'Создать аккаунт и сохранить чат'),
-          wide && !a.guest && h('button',{type:'button',onClick:()=>select('tools')},'Функции'),
+          !a.guest && h('button',{type:'button',title:'Интеграции','aria-label':'Интеграции',onClick:()=>{
+            const settings=ctx.slots.entries('sidebar.settings')[0];
+            settings?.store.create().actions.openSection('integrations');
+          }},wide?'Интеграции':'⇄'),
+          wide && h('a',{href:'https://octoport.ru/about/'},'О сервисе'),
           wide && !a.guest && h('form',{action:'/logout',method:'post'},h('button',null,'Выйти')),
           a.wallet?.canGrant && h('a',{href:'/admin',title:'Администрирование','aria-label':'Администрирование'},wide?'Администрирование':'⚙'));
       }
       function Field(name,title,props={}) {
         return h('label',{key:name},title,h('input',{name,required:true,...props}));
-      }
-      function Features() {
-        const [names,setNames]=React.useState(null);
-        const active=ctx.sessions.list.getSnapshot();
-        const id=Object.values(active.byId).find(row=>row.retainedBy?.mainView>0)?.id;
-        React.useEffect(()=>{
-          const abort=new AbortController();
-          if(id) a.api('/api/chats/'+encodeURIComponent(id)+'/tools',{signal:abort.signal})
-            .then(setNames).catch(()=>{if(!abort.signal.aborted)setNames(['Не удалось загрузить инструменты']);});
-          else setNames([]);
-          return ()=>abort.abort();
-        },[id]);
-        return h('div',{'data-testid':'tools'},names===null?'Загрузка…':names.length
-          ? h('ul',null,names.map(name=>h('li',{key:name},name))) : 'Нет доступных инструментов');
       }
       function Wallet() {
         const [wallet,setWallet]=React.useState(a.wallet);
@@ -56,8 +46,6 @@ window.__ModuleLoader__.load({
         React.useEffect(()=>{if(mode && !ref.current.open)ref.current.showModal();},[mode]);
         const close=()=>{select('');if(['/register','/login'].includes(location.pathname))history.replaceState(null,'',a.selected ? '/app/chats/'+encodeURIComponent(a.selected) : '/');};
         if(!mode)return null;
-        if(mode==='tools') return h('dialog',{className:'account-dialog',ref,onCancel:close,'aria-label':'Функции'},
-          h('h2',null,'Функции'),h(Features),h('button',{type:'button',onClick:close},'Закрыть'));
         if(mode==='notice') return h('dialog',{className:'account-dialog',ref,onCancel:close},
           h('h2',null,a.error),h('button',{type:'button',onClick:close},'Закрыть'));
         const signup=mode==='register', wallet=mode==='wallet';
@@ -83,8 +71,8 @@ window.__ModuleLoader__.load({
         const cost=a.costs.get(sessionId+'|'+seq);
         if(!cost) return null;
         if ('coins' in cost) {
-          const t=cost.tokens, labels=[];
-          if(t) labels.push('Вход '+t.input,'Кэш '+t.cache,'Выход '+t.output,'Всего '+(t.input+t.cache+t.output)+' токенов');
+          const labels=[];
+          for(const [provider,t] of Object.entries(cost.providers||{}))labels.push(provider,'Вход '+t.input,'Кэш '+t.cache,'Выход '+t.output,'Всего '+(t.input+t.cache+t.output)+' токенов');
           if(cost.rub!==null)labels.push(cost.rub.replace('.',',')+' ₽');
           labels.push('Списано '+cost.coins.replace('.',',')+' монет');
           if(cost.pending)labels.push('На сверке');

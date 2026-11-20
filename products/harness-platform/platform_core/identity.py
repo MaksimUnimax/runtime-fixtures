@@ -260,7 +260,16 @@ class IdentityStore(Store):
                                       "attempts": [{"model": m, "period": h, "usage": json.loads(u) if u else None,
                                                     "tariff": v} for m,h,u,v in attempts]}
                 charges.append(entry)
-            return {"available": coins.display(available), "reserved": coins.display(held),
+            meters = {}
+            if admin:
+                totals = db.execute("""SELECT CASE WHEN a.rate_version='openrouter-v1' THEN 'OpenRouter' ELSE 'DeepSeek' END,
+                    SUM(COALESCE(json_extract(a.usage_json,'$.input_tokens'),0)+COALESCE(json_extract(a.usage_json,'$.cache_creation_input_tokens'),0)),
+                    SUM(COALESCE(json_extract(a.usage_json,'$.cache_read_input_tokens'),0)),
+                    SUM(COALESCE(json_extract(a.usage_json,'$.output_tokens'),0)), SUM(COALESCE(a.charge,0))
+                    FROM coin_attempts a JOIN coin_orders o USING(operation_id) WHERE o.workspace_id=? GROUP BY 1""",(workspace,))
+                meters = {"providerMeters":{label:{"input":inp,"cache":cache,"output":out,"coins":coins.display(cost)}
+                        for label,inp,cache,out,cost in totals}}
+            return {**meters,"available": coins.display(available), "reserved": coins.display(held),
                     "salePrice": coins.sale_pricing(db), "canGrant": admin, "charges": charges}
 
     def pricing(self, token, percent=None, *, update=False):
@@ -291,17 +300,22 @@ class IdentityStore(Store):
         with self._lock:
             if not self._db.execute("SELECT 1 FROM sqlite_master WHERE name='coin_attempts'").fetchone():
                 return {}
-            rows = self._db.execute(f"""SELECT u.operation_id, o.spent, a.charge, r.fx_e4, a.usage_json
+            rows = self._db.execute(f"""SELECT u.operation_id, o.spent, a.charge, r.fx_e4, a.usage_json, a.rate_version
                 FROM usage_operations u JOIN coin_order_totals o USING(operation_id)
                 JOIN coin_attempts a USING(operation_id) LEFT JOIN coin_ruble_orders r USING(operation_id)
                 WHERE u.workspace_id=? AND u.actor_id=? AND u.chat_id=? AND u.operation_id IN ({params})""",
                 (scope.workspace_id, scope.actor_id, scope.chat_id, *ids)).fetchall()
         result = {}
-        for operation, spent, charge, fx, raw in rows:
+        for operation, spent, charge, fx, raw, tariff in rows:
             receipt = result.setdefault(operation, {"coins": coins.display(spent),
-                "rub": coins.display(spent) if fx else None, "pending": False, "tokens": None})
+                "rub": coins.display(spent) if fx else None, "pending": False, "tokens": None, "providers": {}})
             receipt["pending"] |= charge is None
+            provider = "OpenRouter" if tariff == "openrouter-v1" else "DeepSeek"
+            per = receipt["providers"].setdefault(provider, {"input":0,"cache":0,"output":0})
             if raw and (usage := json.loads(raw)):
+                per["input"] += usage.get("input_tokens",0) + usage.get("cache_creation_input_tokens",0)
+                per["cache"] += usage.get("cache_read_input_tokens",0)
+                per["output"] += usage.get("output_tokens",0)
                 counts = receipt["tokens"] or {"input": 0, "cache": 0, "output": 0}
                 counts["input"] += usage.get("input_tokens", 0) + usage.get("cache_creation_input_tokens", 0)
                 counts["cache"] += usage.get("cache_read_input_tokens", 0)

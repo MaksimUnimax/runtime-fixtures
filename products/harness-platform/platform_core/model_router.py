@@ -18,7 +18,7 @@ from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from . import coins
+from . import coins, provider_keys
 from .identity import _principal
 
 BASE = "https://openrouter.ai/api/v1"
@@ -103,6 +103,8 @@ class ModelRouter:
         pref = db.execute("SELECT model FROM model_preferences WHERE workspace=?",(scope.workspace_id,)).fetchone()
         model = pref[0] if pref else "direct"
         rates = ["0"]*3
+        if not self.available():
+            model = "direct"
         if model != "direct":
             if model not in self.catalog:
                 raise HTTPException(503,"Каталог модели недоступен. Выберите DeepSeek в настройках.")
@@ -182,9 +184,15 @@ class ModelRouter:
                 except (httpx.HTTPError,KeyError,ValueError,TypeError):
                     continue
 
+    def available(self):
+        return bool(provider_keys.read("openrouter") or self.key)
+
     @property
     def headers(self):
-        return {"Authorization":"Bearer "+self.key}
+        key=provider_keys.read("openrouter") or self.key
+        if not key:
+            raise HTTPException(503,"OpenRouter не настроен")
+        return {"Authorization":"Bearer "+key}
 
     async def complete(self, req):
         token = req.headers.get("x-operation","")
@@ -228,14 +236,14 @@ class LocalServer(uvicorn.Server):
 @contextlib.asynccontextmanager
 async def activate(identity, http, worker):
     path = os.getenv("HARNESS_OPENROUTER_KEY_FILE")
-    if os.getenv("HARNESS_OPENROUTER_ENABLED","0")!="1" or not path or not Path(path).is_file() or not worker.gateway:
+    if os.getenv("HARNESS_OPENROUTER_ENABLED","0")!="1" or not worker.gateway:
         yield None
         return
     try:
-        key = Path(path).read_text().strip()
+        key = Path(path).read_text().strip() if path else ""
     except (OSError,UnicodeError):
         key = ""
-    if not key:
+    if not key and not provider_keys.directory():
         yield None
         return
     router = ModelRouter(identity,http,key)
@@ -260,7 +268,7 @@ def routes(get_token,body):
         router = req.app.state.model_router
         token = get_token(req,allow_cookie=True)
         req.app.state.identity.validate_session(token)
-        if router is None:
+        if router is None or not router.available():
             return JSONResponse({"enabled":False,"model":"direct","models":[]})
         catalog = await router.models()
         selected = None

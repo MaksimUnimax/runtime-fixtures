@@ -28,7 +28,7 @@ async def serve(state, port, model=None):
     # serve the public FAQ without starting Node or configuring a model.
     if model is None:
         model = "live" if any(os.environ.get(k) for k in (
-            "HARNESS_PROVIDER_RELAY_URL", "HARNESS_PROVIDER_RELAY_KEY_FILE",
+            "HARNESS_PROVIDER_KEYS_DIR", "HARNESS_PROVIDER_RELAY_URL", "HARNESS_PROVIDER_RELAY_KEY_FILE",
             "HARNESS_ACCEPTANCE_GATEWAY", "HARNESS_ACCEPTANCE_KEY_FILE")) else "off"
     if model == "off":
         os.environ.pop("HARNESS_MODEL_GATEWAY_URL", None)
