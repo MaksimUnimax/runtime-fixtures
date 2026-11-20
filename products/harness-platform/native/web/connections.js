@@ -2,6 +2,7 @@ window.__ModuleLoader__.load({
   id:'harness-integrations',
   factory(require) {
     const React=require('react'),h=React.createElement;
+    const {Switch}=require('@deepseek-ai/dsh-client-ui-primitives');
     return {inject:['slots'],apply(ctx) {
       const a=window.harnessAccount;
       const post=(url,data)=>a.api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
@@ -98,11 +99,11 @@ window.__ModuleLoader__.load({
         const active=rows.filter(row=>row.attached);
         const labels={sending:'Отправляю сообщение…',accepted:'Сообщение принято',model:'Модель готовит ответ…',
           thinking:'Модель обдумывает ответ…',tool:'Модель запрашивает данные…',writing:'Модель отвечает…',failed:'Не удалось завершить запрос'};
-        async function toggle(row){
+        async function toggle(row,enabled){
           const before=rows;
           setBusy(true);setError('');
           setRows(before.map(item=>item.id===row.id?{...item,attached:!item.attached}:item));
-          try {setRows((await post(url,{connectionId:row.id,enabled:!row.attached})).connections);}
+          try {setRows((await post(url,{connectionId:row.id,enabled})).connections);}
           catch(e){setRows(before);setError(e.message);}finally{setBusy(false);}
         }
         return h('div',{className:'chat-access'},
@@ -115,11 +116,13 @@ window.__ModuleLoader__.load({
             h('header',null,h('h2',null,'Подключения этого чата'),
               h('button',{type:'button','aria-label':'Закрыть',onClick:()=>setOpen(false)},'×')),
             rows.length===0 && !error && h('p',null,'Подключите магазин или сервис, чтобы использовать его в разговоре.'),
-            rows.map(row=>h('label',{key:row.id,className:'chat-grant'},
-              h('input',{type:'checkbox',checked:row.attached,disabled:busy,onChange:()=>toggle(row)}),
-              h('span',null,h('strong',null,row.name),h('small',null,
-                (row.access.length?row.access.join(', '):names[row.provider])+' · '+(status[row.status]||row.status))))),
-            h('p',{role:'status'},error),
+            // Reuse the pinned General Settings row and its native animated Switch.
+            rows.map(row=>h('div',{key:row.id,className:'Pt1bsG_row'},
+              h('div',null,h('div',{className:'Pt1bsG_title'},row.name),
+                h('div',{className:'Pt1bsG_description'},
+                  (row.access.length?row.access.join(', '):names[row.provider])+' · '+(status[row.status]||row.status))),
+              h(Switch,{label:row.name+' · '+names[row.provider],checked:row.attached,disabled:busy,onChange:enabled=>toggle(row,enabled)}))),
+            error && h('p',{role:'alert'},error),
             h('button',{onClick:()=>{setOpen(false);window.dispatchEvent(new CustomEvent('harness:connection',{
               detail:{newConnection:true,chatId:sessionId}}));}},'Добавить подключение')));
       }

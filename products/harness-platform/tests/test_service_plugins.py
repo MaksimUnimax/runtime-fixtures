@@ -54,6 +54,30 @@ class ServicePlugins(unittest.TestCase):
                 self.assertEqual(received[0],received[-1])
                 self.assertEqual(sleep.called,expected==200)
 
+    def test_wb_report_selects_orders_or_sales_for_the_requested_day(self):
+        from platform_core.chat_connections import read_service
+        day="2026-11-19"
+        def upstream(req):
+            self.assertEqual(req.headers["Authorization"],"wb-fixture")
+            self.assertEqual(dict(req.url.params),{"dateFrom":day,"flag":"1"})
+            self.assertEqual(req.url.host,"statistics-api.wildberries.ru")
+            if req.url.path.endswith("/orders"):
+                row={"date":day+"T11:00:00","srid":"one","isCancel":False}
+                return httpx.Response(200,json=[row,row,row|{"srid":"two","isCancel":True}])
+            self.assertEqual(req.url.path,"/api/v1/supplier/sales")
+            return httpx.Response(200,json=[{"saleID":"S1"},{"saleID":"R2"}])
+        for report in ("orders","sales",None):
+            transport=httpx.Client(transport=httpx.MockTransport(upstream))
+            with patch("platform_core.chat_connections.httpx.Client",return_value=transport):
+                args={"day":day}
+                if report: args["report"]=report
+                result=read_service("wb",{"token":"wb-fixture"},"wb",args)
+                if report=="orders":
+                    self.assertEqual((result["orderedUnits"],result["cancelledOfOrderedUnits"]),(2,1))
+                    self.assertNotIn("soldUnits",result)
+                else:
+                    self.assertEqual((result["soldUnits"],result["returnedUnits"]),(1,1))
+
     def test_admin_rotates_independent_provider_keys(self):
         from platform_core import provider_keys
         directory=self.root/"provider-keys"

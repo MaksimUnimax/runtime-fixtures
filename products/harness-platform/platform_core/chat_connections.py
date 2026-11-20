@@ -100,6 +100,28 @@ def ozon_analytics(client, fields, day):
         time.sleep(max(delay,0.1))
 
 
+WB_REPORTS = {
+    "orders": "https://statistics-api.wildberries.ru/api/v1/supplier/orders",
+    "sales": "https://statistics-api.wildberries.ru/api/v1/supplier/sales",
+}
+
+
+def wb_orders(day, rows):
+    by_order = {}
+    for row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get("date"), str) or row["date"][:10] != day:
+            raise ValueError("Unexpected WB order date")
+        srid, cancelled = row.get("srid"), row.get("isCancel")
+        if not isinstance(srid, str) or not srid.strip() or type(cancelled) is not bool:
+            raise ValueError("Missing WB order identity or cancellation status")
+        if srid in by_order and by_order[srid] != cancelled:
+            raise ValueError("Conflicting WB order statuses")
+        by_order[srid] = cancelled
+    return {"source":"WB Статистика, заказы","day":day,"orderedUnits":len(by_order),
+            "cancelledOfOrderedUnits":sum(by_order.values()),
+            "meaning":"Заказанные единицы по дате оформления, включая отменённые. Отмены указаны среди этих заказов. Выкупы именно этих заказов требуют сверки по srid. Разница с числом продаж за день не показывает, сколько заказов в пути."}
+
+
 def read_service(provider,fields,action,args):
     from .integrations import probe
     if action=="check":
@@ -116,7 +138,8 @@ def read_service(provider,fields,action,args):
             if action=="ozon":
                 r=ozon_analytics(client,fields,day)
             else:
-                r=client.get("https://statistics-api.wildberries.ru/api/v1/supplier/sales",
+                report=args.get("report","sales")
+                r=client.get(WB_REPORTS[report],
                     headers={"Authorization":fields["token"]},params={"dateFrom":day,"flag":1})
         if not r.is_success:
             return {"ok":False,"httpStatus":r.status_code,"reason":{
@@ -133,7 +156,10 @@ def read_service(provider,fields,action,args):
             return {"day":day,"source":"Ozon Seller Analytics","orderedUnits":sum(int(i["metrics"][0]) for i in rows),
                     "orderedRevenue":str(sum(Decimal(str(i["metrics"][1])) for i in rows)),
                     "meaning":"Количество и стоимость заказанных товаров. Это данные заказов, не выкупов и не выплат."}
-        if not isinstance(data,list) or any(not str(i["saleID"]).startswith(("S","R")) for i in data):
+        if not isinstance(data,list): raise ValueError("Unexpected WB report")
+        if report=="orders":
+            return wb_orders(day,data)
+        if any(not str(i["saleID"]).startswith(("S","R")) for i in data):
             raise ValueError("Unexpected sales report")
         sales=sum(i["saleID"].startswith("S") for i in data)
         return {"day":day,"source":"WB Статистика, продажи и возвраты","soldUnits":sales,"returnedUnits":len(data)-sales}
@@ -152,6 +178,10 @@ class ChatTools:
           ("check_store_access","Проверить подключение магазина или сервиса сейчас.","check",entries,{}),
           ("ozon_daily_orders","Заказы и сумма заказанных товаров Ozon за день по данным Seller Analytics.","ozon",
              [r for r in entries if "Ozon Seller" in r["access"]],{"day":{"type":"string","description":"yesterday, today или YYYY-MM-DD, Москва"}}),
+          ("wb_statistics_report","Дневная статистика Wildberries. Выбери отчёт orders для оформленных заказов и отмен среди них, sales для продаж и возвратов.","wb",
+             [r for r in entries if r["provider"]=="wb"],{
+                 "report":{"type":"string","enum":list(WB_REPORTS)},
+                 "day":{"type":"string","description":"yesterday, today или YYYY-MM-DD, Москва"}}),
           ("wb_daily_sales","Количество продаж и возвратов WB за день.","wb",[r for r in entries if r["provider"]=="wb"],
              {"day":{"type":"string","description":"yesterday, today или YYYY-MM-DD, Москва"}}),
           ("wordstat_keywords","Частотность и популярные поисковые фразы Яндекс Вордстат.","wordstat",
