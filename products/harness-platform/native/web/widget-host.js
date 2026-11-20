@@ -49,6 +49,12 @@ function viewRegistration(plugin, conversation) {
   return { seats, eventsRegistry, viewsRegistry, t: locale.bind([...dictionaries.keys()][0]) };
 }
 
+function costLabel({ rub, usd }) {
+  if (typeof rub === 'string') return 'Оценка стоимости · ' + rub.replace('.', ',') + ' ₽';
+  if (typeof usd === 'string') return 'Оценка стоимости · ' + usd.replace('.', ',') + ' USD';
+  return 'Оценка стоимости пока недоступна';
+}
+
 export function installWidgetHost({ require, plugin }) {
   const React = require('react');
   const h = React.createElement;
@@ -83,11 +89,13 @@ export function installWidgetHost({ require, plugin }) {
       });
       return null;
     }
-    const renderFlow = name => name === 'conversation.chat.flow' && nodes.map(node =>
+    const renderFlow = name => name === 'conversation.chat.flow' && nodes.map((node, index) =>
       h('div', { key: node.key, 'data-event-seq': node.anchorSeq, 'data-role': node.kind === 'user' ? 'user' : 'assistant' },
         h(seats.get('conversation.chat.node/' + node.kind), { node, t, sessionId: chatId, renderFactorySlot,
           renderSlotChain: none, renderSlot: none, usePresentation: value(presentation), useTurnData: none,
-          useContextMenu: () => noMenu, resolveFilePath: path => path, loadImage: unknownFile })));
+          useContextMenu: () => noMenu, resolveFilePath: path => path, loadImage: unknownFile }),
+        node.kind === 'assistant-step' && messages[index].modelCost
+          ? h('small', { className: 'model-cost' }, costLabel(messages[index].modelCost)) : null));
     return h(seats.get('conversation.view/chat'), {
       key: chatId, sessionId: chatId, t, useChat: value(snapshot), useSession: value(chatSession),
       useConversation: value({ views: { grouped: none } }), useSessions: value({ byId: {} }),

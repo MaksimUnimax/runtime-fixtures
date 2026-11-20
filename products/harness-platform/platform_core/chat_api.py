@@ -14,6 +14,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
+from .admin_costs import AdminCosts, present_chat
 from .browser_session import browser_routes, browser_token
 from .chat_worker import ChatWorker, WorkerError
 from .identity import AuthenticationError, ChatUnavailable, IdentityStore
@@ -70,6 +71,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
     async def lifespan(app):
         with IdentityStore(database_path) as identity:
             app.state.identity = identity
+            app.state.admin_costs = AdminCosts()
             app.state.worker = ChatWorker(database_path, chat_directory, composition_module)
             try:
                 yield
@@ -130,7 +132,18 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         scope = await run_in_threadpool(
             req.app.state.identity.resolve_chat, token, req.path_params["chat_id"],
         )
-        result = await req.app.state.worker.request(scope, action, **data)
+        try:
+            result = await req.app.state.worker.request(scope, action, **data)
+        except WorkerError as exc:
+            if exc.code != "turn_unconfirmed" or exc.operation_id is None:
+                raise
+            error = {"error": exc.code, "operationId": exc.operation_id}
+            result = await run_in_threadpool(present_chat, req.app.state.identity, req.app.state.admin_costs,
+                                             token, scope, "turn", error)
+            return JSONResponse(result, status_code=409)
+        if action in {"turn", "history", "events"}:
+            result = await run_in_threadpool(present_chat, req.app.state.identity, req.app.state.admin_costs,
+                                             token, scope, action, result)
         return JSONResponse(result)
 
     def error_response(_req, exc):
@@ -144,8 +157,6 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                         "result_too_large": 502, "turn_unconfirmed": 409}
             status = statuses.get(exc.code, 503)
             body = {"error": exc.code if exc.code in statuses else "worker_unavailable"}
-            if exc.operation_id is not None:
-                body["operationId"] = exc.operation_id
             return JSONResponse(body, status_code=status)
         if isinstance(exc, HTTPException):
             return JSONResponse({"error": exc.detail}, status_code=exc.status_code, headers=exc.headers)

@@ -39,6 +39,7 @@ summary { color: var(--accent); font-weight: 550; }
 [role="tab"] { border-radius: .4rem .4rem 0 0; background: transparent; color: var(--muted); }
 [role="tab"][aria-selected="true"] { color: var(--ink); border-block-end: 3px solid var(--accent); }
 #history { min-height: 12rem; margin-block: 1rem; overflow-wrap: anywhere; }
+.model-cost { display: block; margin: .25rem 0 .75rem; color: var(--muted); font-size: .8rem; }
 #composer { padding: 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: .75rem; }
 #composer label { font-size: .88rem; font-weight: 600; }
 textarea { margin-block: .4rem; width: 100%; padding: .55rem; resize: vertical; color: var(--ink); border-radius: .4rem; background: var(--bg); border: 1px solid var(--line); }

@@ -70,7 +70,7 @@ function eventPage(before = null) {
 }
 
 function joinWindows(earlier, later) {
-  return { events: [...earlier.events, ...later.events], messages: [...earlier.messages, ...later.messages],
+  return { adminCosts: later.adminCosts, events: [...earlier.events, ...later.events], messages: [...earlier.messages, ...later.messages],
     nextBefore: earlier.nextBefore };
 }
 
@@ -82,18 +82,21 @@ async function showWindow(next) {
 
 async function updateJournal() {
   let page = await eventPage();
+  if (Boolean(page.adminCosts) !== Boolean(journal.adminCosts)) return showWindow(page);
   const tail = journal.messages.at(-1);
   if (tail) {
     // Another device may have advanced the same journal by more than one page.
     // Read back to the saved tail before appending new turns to the local window.
     const sameTail = message => message.requestId === tail.requestId && message.role === tail.role;
     while (page.nextBefore !== null && !page.messages.some(sameTail)) {
-      page = joinWindows(await eventPage(page.nextBefore), page);
+      const older = await eventPage(page.nextBefore);
+      if (Boolean(older.adminCosts) !== Boolean(page.adminCosts)) return showWindow(await eventPage());
+      page = joinWindows(older, page);
     }
     const index = page.messages.findIndex(sameTail);
     if (index !== -1) {
       const lastSeq = journal.events.at(-1)?.seq ?? -1;
-      page = joinWindows(journal, { messages: page.messages.slice(index + 1),
+      page = joinWindows(journal, { adminCosts: page.adminCosts, messages: page.messages.slice(index + 1),
         events: page.events.filter(event => event.seq > lastSeq) });
     }
   }
@@ -107,7 +110,8 @@ byId('older').addEventListener('click', async () => {
   older.disabled = send.disabled = true;
   try {
     const page = await eventPage(journal.nextBefore);
-    await showWindow(joinWindows(page, journal));
+    if (Boolean(page.adminCosts) !== Boolean(journal.adminCosts)) await updateJournal();
+    else await showWindow(joinWindows(page, journal));
   } catch (error) { showError(error, 'history'); }
   finally { older.disabled = send.disabled = false; }
 });

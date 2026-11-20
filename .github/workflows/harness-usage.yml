@@ -6,6 +6,7 @@ on:
       - 'products/harness-platform/usage-reconciliation/**'
       - 'products/harness-platform/platform_core/storage.py'
       - 'products/harness-platform/platform_core/operation_grants.py'
+      - 'products/harness-platform/platform_core/usage_reconciliation.py'
       - '.github/workflows/harness-usage.yml'
   workflow_dispatch:
 

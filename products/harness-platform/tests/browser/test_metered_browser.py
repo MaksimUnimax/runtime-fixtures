@@ -25,6 +25,8 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
         password = "Ephemeral browser test password"
         with IdentityStore(database) as store:
             store.create_account("browser-fixture", password)
+            store.create_account("regular-fixture", password)
+            store.set_admin("browser-fixture", True)
         initialize_grants(database)
         gateway = await asyncio.create_subprocess_exec(
             "node", str(PRODUCT / "tests/metered-chat-gateway.mjs"), str(database), str(journal),
@@ -40,26 +42,36 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(close_gateway)
         address = (await asyncio.wait_for(gateway.stdout.readline(), 8)).decode().strip()
         self.assertTrue(address.startswith("http://127.0.0.1:"))
-        self.enterContext(patch.dict(os.environ, {"HARNESS_MODEL_GATEWAY_URL": address, "HARNESS_OFFLINE_MODEL": "0"}))
+        self.enterContext(patch.dict(os.environ, {"HARNESS_MODEL_GATEWAY_URL": address, "HARNESS_OFFLINE_MODEL": "0",
+                                                  "HARNESS_USAGE_JOURNAL": str(journal)}))
         origin = await self.enterAsyncContext(running_product(database, root / "chats"))
         driver = await self.enterAsyncContext(async_playwright())
         browser = await driver.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"))
         self.addAsyncCleanup(browser.close)
-        page = await browser.new_page(base_url=origin)
-        await page.goto("/login")
-        await page.get_by_label("Логин", exact=True).fill("browser-fixture")
-        await page.get_by_label("Пароль", exact=True).fill(password)
-        await page.get_by_role("button", name="Войти", exact=True).click()
-        await page.get_by_role("button", name="Новый чат", exact=True).click()
-        await page.get_by_role("textbox", name="Сообщение", exact=True).fill("browser fixture")
-        async with page.expect_response(lambda r: r.url.endswith("/turns") and r.request.method == "POST") as sent:
-            await page.get_by_role("button", name="Отправить", exact=True).click()
-        response = await sent.value
-        self.assertEqual(response.status, 200)
-        receipt = await response.json()
-        await expect(page.get_by_test_id("history")).to_contain_text("answer to browser fixture", timeout=30_000)
+        async def send(login, text):
+            page = await browser.new_page(base_url=origin)
+            await page.goto("/login")
+            await page.get_by_label("Логин", exact=True).fill(login)
+            await page.get_by_label("Пароль", exact=True).fill(password)
+            await page.get_by_role("button", name="Войти", exact=True).click()
+            await page.get_by_role("button", name="Новый чат", exact=True).click()
+            await page.get_by_role("textbox", name="Сообщение", exact=True).fill(text)
+            async with page.expect_response(lambda r: r.url.endswith("/turns") and r.request.method == "POST") as sent:
+                await page.get_by_role("button", name="Отправить", exact=True).click()
+            response = await sent.value
+            self.assertEqual(response.status, 200)
+            await expect(page.get_by_test_id("history")).to_contain_text("answer to " + text, timeout=30_000)
+            return page, await response.json()
+
+        (page, receipt), (regular, ordinary) = await asyncio.gather(
+            send("browser-fixture", "browser fixture"), send("regular-fixture", "regular fixture"))
+        self.assertNotIn("modelCost", ordinary)
+        self.assertNotIn("operationId", ordinary)
+        await expect(regular.locator(".model-cost")).to_have_count(0)
+        label = page.locator('[data-role="assistant"] .model-cost')
+        await expect(label).to_have_text("Оценка стоимости · 0,00072 ₽")
         await page.reload()
-        await expect(page.get_by_test_id("history")).to_contain_text("answer to browser fixture", timeout=30_000)
+        await expect(label).to_have_text("Оценка стоимости · 0,00072 ₽", timeout=30_000)
         chat = page.url.rsplit("/", 1)[-1]
         events = await (await page.request.get(f"/api/chats/{chat}/events")).json()
         self.assertEqual(events["messages"][-1]["operationId"], receipt["operationId"])
@@ -69,6 +81,17 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
         )
         output, _ = await cli.communicate()
         self.assertEqual(cli.returncode, 0)
-        row, = json.loads(output)["attribution"]["operations"]
+        operations = json.loads(output)["attribution"]["operations"]
+        self.assertEqual(len(operations), 2)
+        row, = [entry for entry in operations if entry["operation_id"] == receipt["operationId"]]
         self.assertEqual((row["operation_id"], row["unique_attempts"], row["total_rub"]),
                          (receipt["operationId"], 1, "0.00072"))
+
+        with IdentityStore(database) as store:
+            store.set_admin("browser-fixture", False)
+        await page.reload()
+        await expect(page.get_by_test_id("history")).to_contain_text("answer to browser fixture", timeout=30_000)
+        await expect(label).to_have_count(0)
+        history = await (await page.request.get(f"/api/chats/{chat}/messages")).json()
+        self.assertNotIn("modelCost", history[-1])
+        self.assertNotIn("operationId", history[-1])

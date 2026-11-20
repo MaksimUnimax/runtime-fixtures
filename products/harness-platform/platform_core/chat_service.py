@@ -16,6 +16,9 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     add = commands.add_parser("create-account")
     add.add_argument("login")
+    role = commands.add_parser("set-role", help="Set a local account's administrative role")
+    role.add_argument("login")
+    role.add_argument("role", choices=("admin", "user"))
     serve = commands.add_parser("serve")
     serve.add_argument("--chats", required=True, type=Path)
     serve.add_argument("--port", type=int, default=8765)
@@ -31,6 +34,12 @@ def main():
             except ValueError as error:
                 parser.error(str(error))
         print(f"One-time recovery code: {recovery}")
+    elif args.command == "set-role":
+        with IdentityStore(args.db) as identity:
+            try:
+                identity.set_admin(args.login, args.role == "admin")
+            except ValueError as error:
+                parser.error(str(error))
     else:
         app = create_app(args.db, args.chats, composition_module=args.composition)
         uvicorn.run(app, host="127.0.0.1", port=args.port, access_log=False)

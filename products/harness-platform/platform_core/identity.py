@@ -31,6 +31,9 @@ _SCHEMA = (
            actor_id TEXT NOT NULL REFERENCES identity_accounts ON DELETE CASCADE,
            expires_at INTEGER NOT NULL
        )""",
+    """CREATE TABLE IF NOT EXISTS identity_admins (
+           actor_id TEXT PRIMARY KEY NOT NULL REFERENCES identity_accounts ON DELETE CASCADE
+       )""",
     "CREATE INDEX IF NOT EXISTS identity_session_expiry ON identity_sessions (expires_at)",
     "CREATE INDEX IF NOT EXISTS identity_session_owner ON identity_sessions (actor_id)",
 )
@@ -191,6 +194,27 @@ class IdentityStore(Store):
                 raise AuthenticationError("Invalid credentials")
             db.execute("DELETE FROM identity_sessions WHERE actor_id = ?", (row[0],))
         return replacement
+
+    def set_admin(self, login: str, enabled: bool) -> None:
+        """Local provisioning command. Ordinary accounts have no admin membership."""
+        if type(enabled) is not bool:
+            raise ValueError("Invalid admin membership")
+        with self._write() as db:
+            row = db.execute("SELECT actor_id FROM identity_accounts WHERE login=?", (_login_name(login),)).fetchone()
+            if row is None:
+                raise ValueError("Unknown account")
+            if enabled:
+                db.execute("INSERT OR IGNORE INTO identity_admins(actor_id) VALUES (?)", row)
+            else:
+                db.execute("DELETE FROM identity_admins WHERE actor_id=?", row)
+
+    def can_view_costs(self, token: str, scope: Scope) -> bool:
+        """Recheck the live session and its chat before projecting an internal receipt."""
+        with self._lock:
+            actor, workspace = _principal(self._db, token)
+            if (actor, workspace) != (scope.actor_id, scope.workspace_id) or not _owns_chat(self._db, scope):
+                raise ChatUnavailable("Chat unavailable")
+            return self._db.execute("SELECT 1 FROM identity_admins WHERE actor_id=?", (actor,)).fetchone() is not None
 
     def validate_session(self, token: str) -> None:
         with self._lock:

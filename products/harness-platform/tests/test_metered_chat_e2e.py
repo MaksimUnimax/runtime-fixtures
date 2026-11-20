@@ -33,6 +33,7 @@ class MeteredChatAcceptance(unittest.TestCase):
         with IdentityStore(self.db) as store:
             for name in ("owner-a", "owner-b"):
                 store.create_account(name, self.password)
+                store.set_admin(name, True)
         initialize_grants(self.db)
         gateway = subprocess.Popen(
             ["node", str(PRODUCT / "tests/metered-chat-gateway.mjs"), str(self.db), str(self.journal)],
@@ -52,7 +53,8 @@ class MeteredChatAcceptance(unittest.TestCase):
             self.assertTrue(ready.select(8), "Gateway startup timed out")
         address = gateway.stdout.readline().strip()
         self.assertTrue(address.startswith("http://127.0.0.1:"))
-        self.enterContext(patch.dict(os.environ, {"HARNESS_OFFLINE_MODEL": "0", "HARNESS_MODEL_GATEWAY_URL": address}))
+        self.enterContext(patch.dict(os.environ, {"HARNESS_OFFLINE_MODEL": "0", "HARNESS_MODEL_GATEWAY_URL": address,
+                                                  "HARNESS_USAGE_JOURNAL": str(self.journal)}))
 
     def client(self):
         return TestClient(create_app(self.db, self.chats, composition_module="examples.reference_plugin"))
@@ -92,6 +94,8 @@ class MeteredChatAcceptance(unittest.TestCase):
             self.assertEqual(first["text"], "tool result received")
             self.assertEqual(second["text"], "answer to second fixture")
             self.assertNotEqual(first["operationId"], second["operationId"])
+            self.assertEqual(first["modelCost"], {"rub": "0.00144", "usd": "0.000018"})
+            self.assertEqual(second["modelCost"]["rub"], "0.00072")
             self.assertEqual(post(a, "different").status_code, 409)
             denied = client.post(f"/api/chats/{a[1]}/turns", headers=b[0], json={"requestId": "x", "text": "other"})
             self.assertEqual(denied.status_code, 404)
@@ -154,3 +158,39 @@ class MeteredChatAcceptance(unittest.TestCase):
                 db.execute("UPDATE native_model_dispatch SET active_until=0")
             self.assertEqual(client.post(url, headers=headers, json=body).json()["error"], "turn_unconfirmed")
             self.assertEqual(self.report()["unique_attempts"], 1)
+
+    def test_ordinary_chat_omits_internal_receipts_and_admin_role_is_live(self):
+        with IdentityStore(self.db) as identity:
+            identity.create_account("admin", self.password)  # A login name grants no role.
+        with self.client() as client:
+            headers, chat, _ = self.actor(client, "admin")
+            base = f"/api/chats/{chat}"
+            body = {"requestId": "private-receipt", "text": "ordinary"}
+            private = {"operationId", "modelCost", "adminCosts", "rub", "usd"}
+            def ordinary(response):
+                self.assertTrue(response.is_success or response.status_code == 409, response.text)
+                for key in private:
+                    self.assertNotIn('"' + key + '"', response.text)
+
+            with patch.object(client.app.state.admin_costs, "for_operations", side_effect=AssertionError):
+                ordinary(client.post(base + "/turns", headers=headers, json=body))
+                ordinary(client.get(base + "/messages", headers=headers))
+                ordinary(client.get(base + "/events?admin=true", headers=headers))
+                ordinary(client.post(base + "/turns", headers=headers, json={
+                    "requestId": "uncertain", "text": "uncertain fixture",
+                }))
+
+            cost = {"rub": "0.00072", "usd": "0.000009"}
+            with IdentityStore(self.db) as identity:
+                identity.set_admin("admin", True)
+            admin = client.get(base + "/messages", headers=headers).json()
+            self.assertEqual(admin[-1]["modelCost"], cost)
+            self.assertEqual(client.post(base + "/turns", headers=headers, json=body).json(), admin[-1])
+            other_headers, other_chat, _ = self.actor(client, "owner-b")
+            self.assertEqual(client.get(f"/api/chats/{other_chat}/messages", headers=headers).status_code, 404)
+            self.assertEqual(client.get(base + "/events", headers=other_headers).status_code, 404)
+            with IdentityStore(self.db) as identity:
+                identity.set_admin("admin", False)
+            ordinary(client.get(base + "/events", headers=headers))
+            ordinary(client.post(base + "/turns", headers=headers, json=body))
+        self.assertEqual(self.report()["unique_attempts"], 2)
