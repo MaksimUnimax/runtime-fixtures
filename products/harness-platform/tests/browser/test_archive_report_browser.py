@@ -60,10 +60,7 @@ class ArchiveReportBrowser(ProductBrowser):
         await check_report()
         await first.reload()
         await check_report()
-        await first.get_by_role("tab", name="Траектория").click()
-        await expect(first.locator('[data-slot="conversation.view"]')).to_contain_text(question)
-        await first.get_by_role("tab", name="Чат", exact=True).click()
-        await check_report()
+        await expect(first.get_by_role("tab", name="Траектория")).to_have_count(0)
 
         await self.send_turn(second, question)
         await expect(second.get_by_text("Действие недоступно",exact=False).first).to_be_visible(timeout=45_000)

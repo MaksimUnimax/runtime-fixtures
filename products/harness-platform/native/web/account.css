@@ -38,7 +38,7 @@ html,body,#root{height:100%;margin:0}
 /* This deployment has no companion right panel. */
 [data-sidebar-right-expand]{display:none!important}
 
-.chat-access{font:inherit;min-width:0;padding:3px 12px 5px}
+.chat-access{box-sizing:border-box;align-self:center;width:calc(100% - 2 * var(--dsh-composer-side-clearance,16px));max-width:var(--dsh-composer-card-max-width,100%);min-width:0;margin-inline:auto;padding:3px 0 5px;font:inherit}
 .chat-access-trigger{max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;border:0;border-radius:8px;padding:4px 8px;background:transparent;color:inherit;font:inherit;font-size:13px;cursor:pointer}
 .chat-access-trigger:hover,.chat-access-trigger:focus-visible{background:#edf2fb;color:#234ead}
 .chat-live{border-inline-start:2px solid #5880d8;padding:5px 12px;margin-bottom:6px}
@@ -103,3 +103,14 @@ html body[data-mode][data-ds-dark-theme] {
   text-decoration:none; overflow-wrap:anywhere; box-decoration-break:clone; -webkit-box-decoration-break:clone;
 }
 [data-chat-flow-kind] a[href]:hover { background:var(--dsw-alias-button-ghost-active-hover); }
+
+.account-dialog .auth-alternative,.account-dialog .account-primary {box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:100%;min-height:40px;text-align:center}
+.delete-chat-actions {display:flex;justify-content:flex-end;gap:8px}
+.service-settings .connection-guide ol {padding-inline-start:1.5rem}
+.connection-guide li + li {margin-top:.4rem}
+.thinking-dots {display:inline-flex}
+.thinking-dots span {animation:octo-think 1.2s ease-in-out infinite}
+.thinking-dots span:nth-child(2) {animation-delay:.16s}
+.thinking-dots span:nth-child(3) {animation-delay:.32s}
+@keyframes octo-think {0%,65%,100% {opacity:.45;transform:translateY(0)} 30% {opacity:1;transform:translateY(-.16em)}}
+@media(prefers-reduced-motion:reduce) {.thinking-dots span {animation:none}}

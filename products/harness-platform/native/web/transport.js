@@ -9,7 +9,7 @@ async function api(path, options) {
     const reason = {
       400: 'Проверьте введённые данные', 401: 'Требуется вход', 402: 'Недостаточно монет',
       403: 'Доступ запрещён', 404: detail.error === 'unavailable' ? 'Действие недоступно' : 'Чат недоступен',
-      409: 'Запрос требует сверки', 413: 'Сообщение слишком длинное',
+      409: detail.error === 'chat_busy' ? 'Дождитесь завершения запроса в этом чате.' : 'Запрос требует сверки', 413: 'Сообщение слишком длинное',
     };
     const error = new Error((path.startsWith('/api/integrations') && /[А-Яа-я]/.test(detail.error||'') ? detail.error : null) ?? reason[res.status] ?? 'Запрос не выполнен (' + res.status + ')');
     error.status = res.status;
@@ -73,6 +73,15 @@ export async function createTransport(data) {
   const openedAt = Date.now();
   const account = {guest, selected, panel:data.panel, error:data.error, recovery:data.recovery,
     canGrant:flags.canGrant, modelChoice:flags.modelChoice, api, changes, live, costs:new Map()};
+  account.deleteChat = async id => {
+    check(id);
+    try {await api('/api/chats/'+encodeURIComponent(id), {method:'DELETE'});}
+    catch (error) {if(error.status!==404) throw error;}
+    const index = ids.indexOf(id);
+    if (index >= 0) ids.splice(index,1);
+    changes.notify();
+    return ids.at(-1);
+  };
   const access = () => authorized(ids, guest);
   const view = () => ({items:[{workspaceId:workspace, path:'/personal', title:guest?'Справка octoport':'Мои чаты',
     sessionIds:[...ids], createdAt:'1970-01-01T00:00:00Z', updatedAt:'1970-01-01T00:00:00Z'}],
@@ -141,7 +150,7 @@ export async function createTransport(data) {
           value={items:ids.map(summary)};
           break;
         case 'settings/describe': {
-          // The pinned native settings schema enables the sanitized Trajectory view.
+          // The settings shell uses this read-only schema to mount account integrations.
           const schema={uid:2,refs:{1:{type:'boolean',meta:{default:true}},
             2:{type:'object',meta:{default:{}},dict:{enabled:1}}}};
           value={writable:false,hasDocument:false,namespaces:[{ns:'ui-settings',schema,autoGenerate:false,

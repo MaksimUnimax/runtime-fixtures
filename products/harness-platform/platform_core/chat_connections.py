@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 import httpx
+from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
@@ -37,7 +38,7 @@ def unseal(ws,provider,cid,blob):
     cipher=AESGCM(Path(os.environ["HARNESS_INTEGRATIONS_KEY_FILE"]).read_bytes())
     return json.loads(cipher.decrypt(blob[:12],blob[12:],json.dumps([ws,provider,cid]).encode()))
 
-def snapshot(db,scope):
+def snapshot(db,scope,*,describe_saved=False):
     if not _owns_chat(db,scope):
         raise PermissionError("Chat unavailable")
     rows=db.execute("""SELECT c.id,c.name,c.provider,c.status,g.connection_id IS NOT NULL,c.encrypted
@@ -46,8 +47,13 @@ def snapshot(db,scope):
     result=[]
     for cid,name,provider,status,attached,blob in rows:
         kinds=[]
-        if provider=="ozon" and attached:
-            fields=unseal(scope.workspace_id,provider,cid,blob)
+        if provider=="ozon" and (attached or describe_saved):
+            try:
+                fields=unseal(scope.workspace_id,provider,cid,blob)
+            except (KeyError, OSError, ValueError, InvalidTag):
+                if attached:
+                    raise
+                fields={}
             if "api_key" in fields: kinds.append("Ozon Seller")
             if "performance_secret" in fields: kinds.append("Ozon Performance")
         elif provider in ("wb","wordstat"):
@@ -66,7 +72,7 @@ def routes(token_for,body):
                 if type(data["enabled"]) is not bool or not isinstance(data["connectionId"],str):
                     raise ValueError("Invalid connection grant")
                 attach(db,scope,data["connectionId"],data["enabled"])
-            return JSONResponse({"connections":snapshot(db,scope)})
+            return JSONResponse({"connections":snapshot(db,scope,describe_saved=True)})
     return [Route("/api/chats/{chat_id}/integrations",connections,methods=["GET","POST"])]
 
 def read_service(provider, fields, action, args):

@@ -20,6 +20,26 @@ PROVIDERS = {
     "wb": {"title": "Wildberries", "fields": {"token": "API-токен WB с доступом к нужным отчётам (например, «Аналитика» и «Статистика»)"}},
     "wordstat": {"title": "Яндекс Вордстат", "fields": {"token": "OAuth-токен с доступом к Wordstat"}},
 }
+KEY_GUIDES = {
+    "Wildberries API": [
+        "Владелец магазина открывает в профиле WB Partners раздел «Интеграции по API» и нажимает «Создать токен».",
+        "Если Octoport есть в каталоге решений WB, выберите его и создайте сервисный токен. Для подключения вне каталога выберите базовый токен, укажите название Octoport, нужные категории отчётов и доступ «Только чтение». Для заказов и продаж нужна «Статистика».",
+        "Скопируйте токен при создании. В Octoport нажмите «Подключения» над полем сообщения → «Добавить подключение» → «Wildberries».",
+        "Введите название магазина, вставьте токен в поле «API-токен WB» и нажмите «Сохранить подключение». Магазин включится в этом чате.",
+    ],
+    "Ozon Seller": [
+        "В Ozon Seller откройте настройки магазина, перейдите в «API-ключи» → Seller API и скопируйте Client ID продавца.",
+        "Нажмите «Сгенерировать ключ», укажите название Octoport и выберите права чтения для нужных отчётов. Сгенерируйте и скопируйте ключ.",
+        "В Octoport нажмите «Подключения» над полем сообщения → «Добавить подключение» → «Ozon». Введите название магазина.",
+        "Вставьте Client ID в «Client-Id продавца», ключ в «Api-Key продавца» и нажмите «Сохранить подключение». Магазин включится в этом чате.",
+    ],
+    "Ozon Performance": [
+        "В настройках Ozon откройте «API-ключи» → Performance API. Выберите сервисный аккаунт или создайте его.",
+        "Откройте сервисный аккаунт, добавьте новый ключ и скопируйте Client ID и Client Secret.",
+        "В Octoport нажмите «Подключения» над полем сообщения → «Добавить подключение» → «Ozon». Для существующего магазина укажите его прежнее название.",
+        "Вставьте значения в «Client ID Performance» и «Client Secret Performance», затем нажмите «Сохранить подключение».",
+    ],
+}
 SECRET_TEXT = re.compile(r'(?i)(?:["\']?(?:api[-_ ]?key|client[-_ ]?secret|performance_secret|oauth[-_ ]?(?:token|токен)|токен|token|ключ)["\']?\s*[:=]\s*["\']?[\w./+=-]{5,}|(?:eyJ[\w-]{8,}\.[\w-]+\.[\w-]+|y0_[\w-]{12,}))')
 SCHEMA = """CREATE TABLE IF NOT EXISTS account_integrations(
     id TEXT PRIMARY KEY, workspace TEXT NOT NULL REFERENCES workspaces(workspace_id),
@@ -58,7 +78,7 @@ class IntegrationStore:
             db = self.identity._db
             _, ws = _principal(db, token)
             rows = db.execute("SELECT id,provider,name,status FROM account_integrations WHERE workspace=? ORDER BY name,id", (ws,))
-            return {"providers": PROVIDERS, "connections": [dict(zip(("id","provider","name","status"),row)) for row in rows]}
+            return {"providers": PROVIDERS, "keyGuides": KEY_GUIDES, "connections": [dict(zip(("id","provider","name","status"),row)) for row in rows]}
 
     def save(self, token, provider, name, fields, chatId=None):
         fields = credentials(provider, fields)

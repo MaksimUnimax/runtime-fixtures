@@ -21,6 +21,8 @@ class PublicFAQ:
                 ])
                 self._db.execute("UPDATE public_faq SET answer=? WHERE topic='price' AND answer=?",
                                  (cards["price"]["answer"], "Публичный тариф сервиса пока не опубликован."))
+                self._db.execute("UPDATE public_faq SET answer=replace(answer, ?, ?) WHERE instr(answer, ?) > 0",
+                                 ("«Создать аккаунт и сохранить чат»", "«Создать аккаунт»", "«Создать аккаунт и сохранить чат»"))
                 # Merge new expressions into published cards without replacing editorial changes.
                 row = self._db.execute("SELECT patterns FROM public_faq WHERE topic='features'").fetchone()
                 merged = list(dict.fromkeys([*json.loads(row[0]), *cards["features"]["patterns"]]))

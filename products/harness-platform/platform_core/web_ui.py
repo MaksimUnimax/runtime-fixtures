@@ -78,7 +78,7 @@ async def project_asset(request):
 
 _CLIENT_MODULES = {
     "dsh-client-modules", "dsh-client-ui-conversation",
-    "dsh-client-ui-chat", "dsh-client-ui-trajectory",
+    "dsh-client-ui-chat",
 }
 _FRONTEND_ASSETS = {
     "dist/assets/index-BgUyXZcc.js", "dist/assets/vendor-BUMdD3V7.js",

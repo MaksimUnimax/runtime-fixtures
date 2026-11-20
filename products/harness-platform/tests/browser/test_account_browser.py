@@ -98,6 +98,9 @@ class ProductBrowser(unittest.IsolatedAsyncioTestCase):
             f"{handle} HTTP {resp.status}: {browser_error(urlsplit(resp.url).path)}", flush=True)
             if resp.status >= 400 else None)
         await page.goto("/login")
+        login = page.get_by_role("dialog")
+        await expect(login.get_by_role("button", name="Продолжить как гость")).to_have_count(0)
+        await expect(login.get_by_role("link", name="Создать аккаунт", exact=True)).to_be_visible()
         await page.get_by_label("Логин", exact=True).fill(handle)
         await page.get_by_label("Пароль", exact=True).fill(self.password)
         async with page.expect_response(lambda res: res.request.is_navigation_request() and
@@ -196,6 +199,68 @@ class BrowserIsolation(ProductBrowser):
         self.assertEqual(urlsplit(page.url).path, urlsplit(direct_link).path)
         self.assertEqual(len(await (await page.request.get("/api/chats")).json()), 1)
 
+    async def test_chat_controls_and_store_setup(self):
+        page = await self.open_chat("first-browser")
+        chat_path = urlsplit(page.url).path
+        chat_id = chat_path.rsplit("/", 1)[1]
+        await self.send_turn(page, "Проверка интерфейса")
+        await expect(page.locator('[data-chat-flow-kind="assistant-step"]')).to_be_visible(timeout=45_000)
+        await expect(page.get_by_role("tab", name="Траектория")).to_have_count(0)
+        trigger = page.get_by_role("button", name="Подключения", exact=True)
+        for width in (1200, 390):
+            await page.set_viewport_size({"width": width, "height": 850})
+            await expect(trigger).to_be_visible()
+            # The sidebar switches layouts on resize. Compare both boxes in the same frame.
+            await page.wait_for_function("""width => {
+                const pill = document.querySelector('.chat-access-trigger');
+                const card = document.querySelector('[data-composer-input]')?.closest('.uV2eYG_card');
+                return innerWidth === width && pill && card &&
+                    Math.abs(pill.getBoundingClientRect().left - card.getBoundingClientRect().left) <= 2;
+            }""", arg=width, timeout=5000)
+        await page.set_viewport_size({"width": 1200, "height": 850})
+        await trigger.click()
+        await page.get_by_role("button", name="Добавить подключение").click()
+        dialog = page.get_by_role("dialog", name="Подключение сервиса")
+        for provider, title, field in (("wb", "Как получить токен Wildberries", "Только чтение"),
+                                       ("ozon", "Как получить ключи Ozon Seller", "Client-Id продавца"),
+                                       ("ozon", "Как получить ключи Ozon Performance", "Client Secret Performance")):
+            await dialog.get_by_label("Сервис", exact=True).select_option(provider)
+            await dialog.get_by_text(title, exact=True).click()
+            await expect(dialog.locator("details[open] ol").filter(has_text=field)).to_be_visible()
+        await dialog.get_by_role("button", name="Закрыть", exact=True).click()
+        row = page.locator(f'[data-row-key="session:{chat_id}"]')
+        await row.hover()
+        await row.locator("[data-context-menu-trigger]").click()
+        await page.get_by_text("Удалить чат", exact=True).click()
+        confirm = page.get_by_role("dialog", name="Удалить чат?")
+        await confirm.get_by_role("button", name="Отмена").click()
+        await expect(row).to_be_visible()
+        await row.hover()
+        await row.locator("[data-context-menu-trigger]").click()
+        await page.get_by_text("Удалить чат", exact=True).click()
+        await confirm.get_by_role("button", name="Удалить чат", exact=True).click()
+        await expect(page).not_to_have_url(re.compile(re.escape(chat_id) + "$"))
+        await expect(page.locator("[data-composer-input]").last).to_be_visible()
+        self.assertEqual((await page.request.get(chat_path)).status, 404)
+        self.assertNotIn(chat_id, await (await page.request.get("/api/chats")).json())
+
+    async def test_delete_background_chat_preserves_current_draft(self):
+        page = await self.open_chat("first-browser")
+        current = page.url
+        other = (await (await page.request.post("/api/chats", headers={"Origin": self.base_url})).json())["chatId"]
+        await page.reload()
+        composer = page.locator("[data-composer-input]").last
+        await composer.fill("Черновик в открытом чате")
+        row = page.locator(f'[data-row-key="session:{other}"]')
+        await row.hover()
+        await row.locator("[data-context-menu-trigger]").click()
+        await page.get_by_text("Удалить чат", exact=True).click()
+        await page.get_by_role("dialog", name="Удалить чат?").get_by_role("button", name="Удалить чат").click()
+        await expect(row).to_have_count(0)
+        await expect(page.get_by_role("dialog", name="Удалить чат?")).to_have_count(0)
+        await expect(page).to_have_url(current)
+        await expect(composer).to_have_text("Черновик в открытом чате")
+
     async def test_two_browser_profiles_keep_their_own_chat(self):
         first, second = await asyncio.gather(self.open_chat("first-browser"), self.open_chat("second-browser"))
         first_url, second_url = first.url, second.url
@@ -240,13 +305,7 @@ class BrowserIsolation(ProductBrowser):
             await expect(history).to_contain_text(f"Тестовая модель (ход 2): {followups[i]}", timeout=45_000)
             await expect(history).to_contain_text(f"Предыдущее сообщение: {markers[i]}")
             await expect(history).not_to_contain_text(markers[1 - i])
-            await page.get_by_role("tab", name="Траектория", exact=True).click()
-            trajectory = page.locator('[data-slot="conversation.view"]')
-            table = trajectory.get_by_role("table")
-            await expect(table).to_be_visible(timeout=20_000)
-            await expect(table.get_by_role("row").filter(has_text=markers[i]).first).to_be_visible()
-            await expect(table).not_to_contain_text(markers[1 - i])
-            await page.get_by_role("tab", name="Чат", exact=True).click()
+            await expect(page.get_by_role("tab", name="Траектория", exact=True)).to_have_count(0)
             await expect(page.locator('[data-slot="conversation.view"]')).to_contain_text(followups[i])
 
         denied = await second.goto(first_url)
@@ -290,7 +349,7 @@ class BrowserIsolation(ProductBrowser):
         self.assertEqual(denied.status, 404)
         await expect(other.locator("body")).not_to_contain_text(marker)
 
-        await page.get_by_role("link", name="Создать аккаунт и сохранить чат").click()
+        await page.get_by_role("link", name="Создать аккаунт").click()
         await page.get_by_label("Логин", exact=True).fill("guest-browser")
         await page.get_by_label("Пароль", exact=True).fill("test11chars")
         await page.get_by_text("Код восстановления",exact=True).click()

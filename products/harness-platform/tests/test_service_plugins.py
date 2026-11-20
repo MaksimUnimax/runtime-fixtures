@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 from starlette.testclient import TestClient
@@ -37,6 +37,74 @@ class ServicePlugins(unittest.TestCase):
 
     def client(self):
         return TestClient(create_app(self.db,self.root/"chats"))
+
+    def test_turn_receives_store_setup_steps_for_missing_access(self):
+        with self.client() as client:
+            worker = client.app.state.worker
+            route = "/api/chats/" + self.chat
+            result = {"role": "assistant", "text": "ok", "requestId": "guide-test"}
+            with patch.object(worker, "request", AsyncMock(return_value=result)) as dispatch:
+                def context():
+                    client.post(route + "/turns", headers=self.headers,
+                                json={"requestId": "guide-test", "text": "Продажи WB"}).raise_for_status()
+                    return dispatch.await_args.kwargs
+                empty = context()
+                self.assertEqual(empty["availableServices"], [])
+                self.assertIn("Wildberries API", empty["connectionGuides"])
+                self.assertIn("Ozon Seller", empty["connectionGuides"])
+                cid = client.post("/api/integrations", headers=self.headers, json={
+                    "provider":"wb", "name":"WB", "fields":{"token":"test-private-token"}
+                }).json()["id"]
+                saved = context()
+                self.assertIn({"provider":"wb", "access":["Wildberries API"]}, saved["availableServices"])
+                self.assertNotIn("Wildberries API", saved["connectionGuides"])
+                client.post(route + "/integrations", headers=self.headers,
+                            json={"connectionId":cid, "enabled":True}).raise_for_status()
+                active = context()
+                self.assertEqual(active["connections"][0]["id"], cid)
+                self.assertNotIn("Wildberries API", active["connectionGuides"])
+                self.assertNotIn("test-private-token", str(active))
+                client.post("/api/integrations", headers=self.headers, json={
+                    "provider":"ozon", "name":"Реклама", "fields":{"performance_id":"perf-id","performance_secret":"perf-secret"}
+                }).raise_for_status()
+                partial = context()
+                self.assertEqual(partial["availableServices"], [{"provider":"ozon","access":["Ozon Performance"]}])
+                self.assertIn("Ozon Seller", partial["connectionGuides"])
+                self.assertNotIn("Ozon Performance", partial["connectionGuides"])
+                self.assertNotIn("perf-secret", str(partial))
+                self.assertNotIn("Реклама", str(partial["availableServices"]))
+
+    @unittest.skipUnless(os.getenv("HARNESS_NODE_MODULES"), "requires native Harness")
+    def test_chat_deletion_keeps_other_histories_account_keys_and_receipts(self):
+        import sqlite3
+        with self.client() as client:
+            route = "/api/chats/" + self.chat
+            other = client.post("/api/chats", headers=self.headers).json()["chatId"]
+            connection = client.post("/api/integrations", headers=self.headers, json={
+                "provider":"wb","name":"Store","fields":{"token":"test-private-token"},"chatId":self.chat,
+            }).json()["id"]
+            for chat, text in ((self.chat,"delete my message"), (other,"keep my message")):
+                client.post("/api/chats/" + chat + "/messages", headers=self.headers,
+                            json={"requestId":"seed", "text":text}).raise_for_status()
+            with sqlite3.connect(self.db) as db:
+                actor, workspace = db.execute("SELECT actor_id,workspace_id FROM identity_accounts WHERE login='owner'").fetchone()
+                db.execute("INSERT INTO usage_operations VALUES (?,?,?,?,?,?)",
+                           ("historical-op",actor,workspace,self.chat,"chat.turn","seed"))
+            balance = client.get("/api/wallet", headers=self.headers).json()["available"]
+            self.assertEqual(client.delete(route).status_code, 401)
+            self.assertEqual(client.delete(route, headers=self.other).status_code, 404)
+            client.delete(route, headers=self.headers).raise_for_status()
+            self.assertEqual(client.get(route+"/events", headers=self.headers).status_code, 404)
+            self.assertEqual(client.delete(route, headers=self.headers).status_code, 404)
+            self.assertEqual(client.get("/api/chats", headers=self.headers).json(), [other])
+            self.assertIn("keep my message", client.get("/api/chats/"+other+"/messages", headers=self.headers).text)
+            self.assertEqual(client.get("/api/integrations", headers=self.headers).json()["connections"][0]["id"], connection)
+            self.assertEqual(client.get("/api/wallet", headers=self.headers).json()["available"], balance)
+            with sqlite3.connect(self.db) as db:
+                self.assertEqual(db.execute("SELECT count(*) FROM chat_integrations WHERE chat_id=?", (self.chat,)).fetchone()[0], 0)
+                self.assertEqual(db.execute("SELECT count(*) FROM usage_operations WHERE operation_id='historical-op'").fetchone()[0], 1)
+            with sqlite3.connect(self.root / "chats" / "native-chats.sqlite3") as db:
+                self.assertEqual(db.execute("SELECT input FROM native_batches").fetchall(), [("keep my message",)])
 
     def test_admin_rotates_independent_provider_keys(self):
         from platform_core import provider_keys

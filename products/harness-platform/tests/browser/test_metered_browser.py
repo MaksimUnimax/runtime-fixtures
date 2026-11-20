@@ -66,6 +66,9 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
                 await page.get_by_role("button", name="Отправить сообщение", exact=True).click()
                 if text=="browser fixture":
                     await expect(page.locator("[data-live-turn=thinking]")).to_be_visible(timeout=20_000)
+                    dots = page.locator("[data-live-turn=thinking] .thinking-dots span")
+                    await expect(dots).to_have_count(3)
+                    self.assertEqual(await dots.first.evaluate("(el) => getComputedStyle(el).animationName"), "octo-think")
                     await expect(page.locator("[data-live-turn=thinking]")).not_to_contain_text("private fixture trace")
                     await expect(page.locator("[data-live-turn=writing]")).to_contain_text("answer to", timeout=20_000)
                     await expect(page.locator("[data-live-turn=writing]")).not_to_contain_text("browser fixture")

@@ -214,12 +214,21 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         scope = await run_in_threadpool(
             req.app.state.identity.resolve_chat, token, req.path_params["chat_id"],
         )
+        if action == "deleteChat":
+            return JSONResponse(await req.app.state.worker.request(scope, action))
         if action in ("turn","tools","call"):
             identity=req.app.state.identity
             with identity._lock:
-                rows=chat_connections.snapshot(identity._db,scope)
+                rows=chat_connections.snapshot(identity._db,scope,describe_saved=(action == "turn"))
             data["connections"]=[r for r in rows if r["attached"]]
-            data["availableServices"]=sorted({r["provider"] for r in rows if not r["attached"]})
+            data["availableServices"]=[{"provider":r["provider"], "access":r["access"]}
+                                       for r in rows if not r["attached"]]
+            if action == "turn":
+                saved_access = {kind for row in rows for kind in row["access"]}
+                data["connectionGuides"] = {
+                    kind: steps for kind, steps in integrations.KEY_GUIDES.items()
+                    if kind not in saved_access
+                }
         if await run_in_threadpool(req.app.state.identity.has_claimed_guest_turns, scope):
             data["claimedGuest"] = True
         turn,owner=(None,False)
@@ -249,7 +258,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         if isinstance(exc, ChatUnavailable):
             return JSONResponse({"error": "Chat unavailable"}, status_code=404)
         if isinstance(exc, WorkerError):
-            statuses = {"invalid_request": 400, "conflict": 409, "unavailable": 404, "busy": 503,
+            statuses = {"invalid_request": 400, "chat_busy": 409, "conflict": 409, "unavailable": 404, "busy": 503,
                         "result_too_large": 502, "turn_unconfirmed": 409, "payment_required": 402}
             status = statuses.get(exc.code, 503)
             body = {"error": exc.code if exc.code in statuses else "worker_unavailable"}
@@ -276,6 +285,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         Route("/api/logout", logout, methods=["POST"]),
         Route("/api/recover", recover, methods=["POST"]),
         Route("/api/chats", chats, methods=["GET", "POST"]),
+        Route("/api/chats/{chat_id}", partial(scoped, action="deleteChat"), methods=["DELETE"]),
         Route("/api/chats/{chat_id}/events", partial(scoped, action="events")),
         Route("/api/chats/{chat_id}/messages", partial(scoped, action="history")),
         Route("/api/chats/{chat_id}/messages", partial(scoped, action="append"), methods=["POST"]),

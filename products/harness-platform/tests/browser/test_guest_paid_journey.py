@@ -108,7 +108,7 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(db.execute("SELECT count(*) FROM usage_operations").fetchone()[0], 0)
 
         password = secrets.token_urlsafe(32)
-        await page.get_by_role("link", name="Создать аккаунт и сохранить чат").click()
+        await page.get_by_role("link", name="Создать аккаунт").click()
         await page.get_by_label("Логин", exact=True).fill("buyer")
         await page.get_by_label("Пароль", exact=True).fill(password)
         await page.get_by_role("button", name="Зарегистрироваться и открыть чат").click()
