@@ -53,6 +53,23 @@ def wait_result(due, limited):
             "retryAt": due}
 
 
+def retry_time(headers, now, wildberries=False):
+    """Earliest permitted provider retry, including WB's delay in seconds."""
+    if not headers:
+        return None
+    times = []
+    for name in (("Retry-After", "X-Ratelimit-Retry") if wildberries else ("Retry-After",)):
+        raw = (headers.get(name) or "").strip()
+        try:
+            if raw.isascii() and raw.isdigit():
+                times.append(now + int(raw))
+            elif raw and name == "Retry-After":
+                times.append(parsedate_to_datetime(raw).timestamp())
+        except (OverflowError, OSError, TypeError, ValueError):
+            continue
+    return max(times, default=None)
+
+
 def profile_currency(authority, store):
     from finance_stock import CURRENCIES
     from http_transport import MATRICES, read_response
@@ -78,12 +95,7 @@ def profile_currency(authority, store):
                     "reason": f"{market} вернул HTTP {error.code} при чтении валюты кабинета."}) from None
             now = time.time()
             due = now + RATE_LIMIT_RETRY_SECONDS
-            header = error.headers.get("Retry-After", "") if error.headers else ""
-            try:
-                earliest = now + int(header) if header.isascii() and header.isdigit() else parsedate_to_datetime(header).timestamp()
-                due = max(due, earliest)
-            except (OverflowError, TypeError, ValueError):
-                pass
+            due = max(due, retry_time(error.headers, now, store.platform == "wb") or 0)
             if due >= authority.deadline:
                 raise ProfileError(wait_result(due, True)) from None
             time.sleep(max(0, due - time.time()))
