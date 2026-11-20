@@ -67,8 +67,7 @@ export async function createTransport(data) {
   const running = new Set();
   const pending = new Map();
   const live = new LiveTurns();
-  // An unread chat is distinct from a chat confirmed empty by the server.
-  const hasHistory = new Map();
+  const nonempty = new Set(ids);
   const titles = new Map(), updated = new Map();
   const openedAt = Date.now();
   const account = {guest, selected, panel:data.panel, error:data.error, recovery:data.recovery,
@@ -77,10 +76,7 @@ export async function createTransport(data) {
   const view = () => ({items:[{workspaceId:workspace, path:'/personal', title:guest?'Справка octoport':'Мои чаты',
     sessionIds:[...ids], createdAt:'1970-01-01T00:00:00Z', updatedAt:'1970-01-01T00:00:00Z'}],
     archivedSessionIds:[], pinnedSessionIds:[]});
-  const projection = (id,seq=-1) => ({asOfSeq:seq, values:{
-    title:titles.get(id) ?? (guest?'Справка octoport':label(id)), cwd:'/personal',
-    ...(hasHistory.has(id) ? {sessionListMetadata:{blank:!hasHistory.get(id)}} : {})
-  }});
+  const projection = (id,seq=-1) => ({asOfSeq:seq, values:{title:titles.get(id) ?? (guest?'Справка octoport':label(id)), cwd:'/personal'}});
   const failure = (message) => ({ok:false,error:{code:'gateway/method-unavailable',message,details:{}}});
   function check(id) { if (!ids.includes(id)) throw new Error('Чат недоступен'); }
   async function page(id, before, signal) {
@@ -110,11 +106,11 @@ export async function createTransport(data) {
       records.push({type:'event',event});
     }
     if (records.length) {
-      hasHistory.set(id,true);
+      nonempty.add(id);
       const last = records.at(-1).event.time;
       updated.set(id,Math.max(updated.get(id) ?? 0,last));
     } else if (before == null) {
-      hasHistory.set(id,false);
+      nonempty.delete(id);
     }
     const first = records[0]?.event.seq;
     if (result.nextBefore!=null && first!=null) cuts.set(id+'|'+(first-1),result.nextBefore);
@@ -122,16 +118,22 @@ export async function createTransport(data) {
     if (!guest && result.nextBefore==null && firstUser) titles.set(id,firstUser.data.content[0].text.slice(0,64));
     return {records,hasMore:result.nextBefore!=null};
   }
+  // The native client needs the first page to distinguish an existing conversation
+  // from an empty one. Start it alongside the UI and share it with the first subscriber.
+  let opening = selected ? page(selected,null).then(value => ({value}), error => ({error})) : null;
   const params = payload => payload.args.request ?? payload.args.input ?? payload.args;
   function summary(id) { return {agentAvailable:true,sessionId:id,updatedAt:updated.get(id) ?? openedAt,running:running.has(id),
-    blank:!hasHistory.get(id),cwd:'/personal',projections:{kind:'cached',...projection(id)}}; }
+    blank:!nonempty.has(id),cwd:'/personal',projections:{kind:'cached',...projection(id)}}; }
   async function call(channel, endpoint, payload, signal) {
     if (channel !== '/api') return failure('Действие недоступно');
     const p=params(payload);
     try {
       let value;
       switch(endpoint) {
-        case 'session/list': value={items:ids.map(summary)}; break;
+        case 'session/list':
+          await opening;
+          value={items:ids.map(summary)};
+          break;
         case 'settings/describe': {
           // The pinned native settings schema enables the sanitized Trajectory view.
           const schema={uid:2,refs:{1:{type:'boolean',meta:{default:true}},
@@ -141,9 +143,9 @@ export async function createTransport(data) {
         }
         case 'session/create': {
           if(guest){ if(!ids.length) throw new Error('Требуется вход'); value={sessionId:ids[0]}; break;}
-          if(hasHistory.get(p.sessionId) === false) {value={sessionId:p.sessionId};break;}
+          if(ids.includes(p.sessionId) && !nonempty.has(p.sessionId)) {value={sessionId:p.sessionId};break;}
           const {chatId}=await api('/api/chats',{method:'POST',signal});
-          ids.push(chatId); hasHistory.set(chatId,false); changes.notify(); value={sessionId:chatId}; break;
+          ids.push(chatId); changes.notify(); value={sessionId:chatId}; break;
         }
         case 'session/projections': check(p.sessionId); value={kind:'sequenced',...projection(p.sessionId)}; break;
         case 'session/page': {
@@ -177,7 +179,7 @@ export async function createTransport(data) {
               await api(url,guest ? {method:'POST',signal,headers:{Accept:'application/json'},
                   body:new URLSearchParams({text,request_id:turn.requestId})} :
                 {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:turn.requestId,text})});
-              hasHistory.set(id,true);
+              nonempty.add(id);
               if(!guest){
                 const view=live.views.get(id);
                 if(view?.rid===turn.requestId)live.update(id,{...view,committed:true});
@@ -224,7 +226,15 @@ export async function createTransport(data) {
           finally {live.clear(id,requestId);changes.notify();}
         }).catch(()=>{}).finally(()=>signal.removeEventListener('abort',abort));
       }
-      let window=await page(id,null,signal);
+      let first;
+      if (id === selected && opening) {
+        const request = opening;
+        first = await request;
+        if (signal.aborted) return;
+        if (opening === request) opening = null;
+        if (first.error) throw first.error;
+      }
+      let window=first?.value ?? await page(id,null,signal);
       let seq=window.records.at(-1)?.event.seq ?? -1;
       if(live.views.get(id)?.committed)live.clear(id,live.views.get(id).rid);
       yield {type:'snapshot',header:{version:3,id,createdAt:0,cwd:'/personal',isSeeded:false},
