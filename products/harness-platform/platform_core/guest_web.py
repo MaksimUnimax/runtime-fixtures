@@ -1,19 +1,17 @@
 """Public help chat and same-origin self-registration forms."""
 
-from starlette.responses import JSONResponse
-from html import escape
 
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
-from starlette.responses import HTMLResponse
+from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from .browser_session import (
-    BROWSER_BACK_SCRIPT, _PRIVATE_HEADERS, _cookie_name, _form_fields, _redirect,
+    _cookie_name, _form_fields, _redirect,
     _secure, browser_token, clear_guest_cookie, guest_cookie, require_browser_origin,
 )
 from .guest_registration import GUEST_LIFETIME, RegistrationConflict
-from .identity import AuthenticationError, ChatUnavailable
+from .identity import AuthenticationError
 
 
 async def _account_target(request):
@@ -84,11 +82,11 @@ async def register(request):
     try:
         session, chat = await run_in_threadpool(identity.register, token, **fields)
     except RegistrationConflict:
-        return await page(request, panel="register", error= "Этот логин уже занят или регистрация завершена. Выберите другой логин или войдите.", status=409)
+        return await page(request, panel="register", error="Этот логин уже занят или регистрация завершена. Выберите другой логин или войдите.", status=409)
     except AuthenticationError:
         return await page(request, panel="register", error="Сессия регистрации истекла", status=401)
     except ValueError:
-        return await page(request, panel="register", error= "Проверьте логин и длину пароля.", status=400)
+        return await page(request, panel="register", error="Проверьте логин и длину пароля.", status=400)
     secure = _secure(request)
     response = _redirect(f"/app/chats/{chat}")
     response.set_cookie(_cookie_name(secure), session, path="/", secure=secure, httponly=True, samesite="strict")

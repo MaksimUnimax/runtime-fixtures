@@ -6,13 +6,12 @@ from pathlib import Path
 
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
-from starlette.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from starlette.responses import FileResponse, Response
 from starlette.routing import Route
 
-from .browser_session import browser_token, guest_cookie
+from .browser_session import _secure, browser_token, guest_cookie
 from .identity import AuthenticationError, ChatUnavailable
 from .native_web import shell, module_file, HEADERS, UI
-from .browser_session import _secure
 from .guest_registration import GUEST_LIFETIME
 from .native_ui_entry import browser_entry
 

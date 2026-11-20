@@ -3,7 +3,15 @@ async function api(path, options) {
   const res = await fetch(path, {credentials:'same-origin', cache:'no-store', ...options});
   if (!res.ok) {
     if (res.status === 401 && !document.body.dataset.panel) location.replace('/login');
-    throw new Error(({402:'Недостаточно монет',403:'Доступ запрещён',404:'Чат недоступен',409:'Запрос требует сверки',413:'Сообщение слишком длинное'})[res.status] ?? 'Запрос не выполнен (' + res.status + ')');
+    const detail = await res.json().catch(() => ({}));
+    const reason = {
+      400: 'Проверьте введённые данные', 401: 'Требуется вход', 402: 'Недостаточно монет',
+      403: 'Доступ запрещён', 404: detail.error === 'unavailable' ? 'Действие недоступно' : 'Чат недоступен',
+      409: 'Запрос требует сверки', 413: 'Сообщение слишком длинное',
+    };
+    const error = new Error(reason[res.status] ?? 'Запрос не выполнен (' + res.status + ')');
+    error.status = res.status;
+    throw error;
   }
   return res.json();
 }
@@ -52,6 +60,7 @@ export async function createTransport(data) {
   const changes = new Changes();
   const cuts = new Map();
   const running = new Set();
+  const pending = new Map();
   const nonempty = new Set(ids.filter(id=>id!==selected));
   const opening = new Map();
   const titles = new Map(), updated = new Map();
@@ -136,15 +145,26 @@ export async function createTransport(data) {
           if (!Array.isArray(p.content)||!p.content.length||p.content.some(part=>part.type!=='text'))
             throw new Error('Доступны текстовые сообщения');
           const text=p.content.map(part=>part.text).join('\n');
+          const limit = account.limit || account.wallet?.turnLimit;
+          let turn = pending.get(id);
+          if (!turn || turn.text !== text || turn.limit !== limit) {
+            turn = {text, limit, requestId:p.requestId};
+            pending.set(id, turn);
+          }
           running.add(id);
           try {
             if(guest) await api('/guest/chats/'+encodeURIComponent(id)+'/turns',{method:'POST',signal,
-              headers:{'Accept':'application/json'}, body:new URLSearchParams({text,request_id:p.requestId})});
+              headers:{'Accept':'application/json'}, body:new URLSearchParams({text,request_id:turn.requestId})});
             else await api('/api/chats/'+encodeURIComponent(id)+'/turns',{method:'POST',signal,
-              headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:p.requestId,text,maxCoins:account.limit || account.wallet.turnLimit})});
+              headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:turn.requestId,text,maxCoins:limit})});
             nonempty.add(id);
             if(!guest) api('/api/wallet').then(w=>{account.wallet=w;}).catch(()=>{});
+            pending.delete(id);
             value={accepted:true};
+          } catch (error) {
+            // Keep the request identity when a paid request may already have reached the provider.
+            if ([400,401,402,403,404,413].includes(error.status)) pending.delete(id);
+            throw error;
           } finally { running.delete(id); changes.notify(); }
           break;
         }

@@ -5,13 +5,12 @@ from urllib.parse import parse_qsl
 
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
-from starlette.responses import HTMLResponse, RedirectResponse, Response
+from starlette.responses import RedirectResponse, Response
 from starlette.routing import Route
 
 from .identity import AuthenticationError
 
 
-BROWSER_BACK_SCRIPT = '<script src="/session-nav.js"></script>'
 _NAVIGATION_JS = """
 window.addEventListener("pagehide", () => {
   document.documentElement.hidden = true;

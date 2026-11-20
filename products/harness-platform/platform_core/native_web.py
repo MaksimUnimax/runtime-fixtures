@@ -9,7 +9,6 @@ from pathlib import Path
 from starlette.exceptions import HTTPException
 from starlette.responses import HTMLResponse, FileResponse, Response
 
-from .native_ui_entry import browser_entry
 from .browser_session import _PRIVATE_HEADERS
 
 UI = Path(__file__).resolve().parents[1] / "native" / "web"
