@@ -82,6 +82,14 @@ window.__ModuleLoader__.load({
       function Cost({seq,sessionId}) {
         const cost=a.costs.get(sessionId+'|'+seq);
         if(!cost) return null;
+        if ('coins' in cost) {
+          const t=cost.tokens, labels=[];
+          if(t) labels.push('Вход '+t.input,'Кэш '+t.cache,'Выход '+t.output,'Всего '+(t.input+t.cache+t.output)+' токенов');
+          if(cost.rub!==null)labels.push(cost.rub.replace('.',',')+' ₽');
+          labels.push('Списано '+cost.coins.replace('.',',')+' монет');
+          if(cost.pending)labels.push('На сверке');
+          return h('small',{className:'model-cost'},labels.join(' · '));
+        }
         const amount=cost.rub ?? cost.usd;
         return h('small',{className:'model-cost'},amount ?
           'Оценка стоимости · '+amount.replace('.',',')+(cost.rub?' ₽':' USD') : 'Оценка стоимости пока недоступна');

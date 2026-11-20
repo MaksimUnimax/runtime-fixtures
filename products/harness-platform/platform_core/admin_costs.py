@@ -66,16 +66,21 @@ def present_chat(identity, costs, token, scope, action, result):
     references = []
     for message in messages:
         message.pop("modelCost", None)
+        message.pop("modelUsage", None)
         operation = message.pop("operationId", None)
         if operation is not None:
             references.append((message, operation))
     if not identity.can_view_costs(token, scope):
         return result
     if references:
-        rows = costs.for_operations(scope.workspace_id, {key for _, key in references})
+        ids = {key for _, key in references}
+        receipts = identity.chat_receipts(scope, ids)
+        rows = costs.for_operations(scope.workspace_id, ids)
         if not identity.can_view_costs(token, scope):
             return result
         for message, key in references:
+            if key in receipts:
+                message["modelUsage"] = receipts[key]
             message["operationId"] = key
             message["modelCost"] = rows.get(key, {"rub": None, "usd": None})
     if action == "events":

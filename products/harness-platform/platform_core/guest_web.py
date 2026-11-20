@@ -58,6 +58,9 @@ async def send_turn(request):
     token = request.cookies.get(guest_cookie(request))
     chat = request.path_params["chat"]
     fields = await _form_fields(request, {"text", "request_id"}, max_bytes=32 * 1024)
+    from .integrations import SECRET_TEXT
+    if SECRET_TEXT.search(fields["text"]):
+        raise HTTPException(400,"Для подключения сервиса войдите в аккаунт")
     try:
         await run_in_threadpool(request.app.state.identity.guest_turn, token, chat, **fields)
     except RegistrationConflict:

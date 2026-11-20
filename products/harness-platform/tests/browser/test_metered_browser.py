@@ -72,9 +72,9 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("operationId", ordinary)
         await expect(regular.locator(".model-cost")).to_have_count(0)
         label = page.locator('.model-cost')
-        await expect(label).to_have_text("Оценка стоимости · 0,00072 ₽")
+        await expect(label).to_have_text("Вход 10 · Кэш 0 · Выход 5 · Всего 15 токенов · 0,00072 ₽ · Списано 0,00072 монет")
         await page.reload()
-        await expect(label).to_have_text("Оценка стоимости · 0,00072 ₽", timeout=30_000)
+        await expect(label).to_have_text("Вход 10 · Кэш 0 · Выход 5 · Всего 15 токенов · 0,00072 ₽ · Списано 0,00072 монет", timeout=30_000)
         chat = page.url.rsplit("/", 1)[-1]
         events = await (await page.request.get(f"/api/chats/{chat}/events")).json()
         self.assertEqual(events["messages"][-1]["operationId"], receipt["operationId"])

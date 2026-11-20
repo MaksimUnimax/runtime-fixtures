@@ -14,6 +14,8 @@ PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes
 WorkingDirectory=/opt/harness-prod/current/products/harness-platform
+LoadCredential=integrations:/etc/harness-prod/integrations.key
+Environment=HARNESS_INTEGRATIONS_KEY_FILE=%d/integrations
 LoadCredential=model-relay:/etc/harness-native-lab/gateway.key
 Environment=HARNESS_PROVIDER_RELAY_KEY_FILE=%d/model-relay
 Environment=HARNESS_PROVIDER_RELAY_URL=http://127.0.0.1:18442
