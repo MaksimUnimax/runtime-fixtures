@@ -210,8 +210,13 @@ class BrowserIsolation(ProductBrowser):
         for width in (1200, 390):
             await page.set_viewport_size({"width": width, "height": 850})
             await expect(trigger).to_be_visible()
-            card = page.locator(".uV2eYG_card").last
-            self.assertAlmostEqual((await trigger.bounding_box())["x"], (await card.bounding_box())["x"], delta=2)
+            # The sidebar switches layouts on resize. Compare both boxes in the same frame.
+            await page.wait_for_function("""width => {
+                const pill = document.querySelector('.chat-access-trigger');
+                const card = document.querySelector('[data-composer-input]')?.closest('.uV2eYG_card');
+                return innerWidth === width && pill && card &&
+                    Math.abs(pill.getBoundingClientRect().left - card.getBoundingClientRect().left) <= 2;
+            }""", arg=width, timeout=5000)
         await page.set_viewport_size({"width": 1200, "height": 850})
         await trigger.click()
         await page.get_by_role("button", name="Добавить подключение").click()
