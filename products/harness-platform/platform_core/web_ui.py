@@ -26,19 +26,20 @@ _PROJECT_UI = _PRODUCT / "native" / "web"
 async def page(request, *, panel="", error="", status=200):
     identity = request.app.state.identity
     chat = request.path_params.get("chat_id", "")
-    try:
-        token = browser_token(request) if request.method in {"GET", "HEAD"} else None
-        activity = await run_in_threadpool(identity.chat_activity, token, request.app.state.worker.journal)
-        router = request.app.state.model_router
-        account = {"chats": list(activity), "activity": activity, "canGrant": await run_in_threadpool(identity.is_admin, token),
-                   "modelChoice": router is not None and router.available()}
-        if chat:
-            await run_in_threadpool(identity.resolve_chat, token, chat)
-        return shell(chat=chat, account=account, status=status)
-    except ChatUnavailable:
-        return shell(panel="notice", error="Чат недоступен", account=account, status=404)
-    except AuthenticationError:
-        pass
+    if request.method in {"GET", "HEAD"}:
+        try:
+            token = browser_token(request)
+            activity = await run_in_threadpool(identity.chat_activity, token, request.app.state.worker.journal)
+            router = request.app.state.model_router
+            account = {"chats": list(activity), "activity": activity, "canGrant": await run_in_threadpool(identity.is_admin, token),
+                       "modelChoice": router is not None and router.available()}
+            if chat:
+                await run_in_threadpool(identity.resolve_chat, token, chat)
+            return shell(chat=chat, account=account, status=status)
+        except ChatUnavailable:
+            return shell(panel="notice", error="Чат недоступен", account=account, status=404)
+        except AuthenticationError:
+            pass
     cookie = guest_cookie(request)
     guest = request.cookies.get(cookie)
     try:
