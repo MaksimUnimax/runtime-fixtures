@@ -45,6 +45,7 @@ def publish(source, destination):
                 current = ' aria-current="page"' if target == name else ""
                 links.append(f'<a href="{route(target)}"{current}>{escape(caption)}</a>')
             html = template.substitute(label=label, title=title, description=description, version=version,
+                                       seller=(CONTENT / "seller-footer.html").read_text() if name == "index" else "",
                                        navigation="\n".join(links), content=(CONTENT / f"{name}.html").read_text(),
                                        canonical="https://octoport.ru" + route(name))
             (info / f"{name}.html").write_text(html)

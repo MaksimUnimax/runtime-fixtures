@@ -73,7 +73,7 @@ export async function createTransport(data) {
   const activityEvents = new EventTarget();
   const titles = new Map(), updated = new Map(Object.entries(activity));
   const account = {guest, selected, panel:data.panel, error:data.error, recovery:data.recovery,
-    canGrant:flags.canGrant, modelChoice:flags.modelChoice, api, changes, live, activityEvents, costs:new Map()};
+    balanceEvents:new EventTarget(), canGrant:flags.canGrant, modelChoice:flags.modelChoice, api, changes, live, activityEvents, costs:new Map()};
   function recordActivity(id, at) {
     if (!ids.includes(id) || !Number.isSafeInteger(at) || at <= (updated.get(id) ?? 0)) return;
     updated.set(id, at);
@@ -220,6 +220,7 @@ export async function createTransport(data) {
             } finally {
               controller.abort();
               running.delete(id);
+              if (!guest) account.balanceEvents.dispatchEvent(new Event('refresh'));
               changes.notify();
             }
           })();
@@ -251,7 +252,7 @@ export async function createTransport(data) {
           if(!requestId || signal.aborted || live.views.has(id))return;
           live.update(id,{rid:requestId,stage:'model',text:''});
           try {await live.watch(id,requestId,controller.signal);}
-          finally {live.clear(id,requestId);changes.notify();}
+          finally {live.clear(id,requestId);changes.notify();account.balanceEvents.dispatchEvent(new Event('refresh'));}
         }).catch(()=>{}).finally(()=>signal.removeEventListener('abort',abort));
       }
       let window;

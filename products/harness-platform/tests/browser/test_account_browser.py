@@ -186,6 +186,10 @@ class BrowserIsolation(ProductBrowser):
         await page.get_by_role("button", name="Баланс", exact=True).click()
         await expect(page.locator(".wallet-amount")).to_be_visible()
         self.assertIn("/api/wallet", requests)
+        wallet = await (await page.request.get("/api/wallet/balance")).json()
+        await expect(page.locator(".sidebar-coins:visible").first).to_contain_text(wallet["available"].replace(".", ","))
+        await page.get_by_role("link", name="Пополнить баланс").click()
+        await expect(page.get_by_role("heading", name="Пополнение баланса")).to_be_visible()
 
     async def test_failed_chat_module_can_retry_the_same_direct_link(self):
         page = await self.open_chat("first-browser")
