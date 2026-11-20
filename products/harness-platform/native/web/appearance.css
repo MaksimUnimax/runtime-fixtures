@@ -1,6 +1,7 @@
 /* Values shared by the pinned native Button, Checkbox and settings rows.
    The page and navigation backgrounds are the darker Octoport surfaces. */
 :root {
+  zoom: 0.8;
   --octo-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
     "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --octo-page: #e9ecf0;
