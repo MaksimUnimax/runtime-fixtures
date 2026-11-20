@@ -111,12 +111,18 @@ window.__ModuleLoader__.load({
           setBusy(true);
           try {
             const next=await a.deleteChat(target.id);
-            if(location.pathname==='/app/chats/'+encodeURIComponent(target.id)) {
-              location.replace(next ? '/app/chats/'+encodeURIComponent(next) : '/app/');
-              return;
-            }
+            const workspace=ctx.uiWorkspace;
+            const wasOpen=workspace.selection.getSnapshot().sessionId===target.id;
+            if(wasOpen)workspace.clearMain();
             ctx.sessions.handleSessionRemoved(target.id);
             close();
+            if(wasOpen){
+              if(next)workspace.openSession(next);
+              else {
+                history.replaceState(null,'','/app/');
+                await workspace.openWorkspace('personal');
+              }
+            }
           } catch(e){setError(e.message);setBusy(false);}
         }
         return h('dialog',{ref,className:'account-dialog','aria-labelledby':'delete-chat-title',

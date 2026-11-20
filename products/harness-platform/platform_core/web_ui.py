@@ -26,6 +26,7 @@ _PROJECT_UI = _PRODUCT / "native" / "web"
 async def page(request, *, panel="", error="", status=200):
     identity = request.app.state.identity
     chat = request.path_params.get("chat_id", "")
+    theme = request.cookies.get("octoport_theme", "system")
     if request.method in {"GET", "HEAD"}:
         try:
             token = browser_token(request)
@@ -35,9 +36,9 @@ async def page(request, *, panel="", error="", status=200):
                        "modelChoice": router is not None and router.available()}
             if chat:
                 await run_in_threadpool(identity.resolve_chat, token, chat)
-            return shell(chat=chat, account=account, status=status)
+            return shell(theme=theme, chat=chat, account=account, status=status)
         except ChatUnavailable:
-            return shell(panel="notice", error="Чат недоступен", account=account, status=404)
+            return shell(theme=theme, panel="notice", error="Чат недоступен", account=account, status=404)
         except AuthenticationError:
             pass
     cookie = guest_cookie(request)
@@ -46,13 +47,13 @@ async def page(request, *, panel="", error="", status=200):
         own_chat, has_turns = await run_in_threadpool(identity.guest_chat_summary, guest)
     except AuthenticationError:
         if chat:
-            return shell(guest=True, panel="login", error="Чат недоступен", status=404)
+            return shell(theme=theme, guest=True, panel="login", error="Чат недоступен", status=404)
         guest, own_chat = await run_in_threadpool(identity.start_guest)
         has_turns = False
     if chat and chat != own_chat:
-        return shell(guest=True, panel="notice", chat=own_chat, account={"hasTurns": has_turns}, error="Чат недоступен", status=404)
+        return shell(theme=theme, guest=True, panel="notice", chat=own_chat, account={"hasTurns": has_turns}, error="Чат недоступен", status=404)
     recovery = await run_in_threadpool(identity.guest_recovery, guest) if panel == "register" else ""
-    response = shell(guest=True, chat=own_chat, panel=panel, recovery=recovery, error=error, status=status,
+    response = shell(theme=theme, guest=True, chat=own_chat, panel=panel, recovery=recovery, error=error, status=status,
                      account={"hasTurns": has_turns})
     response.set_cookie(cookie, guest, path="/", max_age=GUEST_LIFETIME, secure=_secure(request),
                         httponly=True, samesite="strict")

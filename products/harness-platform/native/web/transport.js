@@ -21,7 +21,8 @@ const workspace = 'personal';
 const label = id => 'Чат · ' + id.slice(-8);
 function authorized(ids, guest) {
   const actions = ['session/list', 'session/follow', 'session/page', 'session/prompt', 'session/projections'];
-  if (!guest) actions.push('session/create','settings/describe');
+  actions.push('settings/describe','settings/mutate');
+  if (!guest) actions.push('session/create');
   return {type:'baseline', owner:false, grants:[
     {resource:{kind:'global'}, actions},
     {resource:{kind:'workspace', id:workspace}, actions},
@@ -75,6 +76,30 @@ export async function createTransport(data) {
   if (guest ? !initial?.hasTurns : activity[selected] == null) nonempty.delete(selected);
   const activityEvents = new EventTarget();
   const titles = new Map(), updated = new Map(Object.entries(activity));
+  const themeDefaults={preference:'system',fontSize:14,codeFontSize:11,terminalFontSize:13,
+    textFontFamily:'',codeFontFamily:'',terminalFontFamily:''};
+  const themeSizes={fontSize:[10,22],codeFontSize:[10,16],terminalFontSize:[10,20]};
+  function validThemeField(key, value) {
+    if(!Object.hasOwn(themeDefaults,key))return false;
+    if(key==='preference')return ['system','light','dark'].includes(value);
+    if(typeof themeDefaults[key]==='string')return typeof value==='string' && value.length<=512;
+    const [min,max]=themeSizes[key];
+    return Number.isInteger(value) && value>=min && value<=max;
+  }
+  let themeRevision=0, fonts={};
+  try {
+    for(const [key,value] of Object.entries(JSON.parse(localStorage.getItem('octoport.fonts')||'{}'))) {
+      if(key!=='preference' && validThemeField(key,value))fonts[key]=value;
+    }
+  } catch { /* Use the native defaults when browser storage is unavailable. */ }
+  const themeView=()=>{
+    const preference=document.documentElement.dataset.theme || 'system';
+    const user={...fonts,preference};
+    const dict=Object.fromEntries(Object.keys(themeDefaults).map(k=>[k,typeof themeDefaults[k]==='number'?2:1]));
+    return {ns:'ui-theme',schema:{uid:3,refs:{1:{type:'string'},2:{type:'number'},3:{type:'object',dict}}},
+      autoGenerate:false,value:{...themeDefaults,...user},base:themeDefaults,user,
+      applies:'live',secrets:[],revision:themeRevision};
+  };
   const account = {guest, selected, panel:data.panel, error:data.error, recovery:data.recovery,
     balanceEvents:new EventTarget(), canGrant:flags.canGrant, modelChoice:flags.modelChoice, api, changes, live, activityEvents, costs:new Map()};
   function recordActivity(id, at) {
@@ -168,8 +193,26 @@ export async function createTransport(data) {
           // The settings shell uses this read-only schema to mount account integrations.
           const schema={uid:2,refs:{1:{type:'boolean',meta:{default:true}},
             2:{type:'object',meta:{default:{}},dict:{enabled:1}}}};
-          value={writable:false,hasDocument:false,namespaces:[{ns:'ui-settings',schema,autoGenerate:false,
-            value:{enabled:!guest},base:{enabled:!guest},user:{},applies:'live',secrets:[],revision:0}]}; break;
+          value={writable:true,hasDocument:true,namespaces:[{ns:'ui-settings',schema,autoGenerate:false,
+            value:{enabled:!guest},base:{enabled:!guest},user:{},applies:'live',secrets:[],revision:0},themeView()]}; break;
+        }
+        case 'settings/mutate': {
+          if(p.ns!=='ui-theme' || p.ops?.length!==1) return failure('Настройка недоступна');
+          const [op]=p.ops;
+          const key=op.path?.[0];
+          const setting=op.op==='unset'?themeDefaults[key]:op.value;
+          if(op.path?.length!==1 || !['set','unset'].includes(op.op) || !validThemeField(key,setting))
+            return failure('Неизвестная настройка оформления');
+          if(key==='preference') {
+            document.cookie='octoport_theme='+setting+'; Path=/; Max-Age=31536000; SameSite=Lax'
+              +(location.protocol==='https:'?'; Secure':'');
+            document.documentElement.dataset.theme=setting;
+          } else {
+            fonts={...fonts,[key]:setting};
+            try { localStorage.setItem('octoport.fonts',JSON.stringify(fonts)); } catch {}
+          }
+          themeRevision++;
+          value=themeView();break;
         }
         case 'session/create': {
           if(guest){ if(!ids.length) throw new Error('Требуется вход'); value={sessionId:ids[0]}; break;}
@@ -279,7 +322,7 @@ export async function createTransport(data) {
       yield {type:'snapshot',header:{version:3,id,createdAt:0,cwd:'/personal',isSeeded:false},
         cursor:seq,...window,projections:projection(id,seq),assistantStream:{revision:0}};
       while(!signal.aborted) {
-        await next; if(signal.aborted) return; next=changes.next(signal);
+        await next; if(signal.aborted || !ids.includes(id)) return; next=changes.next(signal);
         window=await page(id,null,signal);
         while(window.hasMore && window.records[0].event.seq>seq+1){
           const older=await page(id,cuts.get(id+'|'+(window.records[0].event.seq-1)),signal);

@@ -196,10 +196,10 @@ def initial_script():
     return script, "'sha256-" + digest + "'"
 
 
-def shell(*, panel="", error="", recovery="", chat="", guest=False, status=200, account=None):
+def shell(*, theme="system", panel="", error="", recovery="", chat="", guest=False, status=200, account=None):
     page = (UI / "index.html").read_text()
     page = page.replace("@@application@@", application_name()).replace("@@core@@", core_name())
-    for name, value in {"panel":panel, "error":error, "recovery":recovery, "chat":chat,
+    for name, value in {"theme":theme if theme in ("light","dark") else "system", "panel":panel, "error":error, "recovery":recovery, "chat":chat,
                         "account":json.dumps(account, separators=(",", ":")) if account is not None else "",
                         "mode":"guest" if guest else "member"}.items():
         page = page.replace("@@" + name + "@@", escape(value, quote=True))

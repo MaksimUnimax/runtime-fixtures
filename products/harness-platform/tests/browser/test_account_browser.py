@@ -314,6 +314,48 @@ class BrowserIsolation(ProductBrowser):
         self.assertEqual(before[first], after[first])
         self.assertGreater(after[other], after[first])
 
+    async def test_delete_active_chats_in_series_keeps_document(self):
+        page = await self.open_chat("first-browser")
+        first = urlsplit(page.url).path.rsplit("/", 1)[-1]
+        await self.send_turn(page, "Первый чат")
+        await expect(page.locator('[data-chat-flow-kind="assistant-step"]')).to_be_visible()
+        other = []
+        for _ in range(2):
+            response = await page.request.post("/api/chats", headers={"Origin": self.base_url})
+            other.append((await response.json())["chatId"])
+        await page.reload()
+        await expect(page.get_by_role("button", name="Баланс", exact=True)).to_be_visible()
+        main_documents = []
+        page.on("request", lambda req: main_documents.append(req.url) if req.is_navigation_request() else None)
+        for chat in (first, *reversed(other)):
+            await expect(page).to_have_url(self.base_url + "/app/chats/" + chat)
+            row = page.locator(f'[data-row-key="session:{chat}"]')
+            await row.hover()
+            await row.locator("[data-context-menu-trigger]").click()
+            await page.get_by_text("Удалить чат", exact=True).click()
+            dialog = page.get_by_role("dialog", name="Удалить чат?")
+            await dialog.get_by_role("button", name="Удалить чат").click()
+            await expect(dialog).to_have_count(0)
+            await expect(row).to_have_count(0)
+        await expect(page.locator("[data-composer-input]").last).to_be_visible()
+        await self.send_turn(page, "Сообщение после удаления последнего чата")
+        await expect(page.locator('[data-chat-flow-kind="assistant-step"]')).to_be_visible()
+        self.assertEqual(main_documents, [])
+        self.assertNotIn(urlsplit(page.url).path.rsplit("/", 1)[-1], [first, *other])
+
+    async def test_appearance_choice_survives_reload_and_overrides_system(self):
+        page = await self.open_chat("first-browser")
+        for label, value, os_scheme in (("Тёмная", "dark", "light"), ("Светлая", "light", "dark"),
+                                        ("Система", "system", "dark")):
+            await page.emulate_media(color_scheme=os_scheme)
+            await page.get_by_role("button", name="Настройки", exact=True).click()
+            await page.get_by_role("button", name=label, exact=True).click()
+            await expect(page.locator("html")).to_have_attribute("data-theme", value)
+            response = await page.reload()
+            self.assertIn(f'data-theme="{value}"', await response.text())
+            await expect(page.locator("[data-composer-input]").last).to_be_visible()
+            await expect(page.locator("body[data-ds-dark-theme]")).to_have_count(int(value != "light"))
+
     async def test_delete_background_chat_preserves_current_draft(self):
         page = await self.open_chat("first-browser")
         current = page.url
