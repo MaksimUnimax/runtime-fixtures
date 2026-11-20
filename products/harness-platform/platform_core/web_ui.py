@@ -9,8 +9,9 @@ from starlette.exceptions import HTTPException
 from starlette.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from starlette.routing import Route
 
-from .browser_session import browser_token
+from .browser_session import browser_token, guest_cookie
 from .identity import AuthenticationError, ChatUnavailable
+from .guest_web import guest_page
 from .native_ui_entry import browser_entry
 
 
@@ -31,6 +32,8 @@ async def page(request):
         else:
             await run_in_threadpool(identity.validate_session, token)
     except AuthenticationError:
+        if request.path_params.get("chat_id") and request.cookies.get(guest_cookie(request)):
+            return await guest_page(request, request.path_params["chat_id"])
         return RedirectResponse("/login", status_code=303)
     except ChatUnavailable:
         return HTMLResponse('<!doctype html><html lang="ru"><title>Чат недоступен</title>'
@@ -47,7 +50,7 @@ async def page(request):
 
 async def project_asset(request):
     name = request.path_params["name"]
-    if name not in {"app.js", "style.css", "widgets.js", "trajectory.js", "widget-host.js"}:
+    if name not in {"app.js", "guest.css", "style.css", "widgets.js", "trajectory.js", "widget-host.js"}:
         raise HTTPException(404)
     path = _PROJECT_UI / name
     if not path.is_file():

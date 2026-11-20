@@ -56,6 +56,8 @@ export async function openWorker(env) {
   const eventPage = db.prepare(`SELECT request_id, revision, events FROM native_batches
     WHERE scope_key=? AND revision < ? ORDER BY revision DESC LIMIT ?`);
   const insert = db.prepare('INSERT INTO native_batches VALUES (?,?,?,?,?,?,?)');
+  const firstBatches = db.prepare(`SELECT request_id, action, input FROM native_batches
+    WHERE scope_key=? ORDER BY revision LIMIT ?`);
   const active = new Map();
   let count = 0;
 
@@ -73,7 +75,63 @@ export async function openWorker(env) {
     return visible(JSON.parse(row.events), req.requestId).at(-1);
   }
 
+  // SQLite commits the complete immutable prefix or none of it. A second worker
+  // can race the first import, so check again after acquiring the writer lock.
+  async function adoptGuestHistory(key, history) {
+    function alreadyImported() {
+      const rows = firstBatches.all(key, history.length);
+      if (!rows.length) return false;
+      if (rows.length !== history.length || rows.some((row, i) => row.action !== 'guest' ||
+          row.request_id !== history[i].requestId || row.input !== history[i].text)) {
+        throw new Error('Inconsistent guest history');
+      }
+      return true;
+    }
+    if (alreadyImported()) return;
+    const ctx = new Context();
+    try {
+      await mount(ctx, 'dsh-session');
+      const { createUserMessage, createAssistantMessage } = await load('dsh-llm');
+      const createdAt = history[0].at;
+      const session = ctx.sessions.create(key, { meta: { createdAt } });
+      let offset = 0;
+      const batches = history.map(({ text, answer, at }, index) => {
+        const turn = index + 1;
+        const step = { turn, step: 1 };
+        session.append('turn/start', { turn });
+        session.append('step/start', step);
+        session.append('user/message', createUserMessage({
+          source: { kind: 'user' }, content: [{ type: 'text', text }],
+        }), { surfaceOp: 'append' });
+        const message = createAssistantMessage({
+          source: { provider: 'harness-local', model: 'published-help' },
+          content: [{ type: 'text', text: answer }],
+        });
+        session.append('assistant/message', { ...step, message, stream: [] }, { surfaceOp: 'append' });
+        session.append('step/end', step);
+        session.append('turn/end', { turn, reason: { kind: 'completed' } });
+        const events = session.snapshotEvents(offset).map(event => ({ ...event, time: at }));
+        offset += events.length;
+        return JSON.stringify(events);
+      });
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        if (!alreadyImported()) {
+          history.forEach(({ requestId, text }, i) =>
+            insert.run(key, i, requestId, 'guest', text, createdAt, batches[i]));
+        }
+        db.exec('COMMIT');
+      } catch (error) {
+        db.exec('ROLLBACK');
+        throw error;
+      }
+    } finally {
+      await ctx.fiber.dispose();
+    }
+  }
+
   async function execute(req, key) {
+    if (req.guestHistory?.length) await adoptGuestHistory(key, req.guestHistory);
     if (req.action === 'history' || req.action === 'events') {
       const limit = req.limit ?? 30;
       const offset = req.offset ?? 0;
