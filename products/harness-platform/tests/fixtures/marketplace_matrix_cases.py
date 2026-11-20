@@ -110,6 +110,32 @@ class MarketplaceMatrix(unittest.TestCase):
         self.assertNotIn("product_registry", {r["id"] for r in worker.catalogue(
             [(ozon, "ozon", ["performance_client_id", "performance_client_secret"])])})
 
+    def test_wb_event_plan_uses_qualified_token_class_and_seller_currency(self):
+        import base64
+        from datetime import date, timedelta
+        token = self.identity.login("matrix-seller", "fixture-password")
+        claims = base64.urlsafe_b64encode(b'{"acc":3,"for":"self","t":false}').decode().rstrip("=")
+        credential = "fixture." + claims + ".fixture"
+        cid = IntegrationStore(self.identity).save(token, "wb", "wb", {"token": credential},
+                                                    chatId=self.scope.chat_id)["id"]
+        day = (date.today() - timedelta(days=1)).isoformat()
+        self.packet.update(connections=[cid], selections=[{"templateId": template, "connectionId": cid,
+                           "input": {"period": {"from": day, "to": day}}}
+                           for template in ("B02.wb_events", "B03.wb_events")])
+        reads = []
+        def read(request, **options):
+            options["on_dispatch"]()
+            self.assertEqual(request.get_header("Authorization"), credential)
+            reads.append(request.host)
+            if request.host == "finance-api.wildberries.ru":
+                return b'{"currency":"KZT"}', 200
+            self.assertEqual(request.host, "statistics-api.wildberries.ru")
+            return b'[]', 200
+        with patch("http_transport.read_response", side_effect=read):
+            result = worker.execute(self.packet, self.root)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(reads, ["finance-api.wildberries.ru", "statistics-api.wildberries.ru"])
+
     def test_performance_key_does_not_advertise_seller_report(self):
         token = self.identity.login("matrix-seller", "fixture-password")
         cid = IntegrationStore(self.identity).save(token, "ozon", "Реклама",

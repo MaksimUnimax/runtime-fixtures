@@ -17,7 +17,7 @@ from .authority import ChatAuthority
 from . import store_currency
 
 BUNDLE = Path(__file__).with_name("runtime.tar.gz")
-BUNDLE_SHA256 = "b4813acd40fe36beefca2801d3425c8696a35fd2b18a41569910e7a38f68a7ac"
+BUNDLE_SHA256 = "9dad3e8da4987642c1fcc5ef0a7f8ee868d237f09df2ef8618120b5393172104"
 
 
 def unpack(directory):
@@ -202,6 +202,11 @@ def seller_result(result):
         "OZON_SELLER_PROFILE_CURRENCY": "Не удалось определить валюту кабинета Ozon.",
         "OZON_SELLER_PROFILE_UNAVAILABLE": "Не удалось получить валюту кабинета Ozon.",
         "OZON_SELLER_PROFILE_HTTP": "Не удалось получить валюту кабинета Ozon.",
+        "WB_SELLER_PROFILE_CURRENCY": "Wildberries не указал валюту кабинета для этого отчёта.",
+        "WB_SELLER_PROFILE_ACCESS": "Чтобы подтвердить валюту сумм, нужен доступ к балансу этого магазина Wildberries.",
+        "WB_SELLER_PROFILE_HTTP": "Wildberries не вернул валюту кабинета для этого отчёта.",
+        "WB_SELLER_PROFILE_UNAVAILABLE": "Не удалось получить валюту кабинета Wildberries.",
+        "TOKEN_CLASS_REQUALIFICATION_REQUIRED": "Текущий тип токена Wildberries не подходит для этого отчёта. Проверьте подключение магазина в интеграциях.",
         "HTTP_429_RETRY_EXHAUSTED": "Площадка временно ограничила частоту запросов.",
         "SOURCE_PACING": "Следующий запрос к площадке будет доступен позже.",
         "FINANCIAL_REPORT_NOT_READY": "Финансовый отчёт пока не охватывает весь выбранный период.",

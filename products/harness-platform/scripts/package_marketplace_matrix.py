@@ -30,13 +30,48 @@ def bind_report_currency(files):
     files["template_catalog.json"] = json.dumps(catalog, ensure_ascii=False, indent=2).encode() + b"\n"
 
 
+def digest(value):
+    data = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return hashlib.sha256(data.encode()).hexdigest()
+
+
+def group_table_requests(files):
+    # Event templates with identical table, store and period use the same provider page.
+    key = b"        key=fingerprint({'bucket':bucket,'store':store.id,'input':inputs,'specific':t['id']if bucket!='scalar'else None})"
+    if files["template_catalog.py"].count(key) != 1:
+        raise ValueError("Review fragment grouping before updating the runtime")
+    files["template_catalog.py"] = files["template_catalog.py"].replace(key,
+        b"        specific = t['table_request'] if bucket == 'event' else (None if bucket == 'scalar' else t['id'])\n"
+        b"        key=fingerprint({'bucket':bucket,'store':store.id,'input':inputs,'specific':specific})")
+
+
+def bind_table_contracts(portable, planner_proofs, files):
+    sources = json.loads(files["source_matrix.json"])
+    table_hash = digest({"table": json.loads(files["table_catalog.json"]), "source_matrix": sources})
+    for operation, recipe in sources["sources"].items():
+        required = recipe["proof_requirements"]
+        decoder = portable.get(operation, {})
+        if not required or not recipe["auth"].get("claims") or recipe.get("options", {}).get("qualification_scope"):
+            continue
+        if decoder.get("status") != "READ_ONLY_CANARY" or decoder.get("table_hash") != table_hash or not decoder.get("registry_hash"):
+            continue
+        for group in planner_proofs.values():
+            proof = group.get(operation, {})
+            if {"scope", "contract_scopes"} & (decoder.keys() | proof.keys()):
+                continue
+            if proof.get("registry_hash", decoder["registry_hash"]) != decoder["registry_hash"]:
+                continue
+            expected = {**required, "status": "READ_ONLY_CANARY", "table_hash": table_hash}
+            if all(proof.get(k) == v for k, v in expected.items()):
+                # Matrix.http checks the actual connection's token claims before every request.
+                decoder.update(required)
+                break
+
+
 def bind_dataset_contracts(portable, planner_proofs, files):
     """Bind an observed query revision only to its independently qualified portable decoder."""
     sources = json.loads(files["dataset_sources.json"])
     queries = json.loads(files["dataset_queries.json"])
-    def digest(value):
-        data = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
-        return hashlib.sha256(data.encode()).hexdigest()
     source_hash = digest(sources)
     query_hash = digest({"queries": queries, "sources": sources})
     for operation, spec in sources["sources"].items():
@@ -92,7 +127,9 @@ def collect(core, renderer, config):
             continue
         portable[operation] = {k: v for k, v in proof.items() if k != "evidence_ref"}
         portable[operation]["evidence_ref"] = "reviewed-source/" + operation
+    bind_table_contracts(portable, config.get("table_capabilities", {}), files)
     bind_dataset_contracts(portable, config.get("dataset_capabilities", {}), files)
+    group_table_requests(files)
     files["source_qualifications.json"] = json.dumps(portable, sort_keys=True).encode()
     # Both discovery and selection compilation call the same catalogue hook.
     target = b"def _availability(engine,t,store):\n"
