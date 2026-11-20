@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 
 
 from .authority import ChatAuthority
+from . import store_currency
 
 BUNDLE = Path(__file__).with_name("runtime.tar.gz")
 BUNDLE_SHA256 = "795cfb1da8dfe94f0415d2b450aa8f805ef44f2a334503b71b59a7c4e4cbdfc7"
@@ -85,13 +86,18 @@ def execute(packet, directory):
     repo = Repository(str(directory / "requests.sqlite"))
     engine = Engine(repo, lambda tenant: authority.scope_for(guard), execution_policy=authority, template_mode=True)
     allowed = {store.id: store for store in authority.scope_for(guard).stores}
-    proofs = configure_catalogue(engine, {cid: authority.field_names(store) for cid, store in allowed.items()})
+    fields = {cid: authority.field_names(store) for cid, store in allowed.items()}
+    proofs = configure_catalogue(engine, fields)
     calls = []
     for index, item in enumerate(packet["selections"], 1):
         tid, cid = item["templateId"], item["connectionId"]
         if tid not in TEMPLATES or cid not in allowed or not _availability(engine, TEMPLATES[tid], allowed[cid]):
             raise Rejected("SOURCE_ACCESS")
         calls.append({"id": str(index), "template_id": tid, "store_id": cid, "input": item["input"]})
+    try:
+        store_currency.resolve(authority, calls, allowed, fields)
+    except store_currency.ProfileError as error:
+        return error.result
     engine.chat_template_selection = {
         "action": "plan", "complete": True, "missing": [], "invocations": calls,
         "requirements": [{"id": call["id"], "description": TEMPLATES[call["template_id"]]["purpose"],
@@ -102,13 +108,20 @@ def execute(packet, directory):
     model_answer.step = answer_step  # Only in this request's private child interpreter.
     operations = []
 
+    rate_limits = []
+
     class ChatTransport(HTTPTransport):
         def execute(self, request, store, *, on_dispatch=None):
             if store is None:
                 raise CallError("MARKETPLACE_OPERATION_REQUIRED")
             context = copy_context()
             guard_dispatch = (lambda: context.run(on_dispatch)) if on_dispatch else None
-            answer = super().execute(request, store, on_dispatch=guard_dispatch)
+            try:
+                answer = super().execute(request, store, on_dispatch=guard_dispatch)
+            except CallError as error:
+                if error.status == 429:
+                    rate_limits.append(request.operation)
+                raise
             operations.append({"operation": request.operation, "connectionId": store["id"]})
             return answer
 
@@ -124,7 +137,7 @@ def execute(packet, directory):
         delay = row["due"] - time.time()
         if delay > 0:
             if time.time() + delay >= authority.deadline:
-                return {"ok": False, "reason": "Источник ограничил частоту запросов.", "retryAt": row["due"]}
+                return store_currency.wait_result(row["due"], bool(rate_limits))
             time.sleep(delay)
         worker.step()
     else:
@@ -146,10 +159,15 @@ def execute(packet, directory):
             receipt["metricFields"] = field_map
     trace = {"selectionBy": "chat_agent", "catalogHash": HASH, "catalogSize": len(TEMPLATES),
              "templates": [{"id": item["template_id"], "connectionId": item["store_id"]} for item in selected],
-             "operations": operations}
+             "operations": operations, "rateLimitResponses": len(rate_limits)}
     if row["state"] != "READY":
         code = row.get("error") or row["state"]
-        return {"ok": False, "code": code, "reason": explain(code)["text"], "trace": trace}
+        reason = explain(code)["text"]
+        if code in ("ACCRUAL_CURRENCY", "FINANCE_CURRENCY_CHANGED") and authority.currencies:
+            reason = "Код валюты в финансовых данных не совпал с подтверждённой валютой магазина."
+        elif code == "ACCRUAL_PRODUCT_MONEY":
+            reason = "Денежные поля товарной строки начислений Ozon не прошли проверку суммы или валюты."
+        return {"ok": False, "code": code, "reason": reason, "trace": trace}
     result = json.loads(row["result"])
     if result.get("clarification"):
         return {"ok": True, "clarification": result["clarification"]["question"], "trace": trace}

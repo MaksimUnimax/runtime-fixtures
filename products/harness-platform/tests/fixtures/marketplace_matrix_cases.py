@@ -129,6 +129,8 @@ class MarketplaceMatrix(unittest.TestCase):
             options["on_dispatch"]()
             data = json.loads(req.data)
             self.assertEqual(req.host, "api-seller.ozon.ru")
+            if req.full_url.endswith("/v1/seller/info"):
+                return b'{"company":{"currency":"KZT"}}', 200
             self.assertEqual(data["date_from"], "2026-11-10")
             self.assertEqual(data["date_to"], "2026-11-15")
             values = [{"ordered_units":29, "revenue":7300}[m] for m in data["metrics"]]
@@ -142,7 +144,49 @@ class MarketplaceMatrix(unittest.TestCase):
         self.assertEqual({t["id"] for t in result["trace"]["templates"]},
                          {"B01.ordered_units", "B01.ordered_revenue"})
         self.assertIn("29", result["answer"])
+        self.assertIn("KZT", result["answer"])
         self.assertIn("7300", result["answer"].replace(" ", "").replace("\u00a0", ""))
+
+    def test_accrual_uses_scoped_seller_currency_and_retries_original_read(self):
+        from urllib.error import HTTPError
+        cid = self.ids["ozon"]
+        self.packet.update(connections=[cid], selections=[
+            {"templateId": tid, "connectionId": cid, "input": {"period": {"from":"2026-11-05", "to":"2026-11-05"}}}
+            for tid in ("B05.accrual_sale_units", "B05.accrual_sale_amount")])
+        sent = []
+        def source(req, **opts):
+            opts["on_dispatch"]()
+            self.assertEqual(req.get_header("Client-id"), "fixture-id")
+            self.assertEqual(req.get_header("Api-key"), "fixture-ozon")
+            path = req.full_url.split(".ru")[1]
+            sent.append((path, req.data))
+            if path == "/v1/seller/info":
+                return b'{"company":{"currency":"KZT"}}', 200
+            self.assertEqual(path, "/v1/finance/accrual/by-day")
+            if len(sent) <= 3:
+                raise HTTPError(req.full_url, 429, "rate limited", {"Retry-After": "0"}, None)
+            money = lambda amount: {"amount": str(amount), "currency": row_currency}
+            commission = {name: money(value) for name, value in {
+                "seller_price":100,"sale_amount":200,"sale_price":160,"bonus":40,
+                "coinvestment":0,"sale_commission":-10}.items()}
+            row = {"accrual_id":123,"date":"2026-11-05","total_amount":money(190),
+                   "posting":{"products":[{"quantity":2,"sku":101,"commission":commission,"delivery":None}]}}
+            return json.dumps({"accruals":[row],"last_id":""}).encode(), 200
+        row_currency = "KZT"
+        with patch("http_transport.read_response", side_effect=source), patch("request_recovery.RATE_LIMIT_RETRY_SECONDS", 0):
+            result = worker.execute(self.packet, self.root)
+        self.assertTrue(result["ok"], result)
+        self.assertIn("160", result["answer"])
+        self.assertIn("KZT", result["answer"])
+        self.assertEqual(result["trace"]["rateLimitResponses"], 2)
+        self.assertEqual(sent[1], sent[2])
+        self.assertEqual(sent[2], sent[3])
+        self.assertEqual(sum(path=="/v1/seller/info" for path, _ in sent), 1)
+        row_currency = "RUB"
+        with tempfile.TemporaryDirectory() as different, patch("http_transport.read_response", side_effect=source):
+            result = worker.execute(self.packet, Path(different))
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["code"], "ACCRUAL_PRODUCT_MONEY")
 
     def test_another_chat_cannot_reuse_operation(self):
         from semantics import Rejected

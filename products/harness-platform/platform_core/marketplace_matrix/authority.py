@@ -19,6 +19,7 @@ class ChatAuthority:
                      "chat_id": packet["chat"], "request_id": turn["requestId"]}
         self.deadline = turn["deadline"] / 1000
         self.authority = self
+        self.currencies = {}
         self.frozen = self._rows()
         self.revision = fingerprint([list(r[:4]) for r in self.frozen])
         self.names = {r[0]: r[2] for r in self.frozen}
@@ -56,11 +57,10 @@ class ChatAuthority:
             raise Rejected("PERMISSION_DENIED")
         return rows
 
-    @staticmethod
-    def store(row):
+    def store(self, row):
         from semantics import Store
         cid, provider, _, version, _ = row
-        return Store(cid, provider, cid, str(version), "platform:octoport:" + str(version))
+        return Store(cid, provider, cid, str(version), "platform:octoport:" + str(version), self.currencies.get(cid))
 
     def scope_for(self, guard):
         from semantics import Rejected, Scope
