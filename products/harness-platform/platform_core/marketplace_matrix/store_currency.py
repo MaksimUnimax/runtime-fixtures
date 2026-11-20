@@ -46,11 +46,13 @@ def report_store(operation, records, store, previous_page):
     return {**store, "currency": currency}
 
 
-def wait_result(due, limited):
-    return {"ok": False, "code": "HTTP_429" if limited else "SOURCE_PACING",
-            "reason": ("Маркетплейс вернул HTTP 429." if limited else "Источник ограничивает частоту чтений.")
-                      + " Следующая разрешённая попытка выходит за время этого запроса.",
-            "retryAt": due}
+def wait_result(due, code=None):
+    reason = {
+        "HTTP_429": "Площадка временно ограничила частоту запросов.",
+        "PROVIDER_SERVER_ERROR": "Площадка вернула внутреннюю ошибку при получении отчёта.",
+        "PROVIDER_READ_UNAVAILABLE": "Ответ площадки получить не удалось.",
+    }.get(code, "Следующий запрос к площадке будет доступен позже.")
+    return {"ok": False, "code": code or "SOURCE_PACING", "reason": reason, "retryAt": due}
 
 
 def retry_time(headers, now, wildberries=False):
@@ -97,7 +99,7 @@ def profile_currency(authority, store):
             due = now + RATE_LIMIT_RETRY_SECONDS
             due = max(due, retry_time(error.headers, now, store.platform == "wb") or 0)
             if due >= authority.deadline:
-                raise ProfileError(wait_result(due, True)) from None
+                raise ProfileError(wait_result(due, "HTTP_429")) from None
             time.sleep(max(0, due - time.time()))
             continue
         except OSError:
@@ -118,6 +120,7 @@ def profile_currency(authority, store):
 def resolve(authority, calls, stores, fields):
     from http_transport import MATRICES
     from registry import DEFINITIONS
+    from query_program import program_for_metrics
     from template_catalog import TEMPLATES, dependencies
 
     required = {}
@@ -127,7 +130,12 @@ def resolve(authority, calls, stores, fields):
         if {"ozon": "seller_api_key", "wb": "seller_token"}[platform] not in fields[cid]:
             continue
         for tid in dependencies(call["template_id"]):
-            for step in TEMPLATES[tid]["steps"]:
+            template = TEMPLATES[tid]
+            if template["kind"] in ("scalar", "formula"):
+                program = program_for_metrics(template["metrics"], call["input"])
+                if program["requires_confirmed_currency"]:
+                    required[cid] = True
+            for step in template["steps"]:
                 op = step.get("operation")
                 if step.get("platform") != platform or op not in MATRICES or op in REPORT_ROW_CURRENCY:
                     continue

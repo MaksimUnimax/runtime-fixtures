@@ -50,9 +50,11 @@ def capability(stores):
         card += " [" + policy["time_axis"] + "]"
         if row.get("dataset_output"):
             card += " Поля: " + ", ".join(c["field"] for c in row["dataset_output"]["columns"])
-        groups.setdefault(tuple(row["available_stores"]), []).append(card)
-    menu = "\n".join("Для подключений " + ", ".join(ids) + ":\n" + "\n".join(cards)
-                     for ids, cards in groups.items())
+        groups.setdefault(tuple(sorted(row["available_stores"])), []).append((row["id"], card))
+    names = {cid: ("Ozon" if provider == "ozon" else "Wildberries") + " " + cid
+             for cid, provider, _ in profiles}
+    menu = "\n".join("Для " + ", ".join(names[cid] for cid in ids) + ":\n" +
+                     "\n".join(card for _, card in cards) for ids, cards in groups.items())
     period = {"type": ["object", "null"], "properties": {key: {"type": "string", "format": "date"}
                                                         for key in ("from", "to")},
               "required": ["from", "to"], "additionalProperties": False}
@@ -64,16 +66,20 @@ def capability(stores):
         "templateId": {"type": "string", "enum": [row["id"] for row in rows]},
         "connectionId": {"type": "string", "enum": [p[0] for p in profiles]}, "input": inputs},
         "required": ["templateId", "connectionId", "input"], "additionalProperties": False}
+    if len(groups) > 1:
+        item["anyOf"] = [{"properties": {"templateId": {"enum": [tid for tid, _ in cards]},
+                                        "connectionId": {"enum": list(ids)}}}
+                         for ids, cards in groups.items()]
     schema = {"type": "object", "properties": {
         "selections": {"type": "array", "minItems": 1, "uniqueItems": True, "items": item}},
         "required": ["selections"], "additionalProperties": False}
     return Capability("marketplace_report",
         "Сам выбери шаблоны по смыслу всей беседы. Ответ на уточнение дополняет предыдущий вопрос. "
-        "Передай все запрошенные показатели и магазины одним вызовом. Даты from/to включительно, "
+        "Используй только пары шаблона и магазина из одной группы каталога. Если части отчёта нет, получи остальные для запрошенной площадки. Даты from/to включительно, "
         "для текущего состояния period=null. Обычная группировка marketplace. "
         "HTTP 429 — временный лимит. Матрица ждёт и повторяет тот же запрос с учётом Retry-After. "
         "Дождись результата и продолжи выполнение остальных выбранных шаблонов без вопроса пользователю. "
-        "Если время текущего запроса исчерпано, укажи полученный retryAt; не запускай вызов раньше этого срока.\n" + menu, schema, run)
+        "При исчерпании времени передай продавцу причину из результата и время следующей попытки в его часовом поясе. Само наличие времени повтора не означает лимит.\n" + menu, schema, run)
 
 
 def run(scope, arguments):
