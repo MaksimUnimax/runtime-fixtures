@@ -78,6 +78,9 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         await page.goto("/")
         await expect(page.locator('[data-composer-input][contenteditable=true]')).to_be_visible()
         await expect(page).to_have_url(re.compile(r"/app/chats/[a-zA-Z0-9_-]+$"))
+        await expect(page.get_by_text("С чего начнем?", exact=True)).to_be_visible()
+        await expect(page.get_by_text("Предварительный просмотр", exact=True)).to_have_count(0)
+        self.assertNotIn("harness", (await page.title()).lower())
         original_url = page.url
         cases = [
             ("Что ты умеешь?", "Сервис создан для продавцов"),

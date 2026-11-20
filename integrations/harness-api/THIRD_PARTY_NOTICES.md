@@ -25,4 +25,4 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-`static/harness-wordmark.svg` contains the official BrandWordmark paths extracted from the isolated installed 0.2.2-rc.1 UI, with an SVG namespace and fixed standalone colors for image loading. Shape paths are unchanged; the page applies its dark-theme inversion. Upstream source is covered by the same MIT license above.
+`static/harness-wordmark.svg` is Octoport artwork. The lowercase lettering is custom, and the PORT badge uses outlined Liberation Sans Bold capitals.

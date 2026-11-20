@@ -10,6 +10,6 @@ try {
   (window.__DSH_BOOT_READY__ ??= Promise.withResolvers()).resolve();
   await import('/ui-assets/harness/dsh-web-frontend/dist/assets/index-BgUyXZcc.js');
 } catch (error) {
-  document.getElementById('root').textContent = 'Не удалось открыть Harness. Обновите страницу.';
+  document.getElementById('root').textContent = 'Не удалось открыть octoport. Обновите страницу.';
   console.error('Harness startup failed', error);
 }

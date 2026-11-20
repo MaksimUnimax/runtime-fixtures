@@ -1,0 +1,20 @@
+:root { color-scheme:light dark; --page:var(--octo-page); --panel:var(--octo-panel); --ink:var(--octo-ink); --muted:var(--octo-muted); --line:var(--octo-line); --action:var(--octo-action); }
+body { margin:0; font:16px/1.55 var(--octo-font); background:var(--page); color:var(--ink); }
+main:not([class]) { max-width:820px; padding:clamp(24px,5vw,56px); margin:auto; overflow-wrap:anywhere; }
+main:not([class])::before,main.login .card::before { content:""; display:block; width:140px; height:30px; background:url("/octoport-ui/favicon.png") left center/24px auto no-repeat,url("/octoport-ui/octoport-wordmark.svg?v=689f9cd2") right center/112px auto no-repeat; }
+main:not([class]) h1 { font-size:clamp(28px,4vw,40px); line-height:1.16; letter-spacing:-.04em; }
+main:not([class]) form { display:grid; gap:14px; max-width:420px; }
+main:not([class]) label { display:grid; gap:5px; }
+main:not([class]) :is(input:not([type=checkbox],[type=radio]),select,textarea,button) { box-sizing:border-box; padding:9px 12px; border:1px solid var(--line); border-radius:9px; font:inherit; background:var(--panel); color:var(--ink); }
+main:not([class]) button { justify-self:start; cursor:pointer; color:var(--page); background:var(--ink); }
+main:not([class]) a { color:var(--action); }
+main.login { background:var(--panel); color:var(--ink); }
+main.login .card { background:var(--page); color:var(--ink); border:1px solid var(--line); border-radius:16px; }
+main.login .card p,main.login .card label { color:var(--muted); }
+main.login input { color:var(--ink); background:var(--panel); border-color:var(--line); }
+
+body main a,body main button { display:inline-flex; align-items:center; justify-content:center; min-height:36px; padding:6px 14px; border:1px solid var(--line); border-radius:var(--octo-radius); background:var(--panel); color:var(--ink); font:500 14px/22px var(--octo-font); text-decoration:none; }
+body main a:hover,body main button:hover { background:var(--octo-hover); }
+body main input[type=checkbox] { min-height:0; }
+body main button[type=submit] { background:var(--octo-action); color:var(--octo-on-action); }
+@media (prefers-color-scheme:dark) { main:not([class])::before,main.login .card::before { filter:invert(1); } }

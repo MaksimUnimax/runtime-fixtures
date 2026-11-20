@@ -76,7 +76,7 @@
     state.messages.forEach((msg,index)=>{
       if(!['user','assistant'].includes(msg.role))return;const text=messageText(msg);if(!text)return;
       const article=document.createElement('article');article.className='message '+msg.role;article.dataset.messageId=messageId(msg,index);
-      const label=document.createElement('span');label.className='sr-only';label.textContent=msg.role==='user'?'Вы:':'Harness:';
+      const label=document.createElement('span');label.className='sr-only';label.textContent=msg.role==='user'?'Вы:':'octoport:';
       const body=document.createElement('div');body.className='message-body';if(msg.role==='user')body.textContent=text;else renderBody(body,text);article.append(label,body);
       if(msg.role==='assistant'){
         const presentation=msg.presentation||{};

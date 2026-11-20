@@ -17,7 +17,7 @@ UI = Path(__file__).resolve().parents[1] / "native" / "web"
 VERSION = "0.2.2-rc.1"
 GROUP = "@deepseek-ai/"
 ROOTS = ("dsh-client-modules", "dsh-client-ui-chat", "dsh-client-ui-trajectory",
-         "dsh-client-ui-brand-official", "dsh-client-ui-tool", "dsh-client-ui-approval",
+         "dsh-client-ui-tool", "dsh-client-ui-approval",
          "dsh-client-ui-user-questions", "dsh-client-ui-settings-general")
 HEADERS = {**_PRIVATE_HEADERS, "Content-Security-Policy":
            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
@@ -26,7 +26,7 @@ HEADERS = {**_PRIVATE_HEADERS, "Content-Security-Policy":
 
 @lru_cache(maxsize=1)
 def application_name():
-    digest = hashlib.sha256(VERSION.encode() + (UI / "account.js").read_bytes() + (UI / "connections.js").read_bytes() + str(ROOTS).encode()).hexdigest()[:16]
+    digest = hashlib.sha256(Path(__file__).read_bytes() + VERSION.encode() + (UI / "account.js").read_bytes() + (UI / "connections.js").read_bytes() + str(ROOTS).encode()).hexdigest()[:16]
     return "application-" + digest
 
 
@@ -34,6 +34,26 @@ def application_name():
 def static_bytes(path, transform=None):
     data = transform(path) if transform else path.read_bytes()
     return encoded(data)
+
+
+def client_source(path):
+    source = path.read_bytes()
+    package = path.parent.parent.name
+    if package.startswith("dsh-client-ui-"):
+        source = source.replace(b"DeepSeek Harness", b"octoport")
+    if package == "dsh-client-ui-shortcuts":
+        source = re.sub(rb"\bHarness\b", b"octoport", source)
+    if package == "dsh-client-ui-conversation":
+        # The pinned HeroShell has a mark slot but no headline or badge slot.
+        title_group = (
+            rb'children: \[\(0, react_jsx_runtime.jsx\)\("span", \{ children: t\("hero.headline"\) \}\), '
+            rb'\(0, react_jsx_runtime.jsx\)\("span", \{\s*className: HeroShell_module_css_default.previewBadge,'
+            rb'\s*children: t\("hero.preview"\)\s*\}\)\]'
+        )
+        return re.sub(title_group, 'children: "С чего начнем?"'.encode(), source, count=1)
+    if package == "dsh-client-ui-chat":
+        return source.replace(b"DeepSeek", b"octoport")
+    return source
 
 
 def encoded(data):
@@ -102,7 +122,7 @@ def roster(base):
 def application_bundle(base):
     _, files = roster(base)
     paths = [path for name, path in files.items() if name != "dsh-client-modules"]
-    return encoded(b"\n;\n".join(path.read_bytes() for path in [*paths, UI / "account.js", UI / "connections.js"]))
+    return encoded(b"\n;\n".join(client_source(path) for path in [*paths, UI / "account.js", UI / "connections.js"]))
 
 
 async def module_file(request):
@@ -117,7 +137,7 @@ async def module_file(request):
         return Response('window.__DSH_BOOT__ = ' + json.dumps(manifest) + ';', media_type='text/javascript')
     if name not in files:
         raise HTTPException(404)
-    return asset_response(request, static_bytes(files[name]), 'text/javascript')
+    return asset_response(request, static_bytes(files[name], client_source), 'text/javascript')
 
 def shell(*, panel="", error="", recovery="", chat="", guest=False, status=200):
     page = (UI / "index.html").read_text()
