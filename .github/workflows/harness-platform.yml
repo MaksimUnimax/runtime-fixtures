@@ -37,10 +37,14 @@ jobs:
           export HARNESS_TEST_PYTHON="$PWD/.venv/bin/python"
           .venv/bin/python -m unittest discover -s tests -v
           node --test native/*.test.mjs
-      - name: Install Chromium for browser acceptance
+      - name: Prepare Chromium for browser acceptance
         run: |
           .venv/bin/python -m pip install playwright==1.62.0
-          .venv/bin/python -m playwright install --with-deps chromium
+          if chrome="$(command -v google-chrome)" && "$chrome" --version; then
+            echo "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=$chrome" >> "$GITHUB_ENV"
+          else
+            .venv/bin/python -m playwright install --with-deps chromium
+          fi
       - name: Verify two independent browser sessions
         env:
           HARNESS_OFFLINE_MODEL: "1"
