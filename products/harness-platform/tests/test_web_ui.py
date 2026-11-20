@@ -50,6 +50,10 @@ class WebUiTests(unittest.TestCase):
             (dist / "client.js").write_text("// fixture")
             app = create_app(Path(directory) / "platform.sqlite3", Path(directory) / "chats")
             with TestClient(app) as client:
+                css = client.get("/ui-assets/project/account.css", headers={"Accept-Encoding":"gzip"})
+                self.assertEqual(css.headers["content-encoding"],"gzip")
+                self.assertIn("public",css.headers["cache-control"])
+                self.assertEqual(client.get("/ui-assets/project/account.css", headers={"If-None-Match":css.headers["etag"]}).status_code,304)
                 root = "/ui-assets/harness/dsh-client-ui-chat/"
                 self.assertEqual(client.get(root + "lib/client.js").text, "// fixture")
                 self.assertEqual(client.get(root + "lib/index.js").status_code, 404)

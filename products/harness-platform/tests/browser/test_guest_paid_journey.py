@@ -82,7 +82,7 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         cases = [
             ("Что ты умеешь?", "Сервис создан для продавцов"),
             ("Как зарегистрироваться?", "подтвердите регистрацию"),
-            ("Сколько стоит ваш сервис?", "Публичный тариф"),
+            ("Сколько стоит ваш сервис?", "При покупке 1 монета стоит 1,20 ₽"),
         ]
         # Use a different first question across runs so the model must receive the real history.
         shift = secrets.randbelow(len(cases))

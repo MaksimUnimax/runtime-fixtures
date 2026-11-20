@@ -32,7 +32,11 @@ class PrivateResponses:
     async def __call__(self, scope, receive, send):
         async def send_private(message):
             if message["type"] == "http.response.start":
-                MutableHeaders(scope=message)["Cache-Control"] = "no-store"
+                headers = MutableHeaders(scope=message)
+                if scope.get("path", "").startswith("/ui-assets/"):
+                    headers.setdefault("Cache-Control", "no-store")
+                else:
+                    headers["Cache-Control"] = "no-store"
             await send(message)
 
         await self.app(scope, receive, send_private)

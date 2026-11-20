@@ -156,7 +156,7 @@ class GuestRegistrationTests(TestCase):
             questions = [
                 ("Что ты умеешь?", "Сервис создан для продавцов"),
                 ("Как зарегистрироваться?", "подтвердите регистрацию"),
-                ("Сколько стоит?", "Публичный тариф"),
+                ("Сколько стоит?", "При покупке 1 монета стоит 1,20 ₽"),
                 ("Заказов столько же, почему денег пришло меньше?", "Разбор своего магазина"),
                 ("Что такое ДРР?", "Я отвечаю на вопросы о нашем сервисе"),
                 ("Напиши стих про Ozon", "Я отвечаю на вопросы о нашем сервисе"),
@@ -170,7 +170,8 @@ class GuestRegistrationTests(TestCase):
                 self.assertEqual(result.status_code, 303)
                 turn = self.store.guest_history(a.cookies.get("__Host-harness_guest"), chats[0])[-1]
                 self.assertIn(expected, turn["answer"])
-                self.assertNotIn("₽", turn["answer"])
+                if question != "Сколько стоит?":
+                    self.assertNotIn("₽", turn["answer"])
             self.assertNotIn(questions[3][0], b.get(paths[1]).text)
             for endpoint in ("tools", "messages", "events"):
                 self.assertEqual(a.get(f"/api/chats/{chats[0]}/{endpoint}").status_code, 401)

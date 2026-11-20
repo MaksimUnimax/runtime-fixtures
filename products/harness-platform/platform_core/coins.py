@@ -5,9 +5,10 @@ from decimal import Decimal
 
 UNIT = 10**12
 MAX_BALANCE = 8_000_000 * UNIT
+PRICING_SCHEMA = """CREATE TABLE IF NOT EXISTS coin_pricing (
+        singleton INTEGER PRIMARY KEY CHECK(singleton=1), sale_bps INTEGER NOT NULL CHECK(sale_bps BETWEEN 0 AND 100000))"""
 SCHEMA = (
-    """CREATE TABLE IF NOT EXISTS coin_pricing (
-        singleton INTEGER PRIMARY KEY CHECK(singleton=1), sale_bps INTEGER NOT NULL CHECK(sale_bps BETWEEN 0 AND 100000))""",
+    PRICING_SCHEMA,
     """CREATE TABLE IF NOT EXISTS coin_ruble_orders (
         operation_id TEXT PRIMARY KEY REFERENCES coin_orders ON DELETE CASCADE, fx_e4 INTEGER NOT NULL CHECK(fx_e4>0))""",
     """CREATE TABLE IF NOT EXISTS coin_grants (

@@ -14,6 +14,7 @@ from .identity import (
 )
 from .storage import Scope, _bind_chat
 from .public_faq import PublicFAQ
+from .coins import PRICING_SCHEMA, sale_pricing
 
 GUEST_LIFETIME = 24 * 60 * 60
 GUEST_PAGE_SIZE = 25
@@ -35,6 +36,7 @@ class RegistrationStore(IdentityStore):
         try:
             self.faq = PublicFAQ(None if str(path) == ":memory:" else Path(str(path) + ".public-faq.sqlite3"))
             with self._write() as db:
+                db.execute(PRICING_SCHEMA)
                 db.execute("""CREATE TABLE IF NOT EXISTS guest_chats (
                     chat_id TEXT PRIMARY KEY NOT NULL, digest BLOB UNIQUE NOT NULL,
                     expires_at INTEGER NOT NULL, signup_nonce BLOB,
@@ -131,8 +133,13 @@ class RegistrationStore(IdentityStore):
                 if row[0] != text:
                     raise RegistrationConflict("Request already used")
                 return
+            answer = self.faq.answer(text)
+            if "{sale_price}" in answer:
+                price = sale_pricing(db)["rubPerCoin"]
+                whole, _, fraction = price.partition(".")
+                answer = answer.replace("{sale_price}", whole + "," + fraction.ljust(2, "0"))
             db.execute("INSERT INTO guest_turns VALUES (?,?,?,?,?)",
-                       (chat, request_id, text, self.faq.answer(text), int(time() * 1000)))
+                       (chat, request_id, text, answer, int(time() * 1000)))
 
     def register(self, guest_token, login, password, recovery):
         name = _login_name(login)
