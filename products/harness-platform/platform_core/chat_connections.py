@@ -119,7 +119,7 @@ def wb_orders(day, rows):
         by_order[srid] = cancelled
     return {"source":"WB Статистика, заказы","day":day,"orderedUnits":len(by_order),
             "cancelledOfOrderedUnits":sum(by_order.values()),
-            "meaning":"Заказанные единицы по дате оформления, включая отменённые. Отмены указаны среди этих заказов."}
+            "meaning":"Заказанные единицы по дате оформления, включая отменённые. Отмены указаны среди этих заказов. Выкупы именно этих заказов требуют сверки по srid. Разница с числом продаж за день не показывает, сколько заказов в пути."}
 
 
 def read_service(provider,fields,action,args):
