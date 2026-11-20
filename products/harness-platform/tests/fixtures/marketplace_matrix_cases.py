@@ -120,6 +120,29 @@ class MarketplaceMatrix(unittest.TestCase):
         self.assertIn("внутреннюю ошибку", worker.seller_result(result)["reason"])
         self.assertGreater(result["retryAt"], time.time() + 275)
 
+    def test_drr_returns_exact_denominator_from_source(self):
+        cid = self.ids["wb"]
+        self.packet.update(connections=[cid], selections=[{
+            "templateId": "drr_ordered", "connectionId": cid,
+            "input": {"period": {"from": "2026-11-19", "to": "2026-11-19"}}}])
+        def read(req, **options):
+            options["on_dispatch"]()
+            if req.host == "finance-api.wildberries.ru":
+                return b'{"currency":"RUB"}', 200
+            if req.host == "advert-api.wildberries.ru":
+                return b'[{"currency":"RUB","advertId":101,"updSum":1641}]', 200
+            self.assertEqual(req.host, "seller-analytics-api.wildberries.ru")
+            period = json.loads(req.data)["selectedPeriod"]
+            row = {"product": {"nmId": 101}, "statistic": {"selected": {"period": period, "orderSum": 14367}}}
+            return json.dumps({"data": {"currency": "RUB", "products": [row]}}).encode(), 200
+        with patch("http_transport.read_response", side_effect=read):
+            result = worker.seller_result(worker.execute(self.packet, self.root))
+        self.assertTrue(result["ok"], result)
+        from decimal import Decimal
+        values = result["sourceValues"][0]["values"]
+        self.assertEqual({(Decimal(v["value"]), v["unit"]) for v in values},
+                         {(Decimal(1641), "RUB"), (Decimal(14367), "RUB")})
+
     def test_currency_is_resolved_once_for_all_selected_monetary_formulas(self):
         from platform_core.marketplace_matrix import store_currency
         from platform_core.marketplace_matrix.authority import ChatAuthority
