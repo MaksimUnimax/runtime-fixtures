@@ -25,4 +25,4 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-`static/harness-wordmark.svg` is Octoport artwork. The PORT badge adapts letter outlines from the BrandWordmark in the pinned Harness 0.2.2-rc.1 UI, covered by the MIT license above.
+`static/harness-wordmark.svg` is Octoport artwork. The lowercase lettering is custom, and the PORT badge uses outlined Liberation Sans Bold capitals.
