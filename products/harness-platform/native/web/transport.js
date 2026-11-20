@@ -58,20 +58,20 @@ class Changes {
 export async function createTransport(data) {
   const guest = data.mode === 'guest';
   protectPaste(guest,api);
-  const [ids,wallet] = guest ? [data.chat ? [data.chat] : [],null]
-    : await Promise.all([api('/api/chats'),api('/api/wallet')]);
+  const initial = data.account ? JSON.parse(data.account) : null;
+  const ids = guest ? (data.chat ? [data.chat] : []) : initial?.chats ?? await api('/api/chats');
+  const flags = initial ?? (guest ? {} : await api('/api/wallet'));
   const selected = data.chat || ids.at(-1);
   const changes = new Changes();
   const cuts = new Map();
   const running = new Set();
   const pending = new Map();
   const live = new LiveTurns();
-  const nonempty = new Set(ids.filter(id=>id!==selected));
-  const opening = new Map();
+  const nonempty = new Set(ids);
   const titles = new Map(), updated = new Map();
   const openedAt = Date.now();
   const account = {guest, selected, panel:data.panel, error:data.error, recovery:data.recovery,
-    wallet, api, changes, live, costs:new Map()};
+    canGrant:flags.canGrant, modelChoice:flags.modelChoice, api, changes, live, costs:new Map()};
   const access = () => authorized(ids, guest);
   const view = () => ({items:[{workspaceId:workspace, path:'/personal', title:guest?'Справка octoport':'Мои чаты',
     sessionIds:[...ids], createdAt:'1970-01-01T00:00:00Z', updatedAt:'1970-01-01T00:00:00Z'}],
@@ -109,6 +109,8 @@ export async function createTransport(data) {
       nonempty.add(id);
       const last = records.at(-1).event.time;
       updated.set(id,Math.max(updated.get(id) ?? 0,last));
+    } else if (before == null) {
+      nonempty.delete(id);
     }
     const first = records[0]?.event.seq;
     if (result.nextBefore!=null && first!=null) cuts.set(id+'|'+(first-1),result.nextBefore);
@@ -116,7 +118,6 @@ export async function createTransport(data) {
     if (!guest && result.nextBefore==null && firstUser) titles.set(id,firstUser.data.content[0].text.slice(0,64));
     return {records,hasMore:result.nextBefore!=null};
   }
-  if (selected) opening.set(selected,await page(selected,null));
   const params = payload => payload.args.request ?? payload.args.input ?? payload.args;
   function summary(id) { return {agentAvailable:true,sessionId:id,updatedAt:updated.get(id) ?? openedAt,running:running.has(id),
     blank:!nonempty.has(id),cwd:'/personal',projections:{kind:'cached',...projection(id)}}; }
@@ -176,7 +177,6 @@ export async function createTransport(data) {
               if(!guest){
                 const view=live.views.get(id);
                 if(view?.rid===turn.requestId)live.update(id,{...view,committed:true});
-                api('/api/wallet').then(w=>{account.wallet=w;}).catch(()=>{});
               }
               pending.delete(id);
             } catch(error){
@@ -220,8 +220,7 @@ export async function createTransport(data) {
           finally {live.clear(id,requestId);changes.notify();}
         }).catch(()=>{}).finally(()=>signal.removeEventListener('abort',abort));
       }
-      let window=opening.get(id) ?? await page(id,null,signal);
-      opening.delete(id);
+      let window=await page(id,null,signal);
       let seq=window.records.at(-1)?.event.seq ?? -1;
       if(live.views.get(id)?.committed)live.clear(id,live.views.get(id).rid);
       yield {type:'snapshot',header:{version:3,id,createdAt:0,cwd:'/personal',isSeeded:false},

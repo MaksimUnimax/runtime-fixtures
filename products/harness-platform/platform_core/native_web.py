@@ -139,10 +139,11 @@ async def module_file(request):
         raise HTTPException(404)
     return asset_response(request, static_bytes(files[name], client_source), 'text/javascript')
 
-def shell(*, panel="", error="", recovery="", chat="", guest=False, status=200):
+def shell(*, panel="", error="", recovery="", chat="", guest=False, status=200, account=None):
     page = (UI / "index.html").read_text()
     page = page.replace("@@application@@", application_name())
     for name, value in {"panel":panel, "error":error, "recovery":recovery, "chat":chat,
+                        "account":json.dumps(account, separators=(",", ":")) if account is not None else "",
                         "mode":"guest" if guest else "member"}.items():
         page = page.replace("@@" + name + "@@", escape(value, quote=True))
     return HTMLResponse(page, status_code=status, headers=HEADERS)

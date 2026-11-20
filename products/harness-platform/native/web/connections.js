@@ -134,7 +134,7 @@ window.__ModuleLoader__.load({
       const section=(id,title,order,component)=>ctx.slots.inject('settings.section',()=>ctx.slots.register({
         name:'settings.section',id,order,label:()=>title},component));
       section('integrations','Интеграции',5,Connections);
-      if(a.wallet?.modelChoice)section('model-choice','Выбор ИИ',6,Models);
+      if(a.modelChoice)section('model-choice','Выбор ИИ',6,Models);
     }};
   }
 });
