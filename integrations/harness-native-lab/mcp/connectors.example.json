@@ -1,0 +1,11 @@
+{
+  "schema": "harness-lab-connectors/v1",
+  "scope_id": "single-owner-lab",
+  "revision": "v1",
+  "yandex": {
+    "enabled": false
+  },
+  "ozon": {
+    "enabled": false
+  }
+}

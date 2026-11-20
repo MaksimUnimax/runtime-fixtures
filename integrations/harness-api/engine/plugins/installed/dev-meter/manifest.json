@@ -1,0 +1,30 @@
+{
+  "api_version": "octoport.harness-plugin/v1",
+  "harness_version": "0.2.2-rc.1",
+  "id": "dev-meter",
+  "version": "1.0.0",
+  "default_enabled": true,
+  "required": false,
+  "entry": "plugin.mjs",
+  "sha256": "1926dca9d2ceed6dd91962153e2c005a55f7de24a39e25223d94c224177f8b5d",
+  "name": "Расход запросов",
+  "description": "Токены и оценка рублей из фактических квитанций запросов; только для разработчиков.",
+  "aliases": [
+    "расход",
+    "счётчик токенов",
+    "метрики",
+    "учёт расхода"
+  ],
+  "priority": 100,
+  "capability": "developer_meter",
+  "actions": {
+    "requests": {
+      "title": "Расход запросов",
+      "aliases": [
+        "покажи расход",
+        "расход последнего запроса",
+        "покажи расход последнего запроса"
+      ]
+    }
+  }
+}

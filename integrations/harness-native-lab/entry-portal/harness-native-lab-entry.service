@@ -1,0 +1,29 @@
+[Unit]
+Description=Private login form for native Harness laboratory
+After=network.target harness-native-lab.service
+Wants=harness-native-lab.service
+
+[Service]
+Type=simple
+User=harness-native-lab
+Group=harness-native-lab
+ExecStart=/usr/bin/python3 -B /opt/harness-native-lab/entry-portal/portal.py
+WorkingDirectory=/opt/harness-native-lab/entry-portal
+Restart=on-failure
+RestartSec=2
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictSUIDSGID=true
+MemoryMax=128M
+CPUQuota=30%
+LimitNOFILE=256
+
+[Install]
+WantedBy=multi-user.target
