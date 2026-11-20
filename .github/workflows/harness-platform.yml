@@ -27,12 +27,13 @@ jobs:
         run: |
           python3.12 -m venv .venv
           .venv/bin/python -m pip install -r requirements.txt
-      - name: Run plugin, storage and MCP contracts
-        run: .venv/bin/python -m unittest discover -s tests -v
       - name: Install pinned upstream Harness for the native adapter test
         run: npm install --prefix "$RUNNER_TEMP/harness-foundation" --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh@0.2.2-rc.1
-      - name: Run checks against the installed native client
+      - name: Verify native chat isolation, authentication and plugin contracts
+        env:
+          HARNESS_OFFLINE_MODEL: "1"
         run: |
-          HARNESS_NODE_MODULES="$RUNNER_TEMP/harness-foundation/node_modules" \
-          HARNESS_TEST_PYTHON="$PWD/.venv/bin/python" \
+          export HARNESS_NODE_MODULES="$RUNNER_TEMP/harness-foundation/node_modules"
+          export HARNESS_TEST_PYTHON="$PWD/.venv/bin/python"
+          .venv/bin/python -m unittest discover -s tests -v
           node --test native/*.test.mjs
