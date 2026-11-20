@@ -7,6 +7,7 @@ from decimal import Decimal, DecimalException, localcontext
 from hashlib import sha256
 import json
 from pathlib import Path
+import re
 import sys
 
 
@@ -15,6 +16,9 @@ TOKEN_KEYS = ("input_tokens", "cache_read_input_tokens", "output_tokens",
               "cache_creation_input_tokens")
 MAX_TOKENS = 2**53 - 1
 ZERO = Decimal(0)
+ATTRIBUTION_KEYS = ("workspace_id", "operation_id", "source")
+OPERATION_ID = re.compile(r"[0-9a-f]{32}")
+OPERATION_SOURCE = re.compile(r"[a-z][a-z0-9_.-]{0,63}")
 
 
 def unique_keys(pairs):
@@ -107,6 +111,7 @@ def canonical(value):
 class Phase:
     event: dict
     fingerprints: set = field(default_factory=set)
+    duplicates: int = 0
 
 
 def index_journal(path):
@@ -131,6 +136,7 @@ def index_journal(path):
             phase = phases[phase_name]
             if fingerprint in phase.fingerprints:
                 duplicates += 1
+                phase.duplicates += 1
             phase.fingerprints.add(fingerprint)
     return attempts, duplicates
 
@@ -168,7 +174,7 @@ def verified_amounts(phases, tariffs):
         return None, None, "invalid_identity"
     # Gateway v1 copies all admission metadata into its terminal record.
     for key in ("model", "purpose", "session_id", "started_at", "started_ms",
-                "thinking", "effort", "max_tokens", "messages", "tools"):
+                "thinking", "effort", "max_tokens", "messages", "tools", "attribution"):
         if (key in start) != (key in end) or canonical(start.get(key)) != canonical(end.get(key)):
             return None, None, "identity_mismatch"
     status = end.get("status")
@@ -254,10 +260,68 @@ def reconcile(attempts, duplicates, tariffs):
     }
 
 
+def operation_key(phases):
+    """Return a trusted group key, or the reason this attempt is unassigned."""
+    if any(len(phase.fingerprints) != 1 for phase in phases.values()):
+        return None, "conflicting_events"
+    events = [phase.event for phase in phases.values()]
+    scopes = [event["attribution"] for event in events if "attribution" in event]
+    if not scopes:
+        return None, "missing_attribution"
+    if len(scopes) != len(events) or any(scope != scopes[0] for scope in scopes[1:]):
+        return None, "attribution_mismatch"
+    scope = scopes[0]
+    if not isinstance(scope, dict) or set(scope) != set(ATTRIBUTION_KEYS):
+        return None, "invalid_attribution"
+    workspace, operation, source = (scope[key] for key in ATTRIBUTION_KEYS)
+    if (not isinstance(workspace, str) or not 1 <= len(workspace) <= 256
+            or "\x00" in workspace or workspace != workspace.strip()
+            or not isinstance(operation, str) or not OPERATION_ID.fullmatch(operation)
+            or not isinstance(source, str) or not OPERATION_SOURCE.fullmatch(source)):
+        return None, "invalid_attribution"
+    return (workspace, operation, source), None
+
+
+def attribution_summary(attempts, tariffs):
+    groups = {}
+    issues = Counter()
+    for attempt_id, phases in attempts.items():
+        key, issue = operation_key(phases)
+        if issue:
+            issues[issue] += 1
+        else:
+            groups.setdefault(key, {})[attempt_id] = phases
+    # The product store gives each operation ID one workspace and one source.
+    # Count distinct bindings before emitting any group so input order cannot decide ownership.
+    binding_counts = Counter(operation for _, operation, _ in groups)
+    operations = []
+    for key, members in sorted(groups.items()):
+        if binding_counts[key[1]] != 1:
+            issues["operation_binding_conflict"] += len(members)
+            continue
+        duplicates = sum(phase.duplicates for phases in members.values() for phase in phases.values())
+        operations.append({
+            **dict(zip(ATTRIBUTION_KEYS, key)),
+            **reconcile(members, duplicates, tariffs),
+        })
+    unassigned = sum(issues.values())
+    if not attempts:
+        issues["empty_journal"] = 1
+    return {
+        "status": "partial" if issues else "complete",
+        "assigned_attempts": len(attempts) - unassigned,
+        "unassigned_attempts": unassigned,
+        "issues": dict(sorted(issues.items())),
+        "operations": operations,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("journal", type=Path)
     parser.add_argument("--tariffs", type=Path, required=True)
+    parser.add_argument("--by-operation", action="store_true",
+                        help="include operator-only workspace and operation cost summaries")
     args = parser.parse_args()
     with localcontext() as context:
         context.prec = 256
@@ -275,6 +339,11 @@ def main():
             print(str(exc), file=sys.stderr)
             return 2
         report = reconcile(attempts, duplicates, tariffs)
+        if args.by_operation:
+            attribution = attribution_summary(attempts, tariffs)
+            report["attribution"] = attribution
+            if attribution["status"] == "partial":
+                report["status"] = "partial"
     print(json.dumps(report, sort_keys=True))
     return 0 if report["status"] == "complete" else 1
 

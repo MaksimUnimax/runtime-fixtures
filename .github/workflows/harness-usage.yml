@@ -1,0 +1,29 @@
+name: Harness usage accounting
+on:
+  pull_request:
+    paths:
+      - 'integrations/harness-native-lab/gateway/**'
+      - 'products/harness-platform/usage-reconciliation/**'
+      - 'products/harness-platform/platform_core/storage.py'
+      - 'products/harness-platform/platform_core/operation_grants.py'
+      - '.github/workflows/harness-usage.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - name: Validate issuance and scoped reconciliation
+        run: python3 -B -m unittest discover -s products/harness-platform/usage-reconciliation -v
+      - name: Exercise gateway journal and operation grants
+        run: node --test integrations/harness-native-lab/gateway/server.test.mjs products/harness-platform/usage-reconciliation/test_*.mjs

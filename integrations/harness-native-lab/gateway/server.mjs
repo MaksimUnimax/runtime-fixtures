@@ -131,12 +131,30 @@ function equalSecret(got, expected) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+// Copy only the fields defined by the product attribution contract.
+function operationScope(resolver, credential) {
+  const value = resolver(credential);
+  if (!object(value)) return null;
+  const { workspace_id, operation_id, source } = value;
+  if (typeof workspace_id !== 'string' || !workspace_id || Array.from(workspace_id).length > 256 ||
+      workspace_id.includes('\0') ||
+      typeof operation_id !== 'string' || operation_id.length !== 32 || /[^a-f0-9]/.test(operation_id) ||
+      typeof source !== 'string' || !/^[a-z]/.test(source) || /[^a-z0-9_.-]/.test(source) || source.length > 64) {
+    return null;
+  }
+  return { workspace_id, operation_id, source };
+}
+
 function json(res, code, obj) {
   res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
   res.end(JSON.stringify(obj));
 }
 
 export function createGateway(config) {
+  const resolveAttribution = config.resolveAttribution;
+  if (resolveAttribution !== undefined && typeof resolveAttribution !== 'function') {
+    throw new TypeError('Expected a synchronous operation grant resolver');
+  }
   let active = 0;
   let journal = Promise.resolve();
   const log = event => { journal = journal.then(() => appendFile(config.logFile, JSON.stringify(event) + '\n', { mode: 0o600 })); return journal; };
@@ -158,15 +176,17 @@ export function createGateway(config) {
     try {
       const url = new URL(req.url, 'http://localhost');
       if (req.method === 'GET' && url.pathname === '/lab-meter') {
+        if (resolveAttribution) return json(res, 404, { error: 'not_found' });
         // Private loopback listener. Public proxy MUST first verify the
         // unmodified native Host cookie with auth_request.
         if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress))
           return json(res, 403, { error: 'loopback_only' });
         return json(res, 200, await readMeterSummary(config.logFile));
       }
-      if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true, service: 'harness-native-model-gateway', active, mode: 'single-owner-lab', models: Object.keys(PRICES) });
+      if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true, service: 'harness-native-model-gateway', active, mode: resolveAttribution ? 'scoped-operations' : 'single-owner-lab', models: Object.keys(PRICES) });
       const incoming = req.headers['x-api-key'] || String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-      if (!equalSecret(incoming, config.virtualKey)) return json(res, 401, { error: { type: 'authentication_error', message: 'Invalid lab credential' } });
+      const denied = () => json(res, 401, { error: { type: 'authentication_error', message: 'Invalid gateway credential' } });
+      if (resolveAttribution ? !operationScope(resolveAttribution, incoming) : !equalSecret(incoming, config.virtualKey)) return denied();
       const isMessages = req.method === 'POST' && url.pathname === '/v1/messages';
       const isModels = req.method === 'GET' && ['/models', '/v1/models'].includes(url.pathname);
       if (!isMessages && !isModels) return json(res, 404, { error: { type: 'not_found_error', message: 'This test gateway supports text Messages and model discovery only' } });
@@ -182,10 +202,14 @@ export function createGateway(config) {
         if (!textHistory(parsed.messages) || !(parsed.system === undefined || parsed.system === null || textBlocks(parsed.system))) return json(res, 400, { error: { type: 'invalid_request_error', message: 'This lab accepts text history and native thinking/tool exchanges only' } });
         if (!clientTools(parsed.tools)) return json(res, 400, { error: { type: 'invalid_request_error', message: 'Only client-defined native tools are allowed; provider-side tools are outside this MCP lab' } });
         // Platform-owned, opaque identifier; native anonymous user header is not an authority.
-        parsed.metadata = { user_id: config.userId || 'harness-native-lab-owner-20261118' };
+        parsed.metadata = { user_id: config.userId || (resolveAttribution ? 'harness-operation-gateway' : 'harness-native-lab-owner-20261118') };
         body = Buffer.from(JSON.stringify(parsed));
+        // Reading the body yielded. Recheck ownership, expiry and revocation at admission.
+        const attribution = resolveAttribution ? operationScope(resolveAttribution, incoming) : null;
+        if (resolveAttribution && !attribution) return denied();
         const sid = req.headers['x-deepseek-harness-session-id'];
         entry = { schema: 'harness-lab-model-attempt/v1', event: 'admitted', attempt_id: randomUUID(),
+          ...(attribution && { attribution }),
           started_at: new Date().toISOString(), started_ms: Date.now(),
           session_id: typeof sid === 'string' && /^[a-zA-Z0-9_.:-]{1,160}$/.test(sid) ? sid : null,
           purpose: req.headers['x-deepseek-harness-compact'] === '1' ? 'compaction' : 'native-model-step',
@@ -276,14 +300,23 @@ async function main() {
   await mkdir(dir, { recursive: true, mode: 0o700 });
   const config = {
     realKey: (await readFile(process.env.DEEPSEEK_KEY_FILE, 'utf8')).trim(),
-    virtualKey: (await readFile(process.env.LAB_GATEWAY_KEY_FILE, 'utf8')).trim(),
     upstreamBase: 'https://api.deepseek.com/anthropic',
     logFile: resolve(dir, 'model-attempts.jsonl'),
     fx: Number(process.env.LAB_FX_RUB_PER_USD) || null,
     maxOutputTokens: Number(process.env.LAB_MAX_OUTPUT_TOKENS || 16384),
   };
-  if (!config.realKey || config.virtualKey.length < 24) throw new Error('Missing model gateway credentials');
+  if (!config.realKey) throw new Error('Missing upstream credential');
+  let registry;
+  if (process.env.HARNESS_USAGE_PLATFORM_DB !== undefined) {
+    const { openOperationResolver } = await import('./operation-resolver.mjs');
+    registry = openOperationResolver(process.env.HARNESS_USAGE_PLATFORM_DB);
+    config.resolveAttribution = registry.resolve;
+  } else {
+    config.virtualKey = (await readFile(process.env.LAB_GATEWAY_KEY_FILE, 'utf8')).trim();
+    if (config.virtualKey.length < 24) throw new Error('Missing lab credential');
+  }
   const { server } = createGateway(config);
+  server.once('close', () => registry?.close());
   server.listen(Number(process.env.LAB_GATEWAY_PORT || 18442), '127.0.0.1', () => console.log('harness-native-model-gateway listening on loopback'));
   const stop = () => server.close(() => process.exit(0));
   process.on('SIGTERM', stop); process.on('SIGINT', stop);
