@@ -62,7 +62,9 @@ window.__ModuleLoader__.load({
         }
         return h('section',{className:'service-settings'},h('h2',null,'Выбор ИИ'),radio('direct','octoport · прямое подключение'),
           h('label',null,'Поиск модели',h('input',{type:'search',value:filter,onChange:e=>setFilter(e.target.value)})),
-          data&&!data.models.length && h('p',null,'Каталог OpenRouter временно недоступен'),
+          data?.catalogMessage && h('p',{role:'status'},data.catalogMessage),
+          data?.enabled && data.model!=='direct' && !data.models.some(m=>m.id===data.model) &&
+            h('p',null,'Выбранная модель сейчас недоступна: '+data.model),
           [...groups].map(([family,models])=>h('details',{key:family,open:filter?true:undefined},
             h('summary',null,family+' ('+models.length+')'),models.map(m=>radio(m.id,m.name)))),
           h('p',{role:'status'},msg));

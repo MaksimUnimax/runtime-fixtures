@@ -42,6 +42,8 @@ def amount(raw):
 
 def catalog_rows(data):
     models = {}
+    if not isinstance(data["data"], list):
+        raise ValueError("Invalid model catalog")
     for row in data["data"]:
         try:
             model, price = row["id"], row["pricing"]
@@ -54,33 +56,53 @@ def catalog_rows(data):
                 continue
             models[model] = {"id":model,"name":row["name"],"family":model.split("/",1)[0],
                              "rates":[str(r) for r in rates]}
-        except (KeyError, ValueError, TypeError):
+        except (AttributeError, KeyError, ValueError, TypeError):
             continue
-    if not models:
-        raise ValueError("Empty catalog")
     return models
 
 class ModelRouter:
     def __init__(self, identity, http, key):
         self.identity, self.http, self.key = identity, http, key
         self.catalog, self.expires, self.refresh = {}, 0, asyncio.Lock()
+        self.catalog_key = None
+        self.catalog_message = ""
         self.active, self.total = {}, 0
         with identity._write() as db:
             for sql in TABLES:
                 db.execute(sql)
 
     async def models(self):
-        if time.monotonic() >= self.expires:
-            async with self.refresh:
-                if time.monotonic() >= self.expires:
-                    try:
-                        res = await self.http.get(BASE+"/models",timeout=8)
-                        res.raise_for_status()
-                        self.catalog = catalog_rows(res.json())
-                        self.expires = time.monotonic()+600
-                    except (httpx.HTTPError,ValueError,TypeError,KeyError):
-                        self.expires = time.monotonic()+30
-        return self.catalog
+        async with self.refresh:
+            headers = self.headers
+            key_id = hashlib.sha256(headers["Authorization"].encode()).digest()
+            if key_id != self.catalog_key:
+                self.catalog_key, self.catalog, self.expires = key_id, {}, 0
+            if time.monotonic() < self.expires:
+                return self.catalog
+
+            retry_after = 30
+            try:
+                response = await self.http.get(BASE + "/models/user", headers=headers, timeout=8)
+                response.raise_for_status()
+                self.catalog = catalog_rows(response.json())
+                self.catalog_message = "" if self.catalog else "У этого ключа OpenRouter нет подходящих моделей для чата с инструментами."
+                retry_after = 600
+            except httpx.HTTPStatusError as error:
+                status = error.response.status_code
+                if status in (401, 403):
+                    self.catalog = {}
+                self.catalog_message = {
+                    401: "OpenRouter отклонил ключ сервиса (HTTP 401).",
+                    403: "OpenRouter запретил серверу доступ к каталогу моделей (HTTP 403).",
+                }.get(status, f"Не удалось обновить каталог OpenRouter (HTTP {status}).")
+            except (httpx.RequestError, ValueError, TypeError, KeyError):
+                self.catalog_message = "Не удалось получить каталог моделей OpenRouter."
+            if headers["Authorization"] != "Bearer " + self.credential():
+                self.catalog, self.expires = {}, 0
+                self.catalog_message = "Ключ OpenRouter изменился. Обновите список моделей."
+                return self.catalog
+            self.expires = time.monotonic() + retry_after
+            return self.catalog
 
     def preference(self, token, model=None):
         with self.identity._write() as db:
@@ -184,12 +206,15 @@ class ModelRouter:
                 except (httpx.HTTPError,KeyError,ValueError,TypeError):
                     continue
 
+    def credential(self):
+        return provider_keys.read("openrouter") or self.key
+
     def available(self):
-        return bool(provider_keys.read("openrouter") or self.key)
+        return bool(self.credential())
 
     @property
     def headers(self):
-        key=provider_keys.read("openrouter") or self.key
+        key=self.credential()
         if not key:
             raise HTTPException(503,"OpenRouter не настроен")
         return {"Authorization":"Bearer "+key}
@@ -318,12 +343,12 @@ def routes(get_token,body):
         req.app.state.identity.validate_session(token)
         if router is None or not router.available():
             return JSONResponse({"enabled":False,"model":"direct","models":[]})
-        catalog = await router.models()
         selected = None
         if req.method=="POST":
             selected=(await body(req,"model"))["model"]
             if not isinstance(selected,str):
                 raise ValueError("Invalid model")
-        return JSONResponse({"enabled":True,"model":router.preference(token,selected),"models":[
+        catalog = await router.models()
+        return JSONResponse({"enabled":True,"model":router.preference(token,selected),"catalogMessage":router.catalog_message,"models":[
             {k:m[k] for k in ("id","family","name")} for m in catalog.values()]})
     return [Route("/api/model-settings",models,methods=["GET","POST"])]
