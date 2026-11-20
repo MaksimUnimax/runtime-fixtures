@@ -77,6 +77,32 @@ class OrderSources(TestCase):
         self.assertEqual({row['scheme']for row in rows},{'fbo','fbs'})
         self.assertEqual(rows[0]['posting'],encode('posting','PRIVATE-POSTING-fbo'))
 
+    def test_posting_money_objects_are_exact_for_both_schemes(self):
+        pages = []
+        amounts = ['0', '1000.12345678901234567890123456789']
+        for scheme, amount in zip(orders.SCHEMES, amounts):
+            item = posting(scheme, price={'amount': amount, 'currency': 'RUB'})
+            del item['products'][0]['currency_code']
+            pages.append([packet(scheme, page([item]))])
+        rows = normalize(*pages).data['rows']
+        self.assertEqual({row['scheme']: row['seller_price'] for row in rows},
+                         dict(zip(orders.SCHEMES, amounts)))
+
+    def test_posting_money_object_requires_valid_amount_and_rubles(self):
+        cases = [
+            ({'amount': '10'}, 'RUB'), ({'currency': 'RUB'}, 'RUB'),
+            ({'amount': '10', 'currency': 'USD'}, 'RUB'),
+            ({'amount': '10', 'currency': 'RUB'}, 'USD'),
+            ({'amount': True, 'currency': 'RUB'}, 'RUB'),
+            ({'amount': '-1', 'currency': 'RUB'}, 'RUB'),
+        ]
+        for price, outer_currency in cases:
+            with self.subTest(price=price, outer_currency=outer_currency):
+                item = posting(price=price)
+                item['products'][0]['currency_code'] = outer_currency
+                with self.assertRaises(orders.OrderError):
+                    normalize([packet('fbo', page([item]))])
+
     def test_correct_moscow_order_axes_and_inclusive_boundaries(self):
         rows=normalize().data['rows'];self.assertEqual({row['day']for row in rows},{'2026-11-13'})
         fbo,fbs=fixtures()
