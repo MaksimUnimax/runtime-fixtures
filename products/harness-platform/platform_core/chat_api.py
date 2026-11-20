@@ -17,7 +17,9 @@ from starlette.routing import Route
 from .admin_costs import AdminCosts, present_chat
 from .browser_session import browser_routes, browser_token
 from .chat_worker import ChatWorker, WorkerError
-from .identity import AuthenticationError, ChatUnavailable, IdentityStore
+from .identity import AuthenticationError, ChatUnavailable
+from .guest_registration import RegistrationStore
+from .guest_web import guest_routes
 from .web_ui import web_routes
 
 
@@ -69,7 +71,7 @@ async def _body(request, *keys):
 def create_app(database_path, chat_directory, *, composition_module=None):
     @asynccontextmanager
     async def lifespan(app):
-        with IdentityStore(database_path) as identity:
+        with RegistrationStore(database_path) as identity:
             app.state.identity = identity
             app.state.admin_costs = AdminCosts()
             app.state.worker = ChatWorker(database_path, chat_directory, composition_module)
@@ -132,6 +134,9 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         scope = await run_in_threadpool(
             req.app.state.identity.resolve_chat, token, req.path_params["chat_id"],
         )
+        prefix = await run_in_threadpool(req.app.state.identity.claimed_history, scope)
+        if prefix:
+            data["guestHistory"] = prefix
         try:
             result = await req.app.state.worker.request(scope, action, **data)
         except WorkerError as exc:
@@ -164,6 +169,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
 
     return Starlette(lifespan=lifespan, middleware=[Middleware(PrivateResponses)], routes=[
         *browser_routes(),
+        *guest_routes(),
         *web_routes(),
         Route("/api/login", login, methods=["POST"]),
         Route("/api/logout", logout, methods=["POST"]),

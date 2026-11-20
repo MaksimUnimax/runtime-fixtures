@@ -47,7 +47,9 @@ __ERROR__
 <form method="post" action="/login">
 <label>Логин<input name="login" autocomplete="username" required maxlength="254" autofocus></label>
 <label>Пароль<input name="password" type="password" autocomplete="current-password" required maxlength="256"></label>
-<button type="submit">Войти</button></form></main></body></html>"""
+<button type="submit">Войти</button></form>
+<form method="post" action="/guest/start"><button>Попробовать без регистрации</button></form>
+<form method="post" action="/register/start"><button>Создать аккаунт</button></form></main></body></html>"""
 
 
 def _secure(connection):
@@ -68,6 +70,16 @@ def _secure(connection):
 
 def _cookie_name(secure):
     return "__Host-harness_session" if secure else "harness_local_session"
+
+
+def guest_cookie(connection):
+    return "__Host-harness_guest" if _secure(connection) else "harness_local_guest"
+
+
+def clear_guest_cookie(request, response):
+    name = guest_cookie(request)
+    if name in request.cookies:
+        response.delete_cookie(name, path="/", secure=_secure(request), httponly=True, samesite="strict")
 
 
 def require_browser_origin(connection):
@@ -96,21 +108,21 @@ def browser_token(connection) -> str:
     return token
 
 
-async def _credentials(request):
+async def _form_fields(request, keys, max_bytes=8192):
     if request.headers.get("content-type", "").partition(";")[0].strip().lower() != "application/x-www-form-urlencoded":
-        raise HTTPException(415, "Expected an HTML login form")
+        raise HTTPException(415, "Expected a URL-encoded form")
     data = bytearray()
     async for chunk in request.stream():
-        if len(data) + len(chunk) > 8192:
-            raise HTTPException(413, "Login form too large")
+        if len(data) + len(chunk) > max_bytes:
+            raise HTTPException(413, "Form too large")
         data.extend(chunk)
     try:
         fields = dict(parse_qsl(data.decode("ascii"), keep_blank_values=True, strict_parsing=True,
-                                errors="strict", max_num_fields=2))
+                                errors="strict", max_num_fields=len(keys)))
     except (UnicodeError, ValueError):
-        raise HTTPException(400, "Invalid login form") from None
-    if fields.keys() != {"login", "password"}:
-        raise HTTPException(400, "Invalid login form")
+        raise HTTPException(400, "Invalid form") from None
+    if fields.keys() != keys:
+        raise HTTPException(400, "Invalid form")
     return fields
 
 
@@ -147,7 +159,7 @@ async def _login(request):
         return _page()
 
     require_browser_origin(request)
-    fields = await _credentials(request)
+    fields = await _form_fields(request, {"login", "password"})
     try:
         token = await run_in_threadpool(identity.login, **fields)
     except AuthenticationError:
@@ -158,6 +170,7 @@ async def _login(request):
         except AuthenticationError:
             pass  # A malformed cookie does not prevent a fresh sign-in.
     response = _redirect("/app/")
+    clear_guest_cookie(request, response)
     response.set_cookie(name, token, path="/", secure=secure, httponly=True, samesite="strict")
     return response
 
@@ -171,6 +184,7 @@ async def _logout(request):
         pass
     response = _redirect("/login")
     _clear_cookie(response, secure)
+    clear_guest_cookie(request, response)
     return response
 
 

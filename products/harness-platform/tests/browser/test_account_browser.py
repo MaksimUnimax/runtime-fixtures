@@ -41,8 +41,8 @@ async def boot_status(page):
 
 
 @asynccontextmanager
-async def running_product(database, journals):
-    app = create_app(database, journals, composition_module="examples.reference_plugin")
+async def running_product(database, journals, *, composition_module="examples.reference_plugin"):
+    app = create_app(database, journals, composition_module=composition_module)
     server = uvicorn.Server(uvicorn.Config(app, log_level="warning", access_log=False))
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
         listener.bind(("127.0.0.1", 0))
@@ -190,3 +190,58 @@ class BrowserIsolation(unittest.IsolatedAsyncioTestCase):
         await expect(first.locator("body")).not_to_contain_text(markers[0])
         await second.reload()
         await expect(second.get_by_test_id("history")).to_contain_text(followups[1], timeout=30_000)
+
+    async def test_guest_registers_and_resumes_the_same_chat(self):
+        guest = await self.browser.new_context(base_url=self.base_url)
+        second_device = await self.browser.new_context(base_url=self.base_url)
+        self.addAsyncCleanup(guest.close)
+        self.addAsyncCleanup(second_device.close)
+        page, other = await asyncio.gather(guest.new_page(), second_device.new_page())
+        for client in (page, other):
+            await client.goto("/login")
+            await client.get_by_role("button", name="Попробовать без регистрации").click()
+            await expect(client.get_by_role("heading", name="Гостевой чат")).to_be_visible()
+        original_url = page.url
+        self.assertNotEqual(original_url, other.url)
+        marker = "Как сохранить мою историю? Метка 521."
+        await self.send_turn(page, marker)
+        public_history = page.get_by_role("list", name="История сообщений")
+        await expect(public_history).to_contain_text(marker)
+        answer = await public_history.locator("li p").nth(1).inner_text()
+        self.assertIn("регистрации", answer)
+        denied = await other.goto(original_url)
+        self.assertEqual(denied.status, 404)
+        await expect(other.locator("body")).not_to_contain_text(marker)
+
+        await page.get_by_role("link", name="Создать аккаунт и сохранить чат").click()
+        await page.get_by_label("Логин", exact=True).fill("guest-browser")
+        await page.get_by_label("Пароль", exact=True).fill(self.password)
+        self.assertTrue(await page.get_by_label("Код восстановления").input_value())
+        await page.get_by_role("button", name="Зарегистрироваться и открыть чат").click()
+        await expect(page).to_have_url(original_url)
+        history = page.get_by_test_id("history")
+        await expect(history).to_contain_text(marker, timeout=30_000)
+        await expect(history).to_contain_text(answer, timeout=30_000)
+        await expect(page.get_by_role("navigation", name="Чаты").get_by_role("link")).to_have_count(1)
+        followup = "Продолжим после регистрации"
+        await self.send_turn(page, followup)
+        await expect(history).to_contain_text(f"Предыдущее сообщение: {marker}", timeout=45_000)
+        await page.reload()
+        await expect(history).to_contain_text(f"Тестовая модель (ход 2): {followup}", timeout=30_000)
+
+        denied = await other.goto(original_url)
+        self.assertEqual(denied.status, 404)
+        await other.goto("/login")
+        await other.get_by_label("Логин", exact=True).fill("guest-browser")
+        await other.get_by_label("Пароль", exact=True).fill(self.password)
+        await other.get_by_role("button", name="Войти", exact=True).click()
+        link = other.get_by_role("navigation", name="Чаты").get_by_role("link")
+        await expect(link).to_have_count(1)
+        await link.click()
+        await expect(other).to_have_url(original_url)
+        await expect(other.get_by_test_id("history")).to_contain_text(answer, timeout=30_000)
+        await expect(other.get_by_test_id("history")).to_contain_text(followup)
+        await page.get_by_role("button", name="Выйти", exact=True).click()
+        await page.goto(original_url)
+        await expect(page.get_by_role("button", name="Войти", exact=True)).to_be_visible()
+        await expect(page.locator("body")).not_to_contain_text(marker)
