@@ -9,6 +9,13 @@ import hashlib,json,os,re,urllib.request,urllib.error
 SCHEMA='alisa-station-parameter-authority/v1'
 CATALOG=json.loads(Path(__file__).with_name('parameter_voice_catalog.json').read_text())
 
+# A Yandex scenario can pass the spoken skill invocation in request.command.
+SKILL_INVOCATION = re.compile(
+    r'^\s*(?:спроси|попроси|запусти|открой)\s+(?:навык\s+)?октопорт\s+маркет(?:\s*,\s*|\s+)',
+    re.IGNORECASE,
+)
+
+
 def enabled():return os.environ.get('ALISA_OWNER_PARAMETER_VOICE_ENABLED')=='1'
 def digest(value):return hashlib.sha256(json.dumps(value,sort_keys=True,ensure_ascii=False,separators=(',',':'),allow_nan=False).encode()).hexdigest()
 def need(value):
@@ -87,6 +94,7 @@ def recognizes(command):
 
 def before(delivery,data,command,ticket):
     if not enabled():return None
+    command = SKILL_INVOCATION.sub('', command, count=1)
     cleanup_pending(delivery);pending=delivery.state.get('parameter_pending')
     known=delivery.state.get('turn_receipts',{}).get(data.get('rid')) or {}
     if not recognizes(command) and not pending and not known.get('parameter_done'):return None
