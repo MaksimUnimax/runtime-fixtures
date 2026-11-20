@@ -6,11 +6,12 @@ from pathlib import Path
 
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
-from starlette.responses import FileResponse, HTMLResponse, RedirectResponse
+from starlette.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from starlette.routing import Route
 
 from .browser_session import browser_token
 from .identity import AuthenticationError, ChatUnavailable
+from .native_ui_entry import browser_entry
 
 
 _PRODUCT = Path(__file__).resolve().parents[1]
@@ -81,7 +82,14 @@ async def harness_asset(request):
     file = Path(modules) / "@deepseek-ai" / package / asset
     if not file.is_file():
         raise HTTPException(503, "Pinned Harness UI asset unavailable")
-    return FileResponse(file, headers={"X-Content-Type-Options": "nosniff"})
+    headers = {"X-Content-Type-Options": "nosniff"}
+    if package == "dsh-web-frontend" and asset == "dist/assets/index-BgUyXZcc.js":
+        try:
+            entry = await run_in_threadpool(browser_entry, file)
+        except ValueError:
+            raise HTTPException(503, "Unsupported native UI entry build") from None
+        return Response(entry, media_type="text/javascript", headers=headers)
+    return FileResponse(file, headers=headers)
 
 
 def web_routes():
