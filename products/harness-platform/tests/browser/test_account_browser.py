@@ -25,6 +25,21 @@ def browser_error(text):
     return text[:350]
 
 
+async def boot_status(page):
+    # The hidden upstream bootstrap element may contain arbitrary text. Extract
+    # recognized technical indicators, never a page dump or message transcript.
+    root = page.locator("#root")
+    if not await root.count():
+        return "missing"
+    text = await root.text_content() or ""
+    indicators = re.findall(
+        r"@deepseek-ai/dsh-[a-z0-9-]+|EvalError|SyntaxError|TypeError|ReferenceError|"
+        r"unsafe-eval|Content Security Policy|new Function|timed out|loading|boot(?:strap)? failed",
+        text, re.IGNORECASE,
+    )
+    return {"length": len(text), "indicators": sorted(set(indicators))[:10]}
+
+
 @asynccontextmanager
 async def running_product(database, journals):
     app = create_app(database, journals, composition_module="examples.reference_plugin")
@@ -80,7 +95,16 @@ class BrowserIsolation(unittest.IsolatedAsyncioTestCase):
         await page.goto("/login")
         await page.get_by_label("Логин", exact=True).fill(handle)
         await page.get_by_label("Пароль", exact=True).fill(self.password)
-        await page.get_by_role("button", name="Войти", exact=True).click()
+        async with page.expect_response(lambda res: res.request.is_navigation_request() and
+                                        urlsplit(res.url).path == "/app/") as landing:
+            await page.get_by_role("button", name="Войти", exact=True).click()
+        response = await landing.value
+        self.assertEqual(response.status, 200)
+        policy = await response.header_value("content-security-policy") or ""
+        scripts = [d.strip().split() for d in policy.split(";") if d.strip().startswith("script-src ")]
+        self.assertEqual(len(scripts), 1, "Protected application must set its script-src policy")
+        self.assertIn("'self'", scripts[0])
+        self.assertNotIn("'unsafe-eval'", scripts[0])
         await page.get_by_role("button", name="Новый чат", exact=True).click()
         await expect(page).to_have_url(re.compile(r"/app/chats/[a-zA-Z0-9_-]+$"))
         return page
@@ -92,7 +116,8 @@ class BrowserIsolation(unittest.IsolatedAsyncioTestCase):
             await expect(button).to_be_enabled(timeout=30_000)
         except AssertionError as error:
             alert = await page.get_by_role("alert").all_text_contents()
-            self.fail(f"{error}\nVisible product errors: {[browser_error(s) for s in alert]}")
+            self.fail(f"{error}\nVisible product errors: {[browser_error(s) for s in alert]}"
+                      f"\nNative bootstrap: {await boot_status(page)}")
         await button.click()
 
     async def test_two_browser_profiles_keep_their_own_chat(self):

@@ -51,4 +51,10 @@ class WebUiTests(unittest.TestCase):
                 root = "/ui-assets/harness/dsh-client-ui-chat/"
                 self.assertEqual(client.get(root + "lib/client.js").text, "// fixture")
                 self.assertEqual(client.get(root + "lib/index.js").status_code, 404)
+                build = Path(directory) / "@deepseek-ai" / "dsh-web-frontend" / "dist" / "assets"
+                build.mkdir(parents=True)
+                (build / "index-BgUyXZcc.js").write_text("// unknown release")
+                self.assertEqual(client.get(
+                    "/ui-assets/harness/dsh-web-frontend/dist/assets/index-BgUyXZcc.js"
+                ).status_code, 503)
                 self.assertEqual(client.get("/ui-assets/project/index.html").status_code, 404)
