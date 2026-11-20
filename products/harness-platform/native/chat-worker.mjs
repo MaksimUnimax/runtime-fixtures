@@ -20,7 +20,7 @@ function registerConnectionContext(ctx, attached, available) {
   const bindings = attached.map(({id, name, provider, status, access}) => ({
     id, name, provider, status, access,
     tools: toolDefinitions.filter(tool => tool.parameters?.properties?.connectionId?.enum?.includes(id)
-      || tool.parameters?.properties?.connectionIds?.items?.enum?.includes(id))
+      || tool.parameters?.properties?.selections?.items?.properties?.connectionId?.enum?.includes(id))
       .map(tool => tool.name),
   }));
   ctx.systemPrompt.section({name:'connection-instructions',order:80,interpolate:false,
@@ -30,7 +30,8 @@ function registerConnectionContext(ctx, attached, available) {
       'Секретные ключи хранит и подставляет сервис.'});
   ctx.systemPrompt.context({name:'chat-connections',order:80,interpolate:false,required:true,
     text:'Текущее состояние подключений этого диалога: '+JSON.stringify({
-      connections:bindings, tools:toolDefinitions.map(tool=>tool.name).sort(), availableToAttach:available
+      calendarDate: new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Moscow'}).format(new Date()),
+      timezone:'Europe/Moscow', connections:bindings, tools:toolDefinitions.map(tool=>tool.name).sort(), availableToAttach:available
     })});
 }
 
@@ -86,8 +87,6 @@ export async function openWorker(env) {
   const all = db.prepare('SELECT * FROM native_batches WHERE scope_key=? ORDER BY revision');
   const insert = db.prepare('INSERT INTO native_batches VALUES (?,?,?,?,?,?,?)');
   const dispatch = modelDispatchStore(db, fail);
-  const priorQuestions = db.prepare(`SELECT input FROM native_batches WHERE scope_key=? AND action='turn'
-    ORDER BY revision DESC LIMIT 3`);
   const recent = db.prepare(`SELECT b.request_id, b.events, d.operation_id FROM native_batches b
     LEFT JOIN native_model_dispatch d USING (scope_key, request_id)
     WHERE b.scope_key=? ORDER BY b.revision DESC LIMIT ? OFFSET ?`);
@@ -240,8 +239,7 @@ export async function openWorker(env) {
           compositionModule: env.HARNESS_PLATFORM_COMPOSITION || undefined, scope: req.scope,
           marketplaceTurn: metered && req.grant ? {
             question: req.text, requestId: req.requestId, deadline: req.deadline,
-            token: req.grant.token, gateway: env.HARNESS_MODEL_GATEWAY_URL,
-            recentQuestions: priorQuestions.all(key).reverse().map(row => row.input),
+            token: req.grant.token,
           } : undefined,
         });
         registerConnectionContext(ctx,attached,available);

@@ -50,11 +50,13 @@ def collect(core, renderer, config):
     files["template_catalog.py"] = files["template_catalog.py"].replace(target, target +
         b"    available = getattr(engine, 'store_template_available', None)\n"
         b"    if available is not None and not available(t, store):return False\n")
-    target = b"            op='template_select'\n"
+    target = b"        if state=='select':\n"
     if files["template_runtime.py"].count(target) != 1:
-        raise ValueError("Review the selector context before updating the runtime")
-    files["template_runtime.py"] = files["template_runtime.py"].replace(target,
-        b"            ctx.update(getattr(worker.engine, 'chat_selector_context', {}))\n" + target)
+        raise ValueError("Review the direct template compilation entry point")
+    files["template_runtime.py"] = files["template_runtime.py"].replace(target, target +
+        b"            if getattr(worker.engine, 'chat_template_selection', None) is not None:\n"
+        b"                _compile_and_save_selection(worker,row,plan,progress,worker.engine.chat_template_selection)\n"
+        b"                return\n")
     return files
 
 
