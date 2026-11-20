@@ -138,7 +138,10 @@ export async function openWorker(env) {
         events = session.snapshotEvents(seed.length);
       } else {
         const { runOfflineTurn } = await import('./offline-turn.mjs');
-        const turn = await runOfflineTurn({ load, ctx, chatId: key, seed, text: req.text, requestId: req.requestId });
+        const turn = await runOfflineTurn({
+          load, ctx, chatId: key, seed, text: req.text, requestId: req.requestId,
+          toolUnavailable: () => fail('unavailable'),
+        });
         events = turn.events.slice(seed.length);
       }
       const messages = visible(events, req.requestId);

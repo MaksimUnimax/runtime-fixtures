@@ -52,8 +52,8 @@ class ArchiveChatScopeTest(unittest.TestCase):
             return response.json()
 
         def assert_unavailable(response):
-            self.assertIn(response.status_code, (404, 503), response.text)
-            self.assertIn(response.json(), ({"error": "unavailable"}, {"error": "worker_unavailable"}))
+            self.assertEqual(response.status_code, 404, response.text)
+            self.assertEqual(response.json(), {"error": "unavailable"})
 
         payload = {"requestId": "archive-read", "text": f"Покажи архивный отчёт за {DAY}"}
         with service() as client:

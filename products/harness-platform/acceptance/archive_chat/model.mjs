@@ -25,7 +25,7 @@ function toolReport(message, callId) {
   return result;
 }
 
-export function createAdapter(llm) {
+export function createAdapter(llm, { toolUnavailable }) {
   const callId = randomUUID();
   return new class extends llm.LlmAdapter {
     steps = 0;
@@ -37,9 +37,10 @@ export function createAdapter(llm) {
         this.steps++;
         if (this.steps === 1) {
           const user = messages.findLast(message => message.role === 'user' && message.source?.kind === 'user');
-          const [tool] = tools ?? [];
-          if (!user || tools?.length !== 1 || tool.parameters?.properties?.date?.type !== 'string') {
-            throw new Error('This chat requires one available tool accepting a date');
+          const tool = tools?.find(item => item.name === 'mcp__platform__marketplace_daily_archive');
+          if (!tool) toolUnavailable();
+          if (!user || tool.parameters?.properties?.date?.type !== 'string') {
+            throw new Error('Expected a user message and a report tool accepting a date');
           }
           const args = JSON.stringify({ date: requestedDay(plainText(user)) });
           yield { type: 'block-start', index: 0, blockType: 'tool-call' };
