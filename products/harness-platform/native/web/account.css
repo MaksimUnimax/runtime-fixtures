@@ -13,7 +13,7 @@ html,body,#root{height:100%;margin:0}
 .account-dialog label{font-size:13px;font-weight:500}
 .account-dialog input{box-sizing:border-box;width:100%;min-width:0;height:44px;border:1px solid var(--line);border-radius:11px;background:var(--wash);color:inherit;font:inherit;font-size:15px;padding:0 12px}
 .account-dialog input:focus-visible{outline:2px solid var(--action);outline-offset:1px;background:var(--surface)}
-.account-dialog button{cursor:pointer;margin:0;border:0;border-radius:10px;padding:9px 12px;background:var(--wash);color:var(--fg);font:inherit}
+.account-dialog button:where(:not([role=switch])){cursor:pointer;margin:0;border:0;border-radius:10px;padding:9px 12px;background:var(--wash);color:var(--fg);font:inherit}
 .account-dialog .account-primary{background:var(--action);color:white;min-height:44px;font-weight:600}
 .account-dialog .account-primary:hover{background:#345cd5}
 .account-dialog button.account-close{float:right;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;padding:0;background:transparent;color:var(--muted);font-size:21px;line-height:1}
@@ -42,10 +42,9 @@ html,body,#root{height:100%;margin:0}
 .chat-access-trigger{max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;border:0;border-radius:8px;padding:4px 8px;background:transparent;color:inherit;font:inherit;font-size:13px;cursor:pointer}
 .chat-access-trigger:hover,.chat-access-trigger:focus-visible{background:#edf2fb;color:#234ead}
 .chat-live{border-inline-start:2px solid #5880d8;padding:5px 12px;margin-bottom:6px}
-.chat-live small,.chat-grant small{display:block;color:#626b79}
+.chat-live small{display:block;color:#626b79}
 .chat-live-text{max-height:32vh;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:4px}
-.chat-grants header,.chat-grant{display:flex;align-items:center;gap:12px}
+.chat-grants header{display:flex;align-items:center;gap:12px}
 .chat-grants header{justify-content:space-between}
 .chat-grants h2{margin:0}
-.chat-grant{padding:12px 0;cursor:pointer}
-.chat-grant input{width:auto;margin:0;accent-color:#426bdb}
+.chat-grants>button:last-child{margin-top:16px}
