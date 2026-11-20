@@ -11,6 +11,7 @@ export function publicEvents(events) {
       const assistant = type === 'assistant/message';
       const message = assistant ? data.message : data;
       if (message?.role !== (assistant ? 'assistant' : 'user')) continue;
+      if (!assistant && message.source?.kind === 'runtime-context') continue;
       const content = message.content
         .filter(block => block.type === 'text' && typeof block.text === 'string')
         .map(block => ({ type: 'text', text: block.text }));
