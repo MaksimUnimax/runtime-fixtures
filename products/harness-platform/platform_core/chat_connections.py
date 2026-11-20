@@ -2,6 +2,8 @@
 import asyncio
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from email.utils import parsedate_to_datetime
+import time
 import json
 import os
 from pathlib import Path
@@ -79,6 +81,25 @@ def calendar_day(value):
     if value in ("yesterday","вчера"): return (today-timedelta(days=1)).isoformat()
     return date.fromisoformat(value).isoformat()
 
+def ozon_analytics(client, fields, day):
+    headers={"Client-Id":fields["client_id"],"Api-Key":fields["api_key"]}
+    body={"date_from":day,"date_to":day,"dimension":["day"],"metrics":["ordered_units","revenue"],"limit":100,"offset":0}
+    for attempt in range(3):
+        result=client.post("https://api-seller.ozon.ru/v1/analytics/data",headers=headers,json=body)
+        if result.status_code!=429 or attempt==2:
+            return result
+        retry=result.headers.get("Retry-After")
+        delay=1.1*(attempt+1)
+        if retry is not None:
+            try:
+                delay=float(retry) if retry.isdecimal() else parsedate_to_datetime(retry).timestamp()-time.time()
+            except (ValueError,TypeError,OverflowError):
+                return result
+            if delay>3:
+                return result
+        time.sleep(max(delay,0.1))
+
+
 def read_service(provider,fields,action,args):
     from .integrations import probe
     if action=="check":
@@ -93,9 +114,7 @@ def read_service(provider,fields,action,args):
         else:
             day=calendar_day(args["day"])
             if action=="ozon":
-                r=client.post("https://api-seller.ozon.ru/v1/analytics/data",
-                    headers={"Client-Id":fields["client_id"],"Api-Key":fields["api_key"]},
-                    json={"date_from":day,"date_to":day,"dimension":["day"],"metrics":["ordered_units","revenue"],"limit":100,"offset":0})
+                r=ozon_analytics(client,fields,day)
             else:
                 r=client.get("https://statistics-api.wildberries.ru/api/v1/supplier/sales",
                     headers={"Authorization":fields["token"]},params={"dateFrom":day,"flag":1})

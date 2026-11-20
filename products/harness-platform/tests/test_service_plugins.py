@@ -38,6 +38,22 @@ class ServicePlugins(unittest.TestCase):
     def client(self):
         return TestClient(create_app(self.db,self.root/"chats"))
 
+    def test_ozon_retries_transient_read_without_ignoring_long_cooldowns(self):
+        from platform_core.chat_connections import ozon_analytics
+        fields={"client_id":"fixture-id","api_key":"fixture-key"}
+        for cooldown,expected in [(None,200),("60",429)]:
+            received=[]
+            def upstream(request):
+                received.append(json.loads(request.content))
+                if len(received)==1:
+                    return httpx.Response(429,headers={"Retry-After":cooldown} if cooldown else {})
+                return httpx.Response(200,json={})
+            with httpx.Client(transport=httpx.MockTransport(upstream)) as client, patch("platform_core.chat_connections.time.sleep") as sleep:
+                self.assertEqual(ozon_analytics(client,fields,"2026-11-19").status_code,expected)
+                self.assertEqual(len(received),2 if expected==200 else 1)
+                self.assertEqual(received[0],received[-1])
+                self.assertEqual(sleep.called,expected==200)
+
     def test_admin_rotates_independent_provider_keys(self):
         from platform_core import provider_keys
         directory=self.root/"provider-keys"
