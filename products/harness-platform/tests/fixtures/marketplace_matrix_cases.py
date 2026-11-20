@@ -96,8 +96,51 @@ class MarketplaceMatrix(unittest.TestCase):
                 "https://api-seller.ozon.ru", 429, "rate limited", {"Retry-After":"300"}, None)) as send:
             result = worker.execute(self.packet, self.root)
         self.assertFalse(result["ok"])
+        self.assertEqual(result["code"], "HTTP_429")
         self.assertGreater(result["retryAt"], time.time() + 275)
         self.assertEqual(send.call_count, 1)
+
+    def test_server_error_preserves_its_cause_after_retry(self):
+        from urllib.error import HTTPError
+        self.packet["connections"] = [self.ids["ozon"]]
+        self.packet["selections"] = [dict(self.packet["selections"][1], templateId="B05.accrual_sale_amount")]
+        attempts = []
+        def read(req, **options):
+            options["on_dispatch"]()
+            if req.full_url.endswith("/v1/seller/info"):
+                return b'{"company":{"currency":"KZT"}}', 200
+            attempts.append(req.full_url)
+            delay = "0" if len(attempts) == 1 else "300"
+            raise HTTPError(req.full_url, 500, "unavailable", {"Retry-After": delay}, None)
+        with patch("http_transport.read_response", side_effect=read):
+            result = worker.execute(self.packet, self.root)
+        self.assertEqual(len(attempts), 2)
+        self.assertEqual(attempts[0], attempts[1])
+        self.assertEqual(result["code"], "PROVIDER_SERVER_ERROR")
+        self.assertIn("внутреннюю ошибку", worker.seller_result(result)["reason"])
+        self.assertGreater(result["retryAt"], time.time() + 275)
+
+    def test_currency_is_resolved_once_for_all_selected_monetary_formulas(self):
+        from platform_core.marketplace_matrix import store_currency
+        from platform_core.marketplace_matrix.authority import ChatAuthority
+        authority = ChatAuthority(self.packet)
+        cid = self.ids["wb"]
+        store = authority.store(next(row for row in authority.frozen if row[0] == cid))
+        selections = [{"template_id": tid, "store_id": cid, "input": {}}
+                      for tid in ("drr_ordered", "finance_storage_logistics", "finance_storage_logistics_share")]
+        with patch.object(store_currency, "profile_currency", return_value="KZT") as fetch:
+            store_currency.resolve(authority, selections, {cid: store}, {cid: {"seller_token"}})
+        fetch.assert_called_once()
+        self.assertEqual(authority.currencies, {cid: "KZT"})
+
+    def test_capability_validates_pairs_of_store_and_template(self):
+        from platform_core.marketplace_matrix.plugin import capability
+        cap = capability([{"id": self.ids["ozon"], "provider": "ozon", "access": ["Ozon Seller"]},
+                          {"id": self.ids["wb"], "provider": "wb", "access": ["Wildberries API"]}])
+        selection = {"templateId": "B02.wb_events", "connectionId": self.ids["wb"], "input": {}}
+        cap.validate({"selections": [selection]})
+        with self.assertRaises(ValueError):
+            cap.validate({"selections": [dict(selection, connectionId=self.ids["ozon"])]})
 
     def test_provider_retry_headers_preserve_the_longer_wb_limit(self):
         from platform_core.marketplace_matrix.store_currency import retry_time

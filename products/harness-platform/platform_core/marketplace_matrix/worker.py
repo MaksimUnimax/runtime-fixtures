@@ -90,6 +90,28 @@ def catalogue(profiles):
     return [row for row in discovery(engine, Scope("", "", stores)) if row["available_stores"]]
 
 
+def pending_result(repo, row):
+    # The scheduler persists the exact provider deadline on the job and its source.
+    # Look at that source's latest receipt, so an earlier failure in another part
+    # of a compound report cannot change the explanation.
+    with repo.connection() as db:
+        receipts = db.execute("""
+            SELECT c.state, c.http FROM rates r JOIN calls c ON c.id = (
+                SELECT MAX(id) FROM calls WHERE jid = ? AND source = r.source
+            ) WHERE r.not_before = ?
+        """, (row["id"], row["due"])).fetchall()
+    code = None
+    if len(receipts) == 1 and receipts[0]["state"] in ("UNKNOWN", "HTTP_ERROR"):
+        status = receipts[0]["http"]
+        if status == 429:
+            code = "HTTP_429"
+        elif status is not None and 500 <= status < 600:
+            code = "PROVIDER_SERVER_ERROR"
+        else:
+            code = "PROVIDER_READ_UNAVAILABLE"
+    return store_currency.wait_result(row["due"], code)
+
+
 def execute(packet, directory):
     from direct_response import answer_step
     from engine import CallError, Engine, Worker
@@ -160,7 +182,7 @@ def execute(packet, directory):
         delay = row["due"] - time.time()
         if delay > 0:
             if time.time() + delay >= authority.deadline:
-                return store_currency.wait_result(row["due"], bool(rate_limits))
+                return pending_result(repo, row)
             time.sleep(delay)
         worker.step()
     else:
@@ -205,6 +227,8 @@ def seller_result(result):
     """Expose confirmed figures and business explanations through the chat tool."""
     if result.get("ok"):
         return {key: result[key] for key in ("ok", "answer", "clarification", "guidance") if result.get(key)}
+    if result.get("retryAt") and result.get("reason"):
+        return {"ok": False, "reason": result["reason"], "retryAt": result["retryAt"]}
     from failure_explanations import explain
     code = result.get("code")
     classes = {
