@@ -22,7 +22,7 @@ from starlette.routing import Route
 from .admin_costs import AdminCosts, present_chat
 from .browser_session import browser_routes, browser_token
 from .chat_worker import ChatWorker, WorkerError
-from . import integrations, provider_keys
+from . import integrations, provider_keys, chat_connections, turn_progress
 from .identity import AuthenticationError, ChatUnavailable
 from .guest_registration import RegistrationStore
 from .guest_web import guest_routes
@@ -96,6 +96,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                 directory = lifecycle.enter_context(TemporaryDirectory())
                 shared_path = Path(directory) / "platform.sqlite3"
             app.state.identity = lifecycle.enter_context(RegistrationStore(shared_path))
+            app.state.progress = turn_progress.Progress()
             app.state.admin_costs = AdminCosts()
             app.state.worker = ChatWorker(shared_path, chat_directory, composition_module)
             app.state.integrations = integrations.IntegrationStore(app.state.identity)
@@ -105,6 +106,8 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                 async with AsyncExitStack() as extensions:
                     app.state.model_router = await extensions.enter_async_context(
                         router_plugin.activate(app.state.identity,http,app.state.worker)) if router_plugin else None
+                    if app.state.model_router:
+                        app.state.model_router.progress=app.state.progress
                     try:
                         yield
                     finally:
@@ -207,8 +210,18 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         scope = await run_in_threadpool(
             req.app.state.identity.resolve_chat, token, req.path_params["chat_id"],
         )
+        if action in ("turn","tools","call"):
+            identity=req.app.state.identity
+            with identity._lock:
+                rows=chat_connections.snapshot(identity._db,scope)
+            data["connections"]=[r for r in rows if r["attached"]]
+            data["availableServices"]=sorted({r["provider"] for r in rows if not r["attached"]})
         if await run_in_threadpool(req.app.state.identity.has_claimed_guest_turns, scope):
             data["claimedGuest"] = True
+        turn,owner=(None,False)
+        if action=="turn":
+            turn,owner=req.app.state.progress.begin(scope,data["requestId"])
+            if owner: data["on_progress"]=turn.set
         try:
             result = await req.app.state.worker.request(scope, action, **data)
         except WorkerError as exc:
@@ -218,6 +231,8 @@ def create_app(database_path, chat_directory, *, composition_module=None):
             result = await run_in_threadpool(present_chat, req.app.state.identity, req.app.state.admin_costs,
                                              token, scope, "turn", error)
             return JSONResponse(result, status_code=409)
+        finally:
+            if owner: req.app.state.progress.finish(scope,data["requestId"],turn)
         if action in {"turn", "history", "events"}:
             result = await run_in_threadpool(present_chat, req.app.state.identity, req.app.state.admin_costs,
                                              token, scope, action, result)
@@ -243,6 +258,8 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         *browser_routes(),
         *guest_routes(),
         *web_routes(),
+        *turn_progress.routes(_token),
+        *chat_connections.routes(_token,_body),
         *integrations.routes(_token, _body),
         *provider_keys.routes(_token, _body),
         *(router_plugin.routes(_token, _body) if router_plugin else [Route("/api/model-settings",disabled_models,methods=["GET","POST"])]),

@@ -12,6 +12,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from .identity import _principal
+from . import chat_connections
 
 PROVIDERS = {
     "ozon": {"title": "Ozon", "fields": {"client_id": "Client-Id продавца", "api_key": "Api-Key продавца",
@@ -44,6 +45,7 @@ class IntegrationStore:
         self.identity = identity
         with identity._write() as db:
             db.execute(SCHEMA)
+            db.execute(chat_connections.SCHEMA)
 
     def _cipher(self):
         try:
@@ -58,7 +60,7 @@ class IntegrationStore:
             rows = db.execute("SELECT id,provider,name,status FROM account_integrations WHERE workspace=? ORDER BY name,id", (ws,))
             return {"providers": PROVIDERS, "connections": [dict(zip(("id","provider","name","status"),row)) for row in rows]}
 
-    def save(self, token, provider, name, fields):
+    def save(self, token, provider, name, fields, chatId=None):
         fields = credentials(provider, fields)
         if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80 or not name.isprintable():
             raise ValueError("Invalid connection name")
@@ -77,6 +79,9 @@ class IntegrationStore:
             db.execute("""INSERT INTO account_integrations VALUES(?,?,?,?,?,1,'saved')
                 ON CONFLICT(workspace,provider,name) DO UPDATE SET encrypted=excluded.encrypted,
                 version=version+1,status='saved'""",(cid,ws,provider,name,sealed))
+            if chatId is not None:
+                scope=chat_connections.scope_for(db,token,chatId)
+                chat_connections.attach(db,scope,cid,True)
         return {"id":cid, "status":"saved"}
 
     def open(self, token, cid):
@@ -133,7 +138,7 @@ def routes(get_token, body):
         store = req.app.state.integrations
         if req.method == "GET":
             return JSONResponse(store.list(token))
-        data = await body(req,"provider","name","fields")
+        data = await body(req,"provider","name","fields",optional=("chatId",))
         return JSONResponse(store.save(token,**data))
     async def check(req):
         token = get_token(req,allow_cookie=True)

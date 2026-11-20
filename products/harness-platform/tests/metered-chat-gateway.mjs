@@ -45,14 +45,27 @@ const upstream = http.createServer(async (req, res) => {
   event('message_start', { message: { id: 'fixture-' + ++calls, role: 'assistant', type: 'message',
     content: [], model: request.model, usage: { input_tokens: 10, output_tokens: 0,
       cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } });
+  const partial = prompt === 'browser fixture';
+  const index = partial ? 1 : 0;
+  if(partial){
+    event('content_block_start',{index:0,content_block:{type:'thinking',thinking:''}});
+    event('content_block_delta',{index:0,delta:{type:'thinking_delta',thinking:'private fixture trace'}});
+    await new Promise(resolve=>setTimeout(resolve,700));
+    event('content_block_stop',{index:0});
+  }
   if (useTool && tool) {
     event('content_block_start', { index: 0, content_block: { type: 'tool_use', id: 'test-call', name: tool.name, input: {} } });
     event('content_block_delta', { index: 0, delta: { type: 'input_json_delta', partial_json: '{"text":"one two"}' } });
   } else {
-    event('content_block_start', { index: 0, content_block: { type: 'text', text: '' } });
-    event('content_block_delta', { index: 0, delta: { type: 'text_delta', text: answer } });
+    event('content_block_start', { index, content_block: { type: 'text', text: '' } });
+    if (prompt === 'browser fixture') {
+      event('content_block_delta', { index, delta: { type: 'text_delta', text: 'answer to ' } });
+      await new Promise(resolve=>setTimeout(resolve,1400));
+      answer=prompt;
+    }
+    event('content_block_delta', { index, delta: { type: 'text_delta', text: answer } });
   }
-  event('content_block_stop', { index: 0 });
+  event('content_block_stop', {index});
   event('message_delta', { delta: { stop_reason: useTool && tool ? 'tool_use' : 'end_turn' }, usage: { output_tokens: 5 } });
   event('message_stop');
   res.end();

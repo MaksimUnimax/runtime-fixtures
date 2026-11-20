@@ -5,7 +5,7 @@ import path from 'node:path';
  * other chats access to the same subprocess identity.
  */
 export function platformMcpEntry({
-  pythonExecutable, productDirectory, databasePath, scope, compositionModule,
+  pythonExecutable, productDirectory, databasePath, scope, compositionModule, integrationKeyFile,
 }) {
   for (const value of [pythonExecutable, productDirectory, databasePath]) {
     if (typeof value !== 'string' || !path.isAbsolute(value) || value.includes('\0')) {
@@ -35,6 +35,7 @@ export function platformMcpEntry({
     config: {
       serverName: 'platform', transport: 'stdio', command: pythonExecutable,
       cwd: productDirectory, args, failOnStartupError: true,
+      ...(integrationKeyFile ? {env:{HARNESS_INTEGRATIONS_KEY_FILE:integrationKeyFile}} : {}),
     },
   };
 }

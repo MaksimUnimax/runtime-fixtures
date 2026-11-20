@@ -78,6 +78,30 @@ class ServicePlugins(unittest.TestCase):
             self.assertEqual(len(client.get(route,headers=self.headers).json()["connections"]),1)
 
     @unittest.skipUnless(os.getenv("HARNESS_NODE_MODULES"),"requires native Harness")
+    def test_chat_grants_are_scoped_and_revoke_native_mcp_tools(self):
+        with self.client() as client:
+            base="/api/chats/"+self.chat
+            other=client.post("/api/chats",headers=self.headers).json()["chatId"]
+            data={"provider":"ozon","name":"Магазин A","fields":{"client_id":"test-id","api_key":"fixture-private-key"}}
+            cid=client.post("/api/integrations",headers=self.headers,json=data).json()["id"]
+            def tools(chat):
+                response=client.get("/api/chats/"+chat+"/tools",headers=self.headers)
+                self.assertEqual(response.status_code,200,response.text)
+                return response.text
+            self.assertNotIn("ozon_daily_orders",tools(self.chat))
+            grant={"connectionId":cid,"enabled":True}
+            self.assertEqual(client.post(base+"/integrations",headers=self.other,json=grant).status_code,404)
+            attached=client.post(base+"/integrations",headers=self.headers,json=grant)
+            self.assertEqual(attached.json()["connections"][0]["access"],["Ozon Seller"])
+            self.assertNotIn("fixture-private-key",attached.text)
+            self.assertIn("ozon_daily_orders",tools(self.chat))
+            self.assertNotIn("ozon_daily_orders",tools(other))
+            client.post(base+"/integrations",headers=self.headers,json=grant|{"enabled":False}).raise_for_status()
+            self.assertNotIn("ozon_daily_orders",tools(self.chat))
+            client.post("/api/integrations",headers=self.headers,json=data|{"chatId":other}).raise_for_status()
+            self.assertIn("ozon_daily_orders",tools(other))
+
+    @unittest.skipUnless(os.getenv("HARNESS_NODE_MODULES"),"requires native Harness")
     def test_real_harness_model_route_billing_replay_and_disable(self):
         seen=[]
         def provider(req):
@@ -89,10 +113,20 @@ class ServicePlugins(unittest.TestCase):
             body=json.loads(req.content)
             self.assertEqual(body["model"],"maker/demo")
             seen.append(body)
-            return httpx.Response(200,json={"id":"gen-test","choices":[{"message":{"role":"assistant","content":"Ответ маршрутизатора"},
-                "finish_reason":"stop"}],"usage":{"cost":0.00001,"prompt_tokens":6,"completion_tokens":2,
-                "prompt_tokens_details":{"cached_tokens":2}}})
+            self.assertTrue(body["stream"])
+            self.assertIn("Мой магазин",str(body["messages"]))
+            self.assertIn("ozon_daily_orders",str(body["tools"]))
+            self.assertNotIn("private-fixture-value",str(body))
+            packets=[{"choices":[{"delta":{"reasoning":"fixture private thought"}}]},
+                {"choices":[{"delta":{"content":"Ответ "}}]},
+                {"choices":[{"delta":{"content":"маршрутизатора"},"finish_reason":"stop"}]},
+                {"choices":[],"usage":{"cost":0.00001,"prompt_tokens":6,"completion_tokens":2,
+                    "prompt_tokens_details":{"cached_tokens":2}}}]
+            wire="".join("data: "+json.dumps({"id":"gen-test",**packet})+"\n\n" for packet in packets)+"data: [DONE]\n\n"
+            return httpx.Response(200,headers={"Content-Type":"text/event-stream"},content=wire)
         with self.client() as client:
+            client.post("/api/integrations",headers=self.headers,json={"provider":"ozon","name":"Мой магазин",
+                "fields":{"client_id":"test-client","api_key":"private-fixture-value"},"chatId":self.chat}).raise_for_status()
             router=client.app.state.model_router
             router.http=httpx.AsyncClient(transport=httpx.MockTransport(provider))
             settings="/api/model-settings"

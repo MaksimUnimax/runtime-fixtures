@@ -1,5 +1,6 @@
 """One MCP connection serves one scope, bound by its trusted launcher."""
 
+import asyncio
 import json
 
 from mcp import types
@@ -38,7 +39,7 @@ def create_server(dispatcher: Dispatcher) -> Server:
     @server.call_tool(validate_input=False)
     async def call_tool(name: str, arguments: dict) -> types.CallToolResult:
         try:
-            value = dispatcher.call_tool(name, arguments)
+            value = await asyncio.to_thread(dispatcher.call_tool, name, arguments)
         except UnavailableTool:
             return _tool_error("Tool unavailable in this chat")
         except InvalidToolInput:

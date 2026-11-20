@@ -194,6 +194,42 @@ class ModelRouter:
             raise HTTPException(503,"OpenRouter не настроен")
         return {"Authorization":"Bearer "+key}
 
+    async def streamed_choice(self,response,aid,live):
+        generation=None
+        parts,calls=[],{}
+        finish=None
+        received_end=False
+        async for line in response.aiter_lines():
+            if not line.startswith("data:"): continue
+            payload=line[5:].strip()
+            if payload=="[DONE]":
+                received_end=True
+                break
+            d=json.loads(payload,parse_float=Decimal)
+            if "error" in d: raise ValueError("Provider stream failed")
+            gid=d.get("id")
+            if gid and not generation:
+                generation=gid
+                self.settle(aid,generation,None)
+            if d.get("usage") is not None: self.settle(aid,generation,d["usage"])
+            for choice in d.get("choices",[]):
+                if choice.get("index",0)!=0: continue
+                delta=choice.get("delta") or {}
+                if delta.get("reasoning") and live and live.stage!="thinking":
+                    live.set({"stage":"thinking"})
+                if text:=delta.get("content"):
+                    parts.append(text)
+                    if live: live.set({"stage":"writing","text":text})
+                for piece in delta.get("tool_calls") or []:
+                    if live and live.stage!="tool": live.set({"stage":"tool"})
+                    call=calls.setdefault(piece["index"],{"type":"function","id":"","function":{"name":"","arguments":""}})
+                    if piece.get("id"): call["id"]=piece["id"]
+                    for k in ("name","arguments"):
+                        call["function"][k]+=(piece.get("function") or {}).get(k) or ""
+                finish=choice.get("finish_reason") or finish
+        if not received_end or finish not in ("stop","length","tool_calls"): raise ValueError("Incomplete stream")
+        return {"message":{"role":"assistant","content":"".join(parts),"tool_calls":[calls[i] for i in sorted(calls)]},"finish_reason":finish}
+
     async def complete(self, req):
         token = req.headers.get("x-operation","")
         if not re.fullmatch(r"[A-Za-z0-9_-]{43}",token):
@@ -211,15 +247,27 @@ class ModelRouter:
         self.active[ws]=self.active.get(ws,0)+1
         self.total+=1
         try:
-            r = await self.http.post(BASE+"/chat/completions",headers=self.headers,json=request,timeout=90)
-            if r.status_code in (400,401,402,403,404,422,429):
-                self.settle(aid,None,{"cost":"0","prompt_tokens":0,"completion_tokens":0})
-            if not r.is_success:
-                raise HTTPException(502)
-            data = r.json(parse_float=Decimal)
-            self.settle(aid,data.get("id"),data.get("usage"))
-            choice = data["choices"][0]
-            return JSONResponse({"message":choice["message"],"finish_reason":choice["finish_reason"]})
+            live=None
+            if hub:=getattr(self,"progress",None):
+                from .storage import Scope
+                with self.identity._lock:
+                    row=self.identity._db.execute("""SELECT actor_id,workspace_id,chat_id,run_key FROM usage_operations
+                        JOIN coin_attempts USING(operation_id) WHERE attempt_id=?""",(aid,)).fetchone()
+                if row: live=hub.turns.get((Scope(*row[:3]),row[3]))
+            request.update(stream=True,stream_options={"include_usage":True})
+            async with self.http.stream("POST",BASE+"/chat/completions",headers=self.headers,json=request,timeout=90) as r:
+                if r.status_code in (400,401,402,403,404,422,429):
+                    self.settle(aid,None,{"cost":"0","prompt_tokens":0,"completion_tokens":0})
+                if not r.is_success: raise HTTPException(502)
+                if "text/event-stream" in r.headers.get("content-type",""):
+                    return JSONResponse(await self.streamed_choice(r,aid,live))
+                await r.aread()
+                data = r.json(parse_float=Decimal)
+                self.settle(aid,data.get("id"),data.get("usage"))
+                choice=data["choices"][0]
+                if live and isinstance(choice["message"].get("content"),str):
+                    live.set({"stage":"writing","text":choice["message"]["content"]})
+                return JSONResponse({"message":choice["message"],"finish_reason":choice["finish_reason"]})
         except (httpx.HTTPError,KeyError,IndexError,ValueError,TypeError):
             raise HTTPException(502) from None
         finally:
