@@ -192,6 +192,10 @@ class IdentityStore(Store):
             db.execute("DELETE FROM identity_sessions WHERE actor_id = ?", (row[0],))
         return replacement
 
+    def validate_session(self, token: str) -> None:
+        with self._lock:
+            _principal(self._db, token)
+
     def create_user_chat(self, token: str) -> Scope:
         with self._write() as db:
             actor, workspace = _principal(db, token)

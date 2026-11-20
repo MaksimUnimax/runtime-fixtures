@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Чаты · Harness</title>
+  <link rel="stylesheet" href="/ui-assets/project/style.css">
+  <script src="/session-nav.js"></script>
+  <script src="/ui-assets/project/app.js" type="module"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a href="/app/" class="brand">Harness</a>
+    <form method="post" action="/logout"><button class="quiet" type="submit">Выйти</button></form>
+  </header>
+  <div class="workspace">
+    <nav class="sidebar" aria-label="Чаты">
+      <div class="nav-heading"><h1>Чаты</h1><button id="new-chat" class="primary" type="button">Новый чат</button></div>
+      <ul id="chat-list"></ul>
+    </nav>
+    <main>
+      <p id="problem" role="alert" hidden></p>
+      <p id="welcome" hidden>Выберите чат или создайте новый.</p>
+      <div id="conversation" hidden>
+        <div class="conversation-heading">
+          <h2 id="chat-name">Чат</h2>
+          <details open>
+            <summary>Инструменты</summary>
+            <div id="tools" data-testid="tools" aria-label="Инструменты" aria-live="polite">Загрузка…</div>
+          </details>
+        </div>
+        <div role="tablist" aria-label="Вид диалога">
+          <button type="button" id="chat-tab" role="tab" aria-selected="true" aria-controls="history">Чат</button>
+          <button type="button" id="trajectory-tab" role="tab" aria-selected="false" aria-controls="history" tabindex="-1">Траектория</button>
+        </div>
+        <section id="history" data-testid="history" role="region" aria-label="История сообщений" tabindex="0"></section>
+        <form id="composer">
+          <label for="message">Сообщение</label>
+          <textarea id="message" name="text" required rows="2" maxlength="8192"></textarea>
+          <div class="controls"><span id="status" role="status"></span><button id="send" class="primary" type="submit" disabled>Отправить</button></div>
+        </form>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

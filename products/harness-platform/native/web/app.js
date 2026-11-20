@@ -1,0 +1,157 @@
+const byId = id => document.getElementById(id);
+const chatId = /^\/app\/chats\/([A-Za-z0-9_-]+)\/?$/.exec(location.pathname)?.[1];
+const chatPath = `/api/chats/${encodeURIComponent(chatId ?? '')}`;
+let view = 'chat';
+let journal = { messages: [], events: [] };
+let loaded = false;
+let pendingTurn = null;
+
+class HttpError extends Error {
+  constructor(status) { super(`HTTP ${status}`); this.status = status; }
+}
+
+async function api(path, options) {
+  const response = await fetch(path, { credentials: 'same-origin', cache: 'no-store', ...options });
+  if (response.status === 401) location.replace('/login');
+  if (!response.ok) throw new HttpError(response.status);
+  return response.json();
+}
+
+function showError(error, operation) {
+  const descriptions = {
+    400: 'Проверьте введённые данные', 401: 'Требуется вход', 403: 'Доступ запрещён',
+    404: operation === 'open' ? 'Чат недоступен' : 'Действие недоступно',
+    409: 'Конфликт с сохранённым запросом', 413: 'Слишком длинное сообщение',
+    502: 'Сервис не смог вернуть результат', 503: 'Сервис временно недоступен',
+  };
+  const problem = byId('problem');
+  problem.textContent = error instanceof HttpError
+    ? descriptions[error.status] ?? `Ошибка сервиса (${error.status})`
+    : 'Не удалось загрузить данные. Обновите страницу или повторите действие.';
+  problem.hidden = false;
+}
+
+function chatName(id) { return `Чат · ${id.slice(-8)}`; }
+
+function displayChatList(ids) {
+  const list = byId('chat-list');
+  const rows = ids.map(id => {
+    const row = document.createElement('li');
+    const link = document.createElement('a');
+    link.href = `/app/chats/${encodeURIComponent(id)}`;
+    link.textContent = chatName(id);
+    if (id === chatId) link.setAttribute('aria-current', 'page');
+    row.append(link);
+    return row;
+  });
+  list.replaceChildren(...rows);
+}
+
+function displayTools(names) {
+  const tools = byId('tools');
+  if (!names.length) { tools.textContent = 'Нет доступных инструментов'; return; }
+  const list = document.createElement('ul');
+  for (const name of names) {
+    const row = document.createElement('li');
+    row.textContent = name;
+    list.append(row);
+  }
+  tools.replaceChildren(list);
+}
+
+async function drawTranscript() {
+  const { renderTranscript } = await import('./widgets.js');
+  await renderTranscript(byId('history'), { ...journal, view, chatId });
+}
+
+async function updateJournal() {
+  const [messages, { events }] = await Promise.all([
+    api(`${chatPath}/messages`), api(`${chatPath}/events`),
+  ]);
+  journal = { messages, events };
+  await drawTranscript();
+}
+
+async function selectView(next) {
+  view = next;
+  for (const name of ['chat', 'trajectory']) {
+    const tab = byId(`${name}-tab`);
+    tab.setAttribute('aria-selected', String(name === next));
+    tab.tabIndex = name === next ? 0 : -1;
+  }
+  byId('history').setAttribute('aria-label', next === 'chat' ? 'История сообщений' : 'Траектория');
+  if (loaded) {
+    try { await drawTranscript(); }
+    catch (error) { showError(error, 'view'); }
+  }
+}
+
+for (const name of ['chat', 'trajectory']) {
+  const tab = byId(`${name}-tab`);
+  tab.addEventListener('click', () => selectView(name));
+  tab.addEventListener('keydown', event => {
+    if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === 'Home' ? 'chat' : event.key === 'End' ? 'trajectory' :
+      name === 'chat' ? 'trajectory' : 'chat';
+    byId(`${next}-tab`).focus();
+    selectView(next);
+  });
+}
+
+byId('new-chat').addEventListener('click', async () => {
+  const button = byId('new-chat');
+  button.disabled = true;
+  try {
+    const chat = await api('/api/chats', { method: 'POST' });
+    location.assign(`/app/chats/${encodeURIComponent(chat.chatId)}`);
+  } catch (error) { showError(error, 'create'); button.disabled = false; }
+});
+
+byId('composer').addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = byId('send');
+  if (!loaded || button.disabled) return;
+  const input = byId('message');
+  const text = input.value;
+  if (!text.trim()) { input.focus(); return; }
+  if (new TextEncoder().encode(text).length > 8192) {
+    showError(new HttpError(413), 'turn');
+    return;
+  }
+  // Keep the identifier after a lost acknowledgement so a retry recovers the same turn.
+  if (pendingTurn?.text !== text) pendingTurn = { requestId: crypto.randomUUID(), text };
+  byId('problem').hidden = true;
+  byId('status').textContent = 'Отправка…';
+  button.disabled = true;
+  input.readOnly = true;
+  try {
+    await api(`${chatPath}/turns`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(pendingTurn) });
+    input.value = '';
+    pendingTurn = null;
+    await updateJournal();
+  } catch (error) { showError(error, 'turn'); }
+  finally {
+    button.disabled = false; input.readOnly = false;
+    byId('status').textContent = '';
+  }
+});
+
+async function openPage() {
+  const chats = await api('/api/chats');
+  displayChatList(chats);
+  if (!chatId) { byId('welcome').hidden = false; return; }
+  if (!chats.includes(chatId)) throw new HttpError(404);
+  byId('chat-name').textContent = chatName(chatId);
+  byId('conversation').hidden = false;
+  const toolsRequest = api(`${chatPath}/tools`).then(displayTools).catch(error => {
+    byId('tools').textContent = 'Не удалось загрузить инструменты';
+    showError(error, 'tools');
+  });
+  await updateJournal();
+  loaded = true;
+  byId('send').disabled = false;
+  await toolsRequest;
+}
+openPage().catch(error => showError(error, 'open'));
