@@ -50,6 +50,11 @@ OPERATION_SCHEMA = (
            expires_at INTEGER NOT NULL
        )""",
     "CREATE INDEX IF NOT EXISTS usage_grants_expiry ON usage_grants(expires_at)",
+    """CREATE TABLE IF NOT EXISTS direct_chat_default (
+        singleton INTEGER PRIMARY KEY CHECK(singleton=1), model TEXT NOT NULL, effort TEXT NOT NULL)""",
+    """CREATE TABLE IF NOT EXISTS direct_operation_models (
+        operation_id TEXT PRIMARY KEY REFERENCES usage_operations ON DELETE CASCADE,
+        model TEXT NOT NULL, effort TEXT NOT NULL)""",
     *coins.SCHEMA,
 )
 
@@ -70,6 +75,13 @@ class OperationGrant:
     source: str
     token: str = field(repr=False)
     model: str | None = None
+    direct_model: str | None = None
+    effort: str | None = None
+
+
+def direct_default(db, fallback):
+    row = db.execute("SELECT model,effort FROM direct_chat_default WHERE singleton=1").fetchone()
+    return tuple(row) if row else (fallback, "high")
 
 
 def ensure_operation_schema(db):
@@ -104,7 +116,7 @@ def initialize_grants(database_path):
                       LEFT JOIN chats AS c ON c.workspace_id=w.workspace_id LIMIT 0""")
 
 
-def issue_grant(database_path, scope, *, source, run_key, ttl_seconds=900, coin_limit=None, bind_model=None):
+def issue_grant(database_path, scope, *, source, run_key, ttl_seconds=900, coin_limit=None, bind_model=None, direct_fallback=None):
     """Bind one short-lived credential to a stable, server-authorized operation.
 
     run_key is an opaque identifier (e.g. the HTTP idempotency key or scheduled
@@ -163,10 +175,19 @@ def issue_grant(database_path, scope, *, source, run_key, ttl_seconds=900, coin_
         except coins.InsufficientCoins as exc:
             raise PaidAccessRequired("Insufficient coins") from exc
         model = bind_model(db,scope,operation_id) if bind_model else None
+        direct_model = effort = None
+        if model is None and direct_fallback:
+            saved = db.execute("SELECT model,effort FROM direct_operation_models WHERE operation_id=?",
+                               (operation_id,)).fetchone()
+            if saved:
+                direct_model, effort = saved
+            else:
+                direct_model, effort = direct_default(db, direct_fallback)
+                db.execute("INSERT INTO direct_operation_models VALUES(?,?,?)", (operation_id, direct_model, effort))
         token = secrets.token_urlsafe(32)
         db.execute("INSERT INTO usage_grants(token_hash, operation_id, expires_at) VALUES (?, ?, ?)",
                    (_digest(token), operation_id, expires))
-    return OperationGrant(operation_id, workspace, source, token, model)
+    return OperationGrant(operation_id, workspace, source, token, model, direct_model, effort)
 
 
 def revoke_grant(database_path, token):

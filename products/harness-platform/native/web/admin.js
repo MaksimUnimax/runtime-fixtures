@@ -44,7 +44,7 @@ function keyStates(state) {
 }
 request('/api/admin/provider-keys').then(keyStates).catch(e=>{document.querySelector('#problem').textContent=e.message;});
 let pending;
-for (const form of document.forms) form.addEventListener('submit', async event => {
+for (const form of document.querySelectorAll('form:not(#default-model)')) form.addEventListener('submit', async event => {
   event.preventDefault();
   const fields = Object.fromEntries(new FormData(form));
   const button = form.querySelector('button');
@@ -89,3 +89,59 @@ for (const form of document.forms) form.addEventListener('submit', async event =
   } catch (error) { problem.textContent = error.message; }
   finally { button.disabled = false; }
 });
+
+const defaultsForm = document.querySelector('#default-model');
+const refreshModels = document.querySelector('#refresh-models');
+const modelStatus = document.querySelector('#model-status');
+const modelLabels = {off:'Выключено',low:'Низкое',high:'Высокое',max:'Максимальное'};
+let activeDefault, choices = [];
+async function defaultsRequest(path, options) {
+  const response = await fetch('/api/admin/'+path, {credentials:'same-origin', cache:'no-store', ...options});
+  if (response.status === 401) location.assign('/login');
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Не удалось выполнить запрос');
+  return data;
+}
+function showDefault(value) {
+  activeDefault=value;
+  const name=choices.find(m=>m.id===value.model)?.name || value.model;
+  document.querySelector('#current-model').textContent='Сейчас: '+name+' · рассуждение: '+(modelLabels[value.effort] || value.effort);
+}
+function setEfforts() {
+  const selected=choices.find(m=>m.id===defaultsForm.elements.model.value);
+  const effort=defaultsForm.elements.effort;
+  effort.replaceChildren(...selected.efforts.map(e=>new Option(modelLabels[e] || e,e)));
+  effort.value=selected.id===activeDefault.model && selected.efforts.includes(activeDefault.effort) ? activeDefault.effort : selected.defaultEffort;
+}
+function busy(value) {
+  refreshModels.disabled=value;
+  for (const control of defaultsForm.elements) control.disabled=value;
+}
+defaultsForm.elements.model.addEventListener('change',setEfforts);
+refreshModels.addEventListener('click',async ()=>{
+  busy(true); modelStatus.textContent='Запрашиваю список у DeepSeek…';
+  try {
+    const [catalog,current]=await Promise.all([defaultsRequest('chat-models'),defaultsRequest('chat-default')]);
+    choices=catalog.models; showDefault(current);
+    defaultsForm.hidden=!choices.length;
+    const select=defaultsForm.elements.model;
+    select.replaceChildren(...choices.map(m=>new Option(m.name,m.id)));
+    if(choices.length) {
+      if(choices.some(m=>m.id===current.model)) select.value=current.model;
+      setEfforts();
+    }
+    modelStatus.textContent=choices.length?'Доступно моделей: '+choices.length:'DeepSeek не вернул доступных для этого сервера моделей.';
+  } catch(e) {modelStatus.textContent=e.message;}
+  finally {busy(false);}
+});
+defaultsForm.addEventListener('submit',async event=>{
+  event.preventDefault();
+  const model=defaultsForm.elements.model.value, effort=defaultsForm.elements.effort.value;
+  busy(true); modelStatus.textContent='';
+  try {
+    showDefault(await defaultsRequest('chat-default',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model,effort})}));
+    modelStatus.textContent='Выбор сохранён для всех аккаунтов.';
+  } catch(e) {modelStatus.textContent=e.message;}
+  finally {busy(false);}
+});
+defaultsRequest('chat-default').then(value=>{if(!activeDefault)showDefault(value);}).catch(e=>{if(!activeDefault)modelStatus.textContent=e.message;});

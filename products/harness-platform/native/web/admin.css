@@ -6,9 +6,13 @@ nav .octo-wordmark { width:90px; } nav span { padding-inline-start:4px; }
 h1 { margin:18px 0 24px; font-size:30px; letter-spacing:-.035em; } h2 { margin:0 0 16px; font-size:19px; letter-spacing:-.02em; }
 section { margin:14px 0; padding:clamp(16px,3vw,24px); border:1px solid var(--octo-line); border-radius:16px; background:var(--octo-panel); }
 form,label { display:grid; gap:6px; } form { gap:14px; } label { font-size:14px; font-weight:500; }
-input { width:100%; min-width:0; min-height:38px; padding:7px 12px; border:1px solid var(--octo-line); border-radius:var(--octo-radius); color:inherit; background:var(--octo-field); font:inherit; }
+input,select { width:100%; min-width:0; min-height:38px; padding:7px 12px; border:1px solid var(--octo-line); border-radius:var(--octo-radius); color:inherit; background:var(--octo-field); font:inherit; }
 button { justify-self:start; color:var(--octo-on-action); background:var(--octo-action); border-color:var(--octo-action); }
 button:hover:not(:disabled) { opacity:.85; }
 p,output { margin:0; } output:empty { display:none; } output { color:#226345; } #problem { color:#9f2931; }
 #charges { padding-left:18px; } #charges details { margin:8px 0; } #charges summary { display:list-item; width:fit-content; }
 @media(prefers-color-scheme:dark) { .admin-mark { filter:brightness(0) invert(1); } output { color:#85ceb0; } #problem { color:#ffa9ae; } }
+
+#default-model[hidden] { display:none; }
+#refresh-models,#default-model { margin-top:14px; }
+#model-status:not(:empty) { margin-top:10px; }

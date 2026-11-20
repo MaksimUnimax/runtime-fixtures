@@ -22,8 +22,9 @@ from starlette.routing import Route
 from .admin_costs import AdminCosts, present_chat
 from .browser_session import browser_routes, browser_token
 from .chat_worker import ChatWorker, WorkerError
-from . import integrations, provider_keys, chat_connections, turn_progress
+from . import integrations, provider_keys, chat_connections, chat_defaults, turn_progress
 from .identity import AuthenticationError, ChatUnavailable
+from .operation_grants import initialize_grants
 from .guest_registration import RegistrationStore
 from .guest_web import guest_routes
 from .web_ui import web_routes
@@ -99,6 +100,8 @@ def create_app(database_path, chat_directory, *, composition_module=None):
             app.state.progress = turn_progress.Progress()
             app.state.admin_costs = AdminCosts()
             app.state.worker = ChatWorker(shared_path, chat_directory, composition_module)
+            if not app.state.worker.gateway:
+                initialize_grants(shared_path)
             app.state.integrations = integrations.IntegrationStore(app.state.identity)
             async with httpx.AsyncClient(timeout=10, trust_env=False, follow_redirects=False,
                     limits=httpx.Limits(max_connections=64,max_keepalive_connections=16)) as http:
@@ -262,6 +265,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         *chat_connections.routes(_token,_body),
         *integrations.routes(_token, _body),
         *provider_keys.routes(_token, _body),
+        *chat_defaults.routes(_token, _body),
         *(router_plugin.routes(_token, _body) if router_plugin else [Route("/api/model-settings",disabled_models,methods=["GET","POST"])]),
         Route("/api/wallet", wallet),
         Route("/api/admin/accounts/{login}/wallet", wallet),
