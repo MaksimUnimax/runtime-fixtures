@@ -90,6 +90,34 @@ def catalogue(profiles):
     return [row for row in discovery(engine, Scope("", "", stores)) if row["available_stores"]]
 
 
+def formula_inputs(plan, completed, names):
+    """Pass through the verified inputs used by the renderer before output rounding."""
+    from registry import DEFINITIONS
+    from template_catalog import TEMPLATES
+    inputs = []
+    for fragment, item in zip(plan.get("fragments", []), completed):
+        if fragment["kind"] != "scalar" or not any(
+                TEMPLATES[tid]["kind"] == "formula" for tid in fragment["template_ids"]):
+            continue
+        source = fragment["plan"]
+        for store, result in zip(source["stores"], item["data"], strict=True):
+            for slot, bucket, period_key in (("current", "values", "period"),
+                                            ("previous", "previous_values", "comparison")):
+                required = source["program"]["required"][slot]
+                if not required:
+                    continue
+                values = []
+                for metric in required:
+                    definition = DEFINITIONS[metric]
+                    unit = definition["unit"]
+                    if unit in ("currency", "source_currency"):
+                        unit = result["currency"]
+                    values.append({"label": definition["label"], "value": result[bucket][metric], "unit": unit})
+                inputs.append({"marketplace": store["platform"], "store": names[store["id"]],
+                               "period": source[period_key], "values": values})
+    return inputs
+
+
 def pending_result(repo, row):
     # The scheduler persists the exact provider deadline on the job and its source.
     # Look at that source's latest receipt, so an earlier failure in another part
@@ -219,14 +247,15 @@ def execute(packet, directory):
     presentation = result.get("chat_presentation") or {}
     guidance = list(dict.fromkeys(note for item in selected
         for note in TEMPLATES[item["template_id"]].get("notes", [])))
-    return {"ok": not bool(result.get("failure_code")), "guidance": guidance, "answer": presentation.get("details") or "\n".join(result.get("pages", [])),
+    source_values = formula_inputs(plan, (result.get("data") or {}).get("templates", []), authority.names) if not result.get("failure_code") else []
+    return {"ok": not bool(result.get("failure_code")), "sourceValues": source_values, "guidance": guidance, "answer": presentation.get("details") or "\n".join(result.get("pages", [])),
             "code": result.get("failure_code"), "trace": trace}
 
 
 def seller_result(result):
     """Expose confirmed figures and business explanations through the chat tool."""
     if result.get("ok"):
-        return {key: result[key] for key in ("ok", "answer", "clarification", "guidance") if result.get(key)}
+        return {key: result[key] for key in ("ok", "answer", "clarification", "guidance", "sourceValues") if result.get(key)}
     if result.get("retryAt") and result.get("reason"):
         return {"ok": False, "reason": result["reason"], "retryAt": result["retryAt"]}
     from failure_explanations import explain
