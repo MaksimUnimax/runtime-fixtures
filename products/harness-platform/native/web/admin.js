@@ -3,7 +3,7 @@ function renderCharge(charge) {
   row.textContent = (charge.pending ? 'На сверке' : 'Списано') + ' · ' + charge.coins + ' · ' + (charge.chatId ? 'Чат · ' + charge.chatId.slice(-8) : (charge.operationId ?? charge.requestId));
   if (charge.meter) {
     const detail = document.createElement('details'), summary = document.createElement('summary');
-    summary.textContent = 'Расход DeepSeek · наценка ' + charge.meter.markupPercent + '%';
+    summary.textContent = charge.meter.rubPerUsd ? 'Расход DeepSeek · '+charge.meter.rubPerUsd+' ₽/USD' : 'Расход DeepSeek · прежний тариф';
     detail.append(summary);
     if (charge.meter.providerUsd !== null) detail.append('Себестоимость · $' + charge.meter.providerUsd);
     for (const attempt of charge.meter.attempts) {
@@ -24,6 +24,18 @@ async function request(path, options) {
   if (!response.ok) throw new Error(({403:'Требуются права администратора',404:'Аккаунт не найден',400:'Проверьте введённые данные',409:'Начисление конфликтует с предыдущей операцией'})[response.status] ?? 'Не удалось выполнить операцию');
   return response.json();
 }
+const pricingForm = document.querySelector('#pricing');
+const markup = pricingForm.elements.markupPercent;
+function preview() {
+  const value = markup.valueAsNumber;
+  document.querySelector('#sale-price').textContent = markup.validity.valid && Number.isFinite(value)
+    ? '1 монета стоит '+(1 + value/100).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:4})+' ₽. При расходе 1 монета = 1 ₽.' : '';
+}
+markup.addEventListener('input',preview);
+markup.disabled = true;
+request('/api/admin/coin-pricing').then(value=>{
+  markup.value=value.markupPercent;markup.disabled=false;preview();
+}).catch(error=>{document.querySelector('#problem').textContent=error.message;});
 let pending;
 for (const form of document.forms) form.addEventListener('submit', async event => {
   event.preventDefault();
@@ -34,7 +46,13 @@ for (const form of document.forms) form.addEventListener('submit', async event =
   button.disabled = true;
   problem.textContent = '';
   try {
-    if (form.id === 'grant') {
+    if (form.id === 'pricing') {
+      if(markup.disabled)return;
+      const value=await request('/api/admin/coin-pricing',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({markupPercent:fields.markupPercent})});
+      markup.value=value.markupPercent;preview();
+      form.querySelector('output').textContent='Цена сохранена';
+    } else if (form.id === 'grant') {
       const signature = JSON.stringify(fields);
       if (pending?.signature !== signature) pending = { signature, id: crypto.randomUUID() };
       await request('/api/admin/coin-grants', {method:'POST', headers:{'Content-Type':'application/json'},

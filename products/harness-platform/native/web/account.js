@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
           wide && a.guest && h('a',{href:'/register'},'Создать аккаунт и сохранить чат'),
           wide && !a.guest && h('button',{type:'button',onClick:()=>select('tools')},'Функции'),
           wide && !a.guest && h('form',{action:'/logout',method:'post'},h('button',null,'Выйти')),
-          wide && a.wallet?.canGrant && h('a',{href:'/admin'},'Администрирование'));
+          a.wallet?.canGrant && h('a',{href:'/admin',title:'Администрирование','aria-label':'Администрирование'},wide?'Администрирование':'⚙'));
       }
       function Field(name,title,props={}) {
         return h('label',{key:name},title,h('input',{name,required:true,...props}));
@@ -34,6 +34,23 @@ window.__ModuleLoader__.load({
         return h('div',{'data-testid':'tools'},names===null?'Загрузка…':names.length
           ? h('ul',null,names.map(name=>h('li',{key:name},name))) : 'Нет доступных инструментов');
       }
+      function Wallet() {
+        const [wallet,setWallet]=React.useState(a.wallet);
+        const [error,setError]=React.useState('');
+        React.useEffect(()=>{
+          const controller=new AbortController();
+          a.api('/api/wallet',{signal:controller.signal}).then(next=>{a.wallet=next;setWallet(next);})
+            .catch(()=>{if(!controller.signal.aborted)setError('Не удалось обновить баланс');});
+          return ()=>controller.abort();
+        },[]);
+        return h(React.Fragment,null,
+          h('p',{className:'wallet-amount'},h('span',null,'Доступно · '),wallet.available,h('small',null,' монет')),
+          h('p',{className:'wallet-price'},'1 монета покрывает 1 ₽ расходов.'),
+          h('p',{className:'wallet-price'},'Цена покупки · '+Number(wallet.salePrice.rubPerCoin).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:4})+' ₽ за монету'),
+          wallet.reserved!=='0' && h('p',null,'Ожидает расчёта · '+wallet.reserved),
+          error && h('p',{role:'alert'},error),
+          wallet.charges.length>0 && h('ul',{className:'wallet-history'},wallet.charges.map(c=>h('li',{key:c.operationId||c.requestId},(c.pending?'На сверке · ':'Списано · ')+c.coins))));
+      }
       function Dialog() {
         const mode=usePanel(), ref=React.useRef(null);
         React.useEffect(()=>{if(mode && !ref.current.open)ref.current.showModal();},[mode]);
@@ -48,17 +65,15 @@ window.__ModuleLoader__.load({
           h('button',{className:'account-close',type:'button','aria-label':'Закрыть',onClick:close},'×'),
           h('h2',{id:'dialog-title'},wallet?'Баланс':signup?'Создать аккаунт':'Вход в Harness'),
           a.error && h('p',{role:'alert'},a.error),
-          wallet ? h(React.Fragment,null,
-            h('p',null,'Доступно · '+a.wallet.available+' монет'),h('p',null,'В резерве · '+a.wallet.reserved),
-            h('label',null,'Предел на запрос, монет',h('input',{inputMode:'decimal',defaultValue:a.limit||a.wallet.turnLimit,
-              onChange:e=>{a.limit=e.target.value.replace(',','.');}})),
-            h('ul',null,a.wallet.charges.map(c=>h('li',{key:c.operationId||c.requestId},(c.pending?'На сверке · ':'Списано · ')+c.coins)))) :
+          wallet ? h(Wallet) :
           h(React.Fragment,null,h('form',{action:signup?'/register':'/login',method:'post'},
             Field('login','Логин',{autoComplete:'username',maxLength:254}),
-            Field('password','Пароль',{type:'password',autoComplete:signup?'new-password':'current-password',minLength:signup?15:1,maxLength:256}),
-            signup && h('small',null,'Пароль от 15 символов. Сохраните код восстановления.'),
-            signup && Field('recovery','Код восстановления',{readOnly:true,value:a.recovery}),
-            h('button',{type:'submit'},signup?'Зарегистрироваться и открыть чат':'Войти')),
+            Field('password','Пароль',{type:'password',autoComplete:signup?'new-password':'current-password',maxLength:256}),
+            
+            signup && h('details',{className:'recovery'},h('summary',null,'Код восстановления'),
+              h('small',null,'Сохраните код, чтобы восстановить доступ.'),
+              Field('recovery','Ваш код',{readOnly:true,value:a.recovery})),
+            h('button',{type:'submit',className:'account-primary'},signup?'Зарегистрироваться и открыть чат':'Войти')),
             h('a',{href:signup?'/login':'/register'},signup?'Войти в существующий аккаунт':'Создать аккаунт и сохранить чат'),
             h('button',{type:'button',onClick:close},'Продолжить как гость')));
       }

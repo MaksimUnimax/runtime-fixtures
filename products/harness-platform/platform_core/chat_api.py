@@ -114,6 +114,18 @@ def create_app(database_path, chat_directory, *, composition_module=None):
             raise HTTPException(404, "Account unavailable") from None
         return JSONResponse(result)
 
+    async def pricing(req):
+        token = _token(req, allow_cookie=True)
+        update = req.method == "POST"
+        data = await _body(req, "markupPercent") if update else {}
+        try:
+            result = await run_in_threadpool(req.app.state.identity.pricing, token, data.get("markupPercent"), update=update)
+        except AuthenticationError:
+            raise
+        except PermissionError:
+            raise HTTPException(403, "Administrator required") from None
+        return JSONResponse(result)
+
     async def credit(req):
         token = _token(req, allow_cookie=True)
         data = await _body(req, "login", "amount", "requestId", "reason")
@@ -207,6 +219,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         *web_routes(),
         Route("/api/wallet", wallet),
         Route("/api/admin/accounts/{login}/wallet", wallet),
+        Route("/api/admin/coin-pricing", pricing, methods=["GET", "POST"]),
         Route("/api/admin/coin-grants", credit, methods=["POST"]),
         Route("/api/login", login, methods=["POST"]),
         Route("/api/logout", logout, methods=["POST"]),

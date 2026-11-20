@@ -11,7 +11,7 @@ from starlette.routing import Route
 
 from .browser_session import _secure, browser_token, guest_cookie
 from .identity import AuthenticationError, ChatUnavailable
-from .native_web import shell, module_file, HEADERS, UI
+from .native_web import shell, module_file, HEADERS, UI, static_bytes, asset_response
 from .guest_registration import GUEST_LIFETIME
 from .native_ui_entry import browser_entry
 
@@ -62,7 +62,7 @@ async def project_asset(request):
     path = _PROJECT_UI / name
     if not path.is_file():
         raise HTTPException(404)
-    return FileResponse(path, headers={"X-Content-Type-Options": "nosniff"})
+    return asset_response(request, static_bytes(path), "text/css" if name.endswith(".css") else "text/javascript")
 
 
 _CLIENT_MODULES = {
@@ -97,14 +97,15 @@ async def harness_asset(request):
     file = Path(modules) / "@deepseek-ai" / package / asset
     if not file.is_file():
         raise HTTPException(503, "Pinned Harness UI asset unavailable")
-    headers = {"X-Content-Type-Options": "nosniff"}
-    if package == "dsh-web-frontend" and asset == "dist/assets/index-BgUyXZcc.js":
+    if package == "dsh-web-frontend" and asset.endswith((".js", ".css")):
+        transform = browser_entry if asset == "dist/assets/index-BgUyXZcc.js" else None
         try:
-            entry = await run_in_threadpool(browser_entry, file)
+            parts = await run_in_threadpool(static_bytes, file, transform)
         except ValueError:
             raise HTTPException(503, "Unsupported native UI entry build") from None
-        return Response(entry, media_type="text/javascript", headers=headers)
-    return FileResponse(file, headers=headers)
+        return asset_response(request, parts, "text/css" if asset.endswith(".css") else "text/javascript",
+                              immutable="/langs/" not in asset)
+    return FileResponse(file, headers={"X-Content-Type-Options":"nosniff"})
 
 
 def web_routes():

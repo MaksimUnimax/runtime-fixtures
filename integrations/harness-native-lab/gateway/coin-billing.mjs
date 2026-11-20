@@ -21,10 +21,14 @@ export function period(ms) {
   return day > 0 && day < 6 && ((hour >= 1 && hour < 4) || (hour >= 6 && hour < 10)) ? 'peak' : 'offpeak';
 }
 
-function price(model, input, cached, output, band, markup, conversion) {
+function price(model, input, cached, output, band, markup, conversion, fx) {
   const r = rates[model];
   const weighted = [[r.input, input], [r.cache, cached], [r.output, output]]
     .reduce((sum, [rate, count]) => sum + BigInt(Math.round(rate * 1e6)) * BigInt(count), 0n);
+  if (fx) {
+    const divisor = band === 'peak' ? 10000n : 20000n;
+    return (weighted * fx + divisor - 1n) / divisor;
+  }
   return weighted * BigInt(conversion) * (100n + BigInt(markup)) / (band === 'peak' ? 100n : 200n);
 }
 
@@ -34,16 +38,18 @@ export function coinBilling(db) {
     query.setReadBigInts(true);
     return query;
   }
-  const order = statement('SELECT cap,markup,coins_per_usd,closed FROM coin_orders WHERE operation_id=?');
+  const order = statement(`SELECT o.*,r.fx_e4 FROM coin_orders o
+    LEFT JOIN coin_ruble_orders r USING(operation_id) WHERE operation_id=?`);
+  const wallet = statement('SELECT available FROM coin_wallet_balances WHERE workspace_id=?');
   const allocated = statement('SELECT COALESCE(SUM(COALESCE(charge,bound)),0) AS used FROM coin_attempts WHERE operation_id=?');
-  const lookup = statement(`SELECT a.*,o.coins_per_usd,o.markup FROM coin_attempts a
-    JOIN coin_orders o USING(operation_id) WHERE attempt_id=?`);
+  const lookup = statement(`SELECT a.*,o.coins_per_usd,o.markup,r.fx_e4 FROM coin_attempts a
+    JOIN coin_orders o USING(operation_id) LEFT JOIN coin_ruble_orders r USING(operation_id) WHERE attempt_id=?`);
   const insert = db.prepare(`INSERT INTO coin_attempts(attempt_id,operation_id,bound,model,started_ms,rate_version,period)
     VALUES(?,?,?,?,?,?,?)`);
   const finish = db.prepare(`UPDATE coin_attempts SET charge=?,provider_id=?,usage_json=?,evidence=?
     WHERE attempt_id=? AND charge IS NULL`);
 
-  function reserve(entry, authorized) {
+  function reserve(entry, authorized, bytes, toolCount = 0) {
     const band = period(entry.started_ms);
     if (!band) throw new Error('Missing reviewed DeepSeek rate calendar');
     const id = entry.attribution.operation_id;
@@ -52,9 +58,30 @@ export function coinBilling(db) {
       if (!authorized()) { db.exec('ROLLBACK'); return false; }
       const contract = order.get(id);
       if (!contract || contract.closed) { db.exec('ROLLBACK'); return false; }
-      // Full supported context is a strict upper bound, including hidden message formatting.
-      const bound = price(entry.model, contextWindow, 0, entry.max_tokens, 'peak', contract.markup, contract.coins_per_usd);
-      if (allocated.get(id).used + bound > contract.cap) {
+      // Text-only requests. Count serialized UTF-8 bytes plus framing overhead
+      // for system, history and tools. Unknown payloads use the full context bound.
+      const input = contract.fx_e4 && Number.isSafeInteger(bytes)
+        ? Math.min(contextWindow, bytes + 1024 + 32 * ((entry.messages || 0) + toolCount)) : contextWindow;
+      const cost = (output) => price(entry.model, input, 0, output, 'peak',
+        contract.markup, contract.coins_per_usd, contract.fx_e4);
+      let available = contract.cap - allocated.get(id).used;
+      if (contract.fx_e4) {
+        const funds = wallet.get(contract.workspace_id).available;
+        if (funds < available) available = funds;
+        entry.billing_fx_rub_per_usd = Number(contract.fx_e4) / 10000;
+        // A small balance can still fund a shorter completion.
+        if (cost(entry.max_tokens) > available && available >= cost(1)) {
+          let low = 1, high = entry.max_tokens;
+          while (low < high) {
+            const mid = Math.ceil((low + high) / 2);
+            if (cost(mid) <= available) low = mid;
+            else high = mid - 1;
+          }
+          entry.max_tokens = low;
+        }
+      }
+      const bound = cost(entry.max_tokens);
+      if (bound > available) {
         db.prepare('UPDATE coin_orders SET budget_hit=1 WHERE operation_id=?').run(id);
         db.exec('COMMIT');
         return false;
@@ -82,7 +109,7 @@ export function coinBilling(db) {
       // A call crossing a price boundary needs provider evidence to select the billed period.
       if (period(Date.parse(event.finished_at)) !== row.period) return;
       charge = price(row.model, counts.input_tokens, counts.cache_read_input_tokens, counts.output_tokens,
-                     row.period, row.markup, row.coins_per_usd);
+                     row.period, row.markup, row.coins_per_usd, row.fx_e4);
       if (charge > row.bound) return;
     }
     finish.run(charge, event.provider_response_id ?? null, JSON.stringify(counts ?? null), event.outcome, event.attempt_id);

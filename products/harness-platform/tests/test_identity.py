@@ -23,6 +23,13 @@ class IdentityTests(unittest.TestCase):
         self.addCleanup(self.store.close)
         self.code = self.store.create_account("Alfa", PASSWORD)
 
+    def test_eleven_character_password_round_trip(self):
+        with tempfile.TemporaryDirectory() as directory, IdentityStore(Path(directory)/"short.sqlite") as store:
+            store.create_account("short-owner", "abcdefghijk")
+            self.assertTrue(store.login("short-owner","abcdefghijk"))
+            with self.assertRaises(ValueError):
+                store.create_account("empty-owner","")
+
     def test_concurrent_accounts_distinct_scopes_and_reconnect(self):
         self.store.create_account("Beta", PASSWORD)
 

@@ -175,7 +175,7 @@ export function createGateway(config) {
       const event = { ...entry, event: 'finished', finished_at: new Date(now()).toISOString(), elapsed_ms: now() - entry.started_ms,
         status, outcome, provider_response_id: responseId, response_model: responseModel,
         usage: finalUsage, partial_usage: finalUsage ? null : usage,
-        quote: quoteUsage(responseModel || entry.model, finalUsage, config.fx), ...extra };
+        quote: quoteUsage(responseModel || entry.model, finalUsage, entry.billing_fx_rub_per_usd ?? config.fx), ...extra };
       try {
         await log(event);
         billing?.settle(event);
@@ -236,8 +236,12 @@ export function createGateway(config) {
         }
         const admitted = entry;
         entry = null;
-        if (billing && !billing.reserve(admitted, () => Boolean(operationScope(resolveAttribution, incoming)))) {
+        if (billing && !billing.reserve(admitted, () => Boolean(operationScope(resolveAttribution, incoming)), body.length, parsed.tools?.length ?? 0)) {
           return json(res, 402, { error: { type: 'payment_required', message: 'Coin limit reached' } });
+        }
+        if (admitted.max_tokens < parsed.max_tokens) {
+          parsed.max_tokens = admitted.max_tokens;
+          body = Buffer.from(JSON.stringify(parsed));
         }
         entry = admitted;
         active++;

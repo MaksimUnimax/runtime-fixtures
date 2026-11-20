@@ -1,9 +1,10 @@
-:root { color-scheme:light dark; font:16px/1.5 system-ui,sans-serif }
-body { margin:0; background:Canvas; color:CanvasText }
-main { max-width:48rem; margin:0 auto; padding:2rem 1.3rem }
-section { padding:1.2rem 0; border-top:1px solid GrayText }
-h1,h2,p { margin:.65rem 0 }
-form,label { display:grid; gap:.5rem }
-form { max-width:30rem; gap:.85rem }
-input,button { font:inherit; padding:.5rem .7rem; border:1px solid GrayText; border-radius:.45rem }
-button { justify-self:start; cursor:pointer }
+:root{font:15px/1.5 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#222735;background:#f7f8fb;color-scheme:light}
+*{box-sizing:border-box}body{margin:0}main{max-width:740px;margin:auto;padding:36px 20px 64px}
+nav a{color:#416cf1;text-decoration:none}nav a:hover{text-decoration:underline}
+h1{margin:18px 0 24px;font-size:30px;letter-spacing:-.035em}h2{margin:0 0 16px;font-size:19px;letter-spacing:-.02em}
+section{margin:14px 0;padding:22px 24px;border:1px solid #e0e4ed;border-radius:16px;background:white}
+form,label{display:grid;gap:6px}form{gap:14px}label{font-size:13px;font-weight:500}
+input,button{font:inherit;border-radius:10px}input{width:100%;height:42px;padding:8px 12px;color:inherit;background:#f7f8fb;border:1px solid #dce1e9}
+input:focus-visible{outline:2px solid #416cf1;outline-offset:1px}
+button{justify-self:start;padding:9px 18px;background:#416cf1;color:white;border:0;cursor:pointer}button:disabled{opacity:.65}
+p,output{margin:0}output:empty{display:none}output{color:#28764a}#problem{color:#ac3232}#charges{padding-left:18px}#charges details{margin:6px 0}#charges summary{cursor:pointer}

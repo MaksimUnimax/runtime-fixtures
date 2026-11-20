@@ -61,8 +61,8 @@ def _login_name(login: str) -> str:
 
 
 def _password_bytes(password: str) -> bytes:
-    if not isinstance(password, str) or not 15 <= len(password) <= 256:
-        raise ValueError("Use a password of 15 to 256 characters")
+    if not isinstance(password, str) or not 1 <= len(password) <= 256:
+        raise ValueError("Use a password of 1 to 256 characters")
     return password.encode("utf-8")
 
 
@@ -241,11 +241,11 @@ class IdentityStore(Store):
             ensure_operation_schema(db)
             coins.close_orders(db, workspace)
             available, held = coins.balances(db, workspace)
-            rows = db.execute("""SELECT u.run_key,u.chat_id,o.spent,o.closed,o.operation_id,o.markup,o.coins_per_usd
-                FROM coin_order_totals o JOIN usage_operations u USING(operation_id) WHERE o.workspace_id=?
+            rows = db.execute("""SELECT u.run_key,u.chat_id,o.spent,o.closed,o.operation_id,o.markup,o.coins_per_usd,r.fx_e4
+                FROM coin_order_totals o JOIN usage_operations u USING(operation_id) LEFT JOIN coin_ruble_orders r USING(operation_id) WHERE o.workspace_id=?
                 ORDER BY o.created DESC,o.operation_id DESC LIMIT 50""", (workspace,))
             charges = []
-            for key, chat, cost, closed, operation, markup, conversion in rows:
+            for key, chat, cost, closed, operation, markup, conversion, fx in rows:
                 entry = {"coins": coins.display(cost), "pending": not closed}
                 if account_login is None:
                     entry.update(requestId=key, chatId=chat)
@@ -255,13 +255,21 @@ class IdentityStore(Store):
                     attempts = db.execute("""SELECT model,period,usage_json,rate_version FROM coin_attempts
                         WHERE operation_id=? ORDER BY started_ms,attempt_id""", (operation,))
                     # Both provider pricing and confirmed adjustments are exact in pico-USD.
-                    provider_usd = coins.display(cost * 100 // (conversion * (100 + markup))) if closed else None
-                    entry["meter"] = {"markupPercent": markup, "coinsPerUsd": conversion, "providerUsd": provider_usd,
+                    provider_usd = coins.display((cost * 10000 // fx if fx else cost * 100 // (conversion * (100 + markup)))) if closed else None
+                    entry["meter"] = {"markupPercent": markup, "rubPerUsd": fx / 10000 if fx else None, "coinsPerUsd": fx / 10000 if fx else conversion, "providerUsd": provider_usd,
                                       "attempts": [{"model": m, "period": h, "usage": json.loads(u) if u else None,
                                                     "tariff": v} for m,h,u,v in attempts]}
                 charges.append(entry)
             return {"available": coins.display(available), "reserved": coins.display(held),
-                    "turnLimit": coins.display(coins.policy()[0]), "canGrant": admin, "charges": charges}
+                    "salePrice": coins.sale_pricing(db), "canGrant": admin, "charges": charges}
+
+    def pricing(self, token, percent=None, *, update=False):
+        with self._write() as db:
+            actor, _ = _principal(db, token)
+            if not db.execute("SELECT 1 FROM identity_admins WHERE actor_id=?", (actor,)).fetchone():
+                raise PermissionError("Administrator required")
+            ensure_operation_schema(db)
+            return coins.set_sale_pricing(db, percent) if update else coins.sale_pricing(db)
 
     def set_admin(self, login: str, enabled: bool) -> None:
         """Local provisioning command. Ordinary accounts have no admin membership."""

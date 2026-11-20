@@ -55,7 +55,8 @@ class Changes {
 }
 export async function createTransport(data) {
   const guest = data.mode === 'guest';
-  const ids = guest ? (data.chat ? [data.chat] : []) : await api('/api/chats');
+  const [ids,wallet] = guest ? [data.chat ? [data.chat] : [],null]
+    : await Promise.all([api('/api/chats'),api('/api/wallet')]);
   const selected = data.chat || ids.at(-1);
   const changes = new Changes();
   const cuts = new Map();
@@ -66,7 +67,7 @@ export async function createTransport(data) {
   const titles = new Map(), updated = new Map();
   const openedAt = Date.now();
   const account = {guest, selected, panel:data.panel, error:data.error, recovery:data.recovery,
-    wallet:guest ? null : await api('/api/wallet'), api, changes, costs:new Map()};
+    wallet, api, changes, costs:new Map()};
   const access = () => authorized(ids, guest);
   const view = () => ({items:[{workspaceId:workspace, path:'/personal', title:guest?'Справка Harness':'Мои чаты',
     sessionIds:[...ids], createdAt:'1970-01-01T00:00:00Z', updatedAt:'1970-01-01T00:00:00Z'}],
@@ -145,10 +146,9 @@ export async function createTransport(data) {
           if (!Array.isArray(p.content)||!p.content.length||p.content.some(part=>part.type!=='text'))
             throw new Error('Доступны текстовые сообщения');
           const text=p.content.map(part=>part.text).join('\n');
-          const limit = account.limit || account.wallet?.turnLimit;
           let turn = pending.get(id);
-          if (!turn || turn.text !== text || turn.limit !== limit) {
-            turn = {text, limit, requestId:p.requestId};
+          if (!turn || turn.text !== text) {
+            turn = {text, requestId:p.requestId};
             pending.set(id, turn);
           }
           running.add(id);
@@ -156,7 +156,7 @@ export async function createTransport(data) {
             if(guest) await api('/guest/chats/'+encodeURIComponent(id)+'/turns',{method:'POST',signal,
               headers:{'Accept':'application/json'}, body:new URLSearchParams({text,request_id:turn.requestId})});
             else await api('/api/chats/'+encodeURIComponent(id)+'/turns',{method:'POST',signal,
-              headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:turn.requestId,text,maxCoins:limit})});
+              headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:turn.requestId,text})});
             nonempty.add(id);
             if(!guest) api('/api/wallet').then(w=>{account.wallet=w;}).catch(()=>{});
             pending.delete(id);
@@ -171,7 +171,12 @@ export async function createTransport(data) {
         default: return failure('Действие недоступно');
       }
       return {ok:true,value};
-    } catch(error) {return failure(error.message);}
+     } catch(error) {
+      // The composer renders Error.message as-is. A failed RPC envelope appends
+      // an internal protocol code, which is unhelpful for a user-facing error.
+      if (endpoint==='session/prompt' && error.status) throw error;
+      return failure(error.message);
+    }
   }
   async function* open(channel,endpoint,payload,signal) {
     if(channel!=='/api') throw new Error('Канал недоступен');

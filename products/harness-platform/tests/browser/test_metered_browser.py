@@ -20,6 +20,7 @@ PRODUCT = Path(__file__).resolve().parents[2]
 
 class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
     async def test_turn_from_chat_page_has_a_reconciled_operation(self):
+        self.enterContext(patch.dict(os.environ, {"HARNESS_RUB_PER_USD":"80"}))
         root = Path(self.enterContext(TemporaryDirectory()))
         database = root / "platform.sqlite"
         journal = root / "meter.jsonl"
