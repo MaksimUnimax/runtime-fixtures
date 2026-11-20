@@ -55,8 +55,18 @@ class CoinWallet(unittest.TestCase):
             self.assertEqual(len(got["charges"]),1)
             self.assertEqual(got["charges"][0]["coins"],"0.0000108")
             self.assertNotIn("meter", got["charges"][0])
-            store.set_admin("buyer",True)
-            self.assertEqual(wallet()["charges"][0]["meter"]["attempts"][0]["usage"]["input_tokens"],10)
+            audit = "/api/admin/accounts/buyer/wallet"
+            self.assertEqual(c.get(audit).status_code, 401)
+            self.assertEqual(c.get(audit, headers=user).status_code, 403)
+            self.assertEqual(c.get("/api/admin/accounts/absent/wallet", headers=user).status_code, 403)
+            self.assertEqual(c.get("/api/admin/accounts/absent/wallet", headers=admin).status_code, 404)
+            record, = c.get(audit, headers=admin).json()["charges"]
+            self.assertNotIn("chatId", record)
+            self.assertNotIn("requestId", record)
+            self.assertEqual(record["meter"]["providerUsd"], "0.000009")
+            self.assertEqual(record["meter"]["attempts"][0]["usage"]["input_tokens"], 10)
+            store.set_admin("owner-a", False)
+            self.assertEqual(c.get(audit, headers=admin).status_code, 403)
         with self.client() as c:
             self.assertEqual(c.get("/api/wallet",headers=user).json()["available"],"2.9999892")
 

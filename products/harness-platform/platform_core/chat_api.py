@@ -102,7 +102,17 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         return JSONResponse({"recovery": recovery})
 
     async def wallet(req):
-        return JSONResponse(await run_in_threadpool(req.app.state.identity.wallet, _token(req, allow_cookie=True)))
+        token = _token(req, allow_cookie=True)
+        try:
+            result = await run_in_threadpool(req.app.state.identity.wallet, token,
+                                             account_login=req.path_params.get("login"))
+        except AuthenticationError:
+            raise
+        except PermissionError:
+            raise HTTPException(403, "Administrator required") from None
+        except LookupError:
+            raise HTTPException(404, "Account unavailable") from None
+        return JSONResponse(result)
 
     async def credit(req):
         token = _token(req, allow_cookie=True)
@@ -196,6 +206,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         *guest_routes(),
         *web_routes(),
         Route("/api/wallet", wallet),
+        Route("/api/admin/accounts/{login}/wallet", wallet),
         Route("/api/admin/coin-grants", credit, methods=["POST"]),
         Route("/api/login", login, methods=["POST"]),
         Route("/api/logout", logout, methods=["POST"]),

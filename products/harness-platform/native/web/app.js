@@ -187,6 +187,26 @@ byId('composer').addEventListener('submit', async event => {
   }
 });
 
+function renderCharge(charge) {
+  const row = document.createElement('li');
+  row.textContent = (charge.pending ? 'На сверке' : 'Списано') + ' · ' + charge.coins + ' · ' + (charge.chatId ? chatName(charge.chatId) : (charge.operationId ?? charge.requestId));
+  if (charge.meter) {
+    const detail = document.createElement('details'), summary = document.createElement('summary');
+    summary.textContent = 'Расход DeepSeek · наценка ' + charge.meter.markupPercent + '%';
+    detail.append(summary);
+    if (charge.meter.providerUsd !== null) detail.append('Себестоимость · $' + charge.meter.providerUsd);
+    for (const attempt of charge.meter.attempts) {
+      const part = document.createElement('p'), u = attempt.usage;
+      part.textContent = attempt.model + ' · ' + (u
+        ? 'Вход ' + u.input_tokens + ' · Из кэша ' + u.cache_read_input_tokens + ' · Выход ' + u.output_tokens
+        : 'Ожидается сверка расхода');
+      detail.append(part);
+    }
+    row.append(detail);
+  }
+  return row;
+}
+
 let grantKey;
 async function refreshWallet() {
   const wallet = await api('/api/wallet');
@@ -194,24 +214,7 @@ async function refreshWallet() {
   if (!byId('max-coins').value) byId('max-coins').value = wallet.turnLimit;
   byId('balance').textContent = 'Монеты · ' + wallet.available;
   byId('reserved').textContent = 'В резерве: ' + wallet.reserved + ' · Предел на запрос: ' + wallet.turnLimit;
-  byId('charges').replaceChildren(...wallet.charges.map(charge => {
-    const row = document.createElement('li');
-    row.textContent = (charge.pending ? 'На сверке' : 'Списано') + ' · ' + charge.coins + ' · ' + chatName(charge.chatId);
-    if (charge.meter) {
-      const detail = document.createElement('details'), summary = document.createElement('summary');
-      summary.textContent = 'Расход DeepSeek · наценка ' + charge.meter.markupPercent + '%';
-      detail.append(summary);
-      for (const attempt of charge.meter.attempts) {
-        const part = document.createElement('p'), u = attempt.usage;
-        part.textContent = attempt.model + ' · ' + (u
-          ? 'Вход ' + u.input_tokens + ' · Из кэша ' + u.cache_read_input_tokens + ' · Выход ' + u.output_tokens
-          : 'Ожидается сверка расхода');
-        detail.append(part);
-      }
-      row.append(detail);
-    }
-    return row;
-  }));
+  byId('charges').replaceChildren(...wallet.charges.map(renderCharge));
   const panel = byId('credit-panel');
   if (!wallet.canGrant) { panel.replaceChildren(); return; }
   if (panel.firstChild) return;
@@ -227,7 +230,28 @@ async function refreshWallet() {
   const submit = document.createElement('button'), notice = document.createElement('output');
   submit.textContent = 'Начислить монеты';
   form.append(submit, notice);
-  panel.append(form);
+  const inspectForm = document.createElement('form'), accountLabel = document.createElement('label');
+  const accountInput = document.createElement('input'), inspect = document.createElement('button');
+  const balance = document.createElement('output'), charges = document.createElement('ul');
+  accountLabel.textContent = 'Логин для просмотра расходов';
+  accountInput.required = true;
+  accountLabel.append(accountInput);
+  inspect.textContent = 'Показать расходы';
+  inspectForm.append(accountLabel, inspect);
+  inspectForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    inspect.disabled = true;
+    balance.replaceChildren();
+    charges.replaceChildren();
+    try {
+      const login = accountInput.value.trim();
+      const account = await api('/api/admin/accounts/' + encodeURIComponent(login) + '/wallet');
+      balance.textContent = login + ' · Доступно ' + account.available + ' · В резерве ' + account.reserved;
+      charges.replaceChildren(...account.charges.map(renderCharge));
+    } catch (error) { showError(error, 'wallet'); }
+    finally { inspect.disabled = false; }
+  });
+  panel.append(form, inspectForm, balance, charges);
   form.addEventListener('submit', async event => {
     event.preventDefault();
     const fields = Object.fromEntries(new FormData(form)), signature = JSON.stringify(fields);

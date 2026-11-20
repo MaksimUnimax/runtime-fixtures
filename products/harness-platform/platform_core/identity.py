@@ -226,23 +226,37 @@ class IdentityStore(Store):
             ensure_operation_schema(db)
             coins.grant(db, issuer, key, row[0], amount, reason)
 
-    def wallet(self, token):
+    def wallet(self, token, *, account_login=None):
         with self._write() as db:
             actor, workspace = _principal(db, token)
+            admin = bool(db.execute("SELECT 1 FROM identity_admins WHERE actor_id=?", (actor,)).fetchone())
+            if account_login is not None:
+                if not admin:
+                    raise PermissionError("Administrator required")
+                row = db.execute("SELECT workspace_id FROM identity_accounts WHERE login=?",
+                                 (_login_name(account_login),)).fetchone()
+                if row is None:
+                    raise LookupError("Unknown account")
+                workspace = row[0]
             ensure_operation_schema(db)
             coins.close_orders(db, workspace)
             available, held = coins.balances(db, workspace)
-            admin = bool(db.execute("SELECT 1 FROM identity_admins WHERE actor_id=?", (actor,)).fetchone())
             rows = db.execute("""SELECT u.run_key,u.chat_id,o.spent,o.closed,o.operation_id,o.markup,o.coins_per_usd
                 FROM coin_order_totals o JOIN usage_operations u USING(operation_id) WHERE o.workspace_id=?
                 ORDER BY o.created DESC,o.operation_id DESC LIMIT 50""", (workspace,))
             charges = []
             for key, chat, cost, closed, operation, markup, conversion in rows:
-                entry = {"requestId": key, "chatId": chat, "coins": coins.display(cost), "pending": not closed}
+                entry = {"coins": coins.display(cost), "pending": not closed}
+                if account_login is None:
+                    entry.update(requestId=key, chatId=chat)
+                else:
+                    entry["operationId"] = operation
                 if admin:
                     attempts = db.execute("""SELECT model,period,usage_json,rate_version FROM coin_attempts
                         WHERE operation_id=? ORDER BY started_ms,attempt_id""", (operation,))
-                    entry["meter"] = {"markupPercent": markup, "coinsPerUsd": conversion,
+                    # Both provider pricing and confirmed adjustments are exact in pico-USD.
+                    provider_usd = coins.display(cost * 100 // (conversion * (100 + markup))) if closed else None
+                    entry["meter"] = {"markupPercent": markup, "coinsPerUsd": conversion, "providerUsd": provider_usd,
                                       "attempts": [{"model": m, "period": h, "usage": json.loads(u) if u else None,
                                                     "tariff": v} for m,h,u,v in attempts]}
                 charges.append(entry)
