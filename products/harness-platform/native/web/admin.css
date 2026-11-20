@@ -2,7 +2,7 @@
 * { box-sizing:border-box; } body { margin:0; } main { max-width:740px; margin:auto; padding:30px 18px 64px; }
 nav a,button,summary { display:inline-flex; align-items:center; gap:8px; min-height:36px; padding:6px 14px; border:1px solid var(--octo-line); border-radius:var(--octo-radius); background:var(--octo-panel); color:var(--octo-ink); text-decoration:none; font:500 14px/22px var(--octo-font); cursor:pointer; }
 nav a:hover,summary:hover { background:var(--octo-hover); }
-nav .octo-wordmark { width:90px; } nav span { padding-inline-start:4px; }
+nav a:has(.octo-wordmark) { gap:4px; } nav span { padding-inline-start:4px; }
 h1 { margin:18px 0 24px; font-size:30px; letter-spacing:-.035em; } h2 { margin:0 0 16px; font-size:19px; letter-spacing:-.02em; }
 section { margin:14px 0; padding:clamp(16px,3vw,24px); border:1px solid var(--octo-line); border-radius:16px; background:var(--octo-panel); }
 form,label { display:grid; gap:6px; } form { gap:14px; } label { font-size:14px; font-weight:500; }

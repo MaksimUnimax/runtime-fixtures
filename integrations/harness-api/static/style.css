@@ -7,7 +7,7 @@
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}.spinner{animation:none}}
 
 body[data-ds-dark-theme] .brand-wordmark{filter:invert(1)}
-.brand-wordmark{width:104px;height:auto;flex-shrink:0}.brand{gap:5px}.sidebar .brand .octo-mark{width:24px;height:24px}
+.brand-wordmark{width:112px;height:auto;flex-shrink:0}.brand{gap:4px}.sidebar .brand .octo-mark{width:24px;height:24px}
 
 body { --surface:#e9ecf0; --sidebar-bg:#d9dee5; }
 body[data-ds-dark-theme] { --surface:#131519; --sidebar-bg:#191c21; }

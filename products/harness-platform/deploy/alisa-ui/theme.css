@@ -55,12 +55,12 @@ body :is(input:not([type=checkbox],[type=radio],[type=hidden],[type=submit]),sel
   box-sizing:border-box; min-height:36px; max-width:100%; padding:7px 12px; border:1px solid var(--octo-line);
   border-radius:var(--octo-radius); font:inherit; color:var(--octo-ink); background:var(--octo-field);
 }
-body header .brand::before { content:""; flex:none; width:89px; height:25px; background:url("/octoport-ui/octoport-wordmark.svg?v=3") center/contain no-repeat; }
+body header .brand::before { content:""; flex:none; width:104px; height:27px; background:url("/octoport-ui/octoport-wordmark.svg?v=689f9cd2") center/contain no-repeat; }
 @media (prefers-color-scheme:dark) { body header .brand::before { filter:invert(1); } }
 body header .brand img { order:-1; }
 @media(max-width:580px) {
   body header { flex-wrap:wrap; }
-  body header .brand { gap:4px; font-size:15px; } body header .brand::before { width:65px; height:20px; }
+  body header .brand { gap:4px; font-size:15px; } body header .brand::before { width:80px; height:21px; }
   body header .brand img { width:21px; height:21px; }
   body header .login-link,body header .site-menu>summary { padding:4px 8px; }
 }
