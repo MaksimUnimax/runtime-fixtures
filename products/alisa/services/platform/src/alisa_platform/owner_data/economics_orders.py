@@ -151,7 +151,13 @@ def _page(packet,scheme,target,period,cursor,*,verify,encode):
             need(type(sku)in(str,int)and re.fullmatch(r'[1-9][0-9]{0,19}',str(sku))is not None,'ORDERS_SKU')
             sku=str(sku);need(sku not in skus,'ORDERS_DUPLICATE_LINE');skus.add(sku)
             need(fields['seller_price']in product and fields['quantity']in product,'ORDERS_ITEM_VALUE_REQUIRED')
-            price=_number(product[fields['seller_price']]);quantity=_number(product[fields['quantity']])
+            raw_price = product[fields['seller_price']]
+            if type(raw_price) is dict:
+                need(set(raw_price) == {'amount', 'currency'}, 'ORDERS_PRICE_SCHEMA')
+                need(raw_price['currency'] == 'RUB', 'ORDERS_CURRENCY')
+                raw_price = raw_price['amount']
+            price = _number(raw_price)
+            quantity = _number(product[fields['quantity']])
             need(price>=0 and quantity>0 and quantity==quantity.to_integral_value(),'ORDERS_ITEM_VALUE')
             if fields['optional_currency']in product:need(product[fields['optional_currency']]=='RUB','ORDERS_CURRENCY')
             rows.append({'posting':token,'sku':sku,'scheme':scheme,'day':day.isoformat(),
