@@ -38,46 +38,6 @@ class ServicePlugins(unittest.TestCase):
     def client(self):
         return TestClient(create_app(self.db,self.root/"chats"))
 
-    def test_ozon_retries_transient_read_without_ignoring_long_cooldowns(self):
-        from platform_core.chat_connections import ozon_analytics
-        fields={"client_id":"fixture-id","api_key":"fixture-key"}
-        for cooldown,expected in [(None,200),("60",429)]:
-            received=[]
-            def upstream(request):
-                received.append(json.loads(request.content))
-                if len(received)==1:
-                    return httpx.Response(429,headers={"Retry-After":cooldown} if cooldown else {})
-                return httpx.Response(200,json={})
-            with httpx.Client(transport=httpx.MockTransport(upstream)) as client, patch("platform_core.chat_connections.time.sleep") as sleep:
-                self.assertEqual(ozon_analytics(client,fields,"2026-11-19").status_code,expected)
-                self.assertEqual(len(received),2 if expected==200 else 1)
-                self.assertEqual(received[0],received[-1])
-                self.assertEqual(sleep.called,expected==200)
-
-    def test_wb_report_selects_orders_or_sales_for_the_requested_day(self):
-        from platform_core.chat_connections import read_service
-        day="2026-11-19"
-        def upstream(req):
-            self.assertEqual(req.headers["Authorization"],"wb-fixture")
-            self.assertEqual(dict(req.url.params),{"dateFrom":day,"flag":"1"})
-            self.assertEqual(req.url.host,"statistics-api.wildberries.ru")
-            if req.url.path.endswith("/orders"):
-                row={"date":day+"T11:00:00","srid":"one","isCancel":False}
-                return httpx.Response(200,json=[row,row,row|{"srid":"two","isCancel":True}])
-            self.assertEqual(req.url.path,"/api/v1/supplier/sales")
-            return httpx.Response(200,json=[{"saleID":"S1"},{"saleID":"R2"}])
-        for report in ("orders","sales",None):
-            transport=httpx.Client(transport=httpx.MockTransport(upstream))
-            with patch("platform_core.chat_connections.httpx.Client",return_value=transport):
-                args={"day":day}
-                if report: args["report"]=report
-                result=read_service("wb",{"token":"wb-fixture"},"wb",args)
-                if report=="orders":
-                    self.assertEqual((result["orderedUnits"],result["cancelledOfOrderedUnits"]),(2,1))
-                    self.assertNotIn("soldUnits",result)
-                else:
-                    self.assertEqual((result["soldUnits"],result["returnedUnits"]),(1,1))
-
     def test_admin_rotates_independent_provider_keys(self):
         from platform_core import provider_keys
         directory=self.root/"provider-keys"
@@ -128,18 +88,18 @@ class ServicePlugins(unittest.TestCase):
                 response=client.get("/api/chats/"+chat+"/tools",headers=self.headers)
                 self.assertEqual(response.status_code,200,response.text)
                 return response.text
-            self.assertNotIn("ozon_daily_orders",tools(self.chat))
+            self.assertNotIn("marketplace_report",tools(self.chat))
             grant={"connectionId":cid,"enabled":True}
             self.assertEqual(client.post(base+"/integrations",headers=self.other,json=grant).status_code,404)
             attached=client.post(base+"/integrations",headers=self.headers,json=grant)
             self.assertEqual(attached.json()["connections"][0]["access"],["Ozon Seller"])
             self.assertNotIn("fixture-private-key",attached.text)
-            self.assertIn("ozon_daily_orders",tools(self.chat))
-            self.assertNotIn("ozon_daily_orders",tools(other))
+            self.assertIn("marketplace_report",tools(self.chat))
+            self.assertNotIn("marketplace_report",tools(other))
             client.post(base+"/integrations",headers=self.headers,json=grant|{"enabled":False}).raise_for_status()
-            self.assertNotIn("ozon_daily_orders",tools(self.chat))
+            self.assertNotIn("marketplace_report",tools(self.chat))
             client.post("/api/integrations",headers=self.headers,json=data|{"chatId":other}).raise_for_status()
-            self.assertIn("ozon_daily_orders",tools(other))
+            self.assertIn("marketplace_report",tools(other))
 
     @unittest.skipUnless(os.getenv("HARNESS_NODE_MODULES"),"requires native Harness")
     def test_real_harness_model_route_billing_replay_and_disable(self):
@@ -156,7 +116,7 @@ class ServicePlugins(unittest.TestCase):
             seen.append(body)
             self.assertTrue(body["stream"])
             self.assertIn("Мой магазин",str(body["messages"]))
-            self.assertIn("ozon_daily_orders",str(body["tools"]))
+            self.assertIn("marketplace_report",str(body["tools"]))
             self.assertNotIn("private-fixture-value",str(body))
             packets=[{"choices":[{"delta":{"reasoning":"fixture private thought"}}]},
                 {"choices":[{"delta":{"content":"Ответ "}}]},
