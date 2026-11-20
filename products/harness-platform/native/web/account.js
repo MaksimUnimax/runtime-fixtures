@@ -13,8 +13,8 @@ window.__ModuleLoader__.load({
           style:{width:size, height:size}});
       }
       function Wordmark() {
-        return h('img',{className:'octo-wordmark',src:'/ui-assets/project/octoport-wordmark.svg',
-          width:104,height:28,alt:'octoport'});
+        return h('img',{className:'octo-wordmark',src:'/ui-assets/project/octoport-wordmark.svg?v=689f9cd2',
+          width:112,height:28,alt:'octoport'});
       }
       for (const [name, component] of [
         ['sidebar.brand.mark', Mark], ['sidebar.brand.name', Wordmark], ['conversation.hero.brand.mark', Mark]

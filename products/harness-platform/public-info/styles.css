@@ -6,7 +6,7 @@ a { color:inherit; text-decoration:none; }
 .skip:focus { top:8px; }
 .layout { display:grid; grid-template-columns:clamp(208px,20vw,280px) minmax(0,1fr); min-height:100dvh; }
 .sidebar { position:sticky; top:0; height:100dvh; overflow:auto; display:flex; flex-direction:column; padding:0 12px 14px; background:var(--octo-rail); border-right:1px solid var(--octo-line); }
-.brand { display:inline-flex; align-items:center; gap:7px; width:fit-content; }
+.brand { display:inline-flex; align-items:center; gap:4px; width:fit-content; }
 .sidebar .brand { min-height:66px; padding-inline:7px; }
 @media(prefers-color-scheme:dark) { .brand img:not(.octo-wordmark) { filter:brightness(0) invert(1); } }
 .sidebar nav,.account { display:grid; gap:4px; }

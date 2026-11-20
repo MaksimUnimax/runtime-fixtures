@@ -25,7 +25,7 @@
     --octo-action: #eef0f3; --octo-on-action: #121419; --octo-accent: #a7c4ff;
   }
 }
-.octo-wordmark { display:block; flex:none; width:104px; height:auto; filter:none; }
+.octo-wordmark { display:block; flex:none; width:112px; height:auto; filter:none; }
 @media (prefers-color-scheme: dark) {
   .octo-wordmark { filter:invert(1); }
 }
