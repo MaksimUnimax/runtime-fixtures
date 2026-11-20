@@ -1,0 +1,38 @@
+name: Harness platform
+on:
+  pull_request:
+    paths:
+      - 'products/harness-platform/**'
+      - '.github/workflows/harness-platform.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  foundation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: products/harness-platform
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - name: Install locked Python environment
+        run: |
+          python3.12 -m venv .venv
+          .venv/bin/python -m pip install -r requirements.txt
+      - name: Run plugin, storage and MCP contracts
+        run: .venv/bin/python -m unittest discover -s tests -v
+      - name: Install pinned upstream Harness for the native adapter test
+        run: npm install --prefix "$RUNNER_TEMP/harness-foundation" --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh@0.2.2-rc.1
+      - name: Run checks against the installed native client
+        run: |
+          HARNESS_NODE_MODULES="$RUNNER_TEMP/harness-foundation/node_modules" \
+          HARNESS_TEST_PYTHON="$PWD/.venv/bin/python" \
+          node --test native/*.test.mjs
