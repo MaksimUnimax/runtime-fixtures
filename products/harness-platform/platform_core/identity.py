@@ -284,6 +284,31 @@ class IdentityStore(Store):
             else:
                 db.execute("DELETE FROM identity_admins WHERE actor_id=?", row)
 
+    def chat_receipts(self, scope, ids):
+        if not ids:
+            return {}
+        params = ",".join("?" for _ in ids)
+        with self._lock:
+            if not self._db.execute("SELECT 1 FROM sqlite_master WHERE name='coin_attempts'").fetchone():
+                return {}
+            rows = self._db.execute(f"""SELECT u.operation_id, o.spent, a.charge, r.fx_e4, a.usage_json
+                FROM usage_operations u JOIN coin_order_totals o USING(operation_id)
+                JOIN coin_attempts a USING(operation_id) LEFT JOIN coin_ruble_orders r USING(operation_id)
+                WHERE u.workspace_id=? AND u.actor_id=? AND u.chat_id=? AND u.operation_id IN ({params})""",
+                (scope.workspace_id, scope.actor_id, scope.chat_id, *ids)).fetchall()
+        result = {}
+        for operation, spent, charge, fx, raw in rows:
+            receipt = result.setdefault(operation, {"coins": coins.display(spent),
+                "rub": coins.display(spent) if fx else None, "pending": False, "tokens": None})
+            receipt["pending"] |= charge is None
+            if raw and (usage := json.loads(raw)):
+                counts = receipt["tokens"] or {"input": 0, "cache": 0, "output": 0}
+                counts["input"] += usage.get("input_tokens", 0) + usage.get("cache_creation_input_tokens", 0)
+                counts["cache"] += usage.get("cache_read_input_tokens", 0)
+                counts["output"] += usage.get("output_tokens", 0)
+                receipt["tokens"] = counts
+        return result
+
     def can_view_costs(self, token: str, scope: Scope) -> bool:
         """Recheck the live session and its chat before projecting an internal receipt."""
         with self._lock:

@@ -32,6 +32,7 @@ class ChatWorker:
             "HARNESS_PLATFORM_DATABASE": str(Path(database_path).resolve()),
             "HARNESS_TEST_PYTHON": sys.executable,
         }
+        self.router = None
         self.database_path = database_path
         self.gateway = os.environ.get("HARNESS_MODEL_GATEWAY_URL")
         if self.gateway is not None:
@@ -83,8 +84,11 @@ class ChatWorker:
 
     async def request(self, scope: Scope, action, **fields):
         if action == "turn" and self.gateway:
+            if self.router and self.router.uses_router(scope.workspace_id):
+                await self.router.models()
             issue = asyncio.create_task(asyncio.to_thread(
                 issue_grant, self.database_path, scope, source="chat.turn",
+                bind_model=self.router.bind if self.router else None,
                 run_key=fields["requestId"], ttl_seconds=150, coin_limit=fields.pop("maxCoins", None),
             ))
             try:
@@ -100,7 +104,7 @@ class ChatWorker:
                 raise WorkerError("unavailable") from None
             try:
                 return await self._request(scope, action, {
-                    **fields, "grant": {"token": grant.token, "operationId": grant.operation_id},
+                    **fields, "grant": {"token": grant.token, "operationId": grant.operation_id, "model": grant.model},
                     "deadline": int(time.time() * 1000) + 120_000,
                 }, timeout=135)
             except WorkerError as error:

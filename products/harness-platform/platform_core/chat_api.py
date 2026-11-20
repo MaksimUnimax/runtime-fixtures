@@ -1,8 +1,11 @@
 """Product HTTP entry point. Every native request uses server-resolved scope."""
 
 import json
+import os
+from importlib.util import find_spec
+import httpx
 import re
-from contextlib import ExitStack, asynccontextmanager
+from contextlib import AsyncExitStack, ExitStack, asynccontextmanager
 from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -19,6 +22,7 @@ from starlette.routing import Route
 from .admin_costs import AdminCosts, present_chat
 from .browser_session import browser_routes, browser_token
 from .chat_worker import ChatWorker, WorkerError
+from . import integrations
 from .identity import AuthenticationError, ChatUnavailable
 from .guest_registration import RegistrationStore
 from .guest_web import guest_routes
@@ -75,6 +79,14 @@ async def _body(request, *keys, optional=()):
 
 
 def create_app(database_path, chat_directory, *, composition_module=None):
+    router_plugin = None
+    if os.getenv("HARNESS_OPENROUTER_ENABLED") == "1" and find_spec("platform_core.model_router"):
+        from . import model_router as router_plugin
+
+    async def disabled_models(req):
+        req.app.state.identity.validate_session(_token(req, allow_cookie=True))
+        return JSONResponse({"enabled":False,"model":"direct","models":[]})
+
     @asynccontextmanager
     async def lifespan(app):
         with ExitStack() as lifecycle:
@@ -86,10 +98,17 @@ def create_app(database_path, chat_directory, *, composition_module=None):
             app.state.identity = lifecycle.enter_context(RegistrationStore(shared_path))
             app.state.admin_costs = AdminCosts()
             app.state.worker = ChatWorker(shared_path, chat_directory, composition_module)
-            try:
-                yield
-            finally:
-                await app.state.worker.close()
+            app.state.integrations = integrations.IntegrationStore(app.state.identity)
+            async with httpx.AsyncClient(timeout=10, trust_env=False, follow_redirects=False,
+                    limits=httpx.Limits(max_connections=64,max_keepalive_connections=16)) as http:
+                app.state.http = http
+                async with AsyncExitStack() as extensions:
+                    app.state.model_router = await extensions.enter_async_context(
+                        router_plugin.activate(app.state.identity,http,app.state.worker)) if router_plugin else None
+                    try:
+                        yield
+                    finally:
+                        await app.state.worker.close()
 
     async def login(req):
         data = await _body(req, "login", "password")
@@ -116,6 +135,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
             raise HTTPException(403, "Administrator required") from None
         except LookupError:
             raise HTTPException(404, "Account unavailable") from None
+        result["modelChoice"] = req.app.state.model_router is not None
         return JSONResponse(result)
 
     async def pricing(req):
@@ -166,6 +186,8 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                 raise HTTPException(400, "Invalid requestId")
             if not isinstance(data["text"], str) or not data["text"].strip() or len(data["text"].encode("utf-8")) > 8192:
                 raise HTTPException(400, "Invalid message text")
+            if integrations.SECRET_TEXT.search(data["text"]):
+                raise HTTPException(400, "Введите ключ через Интеграции")
         elif action in {"history", "events"}:
             # Public event pages use immutable revisions so newer turns cannot shift older pages.
             events = action == "events"
@@ -221,6 +243,8 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         *browser_routes(),
         *guest_routes(),
         *web_routes(),
+        *integrations.routes(_token, _body),
+        *(router_plugin.routes(_token, _body) if router_plugin else [Route("/api/model-settings",disabled_models,methods=["GET","POST"])]),
         Route("/api/wallet", wallet),
         Route("/api/admin/accounts/{login}/wallet", wallet),
         Route("/api/admin/coin-pricing", pricing, methods=["GET", "POST"]),

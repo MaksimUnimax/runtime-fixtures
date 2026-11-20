@@ -15,6 +15,11 @@ export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, 
     });
     try {
       const { agent } = handle;
+      // A restored Harness session remembers its previous model in its event log.
+      const previous = agent.model.current();
+      if (previous?.provider !== provider || previous?.model !== model) {
+        agent.model.select({ provider, model });
+      }
       const cancel = () => agent.cancel({ kind: 'user' });
       signal?.throwIfAborted();
       signal?.addEventListener('abort', cancel, { once: true });

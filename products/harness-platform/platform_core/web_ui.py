@@ -57,7 +57,7 @@ async def admin(request):
 
 async def project_asset(request):
     name = request.path_params["name"]
-    if name not in {"bootstrap.js", "start.js", "account.js", "account.css", "transport.js", "admin.css", "admin.js"}:
+    if name not in {"bootstrap.js", "start.js", "connections.js","private-input.js", "account.js", "account.css", "transport.js", "admin.css", "admin.js"}:
         raise HTTPException(404)
     path = _PROJECT_UI / name
     if not path.is_file():

@@ -97,6 +97,8 @@ class MeteredChatAcceptance(unittest.TestCase):
             self.assertEqual(wallet["charges"][0]["coins"], "0.00144")
             self.assertEqual(len(wallet["charges"][0]["meter"]["attempts"]), 2)
             self.assertEqual(first, duplicate)
+            self.assertEqual(first["modelUsage"], {"coins":"0.00144","rub":"0.00144","pending":False,
+                "tokens":{"input":20,"cache":0,"output":10}})
             self.assertEqual(first["text"], "tool result received")
             self.assertEqual(second["text"], "answer to second fixture")
             self.assertNotEqual(first["operationId"], second["operationId"])
@@ -194,7 +196,7 @@ class MeteredChatAcceptance(unittest.TestCase):
             headers, chat, _ = self.actor(client, "admin")
             base = f"/api/chats/{chat}"
             body = {"requestId": "private-receipt", "text": "ordinary"}
-            private = {"operationId", "modelCost", "adminCosts", "rub", "usd"}
+            private = {"operationId", "modelCost", "modelUsage", "adminCosts", "rub", "usd"}
             def ordinary(response):
                 self.assertTrue(response.is_success or response.status_code == 409, response.text)
                 for key in private:

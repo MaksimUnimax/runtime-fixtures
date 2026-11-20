@@ -261,10 +261,12 @@ export async function openWorker(env) {
         const input = { load, ctx, chatId: key, seed, text: req.text, requestId: req.requestId };
         let turn;
         if (metered) {
-          const { runGatewayTurn } = await import('./gateway-turn.mjs');
+          const runGatewayTurn = req.grant.model ? (await import('./openrouter-turn.mjs')).runRouterTurn
+            : (await import('./gateway-turn.mjs')).runGatewayTurn;
           turn = await runGatewayTurn({ ...input, grant: req.grant,
             onTransport: () => { transportStarted = true; },
-            gatewayUrl: env.HARNESS_MODEL_GATEWAY_URL, model: env.HARNESS_CHAT_MODEL,
+            gatewayUrl: req.grant.model ? env.HARNESS_ROUTER_LOCAL : env.HARNESS_MODEL_GATEWAY_URL,
+            model: req.grant.model || env.HARNESS_CHAT_MODEL,
             signal: AbortSignal.timeout(Math.max(1, req.deadline - Date.now())) });
         } else {
           const { runOfflineTurn } = await import('./offline-turn.mjs');

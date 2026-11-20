@@ -1,3 +1,4 @@
+import { privatePrompt, protectPaste } from './private-input.js';
 // The native client talks to the product's cookie-bound routes. No Host RPC is published.
 async function api(path, options) {
   const res = await fetch(path, {credentials:'same-origin', cache:'no-store', ...options});
@@ -9,7 +10,7 @@ async function api(path, options) {
       403: 'Доступ запрещён', 404: detail.error === 'unavailable' ? 'Действие недоступно' : 'Чат недоступен',
       409: 'Запрос требует сверки', 413: 'Сообщение слишком длинное',
     };
-    const error = new Error(reason[res.status] ?? 'Запрос не выполнен (' + res.status + ')');
+    const error = new Error((path.startsWith('/api/integrations') && /[А-Яа-я]/.test(detail.error||'') ? detail.error : null) ?? reason[res.status] ?? 'Запрос не выполнен (' + res.status + ')');
     error.status = res.status;
     throw error;
   }
@@ -19,7 +20,7 @@ const workspace = 'personal';
 const label = id => 'Чат · ' + id.slice(-8);
 function authorized(ids, guest) {
   const actions = ['session/list', 'session/follow', 'session/page', 'session/prompt', 'session/projections'];
-  if (!guest) actions.push('session/create');
+  if (!guest) actions.push('session/create','settings/describe');
   return {type:'baseline', owner:false, grants:[
     {resource:{kind:'global'}, actions},
     {resource:{kind:'workspace', id:workspace}, actions},
@@ -55,6 +56,7 @@ class Changes {
 }
 export async function createTransport(data) {
   const guest = data.mode === 'guest';
+  protectPaste(guest,api);
   const [ids,wallet] = guest ? [data.chat ? [data.chat] : [],null]
     : await Promise.all([api('/api/chats'),api('/api/wallet')]);
   const selected = data.chat || ids.at(-1);
@@ -88,7 +90,8 @@ export async function createTransport(data) {
       for (let seq=(records.at(-1)?.event.seq ?? event.seq-1)+1;seq<event.seq;seq++)
         records.push({type:'event',event:{seq,type:'harness/omitted',time:event.time,data:{},ignorable:true}});
       if (event.type==='assistant/message') {
-        const cost=assistants[assistantIndex++]?.modelCost;
+        const reply=assistants[assistantIndex++];
+        const cost=reply?.modelUsage ?? reply?.modelCost;
         if(result.adminCosts && cost) account.costs.set(id+'|'+event.seq,cost);
         event.data.stream ??= [];
         // The public journal strips model routing and usage. Native Chat accepts an empty route.
@@ -146,6 +149,7 @@ export async function createTransport(data) {
           if (!Array.isArray(p.content)||!p.content.length||p.content.some(part=>part.type!=='text'))
             throw new Error('Доступны текстовые сообщения');
           const text=p.content.map(part=>part.text).join('\n');
+          if(await privatePrompt(text,guest,api)){ value={accepted:true}; break; }
           let turn = pending.get(id);
           if (!turn || turn.text !== text) {
             turn = {text, requestId:p.requestId};

@@ -1,0 +1,87 @@
+window.__ModuleLoader__.load({
+  id:'harness-integrations',
+  factory(require) {
+    const React=require('react'),h=React.createElement;
+    return {inject:['slots'],apply(ctx) {
+      const a=window.harnessAccount;
+      const post=(url,data)=>a.api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+      const status={saved:'Сохранено',verified:'Связь подтверждена',unconfirmed:'Связь не подтверждена',denied:'Доступ отклонён'};
+      function Connections({initial={},after}) {
+        const [list,setList]=React.useState(null),[provider,setProvider]=React.useState(initial.provider||'');
+        const [fields,setFields]=React.useState(initial.fields||{}),[name,setName]=React.useState(initial.name||'');
+        const [msg,setMsg]=React.useState(initial.notice||''),[busy,setBusy]=React.useState(false);
+        const [target,setTarget]=React.useState(''),[phrase,setPhrase]=React.useState(''),[rows,setRows]=React.useState([]);
+        const refresh=()=>a.api('/api/integrations').then(setList);
+        React.useEffect(()=>{refresh().catch(e=>setMsg(e.message));},[]);
+        async function act(fn){
+          setBusy(true);setMsg('');
+          try {await fn();}catch(e){setMsg(e.message);}finally{setBusy(false);}
+        }
+        const entry=list?.providers[provider];
+        const select=value=>{setProvider(value);setFields({});setName('');setMsg('');};
+        return h('section',{'data-private-connection':true,className:'service-settings'},
+          h('h2',null,'Интеграции'),
+          list?.connections.map(c=>h('div',{key:c.id,className:'service-connection'},
+            h('div',null,h('strong',null,c.name),h('small',null,list.providers[c.provider].title+' · '+status[c.status])),
+            h('button',{disabled:busy,onClick:()=>act(async()=>{
+              const r=await post('/api/integrations/'+c.id+'/check',{});await refresh();
+              setMsg(Object.entries(r.checks).map(([k,v])=>k+' · '+status[v]).join(' / '));
+            })},'Проверить'),
+            c.provider==='wordstat' && h('button',{onClick:()=>{setTarget(c.id);setRows([]);}},'Собрать семантику'))),
+          target && h('form',{onSubmit:e=>{e.preventDefault();act(async()=>setRows((await post('/api/integrations/'+target+'/semantics',{phrase})).rows));}},
+            h('label',null,'Поисковая фраза',h('input',{required:true,value:phrase,onChange:e=>setPhrase(e.target.value)})),
+            h('button',{disabled:busy},'Получить запросы'),rows.length>0 && h('ul',null,rows.map(r=>h('li',{key:r.phrase},r.phrase+' · '+r.count)))),
+          list && h('label',null,'Сервис',h('select',{'aria-label':'Сервис',value:provider,onChange:e=>select(e.target.value)},
+            h('option',{value:''},'Выберите сервис'),Object.entries(list.providers).map(([id,p])=>h('option',{key:id,value:id},p.title)))),
+          entry && h('form',{autoComplete:'off',onSubmit:e=>{e.preventDefault();act(async()=>{
+            await post('/api/integrations',{provider,name:name.trim()||entry.title,fields});
+            setFields({});setProvider('');setName('');await refresh();setMsg('Ключи сохранены');after?.();
+          });}},
+            h('label',null,'Название подключения',h('input',{maxLength:80,value:name,placeholder:entry.title,onChange:e=>setName(e.target.value)})),
+            provider==='ozon' && h('small',null,'Введите пару ключей Seller или Performance. Можно подключить оба API.'),
+            Object.entries(entry.fields).map(([k,label])=>h('label',{key:k},label,h('input',{
+              type:'password',required:provider!=='ozon',autoComplete:'off',spellCheck:false,maxLength:8192,value:fields[k]||'',
+              onChange:e=>setFields(old=>{const n={...old};if(e.target.value)n[k]=e.target.value;else delete n[k];return n;})}))),
+            h('button',{disabled:busy},'Сохранить подключение')),
+          h('p',{role:'status'},msg));
+      }
+      function Models() {
+        const [data,setData]=React.useState(null),[filter,setFilter]=React.useState(''),[msg,setMsg]=React.useState('');
+        const [busy,setBusy]=React.useState(false);
+        React.useEffect(()=>{a.api('/api/model-settings').then(setData).catch(e=>setMsg(e.message));},[]);
+        const choose=async model=>{setBusy(true);try{
+          setData(await post('/api/model-settings',{model}));setMsg('Выбор сохранён');
+        } catch(e){setMsg(e.message);}finally{setBusy(false);}};
+        const radio=(id,title)=>h('label',{className:'service-model',key:id},h('input',{type:'radio',name:'model',disabled:busy,
+            checked:data?.model===id,onChange:()=>choose(id)}),title);
+        const groups=new Map();
+        for(const m of [...(data?.models||[])].sort((a,b)=>a.id.localeCompare(b.id))){
+          if(!(m.id+' '+m.name).toLowerCase().includes(filter.toLowerCase()))continue;
+          if(!groups.has(m.family))groups.set(m.family,[]);groups.get(m.family).push(m);
+        }
+        return h('section',{className:'service-settings'},h('h2',null,'Выбор ИИ'),radio('direct','DeepSeek · прямое подключение'),
+          h('label',null,'Поиск модели',h('input',{type:'search',value:filter,onChange:e=>setFilter(e.target.value)})),
+          data&&!data.models.length && h('p',null,'Каталог OpenRouter временно недоступен'),
+          [...groups].map(([family,models])=>h('details',{key:family,open:filter?true:undefined},
+            h('summary',null,family+' ('+models.length+')'),models.map(m=>radio(m.id,m.name)))),
+          h('p',{role:'status'},msg));
+      }
+      function PrivateDialog() {
+        const [request,setRequest]=React.useState(null),ref=React.useRef(null);
+        React.useEffect(()=>{const open=e=>setRequest({...e.detail,key:crypto.randomUUID()});
+          window.addEventListener('harness:connection',open);return()=>window.removeEventListener('harness:connection',open);},[]);
+        React.useEffect(()=>{if(request&&!ref.current.open)ref.current.showModal();},[request]);
+        if(!request)return null;
+        return h('dialog',{ref,className:'account-dialog','data-private-connection':true,'aria-label':'Подключение сервиса',onCancel:()=>setRequest(null)},
+          request.provider&&!a.guest?h(Connections,{key:request.key,initial:request,after:()=>setRequest({notice:'Ключи сохранены'})}):h('p',{role:'status'},request.notice),
+          h('button',{type:'button',onClick:()=>setRequest(null)},'Закрыть'));
+      }
+      ctx.slots.inject('shell.overlay',()=>ctx.slots.register({name:'shell.overlay',id:'private-connection'},PrivateDialog));
+      if(a.guest)return;
+      const section=(id,title,order,component)=>ctx.slots.inject('settings.section',()=>ctx.slots.register({
+        name:'settings.section',id,order,label:()=>title},component));
+      section('integrations','Интеграции',5,Connections);
+      if(a.wallet?.modelChoice)section('model-choice','Выбор ИИ',6,Models);
+    }};
+  }
+});

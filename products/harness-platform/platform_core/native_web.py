@@ -18,7 +18,7 @@ VERSION = "0.2.2-rc.1"
 GROUP = "@deepseek-ai/"
 ROOTS = ("dsh-client-modules", "dsh-client-ui-chat", "dsh-client-ui-trajectory",
          "dsh-client-ui-brand-official", "dsh-client-ui-tool", "dsh-client-ui-approval",
-         "dsh-client-ui-user-questions")
+         "dsh-client-ui-user-questions", "dsh-client-ui-settings-general")
 HEADERS = {**_PRIVATE_HEADERS, "Content-Security-Policy":
            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
            "img-src 'self' data:; font-src 'self' data:; connect-src 'self'; object-src 'none'; "
@@ -26,7 +26,7 @@ HEADERS = {**_PRIVATE_HEADERS, "Content-Security-Policy":
 
 @lru_cache(maxsize=1)
 def application_name():
-    digest = hashlib.sha256(VERSION.encode() + (UI / "account.js").read_bytes()).hexdigest()[:16]
+    digest = hashlib.sha256(VERSION.encode() + (UI / "account.js").read_bytes() + (UI / "connections.js").read_bytes() + str(ROOTS).encode()).hexdigest()[:16]
     return "application-" + digest
 
 
@@ -90,7 +90,8 @@ def roster(base):
         visit(name)
     plugin = {"id":"harness-account", "rev":VERSION, "url":"/ui-assets/project/account.js",
               "inject":[GROUP + "dsh-client-ui-workspace", GROUP + "dsh-client-ui-sidebar", GROUP + "dsh-client-ui-trajectory"]}
-    rows = [*entries.values(), plugin]
+    rows = [*entries.values(), plugin, {"id":"harness-integrations","rev":VERSION,
+            "url":"/ui-assets/project/connections.js","inject":[GROUP+"dsh-client-ui-settings-general"]}]
     bootstrap = entries["dsh-client-modules"]
     batches = [{"phase":"bootstrap", "url":bootstrap["url"], "rev":VERSION, "entries":[bootstrap["id"]]},
                {"phase":"application", "url":"/ui-assets/modules/" + application_name() + ".js", "rev":VERSION,
@@ -101,7 +102,7 @@ def roster(base):
 def application_bundle(base):
     _, files = roster(base)
     paths = [path for name, path in files.items() if name != "dsh-client-modules"]
-    return encoded(b"\n;\n".join(path.read_bytes() for path in [*paths, UI / "account.js"]))
+    return encoded(b"\n;\n".join(path.read_bytes() for path in [*paths, UI / "account.js", UI / "connections.js"]))
 
 
 async def module_file(request):

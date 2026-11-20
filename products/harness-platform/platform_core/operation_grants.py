@@ -69,6 +69,7 @@ class OperationGrant:
     workspace_id: str
     source: str
     token: str = field(repr=False)
+    model: str | None = None
 
 
 def ensure_operation_schema(db):
@@ -103,7 +104,7 @@ def initialize_grants(database_path):
                       LEFT JOIN chats AS c ON c.workspace_id=w.workspace_id LIMIT 0""")
 
 
-def issue_grant(database_path, scope, *, source, run_key, ttl_seconds=900, coin_limit=None):
+def issue_grant(database_path, scope, *, source, run_key, ttl_seconds=900, coin_limit=None, bind_model=None):
     """Bind one short-lived credential to a stable, server-authorized operation.
 
     run_key is an opaque identifier (e.g. the HTTP idempotency key or scheduled
@@ -161,10 +162,11 @@ def issue_grant(database_path, scope, *, source, run_key, ttl_seconds=900, coin_
             coins.reserve_order(db, workspace, operation_id, coin_limit)
         except coins.InsufficientCoins as exc:
             raise PaidAccessRequired("Insufficient coins") from exc
+        model = bind_model(db,scope,operation_id) if bind_model else None
         token = secrets.token_urlsafe(32)
         db.execute("INSERT INTO usage_grants(token_hash, operation_id, expires_at) VALUES (?, ?, ?)",
                    (_digest(token), operation_id, expires))
-    return OperationGrant(operation_id, workspace, source, token)
+    return OperationGrant(operation_id, workspace, source, token, model)
 
 
 def revoke_grant(database_path, token):
