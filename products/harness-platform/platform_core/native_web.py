@@ -26,7 +26,7 @@ HEADERS = {**_PRIVATE_HEADERS, "Content-Security-Policy":
 
 @lru_cache(maxsize=1)
 def application_name():
-    digest = hashlib.sha256(VERSION.encode() + (UI / "account.js").read_bytes() + (UI / "connections.js").read_bytes() + str(ROOTS).encode()).hexdigest()[:16]
+    digest = hashlib.sha256(Path(__file__).read_bytes() + VERSION.encode() + (UI / "account.js").read_bytes() + (UI / "connections.js").read_bytes() + str(ROOTS).encode()).hexdigest()[:16]
     return "application-" + digest
 
 
@@ -38,8 +38,20 @@ def static_bytes(path, transform=None):
 
 def client_source(path):
     source = path.read_bytes()
-    # Product names in the two installed UI modules. Package IDs and model IDs are case-sensitive.
-    if path.parent.parent.name in {"dsh-client-ui-layout", "dsh-client-ui-chat"}:
+    package = path.parent.parent.name
+    if package.startswith("dsh-client-ui-"):
+        source = source.replace(b"DeepSeek Harness", b"octoport")
+    if package == "dsh-client-ui-shortcuts":
+        source = re.sub(rb"\bHarness\b", b"octoport", source)
+    if package == "dsh-client-ui-conversation":
+        # The pinned HeroShell has a mark slot but no headline or badge slot.
+        title_group = (
+            rb'children: \[\(0, react_jsx_runtime.jsx\)\("span", \{ children: t\("hero.headline"\) \}\), '
+            rb'\(0, react_jsx_runtime.jsx\)\("span", \{\s*className: HeroShell_module_css_default.previewBadge,'
+            rb'\s*children: t\("hero.preview"\)\s*\}\)\]'
+        )
+        return re.sub(title_group, 'children: "С чего начнем?"'.encode(), source, count=1)
+    if package == "dsh-client-ui-chat":
         return source.replace(b"DeepSeek", b"octoport")
     return source
 

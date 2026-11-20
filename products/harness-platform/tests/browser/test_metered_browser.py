@@ -81,7 +81,10 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("operationId", ordinary)
         await expect(regular.locator(".model-cost")).to_have_count(0)
         label = page.locator('.model-cost')
-        await expect(page.locator('.octo-lockup').first).to_contain_text("octoport")
+        wordmark = page.locator('.octo-wordmark').first
+        await expect(wordmark).to_be_visible()
+        await expect(wordmark).to_have_attribute("alt", "octoport")
+        await page.wait_for_function("document.querySelector('.octo-wordmark').naturalWidth > 0")
         await expect(page.locator('.octo-mark').first).to_be_visible()
         self.assertNotIn("deepseek", (await page.title()).lower())
         await expect(label).to_have_text("DeepSeek · Вход 10 · Кэш 0 · Выход 5 · Всего 15 токенов · 0,00072 ₽ · Списано 0,00072 монет")

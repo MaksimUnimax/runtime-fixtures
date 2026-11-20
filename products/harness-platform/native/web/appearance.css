@@ -1,0 +1,42 @@
+/* Values shared by the pinned native Button, Checkbox and settings rows.
+   The page and navigation backgrounds are the darker Octoport surfaces. */
+:root {
+  --octo-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --octo-page: #e9ecf0;
+  --octo-rail: #d9dee5;
+  --octo-panel: #f8f9fb;
+  --octo-field: #fff;
+  --octo-ink: #0f1115;
+  --octo-muted: #444c56;
+  --octo-line: #bcc3cd;
+  --octo-hover: #e1e6ed;
+  --octo-active: #cbd2dc;
+  --octo-action: #15171c;
+  --octo-on-action: #fff;
+  --octo-accent: #345fae;
+  --octo-radius: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --octo-page: #131519; --octo-rail: #191c21; --octo-panel: #21252b;
+    --octo-field: #1c2025; --octo-ink: #f1f3f6; --octo-muted: #bbc2cb;
+    --octo-line: #414850; --octo-hover: #2d333a; --octo-active: #39414a;
+    --octo-action: #eef0f3; --octo-on-action: #121419; --octo-accent: #a7c4ff;
+  }
+}
+.octo-wordmark { display:block; flex:none; width:104px; height:auto; filter:none; }
+:where(.octo-info, .octo-admin, .account-dialog, .service-settings, .account-actions) {
+  font-family:var(--dsw-font-family, var(--octo-font));
+}
+:where(.octo-info, .octo-admin, .account-dialog, .service-settings) :is(a,button,summary,select,input,textarea):focus-visible {
+  outline:2px solid var(--octo-accent); outline-offset:2px;
+}
+/* Checkbox uses a native input in Harness. The React Switch keeps its own thumb and hit area. */
+body input:is([type=checkbox],[type=radio]):not([role=switch],.plugin-switch) {
+  appearance:auto; box-sizing:border-box; width:16px; height:16px; min-height:0;
+  padding:0; margin:0; vertical-align:middle; flex:none; accent-color:var(--octo-action);
+}
+:where(.octo-info,.octo-admin,.account-dialog,.service-settings) :is(button:disabled,input:disabled,select:disabled) {
+  cursor:not-allowed; opacity:.45;
+}

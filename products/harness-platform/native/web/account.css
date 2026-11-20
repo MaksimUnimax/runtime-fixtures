@@ -53,14 +53,53 @@ html,body,#root{height:100%;margin:0}
   display:inline-block; flex:none; background:currentColor;
   mask:url("/ui-assets/project/octoport-mark.png") center/contain no-repeat;
 }
-.octo-lockup { display:inline-flex; align-items:center; gap:7px; color:inherit; white-space:nowrap; }
-.octo-lockup > span { font:700 22px/1 ui-rounded,"Trebuchet MS",system-ui,sans-serif; letter-spacing:-.065em; }
-.octo-lockup small {
-  border-radius:3px; background:var(--dsw-alias-label-primary,CanvasText); color:var(--dsw-alias-bg-base,Canvas);
-  padding:3px 4px; font:700 9px/1 system-ui,sans-serif; letter-spacing:.05em; text-transform:uppercase;
-}
 /* The running-status component in the pinned chat client does not expose a brand slot. */
 body .EvIC1a_runningIcon {
   background:currentColor; mask:url("/ui-assets/project/octoport-mark.png") center/contain no-repeat;
 }
 body .EvIC1a_runningIcon > * { display:none; }
+
+/* Let the original application frame, menus and composer use its semantic tokens. */
+html body[data-mode] {
+  --dsw-alias-bg-base:#e9ecf0; --dsw-specific-sidebar-fill:#d9dee5; --dsw-alias-bg-layer-1:#f8f9fb;
+}
+html body[data-mode][data-ds-dark-theme] {
+  --dsw-alias-bg-base:#131519; --dsw-specific-sidebar-fill:#191c21; --dsw-alias-bg-layer-1:#21252b;
+}
+.account-actions,.account-dialog { font-family:var(--dsw-font-family,var(--octo-font)); }
+.account-dialog {
+  --fg:var(--dsw-alias-label-primary); --muted:var(--dsw-alias-label-secondary); --line:var(--dsw-alias-border-l3);
+  --surface:var(--dsw-alias-bg-layer-1); --wash:var(--dsw-alias-button-ghost-active-fill); --action:var(--dsw-alias-button-primary-fill);
+}
+.account-actions :is(a,button),.account-dialog a,.account-dialog button:not(.account-close,[role=switch]),
+.service-settings button,.chat-access-trigger {
+  min-height:32px; padding:4px 12px; border-radius:var(--dsw-radius-md,8px); border:1px solid var(--dsw-alias-border-l3);
+  background:var(--dsw-alias-button-elevated-fill); color:var(--dsw-alias-label-primary);
+  font:500 14px/22px var(--dsw-font-family,var(--octo-font)); text-decoration:none;
+}
+.account-actions { gap:5px; }
+.account-actions a[href="/register"] { color:var(--dsw-alias-label-primary); }
+.account-dialog .account-primary,.service-settings form button[type=submit] {
+  background:var(--dsw-alias-button-primary-fill); color:var(--dsw-alias-label-primary-foreground);
+}
+.account-dialog a+button { margin-top:8px; }
+.account-dialog :is(a,button):not([role=switch]):hover,.service-settings button:hover,.chat-access-trigger:hover,.account-actions :is(a,button):hover {
+  background:var(--dsw-alias-button-ghost-active-hover); color:var(--dsw-alias-label-primary); text-decoration:none;
+}
+.account-dialog .account-primary:hover { background:var(--dsw-alias-button-primary-hover); color:var(--dsw-alias-label-primary-foreground); }
+.service-settings input:not([type=radio]),.service-settings select,.account-dialog input {
+  min-height:36px; background:var(--dsw-alias-button-elevated-fill); color:var(--dsw-alias-label-primary); border-color:var(--dsw-alias-border-l4);
+}
+.service-settings summary,.recovery summary {
+  border:1px solid var(--dsw-alias-border-l3); border-radius:var(--dsw-radius-md,8px);
+  padding:6px 12px; background:var(--dsw-alias-button-elevated-fill); cursor:pointer;
+}
+.service-settings details { margin-block:6px; }
+.account-dialog input[type=checkbox],.service-settings input[type=radio] { min-height:0; }
+
+[data-chat-flow-kind] a[href] {
+  padding:1px 5px; border:1px solid var(--dsw-alias-border-l3); border-radius:var(--dsw-radius-sm,6px);
+  background:var(--dsw-alias-button-ghost-active-fill); color:var(--dsw-alias-label-primary);
+  text-decoration:none; overflow-wrap:anywhere; box-decoration-break:clone; -webkit-box-decoration-break:clone;
+}
+[data-chat-flow-kind] a[href]:hover { background:var(--dsw-alias-button-ghost-active-hover); }

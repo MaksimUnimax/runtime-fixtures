@@ -11,7 +11,7 @@ from starlette.routing import Route
 
 from .browser_session import _secure, browser_token, guest_cookie
 from .identity import AuthenticationError, ChatUnavailable
-from .native_web import shell, module_file, HEADERS, UI, static_bytes, asset_response
+from .native_web import shell, module_file, HEADERS, UI, static_bytes, asset_response, client_source
 from .guest_registration import GUEST_LIFETIME
 from .native_ui_entry import browser_entry
 
@@ -61,9 +61,11 @@ async def icon(_request):
 
 async def project_asset(request):
     name = request.path_params["name"]
+    if name == "octoport-wordmark.svg":
+        return asset_response(request, static_bytes(UI / name), "image/svg+xml")
     if name in {"octoport-mark.png", "octoport-icon.png"}:
         return FileResponse(UI / name, media_type="image/png")
-    if name not in {"bootstrap.js", "start.js", "connections.js","private-input.js", "account.js", "account.css", "transport.js","live-turn.js", "admin.css", "admin.js"}:
+    if name not in {"bootstrap.js", "start.js", "connections.js","private-input.js", "account.js", "account.css", "appearance.css", "transport.js","live-turn.js", "admin.css", "admin.js"}:
         raise HTTPException(404)
     path = _PROJECT_UI / name
     if not path.is_file():
@@ -100,6 +102,8 @@ async def harness_asset(request):
     file = Path(modules) / "@deepseek-ai" / package / asset
     if not file.is_file():
         raise HTTPException(503, "Pinned Harness UI asset unavailable")
+    if asset == "lib/client.js":
+        return asset_response(request, static_bytes(file, client_source), "text/javascript")
     if package == "dsh-web-frontend" and asset.endswith((".js", ".css")):
         transform = browser_entry if asset == "dist/assets/index-BgUyXZcc.js" else None
         try:
