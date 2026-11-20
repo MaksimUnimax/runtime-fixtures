@@ -5,10 +5,8 @@ import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-export const PRICES = Object.freeze({
-  'deepseek-flash': { input: 0.30, cache: 0.006, output: 1.20 },
-  'deepseek-v4-pro': { input: 1.32, cache: 0.044, output: 3.96 },
-});
+import { rates as PRICES } from './coin-billing.mjs';
+export { PRICES };
 
 const USAGE_KEYS = ['input_tokens', 'output_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens'];
 const STOP_REASONS = new Set(['end_turn', 'max_tokens', 'stop_sequence', 'tool_use', 'refusal']);
@@ -155,6 +153,12 @@ export function createGateway(config) {
   if (resolveAttribution !== undefined && typeof resolveAttribution !== 'function') {
     throw new TypeError('Expected a synchronous operation grant resolver');
   }
+  const billing = config.billing;
+  const now = config.now ?? Date.now;
+  if (resolveAttribution && !billing) throw new Error('Scoped gateway requires coin accounting');
+  const recovered = billing?.recover(config.logFile);
+  // Recovery failures are returned to clients before new provider work is admitted.
+  recovered?.catch(() => {});
   let active = 0;
   let journal = Promise.resolve();
   const log = event => { journal = journal.then(() => appendFile(config.logFile, JSON.stringify(event) + '\n', { mode: 0o600 })); return journal; };
@@ -168,10 +172,17 @@ export function createGateway(config) {
       settled = true;
       active--;
       const finalUsage = usageFinal && completeUsage(usage) ? usage : null;
-      await log({ ...entry, event: 'finished', finished_at: new Date().toISOString(), elapsed_ms: Date.now() - entry.started_ms,
+      const event = { ...entry, event: 'finished', finished_at: new Date(now()).toISOString(), elapsed_ms: now() - entry.started_ms,
         status, outcome, provider_response_id: responseId, response_model: responseModel,
         usage: finalUsage, partial_usage: finalUsage ? null : usage,
-        quote: quoteUsage(responseModel || entry.model, finalUsage, config.fx), ...extra });
+        quote: quoteUsage(responseModel || entry.model, finalUsage, config.fx), ...extra };
+      try {
+        await log(event);
+        billing?.settle(event);
+      } catch {
+        // Keep the hold across failures. Operator can reconcile it with provider evidence.
+        console.error('Could not persist model settlement for attempt', entry.attempt_id);
+      }
     };
     try {
       const url = new URL(req.url, 'http://localhost');
@@ -204,13 +215,14 @@ export function createGateway(config) {
         // Platform-owned, opaque identifier; native anonymous user header is not an authority.
         parsed.metadata = { user_id: config.userId || (resolveAttribution ? 'harness-operation-gateway' : 'harness-native-lab-owner-20261118') };
         body = Buffer.from(JSON.stringify(parsed));
+        await recovered;
         // Reading the body yielded. Recheck ownership, expiry and revocation at admission.
         const attribution = resolveAttribution ? operationScope(resolveAttribution, incoming) : null;
         if (resolveAttribution && !attribution) return denied();
         const sid = req.headers['x-deepseek-harness-session-id'];
         entry = { schema: 'harness-lab-model-attempt/v1', event: 'admitted', attempt_id: randomUUID(),
           ...(attribution && { attribution }),
-          started_at: new Date().toISOString(), started_ms: Date.now(),
+          started_at: new Date(now()).toISOString(), started_ms: now(),
           session_id: typeof sid === 'string' && /^[a-zA-Z0-9_.:-]{1,160}$/.test(sid) ? sid : null,
           purpose: req.headers['x-deepseek-harness-compact'] === '1' ? 'compaction' : 'native-model-step',
           model: parsed.model, thinking: parsed.thinking?.type || null, effort: parsed.output_config?.effort || null,
@@ -222,8 +234,17 @@ export function createGateway(config) {
           entry = null;
           return json(res, 429, { error: { type: 'rate_limit_error', message: 'Lab concurrency limit reached' } });
         }
+        const admitted = entry;
+        entry = null;
+        if (billing && !billing.reserve(admitted, () => Boolean(operationScope(resolveAttribution, incoming)))) {
+          return json(res, 402, { error: { type: 'payment_required', message: 'Coin limit reached' } });
+        }
+        entry = admitted;
         active++;
-        await log(entry);
+        try { await log(entry); } catch (error) {
+          billing?.settle({ ...entry, outcome: 'not_dispatched' });
+          throw error;
+        }
         if (req.aborted || res.destroyed) { await settle('client_disconnected_before_dispatch'); return; }
       }
       const target = new URL(isModels ? '/models' : config.upstreamBase.replace(/\/$/, '') + '/v1/messages', config.upstreamBase);
@@ -311,6 +332,7 @@ async function main() {
     const { openOperationResolver } = await import('./operation-resolver.mjs');
     registry = openOperationResolver(process.env.HARNESS_USAGE_PLATFORM_DB);
     config.resolveAttribution = registry.resolve;
+    config.billing = registry.billing;
   } else {
     config.virtualKey = (await readFile(process.env.LAB_GATEWAY_KEY_FILE, 'utf8')).trim();
     if (config.virtualKey.length < 24) throw new Error('Missing lab credential');

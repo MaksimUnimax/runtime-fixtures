@@ -34,6 +34,13 @@ second = Scope("actor-b", "workspace-b", "chat-b")
 with Store(database) as store:
     store.provision(first)
     store.provision(second)
+from platform_core.operation_grants import initialize_grants
+from platform_core.coins import grant
+import sqlite3
+initialize_grants(database)
+with sqlite3.connect(database) as db:
+    for scope in (first, second):
+        grant(db,"fixture", scope.workspace_id,scope.workspace_id,"10","fixture")
 
 def issue(scope, **kwargs):
     return asdict(issue_grant(database, scope, source="chat", run_key="shared-turn-key", **kwargs))
@@ -101,7 +108,7 @@ test('operation grants isolate concurrent usage through the gateway and reconcil
     });
     const upstreamBase = await listen(upstream);
     resolver = openOperationResolver(db);
-    gateway = createGateway({ logFile: journal, resolveAttribution: resolver.resolve,
+    gateway = createGateway({ logFile: journal, resolveAttribution: resolver.resolve, billing: resolver.billing,
       realKey: 'local-provider-fixture-key', userId: 'server-user', upstreamBase, fx: 80, timeoutMs: 5000 });
     const address = await listen(gateway.server);
     function send(token, content) {
@@ -209,7 +216,7 @@ path = sys.argv[1]
 with IdentityStore(path) as store:
     store.create_account("owner", "Local password for one test")
     scope = store.create_user_chat(store.login("owner", "Local password for one test"))
-    store.set_paid("owner", True)
+    store.grant_coins("owner", "10", "test-credit-owner", "Acceptance fixture")
     print(issue_grant(path, scope, source="chat.turn", run_key="one").token)
 `).trim();
   const resolver = openOperationResolver(database);
@@ -220,4 +227,35 @@ with IdentityStore(path) as store:
   } finally {
     resolver.close();
   }
+});
+
+test('wallet prices cached input, output and peak calendar; recovery replays a receipt exactly once', async t => {
+  const { coinBilling, period } = await import('../../../integrations/harness-native-lab/gateway/coin-billing.mjs');
+  const { DatabaseSync } = await import('node:sqlite');
+  const { writeFile } = await import('node:fs/promises');
+  const dir = await mkdtemp(path.join(tmpdir(), 'coin-recovery-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = path.join(dir,'store.sqlite');
+  const scopes = prepareGrants(file);
+  const db = new DatabaseSync(file);
+  t.after(() => db.close());
+  const ledger = coinBilling(db);
+  const ms = Date.UTC(2026,10,20,5);
+  assert.equal(period(ms),'offpeak');
+  assert.equal(period(ms + 3600000),'peak');
+  assert.equal(period(Date.UTC(2027,9,1,7)),'offpeak');
+  const entry = { attempt_id:'test-bill', attribution:scopes.first, model:'deepseek-flash', started_ms:ms, max_tokens:256 };
+  assert.equal(ledger.reserve(entry, () => true),true);
+  const complete = { ...entry, event:'finished', finished_at:new Date(ms+1000).toISOString(), outcome:'completed',
+    status:200, usage:{input_tokens:100, cache_read_input_tokens:1000, output_tokens:30, cache_creation_input_tokens:0} };
+  const journal = path.join(dir,'usage.jsonl');
+  await writeFile(journal,JSON.stringify(complete)+'\n'+JSON.stringify(complete)+'\n');
+  // 100 * 0.15 + 1000 * .003 + 30 * .60 = 36 USD / million. 20% adds .0000072 coins.
+  const reopened = new DatabaseSync(file);
+  try {
+    const restored = coinBilling(reopened);
+    await restored.recover(journal);
+    await restored.recover(journal);
+    assert.equal(reopened.prepare('SELECT charge FROM coin_attempts').get().charge, 43200000);
+  } finally { reopened.close(); }
 });

@@ -64,8 +64,8 @@ async def verify(page, base, store, db, journals, password, inputs, observations
                     await page.get_by_role("button", name="Отправить", exact=True).click()
                 if (await denied.value).status != 402:
                     raise AssertionError("Unpaid account must be denied before paid inference")
-                await expect(page.get_by_role("alert")).to_contain_text("оплаченный доступ")
-                store.set_paid("archive-owner", True)
+                await expect(page.get_by_role("alert")).to_contain_text("Недостаточно доступных монет")
+                store.grant_coins("archive-owner", "10", "test-credit-archive-owner", "Acceptance fixture")
                 await page.reload()
                 await page.get_by_role("textbox", name="Сообщение", exact=True).fill(question)
             async with page.expect_response(lambda r: r.request.method == "POST" and r.url.endswith("/turns"),

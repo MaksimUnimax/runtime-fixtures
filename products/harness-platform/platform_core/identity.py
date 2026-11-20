@@ -1,6 +1,7 @@
 """Server-owned accounts and sessions on the existing single-owner workspace store."""
 
 import hashlib
+import json
 import hmac
 import re
 import secrets
@@ -8,7 +9,8 @@ from pathlib import Path
 from time import time
 from uuid import uuid4
 
-from .operation_grants import PAID_ACCESS_SCHEMA
+from .operation_grants import OPERATION_SCHEMA
+from . import coins
 from .storage import Scope, Store, _bind_chat, _owns_chat
 
 
@@ -17,7 +19,7 @@ _FAILURE_WINDOW = 5 * 60
 _MAX_FAILURES = 5
 _TOKEN = re.compile(r"[A-Za-z0-9_-]{43}")
 _SCHEMA = (
-    PAID_ACCESS_SCHEMA,
+    *OPERATION_SCHEMA,
     """CREATE TABLE IF NOT EXISTS identity_accounts (
            actor_id TEXT PRIMARY KEY NOT NULL,
            login TEXT UNIQUE NOT NULL,
@@ -209,6 +211,41 @@ class IdentityStore(Store):
                 db.execute("INSERT OR IGNORE INTO workspace_paid_model_access(workspace_id) VALUES (?)", row)
             else:
                 db.execute("DELETE FROM workspace_paid_model_access WHERE workspace_id=?", row)
+
+    def grant_coins(self, login, amount, key, reason, *, token=None):
+        # The local CLI is a privileged server operator. HTTP always supplies a session.
+        with self._write() as db:
+            issuer = "local-operator"
+            if token is not None:
+                issuer, _ = _principal(db, token)
+                if not db.execute("SELECT 1 FROM identity_admins WHERE actor_id=?", (issuer,)).fetchone():
+                    raise PermissionError("Administrator required")
+            row = db.execute("SELECT workspace_id FROM identity_accounts WHERE login=?", (_login_name(login),)).fetchone()
+            if row is None:
+                raise ValueError("Unknown account")
+            coins.grant(db, issuer, key, row[0], amount, reason)
+
+    def wallet(self, token):
+        with self._write() as db:
+            actor, workspace = _principal(db, token)
+            coins.close_orders(db, workspace)
+            available, held = coins.balances(db, workspace)
+            admin = bool(db.execute("SELECT 1 FROM identity_admins WHERE actor_id=?", (actor,)).fetchone())
+            rows = db.execute("""SELECT u.run_key,u.chat_id,o.spent,o.closed,o.operation_id,o.markup,o.coins_per_usd
+                FROM coin_order_totals o JOIN usage_operations u USING(operation_id) WHERE o.workspace_id=?
+                ORDER BY o.created DESC,o.operation_id DESC LIMIT 50""", (workspace,))
+            charges = []
+            for key, chat, cost, closed, operation, markup, conversion in rows:
+                entry = {"requestId": key, "chatId": chat, "coins": coins.display(cost), "pending": not closed}
+                if admin:
+                    attempts = db.execute("""SELECT model,period,usage_json,rate_version FROM coin_attempts
+                        WHERE operation_id=? ORDER BY started_ms,attempt_id""", (operation,))
+                    entry["meter"] = {"markupPercent": markup, "coinsPerUsd": conversion,
+                                      "attempts": [{"model": m, "period": h, "usage": json.loads(u) if u else None,
+                                                    "tariff": v} for m,h,u,v in attempts]}
+                charges.append(entry)
+            return {"available": coins.display(available), "reserved": coins.display(held),
+                    "turnLimit": coins.display(coins.policy()[0]), "canGrant": admin, "charges": charges}
 
     def set_admin(self, login: str, enabled: bool) -> None:
         """Local provisioning command. Ordinary accounts have no admin membership."""

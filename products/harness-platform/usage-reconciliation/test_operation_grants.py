@@ -20,6 +20,7 @@ from platform_core.operation_grants import (
     OperationScope, initialize_grants, issue_grant, model_operation, revoke_grant,
 )
 from platform_core.storage import Scope, Store
+from platform_core import coins
 ALICE = OperationScope("actor-A", "workspace-A", "chat-A")
 BOB = OperationScope("actor-B", "workspace-B", "chat-B")
 LOOKUP = """SELECT o.operation_id, o.workspace_id, o.source
@@ -36,6 +37,10 @@ def provision(path):
     with Store(path) as store:
         for scope in (ALICE, BOB):
             store.provision(Scope(scope.actor_id, scope.workspace_id, scope.chat_id))
+    initialize_grants(path)
+    with closing(sqlite3.connect(path)) as db, db:
+        for scope in (ALICE, BOB):
+            coins.grant(db, "fixture", scope.workspace_id, scope.workspace_id, "100", "Fixture funding")
 
 
 class OperationGrantTests(unittest.TestCase):

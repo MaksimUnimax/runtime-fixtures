@@ -16,13 +16,16 @@ import time
 from uuid import uuid4
 
 
+from . import coins
+
+
 # Shared by account provisioning and operation grant migration.
 PAID_ACCESS_SCHEMA = """CREATE TABLE IF NOT EXISTS workspace_paid_model_access (
     workspace_id TEXT PRIMARY KEY NOT NULL REFERENCES workspaces ON DELETE CASCADE
 )"""
 
 
-class PaidAccessRequired(PermissionError):
+class PaidAccessRequired(coins.InsufficientCoins):
     """The owner can still read history and replay completed requests."""
 
 
@@ -30,7 +33,7 @@ _PLATFORM_APPLICATION = 0x48504C54
 _SOURCE = re.compile(r"[a-z][a-z0-9_.-]{0,63}")
 _RUN_KEY = re.compile(r"[A-Za-z0-9_.:-]{1,128}")
 _TOKEN = re.compile(r"[A-Za-z0-9_-]{43}")
-_SCHEMA = (
+OPERATION_SCHEMA = (
     PAID_ACCESS_SCHEMA,
     """CREATE TABLE IF NOT EXISTS usage_operations (
            operation_id TEXT PRIMARY KEY NOT NULL,
@@ -47,6 +50,7 @@ _SCHEMA = (
            expires_at INTEGER NOT NULL
        )""",
     "CREATE INDEX IF NOT EXISTS usage_grants_expiry ON usage_grants(expires_at)",
+    *coins.SCHEMA,
 )
 
 
@@ -78,7 +82,7 @@ def _transaction(database_path):
         version = db.execute("PRAGMA user_version").fetchone()[0]
         if (application, version) != (_PLATFORM_APPLICATION, 1):
             raise ValueError("Unsupported platform database")
-        for statement in _SCHEMA:
+        for statement in OPERATION_SCHEMA:
             db.execute(statement)
         yield db
 
@@ -95,7 +99,7 @@ def initialize_grants(database_path):
                       LEFT JOIN chats AS c ON c.workspace_id=w.workspace_id LIMIT 0""")
 
 
-def issue_grant(database_path, scope, *, source, run_key, ttl_seconds=900):
+def issue_grant(database_path, scope, *, source, run_key, ttl_seconds=900, coin_limit=None):
     """Bind one short-lived credential to a stable, server-authorized operation.
 
     run_key is an opaque identifier (e.g. the HTTP idempotency key or scheduled
@@ -149,6 +153,10 @@ def issue_grant(database_path, scope, *, source, run_key, ttl_seconds=900):
                    VALUES (?, ?, ?, ?, ?, ?)""",
                 (operation_id, *binding),
             )
+        try:
+            coins.reserve_order(db, workspace, operation_id, coin_limit)
+        except coins.InsufficientCoins as exc:
+            raise PaidAccessRequired("Insufficient coins") from exc
         token = secrets.token_urlsafe(32)
         db.execute("INSERT INTO usage_grants(token_hash, operation_id, expires_at) VALUES (?, ?, ?)",
                    (_digest(token), operation_id, expires))
@@ -160,7 +168,10 @@ def revoke_grant(database_path, token):
     if not isinstance(token, str) or not _TOKEN.fullmatch(token):
         raise ValueError("Invalid grant token")
     with _transaction(database_path) as db:
+        row = db.execute("SELECT workspace_id FROM usage_grants JOIN usage_operations USING(operation_id) WHERE token_hash=?", (_digest(token),)).fetchone()
         db.execute("DELETE FROM usage_grants WHERE token_hash=?", (_digest(token),))
+        if row:
+            coins.close_orders(db, row[0])
 
 
 @contextmanager

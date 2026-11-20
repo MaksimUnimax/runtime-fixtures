@@ -57,6 +57,10 @@ export async function openWorker(env) {
       action TEXT NOT NULL, input TEXT NOT NULL, created_at INTEGER NOT NULL, events TEXT NOT NULL,
       PRIMARY KEY(scope_key, revision), UNIQUE(scope_key, request_id)
     )`);
+  const platform = env.HARNESS_MODEL_GATEWAY_URL ? new DatabaseSync(env.HARNESS_PLATFORM_DATABASE, { readOnly: true }) : null;
+  platform?.exec('PRAGMA busy_timeout=5000');
+  const budget = platform?.prepare(`SELECT budget_hit, EXISTS(SELECT 1 FROM coin_attempts a
+      WHERE a.operation_id=o.operation_id) AS used FROM coin_orders o WHERE operation_id=?`);
   const firstBatches = db.prepare(`SELECT request_id, action, input FROM native_batches
     WHERE scope_key=? ORDER BY revision LIMIT ?`);
   const byRequest = db.prepare('SELECT * FROM native_batches WHERE scope_key=? AND request_id=?');
@@ -275,7 +279,15 @@ export async function openWorker(env) {
       reserved = false;
       return answer;
     } catch (error) {
-      if (transportStarted && !(error instanceof RequestError)) fail('turn_unconfirmed');
+      if (transportStarted && !(error instanceof RequestError)) {
+        const billing = budget.get(req.grant.operationId);
+        if (billing?.budget_hit) {
+          // A rejected first leg can safely retry with the same request key after funding.
+          transportStarted = Boolean(billing.used);
+          fail('payment_required');
+        }
+        fail('turn_unconfirmed');
+      }
       throw error;
     } finally {
       try {
@@ -302,7 +314,7 @@ export async function openWorker(env) {
       if (active.get(key) === job) active.delete(key);
     }
   }
-  return { run, async close() { await Promise.allSettled(active.values()); db.close(); } };
+  return { run, async close() { await Promise.allSettled(active.values()); platform?.close(); db.close(); } };
 }
 
 async function main() {

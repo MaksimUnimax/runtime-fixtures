@@ -12,7 +12,7 @@ if (upstream.protocol !== 'http:' || upstream.hostname !== '127.0.0.1' ||
 }
 const resolver = openOperationResolver(database);
 const gateway = createGateway({
-  resolveAttribution: resolver.resolve,
+  resolveAttribution: resolver.resolve, billing: resolver.billing,
   upstreamBase: upstream.origin,
   realKey: (await readFile(process.env.HARNESS_ACCEPTANCE_KEY_FILE, 'utf8')).trim(),
   logFile: journal,

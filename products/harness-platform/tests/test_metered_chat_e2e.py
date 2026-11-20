@@ -34,7 +34,7 @@ class MeteredChatAcceptance(unittest.TestCase):
             for name in ("owner-a", "owner-b"):
                 store.create_account(name, self.password)
                 store.set_admin(name, True)
-                store.set_paid(name, True)
+                store.grant_coins(name, "10", "test-credit-" + name, "Acceptance fixture")
         initialize_grants(self.db)
         gateway = subprocess.Popen(
             ["node", str(PRODUCT / "tests/metered-chat-gateway.mjs"), str(self.db), str(self.journal)],
@@ -91,6 +91,10 @@ class MeteredChatAcceptance(unittest.TestCase):
             for response in responses:
                 self.assertEqual(response.status_code, 200, response.text)
             first, second, duplicate = [r.json() for r in responses]
+            wallet = client.get("/api/wallet", headers=a[0]).json()
+            self.assertEqual(len(wallet["charges"]), 1)
+            self.assertEqual(wallet["charges"][0]["coins"], "0.0000216")
+            self.assertEqual(len(wallet["charges"][0]["meter"]["attempts"]), 2)
             self.assertEqual(first, duplicate)
             self.assertEqual(first["text"], "tool result received")
             self.assertEqual(second["text"], "answer to second fixture")
@@ -171,7 +175,7 @@ class MeteredChatAcceptance(unittest.TestCase):
                 self.assertEqual(client.post(url, headers=headers, json=body).status_code, 402)
             self.assertFalse(self.journal.exists())
             store.set_admin("visitor", False)
-            store.set_paid("visitor", True)
+            store.grant_coins("visitor", "10", "test-credit-visitor", "Acceptance fixture")
             response = client.post(url, headers=headers, json=body)
             self.assertEqual(response.status_code, 200)
             self.assertNotIn("modelCost", response.json())
@@ -184,7 +188,7 @@ class MeteredChatAcceptance(unittest.TestCase):
     def test_ordinary_chat_omits_internal_receipts_and_admin_role_is_live(self):
         with IdentityStore(self.db) as identity:
             identity.create_account("admin", self.password)  # A login name grants no role.
-            identity.set_paid("admin", True)
+            identity.grant_coins("admin", "10", "test-credit-admin", "Acceptance fixture")
         with self.client() as client:
             headers, chat, _ = self.actor(client, "admin")
             base = f"/api/chats/{chat}"

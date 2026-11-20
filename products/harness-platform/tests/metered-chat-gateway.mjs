@@ -22,6 +22,7 @@ const upstream = http.createServer(async (req, res) => {
     res.end(JSON.stringify({ error: { type: 'api_error', message: 'fixture failure' } }));
     return;
   }
+  if (prompt === 'delayed coin fixture') await new Promise(resolve => setTimeout(resolve, 900));
   const useTool = prompt === 'tool fixture';
   const tool = request.tools?.find(t => t.name.endsWith('summarize_text'));
   const toolResult = last.find(block => block.type === 'tool_result');
@@ -62,8 +63,8 @@ async function listen(server) {
   return 'http://127.0.0.1:' + server.address().port;
 }
 const resolver = openOperationResolver(database);
-const gateway = createGateway({ resolveAttribution: resolver.resolve, upstreamBase: await listen(upstream),
-  realKey: 'local-fixture', logFile: journal, fx: 80 });
+const gateway = createGateway({ resolveAttribution: resolver.resolve, billing: resolver.billing, upstreamBase: await listen(upstream),
+  now: () => Date.UTC(2026, 10, 20, 7), realKey: 'local-fixture', logFile: journal, fx: 80 });
 console.log(await listen(gateway.server));
 process.stdin.resume();
 process.stdin.on('end', () => {

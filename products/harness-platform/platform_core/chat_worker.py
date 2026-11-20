@@ -85,7 +85,7 @@ class ChatWorker:
         if action == "turn" and self.gateway:
             issue = asyncio.create_task(asyncio.to_thread(
                 issue_grant, self.database_path, scope, source="chat.turn",
-                run_key=fields["requestId"], ttl_seconds=150,
+                run_key=fields["requestId"], ttl_seconds=150, coin_limit=fields.pop("maxCoins", None),
             ))
             try:
                 grant = await asyncio.shield(issue)

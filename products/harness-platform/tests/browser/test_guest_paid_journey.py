@@ -33,9 +33,9 @@ async def send(page, message):
     return await sent.value
 
 
-async def operator(database, command, value):
+async def operator(database, command, value, *extra):
     process = await asyncio.create_subprocess_exec(
-        sys.executable, "-m", "platform_core.chat_service", "--db", str(database), command, "buyer", value,
+        sys.executable, "-m", "platform_core.chat_service", "--db", str(database), command, "buyer", value, *extra,
         cwd=PRODUCT,
     )
     if await process.wait():
@@ -97,17 +97,24 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         await expect(conversation).to_contain_text(guest_answer, timeout=30_000)
         await expect(page.get_by_test_id("tools")).to_contain_text("Нет доступных инструментов")
         self.assertEqual((await send(page, QUESTION)).status, 402)
-        await expect(page.get_by_role("alert")).to_contain_text("оплаченный доступ")
+        await expect(page.get_by_role("alert")).to_contain_text("Недостаточно доступных монет")
         self.assertFalse(journal.exists() and journal.stat().st_size)
         with sqlite3.connect(database) as db:
             self.assertEqual(db.execute("SELECT count(*) FROM usage_operations").fetchone()[0], 0)
 
-        await operator(database, "set-access", "paid")
+        await operator(database, "grant-coins", "10", "--key", "guest-test", "--reason", "Acceptance")
         response = await send(page, QUESTION)
         self.assertEqual(response.status, 200)
         receipt = await response.json()
         self.assertNotIn("modelCost", receipt)
         self.assertNotIn("operationId", receipt)
+        await expect(page.locator("#balance")).not_to_have_text("Монеты · 0")
+        snapshot = await (await page.request.get("/api/wallet")).json()
+        self.assertEqual(len(snapshot["charges"]), 1)
+        self.assertFalse(snapshot["charges"][0]["pending"])
+        self.assertNotEqual(snapshot["charges"][0]["coins"], "0")
+        self.assertNotIn("meter", snapshot["charges"][0])
+        self.assertEqual(await page.get_by_role("button", name="Начислить монеты").count(), 0)
         await expect(conversation.locator('[data-role="assistant"]').last).to_contain_text(sku)
         await expect(page.locator(".model-cost")).to_have_count(0)
         await page.reload()

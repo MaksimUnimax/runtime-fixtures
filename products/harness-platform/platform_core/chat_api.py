@@ -45,7 +45,7 @@ def _token(request, *, allow_cookie=False):
     return token
 
 
-async def _body(request, *keys):
+async def _body(request, *keys, optional=()):
     if request.headers.get("content-type", "").split(";", 1)[0].lower() != "application/json":
         raise HTTPException(415, "Expected application/json")
     buf = bytearray()
@@ -63,7 +63,7 @@ async def _body(request, *keys):
         json.dumps(data, ensure_ascii=False, allow_nan=False).encode("utf-8")
     except (ValueError, UnicodeError, RecursionError):
         raise HTTPException(400, "Invalid JSON") from None
-    if not isinstance(data, dict) or data.keys() != set(keys):
+    if not isinstance(data, dict) or not set(keys) <= data.keys() <= set(keys) | set(optional):
         raise HTTPException(400, "Unexpected or missing fields")
     return data
 
@@ -94,6 +94,21 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         recovery = await run_in_threadpool(req.app.state.identity.reset_password, **data)
         return JSONResponse({"recovery": recovery})
 
+    async def wallet(req):
+        return JSONResponse(await run_in_threadpool(req.app.state.identity.wallet, _token(req, allow_cookie=True)))
+
+    async def credit(req):
+        token = _token(req, allow_cookie=True)
+        data = await _body(req, "login", "amount", "requestId", "reason")
+        try:
+            await run_in_threadpool(req.app.state.identity.grant_coins, data["login"], data["amount"],
+                                    data["requestId"], data["reason"], token=token)
+        except AuthenticationError:
+            raise
+        except PermissionError:
+            raise HTTPException(403, "Administrator required") from None
+        return JSONResponse({"granted": True})
+
     async def chats(req):
         identity, token = req.app.state.identity, _token(req, allow_cookie=True)
         if req.method == "POST":
@@ -110,7 +125,10 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                 raise HTTPException(400, "Expected an arguments object")
             data["name"] = req.path_params["name"]
         elif action in {"append", "turn"}:
-            data = await _body(req, "requestId", "text")
+            data = await _body(req, "requestId", "text", optional=("maxCoins",) if action == "turn" else ())
+            if "maxCoins" in data:
+                from .coins import parse_amount
+                parse_amount(data["maxCoins"])
             if not isinstance(data["requestId"], str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", data["requestId"]):
                 raise HTTPException(400, "Invalid requestId")
             if not isinstance(data["text"], str) or not data["text"].strip() or len(data["text"].encode("utf-8")) > 8192:
@@ -171,6 +189,8 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         *browser_routes(),
         *guest_routes(),
         *web_routes(),
+        Route("/api/wallet", wallet),
+        Route("/api/admin/coin-grants", credit, methods=["POST"]),
         Route("/api/login", login, methods=["POST"]),
         Route("/api/logout", logout, methods=["POST"]),
         Route("/api/recover", recover, methods=["POST"]),

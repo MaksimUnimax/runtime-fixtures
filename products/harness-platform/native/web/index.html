@@ -11,6 +11,12 @@
 <body>
   <header class="topbar">
     <a href="/app/" class="brand">Harness</a>
+    <details id="wallet" hidden>
+      <summary id="balance">Монеты</summary>
+      <p id="reserved"></p>
+      <ul id="charges" aria-label="Недавние списания"></ul>
+      <div id="credit-panel"></div>
+    </details>
     <form method="post" action="/logout"><button class="quiet" type="submit">Выйти</button></form>
   </header>
   <div class="workspace">
@@ -36,6 +42,8 @@
         <button id="older" type="button" class="quiet" hidden>Ранние сообщения</button>
         <section id="history" data-testid="history" role="region" aria-label="История сообщений" tabindex="0"></section>
         <form id="composer">
+          <label for="max-coins">Предел на запрос, монет</label>
+          <input id="max-coins" type="text" inputmode="decimal" size="8">
           <label for="message">Сообщение</label>
           <textarea id="message" name="text" required rows="2" maxlength="8192"></textarea>
           <div class="controls"><span id="status" role="status"></span><button id="send" class="primary" type="submit" disabled>Отправить</button></div>

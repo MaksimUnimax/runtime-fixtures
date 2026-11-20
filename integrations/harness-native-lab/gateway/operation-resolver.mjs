@@ -1,11 +1,12 @@
 // Private gateway adapter for grants issued by the authenticated product server.
 import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
+import { coinBilling } from './coin-billing.mjs';
 
 export function openOperationResolver(databasePath) {
-  const db = new DatabaseSync(databasePath, { readOnly: true });
+  const db = new DatabaseSync(databasePath);
   try {
-    db.exec('PRAGMA busy_timeout = 5000');
+    db.exec('PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON');
     const { application_id } = db.prepare('PRAGMA application_id').get();
     if (application_id !== 0x48504c54) throw new Error('Expected Harness platform database');
     const byToken = db.prepare(`
@@ -22,6 +23,7 @@ export function openOperationResolver(databasePath) {
          ))
     `);
     return {
+      billing: coinBilling(db),
       resolve(token) {
         if (typeof token !== 'string' || token.length !== 43 || !/^[A-Za-z0-9_-]+$/.test(token)) {
           return null;

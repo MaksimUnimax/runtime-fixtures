@@ -20,7 +20,7 @@ async function api(path, options) {
 function showError(error, operation) {
   const descriptions = {
     400: 'Проверьте введённые данные', 401: 'Требуется вход', 403: 'Доступ запрещён',
-    402: 'Для ответа модели нужен оплаченный доступ',
+    402: 'Недостаточно доступных монет для запроса',
     404: operation === 'open' ? 'Чат недоступен' : 'Действие недоступно',
     409: 'Конфликт с сохранённым запросом', 413: 'Слишком длинное сообщение',
     502: 'Сервис не смог вернуть результат', 503: 'Сервис временно недоступен',
@@ -165,7 +165,9 @@ byId('composer').addEventListener('submit', async event => {
     return;
   }
   // Keep the identifier after a lost acknowledgement so a retry recovers the same turn.
-  if (pendingTurn?.text !== text) pendingTurn = { requestId: crypto.randomUUID(), text };
+  const maxCoins = byId('max-coins').value.trim().replace(',', '.');
+  if (!pendingTurn || pendingTurn.text !== text || pendingTurn.maxCoins !== maxCoins)
+    pendingTurn = { requestId: crypto.randomUUID(), text, maxCoins };
   byId('problem').hidden = true;
   byId('status').textContent = 'Отправка…';
   button.disabled = byId('older').disabled = true;
@@ -179,12 +181,72 @@ byId('composer').addEventListener('submit', async event => {
   } catch (error) { showError(error, 'turn'); }
   finally {
     button.disabled = byId('older').disabled = false;
+    refreshWallet().catch(error => showError(error, 'wallet'));
     input.readOnly = false;
     byId('status').textContent = '';
   }
 });
 
+let grantKey;
+async function refreshWallet() {
+  const wallet = await api('/api/wallet');
+  byId('wallet').hidden = false;
+  if (!byId('max-coins').value) byId('max-coins').value = wallet.turnLimit;
+  byId('balance').textContent = 'Монеты · ' + wallet.available;
+  byId('reserved').textContent = 'В резерве: ' + wallet.reserved + ' · Предел на запрос: ' + wallet.turnLimit;
+  byId('charges').replaceChildren(...wallet.charges.map(charge => {
+    const row = document.createElement('li');
+    row.textContent = (charge.pending ? 'На сверке' : 'Списано') + ' · ' + charge.coins + ' · ' + chatName(charge.chatId);
+    if (charge.meter) {
+      const detail = document.createElement('details'), summary = document.createElement('summary');
+      summary.textContent = 'Расход DeepSeek · наценка ' + charge.meter.markupPercent + '%';
+      detail.append(summary);
+      for (const attempt of charge.meter.attempts) {
+        const part = document.createElement('p'), u = attempt.usage;
+        part.textContent = attempt.model + ' · ' + (u
+          ? 'Вход ' + u.input_tokens + ' · Из кэша ' + u.cache_read_input_tokens + ' · Выход ' + u.output_tokens
+          : 'Ожидается сверка расхода');
+        detail.append(part);
+      }
+      row.append(detail);
+    }
+    return row;
+  }));
+  const panel = byId('credit-panel');
+  if (!wallet.canGrant) { panel.replaceChildren(); return; }
+  if (panel.firstChild) return;
+  const form = document.createElement('form');
+  for (const [name, title] of [['login','Логин получателя'],['amount','Монеты'],['reason','Основание']]) {
+    const label = document.createElement('label'), input = document.createElement('input');
+    label.textContent = title;
+    input.name = name;
+    input.required = true;
+    label.append(input);
+    form.append(label);
+  }
+  const submit = document.createElement('button'), notice = document.createElement('output');
+  submit.textContent = 'Начислить монеты';
+  form.append(submit, notice);
+  panel.append(form);
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const fields = Object.fromEntries(new FormData(form)), signature = JSON.stringify(fields);
+    if (grantKey?.signature !== signature) grantKey = { signature, id: crypto.randomUUID() };
+    submit.disabled = true;
+    try {
+      await api('/api/admin/coin-grants', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...fields, requestId: grantKey.id }) });
+      notice.textContent = 'Монеты начислены';
+      form.reset();
+      grantKey = null;
+      await refreshWallet();
+    } catch (error) { showError(error, 'wallet'); }
+    finally { submit.disabled = false; }
+  });
+}
+
 async function openPage() {
+  await refreshWallet();
   const chats = await api('/api/chats');
   displayChatList(chats);
   if (!chatId) { byId('welcome').hidden = false; return; }
