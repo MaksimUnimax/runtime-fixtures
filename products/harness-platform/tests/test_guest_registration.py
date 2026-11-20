@@ -30,10 +30,12 @@ class GuestRegistrationTests(TestCase):
         with IdentityStore(self.path) as legacy:
             legacy.create_account("existing", PASSWORD)
         self.store = self.enterContext(RegistrationStore(self.path))
-        self.recovery = secrets.token_urlsafe(32)
 
     def test_concurrent_replay_and_revocation(self):
         guest, chat = self.store.start_guest()
+        recovery = self.store.guest_recovery(guest)
+        with self.assertRaises(AuthenticationError):
+            self.store.register(guest, "new", PASSWORD, secrets.token_urlsafe(32))
         self.store.guest_turn(guest, chat, "first", "Моя история")
         original = self.store.guest_history(guest, chat)
         other = self.enterContext(RegistrationStore(self.path))
@@ -41,7 +43,7 @@ class GuestRegistrationTests(TestCase):
 
         def submit(store):
             barrier.wait(timeout=10)
-            return store.register(guest, "New", PASSWORD, self.recovery)
+            return store.register(guest, "New", PASSWORD, recovery)
 
         with ThreadPoolExecutor(max_workers=2) as pool:
             first, second = pool.map(submit, [self.store, other])
@@ -58,18 +60,19 @@ class GuestRegistrationTests(TestCase):
         with self.assertRaises(AuthenticationError):
             self.store.guest_history(guest, chat)
         with self.assertRaises(RegistrationConflict):
-            self.store.register(guest, "other", PASSWORD, self.recovery)
+            self.store.register(guest, "other", PASSWORD, recovery)
         self.store.logout(token)
         with self.assertRaises(AuthenticationError):
-            self.store.register(guest, "new", PASSWORD, self.recovery)
-        self.store.reset_password("new", self.recovery, PASSWORD + " revised")
+            self.store.register(guest, "new", PASSWORD, recovery)
+        self.store.reset_password("new", recovery, PASSWORD + " revised")
         with self.assertRaises(RegistrationConflict):
-            self.store.register(guest, "new", PASSWORD, self.recovery)
+            self.store.register(guest, "new", PASSWORD, recovery)
         independent = self.store.login("new", PASSWORD + " revised")
         self.assertEqual(self.store.list_chats(independent), [chat])
 
     def test_draft_isolation_limit_expiry_and_name_collision(self):
         token, chat = self.store.start_guest()
+        recovery = self.store.guest_recovery(token)
         other, _ = self.store.start_guest()
         with self.assertRaises(ChatUnavailable):
             self.store.guest_history(other, chat)
@@ -81,12 +84,12 @@ class GuestRegistrationTests(TestCase):
         with self.assertRaises(GuestLimit):
             self.store.guest_turn(token, chat, "more", "Ещё")
         with self.assertRaises(RegistrationConflict):
-            self.store.register(token, "existing", PASSWORD, self.recovery)
+            self.store.register(token, "existing", PASSWORD, recovery)
         self.assertEqual(len(self.store.guest_history(token, chat)), MAX_GUEST_TURNS)
         with sqlite3.connect(self.path) as db:
             db.execute("UPDATE guest_chats SET expires_at=0 WHERE chat_id=?", (chat,))
         with self.assertRaises(AuthenticationError):
-            self.store.register(token, "unused", PASSWORD, self.recovery)
+            self.store.register(token, "unused", PASSWORD, recovery)
         self.store.start_guest()
         with sqlite3.connect(self.path) as db:
             self.assertEqual(db.execute("SELECT count(*) FROM guest_turns").fetchone()[0], 0)
@@ -138,7 +141,7 @@ class GuestRegistrationTests(TestCase):
         for key, question in [("one", "Как получить инструменты?"), ("two", "Как сохранить историю?")]:
             self.store.guest_turn(guest, chat, key, question)
         original = self.store.guest_history(guest, chat)
-        token, _ = self.store.register(guest, "owner", PASSWORD, self.recovery)
+        token, _ = self.store.register(guest, "owner", PASSWORD, self.store.guest_recovery(guest))
         base = f"/api/chats/{chat}"
         auth = {"Authorization": "Bearer " + token}
         self.enterContext(patch.dict(os.environ, {"HARNESS_OFFLINE_MODEL": "1"}))

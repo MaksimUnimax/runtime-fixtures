@@ -26,8 +26,7 @@ def _html(title, body, status=200):
         })
 
 
-def _registration_form(recovery=None, error=None, status=200):
-    code = recovery or secrets.token_urlsafe(32)
+def _registration_form(code, error=None, status=200):
     alert = f'<p role="alert">{escape(error)}</p>' if error else ""
     return _html("Создать аккаунт", f"""{alert}<form method="post" action="/register">
         <label>Логин<input name="login" required maxlength="254" autocomplete="username"></label>
@@ -111,10 +110,10 @@ async def register(request):
         return _redirect(target)
     if request.method in {"GET", "HEAD"}:
         try:
-            await run_in_threadpool(identity.guest_chat, token)
+            code = await run_in_threadpool(identity.guest_recovery, token)
         except AuthenticationError:
             return _html("Создать аккаунт", '<form method="post" action="/register/start"><button>Начать регистрацию</button></form>')
-        return _registration_form()
+        return _registration_form(code)
     fields = await _form_fields(request, {"login", "password", "recovery"})
     try:
         session, chat = await run_in_threadpool(identity.register, token, **fields)

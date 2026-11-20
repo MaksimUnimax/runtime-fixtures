@@ -78,3 +78,28 @@ test('two chats in one host have distinct, live native MCP capabilities', native
     await assert.rejects(call(one), /unavailable/);
   } finally { await worker.close(); }
 });
+
+test('concurrent first reads import the guest transcript exactly once', native, async t => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'platform-guest-session-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const env = { ...process.env, HARNESS_CHAT_DIRECTORY: directory };
+  const workers = await Promise.all([openWorker(env), openWorker(env)]);
+  try {
+    const scope = { actorId: 'owner', workspaceId: 'workspace', chatId: 'claimed-chat' };
+    const transcript = [
+      { requestId: 'a', text: 'first', answer: 'help one', at: 1000 },
+      { requestId: 'b', text: 'second', answer: 'help two', at: 1200 },
+    ];
+    const request = { scope, action: 'events', guestHistory: transcript };
+    // A failed batch leaves the entire journal available for a retry.
+    await assert.rejects(workers[0].run({ ...request, guestHistory: [transcript[0], transcript[0]] }));
+    const [first, second] = await Promise.all(workers.map(worker => worker.run(request)));
+    assert.deepEqual(first, second);
+    assert.deepEqual(first.messages.map(m => m.text), ['first', 'help one', 'second', 'help two']);
+    assert.deepEqual(first.events.filter(e => e.type === 'user/message').map(e => e.time), [1000, 1200]);
+    assert.deepEqual(first.events.map(e => e.seq), first.events.map((_, i) => i));
+    assert.deepEqual(await workers[1].run({ scope, action: 'history' }), first.messages);
+  } finally {
+    await Promise.all(workers.map(worker => worker.close()));
+  }
+});

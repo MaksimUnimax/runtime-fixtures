@@ -1,7 +1,6 @@
 """One browser owns one temporary public conversation until account registration."""
 
 import base64
-import hashlib
 import hmac
 import re
 import secrets
@@ -38,6 +37,11 @@ def _public_answer(text):
             "или где найти инструменты. Для работы со своими данными создайте аккаунт и подключите магазин.")
 
 
+def _recovery_code(guest_token, nonce):
+    signature = hmac.digest(guest_token.encode("ascii"), b"guest-recovery-v1:" + nonce, "sha256")
+    return base64.urlsafe_b64encode(signature).decode().rstrip("=")
+
+
 class RegistrationStore(IdentityStore):
     def __init__(self, path):
         super().__init__(path)
@@ -45,7 +49,7 @@ class RegistrationStore(IdentityStore):
             with self._write() as db:
                 db.execute("""CREATE TABLE IF NOT EXISTS guest_chats (
                     chat_id TEXT PRIMARY KEY NOT NULL, digest BLOB UNIQUE NOT NULL,
-                    expires_at INTEGER NOT NULL,
+                    expires_at INTEGER NOT NULL, signup_nonce BLOB,
                     claimed_actor TEXT UNIQUE REFERENCES identity_accounts ON DELETE CASCADE)""")
                 db.execute("""CREATE TABLE IF NOT EXISTS guest_turns (
                     chat_id TEXT NOT NULL REFERENCES guest_chats ON DELETE CASCADE,
@@ -65,8 +69,8 @@ class RegistrationStore(IdentityStore):
         token, chat = secrets.token_urlsafe(32), uuid4().hex
         with self._write() as db:
             self._prune(db)
-            db.execute("INSERT INTO guest_chats VALUES (?, ?, ?, NULL)",
-                       (chat, _secret_digest(token), int(time()) + GUEST_LIFETIME))
+            db.execute("INSERT INTO guest_chats (chat_id, digest, expires_at, signup_nonce) VALUES (?, ?, ?, ?)",
+                       (chat, _secret_digest(token), int(time()) + GUEST_LIFETIME, secrets.token_bytes(32)))
         return token, chat
 
     @staticmethod
@@ -83,6 +87,15 @@ class RegistrationStore(IdentityStore):
     def guest_chat(self, token):
         with self._lock:
             return self._active(self._db, token)
+
+    def guest_recovery(self, token):
+        with self._lock:
+            row = self._db.execute("""SELECT signup_nonce FROM guest_chats
+                WHERE digest=? AND claimed_actor IS NULL AND expires_at>?""",
+                                   (_secret_digest(token), int(time()))).fetchone()
+        if not row:
+            raise AuthenticationError("Guest session unavailable")
+        return _recovery_code(token, row[0])
 
     @staticmethod
     def _turns(db, chat_id):
@@ -117,18 +130,21 @@ class RegistrationStore(IdentityStore):
         secret = _password_bytes(password)
         digest, recovery_digest = _secret_digest(guest_token), _secret_digest(recovery)
         # The browser can repeat its original form after a lost response. Each
-        # form has its own server-generated recovery secret. Store only digests.
+        # draft has a server-issued recovery secret. Neither cookie nor recovery is stored in plaintext.
         signature = hmac.digest(guest_token.encode("ascii"), b"guest-signup-v1:" + recovery_digest, "sha256")
         session = base64.urlsafe_b64encode(signature).decode().rstrip("=")
         with self._lock:
-            prior = self._db.execute("""SELECT a.salt FROM guest_chats g
+            prior = self._db.execute("""SELECT a.salt, g.signup_nonce FROM guest_chats g
                 LEFT JOIN identity_accounts a ON g.claimed_actor=a.actor_id
                 WHERE g.digest=? AND g.expires_at>?""", (digest, int(time()))).fetchone()
         if prior is None:
             raise AuthenticationError("Guest session unavailable")
-        # A deterministic unique salt for this registration makes concurrent
-        # identical submissions independently verifiable without hashing under the write lock.
-        salt = prior[0] or hashlib.sha256(b"signup-salt-v1:" + digest).digest()[:16]
+        # The nonce is private to an unclaimed draft. Identical concurrent
+        # forms can hash outside the writer lock and use the same random salt.
+        saved_salt, nonce = prior
+        if nonce is not None and not hmac.compare_digest(_recovery_code(guest_token, nonce), recovery):
+            raise AuthenticationError("Invalid registration form")
+        salt = saved_salt if nonce is None else nonce[:16]
         candidate = _derive(secret, salt)
         with self._write() as db:
             now = int(time())
@@ -155,7 +171,7 @@ class RegistrationStore(IdentityStore):
             db.execute("""INSERT INTO identity_accounts
                 (actor_id, login, workspace_id, salt, password_hash, recovery_digest)
                 VALUES (?,?,?,?,?,?)""", (actor, name, workspace, salt, candidate, recovery_digest))
-            db.execute("UPDATE guest_chats SET claimed_actor=? WHERE chat_id=?", (actor, chat))
+            db.execute("UPDATE guest_chats SET claimed_actor=?, signup_nonce=NULL WHERE chat_id=?", (actor, chat))
             db.execute("INSERT INTO identity_sessions (digest, actor_id, expires_at) VALUES (?,?,?)",
                        (_secret_digest(session), actor, now + _SESSION_SECONDS))
         return session, chat

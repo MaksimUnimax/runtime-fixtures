@@ -50,14 +50,14 @@ export async function openWorker(env) {
       action TEXT NOT NULL, input TEXT NOT NULL, created_at INTEGER NOT NULL, events TEXT NOT NULL,
       PRIMARY KEY(scope_key, revision), UNIQUE(scope_key, request_id)
     )`);
+  const firstBatches = db.prepare(`SELECT request_id, action, input FROM native_batches
+    WHERE scope_key=? ORDER BY revision LIMIT ?`);
   const byRequest = db.prepare('SELECT * FROM native_batches WHERE scope_key=? AND request_id=?');
   const all = db.prepare('SELECT * FROM native_batches WHERE scope_key=? ORDER BY revision');
   const recent = db.prepare('SELECT request_id, events FROM native_batches WHERE scope_key=? ORDER BY revision DESC LIMIT ? OFFSET ?');
   const eventPage = db.prepare(`SELECT request_id, revision, events FROM native_batches
     WHERE scope_key=? AND revision < ? ORDER BY revision DESC LIMIT ?`);
   const insert = db.prepare('INSERT INTO native_batches VALUES (?,?,?,?,?,?,?)');
-  const firstBatches = db.prepare(`SELECT request_id, action, input FROM native_batches
-    WHERE scope_key=? ORDER BY revision LIMIT ?`);
   const active = new Map();
   let count = 0;
 
