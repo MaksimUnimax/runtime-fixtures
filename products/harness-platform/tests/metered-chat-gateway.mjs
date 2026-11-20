@@ -10,7 +10,7 @@ const upstream = http.createServer(async (req, res) => {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   const request = JSON.parse(Buffer.concat(chunks));
-  const last = request.messages.at(-1).content;
+  const last = request.messages.findLast(message=>message.role==='user').content;
   const prompt = last.find(block => block.type === 'text')?.text;
   if (prompt === 'interrupt fixture') {
     res.writeHead(200, { 'content-type': 'text/event-stream' });
@@ -32,6 +32,17 @@ const upstream = http.createServer(async (req, res) => {
     return;
   }
   let answer = toolResult ? 'tool result received' : 'answer to ' + prompt;
+  if (prompt?.startsWith('inspect connections ')) {
+    // Inspect the actual serialized provider request after a previous assistant reply.
+    const update=request.messages.slice(request.messages.findLastIndex(m=>m.role==='assistant')+1)
+      .filter(m=>m.role==='user').flatMap(m=>m.content).map(b=>b.text||'').join(' ');
+    const tools=(request.tools||[]).map(t=>({ids:t.input_schema.properties?.connectionId?.enum, deferred:t.defer_loading}));
+    answer=JSON.stringify({
+      currentStore:update.includes('Магазин Тест'), boundName:update.includes('mcp__platform__ozon_daily_orders'),
+      freshUpdate:update.includes('Текущее состояние подключений'), active:tools.filter(t=>t.ids).map(t=>t.ids.length),
+      allImmediate:tools.every(t=>!t.deferred), secretLeaked:JSON.stringify(request).includes('private-sentinel')
+    });
+  }
   if (prompt === 'Как звучал мой первый вопрос в гостевом чате? Процитируй только вопрос.') {
     const earlier = request.messages.slice(0, -1).filter(message => message.role === 'user');
     const texts = earlier.flatMap(message => Array.isArray(message.content)

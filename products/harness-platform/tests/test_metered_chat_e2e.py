@@ -123,6 +123,38 @@ class MeteredChatAcceptance(unittest.TestCase):
         with sqlite3.connect(self.db) as connection:
             self.assertEqual(connection.execute("SELECT count(*) FROM usage_grants").fetchone()[0], 0)
 
+    def test_provider_sees_attach_and_revoke_after_a_previous_answer(self):
+        vault=self.db.with_suffix(".key")
+        vault.write_bytes(os.urandom(32))
+        with patch.dict(os.environ,{"HARNESS_INTEGRATIONS_KEY_FILE":str(vault)}), self.client() as client:
+            headers,chat,_=self.actor(client,"owner-a")
+            url="/api/chats/"+chat
+            def send(rid,prompt):
+                response=client.post(url+"/turns",headers=headers,json={"requestId":rid,"text":prompt})
+                self.assertEqual(response.status_code,200,response.text)
+                return response.json()["text"]
+            send("first","первое сообщение")
+            ids=[]
+            for index in (1,2):
+                saved=client.post("/api/integrations",headers=headers,json={
+                    "provider":"ozon","name":f"Магазин Тест {index}","chatId":chat,
+                    "fields":{"client_id":"test-id","api_key":"private-sentinel"}})
+                saved.raise_for_status()
+                ids.append(saved.json()["id"])
+                observed=json.loads(send("attach"+str(index),"inspect connections "+str(index)))
+                self.assertEqual(observed,{"currentStore":True,"boundName":True,"freshUpdate":True,
+                    "active":[index,index],"allImmediate":True,"secretLeaked":False})
+            for cid in ids:
+                client.post(url+"/integrations",headers=headers,json={"connectionId":cid,"enabled":False}).raise_for_status()
+            removed=json.loads(send("revoke","inspect connections removed"))
+            self.assertEqual(removed,{"currentStore":False,"boundName":False,"freshUpdate":True,
+                "active":[],"allImmediate":True,"secretLeaked":False})
+            expected=["первое сообщение","inspect connections 1","inspect connections 2","inspect connections removed"]
+            messages=client.get(url+"/messages",headers=headers).json()
+            self.assertEqual([msg["text"] for msg in messages if msg["role"]=="user"],expected)
+            events=client.get(url+"/events",headers=headers).json()["events"]
+            self.assertEqual([e["data"]["content"][0]["text"] for e in events if e["type"]=="user/message"],expected)
+
     def test_uncertain_provider_result_is_not_redispatched(self):
         with self.client() as client:
             headers, chat, _ = self.actor(client, "owner-a")
