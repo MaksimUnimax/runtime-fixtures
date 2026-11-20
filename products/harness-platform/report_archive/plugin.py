@@ -46,7 +46,11 @@ PLUGINS = (
             name="marketplace_daily_archive",
             description=(
                 "Read an archived daily Ozon and WB report for this workspace. "
-                "Returns historical figures for the exact date, including WB advertising coverage."
+                "ordered_units counts physical units. remaining_with_rub and remaining_without_rub "
+                "are the amounts remaining before tax with and without the returns/refusals coefficient. "
+                "Both include advertising. WB advertising_rub and DRR use posted charges. "
+                "The missing campaign count describes only operational advertising statistics. "
+                "It does not qualify posted charges or the calculated DRR."
             ),
             input_schema={
                 "type": "object",

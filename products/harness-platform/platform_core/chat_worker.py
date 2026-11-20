@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from .operation_grants import initialize_grants, issue_grant, revoke_grant
+from .operation_grants import PaidAccessRequired, initialize_grants, issue_grant, revoke_grant
 from .storage import Scope
 
 
@@ -94,6 +94,8 @@ class ChatWorker:
                 grant = await issue
                 await asyncio.to_thread(revoke_grant, self.database_path, grant.token)
                 raise
+            except PaidAccessRequired:
+                return await self._request(scope, action, {**fields, "replayOnly": True}, timeout=45)
             except PermissionError:
                 raise WorkerError("unavailable") from None
             try:

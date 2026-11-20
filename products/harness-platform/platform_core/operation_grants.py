@@ -16,11 +16,22 @@ import time
 from uuid import uuid4
 
 
+# Shared by account provisioning and operation grant migration.
+PAID_ACCESS_SCHEMA = """CREATE TABLE IF NOT EXISTS workspace_paid_model_access (
+    workspace_id TEXT PRIMARY KEY NOT NULL REFERENCES workspaces ON DELETE CASCADE
+)"""
+
+
+class PaidAccessRequired(PermissionError):
+    """The owner can still read history and replay completed requests."""
+
+
 _PLATFORM_APPLICATION = 0x48504C54
 _SOURCE = re.compile(r"[a-z][a-z0-9_.-]{0,63}")
 _RUN_KEY = re.compile(r"[A-Za-z0-9_.:-]{1,128}")
 _TOKEN = re.compile(r"[A-Za-z0-9_-]{43}")
 _SCHEMA = (
+    PAID_ACCESS_SCHEMA,
     """CREATE TABLE IF NOT EXISTS usage_operations (
            operation_id TEXT PRIMARY KEY NOT NULL,
            actor_id TEXT NOT NULL,
@@ -113,6 +124,10 @@ def issue_grant(database_path, scope, *, source, run_key, ttl_seconds=900):
         ).fetchone()
         if owner is None:
             raise PermissionError("Operation scope unavailable")
+        if source == "chat.turn" and not db.execute(
+            "SELECT 1 FROM workspace_paid_model_access WHERE workspace_id=?", (workspace,)
+        ).fetchone():
+            raise PaidAccessRequired("Paid model access required")
         now = int(time.time())
         expires = now + ttl_seconds
         if expires >= 2**63:

@@ -8,6 +8,7 @@ from pathlib import Path
 from time import time
 from uuid import uuid4
 
+from .operation_grants import PAID_ACCESS_SCHEMA
 from .storage import Scope, Store, _bind_chat, _owns_chat
 
 
@@ -16,6 +17,7 @@ _FAILURE_WINDOW = 5 * 60
 _MAX_FAILURES = 5
 _TOKEN = re.compile(r"[A-Za-z0-9_-]{43}")
 _SCHEMA = (
+    PAID_ACCESS_SCHEMA,
     """CREATE TABLE IF NOT EXISTS identity_accounts (
            actor_id TEXT PRIMARY KEY NOT NULL,
            login TEXT UNIQUE NOT NULL,
@@ -194,6 +196,19 @@ class IdentityStore(Store):
                 raise AuthenticationError("Invalid credentials")
             db.execute("DELETE FROM identity_sessions WHERE actor_id = ?", (row[0],))
         return replacement
+
+    def set_paid(self, login: str, enabled: bool) -> None:
+        """Operator-managed access to metered model turns, independent of admin membership."""
+        if type(enabled) is not bool:
+            raise ValueError("Expected a paid access flag")
+        with self._write() as db:
+            row = db.execute("SELECT workspace_id FROM identity_accounts WHERE login=?", (_login_name(login),)).fetchone()
+            if row is None:
+                raise ValueError("Unknown account")
+            if enabled:
+                db.execute("INSERT OR IGNORE INTO workspace_paid_model_access(workspace_id) VALUES (?)", row)
+            else:
+                db.execute("DELETE FROM workspace_paid_model_access WHERE workspace_id=?", row)
 
     def set_admin(self, login: str, enabled: bool) -> None:
         """Local provisioning command. Ordinary accounts have no admin membership."""

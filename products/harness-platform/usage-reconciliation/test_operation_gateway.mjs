@@ -196,3 +196,28 @@ test('operation grants isolate concurrent usage through the gateway and reconcil
       assert.equal(group.total_rub, rub);
     }
   });
+
+test('revoking paid access invalidates an existing chat grant at the gateway', async t => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'harness-paid-admission-'));
+  const database = path.join(dir, 'account.sqlite3');
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const token = runPython(['-', database], `
+import sys
+from platform_core.identity import IdentityStore
+from platform_core.operation_grants import issue_grant
+path = sys.argv[1]
+with IdentityStore(path) as store:
+    store.create_account("owner", "Local password for one test")
+    scope = store.create_user_chat(store.login("owner", "Local password for one test"))
+    store.set_paid("owner", True)
+    print(issue_grant(path, scope, source="chat.turn", run_key="one").token)
+`).trim();
+  const resolver = openOperationResolver(database);
+  try {
+    assert.equal(resolver.resolve(token).source, 'chat.turn');
+    runPython(['-m', 'platform_core.chat_service', '--db', database, 'set-access', 'owner', 'unpaid']);
+    assert.equal(resolver.resolve(token), null);
+  } finally {
+    resolver.close();
+  }
+});

@@ -34,6 +34,7 @@ class MeteredChatAcceptance(unittest.TestCase):
             for name in ("owner-a", "owner-b"):
                 store.create_account(name, self.password)
                 store.set_admin(name, True)
+                store.set_paid(name, True)
         initialize_grants(self.db)
         gateway = subprocess.Popen(
             ["node", str(PRODUCT / "tests/metered-chat-gateway.mjs"), str(self.db), str(self.journal)],
@@ -159,9 +160,31 @@ class MeteredChatAcceptance(unittest.TestCase):
             self.assertEqual(client.post(url, headers=headers, json=body).json()["error"], "turn_unconfirmed")
             self.assertEqual(self.report()["unique_attempts"], 1)
 
+    def test_payment_and_admin_membership_are_independent(self):
+        with self.client() as client, IdentityStore(self.db) as store:
+            store.create_account("visitor", self.password)
+            headers, chat, _ = self.actor(client, "visitor")
+            url = f"/api/chats/{chat}/turns"
+            body = {"requestId": "first", "text": "ordinary"}
+            for admin in (False, True):
+                store.set_admin("visitor", admin)
+                self.assertEqual(client.post(url, headers=headers, json=body).status_code, 402)
+            self.assertFalse(self.journal.exists())
+            store.set_admin("visitor", False)
+            store.set_paid("visitor", True)
+            response = client.post(url, headers=headers, json=body)
+            self.assertEqual(response.status_code, 200)
+            self.assertNotIn("modelCost", response.json())
+            store.set_paid("visitor", False)
+            self.assertEqual(client.post(url, headers=headers, json=body).json(), response.json())
+            denied = client.post(url, headers=headers, json={**body, "requestId": "second"})
+            self.assertEqual((denied.status_code, denied.json()["error"]), (402, "payment_required"))
+            self.assertEqual(self.report()["unique_attempts"], 1)
+
     def test_ordinary_chat_omits_internal_receipts_and_admin_role_is_live(self):
         with IdentityStore(self.db) as identity:
             identity.create_account("admin", self.password)  # A login name grants no role.
+            identity.set_paid("admin", True)
         with self.client() as client:
             headers, chat, _ = self.actor(client, "admin")
             base = f"/api/chats/{chat}"

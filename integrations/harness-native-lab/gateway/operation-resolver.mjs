@@ -14,6 +14,9 @@ export function openOperationResolver(databasePath) {
         JOIN usage_operations o USING (operation_id)
         JOIN workspaces w ON w.workspace_id = o.workspace_id AND w.owner_id = o.actor_id
        WHERE g.token_hash = ? AND g.expires_at > unixepoch()
+         AND (o.source <> 'chat.turn' OR EXISTS (
+             SELECT 1 FROM workspace_paid_model_access p WHERE p.workspace_id = o.workspace_id
+         ))
          AND (o.chat_id = '' OR EXISTS (
              SELECT 1 FROM chats c WHERE c.workspace_id = o.workspace_id AND c.chat_id = o.chat_id
          ))

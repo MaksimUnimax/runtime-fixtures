@@ -120,6 +120,7 @@ export async function openWorker(env) {
       });
       if (result) return result;
       if (metered) {
+        if (req.replayOnly === true) fail('payment_required');
         if (!Number.isSafeInteger(req.deadline) || !/^[A-Za-z0-9_-]{43}$/.test(req.grant?.token ?? '') ||
             !/^[a-f0-9]{32}$/.test(req.grant?.operationId ?? '')) fail('invalid_request');
       } else if (req.action === 'turn' && env.HARNESS_OFFLINE_MODEL !== '1') fail('unavailable');

@@ -26,6 +26,8 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
         with IdentityStore(database) as store:
             store.create_account("browser-fixture", password)
             store.create_account("regular-fixture", password)
+            store.set_paid("browser-fixture", True)
+            store.set_paid("regular-fixture", True)
             store.set_admin("browser-fixture", True)
         initialize_grants(database)
         gateway = await asyncio.create_subprocess_exec(
