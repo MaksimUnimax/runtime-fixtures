@@ -19,6 +19,7 @@ class OpenRouterCatalog(unittest.TestCase):
         self.keys = root / 'keys'
         self.enterContext(patch.dict(os.environ, {
             'HARNESS_OPENROUTER_ENABLED': '1',
+            'HARNESS_OFFLINE_MODEL': '0',
             'HARNESS_PROVIDER_KEYS_DIR': str(self.keys),
             'HARNESS_MODEL_GATEWAY_URL': 'http://127.0.0.1:9',
         }))
@@ -31,6 +32,7 @@ class OpenRouterCatalog(unittest.TestCase):
         self.router = self.client.app.state.model_router
         self.upstream = []
         self.status = 200
+        self.rotate_after_request = False
         self.rows = [{'id': 'maker/chat', 'name': 'Chat', 'architecture': {'output_modalities': ['text']},
                       'supported_parameters': ['tools'], 'pricing': {'prompt': '0.00001', 'completion': '0.00002'}}]
         self.router.http = httpx.AsyncClient(transport=httpx.MockTransport(self.provider))
@@ -39,6 +41,9 @@ class OpenRouterCatalog(unittest.TestCase):
     def provider(self, request):
         self.assertEqual(str(request.url), BASE + '/models/user')
         self.upstream.append(request.headers['Authorization'])
+        if self.rotate_after_request:
+            self.rotate_after_request = False
+            provider_keys.save(self.keys, 'openrouter', 'catalog-fixture-c')
         return httpx.Response(self.status, json={'data': self.rows} if self.status == 200 else {'error': 'provider detail'})
 
     def settings(self, model=None):
@@ -86,11 +91,7 @@ class OpenRouterCatalog(unittest.TestCase):
         self.assertIn('нет подходящих моделей', empty['catalogMessage'])
 
     def test_inflight_rotation_discards_old_result(self):
-        def rotate(request):
-            result = self.provider(request)
-            provider_keys.save(self.keys, 'openrouter', 'catalog-fixture-c')
-            return result
-        with patch.object(self.router.http, '_transport', httpx.MockTransport(rotate)):
-            self.assertEqual(self.settings()['models'], [])
+        self.rotate_after_request = True
+        self.assertEqual(self.settings()['models'], [])
         self.assertEqual(self.settings()['models'][0]['id'], 'maker/chat')
         self.assertEqual(self.upstream, ['Bearer catalog-fixture-a', 'Bearer catalog-fixture-c'])
