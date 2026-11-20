@@ -33,7 +33,10 @@ def publish(source, destination):
         for filename in ("octoport-brand.png", "favicon-contour-v1.png"):
             shutil.copyfile(source / "assets" / filename, assets / filename)
         shutil.copyfile(CONTENT / "yandex-metrika.js", assets / "yandex-metrika.js")
-        shutil.copyfile(CONTENT / "styles.css", info / "styles.css")
+        design = CONTENT.parent / "native" / "web"
+        shutil.copyfile(design / "octoport-wordmark.svg", assets / "octoport-wordmark.svg")
+        (info / "styles.css").write_bytes((design / "appearance.css").read_bytes() + b"\n" +
+                                         (CONTENT / "styles.css").read_bytes())
         version = sha256((info / "styles.css").read_bytes()).hexdigest()[:12]
         template = Template((CONTENT / "layout.html").read_text())
         for name, (label, title, description) in PAGES.items():
