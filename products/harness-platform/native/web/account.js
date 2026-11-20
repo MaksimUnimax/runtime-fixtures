@@ -2,7 +2,7 @@ window.__ModuleLoader__.load({
   id:'harness-account',
   factory(require) {
     const React=require('react'), h=React.createElement;
-    return {inject:['slots','uiWorkspace','sessions'],apply(ctx) {
+    return {inject:['slots','uiWorkspace','sessions','contextMenus'],apply(ctx) {
       const a=window.harnessAccount;
       const subscribers=new Set();
       let panel=a.panel;
@@ -25,7 +25,7 @@ window.__ModuleLoader__.load({
         const title=a.guest?'Войти':'Баланс';
         return h('div',{className:'account-actions'},
           h('button',{type:'button',title,onClick:()=>select(a.guest?'login':'wallet')},wide?title:(a.guest?'↪':'◉')),
-          wide && a.guest && h('a',{href:'/register'},'Создать аккаунт и сохранить чат'),
+          wide && a.guest && h('a',{href:'/register'},'Создать аккаунт'),
           !a.guest && h('button',{type:'button',title:'Интеграции','aria-label':'Интеграции',onClick:()=>{
             const settings=ctx.slots.entries('sidebar.settings')[0];
             settings?.store.create().actions.openSection('integrations');
@@ -55,11 +55,45 @@ window.__ModuleLoader__.load({
           error && h('p',{role:'alert'},error),
           wallet.charges.length>0 && h('ul',{className:'wallet-history'},wallet.charges.map(c=>h('li',{key:c.operationId||c.requestId},(c.pending?'На сверке · ':'Списано · ')+c.coins))));
       }
+      let deletion;
+      if (!a.guest) ctx.effect(()=>ctx.contextMenus.register({
+        id:'octoport.delete-chat',target:'session',order:650,
+        resolve:({sessionId,displayTitle})=>[{
+          id:'delete-chat',label:'Удалить чат',icon:{key:'workspace.delete'},danger:true,separatorBefore:true,
+          run:()=>{deletion={id:sessionId,title:displayTitle};select('delete-chat');}
+        }]
+      }),'delete chat menu');
+      function DeleteChat({target,close}) {
+        const [busy,setBusy]=React.useState(false),[error,setError]=React.useState('');
+        const ref=React.useRef(null);
+        React.useEffect(()=>{ref.current.showModal();},[]);
+        async function remove() {
+          setBusy(true);
+          try {
+            const next=await a.deleteChat(target.id);
+            if(location.pathname==='/app/chats/'+encodeURIComponent(target.id)) {
+              location.replace(next ? '/app/chats/'+encodeURIComponent(next) : '/app/');
+              return;
+            }
+            ctx.sessions.handleSessionRemoved(target.id);
+            close();
+          } catch(e){setError(e.message);setBusy(false);}
+        }
+        return h('dialog',{ref,className:'account-dialog','aria-labelledby':'delete-chat-title',
+          onCancel:e=>{if(busy)e.preventDefault();else close();}},
+          h('h2',{id:'delete-chat-title'},'Удалить чат?'),
+          h('p',null,'История переписки «'+target.title+'» будет удалена.'),
+          error && h('p',{role:'alert'},error),
+          h('div',{className:'delete-chat-actions'},
+            h('button',{type:'button',disabled:busy,onClick:close},'Отмена'),
+            h('button',{type:'button',disabled:busy,onClick:remove},'Удалить чат')));
+      }
       function Dialog() {
         const mode=usePanel(), ref=React.useRef(null);
-        React.useEffect(()=>{if(mode && !ref.current.open)ref.current.showModal();},[mode]);
+        React.useEffect(()=>{if(mode && ref.current && !ref.current.open)ref.current.showModal();},[mode]);
         const close=()=>{select('');if(['/register','/login'].includes(location.pathname))history.replaceState(null,'',a.selected ? '/app/chats/'+encodeURIComponent(a.selected) : '/');};
         if(!mode)return null;
+        if(mode==='delete-chat')return h(DeleteChat,{target:deletion,close});
         if(mode==='notice') return h('dialog',{className:'account-dialog',ref,onCancel:close},
           h('h2',null,a.error),h('button',{type:'button',onClick:close},'Закрыть'));
         const signup=mode==='register', wallet=mode==='wallet';
@@ -76,8 +110,7 @@ window.__ModuleLoader__.load({
               h('small',null,'Сохраните код, чтобы восстановить доступ.'),
               Field('recovery','Ваш код',{readOnly:true,value:a.recovery})),
             h('button',{type:'submit',className:'account-primary'},signup?'Зарегистрироваться и открыть чат':'Войти')),
-            h('a',{href:signup?'/login':'/register'},signup?'Войти в существующий аккаунт':'Создать аккаунт и сохранить чат'),
-            h('button',{type:'button',onClick:close},'Продолжить как гость')));
+            h('a',{className:'auth-alternative',href:signup?'/login':'/register'},signup?'Войти в существующий аккаунт':'Создать аккаунт')));
       }
       ctx.slots.inject('sidebar.footer.action',()=>ctx.slots.register({name:'sidebar.footer.action',id:'harness-account'},Footer));
       ctx.slots.inject('shell.overlay',()=>ctx.slots.register({name:'shell.overlay',id:'harness-auth'},Dialog));

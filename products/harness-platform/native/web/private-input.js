@@ -31,7 +31,7 @@ export async function privatePrompt(text,guest,api,chatId) {
      && (parsed.provider || /(?:ключ|токен|интеграц|магазин|маркет)/i.test(text))))return false;
   const emit=detail=>window.dispatchEvent(new CustomEvent('harness:connection',{detail:{...detail,chatId}}));
   if(guest){emit({notice:'Войдите в аккаунт, чтобы подключить сервис.'});return true;}
-  if(!parsed.provider){emit({notice:'Доступны Ozon, Wildberries и Яндекс Вордстат. Выберите сервис в настройках интеграций.'});return true;}
+  if(!parsed.provider){emit({newConnection:true,notice:'Выберите сервис. Для Ozon и Wildberries в форме есть инструкция по получению ключей.'});return true;}
   if(complete(parsed)){
     const name=parsed.name || ({ozon:'Ozon',wb:'Wildberries',wordstat:'Яндекс Вордстат'})[parsed.provider];
     try {
@@ -55,6 +55,6 @@ export function protectPaste(guest,api) {
     const parsed=parsePrivate(text);
     window.dispatchEvent(new CustomEvent('harness:connection',{detail:guest
       ? {notice:'Войдите в аккаунт, чтобы подключить сервис.'}
-      : parsed.provider ? {...parsed,chatId:location.pathname.match(/^\/app\/chats\/([^/]+)$/)?.[1]||window.harnessAccount?.selected} : {notice:'Откройте Настройки → Интеграции и укажите сервис перед вводом ключа.'}}));
+      : parsed.provider ? {...parsed,chatId:location.pathname.match(/^\/app\/chats\/([^/]+)$/)?.[1]||window.harnessAccount?.selected} : {newConnection:true,chatId:location.pathname.match(/^\/app\/chats\/([^/]+)$/)?.[1]||window.harnessAccount?.selected,notice:'Выберите сервис и введите ключ в его поле.'}}));
   },true);
 }

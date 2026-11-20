@@ -16,7 +16,7 @@ from .browser_session import _PRIVATE_HEADERS
 UI = Path(__file__).resolve().parents[1] / "native" / "web"
 VERSION = "0.2.2-rc.1"
 GROUP = "@deepseek-ai/"
-ROOTS = ("dsh-client-modules", "dsh-client-ui-chat", "dsh-client-ui-trajectory",
+ROOTS = ("dsh-client-modules", "dsh-client-ui-chat",
          "dsh-client-ui-tool", "dsh-client-ui-approval",
          "dsh-client-ui-user-questions", "dsh-client-ui-settings-general")
 HEADERS = {**_PRIVATE_HEADERS, "Content-Security-Policy":
@@ -109,7 +109,7 @@ def roster(base):
     for name in ROOTS:
         visit(name)
     plugin = {"id":"harness-account", "rev":VERSION, "url":"/ui-assets/project/account.js",
-              "inject":[GROUP + "dsh-client-ui-workspace", GROUP + "dsh-client-ui-sidebar", GROUP + "dsh-client-ui-trajectory"]}
+              "inject":[GROUP + "dsh-client-ui-workspace", GROUP + "dsh-client-ui-sidebar"]}
     rows = [*entries.values(), plugin, {"id":"harness-integrations","rev":VERSION,
             "url":"/ui-assets/project/connections.js","inject":[GROUP+"dsh-client-ui-settings-general"]}]
     bootstrap = entries["dsh-client-modules"]

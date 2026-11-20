@@ -7,6 +7,10 @@ window.__ModuleLoader__.load({
       const a=window.harnessAccount;
       const post=(url,data)=>a.api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
       const status={saved:'Сохранено',verified:'Связь подтверждена',unconfirmed:'Связь не подтверждена',denied:'Доступ отклонён'};
+      function KeyGuide({title,steps}) {
+        return h('details',{className:'connection-guide'},h('summary',null,title),
+          h('ol',null,steps.map(step=>h('li',{key:step},step))));
+      }
       function Connections({initial={},after}) {
         const [list,setList]=React.useState(null),[provider,setProvider]=React.useState(initial.provider||'');
         const [fields,setFields]=React.useState(initial.fields||{}),[name,setName]=React.useState(initial.name||'');
@@ -34,9 +38,14 @@ window.__ModuleLoader__.load({
             h('button',{disabled:busy},'Получить запросы'),rows.length>0 && h('ul',null,rows.map(r=>h('li',{key:r.phrase},r.phrase+' · '+r.count)))),
           list && h('label',null,'Сервис',h('select',{'aria-label':'Сервис',value:provider,onChange:e=>select(e.target.value)},
             h('option',{value:''},'Выберите сервис'),Object.entries(list.providers).map(([id,p])=>h('option',{key:id,value:id},p.title)))),
+          entry && provider==='wb' && h(KeyGuide,{title:'Как получить токен Wildberries',steps:list.keyGuides['Wildberries API']}),
+          entry && provider==='ozon' && ['Ozon Seller','Ozon Performance'].map(kind=>h(KeyGuide,{
+            key:kind,title:'Как получить ключи '+kind,steps:list.keyGuides[kind]})),
           entry && h('form',{autoComplete:'off',onSubmit:e=>{e.preventDefault();act(async()=>{
             await post('/api/integrations',{provider,name:name.trim()||entry.title,fields,...(initial.chatId?{chatId:initial.chatId}:{})});
-            window.dispatchEvent(new Event('harness:grants'));setFields({});setProvider('');setName('');await refresh();setMsg('Ключи сохранены');after?.();
+            window.dispatchEvent(new Event('harness:grants'));setFields({});setProvider('');setName('');await refresh();
+            const notice=initial.chatId?'Подключение добавлено в этот чат':'Ключи сохранены. Нажмите «Подключения» над полем сообщения и включите магазин.';
+            setMsg(notice);after?.(notice);
           });}},
             h('label',null,'Название подключения',h('input',{maxLength:80,value:name,placeholder:entry.title,onChange:e=>setName(e.target.value)})),
             provider==='ozon' && h('small',null,'Введите пару ключей Seller или Performance. Можно подключить оба API.'),
@@ -76,14 +85,14 @@ window.__ModuleLoader__.load({
         React.useEffect(()=>{if(request&&!ref.current.open)ref.current.showModal();},[request]);
         if(!request)return null;
         return h('dialog',{ref,className:'account-dialog','data-private-connection':true,'aria-label':'Подключение сервиса',onCancel:()=>setRequest(null)},
-          (request.provider||request.newConnection)&&!a.guest?h(Connections,{key:request.key,initial:request,after:()=>setRequest({notice:request.chatId?'Подключение добавлено в этот чат':'Ключи сохранены'})}):h('p',{role:'status'},request.notice),
+          (request.provider||request.newConnection)&&!a.guest?h(Connections,{key:request.key,initial:request,after:notice=>setRequest({notice})}):h('p',{role:'status'},request.notice),
           h('button',{type:'button',onClick:()=>setRequest(null)},'Закрыть'));
       }
       ctx.slots.inject('shell.overlay',()=>ctx.slots.register({name:'shell.overlay',id:'private-connection'},PrivateDialog));
       if(a.guest)return;
       const names={ozon:'Ozon',wb:'Wildberries',wordstat:'Яндекс Вордстат'};
       function ChatDock({sessionId}){
-        const [rows,setRows]=React.useState([]),[open,setOpen]=React.useState(false);
+        const [rows,setRows]=React.useState(null),[open,setOpen]=React.useState(false);
         const [error,setError]=React.useState(''),[busy,setBusy]=React.useState(false);
         const dialog=React.useRef(null);
         const url='/api/chats/'+encodeURIComponent(sessionId)+'/integrations';
@@ -93,14 +102,14 @@ window.__ModuleLoader__.load({
           const controller=new AbortController();
           const refresh=()=>a.api(url,{signal:controller.signal}).then(v=>{if(!controller.signal.aborted)setRows(v.connections);})
             .catch(e=>{if(!controller.signal.aborted)setError(e.message);});
-          setRows([]);setError('');setOpen(false);refresh();
+          setRows(null);setError('');setOpen(false);refresh();
           window.addEventListener('harness:grants',refresh);
           return ()=>{controller.abort();window.removeEventListener('harness:grants',refresh);};
         },[url]);
         React.useEffect(()=>{if(open && !dialog.current.open)dialog.current.showModal();},[open]);
-        const active=rows.filter(row=>row.attached);
-        const labels={sending:'Отправляю сообщение…',accepted:'Сообщение принято',model:'Модель готовит ответ…',
-          thinking:'Модель обдумывает ответ…',tool:'Модель запрашивает данные…',writing:'Модель отвечает…',failed:'Не удалось завершить запрос'};
+        const active=(rows||[]).filter(row=>row.attached);
+        const labels={sending:'Отправляю сообщение…',accepted:'Сообщение принято',model:'Модель готовит ответ',
+          thinking:'Модель обдумывает ответ',tool:'Модель запрашивает данные',writing:'Модель отвечает…',failed:'Не удалось завершить запрос'};
         async function toggle(row,enabled){
           const before=rows;
           setBusy(true);setError('');
@@ -110,16 +119,19 @@ window.__ModuleLoader__.load({
         }
         return h('div',{className:'chat-access'},
           view && h('div',{'data-live-turn':view.stage,className:'chat-live'},
-            h('small',{role:'status'},labels[view.stage]),view.text && h('div',{className:'chat-live-text'},view.text),
+            h('small',{role:'status'},labels[view.stage], ['model','thinking','tool'].includes(view.stage) &&
+              h('span',{className:'thinking-dots','aria-hidden':true},[0,1,2].map(i=>h('span',{key:i},'.')))),view.text && h('div',{className:'chat-live-text'},view.text),
             view.stage==='failed' && h('button',{onClick:()=>a.live.clear(sessionId,view.rid)},'Закрыть')),
           h('button',{className:'chat-access-trigger','aria-haspopup':'dialog',onClick:()=>setOpen(true)},
             'Подключения'+(active.length?' · '+active.map(r=>r.name).join(', '):'')),
           open && h('dialog',{ref:dialog,className:'account-dialog chat-grants','aria-label':'Подключения этого чата',onCancel:()=>setOpen(false)},
             h('header',null,h('h2',null,'Подключения этого чата'),
               h('button',{type:'button','aria-label':'Закрыть',onClick:()=>setOpen(false)},'×')),
-            rows.length===0 && !error && h('p',null,'Подключите магазин или сервис, чтобы использовать его в разговоре.'),
+            !error && (rows===null ? h('p',{role:'status'},'Загружаем подключения…') :
+              h('p',null,rows.length ? 'Включите переключатель рядом с нужным магазином. Изменения действуют в этом чате.' :
+                'Нажмите «Добавить подключение» и выберите Ozon или Wildberries. В форме есть пошаговая инструкция по получению ключей.')),
             // Reuse the pinned General Settings row and its native animated Switch.
-            rows.map(row=>h('div',{key:row.id,className:'Pt1bsG_row'},
+            (rows||[]).map(row=>h('div',{key:row.id,className:'Pt1bsG_row'},
               h('div',null,h('div',{className:'Pt1bsG_title'},row.name),
                 h('div',{className:'Pt1bsG_description'},
                   (row.access.length?row.access.join(', '):names[row.provider])+' · '+(status[row.status]||row.status))),
