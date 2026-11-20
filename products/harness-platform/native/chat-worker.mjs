@@ -7,6 +7,7 @@ import { createInterface } from 'node:readline';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { mountPlatformMcp } from './platform-mcp.mjs';
+import { publicEvents } from './public-events.mjs';
 
 class RequestError extends Error {}
 const fail = code => { throw new RequestError(code); };
@@ -28,6 +29,9 @@ function visible(events, requestId) {
     else if (event.type === 'assistant/message') message = event.data.message;
     else return [];
     const text = message.content.filter(block => block.type === 'text').map(block => block.text).join('');
+    if (message.role === 'assistant' && !text && message.content.some(block => block.type === 'tool-call')) {
+      return [];
+    }
     return [{ requestId, role: message.role, text }];
   });
 }
@@ -52,6 +56,8 @@ export async function openWorker(env) {
   const byRequest = db.prepare('SELECT * FROM native_batches WHERE scope_key=? AND request_id=?');
   const all = db.prepare('SELECT * FROM native_batches WHERE scope_key=? ORDER BY revision');
   const recent = db.prepare('SELECT request_id, events FROM native_batches WHERE scope_key=? ORDER BY revision DESC LIMIT ? OFFSET ?');
+  const eventPage = db.prepare(`SELECT request_id, revision, events FROM native_batches
+    WHERE scope_key=? AND revision < ? ORDER BY revision DESC LIMIT ?`);
   const insert = db.prepare('INSERT INTO native_batches VALUES (?,?,?,?,?,?,?)');
   const active = new Map();
   let count = 0;
@@ -71,11 +77,24 @@ export async function openWorker(env) {
   }
 
   async function execute(req, key) {
-    if (req.action === 'history') {
+    if (req.action === 'history' || req.action === 'events') {
       const limit = req.limit ?? 30;
       const offset = req.offset ?? 0;
       if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50 ||
           !Number.isSafeInteger(offset) || offset < 0) fail('invalid_request');
+      if (req.action === 'events') {
+        const before = req.before ?? Number.MAX_SAFE_INTEGER;
+        if (!Number.isSafeInteger(before) || before < 0) fail('invalid_request');
+        const rows = eventPage.all(key, before, limit + 1);
+        const window = rows.slice(0, limit).reverse();
+        const events = [], messages = [];
+        for (const row of window) {
+          const batch = publicEvents(JSON.parse(row.events));
+          events.push(...batch);
+          messages.push(...visible(batch, row.request_id));
+        }
+        return { events, messages, nextBefore: rows.length > limit ? window[0].revision : null };
+      }
       return recent.all(key, limit, offset).reverse()
         .flatMap(row => visible(JSON.parse(row.events), row.request_id));
     }
@@ -135,7 +154,10 @@ export async function openWorker(env) {
         events = session.snapshotEvents(seed.length);
       } else {
         const { runOfflineTurn } = await import('./offline-turn.mjs');
-        const turn = await runOfflineTurn({ load, ctx, chatId: key, seed, text: req.text, requestId: req.requestId });
+        const turn = await runOfflineTurn({
+          load, ctx, chatId: key, seed, text: req.text, requestId: req.requestId,
+          toolUnavailable: () => fail('unavailable'),
+        });
         events = turn.events.slice(seed.length);
       }
       const messages = visible(events, req.requestId);

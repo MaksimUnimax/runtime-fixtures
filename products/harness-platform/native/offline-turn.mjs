@@ -1,5 +1,5 @@
 // Explicit local acceptance route. No network client or paid provider is mounted.
-export async function runOfflineTurn({ load, ctx, chatId, seed, text, requestId }) {
+export async function runOfflineTurn({ load, ctx, chatId, seed, text, requestId, toolUnavailable }) {
   if (process.env.HARNESS_OFFLINE_MODEL !== '1') {
     throw new Error('Offline acceptance model is disabled');
   }
@@ -30,10 +30,19 @@ export async function runOfflineTurn({ load, ctx, chatId, seed, text, requestId 
     if (fiber._error) throw fiber._error;
   }
   const provider = 'platform-offline';
-  const unregister = ctx.llm.registerAdapter([provider], new OfflineAdapter());
+  const fixture = process.env.HARNESS_OFFLINE_ADAPTER;
+  let adapter;
+  if (fixture) {
+    if (!/^[a-z][a-z0-9_]{0,63}$/.test(fixture)) throw new Error('Invalid offline adapter name');
+    const { createAdapter } = await import(`../acceptance/${fixture}/model.mjs`);
+    adapter = createAdapter(llm, { toolUnavailable });
+  } else {
+    adapter = new OfflineAdapter();
+  }
+  const unregister = ctx.llm.registerAdapter([provider], adapter);
   try {
     const handle = await ctx.agents.create({
-      sessionId: chatId, seed, agentOptions: { provider, model: 'acceptance-echo' },
+      sessionId: chatId, seed, agentOptions: { provider, model: fixture || 'acceptance-echo' },
     });
     try {
       const { agent } = handle;
@@ -43,6 +52,7 @@ export async function runOfflineTurn({ load, ctx, chatId, seed, text, requestId 
       await agent.whenIdle();
       const events = agent.session.snapshotEvents();
       const reply = agent.session.deriveMessages().at(-1);
+      adapter.validateTurn?.({ events: events.slice(seed.length), reply });
       if (reply?.role !== 'assistant' ||
           !events.slice(seed.length).some(event => event.type === 'assistant/message')) {
         throw new Error('Native agent did not complete the offline turn');
