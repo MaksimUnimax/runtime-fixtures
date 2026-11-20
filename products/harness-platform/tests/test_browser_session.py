@@ -10,7 +10,8 @@ from starlette.routing import Route
 from starlette.testclient import TestClient
 
 from platform_core.browser_session import browser_routes, browser_token, require_browser_origin
-from platform_core.identity import AuthenticationError, IdentityStore
+from platform_core.identity import AuthenticationError
+from platform_core.guest_registration import RegistrationStore
 
 
 PASSWORD = "a browser account passphrase"
@@ -19,7 +20,7 @@ PASSWORD = "a browser account passphrase"
 class BrowserSessionTests(TestCase):
     def setUp(self):
         directory = self.enterContext(TemporaryDirectory())
-        self.identity = self.enterContext(IdentityStore(Path(directory) / "accounts.sqlite3"))
+        self.identity = self.enterContext(RegistrationStore(Path(directory) / "accounts.sqlite3"))
         self.identity.create_account("account", PASSWORD)
         self.app = Starlette(routes=browser_routes() + [Route("/protected", self.protected, methods=["GET", "POST"])])
         self.app.state.identity = self.identity
@@ -37,7 +38,7 @@ class BrowserSessionTests(TestCase):
         client = self.enterContext(TestClient(self.app, base_url=origin, follow_redirects=False))
         page = client.get("/login")
         self.assertEqual(page.status_code, 200)
-        self.assertIn('autocomplete="current-password"', page.text)
+        self.assertIn('data-panel="login"', page.text)
         self.assertEqual(page.headers["cache-control"], "no-store")
         response = client.post("/login", data={"login": "account", "password": PASSWORD}, headers={"Origin": origin})
         self.assertEqual((response.status_code, response.headers["location"]), (303, "/app/"))
@@ -73,7 +74,7 @@ class BrowserSessionTests(TestCase):
         self.assertEqual(client.post("/login", json=fields, headers=headers).status_code, 415)
         failed = client.post("/login", data=dict(fields, password="an incorrect passphrase"), headers=headers)
         self.assertEqual(failed.status_code, 401)
-        self.assertIn('role="alert"', failed.text)
+        self.assertIn("Не удалось войти", failed.text)
         self.assertNotIn("an incorrect passphrase", failed.text)
         ok = client.post("/login", data=fields, headers=headers)
         self.assertEqual(ok.status_code, 303)

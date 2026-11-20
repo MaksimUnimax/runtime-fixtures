@@ -5,13 +5,12 @@ from urllib.parse import parse_qsl
 
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
-from starlette.responses import HTMLResponse, RedirectResponse, Response
+from starlette.responses import RedirectResponse, Response
 from starlette.routing import Route
 
 from .identity import AuthenticationError
 
 
-BROWSER_BACK_SCRIPT = '<script src="/session-nav.js"></script>'
 _NAVIGATION_JS = """
 window.addEventListener("pagehide", () => {
   document.documentElement.hidden = true;
@@ -25,33 +24,6 @@ _PRIVATE_HEADERS = {
     "Referrer-Policy": "same-origin",
     "X-Content-Type-Options": "nosniff",
 }
-_LOGIN_HTML = """<!doctype html>
-<html lang="ru"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Вход · Harness</title>
-<style>
-:root { color-scheme: light dark; font: 16px/1.5 "Inter", system-ui, sans-serif; }
-* { box-sizing: border-box; }
-body { margin: 0; min-height: 100dvh; display: grid; place-items: center; background: Canvas; color: CanvasText; }
-main { width: min(100%, 24rem); padding: 2rem; }
-h1 { font-size: 2rem; line-height: 1.16; margin: 0 0 2rem; }
-form { display: grid; gap: 1.2rem; }
-label { display: grid; gap: .4rem; }
-input,button { font: inherit; width: 100%; border-radius: .45rem; padding: .65rem .8rem; }
-input { color: CanvasText; background: Canvas; border: 1px solid GrayText; }
-button { margin-top: .3rem; border: 1px solid ButtonText; color: ButtonFace; background: ButtonText;
-         cursor: pointer; font-weight: 600; }
-:focus-visible { outline: 3px solid Highlight; outline-offset: 2px; }
-</style></head><body><main><h1>Вход в Harness</h1>
-__ERROR__
-<form method="post" action="/login">
-<label>Логин<input name="login" autocomplete="username" required maxlength="254" autofocus></label>
-<label>Пароль<input name="password" type="password" autocomplete="current-password" required maxlength="256"></label>
-<button type="submit">Войти</button></form>
-<form method="post" action="/guest/start"><button>Попробовать без регистрации</button></form>
-<form method="post" action="/register/start"><button>Создать аккаунт</button></form></main></body></html>"""
-
-
 def _secure(connection):
     scheme = connection.url.scheme
     if scheme in {"https", "wss"}:
@@ -126,14 +98,6 @@ async def _form_fields(request, keys, max_bytes=8192):
     return fields
 
 
-def _page(*, failed=False):
-    warning = '<p role="alert">Не удалось войти. Проверьте логин и пароль.</p>' if failed else ""
-    return HTMLResponse(_LOGIN_HTML.replace("__ERROR__", warning), status_code=401 if failed else 200, headers={
-        **_PRIVATE_HEADERS,
-        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
-    })
-
-
 def _redirect(path):
     return RedirectResponse(path, status_code=303, headers=_PRIVATE_HEADERS)
 
@@ -143,6 +107,7 @@ def _clear_cookie(response, secure):
 
 
 async def _login(request):
+    from .web_ui import page
     secure = _secure(request)
     name = _cookie_name(secure)
     existing = request.cookies.get(name)
@@ -152,18 +117,18 @@ async def _login(request):
             try:
                 await run_in_threadpool(identity.validate_session, existing)
             except AuthenticationError:
-                response = _page()
+                response = await page(request, panel="login")
                 _clear_cookie(response, secure)
                 return response
             return _redirect("/app/")
-        return _page()
+        return await page(request, panel="login")
 
     require_browser_origin(request)
     fields = await _form_fields(request, {"login", "password"})
     try:
         token = await run_in_threadpool(identity.login, **fields)
     except AuthenticationError:
-        return _page(failed=True)
+        return await page(request, panel="login", error="Не удалось войти. Проверьте логин и пароль.", status=401)
     if existing:
         try:
             await run_in_threadpool(identity.logout, existing)

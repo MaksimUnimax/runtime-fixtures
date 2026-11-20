@@ -102,14 +102,21 @@ class RegistrationStore(IdentityStore):
             return self._turns(db, self._active(db, token, chat))
 
     def guest_page(self, token, chat, before):
+        rows, cursor, _ = self.guest_window(token, chat, before)
+        return rows, cursor
+
+    def guest_window(self, token, chat, before):
         with self._write() as db:
             self._active(db, token, chat)
-            rows = db.execute("""SELECT rowid, text, answer FROM guest_turns
+            rows = db.execute("""SELECT rowid, text, answer, request_id, at_ms FROM guest_turns
                 WHERE chat_id=? AND rowid<? ORDER BY rowid DESC LIMIT ?""",
                               (chat, before, GUEST_PAGE_SIZE + 1)).fetchall()
-        shown = rows[:GUEST_PAGE_SIZE]
-        return ([{"text": text, "answer": answer} for _, text, answer in reversed(shown)],
-                shown[-1][0] if len(rows) > GUEST_PAGE_SIZE else None)
+            shown = rows[:GUEST_PAGE_SIZE]
+            cursor = shown[-1][0] if len(rows) > GUEST_PAGE_SIZE else None
+            offset = db.execute("SELECT COUNT(*) FROM guest_turns WHERE chat_id=? AND rowid<?",
+                                (chat, cursor)).fetchone()[0] if cursor is not None else 0
+            return ([{"text": text, "answer": answer, "requestId": key, "at": at}
+                     for _, text, answer, key, at in reversed(shown)], cursor, offset)
 
     def guest_turn(self, token, chat, request_id, text):
         if not isinstance(text, str) or not text.strip() or len(text.encode()) > 8192:

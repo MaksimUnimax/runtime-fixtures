@@ -119,8 +119,9 @@ class GuestRegistrationTests(TestCase):
             for _ in range(2):
                 self.assertEqual(client.post(turn, data=fields, headers=HEADERS).status_code, 303)
             html = client.get(path).text
-            self.assertEqual(html.count("&lt;b&gt;история&lt;/b&gt;"), 1)
-            code = re.search(r'name="recovery" readonly value="([\w-]+)"', client.get("/register").text)[1]
+            self.assertNotIn("<b>история</b>", html)
+            self.assertEqual([t["text"] for t in client.get(f"/guest/chats/{chat}/events").json()["turns"]], [fields["text"]])
+            code = re.search(r'data-recovery="([\w-]+)"', client.get("/register").text)[1]
             form = dict(login="form-owner", password=PASSWORD, recovery=code)
             self.assertEqual(client.post("/register", data=form).status_code, 403)
             busy = client.post("/register", data={**form, "login": "existing"}, headers=HEADERS)
@@ -184,7 +185,7 @@ class GuestRegistrationTests(TestCase):
                 result = client.post(f"/guest/chats/{chat}/turns", headers=HEADERS,
                                      data={"request_id": "price", "text": "Сколько стоит ваш сервис?"})
                 self.assertEqual(result.status_code, 303)
-                self.assertIn("Проверка опубликованного тарифа", client.get(path).text)
+                self.assertEqual(client.get(f"/guest/chats/{chat}/events").json()["turns"][-1]["answer"], "Проверка опубликованного тарифа")
         dispatch.assert_not_awaited()
 
     @skipUnless(os.environ.get("HARNESS_NODE_MODULES"), "requires native Harness")

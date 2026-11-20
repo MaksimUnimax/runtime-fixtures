@@ -284,6 +284,11 @@ class IdentityStore(Store):
                 raise ChatUnavailable("Chat unavailable")
             return self._db.execute("SELECT 1 FROM identity_admins WHERE actor_id=?", (actor,)).fetchone() is not None
 
+    def is_admin(self, token: str) -> bool:
+        with self._lock:
+            actor, _ = _principal(self._db, token)
+            return self._db.execute("SELECT 1 FROM identity_admins WHERE actor_id=?", (actor,)).fetchone() is not None
+
     def validate_session(self, token: str) -> None:
         with self._lock:
             _principal(self._db, token)
