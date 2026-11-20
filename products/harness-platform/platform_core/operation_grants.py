@@ -25,6 +25,10 @@ PAID_ACCESS_SCHEMA = """CREATE TABLE IF NOT EXISTS workspace_paid_model_access (
 )"""
 
 
+DIRECT_DEFAULT_SCHEMA = """CREATE TABLE IF NOT EXISTS direct_chat_default (
+        singleton INTEGER PRIMARY KEY CHECK(singleton=1), model TEXT NOT NULL, effort TEXT NOT NULL)"""
+
+
 class PaidAccessRequired(coins.InsufficientCoins):
     """The owner can still read history and replay completed requests."""
 
@@ -50,8 +54,7 @@ OPERATION_SCHEMA = (
            expires_at INTEGER NOT NULL
        )""",
     "CREATE INDEX IF NOT EXISTS usage_grants_expiry ON usage_grants(expires_at)",
-    """CREATE TABLE IF NOT EXISTS direct_chat_default (
-        singleton INTEGER PRIMARY KEY CHECK(singleton=1), model TEXT NOT NULL, effort TEXT NOT NULL)""",
+    DIRECT_DEFAULT_SCHEMA,
     """CREATE TABLE IF NOT EXISTS direct_operation_models (
         operation_id TEXT PRIMARY KEY REFERENCES usage_operations ON DELETE CASCADE,
         model TEXT NOT NULL, effort TEXT NOT NULL)""",

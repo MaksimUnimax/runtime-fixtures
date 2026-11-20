@@ -24,7 +24,7 @@ from .browser_session import browser_routes, browser_token
 from .chat_worker import ChatWorker, WorkerError
 from . import integrations, provider_keys, chat_connections, chat_defaults, turn_progress
 from .identity import AuthenticationError, ChatUnavailable
-from .operation_grants import initialize_grants
+from .operation_grants import DIRECT_DEFAULT_SCHEMA
 from .guest_registration import RegistrationStore
 from .guest_web import guest_routes
 from .web_ui import web_routes
@@ -101,7 +101,8 @@ def create_app(database_path, chat_directory, *, composition_module=None):
             app.state.admin_costs = AdminCosts()
             app.state.worker = ChatWorker(shared_path, chat_directory, composition_module)
             if not app.state.worker.gateway:
-                initialize_grants(shared_path)
+                with app.state.identity._write() as db:
+                    db.execute(DIRECT_DEFAULT_SCHEMA)
             app.state.integrations = integrations.IntegrationStore(app.state.identity)
             async with httpx.AsyncClient(timeout=10, trust_env=False, follow_redirects=False,
                     limits=httpx.Limits(max_connections=64,max_keepalive_connections=16)) as http:
