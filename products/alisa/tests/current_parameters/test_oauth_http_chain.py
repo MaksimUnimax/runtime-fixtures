@@ -146,6 +146,26 @@ class ModernStationHttp(VoiceFixture,TransactionTestCase):
         self.assertIn(('/api/v1/account/alice','legacy_station_identity'),self.http.observed)
         self.assertIn(('/api/v1/account/alice','legacy_station_token_current'),self.http.observed)
         self.assertIn(('/api/v1/account/station-parameters','turn'),self.http.observed)
+    def test_yandex_scenario_invocation_and_separate_confirmation(self):
+        self.enable()
+        command = 'Спроси Октопорт маркет, установи среднюю доставку 101,61482484 рублей в магазине Synthetic store'
+        self.assertIn('Сохранить', self.say(command)['reply'])
+        self.assertEqual(CurrentParameter.objects.count(), 0)
+        self.assertIn('сохранён', self.say('Подтверждаю', 2)['reply'])
+        self.assertEqual(str(CurrentParameter.objects.get().value), '101.61482484')
+        self.assertEqual(OwnerCommand.objects.count(), 1)
+
+    def test_other_skills_and_quoted_commands_are_not_parameter_requests(self):
+        self.enable()
+        for mid, text in enumerate((
+            'Спроси другой навык установи коэффициент потерь 4 процента',
+            'Что значит спроси Октопорт маркет установи коэффициент потерь 4 процента',
+            'Спроси Октопорт маркет сколько заказов',
+        ), start=1):
+            self.assertEqual(self.say(text, mid)['command'], text)
+        self.assertFalse(self.delivery.state.get('parameter_pending'))
+        self.assertEqual(CurrentParameter.objects.count(), 0)
+
     def test_real_http_revocation_before_confirmation_preserves_value(self):
         self.enable();self.assertIn('Сохранить',self.say()['reply'])
         self.family.revoked_at=timezone.now();self.family.save()
