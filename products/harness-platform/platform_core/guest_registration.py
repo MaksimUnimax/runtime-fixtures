@@ -1,6 +1,10 @@
 """One browser owns one temporary public conversation until account registration."""
 
 import base64
+from contextlib import closing
+import hashlib
+import json
+import sqlite3
 import hmac
 import re
 import secrets
@@ -10,7 +14,7 @@ from uuid import uuid4
 
 from .identity import (
     AuthenticationError, ChatUnavailable, IdentityStore, _SESSION_SECONDS,
-    _derive, _login_name, _password_bytes, _secret_digest,
+    _derive, _login_name, _password_bytes, _principal, _secret_digest,
 )
 from .storage import Scope, _bind_chat
 from .public_faq import PublicFAQ
@@ -98,6 +102,34 @@ class RegistrationStore(IdentityStore):
         rows = db.execute("""SELECT request_id, text, answer, at_ms FROM guest_turns
                              WHERE chat_id = ? ORDER BY rowid""", (chat_id,))
         return [dict(requestId=key, text=text, answer=answer, at=at) for key, text, answer, at in rows]
+
+    def chat_activity(self, token, journal):
+        """Return each owned chat and the timestamp of its last committed conversation event."""
+        with self._lock:
+            actor, workspace = _principal(self._db, token)
+            # Claimed guest messages can exist before the native worker imports them.
+            rows = self._db.execute("""
+                SELECT c.chat_id, (SELECT MAX(t.at_ms) FROM guest_turns t
+                    JOIN guest_chats g ON g.chat_id=t.chat_id
+                    WHERE t.chat_id=c.chat_id AND g.claimed_actor=?) FROM chats c
+                WHERE c.workspace_id=? ORDER BY c.rowid""", (actor, workspace)).fetchall()
+        result = dict(rows)
+        if not rows or not journal.is_file():
+            return result
+        with closing(sqlite3.connect(journal.as_uri() + "?mode=ro", uri=True)) as db:
+            if not db.execute("SELECT 1 FROM sqlite_schema WHERE name='native_batches'").fetchone():
+                return result
+            # A single index lookup per chat. Reading the list never loads transcripts.
+            keys = {hashlib.sha256(json.dumps([actor, workspace, cid], ensure_ascii=False,
+                         separators=(",", ":")).encode()).hexdigest(): cid for cid in result}
+            for key, at in db.execute("""SELECT value,
+                    (SELECT json_extract(events,'$[#-1].time') FROM native_batches
+                     WHERE scope_key=value ORDER BY revision DESC LIMIT 1)
+                    FROM json_each(?)""", (json.dumps(list(keys)),)):
+                if isinstance(at, int):
+                    cid = keys[key]
+                    result[cid] = max(result[cid] or 0, at)
+        return result
 
     def guest_history(self, token, chat):
         with self._write() as db:

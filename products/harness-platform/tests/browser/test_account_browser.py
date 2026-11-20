@@ -4,6 +4,8 @@ import asyncio
 import os
 import re
 import socket
+import json
+import sqlite3
 import unittest
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -257,6 +259,38 @@ class BrowserIsolation(ProductBrowser):
         await expect(page.locator("[data-composer-input]").last).to_be_visible()
         self.assertEqual((await page.request.get(chat_path)).status, 404)
         self.assertNotIn(chat_id, await (await page.request.get("/api/chats")).json())
+
+    async def test_sidebar_preserves_individual_activity_on_reload(self):
+        page = await self.open_chat("first-browser")
+        first = urlsplit(page.url).path.rsplit("/", 1)[1]
+        await self.send_turn(page, "Первый вопрос")
+        await expect(page.locator('[data-chat-flow-kind="assistant-step"]')).to_be_visible(timeout=45000)
+        # Make the first conversation old without waiting for the relative clock.
+        with sqlite3.connect(self.database.parent / "journals/native-chats.sqlite3") as db:
+            for key, rev, raw in db.execute("SELECT scope_key,revision,events FROM native_batches").fetchall():
+                events = json.loads(raw)
+                for event in events:
+                    event["time"] -= 3600000
+                db.execute("UPDATE native_batches SET events=? WHERE scope_key=? AND revision=?",
+                           (json.dumps(events), key, rev))
+        other = (await (await page.request.post("/api/chats", headers={"Origin": self.base_url})).json())["chatId"]
+        await page.goto("/app/chats/" + other)
+        before = await (await page.request.get("/api/chats?view=activity")).json()
+        self.assertIsNone(before[other])
+        self.assertGreater(before[first], 0)
+        old_row = page.locator(f'[data-row-key="session:{first}"]')
+        await expect(old_row).to_be_visible()
+        await expect(old_row).not_to_contain_text("сейчас")
+        await expect(page).to_have_url(self.base_url + "/app/chats/" + other)
+        await self.send_turn(page, "Второй вопрос")
+        await expect(page.locator('[data-chat-flow-kind="assistant-step"]')).to_be_visible(timeout=45000)
+        await expect(page.locator('[data-slot="conversation.view"]')).to_contain_text("Тестовая модель (ход 1): Второй вопрос")
+        await page.reload()
+        await expect(page.locator(f'[data-row-key="session:{other}"]')).to_contain_text("сейчас")
+        await expect(old_row).not_to_contain_text("сейчас")
+        after = await (await page.request.get("/api/chats?view=activity")).json()
+        self.assertEqual(before[first], after[first])
+        self.assertGreater(after[other], after[first])
 
     async def test_delete_background_chat_preserves_current_draft(self):
         page = await self.open_chat("first-browser")

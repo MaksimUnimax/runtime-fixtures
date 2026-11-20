@@ -60,7 +60,8 @@ export async function createTransport(data) {
   const guest = data.mode === 'guest';
   protectPaste(guest,api);
   const initial = data.account ? JSON.parse(data.account) : null;
-  const ids = guest ? (data.chat ? [data.chat] : []) : initial?.chats ?? await api('/api/chats');
+  const activity = guest ? {} : initial?.activity ?? await api('/api/chats?view=activity');
+  const ids = guest ? (data.chat ? [data.chat] : []) : initial?.chats ?? Object.keys(activity);
   const flags = initial ?? (guest ? {} : await api('/api/wallet'));
   const selected = data.chat || ids.at(-1);
   const changes = new Changes();
@@ -69,8 +70,7 @@ export async function createTransport(data) {
   const pending = new Map();
   const live = new LiveTurns();
   const nonempty = new Set(ids);
-  const titles = new Map(), updated = new Map();
-  const openedAt = Date.now();
+  const titles = new Map(), updated = new Map(Object.entries(activity));
   const account = {guest, selected, panel:data.panel, error:data.error, recovery:data.recovery,
     canGrant:flags.canGrant, modelChoice:flags.modelChoice, api, changes, live, costs:new Map()};
   account.deleteChat = async id => {
@@ -137,7 +137,7 @@ export async function createTransport(data) {
     ? AbortSignal.any([signal, AbortSignal.timeout(60_000)]) : AbortSignal.timeout(60_000);
   let opening = selected ? page(selected,null,readSignal()).then(value => ({value}), error => ({error})) : null;
   const params = payload => payload.args.request ?? payload.args.input ?? payload.args;
-  function summary(id) { return {agentAvailable:true,sessionId:id,updatedAt:updated.get(id) ?? openedAt,running:running.has(id),
+  function summary(id) { return {agentAvailable:true,sessionId:id,updatedAt:updated.get(id) ?? 0,running:running.has(id),
     blank:!nonempty.has(id),cwd:'/personal',projections:{kind:'cached',...projection(id)}}; }
   async function call(channel, endpoint, payload, signal) {
     if (channel !== '/api') return failure('Действие недоступно');

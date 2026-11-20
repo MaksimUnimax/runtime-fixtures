@@ -132,22 +132,15 @@ window.__ModuleLoader__.load({
       if(a.canGrant)ctx.slots.inject('conversation.chat.turnTail',()=>ctx.slots.register({
         name:'conversation.chat.turnTail',id:'harness-cost',inject:sessionId=>({sessionId})
       },Cost));
-      const sessions=ctx.sessions.list;
-      let opened=false;
+      const selection=ctx.uiWorkspace.selection;
       const sync=()=>{
-        const snapshot=sessions.getSnapshot();
-        if(snapshot.phase!=='ready')return;
-        if(!opened){
-          opened=true;
-          if(a.selected)ctx.uiWorkspace.openSession(a.selected);
-        }
-        const current=Object.values(snapshot.byId).find(row=>row.retainedBy?.mainView>0)?.id;
+        const current=selection.getSnapshot().sessionId;
         if(current && !panel){
           const path='/app/chats/'+encodeURIComponent(current);
           if(location.pathname!==path)history.replaceState(null,'',path);
         }
       };
-      ctx.effect(()=>sessions.subscribe(sync),'account session links');sync();
+      ctx.effect(()=>selection.subscribe(sync),'account session links');
     }};
   }
 });

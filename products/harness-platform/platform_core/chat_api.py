@@ -174,6 +174,8 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         if req.method == "POST":
             scope = await run_in_threadpool(identity.create_user_chat, token)
             return JSONResponse({"chatId": scope.chat_id}, status_code=201)
+        if req.query_params.get("view") == "activity":
+            return JSONResponse(await run_in_threadpool(identity.chat_activity, token, req.app.state.worker.journal))
         return JSONResponse(await run_in_threadpool(identity.list_chats, token))
 
     async def scoped(req: Request, action):

@@ -81,7 +81,10 @@ export async function openWorker(env) {
       scope_key TEXT NOT NULL, revision INTEGER NOT NULL, request_id TEXT NOT NULL,
       action TEXT NOT NULL, input TEXT NOT NULL, created_at INTEGER NOT NULL, events TEXT NOT NULL,
       PRIMARY KEY(scope_key, revision), UNIQUE(scope_key, request_id)
-    )`);
+    );
+    CREATE INDEX IF NOT EXISTS native_activity_by_scope
+      ON native_batches(scope_key, revision DESC, json_extract(events,'$[#-1].time'));
+  `);
   const platform = env.HARNESS_MODEL_GATEWAY_URL ? new DatabaseSync(env.HARNESS_PLATFORM_DATABASE, { readOnly: true }) : null;
   platform?.exec('PRAGMA busy_timeout=5000');
   const budget = platform?.prepare(`SELECT budget_hit, EXISTS(SELECT 1 FROM coin_attempts a

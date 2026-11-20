@@ -41,6 +41,17 @@ def client_source(path):
     package = path.parent.parent.name
     if package.startswith("dsh-client-ui-"):
         source = source.replace(b"DeepSeek Harness", b"octoport")
+    if package == "dsh-client-ui-workspace":
+        # Resolve the authenticated deep link before native recent-session restoration.
+        signature = b"async restoreSelection(workspaces, sessions) {"
+        source = source.replace(signature, signature +
+            b" const targetId=window.harnessAccount?.selected;"
+            b" if (targetId && sessions.byId[targetId]) {"
+            b" this.replaceMain(targetId, this.lifetime.signal, 'preserve'); return; }", 1)
+        # Empty conversations have no last-message time.
+        for name in (b"timeLabel", b"hoverTimeLabel"):
+            signature = b"function " + name + b"(updatedAt, now, t) {"
+            source = source.replace(signature, signature + b' if (!updatedAt) return "";', 1)
     if package == "dsh-client-ui-shortcuts":
         source = re.sub(rb"\bHarness\b", b"octoport", source)
     if package == "dsh-client-ui-conversation":

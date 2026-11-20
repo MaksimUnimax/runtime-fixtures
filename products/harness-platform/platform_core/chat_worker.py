@@ -23,6 +23,7 @@ class WorkerError(Exception):
 class ChatWorker:
     def __init__(self, database_path, chat_directory, composition_module=None):
         product = Path(__file__).resolve().parent.parent
+        self.journal = Path(chat_directory).resolve() / "native-chats.sqlite3"
         self.script = product / "native" / "chat-worker.mjs"
         self.env = {
             # The host and installed modules are operator configuration.
