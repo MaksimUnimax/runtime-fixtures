@@ -235,8 +235,8 @@ def create_app(database_path, chat_directory, *, composition_module=None):
             identity=req.app.state.identity
             with identity._lock:
                 rows=chat_connections.snapshot(identity._db,scope)
-            data["connections"]=[r for r in rows if r["attached"]]
-            data["availableServices"]=sorted({r["provider"] for r in rows if not r["attached"]})
+            data["connections"]=[r for r in rows if r["attached"] and r["access"]]
+            data["availableServices"]=sorted({r["provider"] for r in rows if not r["attached"] and r["access"]})
         if await run_in_threadpool(req.app.state.identity.has_claimed_guest_turns, scope):
             data["claimedGuest"] = True
         turn,owner=(None,False)

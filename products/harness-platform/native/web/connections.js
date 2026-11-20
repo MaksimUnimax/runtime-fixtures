@@ -6,10 +6,12 @@ window.__ModuleLoader__.load({
     return {inject:['slots'],apply(ctx) {
       const a=window.harnessAccount;
       const post=(url,data)=>a.api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-      const status={saved:'Сохранено',verified:'Связь подтверждена',unconfirmed:'Связь не подтверждена',denied:'Доступ отклонён'};
+      const status={saved:'Сохранено',verified:'Связь подтверждена',unconfirmed:'Связь не подтверждена',denied:'Доступ отклонён',
+        reauthorize:'Требуется обновить ключи',vault_unavailable:'Хранилище ключей временно недоступно'};
       function Connections({initial={},after}) {
         const [list,setList]=React.useState(null),[provider,setProvider]=React.useState(initial.provider||'');
         const [fields,setFields]=React.useState(initial.fields||{}),[name,setName]=React.useState(initial.name||'');
+        const [replacement,setReplacement]=React.useState(initial.replacement||null);
         const [msg,setMsg]=React.useState(initial.notice||''),[busy,setBusy]=React.useState(false);
         const [target,setTarget]=React.useState(''),[phrase,setPhrase]=React.useState(''),[rows,setRows]=React.useState([]);
         const refresh=()=>a.api('/api/integrations').then(setList);
@@ -19,12 +21,14 @@ window.__ModuleLoader__.load({
           try {await fn();}catch(e){setMsg(e.message);}finally{setBusy(false);}
         }
         const entry=list?.providers[provider];
-        const select=value=>{setProvider(value);setFields({});setName('');setMsg('');};
+        const select=value=>{setProvider(value);setFields({});setName('');setMsg('');setReplacement(null);};
+        const repair=c=>{setReplacement(c);setProvider(c.provider);setFields({});setName(c.name);setMsg('');};
         return h('section',{'data-private-connection':true,className:'service-settings'},
           h('h2',null,'Интеграции'),
           list?.connections.map(c=>h('div',{key:c.id,className:'service-connection'},
             h('div',null,h('strong',null,c.name),h('small',null,list.providers[c.provider].title+' · '+status[c.status])),
-            h('button',{disabled:busy,onClick:()=>act(async()=>{
+            c.status==='reauthorize'?h('button',{disabled:busy,onClick:()=>repair(c)},'Обновить ключи'):
+            h('button',{disabled:busy||c.status==='vault_unavailable',onClick:()=>act(async()=>{
               const r=await post('/api/integrations/'+c.id+'/check',{});await refresh();
               setMsg(Object.entries(r.checks).map(([k,v])=>k+' · '+status[v]).join(' / '));
             })},'Проверить'),
@@ -35,15 +39,17 @@ window.__ModuleLoader__.load({
           list && h('label',null,'Сервис',h('select',{'aria-label':'Сервис',value:provider,onChange:e=>select(e.target.value)},
             h('option',{value:''},'Выберите сервис'),Object.entries(list.providers).map(([id,p])=>h('option',{key:id,value:id},p.title)))),
           entry && h('form',{autoComplete:'off',onSubmit:e=>{e.preventDefault();act(async()=>{
-            await post('/api/integrations',{provider,name:name.trim()||entry.title,fields,...(initial.chatId?{chatId:initial.chatId}:{})});
-            window.dispatchEvent(new Event('harness:grants'));setFields({});setProvider('');setName('');await refresh();setMsg('Ключи сохранены');after?.();
+            await post('/api/integrations',{provider,name:name.trim()||entry.title,fields,...(initial.chatId?{chatId:initial.chatId}:{}),
+              ...(replacement?{replaceId:replacement.id,replaceVersion:replacement.version}:{})});
+            window.dispatchEvent(new Event('harness:grants'));select('');await refresh();setMsg('Ключи сохранены');after?.();
           });}},
-            h('label',null,'Название подключения',h('input',{maxLength:80,value:name,placeholder:entry.title,onChange:e=>setName(e.target.value)})),
+            h('label',null,'Название подключения',h('input',{maxLength:80,value:name,readOnly:!!replacement,placeholder:entry.title,onChange:e=>setName(e.target.value)})),
+            replacement && h('p',null,'Сохранение заменит прежние ключи этого подключения во всех его чатах. Введите заново все используемые ключи.'),
             provider==='ozon' && h('small',null,'Введите пару ключей Seller или Performance. Можно подключить оба API.'),
             Object.entries(entry.fields).map(([k,label])=>h('label',{key:k},label,h('input',{
               type:'password',required:provider!=='ozon',autoComplete:'off',spellCheck:false,maxLength:8192,value:fields[k]||'',
               onChange:e=>setFields(old=>{const n={...old};if(e.target.value)n[k]=e.target.value;else delete n[k];return n;})}))),
-            h('button',{disabled:busy},'Сохранить подключение')),
+            h('button',{disabled:busy},replacement?(initial.chatId?'Заменить ключи и подключить к чату':'Заменить ключи'):'Сохранить подключение')),
           h('p',{role:'status'},msg));
       }
       function Models() {
@@ -124,7 +130,7 @@ window.__ModuleLoader__.load({
           return ()=>{controller.abort();window.removeEventListener('harness:grants',refresh);};
         },[url]);
         React.useEffect(()=>{if(open && !dialog.current.open)dialog.current.showModal();},[open]);
-        const active=rows.filter(row=>row.attached);
+        const active=rows.filter(row=>row.attached&&row.access.length);
         const labels={sending:'Отправляю сообщение…',accepted:'Сообщение принято',model:'Модель готовит ответ…',
           thinking:'Модель обдумывает ответ…',tool:'Модель запрашивает данные…',writing:'Модель отвечает…',failed:'Не удалось завершить запрос'};
         async function toggle(row,enabled){
@@ -149,7 +155,12 @@ window.__ModuleLoader__.load({
               h('div',null,h('div',{className:'Pt1bsG_title'},row.name),
                 h('div',{className:'Pt1bsG_description'},
                   (row.access.length?row.access.join(', '):names[row.provider])+' · '+(status[row.status]||row.status))),
-              h(Switch,{label:row.name+' · '+names[row.provider],checked:row.attached,disabled:busy,onChange:enabled=>toggle(row,enabled)}))),
+              row.status==='reauthorize' && h('button',{type:'button',disabled:busy,onClick:()=>{
+                setOpen(false);window.dispatchEvent(new CustomEvent('harness:connection',{detail:{
+                  replacement:row,provider:row.provider,name:row.name,chatId:sessionId}}));
+              }},'Обновить ключи'),
+              h(Switch,{label:row.name+' · '+names[row.provider],checked:row.attached,
+                disabled:busy||(!row.attached&&!row.access.length),onChange:enabled=>toggle(row,enabled)}))),
             error && h('p',{role:'alert'},error),
             h('button',{onClick:()=>{setOpen(false);window.dispatchEvent(new CustomEvent('harness:connection',{
               detail:{newConnection:true,chatId:sessionId}}));}},'Добавить подключение')));

@@ -38,6 +38,48 @@ class ServicePlugins(unittest.TestCase):
     def client(self):
         return TestClient(create_app(self.db,self.root/"chats"))
 
+    def test_restore_store_after_database_copy_with_distinct_vault(self):
+        with self.client() as client:
+            collection="/api/integrations"
+            grants=f"/api/chats/{self.chat}/integrations"
+            def save(data):
+                return client.post(collection,headers=self.headers,json=data)
+            def toggle(cid,enabled):
+                return client.post(grants,headers=self.headers,json={"connectionId":cid,"enabled":enabled})
+            seller={"client_id":"client-fixture","api_key":"key-fixture"}
+            ozon={"provider":"ozon","name":"Магазин","fields":seller}
+            wb={"provider":"wb","name":"Магазин","fields":{"token":"wb-fixture"}}
+            cid=save(ozon).json()["id"]
+            wid=save(wb|{"chatId":self.chat}).json()["id"]
+            (self.root/"vault").write_bytes(os.urandom(32))
+            by_id={r["id"]:r for r in client.get(grants,headers=self.headers).json()["connections"]}
+            self.assertEqual({r["status"] for r in by_id.values()},{"reauthorize"})
+            self.assertEqual(by_id[cid]["access"],[])
+            self.assertFalse(by_id[cid]["attached"])
+            self.assertTrue(by_id[wid]["attached"])
+            self.assertEqual(toggle(cid,True).status_code,409)
+            self.assertEqual(client.post(f"{collection}/{cid}/check",headers=self.headers).status_code,409)
+            self.assertEqual(save(ozon).status_code,409)
+            self.assertEqual(save(ozon|{"replaceId":cid,"replaceVersion":2}).status_code,409)
+            replace=ozon|{"replaceId":cid,"replaceVersion":1,"chatId":self.chat}
+            self.assertEqual(client.post(collection,headers=self.other,json=replace).status_code,409)
+            self.assertEqual(save(replace).json()["id"],cid)
+            self.assertEqual(save(replace).status_code,409)
+            state={r["id"]:r for r in client.get(grants,headers=self.headers).json()["connections"]}
+            self.assertTrue(state[cid]["attached"])
+            self.assertEqual(state[cid]["access"],["Ozon Seller"])
+            self.assertTrue(state[wid]["attached"])
+            self.assertEqual(toggle(wid,False).status_code,200)
+            self.assertEqual(toggle(cid,False).status_code,200)
+            self.assertEqual(toggle(cid,True).status_code,200)
+            performance={"performance_id":"performance-id","performance_secret":"secret-fixture"}
+            self.assertEqual(save(ozon|{"fields":performance}).json()["id"],cid)
+            state={r["id"]:r for r in client.get(grants,headers=self.headers).json()["connections"]}
+            self.assertEqual(state[cid]["access"],["Ozon Seller","Ozon Performance"])
+            (self.root/"vault").unlink()
+            self.assertEqual(toggle(cid,True).status_code,503)
+            self.assertEqual({r["status"] for r in client.get(collection,headers=self.headers).json()["connections"]},{"vault_unavailable"})
+
     def test_admin_rotates_independent_provider_keys(self):
         from platform_core import provider_keys
         directory=self.root/"provider-keys"

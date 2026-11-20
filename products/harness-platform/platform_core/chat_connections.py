@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 import httpx
+from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
@@ -26,33 +27,58 @@ def scope_for(db,token,chat):
     return scope
 
 def attach(db,scope,cid,enabled):
-    if not db.execute("SELECT 1 FROM account_integrations WHERE id=? AND workspace=?",(cid,scope.workspace_id)).fetchone():
+    row=db.execute("SELECT provider,encrypted FROM account_integrations WHERE id=? AND workspace=?",(cid,scope.workspace_id)).fetchone()
+    if not row:
         raise HTTPException(404,"Подключение недоступно")
     if enabled:
+        unseal(scope.workspace_id,row[0],cid,row[1])
         db.execute("INSERT OR IGNORE INTO chat_integrations VALUES(?,?)",(scope.chat_id,cid))
     else:
         db.execute("DELETE FROM chat_integrations WHERE chat_id=? AND connection_id=?",(scope.chat_id,cid))
 
+class UnreadableCredentials(HTTPException):
+    def __init__(self):
+        super().__init__(409,"Сервер не может прочитать сохранённые ключи. Обновите ключи подключения.")
+
+class VaultUnavailable(HTTPException):
+    def __init__(self):
+        super().__init__(503,"Хранилище ключей временно недоступно.")
+
+def vault_cipher():
+    try:
+        return AESGCM(Path(os.environ["HARNESS_INTEGRATIONS_KEY_FILE"]).read_bytes())
+    except (KeyError, OSError, ValueError):
+        raise VaultUnavailable() from None
+
 def unseal(ws,provider,cid,blob):
-    cipher=AESGCM(Path(os.environ["HARNESS_INTEGRATIONS_KEY_FILE"]).read_bytes())
-    return json.loads(cipher.decrypt(blob[:12],blob[12:],json.dumps([ws,provider,cid]).encode()))
+    cipher=vault_cipher()
+    try:
+        clear=cipher.decrypt(blob[:12],blob[12:],json.dumps([ws,provider,cid]).encode())
+    except (InvalidTag,ValueError):
+        raise UnreadableCredentials() from None
+    return json.loads(clear)
+
+def connection_access(ws,provider,cid,blob,status):
+    try:
+        fields=unseal(ws,provider,cid,blob)
+    except UnreadableCredentials:
+        return "reauthorize", []
+    except VaultUnavailable:
+        return "vault_unavailable", []
+    if provider=="ozon":
+        return status, [label for key,label in (("api_key","Ozon Seller"),("performance_secret","Ozon Performance")) if key in fields]
+    return status, {"wb":["Wildberries API"],"wordstat":["Яндекс Вордстат"]}.get(provider,[])
 
 def snapshot(db,scope):
     if not _owns_chat(db,scope):
         raise PermissionError("Chat unavailable")
-    rows=db.execute("""SELECT c.id,c.name,c.provider,c.status,g.connection_id IS NOT NULL,c.encrypted
+    rows=db.execute("""SELECT c.id,c.name,c.provider,c.status,g.connection_id IS NOT NULL,c.encrypted,c.version
         FROM account_integrations c LEFT JOIN chat_integrations g ON g.connection_id=c.id AND g.chat_id=?
         WHERE c.workspace=? ORDER BY c.name,c.id""",(scope.chat_id,scope.workspace_id))
     result=[]
-    for cid,name,provider,status,attached,blob in rows:
-        kinds=[]
-        if provider=="ozon" and attached:
-            fields=unseal(scope.workspace_id,provider,cid,blob)
-            if "api_key" in fields: kinds.append("Ozon Seller")
-            if "performance_secret" in fields: kinds.append("Ozon Performance")
-        elif provider in ("wb","wordstat"):
-            kinds=["Wildberries API" if provider=="wb" else "Яндекс Вордстат"]
-        result.append(dict(id=cid,name=name,provider=provider,status=status,attached=bool(attached),access=kinds))
+    for cid,name,provider,status,attached,blob,version in rows:
+        status,kinds=connection_access(scope.workspace_id,provider,cid,blob,status)
+        result.append(dict(id=cid,name=name,provider=provider,status=status,attached=bool(attached),access=kinds,version=version))
     return result
 
 def routes(token_for,body):
@@ -99,7 +125,7 @@ class ChatTools:
         db=self.store._db
         with self.store._lock:
             if not db.execute("SELECT 1 FROM sqlite_master WHERE name='chat_integrations'").fetchone(): return ()
-            entries=[r for r in snapshot(db,self.scope) if r["attached"]]
+            entries=[r for r in snapshot(db,self.scope) if r["attached"] and r["access"]]
         specs=[
           ("check_store_access","Проверить подключение магазина или сервиса сейчас.","check",entries,{}),
           ("wordstat_keywords","Частотность и популярные поисковые фразы Яндекс Вордстат.","wordstat",

@@ -2,11 +2,9 @@
 import json
 import os
 import re
-from pathlib import Path
 from uuid import uuid4
 
 import httpx
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 from starlette.routing import Route
@@ -47,33 +45,42 @@ class IntegrationStore:
             db.execute(SCHEMA)
             db.execute(chat_connections.SCHEMA)
 
-    def _cipher(self):
-        try:
-            return AESGCM(Path(os.environ["HARNESS_INTEGRATIONS_KEY_FILE"]).read_bytes())
-        except (KeyError, OSError, ValueError):
-            raise HTTPException(503, "Хранилище ключей недоступно") from None
-
     def list(self, token):
         with self.identity._lock:
             db = self.identity._db
             _, ws = _principal(db, token)
-            rows = db.execute("SELECT id,provider,name,status FROM account_integrations WHERE workspace=? ORDER BY name,id", (ws,))
-            return {"providers": PROVIDERS, "connections": [dict(zip(("id","provider","name","status"),row)) for row in rows]}
+            rows=db.execute("SELECT id,provider,name,status,encrypted,version FROM account_integrations WHERE workspace=? ORDER BY name,id",(ws,))
+            connections=[]
+            for cid,provider,name,status,blob,version in rows:
+                status,_=chat_connections.connection_access(ws,provider,cid,blob,status)
+                connections.append(dict(id=cid,provider=provider,name=name,status=status,version=version))
+            return {"providers":PROVIDERS,"connections":connections}
 
-    def save(self, token, provider, name, fields, chatId=None):
+    def save(self, token, provider, name, fields, chatId=None, replaceId=None, replaceVersion=None):
         fields = credentials(provider, fields)
         if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80 or not name.isprintable():
             raise ValueError("Invalid connection name")
         name = name.strip()
         with self.identity._write() as db:
             _, ws = _principal(db, token)
-            row = db.execute("SELECT id,encrypted FROM account_integrations WHERE workspace=? AND provider=? AND name=?", (ws,provider,name)).fetchone()
+            row = db.execute("SELECT id,encrypted,version FROM account_integrations WHERE workspace=? AND provider=? AND name=?", (ws,provider,name)).fetchone()
             cid = row[0] if row else uuid4().hex
             aad = json.dumps([ws,provider,cid]).encode()
-            cipher = self._cipher()
-            if row and provider == "ozon":
-                previous = json.loads(cipher.decrypt(row[1][:12], row[1][12:], aad))
-                fields = previous | fields
+            cipher = chat_connections.vault_cipher()
+            replace = replaceId is not None or replaceVersion is not None
+            if replace and (not row or row[0]!=replaceId or type(replaceVersion) is not int or row[2]!=replaceVersion):
+                raise HTTPException(409,"Подключение изменилось. Откройте его заново.")
+            if row:
+                try:
+                    previous=chat_connections.unseal(ws,provider,cid,row[1])
+                except chat_connections.UnreadableCredentials:
+                    if not replace:
+                        raise
+                else:
+                    if replace:
+                        raise HTTPException(409,"Ключи уже доступны. Обновите список подключений.")
+                    if provider=="ozon":
+                        fields=previous | fields
             nonce = os.urandom(12)
             sealed = nonce + cipher.encrypt(nonce,json.dumps(fields).encode(),aad)
             db.execute("""INSERT INTO account_integrations VALUES(?,?,?,?,?,1,'saved')
@@ -92,8 +99,7 @@ class IntegrationStore:
             if not row:
                 raise HTTPException(404,"Подключение не найдено")
             provider, version, sealed = row
-            aad = json.dumps([ws,provider,cid]).encode()
-            return provider, version, json.loads(self._cipher().decrypt(sealed[:12],sealed[12:],aad))
+            return provider, version, chat_connections.unseal(ws,provider,cid,sealed)
 
     def status(self, token, cid, version, status):
         with self.identity._write() as db:
@@ -138,7 +144,7 @@ def routes(get_token, body):
         store = req.app.state.integrations
         if req.method == "GET":
             return JSONResponse(store.list(token))
-        data = await body(req,"provider","name","fields",optional=("chatId",))
+        data = await body(req,"provider","name","fields",optional=("chatId","replaceId","replaceVersion"))
         return JSONResponse(store.save(token,**data))
     async def check(req):
         token = get_token(req,allow_cookie=True)
