@@ -74,6 +74,58 @@ export function quoteUsage(model, usage, fx = null) {
     note: 'Usage is actual; monetary amount uses peak rates. Off-peak charges can be lower; this is not a wallet debit.' };
 }
 
+/** Native-lab read-only meter projection. No credentials, prompts or provider IDs. */
+export async function readMeterSummary(logFile, now = Date.now()) {
+  let source;
+  try { source = await readFile(logFile, 'utf8'); }
+  catch (error) {
+    if (error?.code === 'ENOENT') source = '';
+    else throw error;
+  }
+  const totals = { usd: 0, rub: 0, calls: 0, unknown: 0 };
+  const recent = { usd: 0, rub: 0, calls: 0, unknown: 0 };
+  let latest = null;
+  const sessions = new Map();
+  for (const line of source.split('\n')) {
+    if (!line) continue;
+    let event;
+    try { event = JSON.parse(line); } catch { continue; }
+    if (event.event !== 'finished') continue;
+    const ts = Date.parse(event.finished_at || '');
+    const valid = Number.isFinite(event.quote?.rub_peak_estimate)
+      && event.quote.rub_peak_estimate >= 0
+      && Number.isFinite(event.quote?.usd_peak_estimate)
+      && event.quote.usd_peak_estimate >= 0
+      && event.outcome === 'completed';
+    for (const sum of [totals, ...Number.isFinite(ts) && now-ts >= 0 && now-ts < 86400000 ? [recent] : []]) {
+      if (!valid) { sum.unknown++; continue; }
+      sum.usd += event.quote.usd_peak_estimate;
+      sum.rub += event.quote.rub_peak_estimate;
+      sum.calls++;
+    }
+    if (typeof event.session_id === 'string' && event.session_id.length <= 160) {
+      let perSession = sessions.get(event.session_id);
+      if (!perSession) { perSession = { usd: 0, rub: 0, calls: 0, unknown: 0 }; sessions.set(event.session_id, perSession); }
+      if (valid) { perSession.usd += event.quote.usd_peak_estimate; perSession.rub += event.quote.rub_peak_estimate; perSession.calls++; }
+      else perSession.unknown++;
+    }
+    if (!latest || (Number.isFinite(ts) && ts > latest.ts)) {
+      latest = { ts, estimated_rub: valid ? event.quote.rub_peak_estimate : null,
+        model: event.model, outcome: event.outcome, pricing_version: event.quote?.pricing_version || null,
+        session_id: event.session_id || null };
+    }
+  }
+  const finish = sum => ({ completed_model_calls: sum.calls, uncertain_attempts: sum.unknown,
+    usd_peak_estimate: Math.round(sum.usd * 1e8) / 1e8, rub_peak_estimate: Math.round(sum.rub * 1e6) / 1e6 });
+  return { schema: 'harness-lab-meter/v1', scope: 'single-owner-lab-all-sessions',
+    total: finish(totals), last_24h: finish(recent),
+    last_completed: latest ? { rub_peak_estimate: latest.estimated_rub, model: latest.model,
+      outcome: latest.outcome, pricing_version: latest.pricing_version } : null,
+    last_active_session: latest?.session_id && sessions.has(latest.session_id)
+      ? finish(sessions.get(latest.session_id)) : null,
+    disclaimer: 'Peak-price RUB estimate from terminal DeepSeek usage; not invoice or wallet debit. Unknown attempts are not zero.' };
+}
+
 function equalSecret(got, expected) {
   const a = Buffer.from(String(got || '')); const b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
@@ -105,6 +157,13 @@ export function createGateway(config) {
     };
     try {
       const url = new URL(req.url, 'http://localhost');
+      if (req.method === 'GET' && url.pathname === '/lab-meter') {
+        // Private loopback listener. Public proxy MUST first verify the
+        // unmodified native Host cookie with auth_request.
+        if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress))
+          return json(res, 403, { error: 'loopback_only' });
+        return json(res, 200, await readMeterSummary(config.logFile));
+      }
       if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true, service: 'harness-native-model-gateway', active, mode: 'single-owner-lab', models: Object.keys(PRICES) });
       const incoming = req.headers['x-api-key'] || String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
       if (!equalSecret(incoming, config.virtualKey)) return json(res, 401, { error: { type: 'authentication_error', message: 'Invalid lab credential' } });

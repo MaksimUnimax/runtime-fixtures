@@ -4,7 +4,7 @@ import http from 'node:http';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createGateway, quoteUsage } from './server.mjs';
+import { createGateway, quoteUsage, readMeterSummary } from './server.mjs';
 
 const secret = 'test-virtual-key-that-is-not-a-real-credential';
 const listen = server => new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server.address().port)));
@@ -183,4 +183,28 @@ test('partial, nonterminal and malformed SSE usage never becomes a completed quo
     }
     assert.equal(index, scenarios.length, 'one upstream dispatch per explicit call, no automatic retries');
   } finally { await stop(app.server); await stop(upstream); await rm(dir, { recursive: true, force: true }); }
+});
+
+
+test('read-only RUB meter includes completed costs, does not count missing usage as free', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'harness-meter-summary-'));
+  const file = join(dir,'meter.jsonl');
+  const {writeFile} = await import('node:fs/promises');
+  const records = [
+    {event:'finished', finished_at:'2026-11-20T02:11:00Z', outcome:'completed',model:'deepseek-flash',
+      session_id:'synthetic-session-a',quote:{usd_peak_estimate:0.001,rub_peak_estimate:0.081929,pricing_version:'synthetic'}},
+    {event:'finished', finished_at:'2026-11-20T02:12:00Z', outcome:'usage_unknown',model:'deepseek-flash',session_id:'synthetic-session-a',quote:null},
+    {event:'admitted', started_at:'2026-11-20T02:13:00Z'},
+  ];
+  try {
+    await writeFile(file,records.map(x=>JSON.stringify(x)).join('\n')+'\n');
+    const summary=await readMeterSummary(file,Date.parse('2026-11-20T03:00:00Z'));
+    assert.equal(summary.total.completed_model_calls,1);
+    assert.equal(summary.total.uncertain_attempts,1);
+    assert.equal(summary.total.rub_peak_estimate,0.081929);
+    assert.equal(summary.last_24h.rub_peak_estimate,0.081929);
+    assert.equal(summary.scope,'single-owner-lab-all-sessions');
+    assert.equal(summary.last_active_session.rub_peak_estimate,0.081929);
+    assert.equal(summary.last_active_session.uncertain_attempts,1);
+  } finally {await rm(dir,{recursive:true,force:true});}
 });

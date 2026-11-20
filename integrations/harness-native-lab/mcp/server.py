@@ -38,11 +38,18 @@ TOOLS = [
          annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=True)),
     Tool(name="marketplace_orders_report", description=(
         "Get real ordered units and order revenue for the server-authorized Ozon store using the native matrix handler. "
-        "Inclusive completed period of 1–31 days, Moscow time. One analytics request; exact repeats cached 15 minutes. "
-        "Order metrics are not seller payouts or profit; use the returned currency and caveats."),
-         inputSchema={"type": "object", "additionalProperties": False, "required": ["date_from", "date_to"], "properties": {
+        "One completed Moscow-time period of 1–31 days. If the user says yesterday/вчера, "
+        "ALWAYS call with {period: yesterday} so the SERVER resolves the real date; do not guess from the model clock or earlier dates. "
+        "Alternatively give exact date_from/date_to YYYY-MM-DD. Successful repeats cached 15 minutes; "
+        "429 does not auto-retry; follow explicit retry_after and the minimum one-minute Ozon analytics interval. "
+        "Orders are not payouts or profit; respect reported currency and caveats."),
+         inputSchema={"type": "object", "additionalProperties": False, "properties": {
+             "period": {"type": "string", "enum": ["yesterday"]},
              "date_from": {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$"},
-             "date_to": {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$"}}},
+             "date_to": {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$"}},
+             "oneOf": [
+                 {"required": ["period"], "not": {"anyOf": [{"required": ["date_from"]}, {"required": ["date_to"]}]}},
+                 {"required": ["date_from", "date_to"], "not": {"required": ["period"]}}]},
          annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=True)),
     Tool(name="marketplace_stock_snapshot", description=(
         "Get the current real stock snapshot for the server-authorized Ozon store using the native qualified matrix. "

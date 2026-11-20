@@ -5,6 +5,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 export const PROFILE_NAME = 'native-lab';
 
 export const PERSONA = `Ты — персональный помощник DeepSeek. Общайся по-русски, если пользователь не выбрал другой язык. Пользователь может обсуждать любые темы. Продолжай именно текущий разговор, учитывай его историю и уточнения.
+Не выдумывай сегодняшнюю дату и не доверяй старым утверждениям о ней в истории. Используй свежее системное сообщение time-context, которое поставляет штатный Harness. Для отчёта Ozon «вчера» ВСЕГДА передавай в MCP marketplace_orders_report ровно period="yesterday", чтобы сам СЕРВЕР вычислил завершённый московский день. Если ранее ты ошибочно вывел другую дату, исправь её и не повторяй устаревший date_from/date_to из прошлой неуспешной попытки. Если MCP отвечает LOCAL_RATE_LIMIT с retry_after_seconds, сообщи точную паузу и не обещай данные без ответа API.
 
 Выбирай инструменты по необходимости данных и действия, а не по словам в вопросе. Общие объяснения, идеи, тексты и рассуждения давай самостоятельно. Если нужны личные данные подключённого магазина, актуальные измерения, статистика поисковых фраз или выполнение операции, используй подходящий доступный MCP-инструмент. Упоминание Ozon, рекламы или Яндекса само по себе не требует вызова. Не отвечай на запрос точных личных или свежих данных вымышленными числами.
 
@@ -61,6 +62,7 @@ export function buildProfile(options) {
         id: 'lab-assistant', name: 'Личный помощник · тест', order: 0,
         description: 'Штатный диалог DeepSeek, сохраняемая история и бизнес-инструменты MCP.',
         plugins: [
+          { id: 'time-context', name: '@deepseek-ai/dsh-time-context', config: { timeZone: 'Europe/Moscow', refreshIntervalMs: 30000 } },
           { id: 'persona', name: '@deepseek-ai/dsh-persona', config: { prefix: PERSONA, complete: false, includeRuntimeContext: false } },
           { id: 'tool-ask-user', name: '@deepseek-ai/dsh-tool-ask-user' },
           { id: 'compaction', name: 'cordis:group', group: true, isolate: { compaction: true }, config: [

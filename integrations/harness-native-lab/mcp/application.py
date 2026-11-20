@@ -49,7 +49,7 @@ class Application:
             return self.capabilities()
         mapping = {"yandex_collect_phrases": ("yandex", connectors.yandex,
                                               {"phrase", "limit", "regions", "device"}),
-                   "marketplace_orders_report": ("ozon", connectors.ozon, {"date_from", "date_to"}),
+                   "marketplace_orders_report": ("ozon", connectors.ozon, {"date_from", "date_to", "period"}),
                    "marketplace_stock_snapshot": ("ozon", connectors.ozon_stock_snapshot, set())}
         if tool not in mapping:
             raise LabError("UNKNOWN_TOOL")
@@ -68,6 +68,10 @@ class Application:
             cached["execution"] = {"provider_requests_this_call": 0, "automatic_retry": False}
             return cached
         try:
+            # Ozon /v1/analytics/data allows at most one request per minute.
+            # Never issue a quick intra-call retry on HTTP 429. The durable
+            # ledger enforces cooldown before the next explicit call.
+            attempts = self.ledger.reserve_attempt(request_id, prepared.maximum)
             raw = await connectors.request_json(prepared, transport=self.transport)
             data = prepared.decoder(raw)
             # The decoder emits a closed projection, never the private HTTP headers/raw envelope.
@@ -75,7 +79,7 @@ class Application:
             result = {"schema": SCHEMA, "kind": "data", "data": data, "source": prepared.source,
                       "as_of": timestamp, "complete": True,
                       "cache": {"hit": False, "acquired_at": timestamp, "ttl_seconds": prepared.ttl},
-                      "execution": {"provider_requests_this_call": 1, "automatic_retry": False}}
+                      "execution": {"provider_requests_this_call": attempts, "automatic_retry": attempts > 1}}
             self.ledger.complete(request_id, result)
             return result
         except LabError as error:

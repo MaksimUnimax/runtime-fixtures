@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 import hashlib
 import importlib
@@ -141,6 +141,17 @@ def native_modules(root: str):
 
 
 def dates(arguments: dict, now: datetime | None = None) -> dict:
+    """Absolute or canonical relative dates, resolved by the server's Moscow clock.
+
+    For an ambiguous natural-language "yesterday" the model must send
+    period=yesterday; it must never invent YYYY-MM-DD from its own clock.
+    """
+    if arguments == {"period": "yesterday"}:
+        today = (now or datetime.now(timezone.utc)).astimezone(ZoneInfo("Europe/Moscow")).date()
+        target = (today - timedelta(days=1)).isoformat()
+        return {"from": target, "to": target}
+    if "period" in arguments:
+        raise LabError("INVALID_PERIOD", "Для относительной даты поддерживается только period=yesterday.")
     try:
         start, end = arguments["date_from"], arguments["date_to"]
         if not all(isinstance(v, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", v) for v in (start, end)):

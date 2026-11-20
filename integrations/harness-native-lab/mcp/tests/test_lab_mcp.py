@@ -239,6 +239,52 @@ class LabTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn(SECRET, json.dumps(public))
         self.assertEqual(len(self.calls), 1)
 
+    async def test_ozon_429_cools_down_one_minute_not_cached_900_seconds(self):
+        self.ozon_setup()
+        self.status = 429
+        self.response = {"code": 8, "message": "Rate limit per second"}
+        with self.assertRaises(LabError) as caught:
+            await self.orders()
+        self.assertEqual(caught.exception.code, "UPSTREAM_HTTP_429")
+        self.assertEqual(len(self.calls), 1, "only ONE real provider request")
+        self.assertEqual(self.ledger.counts("synthetic-owner-a")["ozon"], 1)
+        with self.assertRaises(LabError) as repeat:
+            await self.orders()
+        self.assertEqual(repeat.exception.code, "LOCAL_RATE_LIMIT")
+        self.assertGreater(repeat.exception.retry_after, 0)
+        self.assertEqual(len(self.calls), 1, "no HTTP before minimum one-minute pause")
+        self.now += 62
+        self.status = 200
+        self.response = {"result": {"data": [{"dimensions": [{"id": "2026-10"}], "metrics": [17, 2500.25]}],
+                                    "totals": [17, 2500.25]}}
+        good = await self.orders()
+        self.assertEqual(good["data"]["ordered_units"], 17)
+        self.assertEqual(len(self.calls), 2)
+        self.assertEqual(good["execution"], {"provider_requests_this_call": 1, "automatic_retry": False})
+        self.assertEqual(self.ledger.counts("synthetic-owner-a")["ozon"], 2)
+
+    async def test_ozon_429_no_fast_retries_even_when_provider_would_accept_second(self):
+        self.ozon_setup()
+        normal = dict(self.response)
+        invoked = 0
+        def handler(request):
+            nonlocal invoked
+            invoked += 1
+            self.calls.append(request)
+            if invoked == 1:
+                return httpx.Response(429, json={"code": 8, "message": "rate limit per second"})
+            return httpx.Response(200, json=normal)
+        self.app.transport = httpx.MockTransport(handler)
+        with self.assertRaises(LabError) as caught:
+            await self.orders()
+        self.assertEqual(caught.exception.code, "UPSTREAM_HTTP_429")
+        self.assertEqual(invoked, 1, "no hidden retry within 61 seconds")
+        self.now += 62
+        value = await self.orders()
+        self.assertEqual(value["data"]["ordered_units"], 17)
+        self.assertEqual(value["execution"], {"provider_requests_this_call": 1, "automatic_retry": False})
+        self.assertEqual(self.ledger.counts("synthetic-owner-a")["ozon"], 2)
+
     async def test_network_unknown_is_durable_and_never_replayed(self):
         def timeout(request):
             self.calls.append(request)
@@ -383,6 +429,16 @@ class LabTests(unittest.IsolatedAsyncioTestCase):
                 await self.app.call("marketplace_stock_snapshot", arguments)
             self.assertEqual(caught.exception.code, "UNKNOWN_ARGUMENT")
         self.assertEqual(self.calls, [])
+
+    async def test_yesterday_is_server_moscow_clock_not_model_guess(self):
+        from zoneinfo import ZoneInfo
+        now = datetime(2026, 11, 20, 2, 11, tzinfo=timezone.utc)
+        self.assertEqual(connectors.dates({"period": "yesterday"}, now),
+                         {"from": "2026-11-19", "to": "2026-11-19"})
+        self.assertEqual(connectors.dates({"period": "yesterday"}, datetime(2026, 11, 20, 21, tzinfo=timezone.utc)),
+                         {"from": "2026-11-20", "to": "2026-11-20"}, "Moscow date crossed midnight")
+        with self.assertRaises(LabError):
+            connectors.dates({"period": "yesterday", "date_from": "2026-10-12"}, now)
 
     async def test_completed_bounded_date_period(self):
         now = datetime(2026, 11, 18, 12, tzinfo=timezone.utc)

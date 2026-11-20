@@ -2,6 +2,10 @@
 
 This isolated prototype is the real **DeepSeek Harness 0.2.2-rc.1** web application and agent loop. It keeps native conversation history, multiple sessions, streaming, tool exchanges and the normal model picker. It is not the older custom `integrations/harness-api` UI.
 
+## Verified lab repair — 20 November 2026
+
+The **live operator lab** is deployed from `harness-native-20261120-r3`. For the exact bug report and acceptance results, see [diagnostics and model/RUB behavior](docs/verification-20261120.md). The test UI adds a small RUB peak-cost estimate; it is not a subscription/billing wallet. Auth and cross-tenant access are **not** implemented for public users. Ozon sales remain **blocked upstream by HTTP 429**; the lab must not fabricate figures.
+
 ## What is implemented
 
 - `native/`: a controlled native preset, official DeepSeek Messages provider and MCP client, and a small model-selection policy plugin.
