@@ -20,6 +20,7 @@ PRODUCT = Path(__file__).resolve().parents[2]
 
 class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
     async def test_turn_from_chat_page_has_a_reconciled_operation(self):
+        self.enterContext(patch.dict(os.environ, {"HARNESS_RUB_PER_USD":"80"}))
         root = Path(self.enterContext(TemporaryDirectory()))
         database = root / "platform.sqlite"
         journal = root / "meter.jsonl"
@@ -93,6 +94,9 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await regular.request.get("/admin")).status,403)
         await expect(regular.locator("#grant")).to_have_count(0)
         regular_wallet = await (await regular.request.get("/api/wallet")).json()
+        await page.get_by_label("Наценка при покупке, %").fill("35")
+        await page.get_by_role("button",name="Сохранить цену").click()
+        await expect(page.locator("#pricing output")).to_have_text("Цена сохранена")
         await page.get_by_label("Логин получателя").fill("regular-fixture")
         await page.get_by_label("Монеты", exact=True).fill("3")
         await page.get_by_label("Основание").fill("Browser acceptance")
@@ -109,6 +113,8 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
         expected = Decimal(regular_wallet["available"]) + 3
         await regular.get_by_role("button",name="Баланс",exact=True).click()
         await expect(regular.get_by_role("dialog")).to_contain_text(f"Доступно · {expected:f}")
+        await expect(regular.get_by_role("dialog")).to_contain_text("1,35 ₽")
+        await expect(regular.get_by_role("dialog")).not_to_contain_text("Предел на запрос")
         await expect(regular.locator("#grant")).to_have_count(0)
 
         with IdentityStore(database) as store:

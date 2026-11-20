@@ -15,7 +15,7 @@ const python = process.env.HARNESS_TEST_PYTHON || process.env.PYTHON || 'python3
 
 function runPython(args, input) {
   return execFileSync(python, args, { cwd: component, input, encoding: 'utf8', timeout: 10000,
-    env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1', PYTHONPATH: path.dirname(path.resolve(component)) } });
+    env: { ...process.env, HARNESS_RUB_PER_USD:"80", PYTHONDONTWRITEBYTECODE: '1', PYTHONPATH: path.dirname(path.resolve(component)) } });
 }
 
 function prepareGrants(database) {
@@ -245,17 +245,17 @@ test('wallet prices cached input, output and peak calendar; recovery replays a r
   assert.equal(period(ms + 3600000),'peak');
   assert.equal(period(Date.UTC(2027,9,1,7)),'offpeak');
   const entry = { attempt_id:'test-bill', attribution:scopes.first, model:'deepseek-flash', started_ms:ms, max_tokens:256 };
-  assert.equal(ledger.reserve(entry, () => true),true);
+  assert.equal(ledger.reserve(entry, () => true, 800),true);
   const complete = { ...entry, event:'finished', finished_at:new Date(ms+1000).toISOString(), outcome:'completed',
     status:200, usage:{input_tokens:100, cache_read_input_tokens:1000, output_tokens:30, cache_creation_input_tokens:0} };
   const journal = path.join(dir,'usage.jsonl');
   await writeFile(journal,JSON.stringify(complete)+'\n'+JSON.stringify(complete)+'\n');
-  // 100 * 0.15 + 1000 * .003 + 30 * .60 = 36 USD / million. 20% adds .0000072 coins.
+  // 100 * 0.15 + 1000 * .003 + 30 * .60 = 36 USD / million. At 80 RUB/USD this is 0.00288 coins.
   const reopened = new DatabaseSync(file);
   try {
     const restored = coinBilling(reopened);
     await restored.recover(journal);
     await restored.recover(journal);
-    assert.equal(reopened.prepare('SELECT charge FROM coin_attempts').get().charge, 43200000);
+    assert.equal(reopened.prepare('SELECT charge FROM coin_attempts').get().charge, 2880000000);
   } finally { reopened.close(); }
 });

@@ -19,6 +19,13 @@ class PublicFAQ:
                     (topic, row["answer"], json.dumps(row["patterns"], ensure_ascii=False))
                     for topic, row in cards.items()
                 ])
+                self._db.execute("UPDATE public_faq SET answer=? WHERE topic='price' AND answer=?",
+                                 (cards["price"]["answer"], "Публичный тариф сервиса пока не опубликован."))
+                # Merge new expressions into published cards without replacing editorial changes.
+                row = self._db.execute("SELECT patterns FROM public_faq WHERE topic='features'").fetchone()
+                merged = list(dict.fromkeys([*json.loads(row[0]), *cards["features"]["patterns"]]))
+                self._db.execute("UPDATE public_faq SET patterns=? WHERE topic='features' AND patterns<>?",
+                                 (json.dumps(merged, ensure_ascii=False),json.dumps(merged, ensure_ascii=False)))
             if path is not None:
                 self._db.close()
                 self._db = sqlite3.connect(path.resolve().as_uri() + "?mode=ro",

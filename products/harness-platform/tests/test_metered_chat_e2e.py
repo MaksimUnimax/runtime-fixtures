@@ -25,6 +25,7 @@ PRODUCT = Path(__file__).resolve().parent.parent
 @unittest.skipUnless(os.environ.get("HARNESS_NODE_MODULES"), "requires pinned native Harness")
 class MeteredChatAcceptance(unittest.TestCase):
     def setUp(self):
+        self.enterContext(patch.dict(os.environ, {"HARNESS_RUB_PER_USD":"80"}))
         root = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.db = root / "platform.sqlite"
         self.journal = root / "usage.jsonl"
@@ -93,7 +94,7 @@ class MeteredChatAcceptance(unittest.TestCase):
             first, second, duplicate = [r.json() for r in responses]
             wallet = client.get("/api/wallet", headers=a[0]).json()
             self.assertEqual(len(wallet["charges"]), 1)
-            self.assertEqual(wallet["charges"][0]["coins"], "0.0000216")
+            self.assertEqual(wallet["charges"][0]["coins"], "0.00144")
             self.assertEqual(len(wallet["charges"][0]["meter"]["attempts"]), 2)
             self.assertEqual(first, duplicate)
             self.assertEqual(first["text"], "tool result received")

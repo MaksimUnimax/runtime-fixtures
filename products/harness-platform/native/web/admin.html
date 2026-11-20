@@ -3,6 +3,9 @@
 <title>Администрирование · Harness</title><link rel="stylesheet" href="/ui-assets/project/admin.css">
 <script src="/session-nav.js"></script><script type="module" src="/ui-assets/project/admin.js"></script></head>
 <body><main><nav><a href="/">Вернуться в Harness</a></nav><h1>Администрирование</h1>
+<section><h2>Цена покупки монеты</h2>
+<form id="pricing"><label>Наценка при покупке, %<input required name="markupPercent" type="number" min="0" max="1000" step="0.01"></label>
+<p id="sale-price" aria-live="polite"></p><button>Сохранить цену</button><output></output></form></section>
 <section><h2>Начислить монеты</h2>
 <form id="grant"><label>Логин получателя<input name="login" required></label>
 <label>Монеты<input name="amount" inputmode="decimal" required></label>

@@ -1,10 +1,16 @@
 """Integer coin accounting shared by the product and the scoped gateway."""
 import os
 import re
+from decimal import Decimal
 
 UNIT = 10**12
 MAX_BALANCE = 8_000_000 * UNIT
+PRICING_SCHEMA = """CREATE TABLE IF NOT EXISTS coin_pricing (
+        singleton INTEGER PRIMARY KEY CHECK(singleton=1), sale_bps INTEGER NOT NULL CHECK(sale_bps BETWEEN 0 AND 100000))"""
 SCHEMA = (
+    PRICING_SCHEMA,
+    """CREATE TABLE IF NOT EXISTS coin_ruble_orders (
+        operation_id TEXT PRIMARY KEY REFERENCES coin_orders ON DELETE CASCADE, fx_e4 INTEGER NOT NULL CHECK(fx_e4>0))""",
     """CREATE TABLE IF NOT EXISTS coin_grants (
         issuer TEXT NOT NULL, key TEXT NOT NULL, workspace_id TEXT NOT NULL REFERENCES workspaces,
         amount INTEGER NOT NULL CHECK(amount>0), reason TEXT NOT NULL,
@@ -23,6 +29,17 @@ SCHEMA = (
     """CREATE VIEW IF NOT EXISTS coin_order_totals AS SELECT o.*,
         COALESCE((SELECT SUM(a.charge) FROM coin_attempts a WHERE a.operation_id=o.operation_id),0) AS spent
         FROM coin_orders o""",
+    """CREATE VIEW IF NOT EXISTS coin_wallet_balances AS
+        SELECT workspace_id, granted-spent-held AS available, held FROM (
+            SELECT w.workspace_id,
+                (SELECT COALESCE(SUM(amount),0) FROM coin_grants g WHERE g.workspace_id=w.workspace_id) AS granted,
+                COALESCE(SUM(o.spent),0) AS spent, COALESCE(SUM(CASE
+                    WHEN o.operation_id IS NULL OR o.closed THEN 0
+                    WHEN r.operation_id IS NULL THEN o.cap-o.spent
+                    ELSE (SELECT COALESCE(SUM(a.bound),0) FROM coin_attempts a
+                          WHERE a.operation_id=o.operation_id AND a.charge IS NULL) END),0) AS held
+            FROM workspaces w LEFT JOIN coin_order_totals o USING(workspace_id)
+            LEFT JOIN coin_ruble_orders r USING(operation_id) GROUP BY w.workspace_id)""",
 )
 
 
@@ -41,13 +58,29 @@ def display(amount):
     return f"{whole}.{fraction:012d}".rstrip("0").rstrip(".")
 
 
-def policy():
-    cap = parse_amount(os.getenv("HARNESS_TURN_COINS", "2"))
-    markup = int(os.getenv("HARNESS_MARKUP_PERCENT", "20"))
-    conversion = int(os.getenv("HARNESS_COINS_PER_USD", "1"))
-    if not 0 <= markup <= 1000 or not 1 <= conversion <= 10000:
-        raise ValueError("Invalid coin policy")
-    return cap, markup, conversion
+def rub_rate():
+    value = os.getenv("HARNESS_RUB_PER_USD", "81.9290")
+    if not re.fullmatch(r"[0-9]{1,4}(?:\.[0-9]{1,4})?", value) or Decimal(value) <= 0:
+        raise ValueError("Invalid RUB/USD rate")
+    return int(Decimal(value) * 10000)
+
+
+def sale_pricing(db):
+    row = db.execute("SELECT sale_bps FROM coin_pricing WHERE singleton=1").fetchone()
+    bps = row[0] if row else 2000
+    return {"markupPercent": display(bps * UNIT // 100),
+            "rubPerCoin": display((10000 + bps) * UNIT // 10000)}
+
+
+def set_sale_pricing(db, percent):
+    if not isinstance(percent, str) or not re.fullmatch(r"[0-9]{1,4}(?:\.[0-9]{1,2})?", percent):
+        raise ValueError("Invalid sale markup")
+    bps = int(Decimal(percent) * 100)
+    if bps > 100000:
+        raise ValueError("Invalid sale markup")
+    db.execute("""INSERT INTO coin_pricing(singleton,sale_bps) VALUES(1,?)
+        ON CONFLICT(singleton) DO UPDATE SET sale_bps=excluded.sale_bps""", (bps,))
+    return sale_pricing(db)
 
 
 def close_orders(db, workspace=None):
@@ -64,10 +97,8 @@ def close_orders(db, workspace=None):
 
 
 def balances(db, workspace):
-    granted, = db.execute("SELECT COALESCE(SUM(amount),0) FROM coin_grants WHERE workspace_id=?", (workspace,)).fetchone()
-    spent, hold = db.execute("""SELECT COALESCE(SUM(spent),0), COALESCE(SUM(CASE WHEN closed=0 THEN cap-spent ELSE 0 END),0)
-        FROM coin_order_totals WHERE workspace_id=?""", (workspace,)).fetchone()
-    return granted - spent - hold, hold
+    row = db.execute("SELECT available, held FROM coin_wallet_balances WHERE workspace_id=?", (workspace,)).fetchone()
+    return tuple(row) if row else (0, 0)
 
 
 class InsufficientCoins(PermissionError):
@@ -78,16 +109,14 @@ def reserve_order(db, workspace, operation, limit=None):
     close_orders(db, workspace)
     if db.execute("SELECT 1 FROM coin_orders WHERE operation_id=?", (operation,)).fetchone():
         return  # Native replay may read the result. The gateway refuses closed orders.
-    cap, markup, conversion = policy()
-    if limit is not None:
-        requested = parse_amount(limit)
-        if requested > cap:
-            raise ValueError("Turn limit exceeds the configured maximum")
-        cap = requested
-    if balances(db, workspace)[0] < cap:
+    if balances(db, workspace)[0] <= 0:
         raise InsufficientCoins()
+    # Only explicit limits from older clients constrain an operation. The gateway
+    # reserves each provider attempt against the shared available balance.
     db.execute("INSERT INTO coin_orders(operation_id,workspace_id,cap,markup,coins_per_usd) VALUES(?,?,?,?,?)",
-               (operation, workspace, cap, markup, conversion))
+               (operation, workspace, parse_amount(limit) if limit is not None else MAX_BALANCE, 0, 1))
+    db.execute("INSERT INTO coin_ruble_orders(operation_id,fx_e4) VALUES(?,?)", (operation, rub_rate()))
+
 
 
 def grant(db, issuer, key, workspace, value, reason):

@@ -19,9 +19,7 @@ Environment=HARNESS_PROVIDER_RELAY_KEY_FILE=%d/model-relay
 Environment=HARNESS_PROVIDER_RELAY_URL=http://127.0.0.1:18442
 Environment=HARNESS_NODE_MODULES=/opt/harness-prod/runtime/v1/node_modules
 Environment=PYTHONDONTWRITEBYTECODE=1
-Environment=HARNESS_MARKUP_PERCENT=20
-Environment=HARNESS_COINS_PER_USD=1
-Environment=HARNESS_TURN_COINS=2
+Environment=HARNESS_RUB_PER_USD=81.9290
 ExecStart=/opt/harness-prod/runtime/v1/venv/bin/python -m platform_core.serve --state /var/lib/harness-prod --port 18763 --model live
 Restart=on-failure
 RestartSec=3

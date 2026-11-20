@@ -1,5 +1,6 @@
 """Exercise the prepaid account through the signed-in routes, native agent and scoped gateway."""
 from concurrent.futures import ThreadPoolExecutor
+from decimal import Decimal
 import os
 import sqlite3
 import time
@@ -18,7 +19,7 @@ class CoinWallet(unittest.TestCase):
     actor = metered.MeteredChatAcceptance.actor
 
     def test_admin_grant_concurrent_turn_and_exact_debit(self):
-        self.enterContext(patch.dict(os.environ, {"HARNESS_TURN_COINS":"2","HARNESS_MARKUP_PERCENT":"20","HARNESS_COINS_PER_USD":"1"}))
+
         with self.client() as c, IdentityStore(self.db) as store:
             store.create_account("buyer", self.password)
             admin, _, _ = self.actor(c, "owner-a")
@@ -33,6 +34,11 @@ class CoinWallet(unittest.TestCase):
             base = f"/api/chats/{chat}/turns"
             body = {"requestId":"r1","text":"delayed coin fixture"}
             self.assertEqual(c.post(base, headers=user, json=body).status_code, 402)
+            pricing = "/api/admin/coin-pricing"
+            self.assertEqual(c.post(pricing, headers=user, json={"markupPercent":"90"}).status_code,403)
+            self.assertEqual(wallet()["salePrice"]["rubPerCoin"],"1.2")
+            self.assertEqual(c.post(pricing,headers=admin,json={"markupPercent":"37.5"}).json()["rubPerCoin"],"1.375")
+            self.assertEqual(wallet()["salePrice"]["markupPercent"],"37.5")
             for _ in range(2):
                 self.assertEqual(c.post(path,headers=admin,json=grant).status_code, 200)
             self.assertEqual(wallet()["available"],"3")
@@ -44,16 +50,18 @@ class CoinWallet(unittest.TestCase):
                 while not self.journal.exists():
                     self.assertLess(time.monotonic(),deadline)
                     time.sleep(.03)
-                self.assertEqual((wallet()["available"],wallet()["reserved"]),("1","2"))
-                denied = c.post(f"/api/chats/{chat2}/turns",headers=user,json={"text":"second","requestId":"r2"})
+                held = wallet()
+                self.assertGreater(Decimal(held["reserved"]),0)
+                self.assertEqual(Decimal(held["available"])+Decimal(held["reserved"]),3)
+                denied = c.post(f"/api/chats/{chat2}/turns",headers=user,json={"text":"second","requestId":"r2","maxCoins":"0.0000001"})
                 self.assertEqual(denied.status_code,402)
                 self.assertEqual(active.result(timeout=20).status_code,200)
             self.assertEqual(c.post(base,headers=user,json=body).status_code,200)
             got = wallet()
-            # Provider usage: 10 input at $0.30/M and 5 output at $1.20/M, 20% markup, 1 coin/USD.
-            self.assertEqual((got["available"],got["reserved"]),("2.9999892","0"))
+            # USD 0.000009 at 80 RUB/USD. The purchase markup does not affect usage.
+            self.assertEqual((got["available"],got["reserved"]),("2.99928","0"))
             self.assertEqual(len(got["charges"]),1)
-            self.assertEqual(got["charges"][0]["coins"],"0.0000108")
+            self.assertEqual(got["charges"][0]["coins"],"0.00072")
             self.assertNotIn("meter", got["charges"][0])
             audit = "/api/admin/accounts/buyer/wallet"
             self.assertEqual(c.get(audit).status_code, 401)
@@ -68,7 +76,7 @@ class CoinWallet(unittest.TestCase):
             store.set_admin("owner-a", False)
             self.assertEqual(c.get(audit, headers=admin).status_code, 403)
         with self.client() as c:
-            self.assertEqual(c.get("/api/wallet",headers=user).json()["available"],"2.9999892")
+            self.assertEqual(c.get("/api/wallet",headers=user).json()["available"],"2.99928")
 
     def test_unknown_keeps_hold_until_evidence_and_small_budget_retries(self):
         with self.client() as c:
@@ -85,11 +93,11 @@ class CoinWallet(unittest.TestCase):
             attempt, = db.execute("SELECT attempt_id FROM coin_attempts WHERE charge IS NULL").fetchone()
         with self.client() as c:
             def wallet(): return c.get("/api/wallet",headers=user).json()
-            self.assertEqual(wallet()["reserved"],"2")
+            self.assertGreater(Decimal(wallet()["reserved"]),0)
             self.assertEqual(c.post(url,headers=user,json=unknown).status_code,409)
             for _ in range(2):
                 resolve(self.db, attempt, "0.00003", "provider-reference")
             self.assertEqual(wallet()["reserved"],"0")
-            self.assertEqual(wallet()["available"],"9.9999532")
+            self.assertEqual(wallet()["available"],"9.99688")
             with self.assertRaises(ValueError):
                 resolve(self.db,attempt,"0","different")
