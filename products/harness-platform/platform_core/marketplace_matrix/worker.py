@@ -17,7 +17,19 @@ from .authority import ChatAuthority
 from . import store_currency
 
 BUNDLE = Path(__file__).with_name("runtime.tar.gz")
-BUNDLE_SHA256 = "9dad3e8da4987642c1fcc5ef0a7f8ee868d237f09df2ef8618120b5393172104"
+BUNDLE_SHA256 = "9553b0354cff585a4e2aa6db90c1c927708284c6849553e18a1f429422fac377"
+
+
+def log_failure(operation, code, retry_at=None):
+    """Keep diagnostic codes in the service journal without seller data."""
+    try:
+        import syslog
+        message = {"event": "octoport.matrix.failure", "operation": operation, "code": code}
+        if retry_at is not None:
+            message["retryAt"] = retry_at
+        syslog.syslog(syslog.LOG_WARNING, json.dumps(message, allow_nan=False))
+    except (ImportError, OSError, ValueError):
+        pass
 
 
 def unpack(directory):
@@ -106,6 +118,7 @@ def execute(packet, directory):
     try:
         store_currency.resolve(authority, calls, allowed, fields)
     except store_currency.ProfileError as error:
+        log_failure("store_currency", error.result["code"], error.result.get("retryAt"))
         return error.result
     engine.chat_template_selection = {
         "action": "plan", "complete": True, "missing": [], "invocations": calls,
@@ -128,6 +141,7 @@ def execute(packet, directory):
             try:
                 answer = super().execute(request, store, on_dispatch=guard_dispatch)
             except CallError as error:
+                log_failure(request.operation, error.code, error.retry_at)
                 if error.status == 429:
                     rate_limits.append(request.operation)
                 raise
@@ -232,6 +246,9 @@ def main():
             from failure_explanations import explain
             result = {"ok": False, "code": error.code, "reason": explain(error.code)["text"]}
     if "profiles" not in packet:
+        if not result.get("ok"):
+            log_failure(",".join(sorted({item["templateId"] for item in packet["selections"]})),
+                        result.get("code"), result.get("retryAt"))
         public = seller_result(result)
         result = {"public": public, "diagnostics": {k: result[k] for k in ("code", "trace") if k in result}}
     print(json.dumps(result, ensure_ascii=False, allow_nan=False))

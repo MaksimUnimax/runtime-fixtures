@@ -45,6 +45,20 @@ def group_table_requests(files):
         b"        key=fingerprint({'bucket':bucket,'store':store.id,'input':inputs,'specific':specific})")
 
 
+def bind_provider_retry(files):
+    source = files["http_transport.py"].decode()
+    start = "            retry=exc.headers.get('Retry-After');retry_at=None"
+    end = "            if is_read and meta.get('completion',{}).get('mode')=='opaque-file'"
+    if source.count(start) != 1 or source.count(end) != 1:
+        raise ValueError("Review marketplace retry headers before updating the runtime")
+    left, rest = source.split(start)
+    _, right = rest.split(end)
+    files["http_transport.py"] = (left +
+        "            from platform_core.marketplace_matrix.store_currency import retry_time\n"
+        "            retry_at=retry_time(exc.headers,time.time(),store is not None and store['platform']=='wb')\n"
+        + end + right).encode()
+
+
 def bind_table_contracts(portable, planner_proofs, files):
     sources = json.loads(files["source_matrix.json"])
     table_hash = digest({"table": json.loads(files["table_catalog.json"]), "source_matrix": sources})
@@ -130,6 +144,7 @@ def collect(core, renderer, config):
     bind_table_contracts(portable, config.get("table_capabilities", {}), files)
     bind_dataset_contracts(portable, config.get("dataset_capabilities", {}), files)
     group_table_requests(files)
+    bind_provider_retry(files)
     files["source_qualifications.json"] = json.dumps(portable, sort_keys=True).encode()
     # Both discovery and selection compilation call the same catalogue hook.
     target = b"def _availability(engine,t,store):\n"

@@ -99,6 +99,13 @@ class MarketplaceMatrix(unittest.TestCase):
         self.assertGreater(result["retryAt"], time.time() + 275)
         self.assertEqual(send.call_count, 1)
 
+    def test_provider_retry_headers_preserve_the_longer_wb_limit(self):
+        from platform_core.marketplace_matrix.store_currency import retry_time
+        headers = {"Retry-After": "Thu, 01 Jan 1970 00:02:00 GMT", "X-Ratelimit-Retry": "61"}
+        self.assertEqual(retry_time(headers, 100, True), 161)
+        self.assertEqual(retry_time(headers, 100, False), 120)
+        self.assertIsNone(retry_time({"X-Ratelimit-Retry": "invalid"}, 100, True))
+
     def test_dataset_catalogue_uses_query_revision_and_attached_credentials(self):
         ozon = self.ids["ozon"]
         wb = self.ids["wb"]
