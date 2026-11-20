@@ -1,5 +1,7 @@
 import json
 import os
+import selectors
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
@@ -89,9 +91,29 @@ class ServicePlugins(unittest.TestCase):
             self.assertEqual(result["modelUsage"],{"tokens":{"input":4,"cache":2,"output":2},"rub":"0.0008","coins":"0.0008","pending":False})
             self.assertEqual(client.post(route,headers=self.headers,json=data).json(),result)
             self.assertEqual(len(seen),1)
-        with patch.dict(os.environ,{"HARNESS_OPENROUTER_ENABLED":"0"}), self.client() as client:
+        gateway=subprocess.Popen(["node",str(Path(__file__).parent/"metered-chat-gateway.mjs"),str(self.db),
+                str(self.root/"direct.jsonl")],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True)
+        def close_gateway():
+            gateway.stdin.close()
+            try:
+                gateway.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                gateway.kill()
+                gateway.wait()
+            gateway.stdout.close()
+        self.addCleanup(close_gateway)
+        with selectors.DefaultSelector() as ready:
+            ready.register(gateway.stdout,selectors.EVENT_READ)
+            self.assertTrue(ready.select(8))
+        direct=gateway.stdout.readline().strip()
+        self.assertTrue(direct.startswith("http://127.0.0.1:"))
+        with patch.dict(os.environ,{"HARNESS_OPENROUTER_ENABLED":"0","HARNESS_MODEL_GATEWAY_URL":direct}), self.client() as client:
             self.assertIsNone(client.app.state.worker.router)
             self.assertFalse(client.get(settings,headers=self.headers).json()["enabled"])
             self.assertEqual(client.get("/api/chats/"+self.chat+"/messages",headers=self.headers).json()[-1]["modelUsage"],result["modelUsage"])
             self.assertEqual(client.get("/api/wallet",headers=self.headers).json()["available"],"49.9992")
-
+            direct_reply=client.post(route,headers=self.headers,json={"requestId":"direct-after-disable","text":"direct again"})
+            self.assertEqual(direct_reply.status_code,200,direct_reply.text)
+            self.assertEqual(direct_reply.json()["text"],"answer to direct again")
+            self.assertEqual(direct_reply.json()["modelUsage"]["coins"],"0.00072")
+            self.assertEqual(len(seen),1)
