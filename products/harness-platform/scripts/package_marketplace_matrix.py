@@ -2,6 +2,7 @@
 import argparse
 import ast
 import gzip
+import hashlib
 import io
 import json
 import tarfile
@@ -27,6 +28,34 @@ def bind_report_currency(files):
         if note not in catalog["templates"][name]["notes"]:
             catalog["templates"][name]["notes"].append(note)
     files["template_catalog.json"] = json.dumps(catalog, ensure_ascii=False, indent=2).encode() + b"\n"
+
+
+def bind_dataset_contracts(portable, planner_proofs, files):
+    """Bind an observed query revision only to its independently qualified portable decoder."""
+    sources = json.loads(files["dataset_sources.json"])
+    queries = json.loads(files["dataset_queries.json"])
+    def digest(value):
+        data = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        return hashlib.sha256(data.encode()).hexdigest()
+    source_hash = digest(sources)
+    query_hash = digest({"queries": queries, "sources": sources})
+    for operation, spec in sources["sources"].items():
+        decoder = portable.get(operation, {})
+        if spec.get("options", {}).get("qualification_scope") or decoder.get("status") != "READ_ONLY_CANARY":
+            continue
+        required = {**spec["proof_requirements"], "dataset_source_hash": source_hash,
+                    "status": "READ_ONLY_CANARY"}
+        if not decoder.get("registry_hash") or not all(decoder.get(k) == v for k, v in required.items()):
+            continue
+        for group in planner_proofs.values():
+            observed = group.get(operation, {})
+            if observed.get("registry_hash", decoder["registry_hash"]) != decoder["registry_hash"]:
+                continue
+            if {"scope", "contract_scopes"} & observed.keys():
+                continue
+            if observed.get("dataset_query_hash") == query_hash and all(observed.get(k) == v for k, v in required.items()):
+                decoder["dataset_query_hash"] = query_hash
+                break
 
 
 def collect(core, renderer, config):
@@ -63,6 +92,7 @@ def collect(core, renderer, config):
             continue
         portable[operation] = {k: v for k, v in proof.items() if k != "evidence_ref"}
         portable[operation]["evidence_ref"] = "reviewed-source/" + operation
+    bind_dataset_contracts(portable, config.get("dataset_capabilities", {}), files)
     files["source_qualifications.json"] = json.dumps(portable, sort_keys=True).encode()
     # Both discovery and selection compilation call the same catalogue hook.
     target = b"def _availability(engine,t,store):\n"

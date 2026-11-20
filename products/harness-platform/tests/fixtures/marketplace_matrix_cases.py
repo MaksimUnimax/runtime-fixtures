@@ -99,6 +99,17 @@ class MarketplaceMatrix(unittest.TestCase):
         self.assertGreater(result["retryAt"], time.time() + 275)
         self.assertEqual(send.call_count, 1)
 
+    def test_dataset_catalogue_uses_query_revision_and_attached_credentials(self):
+        ozon = self.ids["ozon"]
+        wb = self.ids["wb"]
+        rows = worker.catalogue([(ozon, "ozon", ["seller_client_id", "seller_api_key"]),
+                                 (wb, "wb", ["seller_token"])])
+        available = {r["id"]: set(r["available_stores"]) for r in rows}
+        self.assertEqual(available["product_registry"], {ozon, wb})
+        self.assertEqual(available["accrual_items_days"], {ozon})
+        self.assertNotIn("product_registry", {r["id"] for r in worker.catalogue(
+            [(ozon, "ozon", ["performance_client_id", "performance_client_secret"])])})
+
     def test_performance_key_does_not_advertise_seller_report(self):
         token = self.identity.login("matrix-seller", "fixture-password")
         cid = IntegrationStore(self.identity).save(token, "ozon", "Реклама",

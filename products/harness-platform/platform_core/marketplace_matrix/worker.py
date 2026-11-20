@@ -17,7 +17,7 @@ from .authority import ChatAuthority
 from . import store_currency
 
 BUNDLE = Path(__file__).with_name("runtime.tar.gz")
-BUNDLE_SHA256 = "8de2a808913ea126cf994dfe8838b659c6f0021b7a2bc9396642a30535ef0c88"
+BUNDLE_SHA256 = "b4813acd40fe36beefca2801d3425c8696a35fd2b18a41569910e7a38f68a7ac"
 
 
 def unpack(directory):
@@ -29,6 +29,7 @@ def unpack(directory):
 
 
 def configure_catalogue(engine, fields):
+    from dataset_pipeline import SOURCES as DATASET_SOURCES, CATALOG as DATASET_CATALOG, operations as dataset_operations
     from http_transport import MATRICES, SCALARS, SCALAR_SOURCES
     from platform_store_credentials import required_fields
     from template_catalog import TEMPLATES, dependencies
@@ -38,7 +39,15 @@ def configure_catalogue(engine, fields):
 
     def supported(template, store):
         for dependency in dependencies(template["id"]):
-            for step in TEMPLATES[dependency]["steps"]:
+            entry = TEMPLATES[dependency]
+            if query := entry.get("dataset_query"):
+                flows = DATASET_CATALOG["queries"][query]["flows"]
+                if store.platform not in flows:
+                    return False
+                for operation in dataset_operations(query, store.platform):
+                    if not required_fields(DATASET_SOURCES.recipe(operation)).issubset(fields[store.id]):
+                        return False
+            for step in entry["steps"]:
                 op = step.get("operation")
                 if step.get("platform") != store.platform or op not in MATRICES:
                     continue
