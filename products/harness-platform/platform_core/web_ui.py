@@ -39,15 +39,17 @@ async def page(request, *, panel="", error="", status=200):
     cookie = guest_cookie(request)
     guest = request.cookies.get(cookie)
     try:
-        own_chat = await run_in_threadpool(identity.guest_chat, guest)
+        own_chat, has_turns = await run_in_threadpool(identity.guest_chat_summary, guest)
     except AuthenticationError:
         if chat:
             return shell(guest=True, panel="login", error="Чат недоступен", status=404)
         guest, own_chat = await run_in_threadpool(identity.start_guest)
+        has_turns = False
     if chat and chat != own_chat:
-        return shell(guest=True, panel="notice", chat=own_chat, error="Чат недоступен", status=404)
+        return shell(guest=True, panel="notice", chat=own_chat, account={"hasTurns": has_turns}, error="Чат недоступен", status=404)
     recovery = await run_in_threadpool(identity.guest_recovery, guest) if panel == "register" else ""
-    response = shell(guest=True, chat=own_chat, panel=panel, recovery=recovery, error=error, status=status)
+    response = shell(guest=True, chat=own_chat, panel=panel, recovery=recovery, error=error, status=status,
+                     account={"hasTurns": has_turns})
     response.set_cookie(cookie, guest, path="/", max_age=GUEST_LIFETIME, secure=_secure(request),
                         httponly=True, samesite="strict")
     return response

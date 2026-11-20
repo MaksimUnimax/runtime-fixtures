@@ -176,6 +176,7 @@ class BrowserIsolation(ProductBrowser):
             scripts.set()
             await asyncio.wait_for(history_requested.wait(), 15)
             await expect(page.get_by_role("button", name="Баланс", exact=True)).to_be_visible()
+            await expect(page.get_by_role("button", name="Обновить страницу")).to_have_count(0)
             self.assertNotIn("/api/wallet", requests)
             self.assertNotIn("/api/chats", requests)
         finally:
@@ -195,7 +196,8 @@ class BrowserIsolation(ProductBrowser):
         await page.reload()
         await expect(page.get_by_role("status")).to_have_text("Не удалось открыть чат.")
         await page.unroute(pattern)
-        await page.get_by_role("button", name="Обновить страницу").click()
+        await expect(page.get_by_role("button", name="Обновить страницу")).to_have_count(0)
+        await page.reload()
         await expect(page.locator('[data-composer-input]')).to_be_visible()
         self.assertEqual(urlsplit(page.url).path, urlsplit(direct_link).path)
 

@@ -88,6 +88,13 @@ class RegistrationStore(IdentityStore):
         with self._lock:
             return self._active(self._db, token)
 
+    def guest_chat_summary(self, token):
+        with self._lock:
+            chat = self._active(self._db, token)
+            has_turns = self._db.execute("SELECT EXISTS(SELECT 1 FROM guest_turns WHERE chat_id=?)",
+                                         (chat,)).fetchone()[0]
+            return chat, bool(has_turns)
+
     def guest_recovery(self, token):
         with self._lock:
             row = self._db.execute("""SELECT signup_nonce FROM guest_chats

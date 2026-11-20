@@ -12,7 +12,7 @@ try {
   window.__DSH_LOCALE__ = {read:async () => ({languages:['ru'], preference:'ru'}), onChange() {}};
   window.__DSH_SHORTCUTS_CONFIG__ = {stopSequenceMs:500};
   (window.__DSH_BOOT_READY__ ??= Promise.withResolvers()).resolve();
-  await import('/ui-assets/harness/dsh-web-frontend/dist/assets/index-BgUyXZcc.js');
+  await import(document.querySelector('[data-chat-entry]').href);
   document.getElementById('chat-opening')?.remove();
 } catch (error) {
   const status = document.querySelector('#chat-opening [role="status"]');

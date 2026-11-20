@@ -69,7 +69,10 @@ export async function createTransport(data) {
   const running = new Set();
   const pending = new Map();
   const live = new LiveTurns();
+  // The native sidebar filters blank sessions. Keep other saved chats reachable,
+  // including empty drafts. Only the selected chat needs an empty-state decision.
   const nonempty = new Set(ids);
+  if (guest ? !initial?.hasTurns : activity[selected] == null) nonempty.delete(selected);
   const activityEvents = new EventTarget();
   const titles = new Map(), updated = new Map(Object.entries(activity));
   const account = {guest, selected, panel:data.panel, error:data.error, recovery:data.recovery,
@@ -159,7 +162,6 @@ export async function createTransport(data) {
       let value;
       switch(endpoint) {
         case 'session/list':
-          await opening;
           value={items:ids.map(summary)};
           break;
         case 'settings/describe': {
