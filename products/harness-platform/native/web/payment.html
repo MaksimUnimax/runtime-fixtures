@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark"><title>Пополнение баланса · Октопорт</title>
+<link rel="icon" href="/favicon.ico"><link rel="stylesheet" href="/about/styles.css"></head>
+<body class="octo-info"><main class="payment-page">
+  <a class="brand" href="/" aria-label="Октопорт — открыть чат"><img src="/ui-assets/project/octoport-mark.png" alt="" width="24" height="24"><img class="octo-wordmark" src="/ui-assets/project/octoport-wordmark.svg" alt="octoport"></a>
+  <h1>Пополнение баланса</h1>
+  <p>Монеты оплачивают запросы к ИИ в личном чате. Одна монета покрывает один рубль расходов.</p>
+  <div class="payment-card"><p>Цена покупки одной монеты <strong>$price ₽</strong></p>
+    <form action="/payment" method="get"><label for="coins">Количество монет</label>
+    <div class="payment-fields"><input name="coins" id="coins" type="number" inputmode="numeric" required min="1" max="$maximum" step="1" value="$coins"><button type="submit">Рассчитать</button></div></form>
+    $error<p class="payment-total">Стоимость пополнения <strong>$total</strong></p>
+  </div>
+  <p>Приём платежей через ЮKassa готовится к запуску. Сейчас доступен расчёт стоимости.</p>
+  <p>После запуска оплаты монеты будут зачисляться на баланс вашего аккаунта после подтверждения платежа. Проверить зачисление можно в разделе «Баланс».</p>
+  <div class="actions"><a href="/about/#seller">Реквизиты продавца</a><a href="/about/support">Поддержка</a><a href="/">В чат</a></div>
+</main></body></html>

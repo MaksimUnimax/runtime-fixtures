@@ -71,3 +71,20 @@ footer a { min-height:30px; padding:3px 10px; font-size:13px; }
   .mobile-nav a { min-height:32px; padding:5px 9px; font-size:13px; }
 }
 @media(max-width:540px) { .capability-grid { grid-template-columns:1fr; } }
+
+footer .seller { width:100%; padding-bottom:12px; }
+footer .seller h2 { color:var(--octo-ink); font-size:17px; margin:0 0 8px; }
+footer .seller p,footer .seller dl { margin:4px 0; }
+footer .seller dl { display:flex; flex-wrap:wrap; gap:2px 18px; }
+footer .seller dl div { display:flex; gap:6px; }
+footer .seller dd { margin:0; color:inherit; }
+main.payment-page { max-width:680px; margin:auto; padding:clamp(20px,5vw,55px) 20px; }
+.payment-page h1 { margin:32px 0 12px; }
+.payment-card { margin:20px 0; padding:20px; border:1px solid var(--octo-line); border-radius:12px; background:var(--octo-panel); }
+.payment-card p { display:flex; flex-wrap:wrap; justify-content:space-between; gap:6px 16px; margin:0; }
+.payment-card form { margin:18px 0; }
+.payment-fields { display:flex; flex-wrap:wrap; gap:8px; margin-top:5px; }
+.payment-fields input,.payment-fields button { padding:8px 12px; font:inherit; border:1px solid var(--octo-line); border-radius:var(--octo-radius); }
+.payment-fields input { width:9rem; background:var(--octo-field); color:var(--octo-ink); }
+.payment-fields button { cursor:pointer; background:var(--octo-action); color:var(--octo-on-action); }
+.payment-total { border-top:1px solid var(--octo-line); padding-top:14px; }

@@ -145,6 +145,11 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         result["modelChoice"] = req.app.state.model_router is not None and req.app.state.model_router.available()
         return JSONResponse(result)
 
+    async def wallet_balance(req):
+        token = _token(req, allow_cookie=True)
+        balance = await run_in_threadpool(req.app.state.identity.wallet, token, balance_only=True)
+        return JSONResponse(balance)
+
     async def pricing(req):
         token = _token(req, allow_cookie=True)
         update = req.method == "POST"
@@ -280,6 +285,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         *chat_defaults.routes(_token, _body),
         *(router_plugin.routes(_token, _body) if router_plugin else [Route("/api/model-settings",disabled_models,methods=["GET","POST"])]),
         Route("/api/wallet", wallet),
+        Route("/api/wallet/balance", wallet_balance),
         Route("/api/admin/accounts/{login}/wallet", wallet),
         Route("/api/admin/coin-pricing", pricing, methods=["GET", "POST"]),
         Route("/api/admin/coin-grants", credit, methods=["POST"]),

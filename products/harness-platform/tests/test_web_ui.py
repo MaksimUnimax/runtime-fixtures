@@ -43,6 +43,31 @@ class WebUiTests(unittest.TestCase):
                 browser.post("/logout", headers={"Origin": origin})
                 self.assertEqual(browser.get(f"/app/chats/{chat}").status_code, 404)
 
+    def test_payment_quote_tracks_configured_price_and_keeps_wallet_private(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db = Path(directory) / "platform.sqlite3"
+            with IdentityStore(db) as store:
+                store.create_account("owner", "test owner password")
+                store.set_admin("owner", True)
+                token = store.login("owner", "test owner password")
+                store.pricing(token, "12.34", update=True)
+                store.create_account("buyer", "test buyer password")
+                buyer = store.login("buyer", "test buyer password")
+            app = create_app(db, Path(directory) / "chats")
+            with TestClient(app, base_url="https://platform.test") as client:
+                self.assertEqual(client.get("/api/wallet/balance").status_code, 401)
+                quote = client.get("/payment?coins=3")
+                self.assertEqual(quote.status_code, 200)
+                self.assertIn("1,1234 ₽", quote.text)
+                self.assertIn("3,37 ₽", quote.text)
+                self.assertNotIn("741705866660", quote.text)
+                self.assertEqual(client.get("/payment?coins=-1").status_code, 400)
+                auth = {"Authorization":"Bearer " + buyer}
+                self.assertEqual(client.get("/api/wallet/balance", headers=auth).json(), {"available":"0"})
+                with IdentityStore(db) as store:
+                    store.pricing(token, "30", update=True)
+                self.assertIn("3,90 ₽", client.get("/payment?coins=3").text)
+
     def test_ui_assets_only_serve_browser_distribution(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"HARNESS_NODE_MODULES": directory}):
             dist = Path(directory) / "@deepseek-ai" / "dsh-client-ui-chat" / "lib"

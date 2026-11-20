@@ -20,6 +20,7 @@ _MAX_FAILURES = 5
 _TOKEN = re.compile(r"[A-Za-z0-9_-]{43}")
 _SCHEMA = (
     PAID_ACCESS_SCHEMA,
+    coins.PRICING_SCHEMA,
     """CREATE TABLE IF NOT EXISTS identity_accounts (
            actor_id TEXT PRIMARY KEY NOT NULL,
            login TEXT UNIQUE NOT NULL,
@@ -226,7 +227,11 @@ class IdentityStore(Store):
             ensure_operation_schema(db)
             coins.grant(db, issuer, key, row[0], amount, reason)
 
-    def wallet(self, token, *, account_login=None):
+    def public_coin_price(self):
+        with self._lock:
+            return coins.sale_pricing(self._db)["rubPerCoin"]
+
+    def wallet(self, token, *, account_login=None, balance_only=False):
         with self._write() as db:
             actor, workspace = _principal(db, token)
             admin = bool(db.execute("SELECT 1 FROM identity_admins WHERE actor_id=?", (actor,)).fetchone())
@@ -241,6 +246,8 @@ class IdentityStore(Store):
             ensure_operation_schema(db)
             coins.close_orders(db, workspace)
             available, held = coins.balances(db, workspace)
+            if balance_only:
+                return {"available": coins.display(available)}
             rows = db.execute("""SELECT u.run_key,u.chat_id,o.spent,o.closed,o.operation_id,o.markup,o.coins_per_usd,r.fx_e4
                 FROM coin_order_totals o JOIN usage_operations u USING(operation_id) LEFT JOIN coin_ruble_orders r USING(operation_id) WHERE o.workspace_id=?
                 ORDER BY o.created DESC,o.operation_id DESC LIMIT 50""", (workspace,))

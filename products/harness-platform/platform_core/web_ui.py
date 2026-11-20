@@ -2,13 +2,16 @@
 
 import os
 import re
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
+from string import Template
 
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
-from starlette.responses import FileResponse, Response
+from starlette.responses import FileResponse, HTMLResponse, Response
 from starlette.routing import Route
 
+from . import coins
 from .browser_session import _secure, browser_token, guest_cookie
 from .identity import AuthenticationError, ChatUnavailable
 from .native_web import shell, module_file, HEADERS, UI, static_bytes, asset_response, client_source
@@ -23,19 +26,20 @@ _PROJECT_UI = _PRODUCT / "native" / "web"
 async def page(request, *, panel="", error="", status=200):
     identity = request.app.state.identity
     chat = request.path_params.get("chat_id", "")
-    try:
-        token = browser_token(request) if request.method in {"GET", "HEAD"} else None
-        activity = await run_in_threadpool(identity.chat_activity, token, request.app.state.worker.journal)
-        router = request.app.state.model_router
-        account = {"chats": list(activity), "activity": activity, "canGrant": await run_in_threadpool(identity.is_admin, token),
-                   "modelChoice": router is not None and router.available()}
-        if chat:
-            await run_in_threadpool(identity.resolve_chat, token, chat)
-        return shell(chat=chat, account=account, status=status)
-    except ChatUnavailable:
-        return shell(panel="notice", error="Чат недоступен", account=account, status=404)
-    except AuthenticationError:
-        pass
+    if request.method in {"GET", "HEAD"}:
+        try:
+            token = browser_token(request)
+            activity = await run_in_threadpool(identity.chat_activity, token, request.app.state.worker.journal)
+            router = request.app.state.model_router
+            account = {"chats": list(activity), "activity": activity, "canGrant": await run_in_threadpool(identity.is_admin, token),
+                       "modelChoice": router is not None and router.available()}
+            if chat:
+                await run_in_threadpool(identity.resolve_chat, token, chat)
+            return shell(chat=chat, account=account, status=status)
+        except ChatUnavailable:
+            return shell(panel="notice", error="Чат недоступен", account=account, status=404)
+        except AuthenticationError:
+            pass
     cookie = guest_cookie(request)
     guest = request.cookies.get(cookie)
     try:
@@ -53,6 +57,24 @@ async def page(request, *, panel="", error="", status=200):
     response.set_cookie(cookie, guest, path="/", max_age=GUEST_LIFETIME, secure=_secure(request),
                         httponly=True, samesite="strict")
     return response
+
+async def payment(request):
+    rate = Decimal(await run_in_threadpool(request.app.state.identity.public_coin_price))
+    quantity = request.query_params.get("coins", "100")
+    limit = coins.MAX_BALANCE // coins.UNIT
+    valid = bool(re.fullmatch(r"[1-9][0-9]{0,6}", quantity)) and int(quantity) <= limit
+    if valid:
+        total = (rate * int(quantity)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        result = f"{total:,.2f} ₽".replace(",", " ").replace(".", ",")
+        error = ""
+    else:
+        quantity, result = "", "—"
+        error = f'<p role="alert">Введите целое число монет от 1 до {limit:,}.</p>'.replace(",", " ")
+    template = Template((UI / "payment.html").read_text())
+    return HTMLResponse(template.substitute(price=format(rate, "f").replace(".", ","), coins=quantity,
+                                           maximum=limit, total=result, error=error),
+                        status_code=200 if valid else 400, headers=HEADERS)
+
 
 async def admin(request):
     token = browser_token(request)
@@ -124,7 +146,7 @@ def web_routes():
     return [
         Route("/favicon.ico", icon),
         Route("/plugins/@deepseek-ai/dsh-client-ui-chat/assets/running-whale@2x-06738fa29b2f.png", icon),
-        Route("/", page), Route("/admin", admin), Route("/ui-assets/modules/{name}.js", module_file), Route("/app/", page), Route("/app/chats/{chat_id}", page),
+        Route("/", page), Route("/payment", payment), Route("/admin", admin), Route("/ui-assets/modules/{name}.js", module_file), Route("/app/", page), Route("/app/chats/{chat_id}", page),
         Route("/ui-assets/project/{name}", project_asset),
         Route("/ui-assets/harness/{package}/{asset:path}", harness_asset),
     ]

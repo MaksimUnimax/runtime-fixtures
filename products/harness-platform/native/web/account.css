@@ -114,3 +114,7 @@ html body[data-mode][data-ds-dark-theme] {
 .thinking-dots span:nth-child(3) {animation-delay:.32s}
 @keyframes octo-think {0%,65%,100% {opacity:.45;transform:translateY(0)} 30% {opacity:1;transform:translateY(-.16em)}}
 @media(prefers-reduced-motion:reduce) {.thinking-dots span {animation:none}}
+
+.account-actions .balance-action {display:flex;align-items:center;justify-content:space-between;gap:6px}
+.sidebar-coins {font-variant-numeric:tabular-nums;overflow-wrap:anywhere;text-align:end;font-size:12px}
+.guest-coins {padding:0 8px;color:var(--dsw-alias-label-secondary);font-size:12px}

@@ -21,10 +21,45 @@ window.__ModuleLoader__.load({
       ]) {
         ctx.slots.inject(name, () => ctx.slots.register({name}, component));
       }
+      function useAvailableCoins() {
+        const [available,setAvailable]=React.useState(null);
+        React.useEffect(()=>{
+          if (a.guest) return;
+          let current;
+          const refresh=()=>{
+            current?.abort();
+            const controller=new AbortController();
+            current=controller;
+            a.api('/api/wallet/balance',{signal:controller.signal})
+              .then(data=>{if(!controller.signal.aborted)setAvailable(data.available);})
+              .catch(()=>{if(!controller.signal.aborted)setAvailable(null);});
+          };
+          const visible=()=>{if(!document.hidden)refresh();};
+          const update=event=>{current?.abort();setAvailable(event.detail);};
+          a.balanceEvents.addEventListener('refresh',refresh);
+          a.balanceEvents.addEventListener('balance',update);
+          document.addEventListener('visibilitychange',visible);
+          refresh();
+          return ()=>{
+            current?.abort();
+            a.balanceEvents.removeEventListener('refresh',refresh);
+            a.balanceEvents.removeEventListener('balance',update);
+            document.removeEventListener('visibilitychange',visible);
+          };
+        },[]);
+        return available;
+      }
       function Footer({wide}) {
+        const available=useAvailableCoins();
+        const count=available==null?'—':available.replace('.',',');
         const title=a.guest?'Войти':'Баланс';
         return h('div',{className:'account-actions'},
-          h('button',{type:'button',title,onClick:()=>select(a.guest?'login':'wallet')},wide?title:(a.guest?'↪':'◉')),
+          wide && a.guest && h('small',{className:'guest-coins'},'Монеты · доступны после входа'),
+          h('button',{type:'button',className:'balance-action','aria-label':title,
+            title:a.guest?title:(available==null?'Открыть баланс':'Доступно монет: '+count),
+            onClick:()=>select(a.guest?'login':'wallet')},
+            wide ? title : (a.guest?'↪':'◉'),
+            wide && !a.guest && h('span',{className:'sidebar-coins'},count,' монет')),
           wide && a.guest && h('a',{href:'/register'},'Создать аккаунт'),
           !a.guest && h('button',{type:'button',title:'Интеграции','aria-label':'Интеграции',onClick:()=>{
             const settings=ctx.slots.entries('sidebar.settings')[0];
@@ -42,7 +77,11 @@ window.__ModuleLoader__.load({
         const [error,setError]=React.useState('');
         React.useEffect(()=>{
           const controller=new AbortController();
-          a.api('/api/wallet',{signal:controller.signal}).then(setWallet)
+          a.api('/api/wallet',{signal:controller.signal}).then(next=>{
+            if(controller.signal.aborted)return;
+            setWallet(next);
+            a.balanceEvents.dispatchEvent(new CustomEvent('balance',{detail:next.available}));
+          })
             .catch(()=>{if(!controller.signal.aborted)setError('Не удалось обновить баланс');});
           return ()=>controller.abort();
         },[]);
@@ -51,6 +90,7 @@ window.__ModuleLoader__.load({
           h('p',{className:'wallet-amount'},h('span',null,'Доступно · '),wallet.available,h('small',null,' монет')),
           h('p',{className:'wallet-price'},'1 монета покрывает 1 ₽ расходов.'),
           h('p',{className:'wallet-price'},'Цена покупки · '+Number(wallet.salePrice.rubPerCoin).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:4})+' ₽ за монету'),
+          h('a',{className:'account-primary',href:'/payment'},'Пополнить баланс'),
           wallet.reserved!=='0' && h('p',null,'Ожидает расчёта · '+wallet.reserved),
           error && h('p',{role:'alert'},error),
           wallet.charges.length>0 && h('ul',{className:'wallet-history'},wallet.charges.map(c=>h('li',{key:c.operationId||c.requestId},(c.pending?'На сверке · ':'Списано · ')+c.coins))));
