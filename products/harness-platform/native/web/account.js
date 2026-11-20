@@ -32,20 +32,21 @@ window.__ModuleLoader__.load({
           }},wide?'Интеграции':'⇄'),
           wide && h('a',{href:'https://octoport.ru/about/'},'О сервисе'),
           wide && !a.guest && h('form',{action:'/logout',method:'post'},h('button',null,'Выйти')),
-          a.wallet?.canGrant && h('a',{href:'/admin',title:'Администрирование','aria-label':'Администрирование'},wide?'Администрирование':'⚙'));
+          a.canGrant && h('a',{href:'/admin',title:'Администрирование','aria-label':'Администрирование'},wide?'Администрирование':'⚙'));
       }
       function Field(name,title,props={}) {
         return h('label',{key:name},title,h('input',{name,required:true,...props}));
       }
       function Wallet() {
-        const [wallet,setWallet]=React.useState(a.wallet);
+        const [wallet,setWallet]=React.useState(null);
         const [error,setError]=React.useState('');
         React.useEffect(()=>{
           const controller=new AbortController();
-          a.api('/api/wallet',{signal:controller.signal}).then(next=>{a.wallet=next;setWallet(next);})
+          a.api('/api/wallet',{signal:controller.signal}).then(setWallet)
             .catch(()=>{if(!controller.signal.aborted)setError('Не удалось обновить баланс');});
           return ()=>controller.abort();
         },[]);
+        if (!wallet) return h('p',{role:error?'alert':'status'},error || 'Загружаем баланс…');
         return h(React.Fragment,null,
           h('p',{className:'wallet-amount'},h('span',null,'Доступно · '),wallet.available,h('small',null,' монет')),
           h('p',{className:'wallet-price'},'1 монета покрывает 1 ₽ расходов.'),
@@ -95,7 +96,7 @@ window.__ModuleLoader__.load({
         return h('small',{className:'model-cost'},amount ?
           'Оценка стоимости · '+amount.replace('.',',')+(cost.rub?' ₽':' USD') : 'Оценка стоимости пока недоступна');
       }
-      if(a.wallet?.canGrant)ctx.slots.inject('conversation.chat.turnTail',()=>ctx.slots.register({
+      if(a.canGrant)ctx.slots.inject('conversation.chat.turnTail',()=>ctx.slots.register({
         name:'conversation.chat.turnTail',id:'harness-cost',inject:sessionId=>({sessionId})
       },Cost));
       const sessions=ctx.sessions.list;

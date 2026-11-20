@@ -127,6 +127,75 @@ class ProductBrowser(unittest.IsolatedAsyncioTestCase):
 
 
 class BrowserIsolation(ProductBrowser):
+    async def test_direct_link_displays_while_resources_and_history_are_pending(self):
+        page = await self.open_chat("first-browser")
+        marker = "Проверка открытия переписки"
+        history = page.locator('[data-slot="conversation.view"]')
+        await self.send_turn(page, marker)
+        await expect(history).to_contain_text(f"Тестовая модель (ход 1): {marker}", timeout=45_000)
+        scripts, events = asyncio.Event(), asyncio.Event()
+        started, history_requested = asyncio.Event(), asyncio.Event()
+        requests = []
+
+        async def hold_script(route):
+            started.set()
+            await scripts.wait()
+            await route.continue_()
+
+        async def hold_history(route):
+            history_requested.set()
+            await events.wait()
+            await route.continue_()
+
+        await page.route("**/ui-assets/project/transport.js", hold_script)
+        await page.route("**/events", hold_history)
+        page.on("request", lambda request: requests.append(urlsplit(request.url).path))
+        try:
+            await page.reload(wait_until="commit")
+            await asyncio.wait_for(started.wait(), 10)
+            await expect(page.get_by_text("Открываем чат…", exact=True)).to_be_visible()
+            scripts.set()
+            await asyncio.wait_for(history_requested.wait(), 15)
+            await expect(page.get_by_role("button", name="Баланс", exact=True)).to_be_visible()
+            self.assertNotIn("/api/wallet", requests)
+            self.assertNotIn("/api/chats", requests)
+        finally:
+            scripts.set()
+            events.set()
+        await expect(history).to_contain_text(marker)
+        await expect(page.locator("#chat-opening")).to_have_count(0)
+        await page.get_by_role("button", name="Баланс", exact=True).click()
+        await expect(page.locator(".wallet-amount")).to_be_visible()
+        self.assertIn("/api/wallet", requests)
+
+    async def test_failed_chat_module_can_retry_the_same_direct_link(self):
+        page = await self.open_chat("first-browser")
+        direct_link = page.url
+        pattern = "**/ui-assets/project/private-input.js"
+        await page.route(pattern, lambda route: route.abort())
+        await page.reload()
+        await expect(page.get_by_role("status")).to_have_text("Не удалось открыть чат.")
+        await page.unroute(pattern)
+        await page.get_by_role("button", name="Обновить страницу").click()
+        await expect(page.locator('[data-composer-input]')).to_be_visible()
+        self.assertEqual(urlsplit(page.url).path, urlsplit(direct_link).path)
+
+    async def test_failed_history_can_retry_without_creating_a_chat(self):
+        page = await self.open_chat("first-browser")
+        marker = "Переписка после временной ошибки"
+        await self.send_turn(page, marker)
+        history = page.locator('[data-slot="conversation.view"]')
+        await expect(history).to_contain_text(f"Тестовая модель (ход 1): {marker}", timeout=45_000)
+        direct_link = page.url
+        await page.route("**/events", lambda route: route.fulfill(status=503, body="{}"))
+        await page.reload()
+        await expect(page.get_by_text("Не удалось загрузить историю чата.", exact=True)).to_be_visible()
+        await page.unroute("**/events")
+        await page.get_by_role("button", name="Повторить загрузку").click()
+        await expect(history).to_contain_text(marker)
+        self.assertEqual(urlsplit(page.url).path, urlsplit(direct_link).path)
+        self.assertEqual(len(await (await page.request.get("/api/chats")).json()), 1)
+
     async def test_two_browser_profiles_keep_their_own_chat(self):
         first, second = await asyncio.gather(self.open_chat("first-browser"), self.open_chat("second-browser"))
         first_url, second_url = first.url, second.url

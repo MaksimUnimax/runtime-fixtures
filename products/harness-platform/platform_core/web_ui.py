@@ -25,14 +25,17 @@ async def page(request, *, panel="", error="", status=200):
     chat = request.path_params.get("chat_id", "")
     try:
         token = browser_token(request) if request.method in {"GET", "HEAD"} else None
-        await run_in_threadpool(identity.validate_session, token)
+        chats = await run_in_threadpool(identity.list_chats, token)
+        router = request.app.state.model_router
+        account = {"chats": chats, "canGrant": await run_in_threadpool(identity.is_admin, token),
+                   "modelChoice": router is not None and router.available()}
         if chat:
             await run_in_threadpool(identity.resolve_chat, token, chat)
-        return shell(chat=chat, status=status)
+        return shell(chat=chat, account=account, status=status)
+    except ChatUnavailable:
+        return shell(panel="notice", error="Чат недоступен", account=account, status=404)
     except AuthenticationError:
         pass
-    except ChatUnavailable:
-        return shell(panel="notice", error="Чат недоступен", status=404)
     cookie = guest_cookie(request)
     guest = request.cookies.get(cookie)
     try:
