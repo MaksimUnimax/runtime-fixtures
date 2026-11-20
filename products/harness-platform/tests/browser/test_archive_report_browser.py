@@ -40,12 +40,9 @@ class ArchiveReportBrowser(ProductBrowser):
             store.set_enabled(scope, PLUGIN_ID, True)
 
         await asyncio.gather(first.reload(), second.reload())
-        await first.get_by_role("button", name="Функции", exact=True).click()
-        await second.get_by_role("button", name="Функции", exact=True).click()
-        await expect(first.get_by_test_id("tools")).to_contain_text("marketplace_daily_archive")
-        await expect(second.get_by_test_id("tools")).to_contain_text("Нет доступных инструментов")
-        for client in (first, second):
-            await client.get_by_role("dialog").get_by_role("button", name="Закрыть").click()
+        for client, allowed in ((first,True),(second,False)):
+            tools=await (await client.request.get("/api/chats/"+client.url.rsplit("/",1)[1]+"/tools")).json()
+            self.assertEqual("marketplace_daily_archive" in str(tools),allowed)
         await self.send_turn(first, question)
         history = first.locator('[data-slot="conversation.view"]')
         assistant = history.locator('[data-chat-flow-kind="assistant-step"]')

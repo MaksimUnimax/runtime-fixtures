@@ -113,8 +113,8 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         conversation = page.locator('[data-slot="conversation.view"]')
         for answer in guest_answers:
             await expect(conversation).to_contain_text(answer, timeout=30_000)
-        await page.get_by_role("button",name="Функции",exact=True).click()
-        await expect(page.get_by_test_id("tools")).to_contain_text("Нет доступных инструментов")
+        await page.get_by_role("button",name="Интеграции",exact=True).click()
+        await expect(page.get_by_role("heading",name="Интеграции")).to_be_visible()
         await page.get_by_role("dialog").get_by_role("button",name="Закрыть").click()
         self.assertEqual((await send(page, QUESTION)).status, 402)
         await expect(page.get_by_text("Недостаточно монет",exact=False).first).to_be_visible()

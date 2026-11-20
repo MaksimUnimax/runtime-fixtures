@@ -201,6 +201,8 @@ export function createGateway(config) {
       const isMessages = req.method === 'POST' && url.pathname === '/v1/messages';
       const isModels = req.method === 'GET' && ['/models', '/v1/models'].includes(url.pathname);
       if (!isMessages && !isModels) return json(res, 404, { error: { type: 'not_found_error', message: 'This test gateway supports text Messages and model discovery only' } });
+      const route = config.resolveUpstream ? await config.resolveUpstream() : config;
+      if (!route?.realKey || !route.upstreamBase) return json(res, 503, { error: { type: 'api_error', message: 'Provider credential unavailable' } });
       let body;
       if (isMessages) {
         const chunks = []; let length = 0;
@@ -251,8 +253,8 @@ export function createGateway(config) {
         }
         if (req.aborted || res.destroyed) { await settle('client_disconnected_before_dispatch'); return; }
       }
-      const target = new URL(isModels ? '/models' : config.upstreamBase.replace(/\/$/, '') + '/v1/messages', config.upstreamBase);
-      const headers = { 'x-api-key': config.realKey, 'authorization': 'Bearer ' + config.realKey,
+      const target = new URL(isModels ? '/models' : route.upstreamBase.replace(/\/$/, '') + '/v1/messages', route.upstreamBase);
+      const headers = { 'x-api-key': route.realKey, 'authorization': 'Bearer ' + route.realKey,
         'anthropic-version': '2023-06-01', 'content-type': 'application/json', 'accept': req.headers.accept || 'application/json' };
       if (body) headers['content-length'] = String(body.length);
       const transport = target.protocol === 'http:' ? http : https;

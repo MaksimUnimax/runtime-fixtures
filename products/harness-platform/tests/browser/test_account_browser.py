@@ -145,16 +145,13 @@ class BrowserIsolation(ProductBrowser):
             links = page.locator('[data-row-key^="session:"]')
             await expect(links).to_have_count(1)
             await expect(links).to_have_attribute("data-row-key", "session:" + own_url.rsplit("/", 1)[1])
-        await first.get_by_role("button", name="Функции", exact=True).click()
-        await second.get_by_role("button", name="Функции", exact=True).click()
-        await expect(first.get_by_test_id("tools")).to_contain_text("summarize_text", timeout=30_000)
-        await expect(second.get_by_test_id("tools")).to_contain_text(
-            "Нет доступных инструментов", timeout=30_000,
-        )
-        await expect(second.get_by_test_id("tools")).not_to_contain_text("summarize_text")
-
-        for client in (first, second):
-            await client.get_by_role("dialog").get_by_role("button", name="Закрыть").click()
+        for client, allowed in ((first,True),(second,False)):
+            tools=await (await client.request.get("/api/chats/"+client.url.rsplit("/",1)[1]+"/tools")).json()
+            self.assertEqual("summarize_text" in str(tools),allowed)
+            await client.get_by_role("button",name="Интеграции",exact=True).click()
+            await expect(client.get_by_role("heading",name="Интеграции",exact=True)).to_be_visible()
+            await client.get_by_role("dialog").get_by_role("button",name="Закрыть").click()
+            await expect(client.locator("[data-sidebar-right-expand]")).to_be_hidden()
         pages = (first, second)
         markers = ("Приватная метка север-947", "Приватная метка юг-682")
         followups = ("Продолжение север-381", "Продолжение юг-751")

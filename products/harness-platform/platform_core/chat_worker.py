@@ -84,7 +84,7 @@ class ChatWorker:
 
     async def request(self, scope: Scope, action, **fields):
         if action == "turn" and self.gateway:
-            if self.router and self.router.uses_router(scope.workspace_id):
+            if self.router and self.router.available() and self.router.uses_router(scope.workspace_id):
                 await self.router.models()
             issue = asyncio.create_task(asyncio.to_thread(
                 issue_grant, self.database_path, scope, source="chat.turn",
