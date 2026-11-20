@@ -28,6 +28,9 @@ function visible(events, requestId) {
     else if (event.type === 'assistant/message') message = event.data.message;
     else return [];
     const text = message.content.filter(block => block.type === 'text').map(block => block.text).join('');
+    if (message.role === 'assistant' && !text && message.content.some(block => block.type === 'tool-call')) {
+      return [];
+    }
     return [{ requestId, role: message.role, text }];
   });
 }
