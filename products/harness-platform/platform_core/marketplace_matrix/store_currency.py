@@ -55,20 +55,27 @@ def wait_result(due, limited):
 
 def profile_currency(authority, store):
     from finance_stock import CURRENCIES
-    from http_transport import read_response
+    from http_transport import MATRICES, read_response
     from request_recovery import RATE_LIMIT_RETRY_SECONDS
 
+    market = "Wildberries" if store.platform == "wb" else "Ozon"
+    prefix = store.platform.upper() + "_SELLER_PROFILE_"
     while True:
         credentials = authority.credentials(authority.pins, asdict(store))
-        req = Request(PROFILE_URL, b"{}", headers={"Content-Type": "application/json",
-                      "Client-Id": credentials["seller_client_id"], "Api-Key": credentials["seller_api_key"]})
+        if store.platform == "wb":
+            source = MATRICES["wb_balance"].recipe("wb_balance")
+            req = Request(source["url"], headers={"Authorization": credentials["seller_token"]})
+        else:
+            req = Request(PROFILE_URL, b"{}", headers={"Content-Type": "application/json",
+                          "Client-Id": credentials["seller_client_id"], "Api-Key": credentials["seller_api_key"]})
         try:
             body, _ = read_response(req, timeout=min(10, max(.01, authority.deadline-time.time())),
                                     limit=256_000, on_dispatch=authority.check)
         except HTTPError as error:
             if error.code != 429:
-                raise ProfileError({"ok": False, "code": "OZON_SELLER_PROFILE_HTTP",
-                    "reason": f"Ozon вернул HTTP {error.code} при чтении валюты кабинета (company.currency)."}) from None
+                suffix = "ACCESS" if store.platform == "wb" and error.code in (401, 403) else "HTTP"
+                raise ProfileError({"ok": False, "code": prefix + suffix,
+                    "reason": f"{market} вернул HTTP {error.code} при чтении валюты кабинета."}) from None
             now = time.time()
             due = now + RATE_LIMIT_RETRY_SECONDS
             header = error.headers.get("Retry-After", "") if error.headers else ""
@@ -82,17 +89,18 @@ def profile_currency(authority, store):
             time.sleep(max(0, due - time.time()))
             continue
         except OSError:
-            raise ProfileError({"ok": False, "code": "OZON_SELLER_PROFILE_UNAVAILABLE",
-                                "reason": "Не удалось прочитать профиль продавца Ozon для проверки валюты."}) from None
+            raise ProfileError({"ok": False, "code": prefix + "UNAVAILABLE",
+                                "reason": f"Не удалось проверить валюту кабинета {market}."}) from None
         authority.check()
         try:
-            code = json.loads(body)["company"]["currency"]
+            payload = json.loads(body)
+            code = payload["currency"] if store.platform == "wb" else payload["company"]["currency"]
             if isinstance(code, str) and code in CURRENCIES:
                 return code
         except (KeyError, TypeError, ValueError):
             pass
-        raise ProfileError({"ok": False, "code": "OZON_SELLER_PROFILE_CURRENCY",
-                            "reason": "В поле company.currency профиля продавца Ozon нет поддерживаемого кода валюты."})
+        raise ProfileError({"ok": False, "code": prefix + "CURRENCY",
+                            "reason": f"{market} не указал поддерживаемый код валюты кабинета."})
 
 
 def resolve(authority, calls, stores, fields):
@@ -103,12 +111,13 @@ def resolve(authority, calls, stores, fields):
     required = {}
     for call in calls:
         cid = call["store_id"]
-        if stores[cid].platform != "ozon" or "seller_api_key" not in fields[cid]:
+        platform = stores[cid].platform
+        if {"ozon": "seller_api_key", "wb": "seller_token"}[platform] not in fields[cid]:
             continue
         for tid in dependencies(call["template_id"]):
             for step in TEMPLATES[tid]["steps"]:
                 op = step.get("operation")
-                if step.get("platform") != "ozon" or op not in MATRICES:
+                if step.get("platform") != platform or op not in MATRICES or op in REPORT_ROW_CURRENCY:
                     continue
                 recipe = MATRICES[op].recipe(op)
                 if recipe["response"]["currency"] != {"$path": ["store", "currency"]}:
