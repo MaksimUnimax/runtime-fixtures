@@ -37,3 +37,15 @@ html,body,#root{height:100%;margin:0}
 
 /* This deployment has no companion right panel. */
 [data-sidebar-right-expand]{display:none!important}
+
+.chat-access{font:inherit;min-width:0;padding:3px 12px 5px}
+.chat-access-trigger{max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;border:0;border-radius:8px;padding:4px 8px;background:transparent;color:inherit;font:inherit;font-size:13px;cursor:pointer}
+.chat-access-trigger:hover,.chat-access-trigger:focus-visible{background:#edf2fb;color:#234ead}
+.chat-live{border-inline-start:2px solid #5880d8;padding:5px 12px;margin-bottom:6px}
+.chat-live small,.chat-grant small{display:block;color:#626b79}
+.chat-live-text{max-height:32vh;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:4px}
+.chat-grants header,.chat-grant{display:flex;align-items:center;gap:12px}
+.chat-grants header{justify-content:space-between}
+.chat-grants h2{margin:0}
+.chat-grant{padding:12px 0;cursor:pointer}
+.chat-grant input{width:auto;margin:0;accent-color:#426bdb}

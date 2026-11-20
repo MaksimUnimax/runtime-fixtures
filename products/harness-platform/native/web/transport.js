@@ -1,3 +1,4 @@
+import { LiveTurns } from './live-turn.js';
 import { privatePrompt, protectPaste } from './private-input.js';
 // The native client talks to the product's cookie-bound routes. No Host RPC is published.
 async function api(path, options) {
@@ -64,12 +65,13 @@ export async function createTransport(data) {
   const cuts = new Map();
   const running = new Set();
   const pending = new Map();
+  const live = new LiveTurns();
   const nonempty = new Set(ids.filter(id=>id!==selected));
   const opening = new Map();
   const titles = new Map(), updated = new Map();
   const openedAt = Date.now();
   const account = {guest, selected, panel:data.panel, error:data.error, recovery:data.recovery,
-    wallet, api, changes, costs:new Map()};
+    wallet, api, changes, live, costs:new Map()};
   const access = () => authorized(ids, guest);
   const view = () => ({items:[{workspaceId:workspace, path:'/personal', title:guest?'Справка Harness':'Мои чаты',
     sessionIds:[...ids], createdAt:'1970-01-01T00:00:00Z', updatedAt:'1970-01-01T00:00:00Z'}],
@@ -149,27 +151,46 @@ export async function createTransport(data) {
           if (!Array.isArray(p.content)||!p.content.length||p.content.some(part=>part.type!=='text'))
             throw new Error('Доступны текстовые сообщения');
           const text=p.content.map(part=>part.text).join('\n');
-          if(await privatePrompt(text,guest,api)){ value={accepted:true}; break; }
+          if(await privatePrompt(text,guest,api,id)){ value={accepted:true}; break; }
           let turn = pending.get(id);
           if (!turn || turn.text !== text) {
             turn = {text, requestId:p.requestId};
             pending.set(id, turn);
           }
+          if(running.has(id))throw new Error('Дождитесь ответа на предыдущее сообщение');
           running.add(id);
-          try {
-            if(guest) await api('/guest/chats/'+encodeURIComponent(id)+'/turns',{method:'POST',signal,
-              headers:{'Accept':'application/json'}, body:new URLSearchParams({text,request_id:turn.requestId})});
-            else await api('/api/chats/'+encodeURIComponent(id)+'/turns',{method:'POST',signal,
-              headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:turn.requestId,text})});
-            nonempty.add(id);
-            if(!guest) api('/api/wallet').then(w=>{account.wallet=w;}).catch(()=>{});
-            pending.delete(id);
-            value={accepted:true};
-          } catch (error) {
-            // Keep the request identity when a paid request may already have reached the provider.
-            if ([400,401,402,403,404,413].includes(error.status)) pending.delete(id);
-            throw error;
-          } finally { running.delete(id); changes.notify(); }
+          const controller=new AbortController();
+          let early=false,ack;
+          const accepted=new Promise(resolve=>{ack=()=>{early=true;resolve();};});
+          const url=(guest?'/guest':'/api')+'/chats/'+encodeURIComponent(id)+'/turns';
+          if(!guest){
+            live.update(id,{rid:turn.requestId,stage:'sending',text:'',prompt:text});
+            void live.watch(id,turn.requestId,controller.signal,ack);
+          }
+          const job=(async()=>{
+            try {
+              await api(url,guest ? {method:'POST',signal,headers:{Accept:'application/json'},
+                  body:new URLSearchParams({text,request_id:turn.requestId})} :
+                {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:turn.requestId,text})});
+              nonempty.add(id);
+              if(!guest){
+                const view=live.views.get(id);
+                if(view?.rid===turn.requestId)live.update(id,{...view,committed:true});
+                api('/api/wallet').then(w=>{account.wallet=w;}).catch(()=>{});
+              }
+              pending.delete(id);
+            } catch(error){
+              if([400,401,402,403,404,413].includes(error.status))pending.delete(id);
+              if(!early){live.clear(id,turn.requestId);throw error;}
+              live.update(id,{rid:turn.requestId,stage:'failed',text:error.message});
+            } finally {
+              controller.abort();
+              running.delete(id);
+              changes.notify();
+            }
+          })();
+          await (guest?job:Promise.race([job,accepted]));
+          value={accepted:true};
           break;
         }
         default: return failure('Действие недоступно');
@@ -188,9 +209,21 @@ export async function createTransport(data) {
     let next = changes.next(signal);
     if(endpoint==='session/follow') {
       const id=p.address.sessionId; check(id);
+      if(!guest && !live.views.has(id)){
+        const controller=new AbortController();
+        const abort=()=>controller.abort();
+        signal.addEventListener('abort',abort,{once:true});
+        api('/api/chats/'+encodeURIComponent(id)+'/progress',{signal}).then(async({requestId})=>{
+          if(!requestId || signal.aborted || live.views.has(id))return;
+          live.update(id,{rid:requestId,stage:'model',text:''});
+          try {await live.watch(id,requestId,controller.signal);}
+          finally {live.clear(id,requestId);changes.notify();}
+        }).catch(()=>{}).finally(()=>signal.removeEventListener('abort',abort));
+      }
       let window=opening.get(id) ?? await page(id,null,signal);
       opening.delete(id);
       let seq=window.records.at(-1)?.event.seq ?? -1;
+      if(live.views.get(id)?.committed)live.clear(id,live.views.get(id).rid);
       yield {type:'snapshot',header:{version:3,id,createdAt:0,cwd:'/personal',isSeeded:false},
         cursor:seq,...window,projections:projection(id,seq),assistantStream:{revision:0}};
       while(!signal.aborted) {
@@ -200,6 +233,9 @@ export async function createTransport(data) {
           const older=await page(id,cuts.get(id+'|'+(window.records[0].event.seq-1)),signal);
           window={records:[...older.records,...window.records],hasMore:older.hasMore};
         }
+        const committed=live.views.get(id);
+        if(committed?.committed && window.records.some(r=>r.event.type==='user/message' && r.event.data.source?.rpcId===committed.rid))
+          live.clear(id,committed.rid);
         for(const record of window.records) if(record.event.seq>seq){seq=record.event.seq;yield record;}
       }
       return;

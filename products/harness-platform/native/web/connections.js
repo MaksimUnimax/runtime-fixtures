@@ -34,8 +34,8 @@ window.__ModuleLoader__.load({
           list && h('label',null,'Сервис',h('select',{'aria-label':'Сервис',value:provider,onChange:e=>select(e.target.value)},
             h('option',{value:''},'Выберите сервис'),Object.entries(list.providers).map(([id,p])=>h('option',{key:id,value:id},p.title)))),
           entry && h('form',{autoComplete:'off',onSubmit:e=>{e.preventDefault();act(async()=>{
-            await post('/api/integrations',{provider,name:name.trim()||entry.title,fields});
-            setFields({});setProvider('');setName('');await refresh();setMsg('Ключи сохранены');after?.();
+            await post('/api/integrations',{provider,name:name.trim()||entry.title,fields,...(initial.chatId?{chatId:initial.chatId}:{})});
+            window.dispatchEvent(new Event('harness:grants'));setFields({});setProvider('');setName('');await refresh();setMsg('Ключи сохранены');after?.();
           });}},
             h('label',null,'Название подключения',h('input',{maxLength:80,value:name,placeholder:entry.title,onChange:e=>setName(e.target.value)})),
             provider==='ozon' && h('small',null,'Введите пару ключей Seller или Performance. Можно подключить оба API.'),
@@ -73,11 +73,57 @@ window.__ModuleLoader__.load({
         React.useEffect(()=>{if(request&&!ref.current.open)ref.current.showModal();},[request]);
         if(!request)return null;
         return h('dialog',{ref,className:'account-dialog','data-private-connection':true,'aria-label':'Подключение сервиса',onCancel:()=>setRequest(null)},
-          request.provider&&!a.guest?h(Connections,{key:request.key,initial:request,after:()=>setRequest({notice:'Ключи сохранены'})}):h('p',{role:'status'},request.notice),
+          (request.provider||request.newConnection)&&!a.guest?h(Connections,{key:request.key,initial:request,after:()=>setRequest({notice:request.chatId?'Подключение добавлено в этот чат':'Ключи сохранены'})}):h('p',{role:'status'},request.notice),
           h('button',{type:'button',onClick:()=>setRequest(null)},'Закрыть'));
       }
       ctx.slots.inject('shell.overlay',()=>ctx.slots.register({name:'shell.overlay',id:'private-connection'},PrivateDialog));
       if(a.guest)return;
+      const names={ozon:'Ozon',wb:'Wildberries',wordstat:'Яндекс Вордстат'};
+      function ChatDock({sessionId}){
+        const [rows,setRows]=React.useState([]),[open,setOpen]=React.useState(false);
+        const [error,setError]=React.useState(''),[busy,setBusy]=React.useState(false);
+        const dialog=React.useRef(null);
+        const url='/api/chats/'+encodeURIComponent(sessionId)+'/integrations';
+        const view=React.useSyncExternalStore(React.useCallback(listener=>a.live.subscribe(sessionId,listener),[sessionId]),
+          ()=>a.live.views.get(sessionId)||null);
+        React.useEffect(()=>{
+          const controller=new AbortController();
+          const refresh=()=>a.api(url,{signal:controller.signal}).then(v=>{if(!controller.signal.aborted)setRows(v.connections);})
+            .catch(e=>{if(!controller.signal.aborted)setError(e.message);});
+          setRows([]);setError('');setOpen(false);refresh();
+          window.addEventListener('harness:grants',refresh);
+          return ()=>{controller.abort();window.removeEventListener('harness:grants',refresh);};
+        },[url]);
+        React.useEffect(()=>{if(open && !dialog.current.open)dialog.current.showModal();},[open]);
+        const active=rows.filter(row=>row.attached);
+        const labels={sending:'Отправляю сообщение…',accepted:'Сообщение принято',model:'Модель готовит ответ…',
+          thinking:'Модель обдумывает ответ…',tool:'Модель запрашивает данные…',writing:'Модель отвечает…',failed:'Не удалось завершить запрос'};
+        async function toggle(row){
+          setBusy(true);setError('');
+          try {setRows((await post(url,{connectionId:row.id,enabled:!row.attached})).connections);}
+          catch(e){setError(e.message);}finally{setBusy(false);}
+        }
+        return h('div',{className:'chat-access'},
+          view && h('div',{'data-live-turn':view.stage,className:'chat-live'},
+            h('small',{role:'status'},labels[view.stage]),view.text && h('div',{className:'chat-live-text'},view.text),
+            view.stage==='failed' && h('button',{onClick:()=>a.live.clear(sessionId,view.rid)},'Закрыть')),
+          h('button',{className:'chat-access-trigger','aria-haspopup':'dialog',onClick:()=>setOpen(true)},
+            'Подключения'+(active.length?' · '+active.map(r=>r.name).join(', '):'')),
+          open && h('dialog',{ref:dialog,className:'account-dialog chat-grants','aria-label':'Подключения этого чата',onCancel:()=>setOpen(false)},
+            h('header',null,h('h2',null,'Подключения этого чата'),
+              h('button',{type:'button','aria-label':'Закрыть',onClick:()=>setOpen(false)},'×')),
+            rows.length===0 && !error && h('p',null,'Подключите магазин или сервис, чтобы использовать его в разговоре.'),
+            rows.map(row=>h('label',{key:row.id,className:'chat-grant'},
+              h('input',{type:'checkbox',checked:row.attached,disabled:busy,onChange:()=>toggle(row)}),
+              h('span',null,h('strong',null,row.name),h('small',null,
+                (row.access.length?row.access.join(', '):names[row.provider])+' · '+(status[row.status]||row.status))))),
+            h('p',{role:'status'},error),
+            h('button',{onClick:()=>{setOpen(false);window.dispatchEvent(new CustomEvent('harness:connection',{
+              detail:{newConnection:true,chatId:sessionId}}));}},'Добавить подключение')));
+      }
+      ctx.slots.inject('conversation.input.dock',()=>ctx.slots.register({
+        name:'conversation.input.dock',id:'harness-chat-connections',inject:sessionId=>({sessionId})
+      },ChatDock));
       const section=(id,title,order,component)=>ctx.slots.inject('settings.section',()=>ctx.slots.register({
         name:'settings.section',id,order,label:()=>title},component));
       section('integrations','Интеграции',5,Connections);

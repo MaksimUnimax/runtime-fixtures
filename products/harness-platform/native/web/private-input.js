@@ -25,19 +25,20 @@ function complete({provider,fields:f}) {
     Boolean(f.client_id)===Boolean(f.api_key) && Boolean(f.performance_id)===Boolean(f.performance_secret);
   return !!provider && !!f.token;
 }
-export async function privatePrompt(text,guest,api) {
+export async function privatePrompt(text,guest,api,chatId) {
   const parsed=parsePrivate(text);
-  if(!hint.test(text) && !(/(?:подключ|добав[ьиьят]+|сохран[иьяй]+|настро[ий])/i.test(text)
+  if(!hint.test(text) && !(/(?:^|[\s,])(?:подключи(?:ть|те)?|добав(?:ь|ить|ьте)|сохрани(?:ть|те)?|настро(?:ить|й|йте))(?=[\s,!?.:]|$)/i.test(text)
      && (parsed.provider || /(?:ключ|токен|интеграц|магазин|маркет)/i.test(text))))return false;
-  const emit=detail=>window.dispatchEvent(new CustomEvent('harness:connection',{detail}));
+  const emit=detail=>window.dispatchEvent(new CustomEvent('harness:connection',{detail:{...detail,chatId}}));
   if(guest){emit({notice:'Войдите в аккаунт, чтобы подключить сервис.'});return true;}
   if(!parsed.provider){emit({notice:'Доступны Ozon, Wildberries и Яндекс Вордстат. Выберите сервис в настройках интеграций.'});return true;}
   if(complete(parsed)){
     const name=parsed.name || ({ozon:'Ozon',wb:'Wildberries',wordstat:'Яндекс Вордстат'})[parsed.provider];
     try {
       await api('/api/integrations',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({...parsed,name})});
-      emit({notice:'Ключи сохранены. Проверить подключение можно в настройках интеграций.'});
+        body:JSON.stringify({...parsed,name,chatId})});
+      window.dispatchEvent(new Event('harness:grants'));
+      emit({notice:'Ключи сохранены. Подключение прикреплено к этому чату.'});
     } catch {emit({...parsed,name,notice:'Сохранить ключи не удалось. Повторите в форме.'});}
   } else emit(parsed);
   return true;
@@ -54,6 +55,6 @@ export function protectPaste(guest,api) {
     const parsed=parsePrivate(text);
     window.dispatchEvent(new CustomEvent('harness:connection',{detail:guest
       ? {notice:'Войдите в аккаунт, чтобы подключить сервис.'}
-      : parsed.provider ? parsed : {notice:'Откройте Настройки → Интеграции и укажите сервис перед вводом ключа.'}}));
+      : parsed.provider ? {...parsed,chatId:location.pathname.match(/^\/app\/chats\/([^/]+)$/)?.[1]||window.harnessAccount?.selected} : {notice:'Откройте Настройки → Интеграции и укажите сервис перед вводом ключа.'}}));
   },true);
 }

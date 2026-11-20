@@ -32,6 +32,8 @@ class ChatWorker:
             "HARNESS_PLATFORM_DATABASE": str(Path(database_path).resolve()),
             "HARNESS_TEST_PYTHON": sys.executable,
         }
+        if key_file := os.getenv("HARNESS_INTEGRATIONS_KEY_FILE"):
+            self.env["HARNESS_INTEGRATIONS_KEY_FILE"] = key_file
         self.router = None
         self.database_path = database_path
         self.gateway = os.environ.get("HARNESS_MODEL_GATEWAY_URL")
@@ -56,6 +58,7 @@ class ChatWorker:
         self.lock = asyncio.Lock()
         self.process = None
         self.reader = None
+        self.progress_callbacks = {}
         self.pending = {}
 
     async def _receive(self, process, pending):
@@ -64,6 +67,10 @@ class ChatWorker:
                 packet = json.loads(line)
                 future = pending.get(packet["id"])
                 if future is None or future.done():
+                    continue
+                if "progress" in packet:
+                    callback=self.progress_callbacks.get(packet["id"])
+                    if callback: callback(packet["progress"])
                     continue
                 if packet["ok"] is True:
                     future.set_result(packet["result"])
@@ -117,6 +124,7 @@ class ChatWorker:
 
     async def _request(self, scope, action, fields, *, timeout):
         packet_id = uuid.uuid4().hex
+        callback=fields.pop("on_progress",None)
         packet = {"id": packet_id, "action": action, "scope": {
             "actorId": scope.actor_id, "workspaceId": scope.workspace_id, "chatId": scope.chat_id,
         }, **fields}
@@ -138,6 +146,7 @@ class ChatWorker:
                 raise WorkerError("busy")
             future = asyncio.get_running_loop().create_future()
             pending[packet_id] = future
+            if callback: self.progress_callbacks[packet_id]=callback
             process = self.process
         try:
             process.stdin.write(data)
@@ -148,6 +157,7 @@ class ChatWorker:
             raise WorkerError("offline") from exc
         finally:
             pending.pop(packet_id, None)
+            self.progress_callbacks.pop(packet_id,None)
             if not future.done():
                 future.cancel()
             elif not future.cancelled():

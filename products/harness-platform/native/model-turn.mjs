@@ -1,5 +1,5 @@
 /** Run the same native Session, Agent, tool executor and loop for both transports. */
-export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, provider, model, adapter, signal }) {
+export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, provider, model, adapter, signal, progress }) {
   const llm = await load('dsh-llm');
   // The worker supplies a fresh Context with sessions, tools and system prompt.
   for (const name of ['dsh-llm', 'dsh-session-projection', 'dsh-tool-executor-native', 'dsh-agent', 'dsh-agent-loop']) {
@@ -7,6 +7,26 @@ export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, 
     const fiber = ctx.plugin(plugin.default ?? plugin, {});
     await fiber.await();
     if (fiber._error) throw fiber._error;
+  }
+  if (progress) {
+    const prepare=adapter.prepareCall.bind(adapter);
+    adapter.prepareCall=async (...args)=>{
+      const call=await prepare(...args);
+      return {...call,stream:options=>observe(call.stream(options))};
+    };
+    async function* observe(chunks) {
+      progress({stage:'model'});
+      let state='model', buffer='', last=0;
+      const flush=()=>{if(buffer){progress({stage:'writing',text:buffer});buffer='';last=Date.now();}};
+      try {
+        for await(const chunk of chunks) {
+          if(chunk.type==='reasoning-delta' && state!=='thinking'){state='thinking';progress({stage:'thinking'});}
+          if(chunk.type==='text-delta'){state='writing';buffer+=chunk.text;if(Date.now()-last>=65)flush();}
+          if(chunk.type==='block-start' && chunk.blockType==='tool-call'){flush();progress({stage:'tool'});}
+          yield chunk;
+        }
+      } finally {flush();}
+    };
   }
   const unregister = ctx.llm.registerAdapter([provider], adapter);
   try {

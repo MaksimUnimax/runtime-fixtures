@@ -22,6 +22,9 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
     async def test_turn_from_chat_page_has_a_reconciled_operation(self):
         self.enterContext(patch.dict(os.environ, {"HARNESS_RUB_PER_USD":"80"}))
         root = Path(self.enterContext(TemporaryDirectory()))
+        vault=root/"vault"
+        vault.write_bytes(os.urandom(32))
+        self.enterContext(patch.dict(os.environ,{"HARNESS_INTEGRATIONS_KEY_FILE":str(vault)}))
         database = root / "platform.sqlite"
         journal = root / "meter.jsonl"
         password = "Ephemeral browser test password"
@@ -61,6 +64,12 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
             await page.locator('[data-composer-input][contenteditable=true]').fill(text)
             async with page.expect_response(lambda r: r.url.endswith("/turns") and r.request.method == "POST") as sent:
                 await page.get_by_role("button", name="Отправить сообщение", exact=True).click()
+                if text=="browser fixture":
+                    await expect(page.locator("[data-live-turn=thinking]")).to_be_visible(timeout=20_000)
+                    await expect(page.locator("[data-live-turn=thinking]")).not_to_contain_text("private fixture trace")
+                    await expect(page.locator("[data-live-turn=writing]")).to_contain_text("answer to", timeout=20_000)
+                    await expect(page.locator("[data-live-turn=writing]")).not_to_contain_text("browser fixture")
+                    await expect(page.get_by_role("button",name="Подключения",exact=True)).to_be_visible()
             response = await sent.value
             self.assertEqual(response.status, 200)
             await expect(page.locator('[data-slot="conversation.view"]')).to_contain_text("answer to " + text, timeout=30_000)
@@ -90,6 +99,23 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((row["operation_id"], row["unique_attempts"], row["total_rub"]),
                          (receipt["operationId"], 1, "0.00072"))
 
+        grants=page.get_by_role("dialog",name="Подключения этого чата")
+        await page.get_by_role("button",name="Подключения",exact=True).click()
+        await grants.get_by_role("button",name="Добавить подключение").click()
+        form=page.get_by_role("dialog",name="Подключение сервиса",exact=True)
+        await form.get_by_label("Сервис",exact=True).select_option("ozon")
+        await form.get_by_label("Название подключения").fill("Тест Seller")
+        await form.get_by_label("Client-Id продавца").fill("qa-id")
+        await form.get_by_label("Api-Key продавца").fill("qa-private-key")
+        await form.get_by_role("button",name="Сохранить подключение").click()
+        await expect(form).to_contain_text("Подключение добавлено в этот чат")
+        await form.get_by_role("button",name="Закрыть").click()
+        await page.reload()
+        await page.get_by_role("button",name="Подключения · Тест Seller").click()
+        await expect(grants.get_by_role("checkbox")).to_be_checked()
+        await grants.get_by_role("checkbox").uncheck()
+        await expect(grants.get_by_role("checkbox")).not_to_be_checked()
+        await grants.get_by_role("button",name="Закрыть").click()
         await page.get_by_role("link",name="Администрирование").click()
         self.assertEqual((await regular.request.get("/admin")).status,403)
         await expect(regular.locator("#grant")).to_have_count(0)
