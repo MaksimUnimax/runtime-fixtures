@@ -180,7 +180,12 @@ def verified_amounts(phases, tariffs):
         if (key in start) != (key in end) or canonical(start.get(key)) != canonical(end.get(key)):
             return None, None, "identity_mismatch"
     status = end.get("status")
-    if end.get("outcome") != "completed" or not nonnegative_integer(status, 299) or status < 200:
+    # A downstream disconnect can arrive after the provider's terminal usage.
+    # The gateway emits partial_usage separately and never promotes it to usage.
+    outcome = end.get("outcome")
+    valid_delivery = outcome == "completed" or (outcome == "client_disconnected_unknown"
+                                                and end.get("usage") is not None and "partial_usage" in end)
+    if not valid_delivery or not nonnegative_integer(status, 299) or status < 200:
         return None, None, "incomplete_outcome"
     if end.get("partial_usage") is not None:
         return None, None, "ambiguous_usage"

@@ -135,6 +135,15 @@ class ReconciliationCliTest(unittest.TestCase):
                 self.money(report, "total_usd", None)
                 self.money(report, "total_rub", None)
 
+    def test_disconnect_after_final_usage_retains_cost_once(self):
+        start, end = attempt("disconnect")
+        end.update(outcome="client_disconnected_unknown", partial_usage=None)
+        result = self.reconcile([start, end, end], 0)
+        self.money(result, "total_rub", "124")
+        self.assertEqual(result["unique_attempts"], 1)
+        end.update(partial_usage=end["usage"], usage=None)
+        self.money(self.reconcile([start, end], 1), "total_rub", None)
+
     def test_actual_zero_usage_is_a_known_zero(self):
         start, end = attempt("zero")
         end["usage"] = {key: 0 for key in end["usage"]}

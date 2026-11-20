@@ -35,6 +35,7 @@ export function platformMcpEntry({
     config: {
       serverName: 'platform', transport: 'stdio', command: pythonExecutable,
       cwd: productDirectory, args, failOnStartupError: true,
+      ...(marketplaceTurn ? { toolCallTimeoutMs: Math.max(1, marketplaceTurn.deadline - Date.now()) } : {}),
       ...((integrationKeyFile || marketplaceTurn) ? { env: {
         ...(integrationKeyFile ? { HARNESS_INTEGRATIONS_KEY_FILE: integrationKeyFile } : {}),
         ...(marketplaceTurn ? { HARNESS_MATRIX_TURN: JSON.stringify({ ...marketplaceTurn, databasePath }) } : {}),
