@@ -17,7 +17,7 @@ from .authority import ChatAuthority
 from . import store_currency
 
 BUNDLE = Path(__file__).with_name("runtime.tar.gz")
-BUNDLE_SHA256 = "9553b0354cff585a4e2aa6db90c1c927708284c6849553e18a1f429422fac377"
+BUNDLE_SHA256 = "8db9405c6834c259f7d2b03a5a68247f121d41b766cdb546f6dd9e1281b4a7a2"
 
 
 def log_failure(operation, code, retry_at=None):
@@ -44,14 +44,18 @@ def configure_catalogue(engine, fields):
     from dataset_pipeline import SOURCES as DATASET_SOURCES, CATALOG as DATASET_CATALOG, operations as dataset_operations
     from http_transport import MATRICES, SCALARS, SCALAR_SOURCES
     from platform_store_credentials import required_fields
+    import parameter_source_runtime
     from template_catalog import TEMPLATES, dependencies
     proofs = json.loads(Path(sys.path[0], "source_qualifications.json").read_bytes())
     caps = {cid: proofs for cid in fields}
+    engine.parameter_source_policy = {"enabled": True, "pin": parameter_source_runtime.PIN}
     engine.table_capabilities = engine.dataset_capabilities = lambda: caps
 
     def supported(template, store):
         for dependency in dependencies(template["id"]):
             entry = TEMPLATES[dependency]
+            if entry["kind"] == "parameter" and not {"seller_client_id", "seller_api_key"}.issubset(fields[store.id]):
+                return False
             if query := entry.get("dataset_query"):
                 flows = DATASET_CATALOG["queries"][query]["flows"]
                 if store.platform not in flows:
@@ -145,6 +149,8 @@ def execute(packet, directory):
     from engine import CallError, Engine, Worker
     from failure_explanations import explain
     from http_transport import HTTPTransport
+    from parameter_source_runtime import required_operations
+    import read_surface
     import model_answer
     from repository import Repository
     from semantics import Rejected, fingerprint
@@ -164,6 +170,8 @@ def execute(packet, directory):
         tid, cid = item["templateId"], item["connectionId"]
         if tid not in TEMPLATES or cid not in allowed or not _availability(engine, TEMPLATES[tid], allowed[cid]):
             raise Rejected("SOURCE_ACCESS")
+        if item["input"].get("parameter_mode", "preview") != "preview":
+            raise Rejected("PERMISSION_DENIED")
         calls.append({"id": str(index), "template_id": tid, "store_id": cid, "input": item["input"]})
     try:
         store_currency.resolve(authority, calls, allowed, fields)
@@ -183,6 +191,11 @@ def execute(packet, directory):
     rate_limits = []
 
     class ChatTransport(HTTPTransport):
+        def _read_request(self, request, store):
+            if request.operation not in permitted_parameter_reads:
+                raise CallError("MARKETPLACE_OPERATION_REQUIRED")
+            return super()._read_request(request, store)
+
         def execute(self, request, store, *, on_dispatch=None):
             if store is None:
                 raise CallError("MARKETPLACE_OPERATION_REQUIRED")
@@ -198,7 +211,11 @@ def execute(packet, directory):
             operations.append({"operation": request.operation, "connectionId": store["id"]})
             return answer
 
-    transport = ChatTransport(directory, {}, proofs, enabled=True)
+    parameter_keys = {TEMPLATES[tid]["parameter_key"] for call in calls
+                      for tid in dependencies(call["template_id"]) if TEMPLATES[tid]["kind"] == "parameter"}
+    permitted_parameter_reads = {"read.ozon." + op for key in parameter_keys for op in required_operations(key)}
+    transport = ChatTransport(directory, {}, proofs, enabled=True,
+                              read_surface_policy=lambda: {"enabled": True, "pin": read_surface.PIN})
     worker = Worker(engine, transport, execution_ready=authority.check)
     today = datetime.now(ZoneInfo("Europe/Moscow")).date()
     root = submit(engine, pins["tenant_id"], turn["question"], turn["requestId"],
