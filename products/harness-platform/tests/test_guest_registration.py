@@ -32,6 +32,16 @@ class GuestRegistrationTests(TestCase):
             legacy.create_account("existing", PASSWORD)
         self.store = self.enterContext(RegistrationStore(self.path))
 
+    def test_upgrade_updates_chat_directions_and_preserves_edited_answers(self):
+        with sqlite3.connect(str(self.path) + ".public-faq.sqlite3") as db:
+            db.execute("UPDATE public_faq SET answer=? WHERE topic='history'", (
+                "После регистрации этот разговор сохранится по прежней ссылке. На другом устройстве "
+                "войдите под тем же логином и откройте чат в кабинете.",))
+            db.execute("UPDATE public_faq SET answer='Ответ редактора' WHERE topic='signin'")
+        with RegistrationStore(self.path) as upgraded:
+            self.assertIn("выберите чат в боковом меню", upgraded.faq.answer("Как сохранить историю?"))
+            self.assertEqual(upgraded.faq.answer("Как открыть мой кабинет?"), "Ответ редактора")
+
     def test_concurrent_replay_and_revocation(self):
         guest, chat = self.store.start_guest()
         recovery = self.store.guest_recovery(guest)

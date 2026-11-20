@@ -47,7 +47,7 @@ class PublicInfoTests(unittest.TestCase):
                 if name == "index":
                     self.assertIn("741705866660", html.partition("<footer>")[2])
                     self.assertIn('/payment', [u.path for u in parsed.urls])
-                self.assertNotRegex(html.lower(), "расширени|каталог дополнений")
+                self.assertNotRegex(html.lower(), "расширени|каталог дополнений|личн[а-я]* кабинет|войти в кабинет|открыть кабинет")
                 pages[route(name)] = parsed
             for address, parsed in pages.items():
                 for url in parsed.urls:

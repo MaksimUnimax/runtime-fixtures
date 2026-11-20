@@ -13,7 +13,7 @@ a { color:inherit; text-decoration:none; }
 @media(prefers-color-scheme:dark) { .brand img:not(.octo-wordmark) { filter:brightness(0) invert(1); } }
 .sidebar nav,.account { display:grid; gap:4px; }
 .sidebar nav { margin-top:8px; }
-.account a { background:var(--octo-panel); border:1px solid var(--octo-line); }
+.account a { justify-content:center; text-align:center; background:var(--octo-panel); border:1px solid var(--octo-line); }
 .account { margin-top:auto; border-top:1px solid var(--octo-line); padding-top:12px; }
 .sidebar nav a,.account a,.mobile-nav a {
   display:flex; align-items:center; min-height:36px; padding:6px 12px; border-radius:var(--octo-radius);
@@ -66,9 +66,11 @@ details + p { margin-top:16px; }
 .analytics-case > h3 { margin-top:0; font-size:21px; }
 .example-question { border-radius:12px; padding:12px 16px; background:var(--octo-panel); border:1px solid var(--octo-line); }
 dt { font-weight:600; } dd { margin:3px 0 10px; color:var(--octo-muted); }
+#beta,footer { text-align:center; }
+#beta .actions { justify-content:center; }
 footer { border-top:1px solid var(--octo-line); padding-block:22px 28px; color:var(--octo-muted); font-size:14px; }
-.footer-links { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; }
-.footer-links > span { margin-inline-end:auto; }
+.footer-links { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:8px 12px; }
+.footer-links > span { flex-basis:100%; }
 footer a { min-height:30px; padding:3px 10px; font-size:13px; }
 @media(max-width:760px) {
   .layout { display:block; } .sidebar,.toolbar>span { display:none; } .mobile-brand { display:inline-flex; }
@@ -77,14 +79,13 @@ footer a { min-height:30px; padding:3px 10px; font-size:13px; }
 }
 @media(max-width:540px) {
   .capability-grid { grid-template-columns:1fr; }
-  .footer-links > span { flex-basis:100%; }
 }
 
-footer .seller { margin-bottom:18px; }
+footer .seller { display:grid; justify-items:center; gap:6px; margin-bottom:20px; }
 footer .seller > a { margin-top:4px; }
-footer .seller h2 { color:var(--octo-ink); font-size:17px; margin:0 0 8px; }
-footer .seller p,footer .seller dl { margin:4px 0; }
-footer .seller dl { display:flex; flex-wrap:wrap; gap:2px 18px; }
+footer .seller h2 { color:var(--octo-ink); font-size:17px; margin:0; }
+footer .seller p,footer .seller dl { margin:0; }
+footer .seller dl { display:flex; flex-wrap:wrap; justify-content:center; gap:2px 18px; }
 footer .seller dl div { display:flex; gap:6px; }
 footer .seller dd { margin:0; color:inherit; }
 main.payment-page { max-width:680px; margin:auto; padding:clamp(20px,5vw,55px) 20px; }
