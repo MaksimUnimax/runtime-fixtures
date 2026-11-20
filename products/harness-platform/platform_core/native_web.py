@@ -1,4 +1,5 @@
 """Serve the pinned native browser client and its product plug-in."""
+import base64
 import gzip
 import hashlib
 import json
@@ -184,6 +185,17 @@ async def module_file(request):
         raise HTTPException(404)
     return asset_response(request, static_bytes(files[name], client_source), 'text/javascript')
 
+@lru_cache(maxsize=1)
+def initial_script():
+    # Only trusted, release-owned JavaScript enters this block. Account data stays in HTML attributes.
+    template = (UI / "chat-bootstrap.js").read_text()
+    script = template.replace("@@application@@", application_name()).replace("@@core@@", core_name())
+    if "</script" in script.lower():
+        raise ValueError("Unexpected inline script terminator")
+    digest = base64.b64encode(hashlib.sha256(script.encode()).digest()).decode()
+    return script, "'sha256-" + digest + "'"
+
+
 def shell(*, panel="", error="", recovery="", chat="", guest=False, status=200, account=None):
     page = (UI / "index.html").read_text()
     page = page.replace("@@application@@", application_name()).replace("@@core@@", core_name())
@@ -191,4 +203,7 @@ def shell(*, panel="", error="", recovery="", chat="", guest=False, status=200, 
                         "account":json.dumps(account, separators=(",", ":")) if account is not None else "",
                         "mode":"guest" if guest else "member"}.items():
         page = page.replace("@@" + name + "@@", escape(value, quote=True))
-    return HTMLResponse(page, status_code=status, headers=HEADERS)
+    script, digest = initial_script()
+    headers = {**HEADERS, "Content-Security-Policy": HEADERS["Content-Security-Policy"].replace(
+        "script-src 'self';", "script-src 'self' " + digest + ";")}
+    return HTMLResponse(page.replace("@@bootstrap@@", script), status_code=status, headers=headers)

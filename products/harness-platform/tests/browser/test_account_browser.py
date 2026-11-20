@@ -192,6 +192,21 @@ class BrowserIsolation(ProductBrowser):
         await page.get_by_role("link", name="Пополнить баланс").click()
         await expect(page.get_by_role("heading", name="Пополнение баланса")).to_be_visible()
 
+    async def test_startup_survives_missing_external_boot_scripts(self):
+        page = await self.open_chat("first-browser")
+        legacy = ("/session-nav.js", "/ui-assets/project/bootstrap.js",
+                  "/ui-assets/modules/dsh-client-modules.js", "/ui-assets/modules/manifest.js")
+        requested = []
+        for path in legacy:
+            async def empty(route):
+                requested.append(urlsplit(route.request.url).path)
+                await route.fulfill(status=200, content_type="text/javascript", body="")
+            await page.route("**" + path, empty)
+        await page.reload()
+        await expect(page.locator("[data-composer-input]").last).to_be_visible()
+        self.assertEqual(requested, [])
+        self.assertTrue(await page.evaluate("!!window.__DSH_BOOT__?.batches?.length"))
+
     async def test_failed_chat_module_can_retry_the_same_direct_link(self):
         page = await self.open_chat("first-browser")
         direct_link = page.url

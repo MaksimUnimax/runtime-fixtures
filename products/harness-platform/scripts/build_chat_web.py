@@ -2,6 +2,7 @@
 import argparse
 import gzip
 import hashlib
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -10,13 +11,23 @@ import zipfile
 
 PRODUCT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PRODUCT))
-from platform_core.native_web import UI, client_source, modules, roster
+from platform_core.native_web import UI, application_name, client_source, modules, roster
+from platform_core.browser_session import _NAVIGATION_JS
 
 
 def build(esbuild, node, output):
     if subprocess.check_output([esbuild, "--version"], text=True).strip() != "0.25.12":
         raise ValueError("Expected esbuild 0.25.12")
-    _, files = roster(modules(), core="build")
+    manifest, files = roster(modules(), core="@@core@@")
+    for batch in manifest["batches"]:
+        if batch["url"] == "/ui-assets/modules/" + application_name() + ".js":
+            batch["url"] = "/ui-assets/modules/@@application@@.js"
+    config = json.dumps(manifest, ensure_ascii=True, separators=(",", ":"))
+    boot = b"\n;\n".join((_NAVIGATION_JS.encode(), (UI / "bootstrap.js").read_bytes(),
+                          client_source(files["dsh-client-modules"]), ("window.__DSH_BOOT__=" + config).encode()))
+    bootstrap = subprocess.run([esbuild, "--minify", "--charset=utf8", "--target=es2022"],
+                               input=boot, stdout=subprocess.PIPE, check=True).stdout
+    output.with_name("chat-bootstrap.js").write_bytes(bootstrap)
     source = b"\n;\n".join(client_source(path) for name, path in files.items() if name != "dsh-client-modules")
     # Octoport selects Russian. English remains available as the upstream fallback.
     source = re.sub(rb"(\.locale\.register\([^,\n]+,\s*\{)\s*zh,\s*en,\s*ja,\s*es,\s*fr,\s*de,\s*ru,\s*pt\s*(\})",
