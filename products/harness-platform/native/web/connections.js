@@ -60,7 +60,7 @@ window.__ModuleLoader__.load({
           if(!(m.id+' '+m.name).toLowerCase().includes(filter.toLowerCase()))continue;
           if(!groups.has(m.family))groups.set(m.family,[]);groups.get(m.family).push(m);
         }
-        return h('section',{className:'service-settings'},h('h2',null,'Выбор ИИ'),radio('direct','DeepSeek · прямое подключение'),
+        return h('section',{className:'service-settings'},h('h2',null,'Выбор ИИ'),radio('direct','octoport · прямое подключение'),
           h('label',null,'Поиск модели',h('input',{type:'search',value:filter,onChange:e=>setFilter(e.target.value)})),
           data&&!data.models.length && h('p',null,'Каталог OpenRouter временно недоступен'),
           [...groups].map(([family,models])=>h('details',{key:family,open:filter?true:undefined},

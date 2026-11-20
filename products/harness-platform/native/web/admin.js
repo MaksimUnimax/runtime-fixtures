@@ -8,7 +8,7 @@ function renderCharge(charge) {
     if (charge.meter.providerUsd !== null) detail.append('Себестоимость · $' + charge.meter.providerUsd);
     for (const attempt of charge.meter.attempts) {
       const part = document.createElement('p'), u = attempt.usage;
-      part.textContent = (attempt.tariff==='openrouter-v1'?'OpenRouter':'DeepSeek')+' · '+attempt.model + ' · ' + (u
+      part.textContent = (attempt.tariff==='openrouter-v1'?'OpenRouter':'octoport')+' · '+attempt.model + ' · ' + (u
         ? 'Вход ' + u.input_tokens + ' · Из кэша ' + u.cache_read_input_tokens + ' · Выход ' + u.output_tokens
         : 'Ожидается сверка расхода');
       detail.append(part);
@@ -81,7 +81,7 @@ for (const form of document.forms) form.addEventListener('submit', async event =
       for(const provider of ['DeepSeek','OpenRouter']) {
         const t=account.providerMeters?.[provider]||{input:0,cache:0,output:0,coins:'0'};
         const line=document.createElement('p');
-        line.textContent=provider+' · вход '+t.input+' · кэш '+t.cache+' · выход '+t.output+' · всего '+(t.input+t.cache+t.output)+' токенов · списано '+t.coins+' монет';
+        line.textContent=(provider==='DeepSeek'?'octoport':provider)+' · вход '+t.input+' · кэш '+t.cache+' · выход '+t.output+' · всего '+(t.input+t.cache+t.output)+' токенов · списано '+t.coins+' монет';
         document.querySelector('#meters').append(line);
       }
       document.querySelector('#charges').replaceChildren(...account.charges.map(renderCharge));

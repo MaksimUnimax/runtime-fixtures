@@ -8,6 +8,18 @@ window.__ModuleLoader__.load({
       let panel=a.panel;
       function select(value) {panel=value;for(const listener of subscribers)listener();}
       function usePanel(){return React.useSyncExternalStore(listener=>{subscribers.add(listener);return()=>subscribers.delete(listener);},()=>panel);}
+      function Mark({size=24}) {
+        return h('span', {className:'octo-mark', role:'img', 'aria-label':'octoport',
+          style:{width:size, height:size}});
+      }
+      function Wordmark() {
+        return h('span',{className:'octo-lockup'},h('span',null,'octoport'),h('small',null,'Harness'));
+      }
+      for (const [name, component] of [
+        ['sidebar.brand.mark', Mark], ['sidebar.brand.name', Wordmark], ['conversation.hero.brand.mark', Mark]
+      ]) {
+        ctx.slots.inject(name, () => ctx.slots.register({name}, component));
+      }
       function Footer({wide}) {
         const title=a.guest?'Войти':'Баланс';
         return h('div',{className:'account-actions'},
@@ -51,7 +63,7 @@ window.__ModuleLoader__.load({
         const signup=mode==='register', wallet=mode==='wallet';
         return h('dialog',{className:'account-dialog',ref,'aria-labelledby':'dialog-title',onCancel:close},
           h('button',{className:'account-close',type:'button','aria-label':'Закрыть',onClick:close},'×'),
-          h('h2',{id:'dialog-title'},wallet?'Баланс':signup?'Создать аккаунт':'Вход в Harness'),
+          h('h2',{id:'dialog-title'},wallet?'Баланс':signup?'Создать аккаунт':'Вход в octoport'),
           a.error && h('p',{role:'alert'},a.error),
           wallet ? h(Wallet) :
           h(React.Fragment,null,h('form',{action:signup?'/register':'/login',method:'post'},
@@ -72,7 +84,7 @@ window.__ModuleLoader__.load({
         if(!cost) return null;
         if ('coins' in cost) {
           const labels=[];
-          for(const [provider,t] of Object.entries(cost.providers||{}))labels.push(provider,'Вход '+t.input,'Кэш '+t.cache,'Выход '+t.output,'Всего '+(t.input+t.cache+t.output)+' токенов');
+          for(const [provider,t] of Object.entries(cost.providers||{}))labels.push(provider==='DeepSeek'?'octoport':provider,'Вход '+t.input,'Кэш '+t.cache,'Выход '+t.output,'Всего '+(t.input+t.cache+t.output)+' токенов');
           if(cost.rub!==null)labels.push(cost.rub.replace('.',',')+' ₽');
           labels.push('Списано '+cost.coins.replace('.',',')+' монет');
           if(cost.pending)labels.push('На сверке');

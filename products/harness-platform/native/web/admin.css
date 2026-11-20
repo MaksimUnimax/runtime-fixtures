@@ -8,3 +8,12 @@ input,button{font:inherit;border-radius:10px}input{width:100%;height:42px;paddin
 input:focus-visible{outline:2px solid #416cf1;outline-offset:1px}
 button{justify-self:start;padding:9px 18px;background:#416cf1;color:white;border:0;cursor:pointer}button:disabled{opacity:.65}
 p,output{margin:0}output:empty{display:none}output{color:#28764a}#problem{color:#ac3232}#charges{padding-left:18px}#charges details{margin:6px 0}#charges summary{cursor:pointer}
+
+.admin-mark { vertical-align:middle; margin-right:5px; }
+@media (prefers-color-scheme:dark) {
+  :root { color-scheme:dark; color:#eff1f5; background:#17191d; }
+  section { background:#202226; border-color:#3a3d42; }
+  input { background:#17191d; border-color:#50555e; }
+  .admin-mark { filter:brightness(0) invert(1); }
+  nav a { color:#a6bfff; } output { color:#85ceb0; } #problem { color:#ffa9ae; }
+}

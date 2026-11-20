@@ -48,3 +48,19 @@ html,body,#root{height:100%;margin:0}
 .chat-grants header{justify-content:space-between}
 .chat-grants h2{margin:0}
 .chat-grants>button:last-child{margin-top:16px}
+
+.octo-mark {
+  display:inline-block; flex:none; background:currentColor;
+  mask:url("/ui-assets/project/octoport-mark.png") center/contain no-repeat;
+}
+.octo-lockup { display:inline-flex; align-items:center; gap:7px; color:inherit; white-space:nowrap; }
+.octo-lockup > span { font:700 22px/1 ui-rounded,"Trebuchet MS",system-ui,sans-serif; letter-spacing:-.065em; }
+.octo-lockup small {
+  border-radius:3px; background:var(--dsw-alias-label-primary,CanvasText); color:var(--dsw-alias-bg-base,Canvas);
+  padding:3px 4px; font:700 9px/1 system-ui,sans-serif; letter-spacing:.05em; text-transform:uppercase;
+}
+/* The running-status component in the pinned chat client does not expose a brand slot. */
+body .EvIC1a_runningIcon {
+  background:currentColor; mask:url("/ui-assets/project/octoport-mark.png") center/contain no-repeat;
+}
+body .EvIC1a_runningIcon > * { display:none; }

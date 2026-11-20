@@ -73,10 +73,10 @@ export async function createTransport(data) {
   const account = {guest, selected, panel:data.panel, error:data.error, recovery:data.recovery,
     wallet, api, changes, live, costs:new Map()};
   const access = () => authorized(ids, guest);
-  const view = () => ({items:[{workspaceId:workspace, path:'/personal', title:guest?'Справка Harness':'Мои чаты',
+  const view = () => ({items:[{workspaceId:workspace, path:'/personal', title:guest?'Справка octoport':'Мои чаты',
     sessionIds:[...ids], createdAt:'1970-01-01T00:00:00Z', updatedAt:'1970-01-01T00:00:00Z'}],
     archivedSessionIds:[], pinnedSessionIds:[]});
-  const projection = (id,seq=-1) => ({asOfSeq:seq, values:{title:titles.get(id) ?? (guest?'Справка Harness':label(id)), cwd:'/personal'}});
+  const projection = (id,seq=-1) => ({asOfSeq:seq, values:{title:titles.get(id) ?? (guest?'Справка octoport':label(id)), cwd:'/personal'}});
   const failure = (message) => ({ok:false,error:{code:'gateway/method-unavailable',message,details:{}}});
   function check(id) { if (!ids.includes(id)) throw new Error('Чат недоступен'); }
   async function page(id, before, signal) {

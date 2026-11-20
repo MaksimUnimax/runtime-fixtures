@@ -17,7 +17,7 @@ UI = Path(__file__).resolve().parents[1] / "native" / "web"
 VERSION = "0.2.2-rc.1"
 GROUP = "@deepseek-ai/"
 ROOTS = ("dsh-client-modules", "dsh-client-ui-chat", "dsh-client-ui-trajectory",
-         "dsh-client-ui-brand-official", "dsh-client-ui-tool", "dsh-client-ui-approval",
+         "dsh-client-ui-tool", "dsh-client-ui-approval",
          "dsh-client-ui-user-questions", "dsh-client-ui-settings-general")
 HEADERS = {**_PRIVATE_HEADERS, "Content-Security-Policy":
            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
@@ -34,6 +34,14 @@ def application_name():
 def static_bytes(path, transform=None):
     data = transform(path) if transform else path.read_bytes()
     return encoded(data)
+
+
+def client_source(path):
+    source = path.read_bytes()
+    # Product names in the two installed UI modules. Package IDs and model IDs are case-sensitive.
+    if path.parent.parent.name in {"dsh-client-ui-layout", "dsh-client-ui-chat"}:
+        return source.replace(b"DeepSeek", b"octoport")
+    return source
 
 
 def encoded(data):
@@ -102,7 +110,7 @@ def roster(base):
 def application_bundle(base):
     _, files = roster(base)
     paths = [path for name, path in files.items() if name != "dsh-client-modules"]
-    return encoded(b"\n;\n".join(path.read_bytes() for path in [*paths, UI / "account.js", UI / "connections.js"]))
+    return encoded(b"\n;\n".join(client_source(path) for path in [*paths, UI / "account.js", UI / "connections.js"]))
 
 
 async def module_file(request):
@@ -117,7 +125,7 @@ async def module_file(request):
         return Response('window.__DSH_BOOT__ = ' + json.dumps(manifest) + ';', media_type='text/javascript')
     if name not in files:
         raise HTTPException(404)
-    return asset_response(request, static_bytes(files[name]), 'text/javascript')
+    return asset_response(request, static_bytes(files[name], client_source), 'text/javascript')
 
 def shell(*, panel="", error="", recovery="", chat="", guest=False, status=200):
     page = (UI / "index.html").read_text()
