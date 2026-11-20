@@ -6,6 +6,8 @@ After=network.target
 Type=simple
 User=alisa-platform-%i
 Group=alisa-platform-%i
+# Station verifies the current owner with a nested, read-only platform request.
+Environment="GUNICORN_CMD_ARGS=--threads=4"
 EnvironmentFile=/etc/alisa-platform/%i/platform.env
 WorkingDirectory=/opt/alisa-platform/%i/current
 ExecStart=/opt/alisa-platform/%i/current/.venv/bin/python /opt/alisa-platform/%i/current/infra/launch.py platform
