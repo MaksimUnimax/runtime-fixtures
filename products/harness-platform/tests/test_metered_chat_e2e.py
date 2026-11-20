@@ -13,6 +13,7 @@ import time
 import unittest
 from unittest.mock import patch
 
+import httpx
 from starlette.testclient import TestClient
 
 from platform_core.chat_api import create_app
@@ -75,6 +76,56 @@ class MeteredChatAcceptance(unittest.TestCase):
                               "--by-operation"], cwd=folder, capture_output=True, text=True, check=False)
         self.assertIn(run.returncode, (0, 1), run.stderr)
         return json.loads(run.stdout)
+
+    def test_admin_model_default_applies_to_existing_chats_and_persists(self):
+        offered = [{"id": "deepseek-flash"}, {"id": "deepseek-v4-pro", "name": "DeepSeek Pro",
+                    "effort": {"supported_levels": ["low", "high", "max"], "default_level": "high"}},
+                   {"id": "unpriced-model"}]
+        async def catalog(req):
+            if req.url.path == "/health":
+                self.assertNotIn("Authorization", req.headers)
+                return httpx.Response(200, json={"models": ["deepseek-flash", "deepseek-v4-pro"]})
+            self.assertEqual(str(req.url), "https://api.deepseek.com/models")
+            self.assertEqual(req.headers["Authorization"], "Bearer fixture-catalog-key")
+            return httpx.Response(200, json={"data": offered})
+        def send(client, who, key):
+            response = client.post(f"/api/chats/{who[1]}/turns", headers=who[0],
+                                   json={"text": "model default test", "requestId": key})
+            self.assertEqual(response.status_code, 200, response.text)
+
+        with IdentityStore(self.db) as db:
+            db.set_admin("owner-b", False)
+        with self.client() as client, patch("platform_core.provider_keys.read", return_value="fixture-catalog-key"):
+            client.app.state.http = httpx.AsyncClient(transport=httpx.MockTransport(catalog))
+            admin, other = [self.actor(client, name) for name in ("owner-a", "owner-b")]
+            url = "/api/admin/chat-default"
+            models = "/api/admin/chat-models"
+            self.assertEqual(client.get(models).status_code, 401)
+            self.assertEqual(client.get(models, headers=other[0]).status_code, 403)
+            options = client.get(models, headers=admin[0]).json()["models"]
+            self.assertEqual([m["id"] for m in options], ["deepseek-flash", "deepseek-v4-pro"])
+            self.assertEqual(client.get(url, headers=admin[0]).json(), {"model": "deepseek-flash", "effort": "high"})
+            for who in (admin, other):
+                send(client, who, "original")
+            chosen = {"model": "deepseek-v4-pro", "effort": "low"}
+            self.assertEqual(client.post(url, headers=other[0], json=chosen).status_code, 403)
+            self.assertEqual(client.post(url, headers=admin[0], json={**chosen, "model":"unpriced-model"}).status_code, 400)
+            self.assertEqual(client.post(url, headers=admin[0], json=chosen).json(), chosen)
+            for who in (admin, other):
+                send(client, who, "new-model")
+            desired = {**chosen, "effort": "off"}
+            self.assertEqual(client.post(url, headers=admin[0], json=desired).json(), desired)
+            offered.clear()
+            self.assertEqual(client.post(url, headers=admin[0], json=chosen).status_code, 400)
+        with self.client() as restarted:
+            self.assertEqual(restarted.get(url, headers=admin[0]).json(), desired)
+            send(restarted, other, "new-model")  # replay across changed default
+            send(restarted, other, "same-model-new-effort")
+        completed = [row for row in map(json.loads, self.journal.read_text().splitlines()) if row.get("status")==200]
+        self.assertEqual([(r["model"], r["thinking"], r["effort"]) for r in completed], [
+            ("deepseek-flash", "enabled", "high"), ("deepseek-flash", "enabled", "high"),
+            ("deepseek-v4-pro", "enabled", "low"), ("deepseek-v4-pro", "enabled", "low"),
+            ("deepseek-v4-pro", "disabled", None)])
 
     def test_parallel_owners_model_tool_step_and_replay_after_restart(self):
         with self.client() as client:

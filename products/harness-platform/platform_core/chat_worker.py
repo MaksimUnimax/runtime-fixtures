@@ -96,6 +96,7 @@ class ChatWorker:
             issue = asyncio.create_task(asyncio.to_thread(
                 issue_grant, self.database_path, scope, source="chat.turn",
                 bind_model=self.router.bind if self.router else None,
+                direct_fallback=self.env["HARNESS_CHAT_MODEL"],
                 run_key=fields["requestId"], ttl_seconds=150, coin_limit=fields.pop("maxCoins", None),
             ))
             try:
@@ -111,7 +112,8 @@ class ChatWorker:
                 raise WorkerError("unavailable") from None
             try:
                 return await self._request(scope, action, {
-                    **fields, "grant": {"token": grant.token, "operationId": grant.operation_id, "model": grant.model},
+                    **fields, "grant": {"token": grant.token, "operationId": grant.operation_id, "model": grant.model,
+                                        "directModel": grant.direct_model, "effort": grant.effort},
                     "deadline": int(time.time() * 1000) + 120_000,
                 }, timeout=135)
             except WorkerError as error:

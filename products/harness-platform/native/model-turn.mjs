@@ -1,5 +1,5 @@
 /** Run the same native Session, Agent, tool executor and loop for both transports. */
-export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, provider, model, adapter, signal, progress }) {
+export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, provider, model, reasoningEffort, adapter, signal, progress }) {
   const llm = await load('dsh-llm');
   // The worker supplies a fresh Context with sessions, tools and system prompt.
   for (const name of ['dsh-llm', 'dsh-session-projection', 'dsh-tool-executor-native', 'dsh-agent', 'dsh-agent-loop']) {
@@ -30,15 +30,17 @@ export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, 
   }
   const unregister = ctx.llm.registerAdapter([provider], adapter);
   try {
+    const selection = {provider, model, ...(reasoningEffort ? {reasoningEffort} : {})};
     const handle = await ctx.agents.create({
-      sessionId: chatId, seed, agentOptions: { provider, model },
+      sessionId: chatId, seed, agentOptions: selection,
     });
     try {
       const { agent } = handle;
       // A restored Harness session remembers its previous model in its event log.
       const previous = agent.model.current();
-      if (previous?.provider !== provider || previous?.model !== model) {
-        agent.model.select({ provider, model });
+      if (previous?.provider !== provider || previous?.model !== model ||
+          previous?.reasoningEffort !== reasoningEffort) {
+        agent.model.select(selection);
       }
       const cancel = () => agent.cancel({ kind: 'user' });
       signal?.throwIfAborted();
