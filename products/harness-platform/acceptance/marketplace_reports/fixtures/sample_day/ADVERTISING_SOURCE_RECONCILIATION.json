@@ -1,0 +1,10 @@
+{
+  "date": "2001-02-03",
+  "wb_posted_rub": "30.00",
+  "wb_operational_rub": "31.17",
+  "wb_posted_minus_operational_rub": "-1.17",
+  "missing_wb_fullstats_campaign_ids": [
+    "sample-amber",
+    "sample-indigo"
+  ]
+}
