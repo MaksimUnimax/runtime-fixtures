@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+node_modules/
+.venv/
+artifacts/
+*.sqlite3
+*.jsonl
+*.key
+entry-url.txt
+connectors.private.json

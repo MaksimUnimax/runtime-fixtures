@@ -1,0 +1,11 @@
+{
+  "schema": "usage-tariffs/v1",
+  "versions": {
+    "deepseek-2026-11-18-peak-cap": {
+      "models": {
+        "deepseek-flash": {"input": "0.30", "cache": "0.006", "output": "1.20"},
+        "deepseek-v4-pro": {"input": "1.32", "cache": "0.044", "output": "3.96"}
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+-c constraints-linux-py312.txt
+mcp==1.29.0
+jsonschema==4.26.0
+referencing==0.37.0
+starlette==1.6.0
+uvicorn==0.52.1

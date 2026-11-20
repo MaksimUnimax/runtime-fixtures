@@ -1,0 +1,14 @@
+{
+  "version": "wb-formula-semantics-r16",
+  "date": "2001-02-03",
+  "ordered_units": 1,
+  "ordered_original_rub": "240",
+  "paired_statistics": {
+    "profit": {"total_with": "-1.016", "total_without": "17.04"}
+  },
+  "advertising": {
+    "posted_rub": "30",
+    "operational_rub": "31.17",
+    "missing_stats_campaign_ids": [301, 302]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "octoport-harness-api-runtime",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.2.2-rc.1"
+  }
+}

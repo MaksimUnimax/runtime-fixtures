@@ -1,0 +1,8 @@
+{
+  "schema": "octoport-pricing-snapshot/v1",
+  "verified_on": "2026-11-18",
+  "tariff_source": "https://api-docs.deepseek.com/quick_start/pricing/",
+  "fx": {
+    "2026-11-18": "82.4529"
+  }
+}

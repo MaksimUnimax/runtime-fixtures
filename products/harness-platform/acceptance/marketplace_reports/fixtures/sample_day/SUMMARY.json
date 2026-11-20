@@ -1,0 +1,35 @@
+{
+  "schema": "joint-marketplace-statistics/v2",
+  "date": "2001-02-03",
+  "quantity_basis": "PHYSICAL_ORDERED_UNITS_NOT_DISTINCT_CUSTOMER_ORDERS",
+  "stores": [
+    {
+      "platform": "ozon",
+      "date": "2001-02-03",
+      "ordered_units": "3",
+      "original_turnover_rub": "960",
+      "advertising_rub": "54.37",
+      "remaining_with_rub": "90.012",
+      "remaining_without_rub": "120.30",
+      "drr_percent": "5.663541666666666666666666667"
+    },
+    {
+      "platform": "wb",
+      "date": "2001-02-03",
+      "ordered_units": "1",
+      "original_turnover_rub": "240",
+      "advertising_rub": "30",
+      "remaining_with_rub": "-1.016",
+      "remaining_without_rub": "17.04",
+      "drr_percent": "12.5"
+    }
+  ],
+  "combined": {
+    "ordered_units": "4",
+    "original_turnover_rub": "1200",
+    "advertising_rub": "84.37",
+    "remaining_with_rub": "88.996",
+    "remaining_without_rub": "137.34",
+    "drr_percent": "7.030833333333333333333333333"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "octoport-harness-engine",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": { "@deepseek-ai/dsh": "0.2.2-rc.1" }
+}
