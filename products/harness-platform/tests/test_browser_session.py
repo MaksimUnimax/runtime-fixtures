@@ -36,6 +36,10 @@ class BrowserSessionTests(TestCase):
     def test_https_cookie_round_trip_and_real_logout(self):
         origin = "https://harness.example"
         client = self.enterContext(TestClient(self.app, base_url=origin, follow_redirects=False))
+        anonymous = client.get("/api/session/status")
+        self.assertEqual(anonymous.json(), {"authenticated": False})
+        self.assertEqual(anonymous.headers["cache-control"], "no-store")
+        self.assertNotIn("set-cookie", anonymous.headers)
         page = client.get("/login")
         self.assertEqual(page.status_code, 200)
         self.assertIn('data-panel="login"', page.text)
@@ -48,6 +52,7 @@ class BrowserSessionTests(TestCase):
         self.assertNotIn("domain=", cookie)
         token = client.cookies.get("__Host-harness_session")
         self.assertTrue(token)
+        self.assertEqual(client.get("/api/session/status").json(), {"authenticated": True})
         self.assertNotIn(token, response.text)
         self.assertEqual(client.get("/login").headers["location"], "/app/")
         self.assertEqual(client.get("/protected").status_code, 200)
@@ -60,6 +65,8 @@ class BrowserSessionTests(TestCase):
         self.assertEqual((logged_out.status_code, logged_out.headers["location"]), (303, "/login"))
         self.assertIn("max-age=0", logged_out.headers["set-cookie"].lower())
         self.assertEqual(client.get("/protected").status_code, 401)
+        client.cookies.set("__Host-harness_session", token)
+        self.assertEqual(client.get("/api/session/status").json(), {"authenticated": False})
         with self.assertRaises(AuthenticationError):
             self.identity.validate_session(token)
 

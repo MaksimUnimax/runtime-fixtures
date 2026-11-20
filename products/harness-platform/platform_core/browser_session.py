@@ -5,7 +5,7 @@ from urllib.parse import parse_qsl
 
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
-from starlette.responses import RedirectResponse, Response
+from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.routing import Route
 
 from .identity import AuthenticationError
@@ -153,6 +153,16 @@ async def _logout(request):
     return response
 
 
+async def _session_status(request):
+    try:
+        await run_in_threadpool(request.app.state.identity.validate_session, browser_token(request))
+    except AuthenticationError:
+        authenticated = False
+    else:
+        authenticated = True
+    return JSONResponse({"authenticated": authenticated}, headers=_PRIVATE_HEADERS)
+
+
 async def _navigation_script(_request):
     return Response(_NAVIGATION_JS, media_type="text/javascript", headers=_PRIVATE_HEADERS)
 
@@ -161,5 +171,6 @@ def browser_routes():
     return [
         Route("/login", _login, methods=["GET", "POST"]),
         Route("/logout", _logout, methods=["POST"]),
+        Route("/api/session/status", _session_status),
         Route("/session-nav.js", _navigation_script),
     ]

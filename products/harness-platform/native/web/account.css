@@ -27,9 +27,17 @@ html,body,#root{height:100%;margin:0}
 .wallet-amount{margin:6px 0 18px;font-size:34px;line-height:1.2;font-weight:600;letter-spacing:-.035em;overflow-wrap:anywhere}
 .wallet-amount span{display:block;color:var(--muted);font-size:13px;font-weight:400;letter-spacing:normal;margin-bottom:6px}
 .wallet-amount small{font-size:16px;font-weight:400;letter-spacing:normal}
-.wallet-price{margin:6px 0;color:var(--muted)}
-.wallet-history{list-style:none;padding:0;margin:20px 0 0}
-.wallet-history li{padding:9px 0;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.wallet-charges { margin-top:12px; }
+.wallet-charges > button { width:100%; }
+.wallet-history {
+  --row-height:2.5rem; max-block-size:calc(5 * var(--row-height)); overflow-y:auto;
+  overscroll-behavior:contain; list-style:none; padding:0; margin:10px 0 0;
+}
+.wallet-history li {
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  box-sizing:border-box; height:var(--row-height); margin:0; padding:0 6px;
+  border-top:1px solid var(--line); font-variant-numeric:tabular-nums;
+}
 .account-dialog [role=alert]{color:#bb3845}
 @media(prefers-color-scheme:dark){.account-dialog{--fg:#edf0f5;--muted:#acb5c5;--line:#434955;--surface:#24272e;--wash:#2f333d;--action:#5278f6}}
 @media(max-width:480px){.account-dialog{padding:24px}}

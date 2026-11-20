@@ -49,9 +49,10 @@ window.__ModuleLoader__.load({
         },[]);
         return available;
       }
+      const coinAmount=new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2});
       function Footer({wide}) {
         const available=useAvailableCoins();
-        const count=available==null?'—':available.replace('.',',');
+        const count=available==null?'—':coinAmount.format(available);
         const title=a.guest?'Войти':'Баланс';
         return h('div',{className:'account-actions'},
           wide && a.guest && h('small',{className:'guest-coins'},'Монеты · доступны после входа'),
@@ -74,6 +75,8 @@ window.__ModuleLoader__.load({
       }
       function Wallet() {
         const [wallet,setWallet]=React.useState(null);
+        const [showCharges,setShowCharges]=React.useState(false);
+        const historyId=React.useId();
         const [error,setError]=React.useState('');
         React.useEffect(()=>{
           const controller=new AbortController();
@@ -87,13 +90,16 @@ window.__ModuleLoader__.load({
         },[]);
         if (!wallet) return h('p',{role:error?'alert':'status'},error || 'Загружаем баланс…');
         return h(React.Fragment,null,
-          h('p',{className:'wallet-amount'},h('span',null,'Доступно · '),wallet.available,h('small',null,' монет')),
-          h('p',{className:'wallet-price'},'1 монета покрывает 1 ₽ расходов.'),
-          h('p',{className:'wallet-price'},'Цена покупки · '+Number(wallet.salePrice.rubPerCoin).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:4})+' ₽ за монету'),
+          h('p',{className:'wallet-amount'},h('span',null,'Доступно'),coinAmount.format(wallet.available),h('small',null,' монет')),
           h('a',{className:'account-primary',href:'/payment'},'Пополнить баланс'),
-          wallet.reserved!=='0' && h('p',null,'Ожидает расчёта · '+wallet.reserved),
-          error && h('p',{role:'alert'},error),
-          wallet.charges.length>0 && h('ul',{className:'wallet-history'},wallet.charges.map(c=>h('li',{key:c.operationId||c.requestId},(c.pending?'На сверке · ':'Списано · ')+c.coins))));
+          wallet.reserved!=='0' && h('p',null,'Ожидает расчёта · '+coinAmount.format(wallet.reserved)),
+          wallet.charges.length>0 && h('div',{className:'wallet-charges'},
+            h('button',{type:'button','aria-expanded':showCharges,'aria-controls':historyId,
+              onClick:()=>setShowCharges(open=>!open)},showCharges?'Скрыть списания':'Показать списания'),
+            h('ul',{className:'wallet-history',id:historyId,hidden:!showCharges,'aria-label':'История списаний',
+              tabIndex:wallet.charges.length>5?0:undefined},wallet.charges.map(c=>
+              h('li',{key:c.operationId||c.requestId},h('span',null,c.pending?'На сверке':'Списано'),
+                h('span',null,coinAmount.format(c.coins),' монет'))))));
       }
       let deletion;
       if (!a.guest) ctx.effect(()=>ctx.contextMenus.register({

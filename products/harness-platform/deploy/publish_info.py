@@ -33,6 +33,9 @@ def publish(source, destination):
         for filename in ("octoport-brand.png", "favicon-contour-v1.png"):
             shutil.copyfile(source / "assets" / filename, assets / filename)
         shutil.copyfile(CONTENT / "yandex-metrika.js", assets / "yandex-metrika.js")
+        session_script = assets / "public-session.js"
+        shutil.copyfile(CONTENT / session_script.name, session_script)
+        session_version = sha256(session_script.read_bytes()).hexdigest()[:12]
         design = CONTENT.parent / "native" / "web"
         shutil.copyfile(design / "octoport-wordmark.svg", assets / "octoport-wordmark.svg")
         (info / "styles.css").write_bytes((design / "appearance.css").read_bytes() + b"\n" +
@@ -45,6 +48,7 @@ def publish(source, destination):
                 current = ' aria-current="page"' if target == name else ""
                 links.append(f'<a href="{route(target)}"{current}>{escape(caption)}</a>')
             html = template.substitute(label=label, title=title, description=description, version=version,
+                                       session_version=session_version,
                                        seller=(CONTENT / "seller-footer.html").read_text() if name == "index" else "",
                                        navigation="\n".join(links), content=(CONTENT / f"{name}.html").read_text(),
                                        canonical="https://octoport.ru" + route(name))

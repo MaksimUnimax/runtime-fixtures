@@ -7,6 +7,7 @@ import socket
 import json
 import sqlite3
 import unittest
+from decimal import Decimal, ROUND_HALF_UP
 from contextlib import asynccontextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -188,7 +189,8 @@ class BrowserIsolation(ProductBrowser):
         await expect(page.locator(".wallet-amount")).to_be_visible()
         self.assertIn("/api/wallet", requests)
         wallet = await (await page.request.get("/api/wallet/balance")).json()
-        await expect(page.locator(".sidebar-coins:visible").first).to_contain_text(wallet["available"].replace(".", ","))
+        rounded = Decimal(wallet["available"]).quantize(Decimal(".01"), rounding=ROUND_HALF_UP)
+        await expect(page.locator(".sidebar-coins:visible").first).to_have_text(f"{rounded} монет".replace(".", ","))
         await page.get_by_role("link", name="Пополнить баланс").click()
         await expect(page.get_by_role("heading", name="Пополнение баланса")).to_be_visible()
 
@@ -206,6 +208,38 @@ class BrowserIsolation(ProductBrowser):
         await expect(page.locator("[data-composer-input]").last).to_be_visible()
         self.assertEqual(requested, [])
         self.assertTrue(await page.evaluate("!!window.__DSH_BOOT__?.batches?.length"))
+
+    async def test_wallet_rounds_and_scrolls_five_charges(self):
+        with IdentityStore(self.database) as store:
+            store.grant_coins("first-browser", "95.159360053992", "wallet-fraction", "Test")
+        page = await self.open_chat("first-browser")
+        await expect(page.locator(".sidebar-coins:visible").first).to_have_text("95,16 монет")
+        async def history(route):
+            response = await route.fetch()
+            wallet = await response.json()
+            wallet["charges"] = [{"requestId": str(i), "pending": False, "coins": "0.025"} for i in range(12)]
+            await route.fulfill(response=response, json=wallet)
+        await page.route("**/api/wallet", history)
+        await page.get_by_role("button", name="Баланс", exact=True).click()
+        dialog = page.get_by_role("dialog", name="Баланс")
+        await expect(dialog.locator(".wallet-amount")).to_contain_text("95,16 монет")
+        await expect(dialog).not_to_contain_text("Цена покупки")
+        await expect(dialog).not_to_contain_text("покрывает")
+        charges = dialog.locator(".wallet-history")
+        await expect(charges).to_be_hidden()
+        await dialog.get_by_role("button", name="Показать списания").click()
+        await expect(charges.get_by_role("listitem")).to_have_count(12)
+        await expect(charges.get_by_role("listitem").first).to_contain_text("0,03 монет")
+        await expect(charges).to_be_visible()
+        self.assertTrue(await charges.evaluate("""el => {
+            const row = el.firstElementChild.offsetHeight;
+            return Math.abs(el.clientHeight - 5 * row) <= 1 && el.scrollHeight > el.clientHeight;
+        }"""))
+        await charges.focus()
+        await charges.press("End")
+        await expect(charges.get_by_role("listitem").last).to_be_in_viewport()
+        await dialog.get_by_role("button", name="Скрыть списания").click()
+        await expect(charges).to_be_hidden()
 
     async def test_failed_chat_module_can_retry_the_same_direct_link(self):
         page = await self.open_chat("first-browser")
