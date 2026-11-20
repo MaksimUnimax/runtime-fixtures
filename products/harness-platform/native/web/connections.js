@@ -99,9 +99,11 @@ window.__ModuleLoader__.load({
         const labels={sending:'Отправляю сообщение…',accepted:'Сообщение принято',model:'Модель готовит ответ…',
           thinking:'Модель обдумывает ответ…',tool:'Модель запрашивает данные…',writing:'Модель отвечает…',failed:'Не удалось завершить запрос'};
         async function toggle(row){
+          const before=rows;
           setBusy(true);setError('');
+          setRows(before.map(item=>item.id===row.id?{...item,attached:!item.attached}:item));
           try {setRows((await post(url,{connectionId:row.id,enabled:!row.attached})).connections);}
-          catch(e){setError(e.message);}finally{setBusy(false);}
+          catch(e){setRows(before);setError(e.message);}finally{setBusy(false);}
         }
         return h('div',{className:'chat-access'},
           view && h('div',{'data-live-turn':view.stage,className:'chat-live'},
