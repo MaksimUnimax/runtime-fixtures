@@ -2,8 +2,10 @@
 
 import json
 import re
-from contextlib import asynccontextmanager
+from contextlib import ExitStack, asynccontextmanager
 from functools import partial
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
@@ -71,10 +73,15 @@ async def _body(request, *keys, optional=()):
 def create_app(database_path, chat_directory, *, composition_module=None):
     @asynccontextmanager
     async def lifespan(app):
-        with RegistrationStore(database_path) as identity:
-            app.state.identity = identity
+        with ExitStack() as lifecycle:
+            # An ephemeral service and its separate native process need the same database.
+            shared_path = database_path
+            if str(shared_path) == ":memory:":
+                directory = lifecycle.enter_context(TemporaryDirectory())
+                shared_path = Path(directory) / "platform.sqlite3"
+            app.state.identity = lifecycle.enter_context(RegistrationStore(shared_path))
             app.state.admin_costs = AdminCosts()
-            app.state.worker = ChatWorker(database_path, chat_directory, composition_module)
+            app.state.worker = ChatWorker(shared_path, chat_directory, composition_module)
             try:
                 yield
             finally:
@@ -152,9 +159,8 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         scope = await run_in_threadpool(
             req.app.state.identity.resolve_chat, token, req.path_params["chat_id"],
         )
-        prefix = await run_in_threadpool(req.app.state.identity.claimed_history, scope)
-        if prefix:
-            data["guestHistory"] = prefix
+        if await run_in_threadpool(req.app.state.identity.has_claimed_guest_turns, scope):
+            data["claimedGuest"] = True
         try:
             result = await req.app.state.worker.request(scope, action, **data)
         except WorkerError as exc:

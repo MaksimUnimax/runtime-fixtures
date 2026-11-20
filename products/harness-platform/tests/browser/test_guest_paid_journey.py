@@ -20,7 +20,7 @@ from test_account_browser import running_product
 
 
 PRODUCT = Path(__file__).resolve().parents[2]
-QUESTION = "Какой артикул я указал в гостевом сообщении? Ответь только артикулом."
+QUESTION = "Как звучал мой первый вопрос в гостевом чате? Процитируй только вопрос."
 
 
 async def send(page, message):
@@ -79,13 +79,30 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         await page.get_by_role("button", name="Попробовать без регистрации").click()
         await expect(page.get_by_role("heading", name="Гостевой чат")).to_be_visible()
         original_url = page.url
-        sku = f"SKU-{secrets.randbelow(1_000_000):06d}"
-        marker = f"Как сохранить историю работы с Ozon? Мой артикул {sku}."
-        self.assertEqual((await send(page, marker)).status, 303)
+        cases = [
+            ("Что ты умеешь?", "Сервис создан для продавцов"),
+            ("Как зарегистрироваться?", "подтвердите регистрацию"),
+            ("Сколько стоит ваш сервис?", "Публичный тариф"),
+        ]
+        # Use a different first question across runs so the model must receive the real history.
+        shift = secrets.randbelow(len(cases))
+        cases = cases[shift:] + cases[:shift]
+        first_question = cases[0][0]
+        cases.append(("Напиши стих про Ozon", "Я отвечаю на вопросы о нашем сервисе"))
         history = page.get_by_role("list", name="История сообщений")
-        await expect(history).to_contain_text(marker)
-        guest_answer = await history.locator("li p").nth(1).inner_text()
-        self.assertTrue(guest_answer.strip())
+        guest_answers = []
+        for question, expected in cases:
+            self.assertEqual((await send(page, question)).status, 303)
+            await expect(history.locator("li").last).to_contain_text(expected)
+            guest_answers.append(await history.locator("li").last.locator("p").nth(1).inner_text())
+        evidence = os.environ.get("HARNESS_FAQ_EVIDENCE")
+        if evidence and not live:
+            Path(evidence).mkdir(parents=True, exist_ok=True)
+            await page.screenshot(path=Path(evidence) / "01-public-faq.png", full_page=True)
+        # Check the actual usage journal before either registration or a paid request.
+        self.assertFalse(journal.exists() and journal.stat().st_size)
+        with sqlite3.connect(database) as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM usage_operations").fetchone()[0], 0)
 
         password = secrets.token_urlsafe(32)
         await page.get_by_role("link", name="Создать аккаунт и сохранить чат").click()
@@ -94,7 +111,8 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         await page.get_by_role("button", name="Зарегистрироваться и открыть чат").click()
         await expect(page).to_have_url(original_url)
         conversation = page.get_by_test_id("history")
-        await expect(conversation).to_contain_text(guest_answer, timeout=30_000)
+        for answer in guest_answers:
+            await expect(conversation).to_contain_text(answer, timeout=30_000)
         await expect(page.get_by_test_id("tools")).to_contain_text("Нет доступных инструментов")
         self.assertEqual((await send(page, QUESTION)).status, 402)
         await expect(page.get_by_role("alert")).to_contain_text("Недостаточно доступных монет")
@@ -115,13 +133,16 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         self.assertNotEqual(snapshot["charges"][0]["coins"], "0")
         self.assertNotIn("meter", snapshot["charges"][0])
         self.assertEqual(await page.get_by_role("button", name="Начислить монеты").count(), 0)
-        await expect(conversation.locator('[data-role="assistant"]').last).to_contain_text(sku)
+        await expect(conversation.locator('[data-role="assistant"]').last).to_contain_text(first_question)
         await expect(page.locator(".model-cost")).to_have_count(0)
         await page.reload()
-        await expect(conversation.locator('[data-role="user"]')).to_have_count(2, timeout=30_000)
-        await expect(conversation.locator('[data-role="assistant"]')).to_have_count(2)
-        await expect(conversation).to_contain_text(guest_answer)
-        await expect(conversation.locator('[data-role="assistant"]').last).to_contain_text(sku)
+        await expect(conversation.locator('[data-role="user"]')).to_have_count(len(cases) + 1, timeout=30_000)
+        await expect(conversation.locator('[data-role="assistant"]')).to_have_count(len(cases) + 1)
+        await expect(conversation).to_contain_text(guest_answers[-1])
+        await expect(conversation.locator('[data-role="assistant"]').last).to_contain_text(first_question)
+
+        if evidence and not live:
+            await page.screenshot(path=Path(evidence) / "02-account-chat.png", full_page=True)
 
         await operator(database, "set-role", "admin")
         await page.reload()
@@ -137,8 +158,8 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         await second.get_by_role("button", name="Войти", exact=True).click()
         await second.goto(original_url)
         saved = second.get_by_test_id("history")
-        await expect(saved.locator('[data-role="user"]')).to_have_count(2, timeout=30_000)
-        await expect(saved.locator('[data-role="assistant"]').last).to_contain_text(sku)
+        await expect(saved.locator('[data-role="user"]')).to_have_count(len(cases) + 1, timeout=30_000)
+        await expect(saved.locator('[data-role="assistant"]').last).to_contain_text(first_question)
         await expect(second.locator(".model-cost")).to_have_count(0)
         events = [json.loads(line) for line in journal.read_text().splitlines()]
         self.assertEqual([event["event"] for event in events], ["admitted", "finished"])
@@ -147,4 +168,4 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(last["provider_response_id"])
         self.assertEqual(last["attribution"]["source"], "chat.turn")
         print(f"Chromium {browser.version}: guest and unpaid 0 model calls, paid 1, "
-              "same chat and recalled article, role revocation and second device passed", flush=True)
+              "same chat and recalled first FAQ question, role revocation and second device passed", flush=True)

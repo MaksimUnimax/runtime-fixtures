@@ -32,12 +32,12 @@ const upstream = http.createServer(async (req, res) => {
     return;
   }
   let answer = toolResult ? 'tool result received' : 'answer to ' + prompt;
-  if (prompt === 'Какой артикул я указал в гостевом сообщении? Ответь только артикулом.') {
+  if (prompt === 'Как звучал мой первый вопрос в гостевом чате? Процитируй только вопрос.') {
     const earlier = request.messages.slice(0, -1).filter(message => message.role === 'user');
     const texts = earlier.flatMap(message => Array.isArray(message.content)
       ? message.content.filter(block => block.type === 'text').map(block => block.text)
       : [message.content]);
-    answer = texts.join(' ').match(/SKU-[0-9]{6}/)?.[0] ?? 'Артикул отсутствует';
+    answer = texts[0] ?? 'Предыдущего вопроса нет';
   }
   const event = (type, fields = {}) => res.write('event: ' + type + '\ndata: ' +
     JSON.stringify({ type, ...fields }) + '\n\n');

@@ -45,10 +45,17 @@ jobs:
           else
             .venv/bin/python -m playwright install --with-deps chromium
           fi
-      - name: Verify two independent browser sessions
+      - name: Verify public FAQ, registration and isolated account chats
         env:
           HARNESS_OFFLINE_MODEL: "1"
+          HARNESS_FAQ_EVIDENCE: ${{ runner.temp }}/shared-faq-evidence
         run: |
           export HARNESS_NODE_MODULES="$RUNNER_TEMP/harness-foundation/node_modules"
           export HARNESS_TEST_PYTHON="$PWD/.venv/bin/python"
           .venv/bin/python -m unittest discover -s tests/browser -v
+      - name: Save public FAQ and registered chat screenshots
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: shared-faq-acceptance
+          path: ${{ runner.temp }}/shared-faq-evidence/*.png
+          if-no-files-found: error

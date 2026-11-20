@@ -4,6 +4,7 @@ import base64
 import hmac
 import re
 import secrets
+from pathlib import Path
 from time import time
 from uuid import uuid4
 
@@ -12,29 +13,14 @@ from .identity import (
     _derive, _login_name, _password_bytes, _secret_digest,
 )
 from .storage import Scope, _bind_chat
+from .public_faq import PublicFAQ
 
 GUEST_LIFETIME = 24 * 60 * 60
-MAX_GUEST_TURNS = 12
+GUEST_PAGE_SIZE = 25
 
 
 class RegistrationConflict(ValueError):
     pass
-
-
-class GuestLimit(ValueError):
-    pass
-
-
-def _public_answer(text):
-    words = text.casefold()
-    if any(term in words for term in ("инструмент", "функци", "модул")):
-        return ("В кабинете откройте «Инструменты» в нужном чате. "
-                "Список зависит от прав аккаунта и функций, включённых для этого чата.")
-    if any(term in words for term in ("истор", "сохран", "регистра", "войти")):
-        return ("Чтобы сохранить этот разговор, нажмите «Создать аккаунт». "
-                "После регистрации ссылка на чат останется прежней. На другом устройстве войдите с тем же логином.")
-    return ("В гостевом чате доступна справка о сервисе. Спросите, как сохранить историю "
-            "или где найти инструменты. Для работы со своими данными создайте аккаунт и подключите магазин.")
 
 
 def _recovery_code(guest_token, nonce):
@@ -44,8 +30,10 @@ def _recovery_code(guest_token, nonce):
 
 class RegistrationStore(IdentityStore):
     def __init__(self, path):
+        self.faq = None
         super().__init__(path)
         try:
+            self.faq = PublicFAQ(None if str(path) == ":memory:" else Path(str(path) + ".public-faq.sqlite3"))
             with self._write() as db:
                 db.execute("""CREATE TABLE IF NOT EXISTS guest_chats (
                     chat_id TEXT PRIMARY KEY NOT NULL, digest BLOB UNIQUE NOT NULL,
@@ -56,10 +44,16 @@ class RegistrationStore(IdentityStore):
                     request_id TEXT NOT NULL, text TEXT NOT NULL, answer TEXT NOT NULL, at_ms INTEGER NOT NULL,
                     PRIMARY KEY (chat_id, request_id))""")
                 db.execute("CREATE INDEX IF NOT EXISTS guest_expiry ON guest_chats(expires_at) WHERE claimed_actor IS NULL")
+                db.execute("CREATE INDEX IF NOT EXISTS guest_turn_chat ON guest_turns(chat_id)")
                 self._prune(db)
         except BaseException:
             self.close()
             raise
+
+    def close(self):
+        super().close()
+        if self.faq is not None:
+            self.faq.close()
 
     @staticmethod
     def _prune(db):
@@ -107,6 +101,16 @@ class RegistrationStore(IdentityStore):
         with self._write() as db:
             return self._turns(db, self._active(db, token, chat))
 
+    def guest_page(self, token, chat, before):
+        with self._write() as db:
+            self._active(db, token, chat)
+            rows = db.execute("""SELECT rowid, text, answer FROM guest_turns
+                WHERE chat_id=? AND rowid<? ORDER BY rowid DESC LIMIT ?""",
+                              (chat, before, GUEST_PAGE_SIZE + 1)).fetchall()
+        shown = rows[:GUEST_PAGE_SIZE]
+        return ([{"text": text, "answer": answer} for _, text, answer in reversed(shown)],
+                shown[-1][0] if len(rows) > GUEST_PAGE_SIZE else None)
+
     def guest_turn(self, token, chat, request_id, text):
         if not isinstance(text, str) or not text.strip() or len(text.encode()) > 8192:
             raise ValueError("Invalid message")
@@ -120,10 +124,8 @@ class RegistrationStore(IdentityStore):
                 if row[0] != text:
                     raise RegistrationConflict("Request already used")
                 return
-            if db.execute("SELECT count(*) FROM guest_turns WHERE chat_id=?", (chat,)).fetchone()[0] >= MAX_GUEST_TURNS:
-                raise GuestLimit("Guest conversation is full")
             db.execute("INSERT INTO guest_turns VALUES (?,?,?,?,?)",
-                       (chat, request_id, text, _public_answer(text), int(time() * 1000)))
+                       (chat, request_id, text, self.faq.answer(text), int(time() * 1000)))
 
     def register(self, guest_token, login, password, recovery):
         name = _login_name(login)
@@ -176,12 +178,12 @@ class RegistrationStore(IdentityStore):
                        (_secret_digest(session), actor, now + _SESSION_SECONDS))
         return session, chat
 
-    def claimed_history(self, scope):
+    def has_claimed_guest_turns(self, scope):
         with self._lock:
-            row = self._db.execute("""SELECT 1 FROM guest_chats g JOIN identity_accounts a
-                ON a.actor_id=g.claimed_actor WHERE g.chat_id=? AND a.actor_id=? AND a.workspace_id=?""",
-                                   (scope.chat_id, scope.actor_id, scope.workspace_id)).fetchone()
-            return self._turns(self._db, scope.chat_id) if row else []
+            return self._db.execute("""SELECT 1 FROM guest_chats g JOIN identity_accounts a
+                ON a.actor_id=g.claimed_actor WHERE g.chat_id=? AND a.actor_id=? AND a.workspace_id=?
+                AND EXISTS (SELECT 1 FROM guest_turns t WHERE t.chat_id=g.chat_id)""",
+                                    (scope.chat_id, scope.actor_id, scope.workspace_id)).fetchone() is not None
 
     def registered_chat(self, token):
         with self._lock:
