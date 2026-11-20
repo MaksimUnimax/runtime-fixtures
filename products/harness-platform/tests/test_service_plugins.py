@@ -145,7 +145,8 @@ class ServicePlugins(unittest.TestCase):
     def test_real_harness_model_route_billing_replay_and_disable(self):
         seen=[]
         def provider(req):
-            if str(req.url)==BASE+"/models":
+            if str(req.url)==BASE+"/models/user":
+                self.assertEqual(req.headers["Authorization"],"Bearer fake-provider-fixture")
                 return httpx.Response(200,json={"data":[{"id":"maker/demo","name":"Demo","architecture":{"output_modalities":["text"]},
                     "supported_parameters":["tools"],"pricing":{"prompt":"0.000001","completion":"0.000003"}}]})
             self.assertEqual(str(req.url),BASE+"/chat/completions")
