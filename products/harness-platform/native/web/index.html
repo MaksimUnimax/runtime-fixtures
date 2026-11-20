@@ -13,9 +13,11 @@
     <a href="/app/" class="brand">Harness</a>
     <details id="wallet" hidden>
       <summary id="balance">Монеты</summary>
-      <p id="reserved"></p>
-      <ul id="charges" aria-label="Недавние списания"></ul>
-      <div id="credit-panel"></div>
+      <div class="wallet-sheet">
+        <p id="reserved"></p>
+        <ul id="charges" aria-label="Недавние списания"></ul>
+        <div id="credit-panel"></div>
+      </div>
     </details>
     <form method="post" action="/logout"><button class="quiet" type="submit">Выйти</button></form>
   </header>

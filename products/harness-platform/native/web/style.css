@@ -16,8 +16,21 @@ button, summary { cursor: pointer; }
 button { border: 1px solid transparent; border-radius: .55rem; padding: .48rem .85rem; color: inherit; }
 button:disabled { opacity: .55; cursor: default; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
-.topbar { height: 3.7rem; padding: 0 clamp(1rem,3vw,2.2rem); display: flex; align-items: center; justify-content: space-between;
+.topbar { position: relative; z-index: 1; height: 3.7rem; padding: 0 clamp(1rem,3vw,2.2rem); display: flex; align-items: center; justify-content: space-between;
   background: var(--surface); border-block-end: 1px solid var(--line); }
+.wallet-sheet {
+  position: absolute; inset-block-start: 100%; inset-inline: 0; margin-inline: auto;
+  width: min(34rem, calc(100% - 1rem)); max-height: calc(100dvh - 4.2rem); overflow: auto;
+  background: var(--surface); border: 1px solid var(--line); border-radius: .65rem;
+  padding: .8rem 1rem; overflow-wrap: anywhere;
+}
+.wallet-sheet p { margin: .3rem 0; }
+.wallet-sheet ul { padding-inline-start: 1.25rem; }
+.wallet-sheet ul:empty { display: none; }
+#credit-panel form { display: grid; gap: .6rem; border-block-start: 1px solid var(--line); padding: .8rem 0; }
+#credit-panel label { display: grid; gap: .2rem; }
+#credit-panel input { width: 100%; font: inherit; padding: .28rem .5rem; }
+#credit-panel button { justify-self: start; }
 .brand { color: var(--ink); font-size: 1.28rem; font-weight: 700; letter-spacing: -.04em; text-decoration: none; }
 .primary { background: var(--accent); color: var(--on-accent); font-weight: 600; }
 .quiet { background: transparent; border-color: var(--line); }
