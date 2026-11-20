@@ -130,6 +130,20 @@ class ProductBrowser(unittest.IsolatedAsyncioTestCase):
 
 
 class BrowserIsolation(ProductBrowser):
+    async def test_startup_transfers_the_viewport_to_the_composer(self):
+        member = await self.open_chat("first-browser")
+        guest_context = await self.browser.new_context(base_url=self.base_url)
+        try:
+            guest = await guest_context.new_page()
+            await guest.goto("/")
+            await member.reload()
+            for page in (guest, member):
+                await expect(page.locator("[data-composer-input]").last).to_be_in_viewport()
+                await expect(page.locator("[data-dsh-boot]")).to_have_count(0)
+                await expect(page.locator("#chat-opening")).to_have_count(0)
+        finally:
+            await guest_context.close()
+
     async def test_direct_link_displays_while_resources_and_history_are_pending(self):
         page = await self.open_chat("first-browser")
         marker = "Проверка открытия переписки"

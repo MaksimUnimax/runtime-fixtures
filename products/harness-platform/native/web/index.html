@@ -10,7 +10,7 @@
   #chat-history-error button {margin-left:.5rem; font:inherit; cursor:pointer}
   #chat-opening p {margin:0}
   #chat-opening button {margin:.65rem auto 0; font:inherit; color:inherit; cursor:pointer}
-  #root:has([data-dsh-boot]:not(:has([data-dsh-boot-spinner]))) #chat-opening {display:none}
+  #root:not(:empty) + #chat-opening {display:none}
   @media (prefers-color-scheme:dark) { #chat-opening {color:#bbc2cb;background:#131519} }
 </style>
 <link rel="modulepreload" href="/ui-assets/project/start.js">
@@ -26,8 +26,9 @@
 <script defer src="/session-nav.js"></script><script defer src="/ui-assets/project/bootstrap.js"></script>
 <script defer src="/ui-assets/modules/dsh-client-modules.js"></script><script defer src="/ui-assets/modules/manifest.js"></script>
 <script type="module" src="/ui-assets/project/start.js"></script></head>
-<body data-account="@@account@@" data-mode="@@mode@@" data-panel="@@panel@@" data-chat="@@chat@@" data-error="@@error@@" data-recovery="@@recovery@@"><div id="root"><div id="chat-opening">
+<body data-account="@@account@@" data-mode="@@mode@@" data-panel="@@panel@@" data-chat="@@chat@@" data-error="@@error@@" data-recovery="@@recovery@@"><div id="root"></div>
+<div id="chat-opening">
 <p role="status">Открываем чат…</p><form method="get"><button type="submit">Обновить страницу</button></form>
-</div></div>
+</div>
 <form id="chat-history-error" method="get" hidden><span role="alert">Не удалось загрузить историю чата.</span>
 <button type="submit">Повторить загрузку</button></form></body></html>
