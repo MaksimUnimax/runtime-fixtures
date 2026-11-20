@@ -1,4 +1,4 @@
-"""Run the pinned selector, compiler, HTTP recipes and renderer in an isolated process."""
+"""Run the registered template compiler, HTTP recipes and renderer in an isolated process."""
 from contextlib import redirect_stdout
 from contextvars import copy_context
 from datetime import datetime
@@ -9,15 +9,14 @@ from pathlib import Path
 import sys
 import tarfile
 import time
-from urllib.parse import urlsplit
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
-import httpx
 
 from .authority import ChatAuthority
 
 BUNDLE = Path(__file__).with_name("runtime.tar.gz")
-BUNDLE_SHA256 = "dd6c1f0fc70b6646d790304d9e8532b98732251ce400664cd83f27b03f41f870"
+BUNDLE_SHA256 = "795cfb1da8dfe94f0415d2b450aa8f805ef44f2a334503b71b59a7c4e4cbdfc7"
 
 
 def unpack(directory):
@@ -28,57 +27,14 @@ def unpack(directory):
     sys.path.insert(0, str(directory))
 
 
-def metered_selection(turn, request, on_dispatch):
-    from engine import CallError
-    from template_protocol import payload
-    wire = payload(request.operation, request.body)
-    url = urlsplit(turn["gateway"])
-    if url.scheme != "http" or url.hostname != "127.0.0.1" or url.path not in ("", "/") or url.username or url.password or url.query or url.fragment:
-        raise CallError("SELECTOR_GATEWAY_UNAVAILABLE")
-    system = [m["content"] for m in wire["messages"] if m["role"] == "system"]
-    messages = [m for m in wire["messages"] if m["role"] != "system"]
-    body = {"model": wire["model"], "system": "\n".join(system), "messages": messages,
-            "thinking": wire["thinking"], "temperature": wire["temperature"], "max_tokens": 4096}
-    on_dispatch()
-    start = time.monotonic()
-    try:
-        with httpx.Client(trust_env=False, follow_redirects=False, timeout=max(.1, turn["deadline"]/1000-time.time())) as http:
-            response = http.post(turn["gateway"].rstrip("/") + "/v1/messages",
-                                 headers={"x-api-key": turn["token"]}, json=body)
-    except httpx.RequestError:
-        raise CallError("SELECTOR_OUTCOME_UNCONFIRMED", unknown=True) from None
-    if not response.is_success:
-        raise CallError("HTTP_" + str(response.status_code), status=response.status_code)
-    message = response.json()
-    content = "".join(block["text"] for block in message["content"] if block["type"] == "text")
-    finish = {"end_turn": "stop", "stop_sequence": "stop", "max_tokens": "length"}.get(message.get("stop_reason"))
-    return {"content": content, "finish_reason": finish}, {"status": response.status_code,
-            "elapsed_ms": round(1000*(time.monotonic()-start)), "bytes": len(response.content)}
-
-
-def execute(packet, directory, selector=metered_selection):
-    from direct_response import answer_step
-    from engine import CallError, Engine, Worker
-    from failure_explanations import explain
-    from http_transport import HTTPTransport, MATRICES, SCALARS, SCALAR_SOURCES
+def configure_catalogue(engine, fields):
+    from http_transport import MATRICES, SCALARS, SCALAR_SOURCES
     from platform_store_credentials import required_fields
-    import model_answer
-    from repository import Repository
-    from semantics import Rejected, fingerprint
-    from template_catalog import HASH, TEMPLATES, dependencies
-    from template_runtime import submit
-
-    authority = ChatAuthority(packet)
-    turn, pins = packet["turn"], authority.pins
-    guard = {"pins": pins}
+    from template_catalog import TEMPLATES, dependencies
     proofs = json.loads(Path(sys.path[0], "source_qualifications.json").read_bytes())
-    caps = {cid: proofs for cid in authority.ids}
-    repo = Repository(str(directory / "requests.sqlite"))
-    engine = Engine(repo, lambda tenant: authority.scope_for(guard), execution_policy=authority,
-                    template_mode=True, table_capabilities=lambda: caps, dataset_capabilities=lambda: caps,
-                    selector_policy=lambda: {"layout": "catalog_prefix_v2", "isolation": "legacy_none"})
-    # Only field names are retained for discovery. Dispatch resolves fresh credentials.
-    fields = {store.id: authority.field_names(store) for store in authority.scope_for(guard).stores}
+    caps = {cid: proofs for cid in fields}
+    engine.table_capabilities = engine.dataset_capabilities = lambda: caps
+
     def supported(template, store):
         for dependency in dependencies(template["id"]):
             for step in TEMPLATES[dependency]["steps"]:
@@ -96,9 +52,51 @@ def execute(packet, directory, selector=metered_selection):
                 if op not in proofs or not needed.issubset(fields[store.id]):
                     return False
         return True
-    engine.chat_selector_context = {"recent_user_questions": turn.get("recentQuestions", []),
-                                    "store_names": authority.names}
     engine.store_template_available = supported
+    return proofs
+
+
+def catalogue(profiles):
+    from template_catalog import discovery
+    from semantics import Scope, Store
+
+    # This is static discovery on credential types. No account data or keys go to this process.
+    stores = tuple(Store(key, provider, key, "", "") for key, provider, _ in profiles)
+    fields = {key: set(names) for key, _, names in profiles}
+    engine = SimpleNamespace()
+    configure_catalogue(engine, fields)
+    return [row for row in discovery(engine, Scope("", "", stores)) if row["available_stores"]]
+
+
+def execute(packet, directory):
+    from direct_response import answer_step
+    from engine import CallError, Engine, Worker
+    from failure_explanations import explain
+    from http_transport import HTTPTransport
+    import model_answer
+    from repository import Repository
+    from semantics import Rejected, fingerprint
+    from template_catalog import HASH, TEMPLATES, dependencies, _availability
+    from template_runtime import submit
+
+    authority = ChatAuthority(packet)
+    turn, pins = packet["turn"], authority.pins
+    guard = {"pins": pins}
+    repo = Repository(str(directory / "requests.sqlite"))
+    engine = Engine(repo, lambda tenant: authority.scope_for(guard), execution_policy=authority, template_mode=True)
+    allowed = {store.id: store for store in authority.scope_for(guard).stores}
+    proofs = configure_catalogue(engine, {cid: authority.field_names(store) for cid, store in allowed.items()})
+    calls = []
+    for index, item in enumerate(packet["selections"], 1):
+        tid, cid = item["templateId"], item["connectionId"]
+        if tid not in TEMPLATES or cid not in allowed or not _availability(engine, TEMPLATES[tid], allowed[cid]):
+            raise Rejected("SOURCE_ACCESS")
+        calls.append({"id": str(index), "template_id": tid, "store_id": cid, "input": item["input"]})
+    engine.chat_template_selection = {
+        "action": "plan", "complete": True, "missing": [], "invocations": calls,
+        "requirements": [{"id": call["id"], "description": TEMPLATES[call["template_id"]]["purpose"],
+                          "invocations": [call["id"]]} for call in calls],
+    }
     engine.harness_store_names = lambda plan: authority.names
     engine.program_answers = False
     model_answer.step = answer_step  # Only in this request's private child interpreter.
@@ -106,8 +104,6 @@ def execute(packet, directory, selector=metered_selection):
 
     class ChatTransport(HTTPTransport):
         def execute(self, request, store, *, on_dispatch=None):
-            if request.operation == "template_select":
-                return selector(turn, request, on_dispatch)
             if store is None:
                 raise CallError("MARKETPLACE_OPERATION_REQUIRED")
             context = copy_context()
@@ -120,7 +116,7 @@ def execute(packet, directory, selector=metered_selection):
     worker = Worker(engine, transport, execution_ready=authority.check)
     today = datetime.now(ZoneInfo("Europe/Moscow")).date()
     root = submit(engine, pins["tenant_id"], turn["question"], turn["requestId"],
-                  fingerprint([turn["question"], authority.ids]), today, execution_context=guard)
+                  fingerprint([turn["question"], calls]), today, execution_context=guard)
     while time.time() < authority.deadline:
         row = repo.get(pins["tenant_id"], root["job_id"])
         if row["state"] != "QUEUED":
@@ -148,7 +144,7 @@ def execute(packet, directory, selector=metered_selection):
                         field_map.update(step.get("bind", {}).get("fields", {}))
         if field_map:
             receipt["metricFields"] = field_map
-    trace = {"catalogHash": HASH, "catalogSize": len(TEMPLATES),
+    trace = {"selectionBy": "chat_agent", "catalogHash": HASH, "catalogSize": len(TEMPLATES),
              "templates": [{"id": item["template_id"], "connectionId": item["store_id"]} for item in selected],
              "operations": operations}
     if row["state"] != "READY":
@@ -169,7 +165,7 @@ def main():
     from semantics import Rejected
     with open(os.devnull, "w") as sink, redirect_stdout(sink):
         try:
-            result = execute(packet, root)
+            result = catalogue(packet["profiles"]) if "profiles" in packet else execute(packet, root)
         except Rejected as error:
             from failure_explanations import explain
             result = {"ok": False, "code": error.code, "reason": explain(error.code)["text"]}

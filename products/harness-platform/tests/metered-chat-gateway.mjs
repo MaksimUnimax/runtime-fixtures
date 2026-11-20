@@ -36,7 +36,7 @@ const upstream = http.createServer(async (req, res) => {
     // Inspect the actual serialized provider request after a previous assistant reply.
     const update=request.messages.slice(request.messages.findLastIndex(m=>m.role==='assistant')+1)
       .filter(m=>m.role==='user').flatMap(m=>m.content).map(b=>b.text||'').join(' ');
-    const tools=(request.tools||[]).map(t=>({ids:t.input_schema.properties?.connectionId?.enum ?? t.input_schema.properties?.connectionIds?.items?.enum, deferred:t.defer_loading}));
+    const tools=(request.tools||[]).map(t=>({ids:t.input_schema.properties?.connectionId?.enum ?? t.input_schema.properties?.selections?.items?.properties?.connectionId?.enum, deferred:t.defer_loading}));
     answer=JSON.stringify({
       currentStore:update.includes('Магазин Тест'), boundName:update.includes('mcp__platform__marketplace_report'),
       freshUpdate:update.includes('Текущее состояние подключений'), active:tools.filter(t=>t.ids).map(t=>t.ids.length),
