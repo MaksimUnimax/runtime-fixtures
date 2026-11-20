@@ -71,6 +71,11 @@ class OperationGrant:
     token: str = field(repr=False)
 
 
+def ensure_operation_schema(db):
+    for statement in OPERATION_SCHEMA:
+        db.execute(statement)
+
+
 @contextmanager
 def _transaction(database_path):
     # mode=rw forbids silent creation of an unrelated, empty SQLite file.
@@ -82,8 +87,7 @@ def _transaction(database_path):
         version = db.execute("PRAGMA user_version").fetchone()[0]
         if (application, version) != (_PLATFORM_APPLICATION, 1):
             raise ValueError("Unsupported platform database")
-        for statement in OPERATION_SCHEMA:
-            db.execute(statement)
+        ensure_operation_schema(db)
         yield db
 
 

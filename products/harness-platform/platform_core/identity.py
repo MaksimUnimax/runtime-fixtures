@@ -9,7 +9,7 @@ from pathlib import Path
 from time import time
 from uuid import uuid4
 
-from .operation_grants import OPERATION_SCHEMA
+from .operation_grants import PAID_ACCESS_SCHEMA, ensure_operation_schema
 from . import coins
 from .storage import Scope, Store, _bind_chat, _owns_chat
 
@@ -19,7 +19,7 @@ _FAILURE_WINDOW = 5 * 60
 _MAX_FAILURES = 5
 _TOKEN = re.compile(r"[A-Za-z0-9_-]{43}")
 _SCHEMA = (
-    *OPERATION_SCHEMA,
+    PAID_ACCESS_SCHEMA,
     """CREATE TABLE IF NOT EXISTS identity_accounts (
            actor_id TEXT PRIMARY KEY NOT NULL,
            login TEXT UNIQUE NOT NULL,
@@ -223,11 +223,13 @@ class IdentityStore(Store):
             row = db.execute("SELECT workspace_id FROM identity_accounts WHERE login=?", (_login_name(login),)).fetchone()
             if row is None:
                 raise ValueError("Unknown account")
+            ensure_operation_schema(db)
             coins.grant(db, issuer, key, row[0], amount, reason)
 
     def wallet(self, token):
         with self._write() as db:
             actor, workspace = _principal(db, token)
+            ensure_operation_schema(db)
             coins.close_orders(db, workspace)
             available, held = coins.balances(db, workspace)
             admin = bool(db.execute("SELECT 1 FROM identity_admins WHERE actor_id=?", (actor,)).fetchone())

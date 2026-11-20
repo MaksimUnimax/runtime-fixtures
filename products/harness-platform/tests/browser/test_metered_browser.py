@@ -1,6 +1,7 @@
 """Send a turn from the signed-in web UI and match its receipt to the gateway journal."""
 
 import asyncio
+from decimal import Decimal
 import json
 import os
 from pathlib import Path
@@ -89,11 +90,25 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((row["operation_id"], row["unique_attempts"], row["total_rub"]),
                          (receipt["operationId"], 1, "0.00072"))
 
+        await page.locator("#balance").click()
+        await expect(regular.locator("#credit-panel form")).to_have_count(0)
+        regular_wallet = await (await regular.request.get("/api/wallet")).json()
+        await page.get_by_label("Логин получателя").fill("regular-fixture")
+        await page.get_by_label("Монеты", exact=True).fill("3")
+        await page.get_by_label("Основание").fill("Browser acceptance")
+        await page.get_by_role("button", name="Начислить монеты").click()
+        await expect(page.locator("#credit-panel output")).to_have_text("Монеты начислены")
+        await regular.reload()
+        expected = Decimal(regular_wallet["available"]) + 3
+        await expect(regular.locator("#balance")).to_have_text(f"Монеты · {expected:f}")
+        await expect(regular.locator("#credit-panel form")).to_have_count(0)
+
         with IdentityStore(database) as store:
             store.set_admin("browser-fixture", False)
         await page.reload()
         await expect(page.get_by_test_id("history")).to_contain_text("answer to browser fixture", timeout=30_000)
         await expect(label).to_have_count(0)
+        await expect(page.locator("#credit-panel form")).to_have_count(0)
         history = await (await page.request.get(f"/api/chats/{chat}/messages")).json()
         self.assertNotIn("modelCost", history[-1])
         self.assertNotIn("operationId", history[-1])
