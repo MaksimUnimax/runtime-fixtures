@@ -1,11 +1,13 @@
 :root { color-scheme:light dark; font:16px/1.58 var(--octo-font); background:var(--octo-page); color:var(--octo-ink); }
 * { box-sizing:border-box; }
+html,body { height:100%; }
 body { margin:0; }
+html:not([data-session="guest"]) [data-guest],html[data-session="guest"] [data-account] { display:none; }
 a { color:inherit; text-decoration:none; }
 .skip { position:fixed; left:10px; top:-5rem; z-index:2; padding:8px 14px; background:var(--octo-panel); border-radius:8px; }
 .skip:focus { top:8px; }
-.layout { display:grid; grid-template-columns:clamp(208px,20vw,280px) minmax(0,1fr); min-height:100dvh; }
-.sidebar { position:sticky; top:0; height:100dvh; overflow:auto; display:flex; flex-direction:column; padding:0 12px 14px; background:var(--octo-rail); border-right:1px solid var(--octo-line); }
+.layout { --rail-width:clamp(208px,20vw,280px); display:grid; grid-template-columns:var(--rail-width) minmax(0,1fr); min-height:100%; }
+.sidebar { position:fixed; inset-block:0; inset-inline-start:0; width:var(--rail-width); overflow:auto; display:flex; flex-direction:column; padding:0 12px 14px; background:var(--octo-rail); border-right:1px solid var(--octo-line); }
 .brand { display:inline-flex; align-items:center; gap:4px; width:fit-content; }
 .sidebar .brand { min-height:66px; padding-inline:7px; }
 @media(prefers-color-scheme:dark) { .brand img:not(.octo-wordmark) { filter:brightness(0) invert(1); } }
@@ -19,11 +21,12 @@ a { color:inherit; text-decoration:none; }
 }
 .sidebar nav a:hover,.account a:hover,.mobile-nav a:hover { background:var(--octo-hover); }
 nav a[aria-current=page] { background:var(--octo-panel); box-shadow:inset 0 0 0 1px var(--octo-line); }
-.workspace { min-width:0; }
+.workspace { grid-column:2; min-width:0; display:flex; flex-direction:column; }
 .toolbar { min-height:54px; padding:8px 24px; border-bottom:1px solid var(--octo-line); display:flex; gap:16px; align-items:center; font-size:14px; font-weight:500; }
 .toolbar > a:last-child { margin-left:auto; }
 .mobile-brand,.mobile-nav { display:none; }
-main,footer { max-width:860px; margin:auto; padding-inline:clamp(18px,4.5vw,48px); }
+.workspace main,.workspace footer { width:min(764px,calc(100% - 2 * clamp(18px,4.5vw,48px))); margin-inline:auto; }
+.workspace main { flex:1; }
 main { padding-top:clamp(30px,4.8vw,64px); overflow-wrap:anywhere; }
 .intro { margin-bottom:32px; }
 h1,h2,h3,h4 { line-height:1.18; text-wrap:balance; }
@@ -63,16 +66,22 @@ details + p { margin-top:16px; }
 .analytics-case > h3 { margin-top:0; font-size:21px; }
 .example-question { border-radius:12px; padding:12px 16px; background:var(--octo-panel); border:1px solid var(--octo-line); }
 dt { font-weight:600; } dd { margin:3px 0 10px; color:var(--octo-muted); }
-footer { border-top:1px solid var(--octo-line); margin-top:22px; padding-block:20px 32px; display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; color:var(--octo-muted); font-size:13px; }
+footer { border-top:1px solid var(--octo-line); padding-block:22px 28px; color:var(--octo-muted); font-size:14px; }
+.footer-links { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; }
+.footer-links > span { margin-inline-end:auto; }
 footer a { min-height:30px; padding:3px 10px; font-size:13px; }
 @media(max-width:760px) {
   .layout { display:block; } .sidebar,.toolbar>span { display:none; } .mobile-brand { display:inline-flex; }
   .toolbar { padding-inline:16px; } .mobile-nav { display:flex; flex-wrap:wrap; padding:8px 12px; gap:4px; background:var(--octo-rail); border-bottom:1px solid var(--octo-line); }
   .mobile-nav a { min-height:32px; padding:5px 9px; font-size:13px; }
 }
-@media(max-width:540px) { .capability-grid { grid-template-columns:1fr; } }
+@media(max-width:540px) {
+  .capability-grid { grid-template-columns:1fr; }
+  .footer-links > span { flex-basis:100%; }
+}
 
-footer .seller { width:100%; padding-bottom:12px; }
+footer .seller { margin-bottom:18px; }
+footer .seller > a { margin-top:4px; }
 footer .seller h2 { color:var(--octo-ink); font-size:17px; margin:0 0 8px; }
 footer .seller p,footer .seller dl { margin:4px 0; }
 footer .seller dl { display:flex; flex-wrap:wrap; gap:2px 18px; }

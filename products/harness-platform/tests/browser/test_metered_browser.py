@@ -159,8 +159,10 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
         await expect(audit).to_contain_text("Вход 10")
         expected = Decimal(regular_wallet["available"]) + 3
         await regular.get_by_role("button",name="Баланс",exact=True).click()
-        await expect(regular.get_by_role("dialog")).to_contain_text(f"Доступно · {expected:f}")
-        await expect(regular.get_by_role("dialog")).to_contain_text("1,35 ₽")
+        await expect(regular.locator(".wallet-amount")).to_contain_text(f"{expected:.2f} монет".replace(".", ","))
+        await expect(regular.get_by_role("dialog")).not_to_contain_text("Цена покупки")
+        quote = await regular.request.get("/payment")
+        self.assertIn("1,35 ₽", await quote.text())
         await expect(regular.get_by_role("dialog")).not_to_contain_text("Предел на запрос")
         await expect(regular.locator("#grant")).to_have_count(0)
 
