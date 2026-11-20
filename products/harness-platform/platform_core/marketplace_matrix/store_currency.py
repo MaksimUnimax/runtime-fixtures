@@ -1,4 +1,4 @@
-"""Fill the matrix Store from the selected seller's current Ozon account."""
+"""Resolve monetary units from authenticated seller profiles or the report itself."""
 from dataclasses import asdict
 from email.utils import parsedate_to_datetime
 import json
@@ -13,6 +13,37 @@ class ProfileError(Exception):
     def __init__(self, result):
         self.result = result
         super().__init__(result["code"])
+
+
+# These endpoints declare the reporting currency on every record.
+# Only the decoder receives this context. The credential scope stays immutable.
+REPORT_ROW_CURRENCY = {
+    "wb_finance": ("currency", True),
+    "wb_expense": ("currency", True),
+    "ds_wb_prices": ("currencyIsoCode4217", True),
+    "ds_wb_adstats": ("currency", False),
+}
+
+
+def report_store(operation, records, store, previous_page):
+    from finance_stock import CURRENCIES
+    from matrix_core import fail
+
+    declaration = REPORT_ROW_CURRENCY.get(operation)
+    if declaration is None:
+        return store
+    field, required = declaration
+    currency = store.get("currency") or (previous_page or {}).get("currency")
+    for row in records:
+        if not required and isinstance(row, dict) and field not in row:
+            continue
+        code = row.get(field) if isinstance(row, dict) else None
+        if not isinstance(code, str) or code not in CURRENCIES:
+            fail("FINANCE_CURRENCY")
+        if currency is not None and code != currency:
+            fail("FINANCE_CURRENCY_CHANGED")
+        currency = code
+    return {**store, "currency": currency}
 
 
 def wait_result(due, limited):

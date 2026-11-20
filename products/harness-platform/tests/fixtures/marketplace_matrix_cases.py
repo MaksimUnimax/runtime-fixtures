@@ -188,6 +188,25 @@ class MarketplaceMatrix(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["code"], "ACCRUAL_PRODUCT_MONEY")
 
+    def test_report_currency_from_source_without_a_store_default(self):
+        from finance_stock import decode_wb_finance
+        from semantics import Rejected
+        task = {"metrics": ["finance_deductions"], "period": {"from": "2026-11-18", "to": "2026-11-19"}}
+        accounts = {"id": "a", "platform": "wb", "identity": "b", "currency": None}
+        rows = [{"reportId": index, "currency": "KZT", "dateFrom": day, "dateTo": day, "deductionSum": "25.75"}
+                for index, day in enumerate(["2026-11-18", "2026-11-19"], 1)]
+        result = decode_wb_finance(rows, task, accounts)
+        self.assertEqual(result["currency"], "KZT")
+        self.assertEqual(result["values"]["finance_deductions"], "51.50")
+        self.assertIsNone(accounts["currency"])
+        for value, code in (("RUB", "FINANCE_CURRENCY_CHANGED"), (None, "FINANCE_CURRENCY")):
+            with self.assertRaises(Rejected) as raised:
+                decode_wb_finance([rows[0], {**rows[1], "currency": value}], task, accounts)
+            self.assertEqual(raised.exception.code, code)
+            public = worker.seller_result({"ok": False, "code": code, "trace": {}, "answer": "INTERNAL"})
+            self.assertEqual(set(public), {"ok", "reason"})
+            self.assertNotIn(code, public["reason"])
+
     def test_another_chat_cannot_reuse_operation(self):
         from semantics import Rejected
         self.packet["chat"] = "another-chat"

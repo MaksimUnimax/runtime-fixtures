@@ -8,6 +8,27 @@ import tarfile
 from pathlib import Path
 
 
+def bind_report_currency(files):
+    # The chat uses seller-owned connections, whose currency may only be known
+    # when a financial report arrives. Supply it to the existing row decoder.
+    anchor = b"        currency=_read(d['currency'],env)"
+    if files["matrix_sources.py"].count(anchor) != 1:
+        raise ValueError("Review source decoder context before updating the runtime")
+    files["matrix_sources.py"] = files["matrix_sources.py"].replace(anchor,
+        b"        from platform_core.marketplace_matrix.store_currency import report_store\n"
+        b"        store=report_store(operation,records,store,old)\n"
+        b"        env['store']=store\n" + anchor)
+
+    catalog = json.loads(files["template_catalog.json"])
+    for name in ("B06.finance_deductions", "B06.finance_penalties", "B06.finance_acceptance_cost"):
+        note = ("Назови запрошенную статью финансового отчёта, сумму, валюту и период. "
+                "Нулевое значение допустимо только при наличии отчёта за весь период. "
+                "На остальные статьи этот результат не распространяется.")
+        if note not in catalog["templates"][name]["notes"]:
+            catalog["templates"][name]["notes"].append(note)
+    files["template_catalog.json"] = json.dumps(catalog, ensure_ascii=False, indent=2).encode() + b"\n"
+
+
 def collect(core, renderer, config):
     files = {}
     sources = {p.stem: p for p in core.glob("*.py")}
@@ -57,6 +78,7 @@ def collect(core, renderer, config):
         b"            if getattr(worker.engine, 'chat_template_selection', None) is not None:\n"
         b"                _compile_and_save_selection(worker,row,plan,progress,worker.engine.chat_template_selection)\n"
         b"                return\n")
+    bind_report_currency(files)
     return files
 
 

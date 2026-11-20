@@ -17,7 +17,7 @@ from .authority import ChatAuthority
 from . import store_currency
 
 BUNDLE = Path(__file__).with_name("runtime.tar.gz")
-BUNDLE_SHA256 = "795cfb1da8dfe94f0415d2b450aa8f805ef44f2a334503b71b59a7c4e4cbdfc7"
+BUNDLE_SHA256 = "8de2a808913ea126cf994dfe8838b659c6f0021b7a2bc9396642a30535ef0c88"
 
 
 def unpack(directory):
@@ -172,8 +172,38 @@ def execute(packet, directory):
     if result.get("clarification"):
         return {"ok": True, "clarification": result["clarification"]["question"], "trace": trace}
     presentation = result.get("chat_presentation") or {}
-    return {"ok": not bool(result.get("failure_code")), "answer": presentation.get("details") or "\n".join(result.get("pages", [])),
+    guidance = list(dict.fromkeys(note for item in selected
+        for note in TEMPLATES[item["template_id"]].get("notes", [])))
+    return {"ok": not bool(result.get("failure_code")), "guidance": guidance, "answer": presentation.get("details") or "\n".join(result.get("pages", [])),
             "code": result.get("failure_code"), "trace": trace}
+
+
+def seller_result(result):
+    """Expose confirmed figures and business explanations through the chat tool."""
+    if result.get("ok"):
+        return {key: result[key] for key in ("ok", "answer", "clarification", "guidance") if result.get(key)}
+    from failure_explanations import explain
+    code = result.get("code")
+    classes = {
+        "FINANCE_CURRENCY": "В финансовом отчёте не указана распознаваемая валюта.",
+        "FINANCE_CURRENCY_CHANGED": "Суммы отчёта указаны в разных валютах. Общий итог в одной валюте получить не удалось.",
+        "SOURCE_CURRENCY_MISMATCH": "Валюту всех сумм отчёта подтвердить не удалось.",
+        "ACCRUAL_CURRENCY": "Валюту начислений подтвердить не удалось.",
+        "ACCRUAL_PRODUCT_MONEY": "Не удалось подтвердить сумму и валюту товарных начислений.",
+        "OZON_SELLER_PROFILE_CURRENCY": "Не удалось определить валюту кабинета Ozon.",
+        "OZON_SELLER_PROFILE_UNAVAILABLE": "Не удалось получить валюту кабинета Ozon.",
+        "OZON_SELLER_PROFILE_HTTP": "Не удалось получить валюту кабинета Ozon.",
+        "HTTP_429_RETRY_EXHAUSTED": "Площадка временно ограничила частоту запросов.",
+        "SOURCE_PACING": "Следующий запрос к площадке будет доступен позже.",
+        "FINANCIAL_REPORT_NOT_READY": "Финансовый отчёт пока не охватывает весь выбранный период.",
+        "TEMPLATE_NOT_FOUND": "Такой отчёт пока недоступен для выбранного магазина.",
+        "TEMPLATE_EXECUTION_FAILED": "Рассчитать запрошенный показатель не удалось.",
+        "SOURCE_ACCESS": "Для подключения сейчас недоступны запрошенные данные.",
+        "UNSPECIFIED": "Получить подтверждённый результат за выбранный период не удалось.",
+    }
+    info = explain(code)
+    reason = classes.get(code) or classes.get(info["reason_code"]) or info["reason"]
+    return {"ok": False, "reason": reason, **({"retryAt": result["retryAt"]} if result.get("retryAt") else {})}
 
 
 def main():
@@ -187,6 +217,9 @@ def main():
         except Rejected as error:
             from failure_explanations import explain
             result = {"ok": False, "code": error.code, "reason": explain(error.code)["text"]}
+    if "profiles" not in packet:
+        public = seller_result(result)
+        result = {"public": public, "diagnostics": {k: result[k] for k in ("code", "trace") if k in result}}
     print(json.dumps(result, ensure_ascii=False, allow_nan=False))
 
 
