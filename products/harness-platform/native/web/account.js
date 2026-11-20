@@ -84,7 +84,7 @@ window.__ModuleLoader__.load({
         if(!cost) return null;
         if ('coins' in cost) {
           const labels=[];
-          for(const [provider,t] of Object.entries(cost.providers||{}))labels.push(provider==='DeepSeek'?'octoport':provider,'Вход '+t.input,'Кэш '+t.cache,'Выход '+t.output,'Всего '+(t.input+t.cache+t.output)+' токенов');
+          for(const [provider,t] of Object.entries(cost.providers||{}))labels.push(provider,'Вход '+t.input,'Кэш '+t.cache,'Выход '+t.output,'Всего '+(t.input+t.cache+t.output)+' токенов');
           if(cost.rub!==null)labels.push(cost.rub.replace('.',',')+' ₽');
           labels.push('Списано '+cost.coins.replace('.',',')+' монет');
           if(cost.pending)labels.push('На сверке');
