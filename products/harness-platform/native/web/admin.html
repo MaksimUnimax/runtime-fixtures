@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Администрирование · Harness</title><link rel="stylesheet" href="/ui-assets/project/admin.css">
+<script src="/session-nav.js"></script><script type="module" src="/ui-assets/project/admin.js"></script></head>
+<body><main><nav><a href="/">Вернуться в Harness</a></nav><h1>Администрирование</h1>
+<section><h2>Начислить монеты</h2>
+<form id="grant"><label>Логин получателя<input name="login" required></label>
+<label>Монеты<input name="amount" inputmode="decimal" required></label>
+<label>Основание<input name="reason" required></label><button>Начислить монеты</button><output></output></form></section>
+<section><h2>Расходы аккаунта</h2>
+<form id="inspect"><label>Логин для просмотра расходов<input name="login" required></label><button>Показать расходы</button></form>
+<p id="account" role="status"></p><ul id="charges"></ul></section><p role="alert" id="problem"></p>
+</main></body></html>

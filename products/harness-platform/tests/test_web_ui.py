@@ -24,12 +24,14 @@ class WebUiTests(unittest.TestCase):
             app = create_app(database, Path(directory) / "chats")
             origin = "https://platform.test"
             with TestClient(app, base_url=origin, follow_redirects=False) as browser:
-                self.assertEqual(browser.get("/app/").headers["location"], "/login")
+                self.assertIn('data-mode="guest"', browser.get("/app/").text)
+                self.assertEqual(browser.get("/admin").status_code, 401)
                 self.assertEqual(browser.get("/api/chats").status_code, 401)
                 auth = browser.post("/login", data={"login": "seller", "password": password},
                                     headers={"Origin": origin})
                 self.assertEqual(auth.headers["location"], "/app/")
                 self.assertEqual(browser.post("/api/chats").status_code, 403)
+                self.assertEqual(browser.get("/admin").status_code, 403)
                 chat = browser.post("/api/chats", headers={"Origin": origin}).json()["chatId"]
                 page = browser.get(f"/app/chats/{chat}")
                 self.assertEqual(page.status_code, 200)
@@ -39,7 +41,7 @@ class WebUiTests(unittest.TestCase):
                 self.assertEqual(browser.get("/api/chats").json(), [chat])
                 self.assertEqual(browser.get("/api/chats", headers={"Authorization": "Bearer invalid"}).status_code, 401)
                 browser.post("/logout", headers={"Origin": origin})
-                self.assertEqual(browser.get(f"/app/chats/{chat}").headers["location"], "/login")
+                self.assertEqual(browser.get(f"/app/chats/{chat}").status_code, 404)
 
     def test_ui_assets_only_serve_browser_distribution(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"HARNESS_NODE_MODULES": directory}):

@@ -11,7 +11,9 @@ from starlette.routing import Route
 
 from .browser_session import browser_token, guest_cookie
 from .identity import AuthenticationError, ChatUnavailable
-from .guest_web import guest_page
+from .native_web import shell, module_file, HEADERS, UI
+from .browser_session import _secure
+from .guest_registration import GUEST_LIFETIME
 from .native_ui_entry import browser_entry
 
 
@@ -19,38 +21,44 @@ _PRODUCT = Path(__file__).resolve().parents[1]
 _PROJECT_UI = _PRODUCT / "native" / "web"
 
 
-async def start(request):
-    return RedirectResponse("/app/", status_code=303)
-
-
-async def page(request):
+async def page(request, *, panel="", error="", status=200):
     identity = request.app.state.identity
+    chat = request.path_params.get("chat_id", "")
     try:
-        token = browser_token(request)
-        if chat := request.path_params.get("chat_id"):
+        token = browser_token(request) if request.method in {"GET", "HEAD"} else None
+        await run_in_threadpool(identity.validate_session, token)
+        if chat:
             await run_in_threadpool(identity.resolve_chat, token, chat)
-        else:
-            await run_in_threadpool(identity.validate_session, token)
+        return shell(chat=chat, status=status)
     except AuthenticationError:
-        if request.path_params.get("chat_id") and request.cookies.get(guest_cookie(request)):
-            return await guest_page(request, request.path_params["chat_id"])
-        return RedirectResponse("/login", status_code=303)
+        pass
     except ChatUnavailable:
-        return HTMLResponse('<!doctype html><html lang="ru"><title>Чат недоступен</title>'
-                            '<main><h1>Чат недоступен</h1><a href="/app/">Мои чаты</a></main></html>',
-                            status_code=404)
-    return FileResponse(_PROJECT_UI / "index.html", media_type="text/html", headers={
-        "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
-                                   "img-src 'self' data:; font-src 'self' data:; connect-src 'self'; "
-                                   "object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
-        "Referrer-Policy": "same-origin",
-        "X-Content-Type-Options": "nosniff",
-    })
+        return shell(panel="notice", error="Чат недоступен", status=404)
+    cookie = guest_cookie(request)
+    guest = request.cookies.get(cookie)
+    try:
+        own_chat = await run_in_threadpool(identity.guest_chat, guest)
+    except AuthenticationError:
+        if chat:
+            return shell(guest=True, panel="login", error="Чат недоступен", status=404)
+        guest, own_chat = await run_in_threadpool(identity.start_guest)
+    if chat and chat != own_chat:
+        return shell(guest=True, panel="notice", chat=own_chat, error="Чат недоступен", status=404)
+    recovery = await run_in_threadpool(identity.guest_recovery, guest) if panel == "register" else ""
+    response = shell(guest=True, chat=own_chat, panel=panel, recovery=recovery, error=error, status=status)
+    response.set_cookie(cookie, guest, path="/", max_age=GUEST_LIFETIME, secure=_secure(request),
+                        httponly=True, samesite="strict")
+    return response
 
+async def admin(request):
+    token = browser_token(request)
+    if not await run_in_threadpool(request.app.state.identity.is_admin, token):
+        raise HTTPException(403, "Administrator required")
+    return FileResponse(UI / "admin.html", media_type="text/html", headers=HEADERS)
 
 async def project_asset(request):
     name = request.path_params["name"]
-    if name not in {"app.js", "guest.css", "style.css", "widgets.js", "trajectory.js", "widget-host.js"}:
+    if name not in {"bootstrap.js", "start.js", "account.js", "account.css", "transport.js", "admin.css", "admin.js"}:
         raise HTTPException(404)
     path = _PROJECT_UI / name
     if not path.is_file():
@@ -67,6 +75,11 @@ _FRONTEND_ASSETS = {
     "dist/assets/index-lh_YM6sT.css", "dist/assets/vendor-DV2921Zo.css",
 }
 _FRONTEND_CHUNK = re.compile(r"dist/assets/(?:fonts/[\w.-]+\.woff2|langs/[\w.-]+\.js)")
+
+
+async def whale(_request):
+    from .native_web import modules
+    return FileResponse(modules() / "dsh-client-ui-chat/lib/assets/running-whale@2x-06738fa29b2f.png", media_type="image/png")
 
 
 async def harness_asset(request):
@@ -97,7 +110,8 @@ async def harness_asset(request):
 
 def web_routes():
     return [
-        Route("/", start), Route("/app/", page), Route("/app/chats/{chat_id}", page),
+        Route("/plugins/@deepseek-ai/dsh-client-ui-chat/assets/running-whale@2x-06738fa29b2f.png", whale),
+        Route("/", page), Route("/admin", admin), Route("/ui-assets/modules/{name}.js", module_file), Route("/app/", page), Route("/app/chats/{chat_id}", page),
         Route("/ui-assets/project/{name}", project_asset),
         Route("/ui-assets/harness/{package}/{asset:path}", harness_asset),
     ]

@@ -1,0 +1,13 @@
+html,body,#root {height:100%;margin:0}
+.account-actions {display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;padding:.5rem}
+.account-actions a,.account-actions button,.account-dialog a {color:var(--dsw-alias-label-primary);font:inherit}
+.account-actions button,.account-dialog button {cursor:pointer}
+.account-actions button {padding:.35rem .55rem;background:transparent;border:0;border-radius:.5rem}
+.account-actions button:hover {background:var(--dsw-alias-interactive-bg-hover)}
+.account-dialog {width:min(24rem,90vw);padding:1.5rem;border:1px solid var(--dsw-alias-border-l4);border-radius:1rem;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-base, Canvas)}
+.account-dialog::backdrop {background:rgb(0 0 0 / .35)}
+.account-dialog form,.account-dialog label {display:grid;gap:.5rem}
+.account-dialog form {gap:1rem;margin-block:1rem}
+.account-dialog input,.account-dialog button {font:inherit;padding:.5rem .8rem;border:1px solid GrayText;border-radius:.5rem;color:inherit;background:transparent}
+.account-dialog a {display:block;margin-block:1rem}
+.account-close {float:right}

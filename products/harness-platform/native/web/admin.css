@@ -1,0 +1,9 @@
+:root { color-scheme:light dark; font:16px/1.5 system-ui,sans-serif }
+body { margin:0; background:Canvas; color:CanvasText }
+main { max-width:48rem; margin:0 auto; padding:2rem 1.3rem }
+section { padding:1.2rem 0; border-top:1px solid GrayText }
+h1,h2,p { margin:.65rem 0 }
+form,label { display:grid; gap:.5rem }
+form { max-width:30rem; gap:.85rem }
+input,button { font:inherit; padding:.5rem .7rem; border:1px solid GrayText; border-radius:.45rem }
+button { justify-self:start; cursor:pointer }

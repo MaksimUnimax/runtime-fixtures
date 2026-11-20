@@ -45,7 +45,10 @@ class GuestStageTests(IsolatedAsyncioTestCase):
                         self.assertEqual(result.status_code, 303)
                     page = await client.get(chat)
                     self.assertEqual(page.status_code, 200)
-                    self.assertEqual(page.text.count("Сервис создан для продавцов"), 13)
+                    self.assertIn('id="root"', page.text)
+                    events = await client.get(path.removesuffix("/turns") + "/events")
+                    self.assertEqual(sum("Сервис создан для продавцов" in r["answer"]
+                                         for r in events.json()["turns"]), 13)
                     self.assertEqual((await client.get("/api/chats")).status_code, 401)
                 self.assertFalse((state / "usage.jsonl").exists())
                 self.assertFalse((state / "chats" / "native-chats.sqlite3").exists())

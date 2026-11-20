@@ -102,7 +102,7 @@ class ProductBrowser(unittest.IsolatedAsyncioTestCase):
         await page.get_by_label("Пароль", exact=True).fill(self.password)
         async with page.expect_response(lambda res: res.request.is_navigation_request() and
                                         urlsplit(res.url).path == "/app/") as landing:
-            await page.get_by_role("button", name="Войти", exact=True).click()
+            await page.get_by_role("dialog").get_by_role("button", name="Войти", exact=True).click()
         response = await landing.value
         self.assertEqual(response.status, 200)
         policy = await response.header_value("content-security-policy") or ""
@@ -110,13 +110,12 @@ class ProductBrowser(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(scripts), 1, "Protected application must set its script-src policy")
         self.assertIn("'self'", scripts[0])
         self.assertNotIn("'unsafe-eval'", scripts[0])
-        await page.get_by_role("button", name="Новый чат", exact=True).click()
         await expect(page).to_have_url(re.compile(r"/app/chats/[a-zA-Z0-9_-]+$"))
         return page
 
     async def send_turn(self, page, text):
-        await page.get_by_role("textbox", name="Сообщение", exact=True).fill(text)
-        button = page.get_by_role("button", name="Отправить", exact=True)
+        await page.locator('[data-composer-input][contenteditable=true]').fill(text)
+        button = page.get_by_role("button", name="Отправить сообщение", exact=True)
         try:
             await expect(button).to_be_enabled(timeout=30_000)
         except AssertionError as error:
@@ -143,61 +142,65 @@ class BrowserIsolation(ProductBrowser):
             store.logout(operator_session)
         await asyncio.gather(first.reload(), second.reload())
         for page, own_url in ((first, first_url), (second, second_url)):
-            links = page.get_by_role("navigation", name="Чаты").get_by_role("link")
+            links = page.locator('[data-row-key^="session:"]')
             await expect(links).to_have_count(1)
-            await expect(links).to_have_attribute("href", urlsplit(own_url).path)
+            await expect(links).to_have_attribute("data-row-key", "session:" + own_url.rsplit("/", 1)[1])
+        await first.get_by_role("button", name="Функции", exact=True).click()
+        await second.get_by_role("button", name="Функции", exact=True).click()
         await expect(first.get_by_test_id("tools")).to_contain_text("summarize_text", timeout=30_000)
         await expect(second.get_by_test_id("tools")).to_contain_text(
             "Нет доступных инструментов", timeout=30_000,
         )
         await expect(second.get_by_test_id("tools")).not_to_contain_text("summarize_text")
 
+        for client in (first, second):
+            await client.get_by_role("dialog").get_by_role("button", name="Закрыть").click()
         pages = (first, second)
         markers = ("Приватная метка север-947", "Приватная метка юг-682")
         followups = ("Продолжение север-381", "Продолжение юг-751")
         await asyncio.gather(*(self.send_turn(page, marker) for page, marker in zip(pages, markers)))
         for page, marker in zip(pages, markers):
-            await expect(page.get_by_test_id("history")).to_contain_text(
+            await expect(page.locator('[data-slot="conversation.view"]')).to_contain_text(
                 f"Тестовая модель (ход 1): {marker}", timeout=45_000,
             )
         await asyncio.gather(*(page.reload() for page in pages))
         for i, page in enumerate(pages):
-            history = page.get_by_test_id("history")
+            history = page.locator('[data-slot="conversation.view"]')
             await expect(history).to_contain_text(markers[i], timeout=30_000)
             await expect(history).not_to_contain_text(markers[1 - i])
         await asyncio.gather(*(self.send_turn(page, msg) for page, msg in zip(pages, followups)))
         for i, page in enumerate(pages):
-            history = page.get_by_test_id("history")
+            history = page.locator('[data-slot="conversation.view"]')
             await expect(history).to_contain_text(f"Тестовая модель (ход 2): {followups[i]}", timeout=45_000)
             await expect(history).to_contain_text(f"Предыдущее сообщение: {markers[i]}")
             await expect(history).not_to_contain_text(markers[1 - i])
             await page.get_by_role("tab", name="Траектория", exact=True).click()
-            trajectory = page.get_by_role("region", name="Траектория", exact=True)
+            trajectory = page.locator('[data-slot="conversation.view"]')
             table = trajectory.get_by_role("table")
             await expect(table).to_be_visible(timeout=20_000)
             await expect(table.get_by_role("row").filter(has_text=markers[i]).first).to_be_visible()
             await expect(table).not_to_contain_text(markers[1 - i])
             await page.get_by_role("tab", name="Чат", exact=True).click()
-            await expect(page.get_by_role("region", name="История сообщений", exact=True)).to_contain_text(followups[i])
+            await expect(page.locator('[data-slot="conversation.view"]')).to_contain_text(followups[i])
 
         denied = await second.goto(first_url)
         self.assertEqual(denied.status, 404)
         await expect(second.get_by_text("Чат недоступен", exact=True)).to_be_visible()
         await expect(second.locator("body")).not_to_contain_text(markers[0])
         await second.goto(second_url)
-        await expect(second.get_by_test_id("history")).to_contain_text(markers[1], timeout=30_000)
+        await expect(second.locator('[data-slot="conversation.view"]')).to_contain_text(markers[1], timeout=30_000)
 
         await first.get_by_role("button", name="Выйти", exact=True).click()
-        await expect(first.get_by_role("button", name="Войти", exact=True)).to_be_visible()
+        await expect(first.get_by_role("button", name="Войти", exact=True).last).to_be_visible()
         await first.go_back()
-        await expect(first.get_by_role("button", name="Войти", exact=True)).to_be_visible()
+        await expect(first.get_by_role("button", name="Войти", exact=True).last).to_be_visible()
         await expect(first.locator("body")).not_to_contain_text(markers[0])
         await first.goto(first_url)
         await first.reload()
-        await expect(first.get_by_role("button", name="Войти", exact=True)).to_be_visible()
+        await expect(first.get_by_role("button", name="Войти", exact=True).last).to_be_visible()
         await expect(first.locator("body")).not_to_contain_text(markers[0])
         await second.reload()
-        await expect(second.get_by_test_id("history")).to_contain_text(followups[1], timeout=30_000)
+        await expect(second.locator('[data-slot="conversation.view"]')).to_contain_text(followups[1], timeout=30_000)
 
     async def test_guest_registers_and_resumes_the_same_chat(self):
         guest = await self.browser.new_context(base_url=self.base_url)
@@ -206,16 +209,16 @@ class BrowserIsolation(ProductBrowser):
         self.addAsyncCleanup(second_device.close)
         page, other = await asyncio.gather(guest.new_page(), second_device.new_page())
         for client in (page, other):
-            await client.goto("/login")
-            await client.get_by_role("button", name="Попробовать без регистрации").click()
-            await expect(client.get_by_role("heading", name="Гостевой чат")).to_be_visible()
+            await client.goto("/")
+            await expect(client.locator('[data-slot="root"] [data-composer-input]')).to_be_visible()
+            await expect(client).to_have_url(re.compile(r"/app/chats/[a-zA-Z0-9_-]+$"))
         original_url = page.url
         self.assertNotEqual(original_url, other.url)
         marker = "Как сохранить мою историю?"
         await self.send_turn(page, marker)
-        public_history = page.get_by_role("list", name="История сообщений")
+        public_history = page.locator('[data-slot="conversation.view"]')
         await expect(public_history).to_contain_text(marker)
-        answer = await public_history.locator("li p").nth(1).inner_text()
+        answer = await public_history.locator('[data-chat-flow-kind="assistant-step"] p').last.inner_text()
         self.assertIn("регистрации", answer)
         denied = await other.goto(original_url)
         self.assertEqual(denied.status, 404)
@@ -227,10 +230,10 @@ class BrowserIsolation(ProductBrowser):
         self.assertTrue(await page.get_by_label("Код восстановления").input_value())
         await page.get_by_role("button", name="Зарегистрироваться и открыть чат").click()
         await expect(page).to_have_url(original_url)
-        history = page.get_by_test_id("history")
+        history = page.locator('[data-slot="conversation.view"]')
         await expect(history).to_contain_text(marker, timeout=30_000)
         await expect(history).to_contain_text(answer, timeout=30_000)
-        await expect(page.get_by_role("navigation", name="Чаты").get_by_role("link")).to_have_count(1)
+        await expect(page.locator('[data-row-key^="session:"]')).to_have_count(1)
         followup = "Продолжим после регистрации"
         await self.send_turn(page, followup)
         await expect(history).to_contain_text(f"Предыдущее сообщение: {marker}", timeout=45_000)
@@ -242,14 +245,14 @@ class BrowserIsolation(ProductBrowser):
         await other.goto("/login")
         await other.get_by_label("Логин", exact=True).fill("guest-browser")
         await other.get_by_label("Пароль", exact=True).fill(self.password)
-        await other.get_by_role("button", name="Войти", exact=True).click()
-        link = other.get_by_role("navigation", name="Чаты").get_by_role("link")
+        await other.get_by_role("dialog").get_by_role("button", name="Войти", exact=True).click()
+        link = other.locator('[data-row-key^="session:"]')
         await expect(link).to_have_count(1)
         await link.click()
         await expect(other).to_have_url(original_url)
-        await expect(other.get_by_test_id("history")).to_contain_text(answer, timeout=30_000)
-        await expect(other.get_by_test_id("history")).to_contain_text(followup)
+        await expect(other.locator('[data-slot="conversation.view"]')).to_contain_text(answer, timeout=30_000)
+        await expect(other.locator('[data-slot="conversation.view"]')).to_contain_text(followup)
         await page.get_by_role("button", name="Выйти", exact=True).click()
         await page.goto(original_url)
-        await expect(page.get_by_role("button", name="Войти", exact=True)).to_be_visible()
+        await expect(page.get_by_role("button", name="Войти", exact=True).last).to_be_visible()
         await expect(page.locator("body")).not_to_contain_text(marker)

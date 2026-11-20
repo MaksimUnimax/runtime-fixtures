@@ -1,6 +1,6 @@
 """Public help chat and same-origin self-registration forms."""
 
-import secrets
+from starlette.responses import JSONResponse
 from html import escape
 
 from starlette.concurrency import run_in_threadpool
@@ -14,28 +14,6 @@ from .browser_session import (
 )
 from .guest_registration import GUEST_LIFETIME, RegistrationConflict
 from .identity import AuthenticationError, ChatUnavailable
-
-
-def _html(title, body, status=200):
-    return HTMLResponse(f"""<!doctype html><html lang="ru"><head><meta charset="utf-8">
-        <meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} · Harness</title>
-        <link rel="stylesheet" href="/ui-assets/project/guest.css">{BROWSER_BACK_SCRIPT}</head>
-        <body><main><h1>{title}</h1>{body}</main></body></html>""", status_code=status, headers={
-            **_PRIVATE_HEADERS, "Content-Security-Policy": "default-src 'self'; script-src 'self'; "
-            "object-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
-        })
-
-
-def _registration_form(code, error=None, status=200):
-    alert = f'<p role="alert">{escape(error)}</p>' if error else ""
-    return _html("Создать аккаунт", f"""{alert}<form method="post" action="/register">
-        <label>Логин<input name="login" required maxlength="254" autocomplete="username"></label>
-        <label>Пароль<input type="password" name="password" required minlength="15" maxlength="256"
-            autocomplete="new-password" aria-describedby="length"></label>
-        <small id="length">От 15 до 256 символов.</small>
-        <label>Код восстановления<input name="recovery" readonly value="{escape(code, quote=True)}"></label>
-        <small>Сохраните этот код сейчас. Он понадобится, если вы забудете пароль.</small>
-        <button>Зарегистрироваться и открыть чат</button></form><p><a href="/login">Войти в существующий аккаунт</a></p>""", status)
 
 
 async def _account_target(request):
@@ -66,32 +44,16 @@ async def start(request):
     return response
 
 
-async def guest_page(request, chat):
-    token = request.cookies.get(guest_cookie(request))
+async def guest_events(request):
     try:
-        try:
-            before = int(request.query_params.get("before", 2**63 - 1))
-            if not 0 < before <= 2**63 - 1:
-                raise ValueError
-        except ValueError:
-            raise HTTPException(400, "Invalid history cursor") from None
-        history, cursor = await run_in_threadpool(request.app.state.identity.guest_page, token, chat, before)
-    except AuthenticationError:
-        return _redirect("/login")
-    except ChatUnavailable:
-        return _html("Чат недоступен", '<a href="/login">Войти</a>', 404)
-    turns = "".join(f'<li><strong>Вы</strong><p>{escape(t["text"])}</p>'
-                    f'<strong>Справка Harness</strong><p>{escape(t["answer"])}</p></li>' for t in history)
-    older = f'<a href="?before={cursor}">Предыдущие сообщения</a>' if cursor else ""
-    return _html("Гостевой чат", f"""<p>Что умеет сервис, как зарегистрироваться и сколько стоит доступ? Спросите здесь.</p>
-        <nav><a href="/register">Создать аккаунт и сохранить чат</a></nav>
-        {older}<ol aria-label="История сообщений">{turns}</ol>
-        <form method="post" action="/guest/chats/{chat}/turns">
-          <input type="hidden" name="request_id" value="{secrets.token_hex(16)}">
-          <label>Сообщение<textarea name="text" required rows="3" maxlength="8192"></textarea></label>
-          <button>Отправить</button>
-        </form>""")
-
+        before = int(request.query_params.get("before", 2**63-1))
+        if not 0 < before < 2**63:
+            raise ValueError
+    except ValueError:
+        raise HTTPException(400, "Invalid history cursor") from None
+    rows, cursor, offset = await run_in_threadpool(request.app.state.identity.guest_window,
+        request.cookies.get(guest_cookie(request)), request.path_params["chat"], before)
+    return JSONResponse({"turns":rows, "nextBefore":cursor, "offset":offset})
 
 async def send_turn(request):
     require_browser_origin(request)
@@ -102,10 +64,13 @@ async def send_turn(request):
         await run_in_threadpool(request.app.state.identity.guest_turn, token, chat, **fields)
     except RegistrationConflict:
         raise HTTPException(409, "Message already submitted with different text") from None
+    if request.headers.get("accept") == "application/json":
+        return JSONResponse({"accepted":True})
     return _redirect(f"/app/chats/{chat}")
 
 
 async def register(request):
+    from .web_ui import page
     cookie = guest_cookie(request)
     token = request.cookies.get(cookie)
     identity = request.app.state.identity
@@ -114,20 +79,16 @@ async def register(request):
     if target := await _account_target(request):
         return _redirect(target)
     if request.method in {"GET", "HEAD"}:
-        try:
-            code = await run_in_threadpool(identity.guest_recovery, token)
-        except AuthenticationError:
-            return _html("Создать аккаунт", '<form method="post" action="/register/start"><button>Начать регистрацию</button></form>')
-        return _registration_form(code)
+        return await page(request, panel="register")
     fields = await _form_fields(request, {"login", "password", "recovery"})
     try:
         session, chat = await run_in_threadpool(identity.register, token, **fields)
     except RegistrationConflict:
-        return _registration_form(fields["recovery"], "Этот логин уже занят или регистрация завершена. Выберите другой логин или войдите.", 409)
+        return await page(request, panel="register", error= "Этот логин уже занят или регистрация завершена. Выберите другой логин или войдите.", status=409)
     except AuthenticationError:
-        return _html("Войдите или начните заново", '<a href="/login">Ко входу</a>', 401)
+        return await page(request, panel="register", error="Сессия регистрации истекла", status=401)
     except ValueError:
-        return _registration_form(fields["recovery"], "Проверьте логин и длину пароля.", 400)
+        return await page(request, panel="register", error= "Проверьте логин и длину пароля.", status=400)
     secure = _secure(request)
     response = _redirect(f"/app/chats/{chat}")
     response.set_cookie(_cookie_name(secure), session, path="/", secure=secure, httponly=True, samesite="strict")
@@ -140,5 +101,6 @@ def guest_routes():
         Route("/guest/start", start, methods=["POST"]),
         Route("/register/start", start, methods=["POST"]),
         Route("/register", register, methods=["GET", "POST"]),
+        Route("/guest/chats/{chat}/events", guest_events),
         Route("/guest/chats/{chat}/turns", send_turn, methods=["POST"]),
     ]

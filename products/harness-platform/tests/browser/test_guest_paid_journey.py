@@ -24,12 +24,12 @@ QUESTION = "Как звучал мой первый вопрос в гостев
 
 
 async def send(page, message):
-    await page.get_by_role("textbox", name="Сообщение", exact=True).fill(message)
+    await page.locator('[data-composer-input][contenteditable=true]').fill(message)
     async with page.expect_response(
         lambda response: response.request.method == "POST" and response.url.endswith("/turns"),
         timeout=140_000,
     ) as sent:
-        await page.get_by_role("button", name="Отправить", exact=True).click()
+        await page.get_by_role("button", name="Отправить сообщение", exact=True).click()
     return await sent.value
 
 
@@ -75,9 +75,9 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         browser = await driver.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"))
         self.addAsyncCleanup(browser.close)
         page = await browser.new_page(base_url=base)
-        await page.goto("/login")
-        await page.get_by_role("button", name="Попробовать без регистрации").click()
-        await expect(page.get_by_role("heading", name="Гостевой чат")).to_be_visible()
+        await page.goto("/")
+        await expect(page.locator('[data-composer-input][contenteditable=true]')).to_be_visible()
+        await expect(page).to_have_url(re.compile(r"/app/chats/[a-zA-Z0-9_-]+$"))
         original_url = page.url
         cases = [
             ("Что ты умеешь?", "Сервис создан для продавцов"),
@@ -89,12 +89,12 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         cases = cases[shift:] + cases[:shift]
         first_question = cases[0][0]
         cases.append(("Напиши стих про Ozon", "Я отвечаю на вопросы о нашем сервисе"))
-        history = page.get_by_role("list", name="История сообщений")
+        history = page.locator('[data-slot="conversation.view"]')
         guest_answers = []
         for question, expected in cases:
-            self.assertEqual((await send(page, question)).status, 303)
-            await expect(history.locator("li").last).to_contain_text(expected)
-            guest_answers.append(await history.locator("li").last.locator("p").nth(1).inner_text())
+            self.assertEqual((await send(page, question)).status, 200)
+            await expect(history.locator('[data-chat-flow-kind="assistant-step"]').last).to_contain_text(expected)
+            guest_answers.append(await history.locator('[data-chat-flow-kind="assistant-step"] p').last.inner_text())
         evidence = os.environ.get("HARNESS_FAQ_EVIDENCE")
         if evidence and not live:
             Path(evidence).mkdir(parents=True, exist_ok=True)
@@ -110,12 +110,14 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         await page.get_by_label("Пароль", exact=True).fill(password)
         await page.get_by_role("button", name="Зарегистрироваться и открыть чат").click()
         await expect(page).to_have_url(original_url)
-        conversation = page.get_by_test_id("history")
+        conversation = page.locator('[data-slot="conversation.view"]')
         for answer in guest_answers:
             await expect(conversation).to_contain_text(answer, timeout=30_000)
+        await page.get_by_role("button",name="Функции",exact=True).click()
         await expect(page.get_by_test_id("tools")).to_contain_text("Нет доступных инструментов")
+        await page.get_by_role("dialog").get_by_role("button",name="Закрыть").click()
         self.assertEqual((await send(page, QUESTION)).status, 402)
-        await expect(page.get_by_role("alert")).to_contain_text("Недостаточно доступных монет")
+        await expect(page.get_by_text("Недостаточно монет",exact=False).first).to_be_visible()
         self.assertFalse(journal.exists() and journal.stat().st_size)
         with sqlite3.connect(database) as db:
             self.assertEqual(db.execute("SELECT count(*) FROM usage_operations").fetchone()[0], 0)
@@ -126,20 +128,22 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         receipt = await response.json()
         self.assertNotIn("modelCost", receipt)
         self.assertNotIn("operationId", receipt)
-        await expect(page.locator("#balance")).not_to_have_text("Монеты · 0")
+        await page.get_by_role("button",name="Баланс",exact=True).click()
+        await expect(page.get_by_role("dialog")).to_contain_text("Доступно")
+        await page.get_by_role("button",name="Закрыть",exact=True).click()
         snapshot = await (await page.request.get("/api/wallet")).json()
         self.assertEqual(len(snapshot["charges"]), 1)
         self.assertFalse(snapshot["charges"][0]["pending"])
         self.assertNotEqual(snapshot["charges"][0]["coins"], "0")
         self.assertNotIn("meter", snapshot["charges"][0])
         self.assertEqual(await page.get_by_role("button", name="Начислить монеты").count(), 0)
-        await expect(conversation.locator('[data-role="assistant"]').last).to_contain_text(first_question)
+        await expect(conversation.locator('[data-chat-flow-kind="assistant-step"]').last).to_contain_text(first_question)
         await expect(page.locator(".model-cost")).to_have_count(0)
         await page.reload()
-        await expect(conversation.locator('[data-role="user"]')).to_have_count(len(cases) + 1, timeout=30_000)
-        await expect(conversation.locator('[data-role="assistant"]')).to_have_count(len(cases) + 1)
+        await expect(conversation.locator('[data-chat-flow-kind="user"]')).to_have_count(len(cases) + 1, timeout=30_000)
+        await expect(conversation.locator('[data-chat-flow-kind="assistant-step"]')).to_have_count(len(cases) + 1)
         await expect(conversation).to_contain_text(guest_answers[-1])
-        await expect(conversation.locator('[data-role="assistant"]').last).to_contain_text(first_question)
+        await expect(conversation.locator('[data-chat-flow-kind="assistant-step"]').last).to_contain_text(first_question)
 
         if evidence and not live:
             await page.screenshot(path=Path(evidence) / "02-account-chat.png", full_page=True)
@@ -155,11 +159,11 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         await second.goto("/login")
         await second.get_by_label("Логин", exact=True).fill("buyer")
         await second.get_by_label("Пароль", exact=True).fill(password)
-        await second.get_by_role("button", name="Войти", exact=True).click()
+        await second.get_by_role("dialog").get_by_role("button", name="Войти", exact=True).click()
         await second.goto(original_url)
-        saved = second.get_by_test_id("history")
-        await expect(saved.locator('[data-role="user"]')).to_have_count(len(cases) + 1, timeout=30_000)
-        await expect(saved.locator('[data-role="assistant"]').last).to_contain_text(first_question)
+        saved = second.locator('[data-slot="conversation.view"]')
+        await expect(saved.locator('[data-chat-flow-kind="user"]')).to_have_count(len(cases) + 1, timeout=30_000)
+        await expect(saved.locator('[data-chat-flow-kind="assistant-step"]').last).to_contain_text(first_question)
         await expect(second.locator(".model-cost")).to_have_count(0)
         events = [json.loads(line) for line in journal.read_text().splitlines()]
         self.assertEqual([event["event"] for event in events], ["admitted", "finished"])
