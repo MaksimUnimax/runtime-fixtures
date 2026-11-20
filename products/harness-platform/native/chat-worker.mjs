@@ -239,7 +239,7 @@ export async function openWorker(env) {
           compositionModule: env.HARNESS_PLATFORM_COMPOSITION || undefined, scope: req.scope,
           marketplaceTurn: metered && req.grant ? {
             question: req.text, requestId: req.requestId, deadline: req.deadline,
-            token: req.grant.token,
+            token: req.grant.token, model: req.grant.model || req.grant.directModel || env.HARNESS_CHAT_MODEL,
           } : undefined,
         });
         registerConnectionContext(ctx,attached,available);

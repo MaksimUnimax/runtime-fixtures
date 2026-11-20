@@ -33,6 +33,18 @@ class PaidAccessRequired(coins.InsufficientCoins):
     """The owner can still read history and replay completed requests."""
 
 
+class FreeModelUnavailable(Exception):
+    """A free selection must never become a paid direct turn."""
+
+
+def free_selection(db, workspace):
+    if not db.execute("SELECT 1 FROM sqlite_master WHERE name='free_model_preferences'").fetchone():
+        return None
+    row = db.execute("""SELECT f.model FROM free_model_preferences f JOIN model_preferences p
+        ON p.workspace=f.workspace AND p.model=f.model WHERE f.workspace=?""",(workspace,)).fetchone()
+    return row[0] if row else None
+
+
 _PLATFORM_APPLICATION = 0x48504C54
 _SOURCE = re.compile(r"[a-z][a-z0-9_.-]{0,63}")
 _RUN_KEY = re.compile(r"[A-Za-z0-9_.:-]{1,128}")
@@ -148,10 +160,6 @@ def issue_grant(database_path, scope, *, source, run_key, ttl_seconds=900, coin_
         ).fetchone()
         if owner is None:
             raise PermissionError("Operation scope unavailable")
-        if source == "chat.turn" and not db.execute(
-            "SELECT 1 FROM workspace_paid_model_access WHERE workspace_id=?", (workspace,)
-        ).fetchone():
-            raise PaidAccessRequired("Paid model access required")
         now = int(time.time())
         expires = now + ttl_seconds
         if expires >= 2**63:
@@ -173,11 +181,17 @@ def issue_grant(database_path, scope, *, source, run_key, ttl_seconds=900, coin_
                    VALUES (?, ?, ?, ?, ?, ?)""",
                 (operation_id, *binding),
             )
+        if source == "chat.turn" and bind_model is None and free_selection(db,workspace):
+            raise FreeModelUnavailable()
+        model, free = bind_model(db,scope,operation_id) if bind_model else (None, False)
+        if source == "chat.turn" and not free and not db.execute(
+            "SELECT 1 FROM workspace_paid_model_access WHERE workspace_id=?", (workspace,)
+        ).fetchone():
+            raise PaidAccessRequired("Paid model access required")
         try:
-            coins.reserve_order(db, workspace, operation_id, coin_limit)
+            coins.reserve_order(db, workspace, operation_id, coin_limit, free=free)
         except coins.InsufficientCoins as exc:
             raise PaidAccessRequired("Insufficient coins") from exc
-        model = bind_model(db,scope,operation_id) if bind_model else None
         direct_model = effort = None
         if model is None and direct_fallback:
             saved = db.execute("SELECT model,effort FROM direct_operation_models WHERE operation_id=?",

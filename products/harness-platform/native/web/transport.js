@@ -11,7 +11,8 @@ async function api(path, options) {
       403: 'Доступ запрещён', 404: detail.error === 'unavailable' ? 'Действие недоступно' : 'Чат недоступен',
       409: 'Запрос требует сверки', 413: 'Сообщение слишком длинное',
     };
-    const error = new Error((path.startsWith('/api/integrations') && /[А-Яа-я]/.test(detail.error||'') ? detail.error : null) ?? reason[res.status] ?? 'Запрос не выполнен (' + res.status + ')');
+    const scopedError=path.startsWith('/api/integrations') || path==='/api/model-settings' || path.endsWith('/turns');
+    const error = new Error((scopedError && /[А-Яа-я]/.test(detail.error||'') ? detail.error : null) ?? reason[res.status] ?? 'Запрос не выполнен (' + res.status + ')');
     error.status = res.status;
     throw error;
   }

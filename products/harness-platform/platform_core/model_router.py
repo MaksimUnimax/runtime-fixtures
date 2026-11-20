@@ -3,6 +3,7 @@ import asyncio
 import contextlib
 import hashlib
 import json
+import logging
 import os
 import re
 import socket
@@ -20,11 +21,14 @@ from starlette.routing import Route
 
 from . import coins, provider_keys
 from .identity import _principal
+from .operation_grants import free_selection
 
 BASE = "https://openrouter.ai/api/v1"
 MODEL = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.:-]+")
 TABLES = (
     "CREATE TABLE IF NOT EXISTS model_preferences(workspace TEXT PRIMARY KEY REFERENCES workspaces, model TEXT NOT NULL)",
+    """CREATE TABLE IF NOT EXISTS free_model_preferences (
+       workspace TEXT PRIMARY KEY REFERENCES workspaces ON DELETE CASCADE, model TEXT NOT NULL)""",
     """CREATE TABLE IF NOT EXISTS operation_routes(operation_id TEXT PRIMARY KEY REFERENCES usage_operations,
        model TEXT NOT NULL, input_rate TEXT NOT NULL, output_rate TEXT NOT NULL, request_rate TEXT NOT NULL)""",
 )
@@ -47,15 +51,17 @@ def catalog_rows(data):
     for row in data["data"]:
         try:
             model, price = row["id"], row["pricing"]
-            if (not MODEL.fullmatch(model) or model.startswith("openrouter/") or ":free" in model
+            if (not MODEL.fullmatch(model) or model.startswith("openrouter/")
                     or "tools" not in row.get("supported_parameters", [])
                     or row["architecture"].get("output_modalities") != ["text"]):
                 continue
             rates = [amount(price[k]) for k in ("prompt","completion")] + [amount(price.get("request",0))]
-            if not all(rates[:2]) or any(amount(price.get(k,0)) > rates[0] for k in ("input_cache_read","input_cache_write")):
+            free = not any(rates) and all(amount(value) == 0 for value in price.values())
+            if not free and (model.endswith(":free") or not all(rates[:2]) or
+                    any(amount(price.get(k,0)) > rates[0] for k in ("input_cache_read","input_cache_write"))):
                 continue
             models[model] = {"id":model,"name":row["name"],"family":model.split("/",1)[0],
-                             "rates":[str(r) for r in rates]}
+                             "rates":[str(r) for r in rates],"free":free}
         except (AttributeError, KeyError, ValueError, TypeError):
             continue
     return models
@@ -65,28 +71,30 @@ class ModelRouter:
         self.identity, self.http, self.key = identity, http, key
         self.catalog, self.expires, self.refresh = {}, 0, asyncio.Lock()
         self.catalog_key = None
+        self.next_manual_refresh = 0
         self.catalog_message = ""
         self.active, self.total = {}, 0
         with identity._write() as db:
             for sql in TABLES:
                 db.execute(sql)
 
-    async def models(self):
+    async def models(self, *, refresh=False):
         async with self.refresh:
             headers = self.headers
             key_id = hashlib.sha256(headers["Authorization"].encode()).digest()
             if key_id != self.catalog_key:
                 self.catalog_key, self.catalog, self.expires = key_id, {}, 0
-            if time.monotonic() < self.expires:
+            now = time.monotonic()
+            if now < self.expires and (not refresh or now < self.next_manual_refresh):
                 return self.catalog
-
+            self.next_manual_refresh = now + 30
             retry_after = 30
             try:
                 response = await self.http.get(BASE + "/models/user", headers=headers, timeout=8)
                 response.raise_for_status()
                 self.catalog = catalog_rows(response.json())
                 self.catalog_message = "" if self.catalog else "У этого ключа OpenRouter нет подходящих моделей для чата с инструментами."
-                retry_after = 600
+                retry_after = 60
             except httpx.HTTPStatusError as error:
                 status = error.response.status_code
                 if status in (401, 403):
@@ -97,6 +105,9 @@ class ModelRouter:
                 }.get(status, f"Не удалось обновить каталог OpenRouter (HTTP {status}).")
             except (httpx.RequestError, ValueError, TypeError, KeyError):
                 self.catalog_message = "Не удалось получить каталог моделей OpenRouter."
+            if self.catalog_message:
+                # Only freshly confirmed zero prices can authorize a new free turn.
+                self.catalog = {mid:m for mid,m in self.catalog.items() if not m["free"]}
             if headers["Authorization"] != "Bearer " + self.credential():
                 self.catalog, self.expires = {}, 0
                 self.catalog_message = "Ключ OpenRouter изменился. Обновите список моделей."
@@ -111,51 +122,66 @@ class ModelRouter:
                 if model != "direct" and (not isinstance(model,str) or model not in self.catalog):
                     raise HTTPException(400,"Модель недоступна")
                 db.execute("INSERT INTO model_preferences VALUES(?,?) ON CONFLICT(workspace) DO UPDATE SET model=excluded.model",(ws,model))
-            row = db.execute("SELECT model FROM model_preferences WHERE workspace=?",(ws,)).fetchone()
-            return row[0] if row else "direct"
+                db.execute("DELETE FROM free_model_preferences WHERE workspace=?", (ws,))
+                if model != "direct" and self.catalog[model]["free"]:
+                    db.execute("INSERT INTO free_model_preferences VALUES(?,?)", (ws,model))
+            row = db.execute("""SELECT p.model,f.model IS NOT NULL FROM model_preferences p
+                LEFT JOIN free_model_preferences f ON f.workspace=p.workspace AND f.model=p.model
+                WHERE p.workspace=?""",(ws,)).fetchone()
+            return tuple(row) if row else ("direct",False)
 
     def uses_router(self, workspace):
         with self.identity._lock:
             return self.identity._db.execute("SELECT 1 FROM model_preferences WHERE workspace=? AND model!='direct'",(workspace,)).fetchone() is not None
 
     def bind(self, db, scope, operation):
-        row = db.execute("SELECT model FROM operation_routes WHERE operation_id=?",(operation,)).fetchone()
+        row = db.execute("SELECT model,input_rate,output_rate,request_rate FROM operation_routes WHERE operation_id=?",(operation,)).fetchone()
         if row:
-            return None if row[0]=="direct" else row[0]
+            return (None,False) if row[0]=="direct" else (row[0],not any(map(Decimal,row[1:])))
         pref = db.execute("SELECT model FROM model_preferences WHERE workspace=?",(scope.workspace_id,)).fetchone()
         model = pref[0] if pref else "direct"
         rates = ["0"]*3
+        free = False
+        free_choice = free_selection(db,scope.workspace_id)
+        if free_choice and not (self.available() and self.catalog.get(model,{}).get("free")):
+            raise HTTPException(503,"Выбранная бесплатная модель сейчас недоступна. Выберите другую в настройках.")
         if not self.available():
             model = "direct"
         if model != "direct":
             if model not in self.catalog:
                 raise HTTPException(503,"Каталог модели недоступен. Выберите DeepSeek в настройках.")
             rates = self.catalog[model]["rates"]
+            free = self.catalog[model]["free"]
         db.execute("INSERT INTO operation_routes VALUES(?,?,?,?,?)",(operation, model,*rates))
-        return None if model=="direct" else model
+        return (None if model=="direct" else model), free
 
     def reserve(self, grant, request):
         digest = hashlib.sha256(grant.encode()).hexdigest()
         with self.identity._write() as db:
-            row = db.execute("""SELECT o.operation_id,o.workspace_id,o.cap,r.fx_e4,m.model,m.input_rate,m.output_rate,m.request_rate
+            row = db.execute("""SELECT o.operation_id,o.workspace_id,o.cap,r.fx_e4,m.model,m.input_rate,m.output_rate,m.request_rate,
+                EXISTS(SELECT 1 FROM workspace_paid_model_access p WHERE p.workspace_id=o.workspace_id)
                 FROM usage_grants g JOIN coin_orders o USING(operation_id) JOIN coin_ruble_orders r USING(operation_id)
-                JOIN operation_routes m USING(operation_id) JOIN workspace_paid_model_access p USING(workspace_id)
+                JOIN operation_routes m USING(operation_id)
                 WHERE g.token_hash=? AND g.expires_at>unixepoch() AND o.closed=0 AND m.model!='direct'""",(digest,)).fetchone()
             if not row:
                 raise HTTPException(403)
-            op,ws,cap,fx,model,ir,orr,rr = row
+            op,ws,cap,fx,model,ir,orr,rr,paid_access = row
             if self.total >= 32 or self.active.get(ws,0)>=2:
                 raise HTTPException(429)
-            used, = db.execute("SELECT COALESCE(SUM(COALESCE(charge,bound)),0) FROM coin_attempts WHERE operation_id=?",(op,)).fetchone()
-            available = min(cap-used,coins.balances(db,ws)[0])
             ir,orr,rr = map(Decimal,(ir,orr,rr))
-            scale = Decimal(fx)*coins.UNIT/10000
-            base = (len(json.dumps(request,ensure_ascii=False).encode()) + 1024 + 32*len(request["messages"]))*ir + rr
-            max_out = min(4096,int((available/scale-base)//orr))
-            if max_out < 1:
-                db.execute("UPDATE coin_orders SET budget_hit=1 WHERE operation_id=?",(op,))
-                return None
-            bound = int(((base+max_out*orr)*scale).to_integral_value(rounding=ROUND_CEILING))
+            max_out, bound = 4096, 0
+            if any((ir,orr,rr)):
+                if not paid_access:
+                    raise HTTPException(403)
+                used, = db.execute("SELECT COALESCE(SUM(COALESCE(charge,bound)),0) FROM coin_attempts WHERE operation_id=?",(op,)).fetchone()
+                available = min(cap-used,coins.balances(db,ws)[0])
+                scale = Decimal(fx)*coins.UNIT/10000
+                base = (len(json.dumps(request,ensure_ascii=False).encode()) + 1024 + 32*len(request["messages"]))*ir + rr
+                max_out = min(4096,int((available/scale-base)//orr))
+                if max_out < 1:
+                    db.execute("UPDATE coin_orders SET budget_hit=1 WHERE operation_id=?",(op,))
+                    return None
+                bound = int(((base+max_out*orr)*scale).to_integral_value(rounding=ROUND_CEILING))
             aid = uuid4().hex
             db.execute("""INSERT INTO coin_attempts(attempt_id,operation_id,bound,model,started_ms,rate_version,period)
                 VALUES(?,?,?,?,?,'openrouter-v1','provider')""",(aid,op,bound,model,int(time.time()*1000)))
@@ -163,7 +189,7 @@ class ModelRouter:
                "max_price":{"prompt":float(ir*1000000),"completion":float(orr*1000000),"request":float(rr)}})
             return ws,aid
 
-    def settle(self, aid, generation, usage):
+    def settle(self, aid, generation, usage, *, rejected=None):
         with self.identity._write() as db:
             row = db.execute("""SELECT bound,fx_e4 FROM coin_attempts JOIN coin_ruble_orders USING(operation_id)
                 WHERE attempt_id=? AND charge IS NULL AND rate_version='openrouter-v1'""",(aid,)).fetchone()
@@ -180,12 +206,31 @@ class ModelRouter:
             except (KeyError,TypeError,ValueError):
                 return
             charge = int((cost*row[1]*coins.UNIT/10000).to_integral_value(rounding=ROUND_CEILING))
+            evidence = "openrouter-usd:"+str(cost)
+            if row[0] == 0 and cost > 0:
+                # The provider receipt remains auditable. The user's agreed price stays zero.
+                logging.getLogger(__name__).error("OpenRouter reported nonzero cost for a zero-price attempt %s",aid)
+                evidence = "openrouter-free-price-mismatch:"+str(cost)
+                charge = 0
             if charge > row[0]:
                 return
             counts = {"input_tokens":prompt-cache,"cache_read_input_tokens":cache,
                       "cache_creation_input_tokens":0,"output_tokens":out}
+            if rejected in (404,429) and row[0]==0:
+                evidence = "openrouter-http:"+str(rejected)
             db.execute("UPDATE coin_attempts SET charge=?,usage_json=?,evidence=? WHERE attempt_id=? AND charge IS NULL",
-                       (charge,json.dumps(counts),"openrouter-usd:"+str(cost),aid))
+                       (charge,json.dumps(counts),evidence,aid))
+
+    def free_refusal(self, operation):
+        with self.identity._lock:
+            row = self.identity._db.execute("""SELECT a.evidence FROM coin_attempts a
+                JOIN coin_orders o USING(operation_id) WHERE a.operation_id=? AND o.cap=0
+                ORDER BY a.started_ms DESC,a.rowid DESC LIMIT 1""",(operation,)).fetchone()
+        if row and row[0] == "openrouter-http:429":
+            return 429,"OpenRouter достиг лимита бесплатных запросов. Попробуйте позже."
+        if row and row[0] == "openrouter-http:404":
+            return 503,"Бесплатная модель сейчас недоступна. Выберите другую в настройках."
+        return None
 
     async def reconcile(self):
         while True:
@@ -282,7 +327,7 @@ class ModelRouter:
             request.update(stream=True,stream_options={"include_usage":True})
             async with self.http.stream("POST",BASE+"/chat/completions",headers=self.headers,json=request,timeout=90) as r:
                 if r.status_code in (400,401,402,403,404,422,429):
-                    self.settle(aid,None,{"cost":"0","prompt_tokens":0,"completion_tokens":0})
+                    self.settle(aid,None,{"cost":"0","prompt_tokens":0,"completion_tokens":0},rejected=r.status_code)
                 if not r.is_success: raise HTTPException(502)
                 if "text/event-stream" in r.headers.get("content-type",""):
                     return JSONResponse(await self.streamed_choice(r,aid,live))
@@ -336,19 +381,21 @@ async def activate(identity, http, worker):
             reconcile.cancel()
             await asyncio.gather(task,reconcile,return_exceptions=True)
 
-def routes(get_token,body):
+def routes(get_token,body,disabled_models):
     async def models(req):
         router = req.app.state.model_router
         token = get_token(req,allow_cookie=True)
         req.app.state.identity.validate_session(token)
         if router is None or not router.available():
-            return JSONResponse({"enabled":False,"model":"direct","models":[]})
+            return await disabled_models(req)
         selected = None
         if req.method=="POST":
             selected=(await body(req,"model"))["model"]
             if not isinstance(selected,str):
                 raise ValueError("Invalid model")
-        catalog = await router.models()
-        return JSONResponse({"enabled":True,"model":router.preference(token,selected),"catalogMessage":router.catalog_message,"models":[
-            {k:m[k] for k in ("id","family","name")} for m in catalog.values()]})
+        catalog = await router.models(refresh=req.method=="GET" and req.query_params.get("refresh")=="1")
+        model, free_choice = router.preference(token,selected)
+        free_unavailable = bool(free_choice and not catalog.get(model,{}).get("free"))
+        return JSONResponse({"enabled":True,"model":model,"freeUnavailable":free_unavailable,"catalogMessage":router.catalog_message,"models":[
+            {k:m[k] for k in ("id","family","name","free")} for m in catalog.values()]})
     return [Route("/api/model-settings",models,methods=["GET","POST"])]

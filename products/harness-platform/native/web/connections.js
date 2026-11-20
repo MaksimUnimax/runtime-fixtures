@@ -49,30 +49,50 @@ window.__ModuleLoader__.load({
       function Models() {
         const [data,setData]=React.useState(null),[filter,setFilter]=React.useState(''),[msg,setMsg]=React.useState('');
         const [busy,setBusy]=React.useState(false);
-        React.useEffect(()=>{a.api('/api/model-settings').then(setData).catch(e=>setMsg(e.message));},[]);
-        const choose=async model=>{setBusy(true);try{
+        const [freeOnly,setFreeOnly]=React.useState(false);
+        const version=React.useRef(0),saving=React.useRef(false);
+        const refresh=async (manual=false)=>{
+          if(saving.current)return;
+          const request=++version.current;
+          try {
+            const next=await a.api('/api/model-settings'+(manual?'?refresh=1':''));
+            if(request===version.current)setData(next);
+          } catch(e){if(request===version.current)setMsg(e.message);}
+        };
+        React.useEffect(()=>{
+          refresh();
+          const timer=setInterval(()=>{if(!document.hidden)refresh();},60000);
+          return ()=>{clearInterval(timer);version.current++;};
+        },[]);
+        const choose=async model=>{version.current++;saving.current=true;setBusy(true);try{
           const next=await post('/api/model-settings',{model});
           setData(next);setMsg(next.enabled && next.model===model?'Выбор сохранён':'');
-        } catch(e){setMsg(e.message);}finally{setBusy(false);}};
+        } catch(e){setMsg(e.message);}finally{saving.current=false;setBusy(false);}};
         if(!data)return h('section',{className:'service-settings'},h('h2',null,'Выбор ИИ'),
           h('p',{role:'status'},msg||'Загружаю список моделей…'));
         if(!data.enabled)return h('section',{className:'service-settings'},h('h2',null,'Выбор ИИ'),
           h('p',{role:'status'},'Ключ OpenRouter для этого сервера ещё не настроен. После подключения здесь появятся доступные модели.'),
           a.wallet?.canGrant && h('a',{href:'/admin#openrouter'},'Настроить OpenRouter'));
         const radio=(id,title)=>h('label',{className:'service-model',key:id},h('input',{type:'radio',name:'model',disabled:busy,
-            checked:data?.model===id,onChange:()=>choose(id)}),title);
+            checked:!data.freeUnavailable && data.model===id,onChange:()=>choose(id)}),title);
         const groups=new Map();
         for(const m of [...(data?.models||[])].sort((a,b)=>a.id.localeCompare(b.id))){
+          if(freeOnly && !m.free)continue;
           if(!(m.id+' '+m.name).toLowerCase().includes(filter.toLowerCase()))continue;
           if(!groups.has(m.family))groups.set(m.family,[]);groups.get(m.family).push(m);
         }
-        return h('section',{className:'service-settings'},h('h2',null,'Выбор ИИ'),radio('direct','DeepSeek · прямое подключение'),
+        return h('section',{className:'service-settings'},h('h2',null,'Выбор ИИ'),!freeOnly && radio('direct','DeepSeek · прямое подключение'),
           h('label',null,'Поиск модели',h('input',{type:'search',value:filter,onChange:e=>setFilter(e.target.value)})),
+          h('button',{type:'button',disabled:busy,onClick:()=>refresh(true)},'Обновить список'),
+          h('label',{className:'service-model'},h('input',{type:'checkbox',checked:freeOnly,onChange:e=>setFreeOnly(e.target.checked)}),
+            'Только бесплатные ('+data.models.filter(m=>m.free).length+')'),
+          freeOnly && !groups.size && h('p',{role:'status'},filter?'По этому запросу бесплатных моделей нет.':'Сейчас нет доступных бесплатных моделей с поддержкой инструментов.'),
           data?.catalogMessage && h('p',{role:'status'},data.catalogMessage),
-          data?.enabled && data.model!=='direct' && !data.models.some(m=>m.id===data.model) &&
+          data.freeUnavailable && h('p',{role:'status'},'Бесплатный тариф выбранной модели недоступен: '+data.model+'. Выберите другую модель.'),
+          !data.freeUnavailable && data.model!=='direct' && !data.models.some(m=>m.id===data.model) &&
             h('p',null,'Выбранная модель сейчас недоступна: '+data.model),
-          [...groups].map(([family,models])=>h('details',{key:family,open:filter?true:undefined},
-            h('summary',null,family+' ('+models.length+')'),models.map(m=>radio(m.id,m.name)))),
+          [...groups].map(([family,models])=>h('details',{key:family,open:filter||freeOnly?true:undefined},
+            h('summary',null,family+' ('+models.length+')'),models.map(m=>radio(m.id,m.name+(m.free?' · Бесплатно':''))))),
           h('p',{role:'status'},msg));
       }
       function PrivateDialog() {

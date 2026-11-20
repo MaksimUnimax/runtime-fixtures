@@ -23,8 +23,8 @@ from .admin_costs import AdminCosts, present_chat
 from .browser_session import browser_routes, browser_token
 from .chat_worker import ChatWorker, WorkerError
 from . import integrations, provider_keys, chat_connections, chat_defaults, turn_progress
-from .identity import AuthenticationError, ChatUnavailable
-from .operation_grants import DIRECT_DEFAULT_SCHEMA
+from .identity import AuthenticationError, ChatUnavailable, _principal
+from .operation_grants import DIRECT_DEFAULT_SCHEMA, FreeModelUnavailable, free_selection
 from .guest_registration import RegistrationStore
 from .guest_web import guest_routes
 from .web_ui import web_routes
@@ -85,7 +85,19 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         from . import model_router as router_plugin
 
     async def disabled_models(req):
-        req.app.state.identity.validate_session(_token(req, allow_cookie=True))
+        identity = req.app.state.identity
+        token = _token(req, allow_cookie=True)
+        choice = (await _body(req,"model"))["model"] if req.method=="POST" else None
+        with identity._write() as db:
+            _, workspace = _principal(db,token)
+            previous = free_selection(db, workspace)
+            if previous and req.method=="POST":
+                if choice!="direct":
+                    raise HTTPException(503,"OpenRouter сейчас недоступен.")
+                db.execute("DELETE FROM free_model_preferences WHERE workspace=?",(workspace,))
+                db.execute("UPDATE model_preferences SET model='direct' WHERE workspace=?",(workspace,))
+            elif previous:
+                return JSONResponse({"enabled":True,"freeUnavailable":True,"model":previous,"models":[]})
         return JSONResponse({"enabled":False,"model":"direct","models":[]})
 
     @asynccontextmanager
@@ -143,6 +155,11 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         except LookupError:
             raise HTTPException(404, "Account unavailable") from None
         result["modelChoice"] = req.app.state.model_router is not None
+        if not result["modelChoice"]:
+            identity=req.app.state.identity
+            with identity._lock:
+                _,workspace=_principal(identity._db,token)
+                result["modelChoice"]=bool(free_selection(identity._db,workspace))
         return JSONResponse(result)
 
     async def pricing(req):
@@ -231,6 +248,10 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         except WorkerError as exc:
             if exc.code != "turn_unconfirmed" or exc.operation_id is None:
                 raise
+            router = req.app.state.model_router
+            if router and (refusal := router.free_refusal(exc.operation_id)):
+                status, message = refusal
+                return JSONResponse({"error":message,"operationId":exc.operation_id},status_code=status)
             error = {"error": exc.code, "operationId": exc.operation_id}
             result = await run_in_threadpool(present_chat, req.app.state.identity, req.app.state.admin_costs,
                                              token, scope, "turn", error)
@@ -254,6 +275,8 @@ def create_app(database_path, chat_directory, *, composition_module=None):
             status = statuses.get(exc.code, 503)
             body = {"error": exc.code if exc.code in statuses else "worker_unavailable"}
             return JSONResponse(body, status_code=status)
+        if isinstance(exc, FreeModelUnavailable):
+            return JSONResponse({"error":"Выбранная бесплатная модель отключена. Откройте «Выбор ИИ»."},status_code=503)
         if isinstance(exc, HTTPException):
             return JSONResponse({"error": exc.detail}, status_code=exc.status_code, headers=exc.headers)
         return JSONResponse({"error": "Invalid input"}, status_code=400)
@@ -267,7 +290,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         *integrations.routes(_token, _body),
         *provider_keys.routes(_token, _body),
         *chat_defaults.routes(_token, _body),
-        *(router_plugin.routes(_token, _body) if router_plugin else [Route("/api/model-settings",disabled_models,methods=["GET","POST"])]),
+        *(router_plugin.routes(_token, _body, disabled_models) if router_plugin else [Route("/api/model-settings",disabled_models,methods=["GET","POST"])]),
         Route("/api/wallet", wallet),
         Route("/api/admin/accounts/{login}/wallet", wallet),
         Route("/api/admin/coin-pricing", pricing, methods=["GET", "POST"]),
@@ -283,5 +306,5 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         Route("/api/chats/{chat_id}/tools", partial(scoped, action="tools")),
         Route("/api/chats/{chat_id}/tools/{name}", partial(scoped, action="call"), methods=["POST"]),
     ], exception_handlers={cls: error_response for cls in (
-        AuthenticationError, ChatUnavailable, WorkerError, HTTPException, ValueError,
+        AuthenticationError, ChatUnavailable, WorkerError, FreeModelUnavailable, HTTPException, ValueError,
     )})

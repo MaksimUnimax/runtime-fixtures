@@ -147,6 +147,8 @@ def execute(packet, directory):
     trace = {"selectionBy": "chat_agent", "catalogHash": HASH, "catalogSize": len(TEMPLATES),
              "templates": [{"id": item["template_id"], "connectionId": item["store_id"]} for item in selected],
              "operations": operations}
+    if turn.get("model"):
+        trace["selectionModel"] = turn["model"]
     if row["state"] != "READY":
         code = row.get("error") or row["state"]
         return {"ok": False, "code": code, "reason": explain(code)["text"], "trace": trace}
