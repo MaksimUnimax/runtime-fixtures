@@ -14,8 +14,10 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
+from .browser_session import browser_routes, browser_token
 from .chat_worker import ChatWorker, WorkerError
 from .identity import AuthenticationError, ChatUnavailable, IdentityStore
+from .web_ui import web_routes
 
 
 class PrivateResponses:
@@ -31,7 +33,9 @@ class PrivateResponses:
         await self.app(scope, receive, send_private)
 
 
-def _token(request):
+def _token(request, *, allow_cookie=False):
+    if allow_cookie and "authorization" not in request.headers and request.cookies:
+        return browser_token(request)
     scheme, _, token = request.headers.get("authorization", "").partition(" ")
     if scheme.lower() != "bearer" or not token or len(token) > 256:
         raise AuthenticationError("Authentication required")
@@ -87,14 +91,14 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         return JSONResponse({"recovery": recovery})
 
     async def chats(req):
-        identity, token = req.app.state.identity, _token(req)
+        identity, token = req.app.state.identity, _token(req, allow_cookie=True)
         if req.method == "POST":
             scope = await run_in_threadpool(identity.create_user_chat, token)
             return JSONResponse({"chatId": scope.chat_id}, status_code=201)
         return JSONResponse(await run_in_threadpool(identity.list_chats, token))
 
     async def scoped(req: Request, action):
-        token = _token(req)
+        token = _token(req, allow_cookie=True)
         data = {}
         if action == "call":
             data = await _body(req, "arguments")
@@ -107,16 +111,21 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                 raise HTTPException(400, "Invalid requestId")
             if not isinstance(data["text"], str) or not data["text"].strip() or len(data["text"].encode("utf-8")) > 8192:
                 raise HTTPException(400, "Invalid message text")
-        elif action == "history":
-            # Offset counts persisted turns from the newest, not individual messages.
+        elif action in {"history", "events"}:
+            # Public event pages use immutable revisions so newer turns cannot shift older pages.
+            events = action == "events"
+            cursor = "before" if events else "offset"
+            max_limit = 20 if events else 50
             try:
-                limit = int(req.query_params.get("limit", 30))
-                offset = int(req.query_params.get("offset", 0))
+                limit = int(req.query_params.get("limit", min(max_limit, 30)))
+                value = int(req.query_params[cursor]) if cursor in req.query_params else None
             except ValueError:
                 raise HTTPException(400, "Invalid history window") from None
-            if not 1 <= limit <= 50 or not 0 <= offset <= 2**31 - 1:
+            if not 1 <= limit <= max_limit or value is not None and not 0 <= value <= 2**53 - 1:
                 raise HTTPException(400, "Invalid history window")
-            data = {"limit": limit, "offset": offset}
+            data = {"limit": limit}
+            if value is not None:
+                data[cursor] = value
         # Recheck ownership and token lifetime after consuming the request body.
         scope = await run_in_threadpool(
             req.app.state.identity.resolve_chat, token, req.path_params["chat_id"],
@@ -143,10 +152,13 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         return JSONResponse({"error": "Invalid input"}, status_code=400)
 
     return Starlette(lifespan=lifespan, middleware=[Middleware(PrivateResponses)], routes=[
+        *browser_routes(),
+        *web_routes(),
         Route("/api/login", login, methods=["POST"]),
         Route("/api/logout", logout, methods=["POST"]),
         Route("/api/recover", recover, methods=["POST"]),
         Route("/api/chats", chats, methods=["GET", "POST"]),
+        Route("/api/chats/{chat_id}/events", partial(scoped, action="events")),
         Route("/api/chats/{chat_id}/messages", partial(scoped, action="history")),
         Route("/api/chats/{chat_id}/messages", partial(scoped, action="append"), methods=["POST"]),
         Route("/api/chats/{chat_id}/turns", partial(scoped, action="turn"), methods=["POST"]),

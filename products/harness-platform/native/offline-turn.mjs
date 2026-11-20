@@ -1,7 +1,7 @@
 import { runNativeTurn } from './model-turn.mjs';
 
 // Explicit local acceptance route. No network client or paid provider is mounted.
-export async function runOfflineTurn({ load, ctx, chatId, seed, text, requestId }) {
+export async function runOfflineTurn({ load, ctx, chatId, seed, text, requestId, toolUnavailable }) {
   if (process.env.HARNESS_OFFLINE_MODEL !== '1') {
     throw new Error('Offline acceptance model is disabled');
   }
@@ -24,8 +24,17 @@ export async function runOfflineTurn({ load, ctx, chatId, seed, text, requestId 
     }
   }
 
+  const fixture = process.env.HARNESS_OFFLINE_ADAPTER;
+  let adapter;
+  if (fixture) {
+    if (!/^[a-z][a-z0-9_]{0,63}$/.test(fixture)) throw new Error('Invalid offline adapter name');
+    const { createAdapter } = await import(`../acceptance/${fixture}/model.mjs`);
+    adapter = createAdapter(llm, { toolUnavailable });
+  } else {
+    adapter = new OfflineAdapter();
+  }
   return runNativeTurn({ load, ctx, chatId, seed, text, requestId, provider: 'platform-offline',
-    model: 'acceptance-echo', adapter: new OfflineAdapter() });
+    model: fixture || 'acceptance-echo', adapter });
 }
 
 function plainText(message) {

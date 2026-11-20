@@ -29,9 +29,11 @@ export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, 
       }
       const events = agent.session.snapshotEvents();
       const reply = agent.session.deriveMessages().at(-1);
-      const terminal = events.slice(seed.length).findLast(event => event.type === 'turn/end');
+      const delta = events.slice(seed.length);
+      adapter.validateTurn?.({ events: delta, reply });
+      const terminal = delta.findLast(event => event.type === 'turn/end');
       if (!['completed', 'max-tokens'].includes(terminal?.data.reason?.kind) || reply?.role !== 'assistant' ||
-          !events.slice(seed.length).some(event => event.type === 'assistant/message')) {
+          !delta.some(event => event.type === 'assistant/message')) {
         throw new Error('Native agent did not complete the turn');
       }
       return { reply: reply.content.filter(b => b.type === 'text').map(b => b.text).join(''), events };
