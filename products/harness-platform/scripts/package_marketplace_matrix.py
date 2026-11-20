@@ -45,6 +45,14 @@ def group_table_requests(files):
         b"        key=fingerprint({'bucket':bucket,'store':store.id,'input':inputs,'specific':specific})")
 
 
+def bind_node_runtime(files):
+    # All child processes run with the server's trusted executable search path.
+    fixed = b"['/usr/local/bin/node',str(DATA/'contract_bridge.mjs')]"
+    if files["read_surface.py"].count(fixed) != 1:
+        raise ValueError("Review the executable path of the read contract compiler")
+    files["read_surface.py"] = files["read_surface.py"].replace(fixed, fixed.replace(b"/usr/local/bin/node", b"node"))
+
+
 def bind_provider_retry(files):
     source = files["http_transport.py"].decode()
     start = "            retry=exc.headers.get('Retry-After');retry_at=None"
@@ -144,6 +152,7 @@ def collect(core, renderer, config):
     bind_table_contracts(portable, config.get("table_capabilities", {}), files)
     bind_dataset_contracts(portable, config.get("dataset_capabilities", {}), files)
     group_table_requests(files)
+    bind_node_runtime(files)
     bind_provider_retry(files)
     files["source_qualifications.json"] = json.dumps(portable, sort_keys=True).encode()
     # Both discovery and selection compilation call the same catalogue hook.

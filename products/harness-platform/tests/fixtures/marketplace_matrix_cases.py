@@ -120,6 +120,30 @@ class MarketplaceMatrix(unittest.TestCase):
         self.assertIn("внутреннюю ошибку", worker.seller_result(result)["reason"])
         self.assertGreater(result["retryAt"], time.time() + 275)
 
+    def test_parameter_preview_uses_only_attached_ozon_seller_reads(self):
+        from urllib.error import HTTPError
+        from semantics import Rejected
+        cid = self.ids["ozon"]
+        self.packet.update(connections=[cid], selections=[{"templateId": "parameter.loss_rate.v1",
+                           "connectionId": cid, "input": {"period": {"from": "2026-11-01", "to": "2026-11-07"}}}])
+        denied_fields = ["performance_client_id", "performance_client_secret"]
+        self.assertNotIn("parameter.loss_rate.v1", {r["id"] for r in worker.catalogue([(cid, "ozon", denied_fields)])})
+        visited = []
+        def deny(req, **options):
+            options["on_dispatch"]()
+            self.assertEqual(req.host, "api-seller.ozon.ru")
+            self.assertEqual(req.get_header("Api-key"), "fixture-ozon")
+            visited.append(req.full_url)
+            raise HTTPError(req.full_url, 403, "forbidden", {}, None)
+        with patch("http_transport.read_response", side_effect=deny):
+            result = worker.execute(self.packet, self.root)
+        self.assertFalse(result["ok"])
+        self.assertEqual(len(visited), 1, result)
+        self.packet["selections"][0]["input"]["parameter_mode"] = "replace_calculated"
+        with self.assertRaises(Rejected), patch("http_transport.read_response") as send:
+            worker.execute(self.packet, self.root)
+        send.assert_not_called()
+
     def test_drr_returns_exact_denominator_from_source(self):
         cid = self.ids["wb"]
         self.packet.update(connections=[cid], selections=[{
