@@ -142,7 +142,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
             raise HTTPException(403, "Administrator required") from None
         except LookupError:
             raise HTTPException(404, "Account unavailable") from None
-        result["modelChoice"] = req.app.state.model_router is not None and req.app.state.model_router.available()
+        result["modelChoice"] = req.app.state.model_router is not None
         return JSONResponse(result)
 
     async def pricing(req):

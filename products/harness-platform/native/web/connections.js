@@ -51,8 +51,14 @@ window.__ModuleLoader__.load({
         const [busy,setBusy]=React.useState(false);
         React.useEffect(()=>{a.api('/api/model-settings').then(setData).catch(e=>setMsg(e.message));},[]);
         const choose=async model=>{setBusy(true);try{
-          setData(await post('/api/model-settings',{model}));setMsg('Выбор сохранён');
+          const next=await post('/api/model-settings',{model});
+          setData(next);setMsg(next.enabled && next.model===model?'Выбор сохранён':'');
         } catch(e){setMsg(e.message);}finally{setBusy(false);}};
+        if(!data)return h('section',{className:'service-settings'},h('h2',null,'Выбор ИИ'),
+          h('p',{role:'status'},msg||'Загружаю список моделей…'));
+        if(!data.enabled)return h('section',{className:'service-settings'},h('h2',null,'Выбор ИИ'),
+          h('p',{role:'status'},'Ключ OpenRouter для этого сервера ещё не настроен. После подключения здесь появятся доступные модели.'),
+          a.wallet?.canGrant && h('a',{href:'/admin#openrouter'},'Настроить OpenRouter'));
         const radio=(id,title)=>h('label',{className:'service-model',key:id},h('input',{type:'radio',name:'model',disabled:busy,
             checked:data?.model===id,onChange:()=>choose(id)}),title);
         const groups=new Map();
