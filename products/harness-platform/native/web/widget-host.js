@@ -4,7 +4,7 @@ const noop = () => {};
 const none = () => null;
 const value = snapshot => selector => selector(snapshot);
 const noMenu = { getTriggerProps: () => ({}) };
-const noPositions = { read: none, write: noop };
+const noPositions = { read: none, save: noop };
 const presentation = { mode: 'standard', collapseTiming: 'completion', foldedReplies: 'all' };
 const chatSession = { openState: 'open', openError: null, running: false, pendingSubmissions: [], hasMore: false };
 const unknownFile = async () => { throw new Error('Просмотр файлов недоступен'); };

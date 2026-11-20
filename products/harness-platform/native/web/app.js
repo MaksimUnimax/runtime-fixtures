@@ -2,7 +2,7 @@ const byId = id => document.getElementById(id);
 const chatId = /^\/app\/chats\/([A-Za-z0-9_-]+)\/?$/.exec(location.pathname)?.[1];
 const chatPath = `/api/chats/${encodeURIComponent(chatId ?? '')}`;
 let view = 'chat';
-let journal = { messages: [], events: [] };
+let journal = { messages: [], events: [], nextBefore: null };
 let loaded = false;
 let pendingTurn = null;
 
@@ -64,13 +64,53 @@ async function drawTranscript() {
   await renderTranscript(byId('history'), { ...journal, view, chatId });
 }
 
-async function updateJournal() {
-  const [messages, { events }] = await Promise.all([
-    api(`${chatPath}/messages`), api(`${chatPath}/events`),
-  ]);
-  journal = { messages, events };
+function eventPage(before = null) {
+  const query = before === null ? '' : `?before=${encodeURIComponent(before)}`;
+  return api(`${chatPath}/events${query}`);
+}
+
+function joinWindows(earlier, later) {
+  return { events: [...earlier.events, ...later.events], messages: [...earlier.messages, ...later.messages],
+    nextBefore: earlier.nextBefore };
+}
+
+async function showWindow(next) {
+  journal = next;
+  byId('older').hidden = next.nextBefore === null;
   await drawTranscript();
 }
+
+async function updateJournal() {
+  let page = await eventPage();
+  const tail = journal.messages.at(-1);
+  if (tail) {
+    // Another device may have advanced the same journal by more than one page.
+    // Read back to the saved tail before appending new turns to the local window.
+    const sameTail = message => message.requestId === tail.requestId && message.role === tail.role;
+    while (page.nextBefore !== null && !page.messages.some(sameTail)) {
+      page = joinWindows(await eventPage(page.nextBefore), page);
+    }
+    const index = page.messages.findIndex(sameTail);
+    if (index !== -1) {
+      const lastSeq = journal.events.at(-1)?.seq ?? -1;
+      page = joinWindows(journal, { messages: page.messages.slice(index + 1),
+        events: page.events.filter(event => event.seq > lastSeq) });
+    }
+  }
+  await showWindow(page);
+}
+
+byId('older').addEventListener('click', async () => {
+  const older = byId('older');
+  const send = byId('send');
+  if (older.disabled || !loaded || journal.nextBefore === null) return;
+  older.disabled = send.disabled = true;
+  try {
+    const page = await eventPage(journal.nextBefore);
+    await showWindow(joinWindows(page, journal));
+  } catch (error) { showError(error, 'history'); }
+  finally { older.disabled = send.disabled = false; }
+});
 
 async function selectView(next) {
   view = next;
@@ -123,7 +163,7 @@ byId('composer').addEventListener('submit', async event => {
   if (pendingTurn?.text !== text) pendingTurn = { requestId: crypto.randomUUID(), text };
   byId('problem').hidden = true;
   byId('status').textContent = 'Отправка…';
-  button.disabled = true;
+  button.disabled = byId('older').disabled = true;
   input.readOnly = true;
   try {
     await api(`${chatPath}/turns`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -133,7 +173,8 @@ byId('composer').addEventListener('submit', async event => {
     await updateJournal();
   } catch (error) { showError(error, 'turn'); }
   finally {
-    button.disabled = false; input.readOnly = false;
+    button.disabled = byId('older').disabled = false;
+    input.readOnly = false;
     byId('status').textContent = '';
   }
 });

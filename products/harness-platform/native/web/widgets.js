@@ -46,6 +46,11 @@ async function initialize() {
         if (!(id in options.staticModules)) throw new Error('Unavailable browser module: ' + id);
         return options.staticModules[id];
       };
+      const whale = 'plugins/@deepseek-ai/dsh-client-ui-chat/assets/running-whale%402x-06738fa29b2f.png';
+      require.asset = name => {
+        if (name !== whale) throw new Error('Unknown native display asset');
+        return uiBase + 'dsh-client-ui-chat/lib/assets/running-whale%402x-06738fa29b2f.png';
+      };
       const plugin = name => factories.get(group + name)(require);
       const core = plugin(modules);
       this.pendingQueue.push({ id: project, factory: () => ({

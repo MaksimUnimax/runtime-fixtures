@@ -18,6 +18,13 @@ from platform_core.chat_api import create_app
 from platform_core.identity import IdentityStore
 
 
+def browser_error(text):
+    # Report module failures without query strings, credentials or session identifiers.
+    text = re.sub(r"https?://[^\s)]+", lambda match: urlsplit(match.group()).path, str(text))
+    text = re.sub(r"(?i)bearer\s+\S+|[A-Za-z0-9_-]{32,}", "[redacted]", text)
+    return text[:350]
+
+
 @asynccontextmanager
 async def running_product(database, journals):
     app = create_app(database, journals, composition_module="examples.reference_plugin")
@@ -62,6 +69,14 @@ class BrowserIsolation(unittest.IsolatedAsyncioTestCase):
         context = await self.browser.new_context(base_url=self.base_url)
         self.addAsyncCleanup(context.close)
         page = await context.new_page()
+        page.on("pageerror", lambda err: print(f"{handle} page error: {browser_error(err)}", flush=True))
+        page.on("console", lambda msg: print(f"{handle} console: {browser_error(msg.text)}", flush=True)
+                if msg.type == "error" else None)
+        page.on("requestfailed", lambda req: print(
+            f"{handle} request failed: {browser_error(urlsplit(req.url).path)}", flush=True))
+        page.on("response", lambda resp: print(
+            f"{handle} HTTP {resp.status}: {browser_error(urlsplit(resp.url).path)}", flush=True)
+            if resp.status >= 400 else None)
         await page.goto("/login")
         await page.get_by_label("Логин", exact=True).fill(handle)
         await page.get_by_label("Пароль", exact=True).fill(self.password)
@@ -72,7 +87,13 @@ class BrowserIsolation(unittest.IsolatedAsyncioTestCase):
 
     async def send_turn(self, page, text):
         await page.get_by_role("textbox", name="Сообщение", exact=True).fill(text)
-        await page.get_by_role("button", name="Отправить", exact=True).click()
+        button = page.get_by_role("button", name="Отправить", exact=True)
+        try:
+            await expect(button).to_be_enabled(timeout=30_000)
+        except AssertionError as error:
+            alert = await page.get_by_role("alert").all_text_contents()
+            self.fail(f"{error}\nVisible product errors: {[browser_error(s) for s in alert]}")
+        await button.click()
 
     async def test_two_browser_profiles_keep_their_own_chat(self):
         first, second = await asyncio.gather(self.open_chat("first-browser"), self.open_chat("second-browser"))

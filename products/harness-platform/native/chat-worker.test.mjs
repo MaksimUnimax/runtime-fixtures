@@ -33,10 +33,16 @@ test('scope, event ordering, retry, conflict and replay across two native worker
   try {
     assert.deepEqual((await left.run(history(one))).map(m => m.text), ['first', '2', '3', '4']);
     assert.deepEqual(await right.run(history(two)), [{ requestId: 'unique1', text: 'second', role: 'user' }]);
+    const page = await left.run({ scope: one, action: 'events', limit: 2 });
+    assert.deepEqual(page.messages.map(m => m.text), ['3', '4']);
+    assert.deepEqual(page.events.filter(e => e.type === 'user/message').map(e => e.data.content[0].text), ['3', '4']);
     const same = append(one, 'parallel', 'once');
     const result = await Promise.all([left.run(same), right.run(same)]);
     assert.deepEqual(result[0], result[1]);
     assert.equal((await left.run(history(one))).length, 5);
+    const older = await right.run({ scope: one, action: 'events', limit: 2, before: page.nextBefore });
+    assert.deepEqual(older.messages.map(m => m.text), ['first', '2']);
+    assert.equal(older.nextBefore, null);
   } finally { await Promise.all([left.close(), right.close()]); }
 });
 

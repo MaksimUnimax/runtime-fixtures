@@ -14,6 +14,7 @@ export function publicEvents(events) {
       const content = message.content
         .filter(block => block.type === 'text' && typeof block.text === 'string')
         .map(block => ({ type: 'text', text: block.text }));
+      if (!content.length) continue;
       const visible = { id: message.id, role: message.role, content,
         source: { kind: assistant ? 'model' : 'user' } };
       displayed.push({ type, seq, time, surfaceOp: 'append',

@@ -70,6 +70,7 @@ async def harness_asset(request):
     asset = request.path_params["asset"]
     allowed = (
         (package in _CLIENT_MODULES and asset == "lib/client.js")
+        or (package == "dsh-client-ui-chat" and asset == "lib/assets/running-whale@2x-06738fa29b2f.png")
         or (package == "dsh-web-frontend" and (asset in _FRONTEND_ASSETS or _FRONTEND_CHUNK.fullmatch(asset)))
     )
     if not allowed:

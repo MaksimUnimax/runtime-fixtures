@@ -86,8 +86,8 @@ export async function openWorker(env) {
         const window = rows.slice(0, limit).reverse();
         const events = [], messages = [];
         for (const row of window) {
-          const batch = JSON.parse(row.events);
-          events.push(...publicEvents(batch));
+          const batch = publicEvents(JSON.parse(row.events));
+          events.push(...batch);
           messages.push(...visible(batch, row.request_id));
         }
         return { events, messages, nextBefore: rows.length > limit ? window[0].revision : null };
