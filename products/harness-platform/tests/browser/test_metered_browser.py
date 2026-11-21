@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 from playwright.async_api import async_playwright, expect
-from test_account_browser import running_product
+from test_account_browser import account_action, running_product
 from platform_core.identity import IdentityStore
 from platform_core.operation_grants import initialize_grants
 
@@ -132,7 +132,7 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
         await page.wait_for_function("(x) => document.querySelector('.chat-grants [role=switch] span').getBoundingClientRect().x < x-2",arg=on["x"])
         await expect(grants.get_by_role("checkbox")).to_have_count(0)
         await grants.get_by_role("button",name="Закрыть").click()
-        await page.get_by_role("link",name="Администрирование").click()
+        await account_action(page, "Администрирование")
         await expect(page.get_by_label("Ключ прямого подключения DeepSeek")).to_be_visible()
         await expect(page.get_by_label("Новый ключ OpenRouter")).to_be_visible()
         self.assertEqual((await regular.request.get("/admin")).status,403)

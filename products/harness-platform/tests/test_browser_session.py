@@ -90,6 +90,40 @@ class BrowserSessionTests(TestCase):
         with TestClient(self.app, base_url="http://external.example") as remote:
             self.assertEqual(remote.get("/login").status_code, 403)
 
+    def test_password_change_checks_origin_and_replaces_sessions(self):
+        origin = "https://harness.example"
+        client = self.enterContext(TestClient(self.app, base_url=origin, follow_redirects=False))
+        headers = {"Origin": origin}
+        self.assertEqual(client.post("/login", data={"login": "account", "password": PASSWORD},
+                                     headers=headers).status_code, 303)
+        current = client.cookies.get("__Host-harness_session")
+        other = self.identity.login("account", PASSWORD)
+        self.identity.create_account("another", PASSWORD)
+        unaffected = self.identity.login("another", PASSWORD)
+        path = "/api/profile/password"
+        new = "Пароль с пробелом и знаком +"
+        fields = {"current": PASSWORD, "password": new, "confirmation": new}
+        self.assertEqual(client.get(path).status_code, 405)
+        self.assertEqual(client.post(path, data=fields).status_code, 403)
+        self.assertEqual(client.post(path, data=dict(fields, confirmation="wrong"), headers=headers).status_code, 400)
+        self.assertEqual(client.post(path, data=dict(fields, current="wrong"), headers=headers).status_code, 400)
+        self.identity.validate_session(other)
+        self.assertEqual(client.cookies.get("__Host-harness_session"), current)
+        response = client.post(path, data=fields, headers=headers)
+        self.assertEqual(response.json(), {"changed": True})
+        self.assertEqual(response.headers["cache-control"], "no-store")
+        self.assertIn("HttpOnly", response.headers["set-cookie"])
+        renewed = client.cookies.get("__Host-harness_session")
+        self.assertNotEqual(current, renewed)
+        self.identity.validate_session(renewed)
+        self.identity.validate_session(unaffected)
+        for obsolete in (current, other):
+            with self.assertRaises(AuthenticationError):
+                self.identity.validate_session(obsolete)
+        with self.assertRaises(AuthenticationError):
+            self.identity.login("account", PASSWORD)
+        self.identity.validate_session(self.identity.login("account", new))
+
     def test_switch_replaces_the_browser_session(self):
         origin = "https://harness.example"
         client = self.enterContext(TestClient(self.app, base_url=origin, follow_redirects=False))

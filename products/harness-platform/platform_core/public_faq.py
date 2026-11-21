@@ -24,8 +24,10 @@ class PublicFAQ:
                 self._db.execute("UPDATE public_faq SET answer=replace(answer, ?, ?) WHERE instr(answer, ?) > 0",
                                  ("«Создать аккаунт и сохранить чат»", "«Создать аккаунт»", "«Создать аккаунт и сохранить чат»"))
                 self._db.executemany("UPDATE public_faq SET answer=? WHERE topic=? AND answer=?", [
-                    (card["answer"], topic, card["previous_answer"])
-                    for topic, card in cards.items() if "previous_answer" in card
+                    (card["answer"], topic, previous)
+                    for topic, card in cards.items()
+                    for previous in card.get("previous_answers", [card.get("previous_answer")])
+                    if previous is not None
                 ])
                 # Merge new expressions into published cards without replacing editorial changes.
                 row = self._db.execute("SELECT patterns FROM public_faq WHERE topic='features'").fetchone()

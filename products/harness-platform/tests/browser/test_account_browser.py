@@ -66,6 +66,16 @@ async def running_product(database, journals, *, composition_module="examples.re
             await task
 
 
+async def account_action(page, label):
+    await page.get_by_role("button", name="Меню аккаунта", exact=True).click()
+    await page.get_by_role("menuitem", name=label, exact=True).click()
+
+
+async def open_integrations(page):
+    await account_action(page, "Настройки")
+    await page.get_by_role("dialog").get_by_role("button", name="Интеграции", exact=True).click()
+
+
 class ProductBrowser(unittest.IsolatedAsyncioTestCase):
     composition = "examples.reference_plugin"
     offline_adapter = None
@@ -168,13 +178,17 @@ class BrowserIsolation(ProductBrowser):
         await close.click()
         await expect(connected.get_by_text("Подключённые плагины",exact=True)).to_be_visible()
         await expect(shortcut).to_be_in_viewport()
-        global_settings=page.get_by_role("button",name="Настройки",exact=True)
-        self.assertLess((await shortcut.bounding_box())["y"],(await global_settings.bounding_box())["y"])
+        self.assertTrue(await shortcut.evaluate("""plugin => {
+            const list = plugin.closest('.octo-workspace-list');
+            return list && list.firstElementChild.getBoundingClientRect().bottom <= plugin.getBoundingClientRect().top;
+        }"""))
         await shortcut.click()
         settings=page.get_by_role("dialog",name=title)
         await expect(settings.get_by_text("Магазины",exact=True)).to_be_visible()
-        await page.keyboard.press("Escape")
+        await settings.get_by_role("button", name="Добавить магазин", exact=True).click()
         await expect(settings).to_have_count(0)
+        await expect(page.get_by_role("heading", name="Интеграции", exact=True)).to_be_visible()
+        await page.get_by_role("dialog").get_by_role("button", name="Закрыть", exact=True).click()
         self.enterContext(patch.dict(os.environ,{"HARNESS_INTEGRATIONS_KEY_FILE":str(self.database.parent/"plugin-test-key")}))
         (self.database.parent/"plugin-test-key").write_bytes(os.urandom(32))
         connection=await page.request.post("/api/integrations",headers={"Origin":self.base_url},data={
@@ -298,7 +312,7 @@ class BrowserIsolation(ProductBrowser):
         await expect(page.get_by_role("dialog",name="Вайлдберис")).to_be_visible()
         await page.keyboard.press("Escape")
         await page.locator("[data-sidebar-toggle]:visible").click()
-        await page.get_by_role("button",name="Настройки",exact=True).click()
+        await account_action(page, "Настройки")
         await page.get_by_role("button",name="Тёмная",exact=True).click()
         await page.keyboard.press("Escape")
         await page.set_viewport_size({"width":390,"height":700})
@@ -410,6 +424,36 @@ class BrowserIsolation(ProductBrowser):
         await expect(page.locator("[data-composer-input]").last).to_be_visible()
         self.assertEqual(requested, [])
         self.assertTrue(await page.evaluate("!!window.__DSH_BOOT__?.batches?.length"))
+
+    async def test_account_menu_profile_and_payment_on_mobile(self):
+        page = await self.open_chat("first-browser")
+        other_session = await self.open_chat("first-browser")
+        await page.set_viewport_size({"width": 390, "height": 740})
+        await page.locator("[data-sidebar-opener]:visible").click()
+        await expect(page.get_by_role("button", name="Меню аккаунта")).to_contain_text("first-browser")
+        await expect(page.get_by_role("button", name="Интеграции", exact=True)).to_have_count(0)
+        await expect(page.get_by_role("button", name="Настройки", exact=True)).to_have_count(0)
+        await account_action(page, "Баланс")
+        await expect(page.get_by_role("dialog", name="Баланс").get_by_role(
+            "link", name="Пополнить баланс", exact=True)).to_have_attribute("href", "/payment")
+        await page.keyboard.press("Escape")
+        await account_action(page, "Профиль")
+        profile = page.get_by_role("dialog", name="Профиль")
+        await profile.get_by_label("Текущий пароль", exact=True).fill("Wrong password for acceptance")
+        new_password = "New browser password for acceptance"
+        for label in ("Новый пароль", "Повторите новый пароль"):
+            await profile.get_by_label(label, exact=True).fill(new_password)
+        await profile.get_by_role("button", name="Изменить пароль").click()
+        await expect(profile.get_by_role("alert")).to_contain_text("Проверьте текущий пароль")
+        await profile.get_by_label("Текущий пароль", exact=True).fill(self.password)
+        await profile.get_by_role("button", name="Изменить пароль").click()
+        await expect(profile.get_by_role("status")).to_contain_text("Пароль изменён")
+        self.assertTrue((await (await page.request.get("/api/session/status")).json())["authenticated"])
+        self.assertFalse((await (await other_session.request.get("/api/session/status")).json())["authenticated"])
+        await page.keyboard.press("Escape")
+        await account_action(page, "Пополнить баланс")
+        await expect(page).to_have_url(self.base_url + "/payment")
+        await expect(page.get_by_role("heading", name="Пополнение баланса")).to_be_visible()
 
     async def test_wallet_rounds_and_scrolls_five_charges(self):
         with IdentityStore(self.database) as store:
@@ -584,7 +628,7 @@ class BrowserIsolation(ProductBrowser):
         for label, value, os_scheme in (("Тёмная", "dark", "light"), ("Светлая", "light", "dark"),
                                         ("Система", "system", "dark")):
             await page.emulate_media(color_scheme=os_scheme)
-            await page.get_by_role("button", name="Настройки", exact=True).click()
+            await account_action(page, "Настройки")
             await page.get_by_role("button", name=label, exact=True).click()
             await expect(page.locator("html")).to_have_attribute("data-theme", value)
             response = await page.reload()
@@ -630,7 +674,7 @@ class BrowserIsolation(ProductBrowser):
         for client, allowed in ((first,True),(second,False)):
             tools=await (await client.request.get("/api/chats/"+client.url.rsplit("/",1)[1]+"/tools")).json()
             self.assertEqual("summarize_text" in str(tools),allowed)
-            await client.get_by_role("button",name="Интеграции",exact=True).click()
+            await open_integrations(client)
             await expect(client.get_by_role("heading",name="Интеграции",exact=True)).to_be_visible()
             await client.get_by_role("dialog").get_by_role("button",name="Закрыть").click()
             await expect(client.locator("[data-sidebar-right-expand]")).to_be_hidden()
@@ -663,7 +707,7 @@ class BrowserIsolation(ProductBrowser):
         await second.goto(second_url)
         await expect(second.locator('[data-slot="conversation.view"]')).to_contain_text(markers[1], timeout=30_000)
 
-        await first.get_by_role("button", name="Выйти", exact=True).click()
+        await account_action(first, "Выйти")
         await expect(first.get_by_role("button", name="Войти", exact=True).last).to_be_visible()
         await first.go_back()
         await expect(first.get_by_role("button", name="Войти", exact=True).last).to_be_visible()
@@ -726,7 +770,7 @@ class BrowserIsolation(ProductBrowser):
         await expect(other).to_have_url(original_url)
         await expect(other.locator('[data-slot="conversation.view"]')).to_contain_text(answer, timeout=30_000)
         await expect(other.locator('[data-slot="conversation.view"]')).to_contain_text(followup)
-        await page.get_by_role("button", name="Выйти", exact=True).click()
+        await account_action(page, "Выйти")
         await page.goto(original_url)
         await expect(page.get_by_role("button", name="Войти", exact=True).last).to_be_visible()
         await expect(page.locator("body")).not_to_contain_text(marker)
