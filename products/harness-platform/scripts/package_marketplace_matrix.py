@@ -1,6 +1,7 @@
 """Build the standalone source package from the pinned matrix and chat renderer releases."""
 import argparse
 import ast
+from copy import deepcopy
 import gzip
 import hashlib
 import io
@@ -149,6 +150,64 @@ def patch_runtime(files, filename, old, new):
     if source.count(old) != 1:
         raise ValueError(f"Review the chat integration point in {filename}")
     files[filename] = source.replace(old, new).encode()
+
+
+def bind_ozon_packaging_cost(files):
+    """Add Seller API's PackageCost to the forecast as its own signed expense."""
+    other_path = "parameter_support/economics_other_catalog.json"
+    other = json.loads(files[other_path])
+    other["approved_packaging_types"] = [38]
+    files[other_path] = json.dumps(other, ensure_ascii=False, indent=2).encode() + b"\n"
+
+    source = "parameter_support/economics_other.py"
+    patch_runtime(files, source,
+        "KNOWN=OTHER|set(CATALOG['excluded_delivery_types'])",
+        "PACKAGING=set(CATALOG['approved_packaging_types'])\n"
+        "APPROVED=OTHER|PACKAGING\n"
+        "KNOWN=APPROVED|set(CATALOG['excluded_delivery_types'])")
+    patch_runtime(files, source, "if kind in OTHER:selected.append(", "if kind in APPROVED:selected.append(")
+    patch_runtime(files, source, "for entry in entries if entry['type_id']in OTHER)",
+        "for entry in entries if entry['type_id']in APPROVED)")
+    patch_runtime(files, source, "    inputs=_inputs(rows,selected)",
+        "    inputs=_inputs(rows,[entry for entry in selected if entry['type_id']in OTHER])\n"
+        "    packaging=_inputs(rows,[entry for entry in selected if entry['type_id']in PACKAGING])\n"
+        "    for key,line in inputs.items():\n"
+        "        line['packaging']=packaging[key]")
+
+    cohort_path = "parameter_support/economics_cohort_catalog.json"
+    cohort = json.loads(files[cohort_path])
+    cohort["fee_groups"]["packaging"] = {**cohort["fee_groups"]["other"], "types": [38]}
+    cohort["posting_allocations"]["packaging"] = cohort["posting_allocations"]["other"]
+    cohort["line_inputs"]["packaging"] = {**deepcopy(cohort["line_inputs"]["other"]), "fee_group": "packaging"}
+    cohort["row_outputs"]["packaging"] = {"input": "packaging"}
+    cohort["report_outputs"]["all_selected_costs"] = {"add": [
+        cohort["report_outputs"]["all_selected_costs"], {"input": "packaging"}]}
+    cohort["money_outputs"].insert(cohort["money_outputs"].index("other") + 1, "packaging")
+    files[cohort_path] = json.dumps(cohort, ensure_ascii=False, indent=2).encode() + b"\n"
+    patch_runtime(files, "parameter_support/economics_cohort.py",
+        "                if group=='other'and other_inputs is not None:\n"
+        "                    observed=other_inputs[c.CANON(k)]",
+        "                if group in ('other','packaging') and other_inputs is not None:\n"
+        "                    observed=other_inputs[c.CANON(k)]\n"
+        "                    if group=='packaging':observed=observed['packaging']")
+
+    for path, key in (("template_catalog.json", "templates"),
+                      ("parameter_support/parameter_report_catalog.json", "reports")):
+        catalog = json.loads(files[path])
+        report = catalog[key]["economics.unit_forecast.v1"]
+        report["metrics"].insert(report["metrics"].index("other") + 1, "packaging")
+        notes = report["notes"]
+        notes[0] = notes[0].replace("все девять групп расходов", "все статьи расходов")
+        notes.append("Материалы для упаковки Ozon — отдельная фактическая статья в обоих сценариях. "
+                     "Сохраняй знак корректировок, не применяй коэффициент потерь и не добавляй её повторно в прочие расходы.")
+        files[path] = json.dumps(catalog, ensure_ascii=False, indent=2).encode() + b"\n"
+    patch_runtime(files, "direct_response.py",
+        "            'cogs': 'Себестоимость',",
+        "            'packaging': 'Материалы для упаковки', 'cogs': 'Себестоимость',")
+    patch_runtime(files, "chat_response.py",
+        "    labels = {'revenue': 'Выручка', 'all_selected_costs': 'Выбранные расходы',",
+        "    labels = {'revenue': 'Выручка', 'packaging': 'Материалы для упаковки',\n"
+        "              'all_selected_costs': 'Выбранные расходы',")
 
 
 def bind_report_previews(files):
@@ -416,6 +475,7 @@ def collect(core, renderer, config):
     bind_read_builder_cache(files)
     bind_coefficient_guidance(files)
     bind_ozon_coefficient_items(files)
+    bind_ozon_packaging_cost(files)
     files["source_qualifications.json"] = json.dumps(portable, sort_keys=True).encode()
     # Both discovery and selection compilation call the same catalogue hook.
     target = b"def _availability(engine,t,store):\n"
@@ -435,18 +495,22 @@ def collect(core, renderer, config):
     return files
 
 
+def write_bundle(path, data):
+    with path.open("wb") as out, gzip.GzipFile(filename="", fileobj=out, mode="wb", mtime=0) as gz:
+        with tarfile.open(fileobj=gz, mode="w") as archive:
+            for name, body in sorted(data.items()):
+                entry = tarfile.TarInfo(name)
+                entry.size, entry.mode = len(body), 0o644
+                archive.addfile(entry, io.BytesIO(body))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("core", "renderer", "config", "output"):
         parser.add_argument(name, type=Path)
     args = parser.parse_args()
     data = collect(args.core, args.renderer, json.loads(args.config.read_bytes()))
-    with args.output.open("wb") as out, gzip.GzipFile(filename="", fileobj=out, mode="wb", mtime=0) as gz:
-        with tarfile.open(fileobj=gz, mode="w") as archive:
-            for name, body in sorted(data.items()):
-                entry = tarfile.TarInfo(name)
-                entry.size, entry.mode = len(body), 0o644
-                archive.addfile(entry, io.BytesIO(body))
+    write_bundle(args.output, data)
     print(len(data), "source and catalogue files")
 
 

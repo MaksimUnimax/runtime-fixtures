@@ -585,6 +585,101 @@ class MarketplaceMatrix(unittest.TestCase):
             with self.assertRaises(ParameterError):
                 normalise_owner_inputs(invalid)
 
+    def test_ozon_packaging_uses_reconciled_signed_cost_once_in_both_scenarios(self):
+        from copy import deepcopy
+        from decimal import Decimal
+        from hashlib import sha256
+        from direct_response import compound_text
+        from parameter_support import economics_cohort as cohort, economics_orders as orders, economics_other as fees
+
+        day = "2026-10-31"
+        as_of = day + "T19:00:00+00:00"
+        scope = {"tenant_id": "tenant", "store_id": "store", "provider": "OZON", "currency": "RUB"}
+        period = {"from": day, "to": day}
+        receipts = {}
+
+        def packet(operation, request, data, receipt_id):
+            body = json.dumps(data).encode()
+            record = {"operation": operation, "request": request, "body": body, "receipt_id": receipt_id,
+                      "scope": scope, "http": 200, "received_at": as_of, "response_sha256": sha256(body).hexdigest()}
+            receipts[receipt_id] = deepcopy(record)
+            return record
+
+        def verify(value):
+            return receipts[value["receipt_id"]] == value
+
+        def encode(kind, value):
+            return sha256(f"{kind}:{value}".encode()).hexdigest()
+
+        dispatch = {"posting_number": "test-posting", "status": "delivered", "created_at": as_of,
+                    "products": [{"sku": sku, "quantity": quantity, "price": "200"}
+                                 for sku, quantity in ((101, 1), (102, 3))]}
+        scheme_packets = [packet(orders.CATALOG["schemes"][scheme]["operation"],
+                                 orders.expected_request(scheme, period, ""),
+                                 {"postings": [dispatch] if scheme == "fbo" else [], "has_next": False, "cursor": ""},
+                                 scheme) for scheme in ("fbo", "fbs")]
+        original = orders.normalize([scheme_packets[0]], [scheme_packets[1]], scope, period,
+                                    verify=verify, encode=encode)
+
+        def snapshot(items, *, omit_last=False):
+            entries, daily = [], []
+            for index, (kind, amount) in enumerate(items):
+                money = {"amount": amount, "currency": "RUB"}
+                entries.append({"type_id": kind, "accrual_date": day, "accrued": money})
+                daily.append({"accrual_id": index + 1, "date": day, "total_amount": money,
+                              "unit_number": "test-posting", "accrued_category": "NON_ITEM",
+                              "non_item_fee": {"type_id": kind, "accrued": money},
+                              "posting": None, "item_fees": None, "container_fees": None})
+            postings = packet("finance_accrual_postings", {"posting_numbers": ["test-posting"]},
+                              {"posting_accruals": [{"posting_number": "test-posting", "accruals": entries}]}, "post")
+            by_day = packet("finance_accrual_by_day", {"date": day, "last_id": ""},
+                            {"accruals": daily[:-1] if omit_last else daily, "last_id": ""}, "day")
+            return fees.normalize([postings], [by_day], original, verify=verify, encode=encode, as_of=as_of)
+
+        common = [(93, "-5")]
+        all_items = common + [(38, "-12"), (38, "2")]
+        baseline, observed = snapshot(common), snapshot(all_items)
+        inputs = observed.line_inputs(original)
+        self.assertEqual(sorted(Decimal(row["packaging"]["amount"]) for row in inputs.values()),
+                         [Decimal("2.5"), Decimal("7.5")])
+        self.assertEqual(sum(Decimal(row["amount"]) for row in inputs.values()), Decimal("5"))
+        with self.assertRaisesRegex(fees.OtherError, "OTHER_SNAPSHOT_MISMATCH"):
+            snapshot(all_items, omit_last=True)
+        with self.assertRaisesRegex(fees.OtherError, "OTHER_UNCLASSIFIED_FEE"):
+            snapshot(common + [(999, "-10")])
+
+        def block(rows):
+            return {"rows": rows, "receipt_hash": "a" * 64, "complete": True, "scope": scope,
+                    "period": period, "observed_at": as_of}
+
+        tariffs = [{"sku": str(sku), "scheme": "fbo", "quote_id": f"quote-{sku}",
+                    "fields": {"commission_percent": "10", "acquiring_per_unit": "1", "return_per_unit": "10",
+                               "processing_min": "0", "processing_max": "0"}}
+                   for sku in (101, 102)]
+        bundle = {"orders": original.for_cohort(period, scope), "tariffs": block(tariffs),
+                  "period_costs": block([{"component": component, "amount": "0", "basis": "FULL_PERIOD"}
+                                         for component in ("storage", "advertising")])}
+        costs = dict.fromkeys(inputs, "50")
+        coefficients = {key: {"loss_rate": "0.25", "delivery_mean": "20"} for key in inputs}
+        owner = {field: {"state": "NOT_PROVIDED", "value": None} for field in ("tax_amount", "own_cost_amount")}
+
+        def report(source):
+            qualified = cohort.qualify(bundle, scope, period, verify=lambda name, data, *_: bundle[name] == data,
+                                       observed_other=source)
+            return cohort.calculate(qualified, costs, coefficients, owner)
+
+        before, after = report(baseline), report(observed)
+        for scenario, result in after["scenarios"].items():
+            totals = result["totals"]
+            old = before["scenarios"][scenario]["totals"]
+            self.assertEqual(totals["other"], old["other"])
+            self.assertEqual(totals["packaging"], "10")
+            self.assertEqual(result["per_original_unit"]["packaging"], "2.5")
+            self.assertEqual(Decimal(totals["all_selected_costs"]) - Decimal(old["all_selected_costs"]), 10)
+            self.assertEqual(Decimal(old["remainder_before_owner_inputs"]) -
+                             Decimal(totals["remainder_before_owner_inputs"]), 10)
+        self.assertEqual(compound_text({"economics": after}, {}).count("Материалы для упаковки: 10,00 ₽."), 2)
+
     def test_replaying_financial_receipts_reuses_only_the_validated_wire_request(self):
         from read_surface import build, _checked_wire_request
         import read_surface
