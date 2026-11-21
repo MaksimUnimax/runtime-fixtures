@@ -19,6 +19,8 @@ from platform_core.operation_grants import initialize_grants
 from test_account_browser import open_integrations, running_product
 from turn_response import observe_turns
 
+from turn_response import observe_turns
+
 PRODUCT = Path(__file__).resolve().parents[2]
 QUESTION = "Как звучал мой первый вопрос в гостевом чате? Процитируй только вопрос."
 

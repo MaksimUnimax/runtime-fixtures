@@ -180,7 +180,11 @@ class BrowserIsolation(ProductBrowser):
         await expect(shortcut).to_be_in_viewport()
         self.assertTrue(await shortcut.evaluate("""plugin => {
             const list = plugin.closest('.octo-workspace-list');
-            return list && list.firstElementChild.getBoundingClientRect().bottom <= plugin.getBoundingClientRect().top;
+            const lastChat = [...list.querySelectorAll('[data-row-key^="session:"]')].at(-1);
+            if (!lastChat) return false;
+            const gap = plugin.closest('.octo-plugin-navigation').getBoundingClientRect().top
+                - lastChat.getBoundingClientRect().bottom;
+            return gap >= -1 && gap < 24;
         }"""))
         await shortcut.click()
         settings=page.get_by_role("dialog",name=title)
@@ -433,7 +437,13 @@ class BrowserIsolation(ProductBrowser):
         await expect(page.get_by_role("button", name="Меню аккаунта")).to_contain_text("first-browser")
         await expect(page.get_by_role("button", name="Интеграции", exact=True)).to_have_count(0)
         await expect(page.get_by_role("button", name="Настройки", exact=True)).to_have_count(0)
-        await account_action(page, "Баланс")
+        trigger = page.get_by_role("button", name="Меню аккаунта", exact=True)
+        await trigger.click()
+        menu = page.get_by_role("menu")
+        await expect(menu).to_be_in_viewport()
+        menu_box, trigger_box = await menu.bounding_box(), await trigger.bounding_box()
+        self.assertLess(abs(trigger_box["y"] - menu_box["y"] - menu_box["height"]), 16)
+        await menu.get_by_role("menuitem", name="Баланс", exact=True).click()
         await expect(page.get_by_role("dialog", name="Баланс").get_by_role(
             "link", name="Пополнить баланс", exact=True)).to_have_attribute("href", "/payment")
         await page.keyboard.press("Escape")

@@ -1,5 +1,5 @@
 /** Run the same native Session, Agent, tool executor and loop for both transports. */
-export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, provider, model, reasoningEffort, adapter, signal, progress }) {
+export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, provider, model, reasoningEffort, adapter, signal, progress, restore, capture }) {
   const llm = await load('dsh-llm');
   // The worker supplies a fresh Context with sessions, tools and system prompt.
   for (const name of ['dsh-llm', 'dsh-session-projection', 'dsh-tool-executor-native', 'dsh-agent', 'dsh-agent-loop']) {
@@ -32,10 +32,11 @@ export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, 
   try {
     const selection = {provider, model, ...(reasoningEffort ? {reasoningEffort} : {})};
     const handle = await ctx.agents.create({
-      sessionId: chatId, seed, agentOptions: selection,
+      sessionId: chatId, seed: restore ? [...seed,...restore.events] : seed, agentOptions: selection,
     });
     try {
       const { agent } = handle;
+      if(capture) capture.snapshot=()=>agent.session.snapshotEvents(seed.length);
       // A restored Harness session remembers its previous model in its event log.
       const previous = agent.model.current();
       if (previous?.provider !== provider || previous?.model !== model ||
@@ -47,7 +48,9 @@ export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, 
       signal?.addEventListener('abort', cancel, { once: true });
       try {
         agent.followup({
-          role: 'user', id: requestId, content: [{ type: 'text', text }], source: { kind: 'user' },
+          role:'user', id:restore ? 'resume-'+restore.attempt : requestId,
+          content:[{type:'text',text:restore ? '' : text}],
+          source:{kind:restore ? 'runtime-context' : 'user'},
         });
         await agent.whenIdle();
         signal?.throwIfAborted();

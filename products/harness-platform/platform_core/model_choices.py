@@ -31,7 +31,7 @@ def amount(raw):
         raise ValueError("Invalid amount") from exc
 
 def catalog_rows(data):
-    if not isinstance(data.get("data"),list):
+    if not isinstance(data,dict) or not isinstance(data.get("data"),list):
         raise ValueError("Invalid catalogue")
     result = {}
     for row in data["data"]:
@@ -42,6 +42,8 @@ def catalog_rows(data):
             author = (row.get("canonical_slug") or model).split("/",1)[0].removeprefix("~")
             family = BRANDS.get(author,author) if author != "openrouter" else "Производитель не указан"
             outputs = row["architecture"]["output_modalities"]
+            if not isinstance(outputs,list):
+                continue
             params = row.get("supported_parameters") or []
             price = row.get("pricing") or {}
             try:
@@ -54,7 +56,8 @@ def catalog_rows(data):
             chat = "text" in outputs and "tools" in params and bool(free or paid) and author != "openrouter"
             efforts = ["auto"]
             if "reasoning" in params or "reasoning_effort" in params:
-                efforts += (row.get("reasoning") or {}).get("supported_levels",["low","medium","high"])
+                levels = (row.get("reasoning") or {}).get("supported_levels")
+                efforts += [v for v in dict.fromkeys(v for v in levels if isinstance(v,str)) if v != "auto"] if isinstance(levels,list) else ["low","medium","high"]
             image_price = None
             if "image" in outputs:
                 try:

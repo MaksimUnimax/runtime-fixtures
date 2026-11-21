@@ -71,6 +71,10 @@ def present_chat(identity, costs, token, scope, action, result):
         if operation is not None:
             references.append((message, operation))
     images = [(m, op) for m, op in references if m.get("role") == "assistant"]
+    if action=="events":
+        saved=identity.unattached_illustrations(scope)
+        if saved:
+            result["savedIllustrations"]=saved
     if images:
         with identity._lock:
             if identity._db.execute("SELECT 1 FROM sqlite_master WHERE name='plugin_illustrations'").fetchone():
@@ -84,14 +88,21 @@ def present_chat(identity, costs, token, scope, action, result):
     if references:
         ids = {key for _, key in references}
         receipts = identity.chat_receipts(scope, ids)
-        rows = costs.for_operations(scope.workspace_id, ids)
+        historical = ids - {key for key, receipt in receipts.items() if receipt.get("rub") is not None}
+        rows = costs.for_operations(scope.workspace_id, historical) if historical else {}
         if not identity.can_view_costs(token, scope):
             return result
         for message, key in references:
             if key in receipts:
-                message["modelUsage"] = receipts[key]
+                message["modelUsage"] = {k:v for k,v in receipts[key].items() if k != "providerUsd"}
             message["operationId"] = key
-            message["modelCost"] = rows.get(key, {"rub": None, "usd": None})
+            if key in receipts and receipts[key].get("rub") is not None:
+                receipt = receipts[key]
+                # Legacy clients consume the same settled rubles as the current receipt.
+                amount = receipt["rub"] if not receipt["pending"] else None
+                message["modelCost"] = {"rub":amount, "usd":receipt.get("providerUsd")}
+            else:
+                message["modelCost"] = rows.get(key, {"rub": None, "usd": None})
     if action == "events":
         result["adminCosts"] = True
     return result

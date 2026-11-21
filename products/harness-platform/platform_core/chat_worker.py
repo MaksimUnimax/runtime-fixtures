@@ -114,11 +114,21 @@ class ChatWorker:
             except PermissionError:
                 raise WorkerError("unavailable") from None
             try:
-                return await self._request(scope, action, {
+                if restore := fields.get("restore"):
+                    from .router_recovery import claim
+                    if not claim(self.router, restore["attempt"], grant):
+                        raise WorkerError("unavailable")
+                result = await self._request(scope, action, {
                     **fields, "grant": {"token": grant.token, "operationId": grant.operation_id, "model": grant.model,
                                         "directModel": grant.direct_model, "effort": grant.effort},
                     "deadline": int(time.time() * 1000) + 120_000,
                 }, timeout=135)
+                if self.router and fields.get("illustrations") and result.get("role")=="assistant":
+                    with self.router.identity._write() as db:
+                        db.execute("""DELETE FROM openrouter_stopped_outputs WHERE illustration IN (
+                            SELECT id FROM plugin_illustrations WHERE operation_id=? AND chat=?)""",
+                            (grant.operation_id,scope.chat_id))
+                return result
             except WorkerError as error:
                 if error.code == "turn_unconfirmed":
                     raise WorkerError(error.code, operation_id=grant.operation_id) from error

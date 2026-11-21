@@ -1,0 +1,135 @@
+# Автоматические проверки OpenRouter и регрессия Octoport
+
+Выпуск приложения `46e0a639a6e119cdf653489c54e96e4120d06653`. Набор из 113 тестов Python, восьми тестов Node и двух сценариев Chromium завершился успешно. Ниже приведены имена из журналов исполнения.
+
+## Python · 113
+
+1. ✓ `test_account_chat_e2e.AccountChatAcceptance.test_parallel_chats_resume_in_the_same_service`
+2. ✓ `test_admin_costs.EstimateProjection.test_disputed_attempt_cannot_turn_subtotal_into_full_price`
+3. ✓ `test_admin_costs.EstimateProjection.test_revocation_while_reading_releases_only_message_text`
+4. ✓ `test_admin_costs.EstimateProjection.test_uses_verified_group_and_never_reuses_stale_amount`
+5. ✓ `test_archive_chat.ArchiveChatAcceptance.test_authenticated_turn_matches_fixture_and_survives_restart`
+6. ✓ `test_archive_chat_scope.ArchiveChatScopeTest.test_report_turn_is_owned_replayable_and_revocable`
+7. ✓ `test_browser_session.BrowserSessionTests.test_https_cookie_round_trip_and_real_logout`
+8. ✓ `test_browser_session.BrowserSessionTests.test_origin_transport_and_credentials_validation`
+9. ✓ `test_browser_session.BrowserSessionTests.test_switch_replaces_the_browser_session`
+10. ✓ `test_browser_session.BrowserSessionTests.test_websocket_uses_the_matching_http_origin`
+11. ✓ `test_catalog.CatalogTests.test_duplicate_tool_and_plugin_ids_fail_at_startup`
+12. ✓ `test_catalog.CatalogTests.test_invalid_manifest_metadata_handler_and_effect_fail_eagerly`
+13. ✓ `test_catalog.CatalogTests.test_schema_errors_and_references_are_rejected_eagerly`
+14. ✓ `test_catalog.CatalogTests.test_trusted_registration_and_empty_composition`
+15. ✓ `test_catalog.CatalogTests.test_validation_uses_an_immutable_snapshot_without_logging_arguments`
+16. ✓ `test_chat_api.RequestBoundaryTests.test_server_owns_scope_and_rejects_malformed_payloads_before_dispatch`
+17. ✓ `test_coin_wallet.CoinWallet.test_admin_grant_concurrent_turn_and_exact_debit`
+18. ✓ `test_coin_wallet.CoinWallet.test_unknown_keeps_hold_until_evidence_and_small_budget_retries`
+19. ✓ `test_dispatch.CompositionTest.test_add_second_plugin_via_composition_only_and_revoke`
+20. ✓ `test_dispatch.CompositionTest.test_arguments_cannot_supply_authority`
+21. ✓ `test_dispatch.CompositionTest.test_empty_composition_with_existing_entitlements`
+22. ✓ `test_dispatch.CompositionTest.test_handler_errors_and_lossy_results_are_sanitized`
+23. ✓ `test_dispatch.CompositionTest.test_unknown_and_unauthorized_look_the_same`
+24. ✓ `test_guest_registration.GuestRegistrationTests.test_concurrent_replay_and_revocation`
+25. ✓ `test_guest_registration.GuestRegistrationTests.test_draft_isolation_pagination_expiry_and_name_collision`
+26. ✓ `test_guest_registration.GuestRegistrationTests.test_guest_form_and_retry_after_lost_registration_response`
+27. ✓ `test_guest_registration.GuestRegistrationTests.test_memory_store_keeps_its_faq_in_memory`
+28. ✓ `test_guest_registration.GuestRegistrationTests.test_native_retry_and_restart_preserve_messages_and_context`
+29. ✓ `test_guest_registration.GuestRegistrationTests.test_shared_service_faq_runs_without_credentials_or_external_dispatch`
+30. ✓ `test_guest_registration.GuestRegistrationTests.test_upgrade_updates_chat_directions_and_preserves_edited_answers`
+31. ✓ `test_guest_stage.GuestStageTests.test_public_service_starts_without_a_gateway_or_node`
+32. ✓ `test_identity.IdentityTests.test_concurrent_accounts_distinct_scopes_and_reconnect`
+33. ✓ `test_identity.IdentityTests.test_credential_storage_expiry_and_duplicate_provision`
+34. ✓ `test_identity.IdentityTests.test_eleven_character_password_round_trip`
+35. ✓ `test_identity.IdentityTests.test_existing_core_ownership_and_plugin_grants_survive_identity_init`
+36. ✓ `test_identity.IdentityTests.test_failed_attempts_persist_and_unlock_at_window_boundary`
+37. ✓ `test_identity.IdentityTests.test_old_password_check_cannot_issue_a_session_after_concurrent_reset`
+38. ✓ `test_identity.IdentityTests.test_recovery_is_single_use_under_race_and_revokes_every_device`
+39. ✓ `test_marketplace_matrix.MarketplaceMatrixIsolation.test_selector_and_marketplace_contracts`
+40. ✓ `test_marketplace_report_replay.MarketplaceReportReplayTests.test_advertising_difference_keeps_its_sign`
+41. ✓ `test_marketplace_report_replay.MarketplaceReportReplayTests.test_charge_without_any_units_cannot_be_verified_from_a_unit_ledger`
+42. ✓ `test_marketplace_report_replay.MarketplaceReportReplayTests.test_cli_accepts_matching_connector_with_extra_metadata`
+43. ✓ `test_marketplace_report_replay.MarketplaceReportReplayTests.test_cli_rejects_full_coverage_on_an_incomplete_day`
+44. ✓ `test_marketplace_report_replay.MarketplaceReportReplayTests.test_cli_reports_mismatched_or_missing_connector_fields`
+45. ✓ `test_marketplace_report_replay.MarketplaceReportReplayTests.test_drr_is_unknown_with_zero_turnover_and_posted_spend`
+46. ✓ `test_marketplace_report_replay.MarketplaceReportReplayTests.test_duplicate_archive_member_is_ambiguous`
+47. ✓ `test_marketplace_report_replay.MarketplaceReportReplayTests.test_incorrect_store_figures_cannot_cancel_out_in_the_total`
+48. ✓ `test_marketplace_report_replay.MarketplaceReportReplayTests.test_missing_ledger_fails_even_if_summary_is_complete`
+49. ✓ `test_marketplace_report_replay.MarketplaceReportReplayTests.test_missing_operational_amount_does_not_override_posted_spend`
+50. ✓ `test_marketplace_report_replay.MarketplaceReportReplayTests.test_mixed_report_dates_fail`
+51. ✓ `test_marketplace_report_replay.MarketplaceReportReplayTests.test_operational_amount_cannot_replace_posted_advertising`
+52. ✓ `test_marketplace_report_replay.MarketplaceReportReplayTests.test_operational_coverage_depends_on_source_completeness`
+53. ✓ `test_marketplace_report_replay.MarketplaceReportReplayTests.test_report_uses_original_turnover_and_rounds_after_aggregation`
+54. ✓ `test_marketplace_report_replay.MarketplaceReportReplayTests.test_summary_cannot_replace_weighted_drr_with_mean`
+55. ✓ `test_marketplace_report_replay.MarketplaceReportReplayTests.test_summary_must_include_both_stores`
+56. ✓ `test_mcp.McpTests.test_non_object_result_and_handler_failure`
+57. ✓ `test_mcp.McpTests.test_real_stdio_discovery_call_and_revocation`
+58. ✓ `test_metered_chat_e2e.MeteredChatAcceptance.test_admin_model_default_applies_to_existing_chats_and_persists`
+59. ✓ `test_metered_chat_e2e.MeteredChatAcceptance.test_marketplace_chat_stream_commits_once_and_keeps_json_api`
+60. ✓ `test_metered_chat_e2e.MeteredChatAcceptance.test_ordinary_chat_omits_internal_receipts_and_admin_role_is_live`
+61. ✓ `test_metered_chat_e2e.MeteredChatAcceptance.test_parallel_owners_model_tool_step_and_replay_after_restart`
+62. ✓ `test_metered_chat_e2e.MeteredChatAcceptance.test_payment_and_admin_membership_are_independent`
+63. ✓ `test_metered_chat_e2e.MeteredChatAcceptance.test_provider_sees_attach_and_revoke_after_a_previous_answer`
+64. ✓ `test_metered_chat_e2e.MeteredChatAcceptance.test_uncertain_provider_result_is_not_redispatched`
+65. ✓ `test_metered_chat_e2e.MeteredChatAcceptance.test_worker_crash_after_admission_keeps_a_single_attempt`
+66. ✓ `test_openrouter_catalog.OpenRouterCatalog.test_inflight_rotation_discards_old_result`
+67. ✓ `test_openrouter_catalog.OpenRouterCatalog.test_rotation_revocation_and_recovery`
+68. ✓ `test_openrouter_catalog.OpenRouterCatalog.test_transient_error_empty_catalog_and_rejected_key`
+69. ✓ `test_openrouter_operations.RouterOperations.test_chat_list_opens_while_model_catalogue_is_waiting`
+70. ✓ `test_openrouter_operations.RouterOperations.test_image_choice_is_independent_and_attachment_is_idempotent`
+71. ✓ `test_openrouter_operations.RouterOperations.test_interrupted_stream_reconciled_once_without_replaying`
+72. ✓ `test_openrouter_operations.RouterOperations.test_no_proxy_and_invalid_proxy_never_choose_direct_http`
+73. ✓ `test_openrouter_operations.RouterOperations.test_publication_pins_effort_and_rejects_stale_personal_save`
+74. ✓ `test_openrouter_operations.RouterOperations.test_saved_free_tariff_may_not_become_paid`
+75. ✓ `test_openrouter_operations.RouterOperations.test_user_can_cancel_confirmed_limit`
+76. ✓ `test_openrouter_operations.RouterOperations.test_zero_balance_retry_same_operation_and_attempt`
+77. ✓ `test_ozon_plugin.OzonFlow.test_annual_job_idempotency_no_overwrite_and_saved_projection`
+78. ✓ `test_ozon_plugin.OzonFlow.test_catalogue_429_resumes_original_request`
+79. ✓ `test_ozon_plugin.OzonFlow.test_migration_existing_chats_and_deliberate_disconnect`
+80. ✓ `test_ozon_plugin.OzonFlow.test_model_and_reasoning_are_independent_between_plugins`
+81. ✓ `test_ozon_plugin.OzonFlow.test_store_scope_and_performance_guidance`
+82. ✓ `test_ozon_plugin.ProductCatalogue.test_all_pages_and_product_source_skus`
+83. ✓ `test_ozon_plugin.ProductCatalogue.test_partial_or_repeated_catalogue_rejected`
+84. ✓ `test_public_info.PublicInfoTests.test_published_navigation_and_documents`
+85. ✓ `test_report_archive.ReportArchiveTests.test_aggregate_files_are_not_used_as_a_replacement_for_missing_snapshots`
+86. ✓ `test_report_archive.ReportArchiveTests.test_each_snapshot_must_declare_its_date_and_supported_version`
+87. ✓ `test_report_archive.ReportArchiveTests.test_independent_source_snapshots_match_reference`
+88. ✓ `test_report_archive.ReportArchiveTests.test_missing_or_ambiguous_snapshot_is_rejected`
+89. ✓ `test_report_archive.ReportArchiveTests.test_operational_coverage_and_posted_wb_spend_are_independent`
+90. ✓ `test_report_archive.ReportArchiveTests.test_workspace_scope_selects_archive_and_caller_can_only_choose_a_date`
+91. ✓ `test_report_archive.ReportArchiveTests.test_zero_turnover_is_distinct_from_zero_ad_spend`
+92. ✓ `test_service_plugins.ServicePlugins.test_admin_rotates_independent_provider_keys`
+93. ✓ `test_service_plugins.ServicePlugins.test_chat_deletion_keeps_other_histories_account_keys_and_receipts`
+94. ✓ `test_service_plugins.ServicePlugins.test_chat_grants_are_scoped_and_revoke_native_mcp_tools`
+95. ✓ `test_service_plugins.ServicePlugins.test_connections_scope_checks_and_semantics`
+96. ✓ `test_service_plugins.ServicePlugins.test_real_harness_model_route_billing_replay_and_disable`
+97. ✓ `test_service_plugins.ServicePlugins.test_turn_receives_store_setup_steps_for_missing_access`
+98. ✓ `test_storage.StorageTests.test_concurrent_retries_and_restart`
+99. ✓ `test_storage.StorageTests.test_entitlement_and_chat_choice_are_both_required`
+100. ✓ `test_storage.StorageTests.test_foreign_chat_workspace_and_actor_are_denied`
+101. ✓ `test_storage.StorageTests.test_malformed_flags_cannot_become_truthy_grants`
+102. ✓ `test_storage.StorageTests.test_opening_unknown_or_newer_database_preserves_it`
+103. ✓ `test_storage.StorageTests.test_provision_rolls_back_new_workspace_on_chat_conflict`
+104. ✓ `test_storage.StorageTests.test_revocation_forgets_opt_ins_only_in_the_affected_workspace`
+105. ✓ `test_storage.StorageTests.test_strict_open_never_initializes_missing_or_empty_file`
+106. ✓ `test_web_ui.WebUiTests.test_cookie_routes_share_membership_and_session_revocation`
+107. ✓ `test_web_ui.WebUiTests.test_payment_quote_tracks_configured_price_and_keeps_wallet_private`
+108. ✓ `test_web_ui.WebUiTests.test_ui_assets_only_serve_browser_distribution`
+109. ✓ `test_wildberries_plugin.CoefficientTests.test_catalogue_reads_last_page`
+110. ✓ `test_wildberries_plugin.CoefficientTests.test_commission_signed_corrections_and_tariff_dates`
+111. ✓ `test_wildberries_plugin.CoefficientTests.test_order_and_logistics_units_and_pagination`
+112. ✓ `test_wildberries_plugin.PluginFlow.test_backoff_resumes_and_does_not_replay_a_paid_request`
+113. ✓ `test_wildberries_plugin.PluginFlow.test_ordinary_connection_opt_in_matrix_scope_and_calculation`
+
+## Node · 8
+
+1. ✓ `scope, event ordering, retry, conflict and replay across two native workers`
+2. ✓ `two chats in one host have distinct, live native MCP capabilities`
+3. ✓ `concurrent first reads import the guest transcript exactly once`
+4. ✓ `Cordis preset selects official stdio client with a fixed scoped invocation`
+5. ✓ `refuses incomplete identity, ambiguous paths and invalid composition`
+6. ✓ `programmatic mounting awaits Cordis activation and propagates activation failure`
+7. ✓ `rc.1 official native client discovers and invokes a real scoped Python stdio tool`
+8. ✓ `the browser receives visible text and lifecycle without private event payloads`
+
+## Chromium · 2
+
+1. ✓ `test_account_browser.BrowserIsolation.test_wildberries_catalogue_and_sidebar`
+2. ✓ `test_account_browser.BrowserIsolation.test_ozon_catalogue_and_sidebar`

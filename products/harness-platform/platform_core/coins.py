@@ -58,6 +58,13 @@ def display(amount):
     return f"{whole}.{fraction:012d}".rstrip("0").rstrip(".")
 
 
+def provider_receipt(evidence):
+    prefix, _, value = (evidence or "").partition(":")
+    if prefix in ("openrouter-usd","openrouter-review-usd","openrouter-reviewed-usd"):
+        return Decimal(value.partition(":")[0])
+    return None
+
+
 def rub_rate():
     value = os.getenv("HARNESS_RUB_PER_USD", "81.9290")
     if not re.fullmatch(r"[0-9]{1,4}(?:\.[0-9]{1,4})?", value) or Decimal(value) <= 0:

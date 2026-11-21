@@ -14,11 +14,11 @@ def resolve(path, attempt, usd, evidence):
         raise ValueError("A provider reconciliation reference is required")
     with _transaction(path) as db:
         row = db.execute("""SELECT o.workspace_id, o.operation_id, o.coins_per_usd, o.markup, a.bound,
-                            a.charge, a.evidence, r.fx_e4 FROM coin_attempts a JOIN coin_orders o USING(operation_id) LEFT JOIN coin_ruble_orders r USING(operation_id)
+                            a.charge, a.evidence, r.fx_e4, a.rate_version FROM coin_attempts a JOIN coin_orders o USING(operation_id) LEFT JOIN coin_ruble_orders r USING(operation_id)
                             WHERE attempt_id=?""", (attempt,)).fetchone()
         if row is None:
             raise ValueError("Unknown attempt")
-        workspace, operation, conversion, markup, bound, prior, original, fx = row
+        workspace, operation, conversion, markup, bound, prior, original, fx, tariff = row
         if db.execute("SELECT 1 FROM usage_grants WHERE operation_id=? AND expires_at>unixepoch()", (operation,)).fetchone():
             raise ValueError("Operation still active")
         raw = Decimal(usd) * 10**12
@@ -26,11 +26,16 @@ def resolve(path, attempt, usd, evidence):
             raw = (raw * fx / 10000).to_integral_value(rounding="ROUND_CEILING")
         else:
             raw = raw * conversion * (100+markup) / 100
+        note = "review:" + evidence
+        if tariff == "openrouter-v1":
+            # Provider expenses and the customer-authorized maximum are independent.
+            raw = min(raw, Decimal(bound))
+            note = "openrouter-reviewed-usd:" + format(Decimal(usd),"f") + ":" + evidence
         # Supported provider tariffs produce exact pico-coins. Do not silently round an adjustment.
         if raw != int(raw) or raw > bound:
             raise ValueError("Evidence is outside this reservation or currency precision")
-        note = "review:" + evidence
-        if prior is None:
+        historical_free_conflict = bound == 0 and prior == 0 and (original or "").startswith("openrouter-usd:") and Decimal(original.split(":")[1]) > 0
+        if prior is None or historical_free_conflict:
             db.execute("UPDATE coin_attempts SET charge=?, evidence=? WHERE attempt_id=?", (int(raw), note, attempt))
         elif (prior, original) != (int(raw), note):
             raise ValueError("Attempt was settled with different evidence")

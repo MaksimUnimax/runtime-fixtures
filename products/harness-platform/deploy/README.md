@@ -4,7 +4,10 @@
 
 ## Развёртывание
 
-Служба `harness-prod` использует отдельные каталоги кода и состояния. Код находится в `/opt/harness-prod/releases/<revision>`, символьная ссылка `/opt/harness-prod/current` выбирает выпуск. Для нового выпуска установите зависимости Python по `requirements.txt` и закреплённый Node-рантайм с `@deepseek-ai/dsh@0.2.2-rc.1`. Служба использует их из `/opt/harness-prod/runtime/v1`. Первоначальная раскатка использует проверенную копию пакетов с сервера. Секрет реле предоставляет systemd. Реле на loopback обращается к DeepSeek. Расход и резерв считает шлюз продукта.
+Служба `harness-prod` использует отдельные каталоги кода и состояния. Код находится в `/opt/harness-prod/releases/<revision>`, символьная ссылка `/opt/harness-prod/current` выбирает выпуск. Для нового выпуска установите зависимости Python по `requirements.txt` и закреплённый Node-рантайм с `@deepseek-ai/dsh@0.2.2-rc.1`. Служба использует их из `/opt/harness-prod/runtime/current`. Первоначальная раскатка использует проверенную копию пакетов с сервера. Секрет реле предоставляет systemd. Реле на loopback обращается к DeepSeek. Расход и резерв считает шлюз продукта.
+
+Для подготовки следующего runtime создайте отдельный каталог с venv Python 3.12, установите `pip==26.2.0`, затем зависимости из `requirements.txt`. Скопируйте в каталог `deploy/runtime/package.json` и `deploy/runtime/package-lock.json` и выполните `npm ci --ignore-scripts --no-fund --no-audit`. Перед сменой ссылки проверьте `pip check`, запуск stdio-инструмента и браузерные сценарии. Сохраните путь к предыдущему runtime для отката службы. Новая установка использует оба файла npm и единый Python для сервиса и дочерних MCP-процессов.
+
 
 При первой установке создайте /etc/harness-prod с правами 0700. Запишите в новый файл /etc/harness-prod/integrations.key 32 случайных байта с правами 0600. Храните его резервную копию отдельно от базы аккаунтов. При обновлении используйте существующий ключ. Systemd передаёт его процессу службы через LoadCredential.
 
@@ -29,7 +32,7 @@
 В /admin у каждого провайдера отдельное поле ввода. Чтобы загрузить ключ через SSH, выполните с компьютера оператора:
 
 ```shell
-ssh -t root@185.219.43.9 "/opt/harness-prod/runtime/v1/venv/bin/python /opt/harness-prod/current/products/harness-platform/platform_core/provider_keys.py openrouter"
+ssh -t root@185.219.43.9 "/opt/harness-prod/runtime/current/venv/bin/python /opt/harness-prod/current/products/harness-platform/platform_core/provider_keys.py openrouter"
 ```
 
 На новом сервере сначала задайте прямой ключ тем же способом с параметром deepseek. Введите ключ в скрытом приглашении. Параметр deepseek меняет прямой ключ. После первой загрузки OpenRouter обновите страницу Harness для появления выбора ИИ.

@@ -70,11 +70,13 @@ def routes(get_token, body):
             if not directory():
                 raise HTTPException(503,"Каталог ключей не настроен")
             save(directory(),req.path_params["provider"],values["key"])
+        from . import router_status
+        router=req.app.state.model_router
         relay=bool(os.getenv("HARNESS_PROVIDER_RELAY_KEY_FILE") or os.getenv("HARNESS_ACCEPTANCE_KEY_FILE"))
         configured_router=bool(os.getenv("HARNESS_OPENROUTER_KEY_FILE") and Path(os.environ["HARNESS_OPENROUTER_KEY_FILE"]).is_file())
         return JSONResponse({"deepseek":{"configured":bool(read("deepseek")) or relay},
                   "openrouter":{"configured":bool(read("openrouter")) or configured_router,
-                  "enabled":req.app.state.model_router is not None and req.app.state.model_router.available()}})
+                  "enabled":bool(router and router.available()),"health":router_status.read(router) if router else {}}})
     return [Route("/api/admin/provider-keys",keys), Route("/api/admin/provider-keys/{provider}",keys,methods=["POST"])]
 
 if __name__=="__main__":

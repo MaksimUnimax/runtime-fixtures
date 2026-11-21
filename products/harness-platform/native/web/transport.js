@@ -32,8 +32,23 @@ async function api(path, options) {
       403: 'Доступ запрещён', 404: detail.error === 'unavailable' ? 'Действие недоступно' : 'Чат недоступен',
       409: detail.error === 'chat_busy' ? 'Дождитесь завершения запроса в этом чате.' : 'Запрос требует сверки', 413: 'Сообщение слишком длинное',
     };
-    const error = new Error(((path === '/api/profile/password' || path.startsWith('/api/integrations') || path.includes('/plugins')) && /[А-Яа-я]/.test(detail.error||'') ? detail.error : null) ?? reason[status] ?? 'Запрос не выполнен (' + status + ')');
+    const error = new Error(((path==='/api/profile/password' || path.startsWith('/api/integrations') || path.includes('/plugins') || path==='/api/model-settings') && /[А-Яа-я]/.test(detail.error||'') ? detail.error : null) ?? reason[status] ?? 'Запрос не выполнен (' + status + ')');
+    const providerErrors={
+      provider_key:'Сервису нужно обновить ключ OpenRouter. Можно выбрать другую модель.',
+      provider_access:'Модель недоступна этому сервису. Выберите другую модель.',
+      provider_balance:'На счёте сервиса у OpenRouter закончились средства. Можно выбрать прямой DeepSeek.',
+      provider_model:'Модель больше недоступна. Обновите список моделей в настройках.',
+      provider_connection:'Не удалось связаться с OpenRouter. Попробуйте позже или выберите прямой DeepSeek.',
+    };
+    if(Object.hasOwn(providerErrors,detail.error)){
+      error.message=providerErrors[detail.error];
+      error.providerRefusal=true;
+    }
     error.status = status;
+    if (detail.error === 'model_wait_cancelled') {
+      error.code = 'model_wait_cancelled';
+      error.message = 'Ожидание отменено. Можно отправить новое сообщение.';
+    }
     throw error;
   }
   return payload.body;
@@ -122,7 +137,7 @@ export async function createTransport(data) {
       applies:'live',secrets:[],revision:themeRevision};
   };
   const account = {guest, login:flags.login, selected, hasChat:id=>ids.includes(id), panel:data.panel, error:data.error, recovery:data.recovery,
-    balanceEvents:new EventTarget(), canGrant:flags.canGrant, modelChoice:flags.modelChoice, api, changes, live, activityEvents, costs:new Map(), illustrations:new Map()};
+    balanceEvents:new EventTarget(), canGrant:flags.canGrant, modelChoice:flags.modelChoice, api, changes, live, activityEvents, costs:new Map(), illustrations:new Map(),savedIllustrations:new Map()};
   function recordActivity(id, at) {
     if (!ids.includes(id) || !Number.isSafeInteger(at) || at <= (updated.get(id) ?? 0)) return;
     updated.set(id, at);
@@ -155,6 +170,14 @@ export async function createTransport(data) {
     check(id);
     const path = (guest?'/guest':'/api') + '/chats/' + encodeURIComponent(id) + '/events';
     const result = await api(path + (before==null?'':'?before=' + encodeURIComponent(before)), {signal});
+    if (!guest && before==null) {
+      const previous=account.savedIllustrations.get(id) || [];
+      const saved=result.savedIllustrations || [];
+      if (saved.length!==previous.length || saved.some((url,i)=>url!==previous[i])) {
+        account.savedIllustrations.set(id,saved);
+        activityEvents.dispatchEvent(new CustomEvent('saved-images',{detail:id}));
+      }
+    }
     const events = guest ? result.turns.flatMap((t,i) => guestWire(t,result.offset+i)) : result.events;
     const records = [];
     const visibleUsers = guest ? [] : result.messages.filter(msg => msg.role === 'user');
@@ -281,7 +304,7 @@ export async function createTransport(data) {
               }
               pending.delete(id);
             } catch(error){
-              if([400,401,402,403,404,413].includes(error.status))pending.delete(id);
+              if([400,401,402,403,404,413].includes(error.status) || error.code==='model_wait_cancelled' || error.providerRefusal)pending.delete(id);
               if(!early){live.clear(id,turn.requestId);throw error;}
               live.update(id,{rid:turn.requestId,stage:'failed',text:error.message});
             } finally {

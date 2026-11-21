@@ -23,15 +23,18 @@ const upstream = http.createServer(async (req, res) => {
     return;
   }
   if (prompt === 'delayed coin fixture') await new Promise(resolve => setTimeout(resolve, 900));
-  const useTool = prompt === 'tool fixture';
-  const tool = request.tools?.find(t => t.name.endsWith('summarize_text'));
+  const drawing=request.messages.some(m=>Array.isArray(m.content) && m.content.some(b=>b.type==='text' && b.text==='draw fixture'));
+  const imageReceived=request.messages.some(m=>Array.isArray(m.content) && m.content.some(b=>b.type==='tool_result'
+    && JSON.stringify(b.content).includes('Изображение готово')));
+  const useTool = drawing ? !imageReceived : prompt === 'tool fixture';
+  const tool = request.tools?.find(t => drawing ? t.name==='create_illustration' : t.name.endsWith('summarize_text'));
   const toolResult = last.find(block => block.type === 'tool_result');
-  if (toolResult && (toolResult.is_error || !JSON.stringify(toolResult.content).includes('one two'))) {
+  if (!drawing && toolResult && (toolResult.is_error || !JSON.stringify(toolResult.content).includes('one two'))) {
     res.writeHead(422);
     res.end('Missing expected MCP result');
     return;
   }
-  let answer = toolResult ? 'tool result received' : 'answer to ' + prompt;
+  let answer = drawing && imageReceived ? 'Работа завершена' : toolResult ? 'tool result received' : 'answer to ' + prompt;
   if (prompt?.startsWith('inspect connections ')) {
     // Inspect the actual serialized provider request after a previous assistant reply.
     const update=request.messages.slice(request.messages.findLastIndex(m=>m.role==='assistant')+1)
@@ -66,7 +69,7 @@ const upstream = http.createServer(async (req, res) => {
   }
   if (useTool && tool) {
     event('content_block_start', { index: 0, content_block: { type: 'tool_use', id: 'test-call', name: tool.name, input: {} } });
-    event('content_block_delta', { index: 0, delta: { type: 'input_json_delta', partial_json: '{"text":"one two"}' } });
+    event('content_block_delta', { index: 0, delta: { type: 'input_json_delta', partial_json: drawing ? '{"prompt":"circle"}' : '{"text":"one two"}' } });
   } else {
     event('content_block_start', { index, content_block: { type: 'text', text: '' } });
     if (prompt === 'browser fixture') {

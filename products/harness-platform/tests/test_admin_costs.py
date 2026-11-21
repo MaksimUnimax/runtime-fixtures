@@ -51,6 +51,7 @@ class EstimateProjection(unittest.TestCase):
     def test_revocation_while_reading_releases_only_message_text(self):
         from unittest.mock import Mock
         identity, costs, scope = Mock(), Mock(), Mock()
+        identity.unattached_illustrations.return_value = []
         identity.chat_receipts.return_value = {}
         identity.can_view_costs.side_effect = [True, False]
         costs.for_operations.return_value = {self.op: {"rub": "1", "usd": "0.01"}}
