@@ -1,7 +1,9 @@
+import asyncio
 import base64
 import json
 import os
 import tempfile
+import threading
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -82,9 +84,9 @@ class RouterOperations(unittest.TestCase):
         return issue_grant(self.path,self.scope,source='chat.turn',run_key='check',bind_model=self.router.bind,
                            session_digest=_secret_digest(self.token))
 
-    def complete(self,grant):
+    def complete(self,grant,messages=None):
         return httpx.post(self.state.worker.env['HARNESS_ROUTER_LOCAL']+'/complete',timeout=10,trust_env=False,
-                          headers={'x-operation':grant.token},json={'messages':[{'role':'user','content':'test'}]})
+                          headers={'x-operation':grant.token},json={'messages':messages if messages is not None else [{'role':'user','content':'test'}]})
 
     def attempts(self):
         with self.state.identity._lock:
@@ -97,10 +99,17 @@ class RouterOperations(unittest.TestCase):
 
     def test_zero_balance_retry_same_operation_and_attempt(self):
         self.reply='retry'
+        messages=[
+            {'role':'user','content':'Read the saved value.'},
+            {'role':'assistant','tool_calls':[{'id':'read-1','type':'function',
+             'function':{'name':'read_value','arguments':'{}'}}]},
+            {'role':'tool','tool_call_id':'read-1','content':'12.34'},
+        ]
         start=time.monotonic()
-        self.assertEqual(self.complete(self.grant()).status_code,200)
+        self.assertEqual(self.complete(self.grant(),messages).status_code,200)
         self.assertGreaterEqual(time.monotonic()-start,1)
         self.assertEqual(self.seen[0],self.seen[1])
+        self.assertEqual(self.seen[1]['messages'],messages)
         self.assertEqual(len(self.attempts()),1)
         self.assertEqual(self.attempts()[0][:2],(0,0))
 
@@ -185,3 +194,36 @@ class RouterOperations(unittest.TestCase):
         self.assertEqual(self.image_calls,2)
         self.assertEqual(self.attempts()[-1][1],0)
         self.assertEqual(self.complete(grant).status_code,200)
+
+    def test_publication_pins_effort_and_rejects_stale_personal_save(self):
+        self.state.identity.set_admin('owner',True)
+        admin=self.client.post('/api/admin/chat-default',headers=self.headers,json={'model':self.model,'effort':'low'})
+        self.assertEqual(admin.status_code,200,admin.text)
+        stale=self.client.post('/api/model-settings',headers=self.headers,json={'model':'direct','revision':0})
+        self.assertEqual(stale.status_code,409)
+        current=self.client.get('/api/model-settings',headers=self.headers).json()
+        self.assertTrue(current['inherited'])
+        self.assertEqual(self.complete(self.grant()).status_code,200)
+        self.assertEqual((self.seen[0]['model'],self.seen[0]['reasoning']), (self.model,{'effort':'low'}))
+
+    def test_chat_list_opens_while_model_catalogue_is_waiting(self):
+        started,release=threading.Event(),threading.Event()
+        async def slow_catalog(req):
+            started.set()
+            await asyncio.to_thread(release.wait,5)
+            return self.upstream(req)
+        original=self.router.http
+        self.router.http=httpx.AsyncClient(transport=httpx.MockTransport(slow_catalog))
+        self.addCleanup(self.client.portal.call,self.router.http.aclose)
+        self.addCleanup(setattr,self.router,'http',original)
+        self.router.expires=self.router.next_manual=0
+        with ThreadPoolExecutor(2) as pool:
+            loading=pool.submit(self.client.get,'/api/model-settings?refresh=1',headers=self.headers)
+            try:
+                self.assertTrue(started.wait(2))
+                response=pool.submit(self.client.get,'/api/chats',headers=self.headers).result(timeout=2)
+                self.assertIn(self.chat,response.json())
+                self.assertFalse(loading.done())
+            finally:
+                release.set()
+            self.assertEqual(loading.result(timeout=3).status_code,200)
