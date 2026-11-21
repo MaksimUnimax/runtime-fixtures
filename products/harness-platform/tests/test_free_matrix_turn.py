@@ -123,3 +123,34 @@ class FreeMatrixTurn(unittest.TestCase):
         wallet=client.get("/api/wallet",headers=auth).json()
         self.assertEqual((wallet["available"],wallet["reserved"]),("0","0"))
         self.assertEqual([(v["coins"],v["pending"]) for v in wallet["charges"]],[("0",False)])
+
+    def test_public_chat_sends_only_the_literal_question(self):
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        (root/"vault").write_bytes(os.urandom(32))
+        self.enterContext(patch.dict(os.environ, {
+            "HARNESS_HUB_INFERENCE":"1","HARNESS_OPENROUTER_ENABLED":"0",
+            "HARNESS_INTEGRATIONS_KEY_FILE":str(root/"vault"),"HARNESS_MODEL_HUB_DATABASE":str(root/"hub.db"),
+            "HARNESS_MODEL_GATEWAY_URL":"http://127.0.0.1:9","HARNESS_OFFLINE_MODEL":"0"}))
+        db=root/"identity.sqlite3"
+        with RegistrationStore(db) as identity:
+            identity.create_account("public-qa","fixture-pass")
+            auth={"Authorization":"Bearer "+identity.login("public-qa","fixture-pass")}
+        app=create_app(db,root/"chats")
+        client=self.enterContext(TestClient(app))
+        chat=client.post("/api/chats",headers=auth).json()["chatId"]
+        hub=app.state.model_hub
+        hub.save_key("google","fixture","fixture-google-key")
+        with hub.database() as hdb:
+            hdb.execute("INSERT INTO hub_text_health SELECT id,'gemma-4-26b-a4b-it',unixepoch(),0,'ok' FROM hub_keys")
+        client.post("/api/model-settings",headers=auth,json={"model":"hub:public"}).raise_for_status()
+        question="Сколько будет 17 плюс 6?"
+        bodies=[]
+        async def answer(http,spec,key,request,timeout):
+            bodies.append(request)
+            return {"message":{"role":"assistant","content":"23"},"finish_reason":"stop"},{}
+        from platform_core import hub_direct
+        with patch.object(hub_direct,"call",answer):
+            turn=client.post(f"/api/chats/{chat}/turns",headers=auth,json={"text":question,"requestId":"q"})
+        self.assertEqual(turn.status_code,200,turn.text)
+        self.assertEqual(turn.json()["text"],"23")
+        self.assertEqual(bodies,[{"messages":[{"role":"user","content":question}],"max_tokens":4096}])
