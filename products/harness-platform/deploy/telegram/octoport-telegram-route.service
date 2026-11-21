@@ -1,0 +1,14 @@
+[Unit]
+Description=Forward Octoport Telegram connections to the selected router
+Requires=octoport-telegram-route.socket
+After=network-online.target octoport-telegram-route.socket
+
+[Service]
+EnvironmentFile=/etc/harness-prod/telegram-route.env
+ExecStart=/usr/lib/systemd/systemd-socket-proxyd ${TELEGRAM_ROUTER}
+DynamicUser=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectSystem=strict
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX

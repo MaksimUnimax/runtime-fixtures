@@ -1,0 +1,23 @@
+[Unit]
+Description=Restricted Telegram connection for Octoport reports
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+RuntimeDirectory=octoport-telegram-router
+EnvironmentFile=/etc/octoport-telegram-router/route.env
+ExecStartPre=/usr/sbin/apache2 -t -f /etc/octoport-telegram-router/telegram.conf
+ExecStart=/usr/sbin/apache2 -DFOREGROUND -f /etc/octoport-telegram-router/telegram.conf
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

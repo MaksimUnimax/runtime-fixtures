@@ -1,0 +1,9 @@
+[Unit]
+Description=Local connection point for the Octoport Telegram plugin
+
+[Socket]
+ListenStream=127.0.0.1:18765
+NoDelay=true
+
+[Install]
+WantedBy=sockets.target
