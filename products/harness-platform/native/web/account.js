@@ -5,7 +5,7 @@ window.__ModuleLoader__.load({
     return {inject:['slots','uiWorkspace','sessions','contextMenus'],apply(ctx) {
       const a=window.harnessAccount;
       const ui=require('@deepseek-ai/dsh-client-ui-primitives');
-      const {Sidebar:PluginSidebar,Catalog:PluginCatalog}=window.octoPluginMenu(React,ctx,a.api,ui);
+      const {Sidebar:PluginSidebar,Catalog:PluginCatalog,CatalogSettings}=window.octoPluginMenu(React,ctx,a.api,ui);
       const {Menu,Modal,Button,IconUserOutlineMedium,IconSettingsOutlineMedium,IconChevronRightOutlineRegular,
         IconEllipsisOutlineMedium}=ui;
       const subscribers=new Set();
@@ -241,9 +241,14 @@ window.__ModuleLoader__.load({
             h('a',{className:'auth-alternative',href:signup?'/login':'/register'},signup?'Войти в существующий аккаунт':'Создать аккаунт'));
       }
       ctx.slots.inject('settings.launcher',()=>ctx.slots.register({name:'settings.launcher'},AccountLauncher));
-      if (!a.guest) ctx.slots.inject('sidebar.workspaces.afterList',()=>ctx.slots.register({
-        name:'sidebar.workspaces.afterList'
-      },props=>h(PluginSidebar,{...props,openCatalog:()=>select('plugins')})));
+      if (!a.guest) {
+        ctx.slots.inject('sidebar.workspaces.afterList',()=>ctx.slots.register({
+          name:'sidebar.workspaces.afterList'
+        },props=>h(PluginSidebar,{...props,openCatalog:()=>select('plugins')})));
+        ctx.slots.inject('settings.section',()=>ctx.slots.register({
+          name:'settings.section',id:'plugins',order:6,label:()=>'Плагины'
+        },CatalogSettings));
+      }
       ctx.slots.inject('shell.overlay',()=>ctx.slots.register({name:'shell.overlay',id:'harness-auth'},Dialog));
       function Cost({seq,sessionId}) {
         const cost=a.costs.get(sessionId+'|'+seq);

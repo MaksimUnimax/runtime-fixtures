@@ -164,7 +164,7 @@ window.__ModuleLoader__.load({
         return h(Connections,{key:chat,chat});
       }
       section('integrations','Интеграции',5,IntegrationSettings);
-      if(a.modelChoice)section('model-choice','Выбор ИИ',6,Models);
+      if(a.modelChoice)section('model-choice','Выбор ИИ',7,Models);
     }};
   }
 });

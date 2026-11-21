@@ -215,6 +215,8 @@ body[data-ds-dark-theme] .octo-installed-plugins li[data-active="true"] { --plug
 }
 .octo-plugin-panel.octo-plugin-settings { width:min(760px,calc(100vw - 32px)); }
 .octo-plugin-content { min-width:0; color:var(--dsw-alias-label-primary); font-size:14px; line-height:1.45; }
+.octo-plugin-preferences { max-width:46rem; margin-inline:auto; padding:1rem; }
+.octo-plugin-preferences h2 { font-size:1.2rem; margin:0 0 1rem; }
 .octo-plugin-content p { margin:5px 0 12px; color:var(--dsw-alias-label-secondary); }
 .octo-plugin-content h3 { font-size:15px; font-weight:600; margin:0 0 5px; }
 .octo-plugin-fold + .octo-plugin-fold { border-top:1px solid var(--dsw-alias-border-l3,var(--octo-line)); }

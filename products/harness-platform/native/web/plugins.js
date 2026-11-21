@@ -242,7 +242,7 @@
       return {data,error,busy,update};
     }
     const accountUrl='/api/plugins';
-    function Catalog({close}) {
+    function CatalogItems() {
       const {data,error,busy,update}=useCatalog(accountUrl);
       function branch(parent) {
         return data.categories.filter(c=>c.parent===parent).map(c=>{
@@ -255,9 +255,16 @@
             !items.length&&!data.categories.some(x=>x.parent===c.id)&&h('p',null,'Плагинов пока нет.'),branch(c.id));
         });
       }
-      return h(Dialog,{label:catalogLabel,close,className:'octo-plugin-catalog'},
+      return h(React.Fragment,null,
         error&&h('p',{role:'alert'},error),
         data ? branch(null) : !error&&h('p',{role:'status'},'Загружаем каталог…'));
+    }
+    function Catalog({close}) {
+      return h(Dialog,{label:catalogLabel,close,className:'octo-plugin-catalog'},h(CatalogItems));
+    }
+    function CatalogSettings() {
+      return h('section',{className:'octo-plugin-content octo-plugin-preferences'},
+        h('h2',null,catalogLabel),h(CatalogItems));
     }
     function SidebarLink({title,Icon,wide,onClick,buttonRef}) {
       return h('button',{type:'button',className:'octo-plugin-link',ref:buttonRef,title,'aria-label':title,
@@ -320,7 +327,7 @@
       const selected=window.harnessAccount.hasChat(chat)?chat:null;
       return h(Menu,{key:selected||'account',chat:selected,wide,openCatalog});
     }
-    const productPlugins={Sidebar,Catalog};
+    const productPlugins={Sidebar,Catalog,CatalogSettings};
     components.set(ctx,productPlugins);
     return productPlugins;
   };
