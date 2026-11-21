@@ -139,14 +139,19 @@ async function lockManage(tx: DatabaseQuery): Promise<void> {
     manageLock,
   ]);
 }
-async function activeOwnerCount(tx: DatabaseQuery): Promise<number> {
-  const result = await tx.query<{ count: string }>(
-    `SELECT count(*)::text AS count FROM admin_principals p
-     WHERE p.status='ACTIVE' AND EXISTS (
+async function anotherActiveOwnerRemains(
+  tx: DatabaseQuery,
+  targetId: string,
+): Promise<boolean> {
+  const result = await tx.query<{ owner_will_remain: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM admin_principals p
+     JOIN users u ON u.id=p.user_id
+     WHERE p.id<>$1::uuid AND p.status='ACTIVE' AND u.status='ACTIVE' AND EXISTS (
        SELECT 1 FROM admin_role_grants g WHERE g.admin_principal_id=p.id AND g.role='ADMIN_OWNER' AND g.revoked_at IS NULL
-     )`,
+     )) AS owner_will_remain`,
+    [targetId],
   );
-  return Number(result.rows[0]?.count ?? 0);
+  return result.rows[0]?.owner_will_remain === true;
 }
 async function mutationNow(
   tx: DatabaseQuery,
@@ -653,7 +658,10 @@ export function createAdminOpsRepository(
           !principal.roles.includes(input.role)
         )
           return { kind: "CONFLICT" as const };
-        if (input.role === "ADMIN_OWNER" && (await activeOwnerCount(tx)) <= 1)
+        if (
+          input.role === "ADMIN_OWNER" &&
+          !(await anotherActiveOwnerRemains(tx, input.principalId))
+        )
           return { kind: "LAST_OWNER" as const };
         const now = await mutationNow(tx, input.principalId);
         await tx.query(
@@ -709,7 +717,7 @@ export function createAdminOpsRepository(
         if (
           input.status === "SUSPENDED" &&
           principal.roles.includes("ADMIN_OWNER") &&
-          (await activeOwnerCount(tx)) <= 1
+          !(await anotherActiveOwnerRemains(tx, input.principalId))
         )
           return { kind: "LAST_OWNER" as const };
         const now = await mutationNow(tx, input.principalId);

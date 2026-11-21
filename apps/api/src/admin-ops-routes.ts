@@ -55,6 +55,7 @@ async function invoke<T>(operation: () => Promise<T>): Promise<T> {
   }
 }
 function adminFailure(kind: string): ControlledError {
+  if (kind === "INVALID") return invalid();
   if (
     kind === "NOT_FOUND" ||
     kind === "ACCOUNT_NOT_FOUND" ||
@@ -271,6 +272,9 @@ export function registerAdminOpsRoutes(
       const value = result.value;
       return {
         accountId: value.accountId,
+        ...(value.accessBasis !== undefined
+          ? { accessBasis: value.accessBasis }
+          : {}),
         access: value.access,
         subscription: value.subscription
           ? {
@@ -373,6 +377,7 @@ export function registerAdminOpsRoutes(
           reason: body.reason,
         }),
       );
+      if (result === "INVALID") throw invalid();
       if (result === "FORBIDDEN") throw adminFailure(result);
       if (result === "NOT_FOUND") throw adminFailure(result);
       noStore(reply);

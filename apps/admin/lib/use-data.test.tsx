@@ -14,6 +14,11 @@ const harness = vi.hoisted(() => ({
   request: vi.fn(),
   refresh: vi.fn(),
   notice: vi.fn(),
+  me: null as {
+    principalId: string;
+    expiresAt: string;
+    permissions: string[];
+  } | null,
 }));
 vi.mock("react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react")>();
@@ -22,7 +27,11 @@ vi.mock("react", async (importOriginal) => {
     a.every((value, index) => Object.is(value, b[index]));
   return {
     ...actual,
-    useContext: () => ({ refresh: harness.refresh, setNotice: harness.notice }),
+    useContext: () => ({
+      me: harness.me,
+      refresh: harness.refresh,
+      setNotice: harness.notice,
+    }),
     useState: <T,>(initial: T | (() => T)) => {
       const index = harness.cursor++;
       if (!(index in harness.slots))
@@ -104,6 +113,7 @@ beforeEach(() => {
   harness.request.mockReset();
   harness.refresh.mockReset().mockResolvedValue(undefined);
   harness.notice.mockReset();
+  harness.me = null;
 });
 
 describe("useData request lifetime", () => {
@@ -244,5 +254,115 @@ describe("useData request lifetime", () => {
     });
     b.resolve({ repairCaseId: "B" });
     await settle();
+  });
+
+  it.each(["ADMIN_UNAUTHORIZED", "ADMIN_REAUTH_REQUIRED"] as const)(
+    "refreshes the current admin context after a read fails with %s",
+    async (code) => {
+      harness.request.mockRejectedValue(new ControlPlaneError(code, 401));
+      render("/v1/admin/principals");
+      effects();
+      await settle();
+      expect(harness.refresh).toHaveBeenCalledTimes(1);
+      expect(render("/v1/admin/principals")).toMatchObject({
+        data: null,
+        busy: false,
+        error: expect.any(ControlPlaneError),
+      });
+      expect(harness.request).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(["ADMIN_UNAUTHORIZED", "ADMIN_REAUTH_REQUIRED"] as const)(
+    "ignores %s from a read whose account scope was replaced",
+    async (code) => {
+      const old = deferred<Item>(),
+        current = deferred<Item>();
+      harness.request
+        .mockReturnValueOnce(old.promise)
+        .mockReturnValueOnce(current.promise);
+      render("/v1/account-a");
+      effects();
+      render("/v1/account-b");
+      effects();
+      old.reject(new ControlPlaneError(code, 401));
+      await settle();
+      expect(harness.refresh).not.toHaveBeenCalled();
+      expect(harness.notice).not.toHaveBeenCalled();
+      current.resolve({ repairCaseId: "B" });
+      await settle();
+      expect(render("/v1/account-b").data).toEqual({ repairCaseId: "B" });
+    },
+  );
+
+  it.each(["principal", "expiry", "permissions"] as const)(
+    "review regression: replaces same-path data when %s changes",
+    async (boundary) => {
+      const path = "/v1/admin/audit-events";
+      harness.me = {
+        principalId: "principal-A",
+        expiresAt: "2026-10-29T12:00:00Z",
+        permissions: ["admin.audit.read", "admin.principal.read"],
+      };
+      const old = deferred<Item>();
+      const current = deferred<Item>();
+      harness.request
+        .mockResolvedValueOnce({ repairCaseId: "old cached data" })
+        .mockReturnValueOnce(old.promise)
+        .mockReturnValueOnce(current.promise);
+      render(path);
+      effects();
+      await settle();
+      expect(render(path).data?.repairCaseId).toBe("old cached data");
+      const pending = render(path).load();
+      harness.me = {
+        ...harness.me,
+        ...(boundary === "principal" ? { principalId: "principal-B" } : {}),
+        ...(boundary === "expiry" ? { expiresAt: "2026-10-29T13:00:00Z" } : {}),
+        ...(boundary === "permissions"
+          ? { permissions: ["admin.audit.read"] }
+          : {}),
+      };
+      expect(render(path)).toMatchObject({
+        data: null,
+        busy: true,
+        error: null,
+      });
+      effects();
+      expect(harness.request).toHaveBeenCalledTimes(3);
+      current.resolve({ repairCaseId: "current authority data" });
+      await settle();
+      old.resolve({ repairCaseId: "old late response" });
+      await pending;
+      expect(render(path).data).toEqual({
+        repairCaseId: "current authority data",
+      });
+    },
+  );
+
+  it("review regression: a previous principal's read error cannot refresh the new session", async () => {
+    const old = deferred<Item>();
+    const current = deferred<Item>();
+    const path = "/v1/admin/audit-events";
+    harness.me = {
+      principalId: "principal-A",
+      expiresAt: "2026-10-29T12:00:00Z",
+      permissions: ["admin.audit.read"],
+    };
+    harness.request
+      .mockReturnValueOnce(old.promise)
+      .mockReturnValueOnce(current.promise);
+    render(path);
+    effects();
+    harness.me = { ...harness.me, principalId: "principal-B" };
+    render(path);
+    effects();
+    old.reject(new ControlPlaneError("ADMIN_UNAUTHORIZED", 401));
+    await settle();
+    expect(harness.refresh).not.toHaveBeenCalled();
+    expect(harness.notice).not.toHaveBeenCalled();
+    current.resolve({ repairCaseId: "B" });
+    await settle();
+    expect(render(path).data).toEqual({ repairCaseId: "B" });
   });
 });

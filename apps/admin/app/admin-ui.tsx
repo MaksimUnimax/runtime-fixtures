@@ -13,6 +13,16 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { controlPlane, ControlPlaneError, query } from "../lib/control-plane";
+import {
+  ADMIN_PRINCIPAL_ROLES,
+  AdminPrincipalRole,
+  isAdminPrincipalRole,
+} from "../lib/admin-principal-roles";
+import {
+  loadOverrideAuthority,
+  overrideValue,
+  type OverrideAuthority,
+} from "../lib/b14-override-authority";
 
 type Me = {
   status: "authenticated";
@@ -56,9 +66,9 @@ type Device = {
   id: string;
   status: string;
   label: string | null;
-  browserFamily: string;
-  browserVersionLastSeen: string | null;
-  extensionVersionLastSeen: string | null;
+  browserFamily?: string;
+  browserVersionLastSeen?: string | null;
+  extensionVersionLastSeen?: string;
   createdAt: string;
   activatedAt: string | null;
   lastSeenAt: string | null;
@@ -68,7 +78,19 @@ type Subscription = {
   accountId: string;
   accessBasis?: "BETA" | "COMMERCIAL" | "NONE";
   access: { status: string; reason: string | null };
-  subscription: Record<string, unknown> | null;
+  subscription: {
+    id: string;
+    state: string;
+    stateRevision: number;
+    plan: {
+      planRevisionId: string;
+      planCode: string;
+      planRevision: number;
+      displayName: string;
+    };
+    currentPeriodStart: string;
+    currentPeriodEnd: string;
+  } | null;
   deviceAllowance: unknown;
 };
 type BetaState = {
@@ -116,6 +138,8 @@ export function safeError(error: unknown): string {
       return "The previous operation was not repeated because current server state changed. Review the refreshed data and submit a new operation.";
     if (error.code === "ADMIN_RESOURCE_NOT_FOUND")
       return "This resource is no longer available.";
+    if (error.code === "ADMIN_LAST_OWNER_REQUIRED")
+      return "Keep at least one active owner with an active user account. No change was made.";
     if (error.code === "SERVICE_UNAVAILABLE")
       return "The control plane is temporarily unavailable.";
     if (error.code === "ADMIN_FORBIDDEN")
@@ -137,13 +161,24 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<Notice>(null);
   const [otpRequired, setOtpRequired] = useState(false);
+  const authorityGeneration = useRef(0);
+  const active = useRef(false);
+  const pendingSignOut = useRef<Promise<void> | null>(null);
   const refresh = async (): Promise<Me | null> => {
+    if (!active.current || pendingSignOut.current) return null;
+    const generation = ++authorityGeneration.current;
+    const isCurrent = () =>
+      active.current &&
+      authorityGeneration.current === generation &&
+      !pendingSignOut.current;
     try {
       const value = await controlPlane<Me>("/v1/admin/me");
+      if (!isCurrent()) return null;
       setMe(value);
       setOtpRequired(false);
       return value;
     } catch (error) {
+      if (!isCurrent()) return null;
       if (
         error instanceof ControlPlaneError &&
         error.code === "ADMIN_REAUTH_REQUIRED"
@@ -153,21 +188,52 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       }
       setMe(null);
       return null;
+    } finally {
+      if (isCurrent()) setLoading(false);
     }
   };
   useEffect(() => {
-    void refresh().finally(() => setLoading(false));
+    active.current = true;
+    void refresh();
+    return () => {
+      active.current = false;
+      authorityGeneration.current++;
+    };
   }, []);
-  const signOut = async () => {
-    try {
-      await controlPlane("/v1/admin/session", { method: "DELETE" });
-    } catch (error) {
-      setNotice({ kind: "error", text: safeError(error) });
-      throw error;
-    }
-    setMe(null);
-    setOtpRequired(false);
-    setNotice(null);
+  const signOut = (): Promise<void> => {
+    if (pendingSignOut.current) return pendingSignOut.current;
+    // Invalidate every read started before the logout. No refresh started
+    // while DELETE is pending may restore the context being ended.
+    authorityGeneration.current++;
+    const operation = (async () => {
+      try {
+        await controlPlane("/v1/admin/session", { method: "DELETE" });
+      } catch (error) {
+        if (!active.current) return;
+        if (
+          error instanceof ControlPlaneError &&
+          (error.code === "ADMIN_UNAUTHORIZED" ||
+            error.code === "ADMIN_REAUTH_REQUIRED")
+        ) {
+          // An expired session cannot authorize its own revocation. Its stale
+          // context still has to end; a transport/CSRF failure is distinct.
+          setMe(null);
+          setOtpRequired(error.code === "ADMIN_REAUTH_REQUIRED");
+          setNotice({ kind: "info", text: safeError(error) });
+          return;
+        }
+        setNotice({ kind: "error", text: safeError(error) });
+        throw error;
+      }
+      if (!active.current) return;
+      setMe(null);
+      setOtpRequired(false);
+      setNotice(null);
+    })().finally(() => {
+      if (pendingSignOut.current === operation) pendingSignOut.current = null;
+    });
+    pendingSignOut.current = operation;
+    return operation;
   };
   return (
     <AdminContext.Provider
@@ -403,6 +469,42 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [notice, setLocalNotice] = useState<Notice>(null);
   const [canContinue, setCanContinue] = useState(false);
+  const [sessionUnconfirmed, setSessionUnconfirmed] = useState(false);
+  const active = useRef(false);
+  const pending = useRef<{ authority: string } | null>(null);
+  const authority = JSON.stringify([
+    me?.principalId,
+    me?.expiresAt,
+    me?.permissions,
+    otpRequired,
+  ]);
+  const currentAuthority = useRef(authority);
+  currentAuthority.current = authority;
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+      pending.current = null;
+    };
+  }, []);
+  const begin = () => {
+    if (!active.current || pending.current || loading || me) return null;
+    const operation = { authority };
+    pending.current = operation;
+    setBusy(true);
+    setLocalNotice(null);
+    setNotice(null);
+    return operation;
+  };
+  const isCurrent = (operation: { authority: string }) =>
+    active.current &&
+    pending.current === operation &&
+    currentAuthority.current === operation.authority;
+  const finish = (operation: { authority: string }) => {
+    if (!active.current || pending.current !== operation) return;
+    pending.current = null;
+    setBusy(false);
+  };
   useEffect(() => {
     if (!loading && me) router.replace("/");
   }, [loading, me, router]);
@@ -414,30 +516,36 @@ export function LoginPage() {
           .some((part) => part.trim().startsWith("pcp_csrf=")),
     );
   }, [otpRequired]);
-  const fail = (error: unknown) => {
+  const fail = (error: unknown, operation: { authority: string }) => {
+    if (!isCurrent(operation)) return;
     const value = safeError(error);
     setLocalNotice({ kind: "error", text: value });
     setNotice({ kind: "error", text: value });
   };
   const currentSession = async () => {
-    setBusy(true);
+    const operation = begin();
+    if (!operation) return;
     try {
       await controlPlane("/v1/admin/session", { method: "POST" });
-      if (await refresh()) router.replace("/");
+      if (!isCurrent(operation)) return;
+      setSessionUnconfirmed(true);
+      if ((await refresh()) && isCurrent(operation)) router.replace("/");
     } catch (error) {
+      if (!isCurrent(operation)) return;
       if (
         error instanceof ControlPlaneError &&
         error.code === "ADMIN_REAUTH_REQUIRED"
       )
         setCanContinue(false);
-      fail(error);
+      fail(error, operation);
     } finally {
-      setBusy(false);
+      finish(operation);
     }
   };
   const requestOtp = async (event: FormEvent) => {
     event.preventDefault();
-    setBusy(true);
+    const operation = begin();
+    if (!operation) return;
     try {
       const value = await controlPlane<{ challengeId: string }>(
         "/v1/auth/otp/request",
@@ -447,33 +555,38 @@ export function LoginPage() {
           body: JSON.stringify({ email }),
         },
       );
+      if (!isCurrent(operation)) return;
       setChallengeId(value.challengeId);
       setLocalNotice({
         kind: "info",
         text: "Enter the one-time code sent to your email.",
       });
     } catch (error) {
-      fail(error);
+      fail(error, operation);
     } finally {
-      setBusy(false);
+      finish(operation);
     }
   };
   const verifyOtp = async (event: FormEvent) => {
     event.preventDefault();
     if (!challengeId) return;
-    setBusy(true);
+    const operation = begin();
+    if (!operation) return;
     try {
       await controlPlane("/v1/auth/otp/verify", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ challengeId, code }),
       });
+      if (!isCurrent(operation)) return;
       await controlPlane("/v1/admin/session", { method: "POST" });
-      if (await refresh()) router.replace("/");
+      if (!isCurrent(operation)) return;
+      setSessionUnconfirmed(true);
+      if ((await refresh()) && isCurrent(operation)) router.replace("/");
     } catch (error) {
-      fail(error);
+      fail(error, operation);
     } finally {
-      setBusy(false);
+      finish(operation);
     }
   };
   if (loading || me)
@@ -494,7 +607,18 @@ export function LoginPage() {
           automatically.
         </p>
         <PageMessage notice={notice} />
-        {!challengeId ? (
+        {sessionUnconfirmed ? (
+          <div>
+            <p role="status">
+              {busy
+                ? "Checking the elevated admin session…"
+                : "The elevation request succeeded, but the admin session could not be confirmed. Check the session again before continuing."}
+            </p>
+            <button disabled={busy} onClick={() => window.location.reload()}>
+              Check admin session
+            </button>
+          </div>
+        ) : !challengeId ? (
           <form onSubmit={requestOtp}>
             <label>
               Email
@@ -502,6 +626,7 @@ export function LoginPage() {
                 required
                 type="email"
                 value={email}
+                disabled={busy}
                 onChange={(event) => setEmail(event.target.value)}
                 autoComplete="email"
               />
@@ -530,6 +655,7 @@ export function LoginPage() {
                 required
                 inputMode="numeric"
                 value={code}
+                disabled={busy}
                 onChange={(event) => setCode(event.target.value)}
                 autoComplete="one-time-code"
               />
@@ -541,7 +667,9 @@ export function LoginPage() {
               <button
                 type="button"
                 className="secondary"
+                disabled={busy}
                 onClick={() => {
+                  if (pending.current) return;
                   setChallengeId(null);
                   setCode("");
                 }}
@@ -556,16 +684,28 @@ export function LoginPage() {
   );
 }
 
-export function useData<T>(path: string | null) {
-  // A new selection has a distinct scope, so previous data is hidden in the
-  // selection render itself, before the effect starts the next request.
+export function useData<T>(
+  path: string | null,
+  read: (
+    path: string,
+    init: { signal: AbortSignal },
+  ) => Promise<T> = controlPlane,
+) {
+  const { me, refresh, setNotice } = useAdmin();
+  const authority = JSON.stringify([
+    me?.principalId,
+    me?.expiresAt,
+    me?.permissions,
+  ]);
+  // A new selection or admin authority has a distinct scope. Previous data is
+  // hidden in that render, before the effect starts the new authorized read.
   const scope = useMemo(
     () => ({
       active: false,
       generation: 0,
       controller: null as AbortController | null,
     }),
-    [path],
+    [path, authority, read],
   );
   const [state, setState] = useState<{
     scope: typeof scope | null;
@@ -573,7 +713,6 @@ export function useData<T>(path: string | null) {
     busy: boolean;
     error: unknown;
   }>({ scope: null, data: null, busy: Boolean(path), error: null });
-  const { refresh, setNotice } = useAdmin();
   const load = async () => {
     // An onDone callback retained by an old selection cannot reload it.
     if (!scope.active) return;
@@ -591,20 +730,25 @@ export function useData<T>(path: string | null) {
       !controller.signal.aborted;
     setState({ scope, data: null, busy: true, error: null });
     try {
-      const data = await controlPlane<T>(path, { signal: controller.signal });
+      const data = await read(path, { signal: controller.signal });
       if (isCurrent()) setState({ scope, data, busy: true, error: null });
     } catch (value) {
       if (!isCurrent()) return;
       setState({ scope, data: null, busy: true, error: value });
       if (
         value instanceof ControlPlaneError &&
-        value.code === "ADMIN_FORBIDDEN"
+        (value.code === "ADMIN_FORBIDDEN" ||
+          value.code === "ADMIN_UNAUTHORIZED" ||
+          value.code === "ADMIN_REAUTH_REQUIRED")
       ) {
         await refresh();
         if (isCurrent())
           setNotice({
             kind: "error",
-            text: "Your permission changed. Available controls were refreshed.",
+            text:
+              value.code === "ADMIN_FORBIDDEN"
+                ? "Your permission changed. Available controls were refreshed."
+                : safeError(value),
           });
       }
     } finally {
@@ -637,6 +781,8 @@ export function Mutation({
   confirm,
   onDone,
   onSuccess,
+  onBusyChange,
+  reviewScope,
   disabled = false,
   children,
 }: {
@@ -647,6 +793,10 @@ export function Mutation({
   confirm?: string;
   onDone?: () => Promise<void> | void;
   onSuccess?: (value: unknown) => void;
+  onBusyChange?: (busy: boolean) => void;
+  // Opt in when the parent owns the target inputs and locks them while pending.
+  // Other workspaces retain their existing draft/selection coordinators.
+  reviewScope?: string;
   disabled?: boolean;
   children?: ReactNode;
 }) {
@@ -654,9 +804,54 @@ export function Mutation({
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [reason, setReason] = useState("");
-  const [review, setReview] = useState(false);
+  const [review, setReview] = useState<{
+    fingerprint: string;
+    scope: string;
+    path: string;
+    body: Record<string, unknown>;
+  } | null>(null);
+  const fingerprint = JSON.stringify([
+    permission,
+    action,
+    path,
+    reviewScope === undefined ? undefined : body,
+    confirm,
+    reviewScope,
+    me?.principalId,
+    me?.expiresAt,
+  ]);
+  const outcomeScope = JSON.stringify([
+    permission,
+    path,
+    reviewScope,
+    me?.principalId,
+    me?.expiresAt,
+  ]);
+  const currentOutcomeScope = useRef(outcomeScope);
+  currentOutcomeScope.current = outcomeScope;
+  const active = useRef(false);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    setReview((current) =>
+      current?.fingerprint === fingerprint ? current : null,
+    );
+  }, [fingerprint]);
+  const currentReview = review?.fingerprint === fingerprint ? review : null;
   const submit = async () => {
-    if (busyRef.current) return;
+    if (busyRef.current || disabled) return;
+    if (!currentReview) {
+      setReview(null);
+      setNotice({
+        kind: "info",
+        text: "The operation changed. Review it again before submitting.",
+      });
+      return;
+    }
     if (!has(me, permission) || !reason.trim()) {
       setNotice({
         kind: "error",
@@ -668,48 +863,68 @@ export function Mutation({
       Object.prototype.hasOwnProperty.call(body, "expectedLatestRevision") &&
       body.expectedLatestRevision === undefined
     ) {
-      setReview(false);
+      setReview(null);
       setReason("");
+      setNotice({
+        kind: "info",
+        text: "The current authoritative revision was unavailable. No mutation was submitted; review again after the data reloads.",
+      });
       try {
         await onDone?.();
       } catch {
         /* keep the mutation fail-closed if the authority read fails */
       }
-      setNotice({
-        kind: "info",
-        text: "The current authoritative revision was unavailable. No mutation was submitted; review again after the data reloads.",
-      });
       return;
     }
     busyRef.current = true;
     setBusy(true);
+    onBusyChange?.(true);
+    const submitted = currentReview;
+    const isCurrent = () =>
+      reviewScope === undefined ||
+      (active.current && currentOutcomeScope.current === submitted.scope);
     try {
-      const value = await controlPlane(path, {
+      const value = await controlPlane(submitted.path, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...body, reason: reason.trim() }),
+        body: JSON.stringify({
+          ...(reviewScope === undefined ? body : submitted.body),
+          reason: reason.trim(),
+        }),
       });
+      // B14 opt-in parents own the whole target lifetime. Legacy workspaces
+      // retain their existing outcome callbacks across shared list reloads.
+      // An already sent POST is never treated as canceled by UI navigation.
+      if (!isCurrent()) return;
       onSuccess?.(value);
       setReason("");
-      setReview(false);
+      setReview(null);
       setNotice({ kind: "success", text: `${action} completed.` });
-      await onDone?.();
+      try {
+        await onDone?.();
+      } catch {
+        // The mutation succeeded. The read surface owns its error state; do not
+        // turn a failed reload into a failed write or overwrite a newer notice.
+      }
     } catch (error) {
+      if (!isCurrent()) return;
       const stale =
         error instanceof ControlPlaneError &&
         (error.code === "ADMIN_STATE_STALE" || error.code === "ADMIN_CONFLICT");
       if (stale) {
-        setReview(false);
+        setReview(null);
         setReason("");
+        setNotice({
+          kind: "info",
+          text: "The previous operation was not automatically repeated. Review current server data before submitting a new operation.",
+        });
         try {
           await onDone?.();
         } catch {
-          /* retain the safe stale state if the authoritative read also fails */
+          // The read failed; retain the safe instruction without asserting a
+          // successful refresh or replaying the original change.
+          return;
         }
-        setNotice({
-          kind: "info",
-          text: "The previous operation was not automatically repeated. Current server state was refreshed; review a new operation before submitting.",
-        });
         return;
       }
       if (
@@ -719,12 +934,15 @@ export function Mutation({
           error.code === "ADMIN_CSRF_INVALID" ||
           error.code === "ADMIN_FORBIDDEN")
       ) {
+        setNotice({ kind: "error", text: safeError(error) });
         await refresh();
+        return;
       }
-      setNotice({ kind: "error", text: safeError(error) });
+      if (isCurrent()) setNotice({ kind: "error", text: safeError(error) });
     } finally {
       busyRef.current = false;
       setBusy(false);
+      onBusyChange?.(false);
     }
   };
   if (!has(me, permission)) return null;
@@ -735,7 +953,14 @@ export function Mutation({
         <button
           type="button"
           disabled={busy || disabled}
-          onClick={() => setReview(true)}
+          onClick={() => {
+            setReview({
+              fingerprint,
+              scope: outcomeScope,
+              path,
+              body: JSON.parse(JSON.stringify(body)) as Record<string, unknown>,
+            });
+          }}
         >
           {busy ? "Working…" : action}
         </button>
@@ -745,11 +970,12 @@ export function Mutation({
         <textarea
           value={reason}
           onChange={(event) => setReason(event.target.value)}
+          disabled={busy}
           maxLength={256}
           required
         />
       </label>
-      {review && (
+      {currentReview && (
         <div className="confirm" role="dialog" aria-label={`Confirm ${action}`}>
           <p>
             <strong>Review before submitting</strong>
@@ -759,7 +985,7 @@ export function Mutation({
           <div className="actions">
             <button
               type="button"
-              disabled={busy || !reason.trim()}
+              disabled={busy || disabled || !reason.trim()}
               onClick={() => void submit()}
             >
               Confirm {action}
@@ -767,7 +993,8 @@ export function Mutation({
             <button
               type="button"
               className="secondary"
-              onClick={() => setReview(false)}
+              disabled={busy}
+              onClick={() => setReview(null)}
             >
               Cancel
             </button>
@@ -821,13 +1048,15 @@ export function LoadState({ busy, error }: { busy: boolean; error: unknown }) {
 export function Cursor({
   cursor,
   onNext,
+  disabled = false,
 }: {
   cursor: string | null;
   onNext: () => void;
+  disabled?: boolean;
 }) {
   return cursor ? (
     <div className="actions">
-      <button className="secondary" onClick={onNext}>
+      <button className="secondary" disabled={disabled} onClick={onNext}>
         Next page
       </button>
     </div>
@@ -1273,22 +1502,40 @@ function AccountWorkspace() {
   const [planRevisionId, setPlanRevisionId] = useState("");
   const [periodEnd, setPeriodEnd] = useState("");
   const [entitlementKey, setEntitlementKey] = useState("");
+  const [overrideDraft, setOverrideDraft] = useState({ key: "", value: "" });
+  const [mutationBusy, setMutationBusy] = useState(false);
+  const [overrideEffectiveFrom, setOverrideEffectiveFrom] = useState(() =>
+    new Date().toISOString(),
+  );
   const effective = useData<Record<string, unknown>>(
     has(me, "entitlement.read") && entitlementKey
       ? `/v1/admin/accounts/${accountId}/entitlements/${entitlementKey}`
       : null,
   );
-  const latestOverrideRevision = useMemo(() => {
-    const items = overrides.data?.items;
-    if (!items?.length || !entitlementKey) return undefined;
-    const revisions = items
-      .filter((item) => String(item.entitlementKey) === entitlementKey)
-      .map((item) => Number(item.revision))
-      .filter((value) => Number.isSafeInteger(value) && value > 0);
-    return revisions.length ? Math.max(...revisions) : undefined;
-  }, [entitlementKey, overrides.data]);
+  const overrideAuthority = useData<OverrideAuthority>(
+    has(me, "entitlement.read") && entitlementKey
+      ? `/v1/admin/accounts/${accountId}/entitlement-overrides?limit=100&entitlementKey=${encodeURIComponent(entitlementKey)}`
+      : null,
+    loadOverrideAuthority,
+  );
+  const latestOverrideRevision = overrideAuthority.data?.latestRevision;
+  const overrideInput =
+    overrideDraft.key === entitlementKey
+      ? overrideDraft.value
+      : overrideAuthority.data?.valueType === "BOOLEAN"
+        ? "true"
+        : "";
+  const selectedOverrideValue = overrideValue(
+    overrideAuthority.data?.valueType,
+    overrideInput,
+  );
   const reloadOverrides = async () => {
-    await Promise.all([overrides.load(), effective.load()]);
+    await Promise.all([
+      overrides.load(),
+      effective.load(),
+      overrideAuthority.load(),
+    ]);
+    setOverrideEffectiveFrom(new Date().toISOString());
   };
   const reloadAll = async () => {
     await Promise.all([
@@ -1297,6 +1544,8 @@ function AccountWorkspace() {
       payments.load(),
       events.load(),
       overrides.load(),
+      overrideAuthority.load(),
+      effective.load(),
     ]);
   };
   return (
@@ -1314,11 +1563,20 @@ function AccountWorkspace() {
             </p>
           )}
           <LoadState busy={subscription.busy} error={subscription.error} />
+          {subscription.data && (
+            <p role="status">
+              Access: {subscription.data.access.status}
+              {subscription.data.access.reason
+                ? ` · ${subscription.data.access.reason}`
+                : ""}
+            </p>
+          )}
           <div className="form-grid">
             <label>
               Published plan revision ID
               <input
                 value={planRevisionId}
+                disabled={mutationBusy}
                 onChange={(e) => setPlanRevisionId(e.target.value)}
               />
             </label>
@@ -1327,6 +1585,7 @@ function AccountWorkspace() {
               <input
                 type="datetime-local"
                 value={periodEnd}
+                disabled={mutationBusy}
                 onChange={(e) => setPeriodEnd(e.target.value)}
               />
             </label>
@@ -1341,6 +1600,10 @@ function AccountWorkspace() {
                 ? new Date(periodEnd).toISOString()
                 : "",
             }}
+            confirm={`Grant plan revision ${planRevisionId || "(required)"} to account ${accountId} until ${periodEnd || "(required)"}? This changes the account's commercial access.`}
+            disabled={mutationBusy}
+            onBusyChange={setMutationBusy}
+            reviewScope={accountId}
             onDone={subscription.load}
           />
           {sub ? (
@@ -1359,7 +1622,10 @@ function AccountWorkspace() {
                     String(sub.id),
                     String(sub.state),
                     String(sub.stateRevision),
-                    String(sub.planRevisionId ?? sub.plan ?? "—"),
+                    sub.plan?.displayName ??
+                      sub.plan?.planCode ??
+                      sub.plan?.planRevisionId ??
+                      "Not provided",
                     `${String(sub.currentPeriodStart)} → ${String(sub.currentPeriodEnd)}`,
                     subscription.data?.access.status ?? "—",
                   ],
@@ -1375,6 +1641,10 @@ function AccountWorkspace() {
                     ? new Date(periodEnd).toISOString()
                     : "",
                 }}
+                confirm={`Extend subscription ${subId} for account ${accountId} until ${periodEnd || "(required)"}?`}
+                disabled={mutationBusy}
+                onBusyChange={setMutationBusy}
+                reviewScope={accountId}
                 onDone={subscription.load}
               />
               <div className="actions">
@@ -1383,7 +1653,10 @@ function AccountWorkspace() {
                   action="Suspend subscription"
                   path={`/v1/admin/accounts/${accountId}/subscription/${subId}/suspend`}
                   body={{ expectedStateRevision: revision }}
-                  confirm="Suspend the current subscription?"
+                  confirm={`Suspend subscription ${subId} for account ${accountId}? This changes the account's commercial access.`}
+                  disabled={mutationBusy}
+                  onBusyChange={setMutationBusy}
+                  reviewScope={accountId}
                   onDone={subscription.load}
                 />
                 <Mutation
@@ -1391,13 +1664,17 @@ function AccountWorkspace() {
                   action="Restore subscription"
                   path={`/v1/admin/accounts/${accountId}/subscription/${subId}/restore`}
                   body={{ expectedStateRevision: revision }}
+                  confirm={`Restore subscription ${subId} for account ${accountId}? Access will be recalculated by the server.`}
+                  disabled={mutationBusy}
+                  onBusyChange={setMutationBusy}
+                  reviewScope={accountId}
                   onDone={subscription.load}
                 />
               </div>
             </>
-          ) : (
+          ) : subscription.data?.subscription === null ? (
             <p>No current subscription.</p>
-          )}
+          ) : null}
         </section>
       )}
       {has(me, "device.read") && (
@@ -1418,7 +1695,9 @@ function AccountWorkspace() {
                 rows={devices.data.items.map((device) => [
                   <code key="id">{device.id}</code>,
                   device.label ?? "—",
-                  `${device.browserFamily} ${device.browserVersionLastSeen ?? ""}`,
+                  device.browserFamily
+                    ? `${device.browserFamily} ${device.browserVersionLastSeen ?? ""}`.trim()
+                    : "Not provided",
                   device.status,
                   device.lastSeenAt ?? "—",
                   <Mutation
@@ -1427,7 +1706,10 @@ function AccountWorkspace() {
                     action="Revoke"
                     path={`/v1/admin/accounts/${accountId}/devices/${device.id}/revoke`}
                     body={{}}
-                    confirm={`Revoke device ${device.id}?`}
+                    confirm={`Revoke device ${device.id} in account ${accountId}? Its active extension sessions will end.`}
+                    disabled={mutationBusy}
+                    onBusyChange={setMutationBusy}
+                    reviewScope={accountId}
                     onDone={devices.load}
                   >
                     <span />
@@ -1436,6 +1718,7 @@ function AccountWorkspace() {
               />
               <Cursor
                 cursor={devices.data.nextCursor}
+                disabled={mutationBusy}
                 onNext={() =>
                   setDevicePath(
                     withCursor(devicePath, devices.data?.nextCursor ?? ""),
@@ -1510,9 +1793,11 @@ function AccountWorkspace() {
             Entitlement key
             <input
               value={entitlementKey}
+              disabled={mutationBusy}
               onChange={(e) => {
                 const value = e.target.value;
                 setEntitlementKey(value);
+                setOverrideEffectiveFrom(new Date().toISOString());
                 setOverridesPath(
                   `/v1/admin/accounts/${accountId}/entitlement-overrides?limit=50${value ? `&entitlementKey=${encodeURIComponent(value)}` : ""}`,
                 );
@@ -1532,6 +1817,7 @@ function AccountWorkspace() {
           {overrides.data && (
             <Cursor
               cursor={overrides.data.nextCursor}
+              disabled={mutationBusy}
               onNext={() =>
                 setOverridesPath(
                   withCursor(overridesPath, overrides.data?.nextCursor ?? ""),
@@ -1541,6 +1827,49 @@ function AccountWorkspace() {
           )}
           {entitlementKey && (
             <>
+              <LoadState
+                busy={overrideAuthority.busy}
+                error={overrideAuthority.error}
+              />
+              {overrideAuthority.data && (
+                <label>
+                  Override value
+                  {overrideAuthority.data.valueType === "BOOLEAN" ? (
+                    <select
+                      value={overrideInput}
+                      disabled={mutationBusy || overrideAuthority.busy}
+                      onChange={(event) =>
+                        setOverrideDraft({
+                          key: entitlementKey,
+                          value: event.target.value,
+                        })
+                      }
+                    >
+                      <option value="true">true</option>
+                      <option value="false">false</option>
+                    </select>
+                  ) : (
+                    <input
+                      type="number"
+                      step="1"
+                      value={overrideInput}
+                      disabled={mutationBusy || overrideAuthority.busy}
+                      onChange={(event) =>
+                        setOverrideDraft({
+                          key: entitlementKey,
+                          value: event.target.value,
+                        })
+                      }
+                    />
+                  )}
+                </label>
+              )}
+              {overrideAuthority.data?.deprecated && (
+                <p role="status">
+                  This entitlement is deprecated. An existing override can be
+                  cleared, but a new value cannot be set.
+                </p>
+              )}
               <LoadState busy={effective.busy} error={effective.error} />
               {effective.data && (
                 <p role="status">
@@ -1556,10 +1885,20 @@ function AccountWorkspace() {
               path={`/v1/admin/accounts/${accountId}/entitlement-overrides/${entitlementKey}/set`}
               body={{
                 expectedLatestRevision: latestOverrideRevision,
-                value: { kind: "BOOLEAN", value: true },
-                effectiveFrom: new Date().toISOString(),
+                value: selectedOverrideValue,
+                effectiveFrom: overrideEffectiveFrom,
                 expiresAt: null,
               }}
+              confirm={`Set override ${entitlementKey || "(required)"} to ${selectedOverrideValue ? `${selectedOverrideValue.kind} ${String(selectedOverrideValue.value)}` : "(value required)"} for account ${accountId}? The server will recalculate effective access.`}
+              disabled={
+                mutationBusy ||
+                overrideAuthority.busy ||
+                latestOverrideRevision === undefined ||
+                !selectedOverrideValue ||
+                overrideAuthority.data?.deprecated
+              }
+              onBusyChange={setMutationBusy}
+              reviewScope={accountId}
               onDone={reloadOverrides}
             >
               <span />
@@ -1570,10 +1909,17 @@ function AccountWorkspace() {
               path={`/v1/admin/accounts/${accountId}/entitlement-overrides/${entitlementKey}/clear`}
               body={{
                 expectedLatestRevision: latestOverrideRevision,
-                effectiveFrom: new Date().toISOString(),
+                effectiveFrom: overrideEffectiveFrom,
                 expiresAt: null,
               }}
-              confirm={`Clear override ${entitlementKey}?`}
+              confirm={`Clear override ${entitlementKey} for account ${accountId}? The server will recalculate effective access.`}
+              disabled={
+                mutationBusy ||
+                overrideAuthority.busy ||
+                latestOverrideRevision === undefined
+              }
+              onBusyChange={setMutationBusy}
+              reviewScope={accountId}
               onDone={reloadOverrides}
             >
               <span />
@@ -1591,10 +1937,107 @@ function AccountWorkspace() {
           </p>
         </section>
       )}
-      <button className="secondary" onClick={() => void reloadAll()}>
+      <button
+        className="secondary"
+        disabled={mutationBusy}
+        onClick={() => void reloadAll()}
+      >
         Reload workspace
       </button>
     </Shell>
+  );
+}
+
+function PrincipalActions({
+  id,
+  revision,
+  roles,
+  busy,
+  onBusyChange,
+  onDone,
+}: {
+  id: string;
+  revision: number;
+  roles: string[];
+  busy: boolean;
+  onBusyChange: (busy: boolean) => void;
+  onDone: () => Promise<void>;
+}) {
+  const { me } = useAdmin();
+  const [role, setRole] = useState<AdminPrincipalRole | "">("");
+  if (!has(me, "admin.principal.manage")) return null;
+  return (
+    <div className="actions">
+      <label>
+        Role for {id}
+        <select
+          value={role}
+          disabled={busy}
+          onChange={(event) =>
+            setRole(
+              isAdminPrincipalRole(event.target.value)
+                ? event.target.value
+                : "",
+            )
+          }
+        >
+          <option value="">Choose role</option>
+          {ADMIN_PRINCIPAL_ROLES.map((value) => (
+            <option key={value}>{value}</option>
+          ))}
+        </select>
+      </label>
+      {role && (
+        // Changing the target role discards its old reason and confirmation.
+        // The parent is also keyed by principal and authoritative revision.
+        <div className="actions" key={role}>
+          <Mutation
+            permission="admin.principal.manage"
+            action={`Grant ${role}`}
+            path={`/v1/admin/principals/${id}/roles/${role}/grant`}
+            body={{ expectedRevision: revision }}
+            confirm={`Grant ${role} to ${id}? This changes this principal's administrative access.`}
+            disabled={busy || roles.includes(role)}
+            onBusyChange={onBusyChange}
+            reviewScope={id}
+            onDone={onDone}
+          />
+          <Mutation
+            permission="admin.principal.manage"
+            action={`Revoke ${role}`}
+            path={`/v1/admin/principals/${id}/roles/${role}/revoke`}
+            body={{ expectedRevision: revision }}
+            confirm={`Revoke ${role} from ${id}? This removes the role's administrative access. Last-owner protection remains server-authoritative.`}
+            disabled={busy || !roles.includes(role)}
+            onBusyChange={onBusyChange}
+            reviewScope={id}
+            onDone={onDone}
+          />
+        </div>
+      )}
+      <Mutation
+        permission="admin.principal.manage"
+        action="Suspend"
+        path={`/v1/admin/principals/${id}/suspend`}
+        body={{ expectedRevision: revision }}
+        confirm={`Suspend principal ${id}? All active admin sessions for this principal will be revoked.`}
+        disabled={busy}
+        onBusyChange={onBusyChange}
+        reviewScope={id}
+        onDone={onDone}
+      />
+      <Mutation
+        permission="admin.principal.manage"
+        action="Restore"
+        path={`/v1/admin/principals/${id}/restore`}
+        body={{ expectedRevision: revision }}
+        confirm={`Restore principal ${id}? Previously revoked admin sessions stay revoked; a new sign-in and elevation are required.`}
+        disabled={busy}
+        onBusyChange={onBusyChange}
+        reviewScope={id}
+        onDone={onDone}
+      />
+    </div>
   );
 }
 
@@ -1606,6 +2049,9 @@ function Principals() {
   );
   const [userId, setUserId] = useState("");
   const [role, setRole] = useState("ADMIN_SUPPORT");
+  // Every row shares one authoritative list. Its reload unmounts the rows,
+  // so serialize writes across rows, creation and pagination until reload ends.
+  const [mutationBusy, setMutationBusy] = useState(false);
   return (
     <Shell title="Admin principals">
       <section className="card">
@@ -1614,36 +2060,42 @@ function Principals() {
           remains server-authoritative.
         </p>
         {has(me, "admin.principal.manage") && (
-          <Mutation
-            permission="admin.principal.manage"
-            action="Create principal"
-            path="/v1/admin/principals"
-            body={{ userId, initialRole: role }}
-            onDone={result.load}
-          >
+          <>
             <div className="form-grid">
               <label>
                 User ID
                 <input
                   value={userId}
+                  disabled={mutationBusy}
                   onChange={(e) => setUserId(e.target.value)}
                 />
               </label>
               <label>
                 Initial role
-                <select value={role} onChange={(e) => setRole(e.target.value)}>
-                  {[
-                    "ADMIN_OWNER",
-                    "ADMIN_OPS",
-                    "ADMIN_SUPPORT",
-                    "ADMIN_BILLING_READONLY",
-                  ].map((value) => (
+                <select
+                  value={role}
+                  disabled={mutationBusy}
+                  onChange={(e) => setRole(e.target.value)}
+                >
+                  {ADMIN_PRINCIPAL_ROLES.map((value) => (
                     <option key={value}>{value}</option>
                   ))}
                 </select>
               </label>
             </div>
-          </Mutation>
+            <Mutation
+              key={JSON.stringify([userId, role])}
+              permission="admin.principal.manage"
+              action="Create principal"
+              path="/v1/admin/principals"
+              body={{ userId, initialRole: role }}
+              confirm={`Create an admin principal for user ${userId} with ${role}? This grants administrative access to that user.`}
+              disabled={mutationBusy || !userId.trim()}
+              onBusyChange={setMutationBusy}
+              reviewScope={userId}
+              onDone={result.load}
+            />
+          </>
         )}
       </section>
       <section className="card">
@@ -1663,10 +2115,6 @@ function Principals() {
                 const principal = item as Record<string, unknown>;
                 const id = String(principal.principalId);
                 const revision = Number(principal.revision);
-                const selectedRole =
-                  Array.isArray(principal.roles) && principal.roles.length
-                    ? String(principal.roles[0])
-                    : "ADMIN_SUPPORT";
                 return [
                   id,
                   String(principal.userId),
@@ -1675,50 +2123,25 @@ function Principals() {
                   Array.isArray(principal.roles)
                     ? principal.roles.join(", ")
                     : "—",
-                  <div className="actions" key="a">
-                    <Mutation
-                      permission="admin.principal.manage"
-                      action={`Grant ${selectedRole}`}
-                      path={`/v1/admin/principals/${id}/roles/${selectedRole}/grant`}
-                      body={{ expectedRevision: revision }}
-                      onDone={result.load}
-                    >
-                      <span />
-                    </Mutation>
-                    <Mutation
-                      permission="admin.principal.manage"
-                      action={`Revoke ${selectedRole}`}
-                      path={`/v1/admin/principals/${id}/roles/${selectedRole}/revoke`}
-                      body={{ expectedRevision: revision }}
-                      confirm={`Revoke ${selectedRole} from ${id}? Last-owner protection remains server-authoritative.`}
-                      onDone={result.load}
-                    >
-                      <span />
-                    </Mutation>
-                    <Mutation
-                      permission="admin.principal.manage"
-                      action="Suspend"
-                      path={`/v1/admin/principals/${id}/suspend`}
-                      body={{ expectedRevision: revision }}
-                      onDone={result.load}
-                    >
-                      <span />
-                    </Mutation>
-                    <Mutation
-                      permission="admin.principal.manage"
-                      action="Restore"
-                      path={`/v1/admin/principals/${id}/restore`}
-                      body={{ expectedRevision: revision }}
-                      onDone={result.load}
-                    >
-                      <span />
-                    </Mutation>
-                  </div>,
+                  <PrincipalActions
+                    key={`${id}:${revision}`}
+                    id={id}
+                    revision={revision}
+                    busy={mutationBusy}
+                    onBusyChange={setMutationBusy}
+                    roles={
+                      Array.isArray(principal.roles)
+                        ? principal.roles.map(String)
+                        : []
+                    }
+                    onDone={result.load}
+                  />,
                 ];
               })}
             />
             <Cursor
               cursor={result.data.nextCursor}
+              disabled={mutationBusy}
               onNext={() =>
                 setPath(withCursor(path, result.data?.nextCursor ?? ""))
               }
@@ -2510,6 +2933,38 @@ function Dashboard() {
 }
 
 function BetaAdmissionPage() {
+  const { me } = useAdmin();
+  const authority = JSON.stringify([
+    me?.principalId,
+    me?.expiresAt,
+    me?.permissions,
+  ]);
+  const currentAuthority = useRef(authority);
+  currentAuthority.current = authority;
+  if (!has(me, "beta.admission.read"))
+    return (
+      <Shell title="Beta admission">
+        <p role="status">You do not have access to beta admission.</p>
+      </Shell>
+    );
+  // Drop private drafts and reviews when the actual admin authority changes.
+  // The shared ref also fences a completed old request before effect cleanup.
+  return (
+    <BetaAdmissionWorkspace
+      key={authority}
+      authority={authority}
+      currentAuthority={currentAuthority}
+    />
+  );
+}
+
+function BetaAdmissionWorkspace({
+  authority,
+  currentAuthority,
+}: {
+  authority: string;
+  currentAuthority: { current: string };
+}) {
   const { me, setNotice, refresh } = useAdmin();
   const state = useData<BetaState>(
     has(me, "beta.admission.read") ? "/v1/admin/beta/admission" : null,
@@ -2519,9 +2974,29 @@ function BetaAdmissionPage() {
   >("OPEN");
   const [amount, setAmount] = useState("100");
   const [reason, setReason] = useState("");
-  const [review, setReview] = useState(false);
+  const [review, setReview] = useState<{
+    fingerprint: string;
+    body: {
+      requestId: string;
+      expectedRevision: number;
+      action: typeof action;
+      amount?: number;
+      capacity?: number;
+      reason: string;
+    };
+  } | null>(null);
   const [busy, setBusy] = useState(false);
-  const requestId = useRef<string | undefined>(undefined);
+  const quotaRequest = useRef<ReviewedRequest | undefined>(undefined);
+  const pending = useRef(false);
+  const active = useRef(false);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
+  const isCurrent = () =>
+    active.current && currentAuthority.current === authority;
 
   const [lookupId, setLookupId] = useState("");
   const [invitation, setInvitation] = useState<BetaInvitation | null>(null);
@@ -2543,6 +3018,8 @@ function BetaAdmissionPage() {
   const revokeRequest = useRef<ReviewedRequest | undefined>(undefined);
 
   const current = state.data;
+  const mutationBusy = busy || inviteBusy || revokeBusy;
+  const editingDisabled = mutationBusy || state.busy;
   if (!has(me, "beta.admission.read")) return null;
 
   const staleOrConflict = (error: unknown) =>
@@ -2557,42 +3034,75 @@ function BetaAdmissionPage() {
         "ADMIN_CSRF_INVALID",
         "ADMIN_FORBIDDEN",
       ].includes(error.code)
-    )
+    ) {
+      if (!isCurrent()) return true;
+      setReview(null);
+      setInviteReviewBody(null);
+      setRevokeReviewBody(null);
+      quotaRequest.current = undefined;
+      inviteRequest.current = undefined;
+      revokeRequest.current = undefined;
+      setNotice({ kind: "error", text: safeError(error) });
       await refresh();
+      return true;
+    }
+    return false;
   };
 
   const loadInvitation = async (value = lookupId) => {
     const invitationId = value.trim();
-    if (!invitationId) return null;
+    if (!isCurrent() || !invitationId) return null;
     const generation = ++lookupGeneration.current;
     setLookupBusy(true);
     try {
       const next = await controlPlane<BetaInvitation>(
         `/v1/admin/beta/invitations/${encodeURIComponent(invitationId)}`,
       );
-      if (!lookupResultIsCurrent(generation, lookupGeneration.current))
+      if (
+        !isCurrent() ||
+        !lookupResultIsCurrent(generation, lookupGeneration.current)
+      )
         return null;
       setInvitation(next);
       setLookupId(next.invitationId);
       return next;
     } catch (error) {
-      if (!lookupResultIsCurrent(generation, lookupGeneration.current))
+      if (
+        !isCurrent() ||
+        !lookupResultIsCurrent(generation, lookupGeneration.current)
+      )
         return null;
       setInvitation(null);
-      await refreshAdminOnAuthorityError(error);
-      if (!lookupResultIsCurrent(generation, lookupGeneration.current))
+      if (await refreshAdminOnAuthorityError(error)) return null;
+      if (
+        !isCurrent() ||
+        !lookupResultIsCurrent(generation, lookupGeneration.current)
+      )
         return null;
       setNotice({ kind: "error", text: safeError(error) });
       return null;
     } finally {
-      if (lookupResultIsCurrent(generation, lookupGeneration.current))
+      if (
+        isCurrent() &&
+        lookupResultIsCurrent(generation, lookupGeneration.current)
+      )
         setLookupBusy(false);
     }
   };
 
   const beginInviteReview = () => {
     const normalizedEmail = normalizeBetaInvitationEmail(inviteEmail);
-    if (!current || !normalizedEmail || !inviteReason.trim()) return;
+    if (
+      pending.current ||
+      !isCurrent() ||
+      !has(me, "beta.admission.manage") ||
+      !current ||
+      state.busy ||
+      lookupBusy ||
+      !normalizedEmail ||
+      !inviteReason.trim()
+    )
+      return;
     const fingerprint = JSON.stringify([
       current.revision,
       normalizedEmail,
@@ -2613,7 +3123,20 @@ function BetaAdmissionPage() {
   };
 
   const submitInvitation = async () => {
-    if (!inviteReviewBody) return;
+    if (
+      pending.current ||
+      !isCurrent() ||
+      !has(me, "beta.admission.manage") ||
+      !inviteReviewBody ||
+      !current ||
+      state.busy ||
+      lookupBusy ||
+      inviteReviewBody.expectedRevision !== current.revision ||
+      inviteReviewBody.email !== normalizeBetaInvitationEmail(inviteEmail) ||
+      inviteReviewBody.reason !== inviteReason.trim()
+    )
+      return;
+    pending.current = true;
     const selectionGeneration = lookupGeneration.current;
     setInviteBusy(true);
     try {
@@ -2625,6 +3148,7 @@ function BetaAdmissionPage() {
           body: JSON.stringify(inviteReviewBody),
         },
       );
+      if (!isCurrent()) return;
       inviteRequest.current = undefined;
       setInviteReviewBody(null);
       setInviteEmail("");
@@ -2645,25 +3169,36 @@ function BetaAdmissionPage() {
       });
       await state.load();
     } catch (error) {
+      if (!isCurrent()) return;
       if (staleOrConflict(error)) {
         inviteRequest.current = undefined;
         setInviteReviewBody(null);
-        await state.load();
         setNotice({
           kind: "info",
-          text: "The invitation was not automatically retried. Current beta state was refreshed; review a new invitation before submitting.",
+          text: "The invitation was not automatically retried. Review current server data before submitting a new invitation.",
         });
+        await state.load();
       } else {
-        await refreshAdminOnAuthorityError(error);
-        setNotice({ kind: "error", text: safeError(error) });
+        if (await refreshAdminOnAuthorityError(error)) return;
+        if (isCurrent()) setNotice({ kind: "error", text: safeError(error) });
       }
     } finally {
-      setInviteBusy(false);
+      pending.current = false;
+      if (isCurrent()) setInviteBusy(false);
     }
   };
 
   const beginRevokeReview = () => {
-    if (!invitation || invitation.status !== "PENDING" || !revokeReason.trim())
+    if (
+      pending.current ||
+      !isCurrent() ||
+      !has(me, "beta.admission.manage") ||
+      state.busy ||
+      lookupBusy ||
+      !invitation ||
+      invitation.status !== "PENDING" ||
+      !revokeReason.trim()
+    )
       return;
     const fingerprint = JSON.stringify([
       invitation.invitationId,
@@ -2683,7 +3218,19 @@ function BetaAdmissionPage() {
   };
 
   const submitRevoke = async () => {
-    if (!revokeReviewBody) return;
+    if (
+      pending.current ||
+      !isCurrent() ||
+      !has(me, "beta.admission.manage") ||
+      state.busy ||
+      lookupBusy ||
+      !revokeReviewBody ||
+      revokeReviewBody.invitationId !== invitation?.invitationId ||
+      invitation.status !== "PENDING" ||
+      revokeReviewBody.body.reason !== revokeReason.trim()
+    )
+      return;
+    pending.current = true;
     const selectionGeneration = lookupGeneration.current;
     setRevokeBusy(true);
     try {
@@ -2695,6 +3242,7 @@ function BetaAdmissionPage() {
           body: JSON.stringify(revokeReviewBody.body),
         },
       );
+      if (!isCurrent()) return;
       revokeRequest.current = undefined;
       setRevokeReviewBody(null);
       setRevokeReason("");
@@ -2713,27 +3261,29 @@ function BetaAdmissionPage() {
       });
       await state.load();
     } catch (error) {
+      if (!isCurrent()) return;
       if (staleOrConflict(error)) {
         const invitationId = revokeReviewBody.invitationId;
         revokeRequest.current = undefined;
         setRevokeReviewBody(null);
+        setNotice({
+          kind: "info",
+          text: "The revoke was not automatically retried. Review current server data before submitting a new revoke.",
+        });
         await state.load();
         if (
+          !isCurrent() ||
           !lookupResultIsCurrent(selectionGeneration, lookupGeneration.current)
         )
           return;
-        const refreshed = await loadInvitation(invitationId);
-        if (refreshed)
-          setNotice({
-            kind: "info",
-            text: "The revoke was not automatically retried. Current invitation state was refreshed; review a new revoke if it is still applicable.",
-          });
+        await loadInvitation(invitationId);
       } else {
-        await refreshAdminOnAuthorityError(error);
-        setNotice({ kind: "error", text: safeError(error) });
+        if (await refreshAdminOnAuthorityError(error)) return;
+        if (isCurrent()) setNotice({ kind: "error", text: safeError(error) });
       }
     } finally {
-      setRevokeBusy(false);
+      pending.current = false;
+      if (isCurrent()) setRevokeBusy(false);
     }
   };
 
@@ -2750,53 +3300,97 @@ function BetaAdmissionPage() {
       ? `capacity ${capacity} → ${nextCapacity} (+${parsedAmount})`
       : action === "SET_CAPACITY"
         ? `capacity ${capacity} → ${nextCapacity}`
-        : `mode ${current?.mode ?? "—"} → ${action}`;
+        : `mode ${current?.mode ?? "—"} → ${action === "PAUSE" ? "PAUSED" : action === "CLOSE" ? "CLOSED" : "OPEN"}`;
+  const validQuota =
+    Boolean(current && reason.trim()) &&
+    (action !== "ADD_CAPACITY" ||
+      (amount.trim() !== "" &&
+        Number.isSafeInteger(parsedAmount) &&
+        parsedAmount >= 1 &&
+        Number.isSafeInteger(nextCapacity))) &&
+    (action !== "SET_CAPACITY" ||
+      (amount.trim() !== "" &&
+        Number.isSafeInteger(parsedAmount) &&
+        parsedAmount >= 0));
+  const quotaFingerprint = JSON.stringify([
+    current?.revision,
+    action,
+    action === "ADD_CAPACITY" || action === "SET_CAPACITY"
+      ? parsedAmount
+      : null,
+    reason.trim(),
+  ]);
+  const currentReview =
+    review?.fingerprint === quotaFingerprint && validQuota ? review : null;
+  const beginQuotaReview = () => {
+    if (
+      pending.current ||
+      !isCurrent() ||
+      !has(me, "beta.admission.manage") ||
+      !current ||
+      state.busy ||
+      lookupBusy ||
+      !validQuota
+    )
+      return;
+    quotaRequest.current = ensureReviewedRequest(
+      quotaRequest.current,
+      quotaFingerprint,
+    );
+    setReview({
+      fingerprint: quotaFingerprint,
+      body: {
+        requestId: quotaRequest.current.requestId,
+        expectedRevision: current.revision,
+        action,
+        ...(action === "ADD_CAPACITY" ? { amount: parsedAmount } : {}),
+        ...(action === "SET_CAPACITY" ? { capacity: parsedAmount } : {}),
+        reason: reason.trim(),
+      },
+    });
+  };
 
   const submit = async () => {
     if (
-      !current ||
-      !reason.trim() ||
-      (action === "ADD_CAPACITY" &&
-        (!Number.isSafeInteger(parsedAmount) || parsedAmount < 1)) ||
-      (action === "SET_CAPACITY" &&
-        (!Number.isSafeInteger(parsedAmount) || parsedAmount < 0))
+      pending.current ||
+      !isCurrent() ||
+      !has(me, "beta.admission.manage") ||
+      state.busy ||
+      lookupBusy ||
+      !currentReview
     )
       return;
+    pending.current = true;
     setBusy(true);
-    requestId.current ??= crypto.randomUUID();
     try {
       await controlPlane("/v1/admin/beta/admission", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          requestId: requestId.current,
-          expectedRevision: current.revision,
-          action,
-          ...(action === "ADD_CAPACITY" ? { amount: parsedAmount } : {}),
-          ...(action === "SET_CAPACITY" ? { capacity: parsedAmount } : {}),
-          reason: reason.trim(),
-        }),
+        body: JSON.stringify(currentReview.body),
       });
-      requestId.current = undefined;
-      setReview(false);
+      if (!isCurrent()) return;
+      quotaRequest.current = undefined;
+      setReview(null);
       setReason("");
       setNotice({ kind: "success", text: "Beta admission updated." });
       await state.load();
     } catch (error) {
-      if (
-        error instanceof ControlPlaneError &&
-        error.code === "ADMIN_STATE_STALE"
-      ) {
-        requestId.current = undefined;
-        setReview(false);
-        await state.load();
+      if (!isCurrent()) return;
+      if (staleOrConflict(error)) {
+        quotaRequest.current = undefined;
+        setReview(null);
         setNotice({
           kind: "info",
-          text: "The beta state changed. Review the refreshed state before submitting again.",
+          text: "The beta change was not automatically repeated. Review current server data before submitting a new operation.",
         });
-      } else setNotice({ kind: "error", text: safeError(error) });
+        await state.load();
+      } else {
+        if (await refreshAdminOnAuthorityError(error)) return;
+        if (isCurrent()) setNotice({ kind: "error", text: safeError(error) });
+      }
     } finally {
-      setBusy(false);
+      pending.current = false;
+      if (isCurrent()) setBusy(false);
     }
   };
 
@@ -2833,7 +3427,11 @@ function BetaAdmissionPage() {
                   Action
                   <select
                     value={action}
-                    onChange={(e) => setAction(e.target.value as typeof action)}
+                    disabled={editingDisabled}
+                    onChange={(e) => {
+                      setAction(e.target.value as typeof action);
+                      setReview(null);
+                    }}
                   >
                     <option>OPEN</option>
                     <option>PAUSE</option>
@@ -2849,7 +3447,11 @@ function BetaAdmissionPage() {
                       type="number"
                       min={action === "ADD_CAPACITY" ? 1 : 0}
                       value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
+                      disabled={editingDisabled}
+                      onChange={(e) => {
+                        setAmount(e.target.value);
+                        setReview(null);
+                      }}
                     />
                   </label>
                 )}
@@ -2859,18 +3461,22 @@ function BetaAdmissionPage() {
                 <textarea
                   value={reason}
                   maxLength={256}
-                  onChange={(e) => setReason(e.target.value)}
+                  disabled={editingDisabled}
+                  onChange={(e) => {
+                    setReason(e.target.value);
+                    setReview(null);
+                  }}
                   required
                 />
               </label>
               <button
                 type="button"
-                disabled={!reason.trim() || busy}
-                onClick={() => setReview(true)}
+                disabled={editingDisabled || lookupBusy || !validQuota}
+                onClick={beginQuotaReview}
               >
                 Review change
               </button>
-              {review && (
+              {currentReview && (
                 <div
                   className="confirm"
                   role="dialog"
@@ -2880,11 +3486,11 @@ function BetaAdmissionPage() {
                     <strong>Exact change</strong>
                   </p>
                   <p>{change}</p>
-                  <p>Reason: {reason || "(required)"}</p>
+                  <p>Reason: {currentReview.body.reason}</p>
                   <div className="actions">
                     <button
                       type="button"
-                      disabled={busy || !reason.trim()}
+                      disabled={editingDisabled || lookupBusy || !validQuota}
                       onClick={() => void submit()}
                     >
                       Confirm
@@ -2892,7 +3498,8 @@ function BetaAdmissionPage() {
                     <button
                       type="button"
                       className="secondary"
-                      onClick={() => setReview(false)}
+                      disabled={editingDisabled}
+                      onClick={() => setReview(null)}
                     >
                       Cancel
                     </button>
@@ -2913,6 +3520,7 @@ function BetaAdmissionPage() {
               Invitation ID
               <input
                 value={lookupId}
+                disabled={editingDisabled}
                 onChange={(event) => {
                   lookupGeneration.current += 1;
                   setLookupBusy(false);
@@ -2927,7 +3535,7 @@ function BetaAdmissionPage() {
               <button
                 type="button"
                 className="secondary"
-                disabled={lookupBusy || !lookupId.trim()}
+                disabled={editingDisabled || lookupBusy || !lookupId.trim()}
                 onClick={() => void loadInvitation()}
               >
                 {lookupBusy ? "Loading…" : "Inspect invitation"}
@@ -2969,6 +3577,7 @@ function BetaAdmissionPage() {
                 <input
                   type="email"
                   value={inviteEmail}
+                  disabled={editingDisabled}
                   onChange={(event) => {
                     setInviteEmail(event.target.value);
                     setInviteReviewBody(null);
@@ -2980,6 +3589,7 @@ function BetaAdmissionPage() {
                 Reason
                 <textarea
                   value={inviteReason}
+                  disabled={editingDisabled}
                   maxLength={512}
                   onChange={(event) => {
                     setInviteReason(event.target.value);
@@ -2990,7 +3600,8 @@ function BetaAdmissionPage() {
               <button
                 type="button"
                 disabled={
-                  inviteBusy ||
+                  editingDisabled ||
+                  lookupBusy ||
                   !inviteEmail.trim() ||
                   !inviteReason.trim() ||
                   !current
@@ -2999,37 +3610,38 @@ function BetaAdmissionPage() {
               >
                 Review invitation
               </button>
-              {inviteReviewBody && (
-                <div
-                  className="confirm"
-                  role="dialog"
-                  aria-label="Confirm targeted invitation"
-                >
-                  <p>
-                    <strong>Exact invitation</strong>
-                  </p>
-                  <p>Target: {inviteReviewBody.email}</p>
-                  <p>Beta revision: {inviteReviewBody.expectedRevision}</p>
-                  <p>Reason: {inviteReviewBody.reason}</p>
-                  <div className="actions">
-                    <button
-                      type="button"
-                      disabled={inviteBusy}
-                      onClick={() => void submitInvitation()}
-                    >
-                      {inviteBusy ? "Working…" : "Confirm invitation"}
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary"
-                      disabled={inviteBusy}
-                      onClick={() => setInviteReviewBody(null)}
-                    >
-                      Cancel
-                    </button>
+              {inviteReviewBody &&
+                inviteReviewBody.expectedRevision === current.revision && (
+                  <div
+                    className="confirm"
+                    role="dialog"
+                    aria-label="Confirm targeted invitation"
+                  >
+                    <p>
+                      <strong>Exact invitation</strong>
+                    </p>
+                    <p>Target: {inviteReviewBody.email}</p>
+                    <p>Beta revision: {inviteReviewBody.expectedRevision}</p>
+                    <p>Reason: {inviteReviewBody.reason}</p>
+                    <div className="actions">
+                      <button
+                        type="button"
+                        disabled={editingDisabled || lookupBusy}
+                        onClick={() => void submitInvitation()}
+                      >
+                        {inviteBusy ? "Working…" : "Confirm invitation"}
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={editingDisabled}
+                        onClick={() => setInviteReviewBody(null)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </section>
           )}
 
@@ -3044,6 +3656,7 @@ function BetaAdmissionPage() {
                   Reason
                   <textarea
                     value={revokeReason}
+                    disabled={editingDisabled}
                     maxLength={512}
                     onChange={(event) => {
                       setRevokeReason(event.target.value);
@@ -3053,7 +3666,9 @@ function BetaAdmissionPage() {
                 </label>
                 <button
                   type="button"
-                  disabled={revokeBusy || !revokeReason.trim()}
+                  disabled={
+                    editingDisabled || lookupBusy || !revokeReason.trim()
+                  }
                   onClick={beginRevokeReview}
                 >
                   Review revoke
@@ -3072,7 +3687,7 @@ function BetaAdmissionPage() {
                     <div className="actions">
                       <button
                         type="button"
-                        disabled={revokeBusy}
+                        disabled={editingDisabled || lookupBusy}
                         onClick={() => void submitRevoke()}
                       >
                         {revokeBusy ? "Working…" : "Confirm revoke"}
@@ -3080,7 +3695,7 @@ function BetaAdmissionPage() {
                       <button
                         type="button"
                         className="secondary"
-                        disabled={revokeBusy}
+                        disabled={editingDisabled}
                         onClick={() => setRevokeReviewBody(null)}
                       >
                         Cancel

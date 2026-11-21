@@ -442,22 +442,39 @@ export class AdminOpsService {
   > {
     return this.commercialPortal.readAccountSubscription(accountId);
   }
-  revokeDevice(input: Parameters<AdminOpsRepository["revokeDevice"]>[0]) {
-    return this.repository.revokeDevice(input);
+  async revokeDevice(input: Parameters<AdminOpsRepository["revokeDevice"]>[0]) {
+    const reason = AdminReasonV1Schema.safeParse(input.reason);
+    return reason.success
+      ? this.repository.revokeDevice({ ...input, reason: reason.data })
+      : ("INVALID" as const);
   }
-  createPrincipal(input: Parameters<AdminOpsRepository["createPrincipal"]>[0]) {
-    return this.repository.createPrincipal(input);
+  async createPrincipal(
+    input: Parameters<AdminOpsRepository["createPrincipal"]>[0],
+  ) {
+    const reason = AdminReasonV1Schema.safeParse(input.reason);
+    return reason.success
+      ? this.repository.createPrincipal({ ...input, reason: reason.data })
+      : { kind: "INVALID" as const };
   }
-  grantRole(input: Parameters<AdminOpsRepository["grantRole"]>[0]) {
-    return this.repository.grantRole(input);
+  async grantRole(input: Parameters<AdminOpsRepository["grantRole"]>[0]) {
+    const reason = AdminReasonV1Schema.safeParse(input.reason);
+    return reason.success
+      ? this.repository.grantRole({ ...input, reason: reason.data })
+      : { kind: "INVALID" as const };
   }
-  revokeRole(input: Parameters<AdminOpsRepository["revokeRole"]>[0]) {
-    return this.repository.revokeRole(input);
+  async revokeRole(input: Parameters<AdminOpsRepository["revokeRole"]>[0]) {
+    const reason = AdminReasonV1Schema.safeParse(input.reason);
+    return reason.success
+      ? this.repository.revokeRole({ ...input, reason: reason.data })
+      : { kind: "INVALID" as const };
   }
-  setPrincipalStatus(
+  async setPrincipalStatus(
     input: Parameters<AdminOpsRepository["setPrincipalStatus"]>[0],
   ) {
-    return this.repository.setPrincipalStatus(input);
+    const reason = AdminReasonV1Schema.safeParse(input.reason);
+    return reason.success
+      ? this.repository.setPrincipalStatus({ ...input, reason: reason.data })
+      : { kind: "INVALID" as const };
   }
 }
 
@@ -467,3 +484,23 @@ export function lastActiveOwnerWouldBeRemoved(input: {
 }): boolean {
   return input.targetIsActiveOwner && input.activeOwnerCount <= 1;
 }
+
+// Internal B14 read preparation. Export through the domain package so the
+// database package never reaches into private source paths. These exports do
+// not add HTTP fields, endpoints, permissions, or a structured-reason writer.
+export {
+  decodeB14StoreCursor,
+  encodeB14StoreCursor,
+  projectB14StoreMetadata,
+  type B14StoreCursor,
+  type B14StoreMetadata,
+  type B14StoreMetadataInput,
+  type B14StoreProjectionResult,
+} from "./b14-store-projection.js";
+export {
+  mapB14AuditSummary,
+  type B14AuditReasonCategory,
+  type B14AuditSummary,
+  type B14AuditSummaryProjection,
+  type B14AuditWhat,
+} from "./b14-audit-summary.js";
