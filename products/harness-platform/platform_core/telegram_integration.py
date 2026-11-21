@@ -32,22 +32,28 @@ SCHEMA = (
     "DROP TRIGGER IF EXISTS telegram_uninstall",
 )
 
+# Reviewed Telegram widget bytes. The external script runs only in the small widget document.
+WIDGET_INTEGRITY = "sha384-U8UCFxdft3eZcbzqSnXOVrSQW+Cd1OZGLvi+fCHS6fnrrJaDBZpWaon2C8At1jZ7"
 RETURN_PAGE = """<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport"
 content="width=device-width,initial-scale=1"><title>Telegram · Октопорт</title>
-<main><h1>Интеграция Telegram</h1><p role="status">Подтверждаем подключение…</p>
+<link rel="stylesheet" href="/ui-assets/project/account.css"><body class="telegram-return-page"><main><h1>Интеграция Telegram</h1><p role="status">Подтверждаем подключение…</p>
 <a href="/app/">Вернуться в Октопорт</a></main><script src="/telegram/return.js" defer></script></html>"""
 RETURN_JS = r"""(async () => {
   const query = new URLSearchParams(location.search);
+  const embedded = query.get('embed') === '1' && parent !== window;
+  const notify = (outcome, message) => {
+    if (embedded) parent.postMessage({type:'octoport.telegram.result', state, outcome, message}, location.origin);
+  };
   history.replaceState(null, '', '/telegram/return');
   const label = document.querySelector('[role=status]');
   const state = query.get('state');
   if (!state || query.getAll('state').length !== 1 || query.has('error')) {
-    label.textContent = 'Подключение отменено. Вы можете вернуться в Октопорт.'; return;
+    label.textContent = 'Подключение отменено.'; notify('error', label.textContent); return;
   }
   try {
     const payload = {state};
     if (query.has('hash')) {
-      query.delete('state');
+      query.delete('state'); query.delete('embed');
       payload.user = Object.fromEntries(query);
     } else if (query.get('code')) {
       payload.code = query.get('code');
@@ -59,19 +65,28 @@ RETURN_JS = r"""(async () => {
     const result = await response.json();
     if (!response.ok) throw Error(response.status === 401 ? 'Войдите в Октопорт и начните подключение заново.' : result.error);
     label.textContent = 'Telegram подключён к вашему аккаунту Октопорта.';
+    notify('linked');
+    if (embedded) return;
+    if ('BroadcastChannel' in window) {
+      const channel = new BroadcastChannel('octoport.telegram');
+      channel.postMessage({state, linked:true}); channel.close();
+    }
     const path = sessionStorage.getItem('octoport.telegram.return');
     sessionStorage.removeItem('octoport.telegram.return');
     if (path && /^\/app\/chats\/[A-Za-z0-9_-]+$/.test(path)) {
       const link = document.querySelector('a'); link.href = path; link.textContent = 'Вернуться в чат';
     }
-  } catch (e) { label.textContent = e.message || 'Не удалось подтвердить подключение.'; }
+  } catch (e) { label.textContent = e.message || 'Не удалось подтвердить подключение.'; notify('error', label.textContent); }
 })();"""
 PRIVATE = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff",
-           "Content-Security-Policy": "default-src 'none'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"}
+           "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"}
 WIDGET_HEADERS = {**PRIVATE, "Content-Security-Policy":
     "default-src 'none'; script-src https://telegram.org/js/telegram-widget.js; "
     "frame-src https://oauth.telegram.org; style-src 'unsafe-inline'; "
     "base-uri 'none'; frame-ancestors 'none'; form-action 'none'"}
+
+EMBED_CALLBACK_HEADERS = {**PRIVATE, "Content-Security-Policy":
+    PRIVATE["Content-Security-Policy"].replace("frame-ancestors 'none'", "frame-ancestors 'self'")}
 
 
 class TelegramIntegration:
@@ -140,6 +155,7 @@ def routes(body):
     async def returning(req):
         if req.url.path.endswith(".js"):
             return Response(RETURN_JS, media_type="text/javascript", headers=PRIVATE)
+        embedded = req.query_params.get("embed") == "1"
         if req.query_params.get("widget") == "1":
             state = req.app.state
             cfg = require_config(state)
@@ -153,15 +169,29 @@ def routes(body):
                     (digest(challenge), cfg.bot)).fetchone()
                 if not row or not cfg.username:
                     raise HTTPException(409, "Подключение истекло. Начните его заново в разделе «Интеграции».")
-            target = html.escape("/telegram/return?" + urlencode({"state": challenge}), quote=True)
-            return HTMLResponse(f"""<!doctype html><html lang="ru"><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Подключить Telegram · Октопорт</title>
-<main><h1>Подключить Telegram</h1><p>Выберите аккаунт Telegram и разрешите боту присылать отчёты.</p>
-<script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="{html.escape(cfg.username)}"
-data-size="large" data-lang="ru" data-request-access="write" data-auth-url="{target}"></script>
-<p><a href="/app/">Вернуться в Октопорт</a></p></main></html>""",
-                                headers=WIDGET_HEADERS)
-        return HTMLResponse(RETURN_PAGE, headers=PRIVATE)
+            params = {"state": challenge}
+            if embedded:
+                params["embed"] = "1"
+            target = html.escape("/telegram/return?" + urlencode(params), quote=True)
+            button = f'''<script async src="https://telegram.org/js/telegram-widget.js?22"
+integrity="{WIDGET_INTEGRITY}" crossorigin="anonymous" data-telegram-login="{html.escape(cfg.username)}"
+data-size="large" data-radius="10" data-lang="ru" data-request-access="write" data-auth-url="{target}"></script>'''
+            # Older, already-open clients can still finish their top-level handoff.
+            content = button if embedded else ('<main><h1>Подключить Telegram</h1>' + button +
+                '<p><a href="/app/">Вернуться в Октопорт</a></p></main>')
+            style = ("html,body{margin:0;background:transparent}body{display:grid;justify-content:start}iframe{border:0}"
+                     if embedded else
+                     "body{margin:0;min-height:100dvh;display:grid;place-items:center;background:#f4f6f9;"
+                     "color:#222735;font:15px system-ui}main{padding:28px;border-radius:16px;background:white;"
+                     "box-shadow:0 8px 30px #22334a18}h1{font-size:21px}a{color:#315bb1}")
+            headers = dict(WIDGET_HEADERS)
+            if embedded:
+                headers["Content-Security-Policy"] = headers["Content-Security-Policy"].replace(
+                    "frame-ancestors 'none'", "frame-ancestors 'self'")
+            return HTMLResponse(f'''<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Подключить Telegram</title>
+<style>{style}</style></head><body>{content}</body></html>''', headers=headers)
+        return HTMLResponse(RETURN_PAGE, headers=EMBED_CALLBACK_HEADERS if embedded else PRIVATE)
 
     async def manage(req):
         token = browser_token(req)
