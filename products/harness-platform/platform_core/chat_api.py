@@ -20,7 +20,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from .admin_costs import AdminCosts, present_chat
-from .user_plugins import service as user_plugins, illustrations
+from .user_plugins import service as user_plugins, illustrations, telegram_routes
 from .browser_session import browser_routes, browser_token
 from .chat_worker import ChatWorker, WorkerError
 from . import integrations, provider_keys, chat_connections, chat_defaults, turn_progress
@@ -110,6 +110,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                     limits=httpx.Limits(max_connections=64,max_keepalive_connections=16)) as http:
                 app.state.http = http
                 async with AsyncExitStack() as extensions:
+                    await extensions.enter_async_context(telegram_routes.activate(app.state))
                     app.state.model_router = await extensions.enter_async_context(
                         router_plugin.activate(app.state.identity,http,app.state.worker)) if router_plugin else None
                     if app.state.model_router:
@@ -295,6 +296,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         *web_routes(),
         *turn_progress.routes(_token),
         *chat_connections.routes(_token,_body),
+        *telegram_routes.routes(_body),
         *user_plugins.routes(_token,_body),
         *illustrations.routes(_token),
         *integrations.routes(_token, _body),
