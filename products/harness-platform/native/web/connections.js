@@ -3,7 +3,8 @@ window.__ModuleLoader__.load({
   factory(require) {
     const React=require('react'),h=React.createElement;
 
-    return {inject:['slots'],apply(ctx) {
+    const {Switch}=require('@deepseek-ai/dsh-client-ui-primitives');
+    return {inject:['slots','uiWorkspace'],apply(ctx) {
       const a=window.harnessAccount;
       const post=(url,data)=>a.api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
       const status={saved:'Сохранено',verified:'Связь подтверждена',unconfirmed:'Связь не подтверждена',denied:'Доступ отклонён'};
@@ -11,12 +12,16 @@ window.__ModuleLoader__.load({
         return h('details',{className:'connection-guide'},h('summary',null,title),
           h('ol',null,steps.map(step=>h('li',{key:step},step))));
       }
-      function Connections({initial={},after}) {
+      function Connections({initial={},after,chat}) {
         const [list,setList]=React.useState(null),[provider,setProvider]=React.useState(initial.provider||'');
         const [fields,setFields]=React.useState(initial.fields||{}),[name,setName]=React.useState(initial.name||'');
         const [msg,setMsg]=React.useState(initial.notice||''),[busy,setBusy]=React.useState(false);
         const [target,setTarget]=React.useState(''),[phrase,setPhrase]=React.useState(''),[rows,setRows]=React.useState([]);
-        const refresh=()=>a.api('/api/integrations').then(setList);
+        const grantsUrl=chat&&'/api/chats/'+encodeURIComponent(chat)+'/integrations';
+        async function refresh(){
+          const [account,grants]=await Promise.all([a.api('/api/integrations'),grantsUrl&&a.api(grantsUrl)]);
+          setList({...account,attached:new Set(grants?.connections?.filter(c=>c.attached).map(c=>c.id))});
+        }
         React.useEffect(()=>{refresh().catch(e=>setMsg(e.message));},[]);
         async function act(fn){
           setBusy(true);setMsg('');
@@ -32,6 +37,12 @@ window.__ModuleLoader__.load({
               const r=await post('/api/integrations/'+c.id+'/check',{});await refresh();
               setMsg(Object.entries(r.checks).map(([k,v])=>k+' · '+status[v]).join(' / '));
             })},'Проверить'),
+            grantsUrl&&h('label',{className:'service-chat-grant'},'Доступ в этом диалоге',
+              h(Switch,{label:'Доступ в этом диалоге · '+c.name,checked:list.attached.has(c.id),disabled:busy,
+                onChange:enabled=>act(async()=>{
+                  await post(grantsUrl,{connectionId:c.id,enabled});
+                  window.dispatchEvent(new Event('harness:grants'));await refresh();
+                })})),
             c.provider==='wordstat' && h('button',{onClick:()=>{setTarget(c.id);setRows([]);}},'Собрать семантику'))),
           target && h('form',{onSubmit:e=>{e.preventDefault();act(async()=>setRows((await post('/api/integrations/'+target+'/semantics',{phrase})).rows));}},
             h('label',null,'Поисковая фраза',h('input',{required:true,value:phrase,onChange:e=>setPhrase(e.target.value)})),
@@ -44,7 +55,7 @@ window.__ModuleLoader__.load({
           entry && h('form',{autoComplete:'off',onSubmit:e=>{e.preventDefault();act(async()=>{
             await post('/api/integrations',{provider,name:name.trim()||entry.title,fields,...(initial.chatId?{chatId:initial.chatId}:{})});
             window.dispatchEvent(new Event('harness:grants'));setFields({});setProvider('');setName('');await refresh();
-            const notice=initial.chatId?'Подключение добавлено в этот чат':'Ключи сохранены. Нажмите «Подключения» в левом меню и включите магазин.';
+            const notice=initial.chatId?'Подключение добавлено в этот чат':'Ключи сохранены.';
             setMsg(notice);after?.(notice);
           });}},
             h('label',null,'Название подключения',h('input',{maxLength:80,value:name,placeholder:entry.title,onChange:e=>setName(e.target.value)})),
@@ -146,7 +157,13 @@ window.__ModuleLoader__.load({
       },ChatDock));
       const section=(id,title,order,component)=>ctx.slots.inject('settings.section',()=>ctx.slots.register({
         name:'settings.section',id,order,label:()=>title},component));
-      section('integrations','Интеграции',5,Connections);
+      function IntegrationSettings() {
+        const selection=ctx.uiWorkspace.selection;
+        const id=React.useSyncExternalStore(cb=>selection.subscribe(cb),()=>selection.getSnapshot().sessionId);
+        const chat=a.hasChat(id)?id:null;
+        return h(Connections,{key:chat,chat});
+      }
+      section('integrations','Интеграции',5,IntegrationSettings);
       if(a.modelChoice)section('model-choice','Выбор ИИ',6,Models);
     }};
   }

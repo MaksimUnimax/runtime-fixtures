@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 from playwright.async_api import async_playwright, expect
-from test_account_browser import account_action, running_product
+from test_account_browser import account_action, open_integrations, running_product
 from turn_response import observe_turns
 from platform_core.identity import IdentityStore
 from platform_core.operation_grants import initialize_grants
@@ -74,7 +74,7 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
                     await expect(page.locator("[data-live-turn=thinking]")).not_to_contain_text("private fixture trace")
                     await expect(page.locator("[data-live-turn=writing]")).to_contain_text("answer to", timeout=20_000)
                     await expect(page.locator("[data-live-turn=writing]")).not_to_contain_text("browser fixture")
-                    await expect(page.get_by_role("button",name="Подключения",exact=True)).to_be_visible()
+                    await expect(page.get_by_role("button",name="Плагины",exact=True)).to_be_visible()
             response = await sent.value
             self.assertEqual(response.status, 200)
             await expect(page.locator('[data-slot="conversation.view"]')).to_contain_text("answer to " + text, timeout=30_000)
@@ -112,20 +112,21 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((row["operation_id"], row["unique_attempts"], row["total_rub"]),
                          (receipt["operationId"], 1, "0.00072"))
 
-        grants=page.get_by_role("dialog",name="Подключения этого чата")
-        await page.get_by_role("button",name="Подключения",exact=True).click()
-        await grants.get_by_role("button",name="Добавить подключение").click()
-        form=page.get_by_role("dialog",name="Подключение сервиса",exact=True)
+        await open_integrations(page)
+        form=page.get_by_role("dialog")
         await form.get_by_label("Сервис",exact=True).select_option("ozon")
         await form.get_by_label("Название подключения").fill("Тест Seller")
         await form.get_by_label("Client-Id продавца").fill("qa-id")
         await form.get_by_label("Api-Key продавца").fill("qa-private-key")
         await form.get_by_role("button",name="Сохранить подключение").click()
-        await expect(form).to_contain_text("Подключение добавлено в этот чат")
+        await expect(form).to_contain_text("Ключи сохранены")
+        switch=form.get_by_role("switch",name="Доступ в этом диалоге · Тест Seller")
+        await expect(switch).not_to_be_checked()
+        await switch.click()
+        await expect(switch).to_be_checked()
         await form.get_by_role("button",name="Закрыть").click()
         await page.reload()
-        await page.get_by_role("button",name="Подключения · Тест Seller").click()
-        switch=grants.get_by_role("switch",name="Тест Seller · Ozon")
+        await open_integrations(page)
         await expect(switch).to_be_checked()
         thumb=switch.locator("span")
         on=await thumb.bounding_box()
@@ -133,9 +134,9 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
         await switch.press("Space")
         await expect(switch).not_to_be_checked()
         await expect(switch).to_be_enabled()
-        await page.wait_for_function("(x) => document.querySelector('[role=dialog] [role=switch] span').getBoundingClientRect().x < x-2",arg=on["x"])
-        await expect(grants.get_by_role("checkbox")).to_have_count(0)
-        await grants.get_by_role("button",name="Закрыть").click()
+        await page.wait_for_function("(x) => document.querySelector('.service-chat-grant [role=switch] span').getBoundingClientRect().x < x-2",arg=on["x"])
+        await expect(form.locator(".service-settings").get_by_role("checkbox")).to_have_count(0)
+        await form.get_by_role("button",name="Закрыть").click()
         await account_action(page, "Администрирование")
         await expect(page.get_by_label("Ключ прямого подключения DeepSeek")).to_be_visible()
         await expect(page.get_by_label("Новый ключ OpenRouter")).to_be_visible()

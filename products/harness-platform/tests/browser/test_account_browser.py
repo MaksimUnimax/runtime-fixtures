@@ -216,7 +216,7 @@ class BrowserIsolation(ProductBrowser):
             self.assertTrue(url.endswith("/product/info/list"))
             return httpx.Response(200,json={"items":[{"id":17,"offer_id":"FIXTURE","name":"Тестовый товар","sku":82}]})
         with patch.object(httpx.AsyncClient,"post",side_effect=catalogue):
-            await settings.get_by_role("button",name="Подключить в этом чате · Проверочный магазин").click()
+            await settings.get_by_role("button",name="Дать доступ к данным · Проверочный магазин").click()
             await expect(settings.get_by_role("option",name=re.compile("Тестовый товар"))).to_have_count(1)
         await expect(settings.locator(".plugin-metric")).to_have_count(4 if provider=="wb" else 2)
         await expect(settings.get_by_role("button",name="Рассчитать",exact=True)).to_have_count(4 if provider=="wb" else 2)
@@ -350,19 +350,24 @@ class BrowserIsolation(ProductBrowser):
                 data={"name":"Магазин WB","provider":"wb","fields":{"token":"fixture-key"}})
             self.assertTrue(connection.ok)
             await page.reload()
-            await page.get_by_role("button",name="Подключения",exact=True).click()
-            dialog=page.get_by_role("dialog",name="Подключения этого чата")
+            await open_integrations(page)
+            dialog=page.get_by_role("dialog")
             shortcut=page.get_by_role("navigation",name="Установленные плагины").get_by_role("button",name="Вайлдберис",exact=True)
             await expect(shortcut).to_have_count(0)
             with patch.object(httpx.AsyncClient,"post",return_value=httpx.Response(200,json={"cards":[],"cursor":{"total":0}})):
-                await dialog.get_by_role("switch",name="Магазин WB · Wildberries").click()
+                await dialog.get_by_role("switch",name="Доступ в этом диалоге · Магазин WB").click()
                 await dialog.get_by_role("button",name="Закрыть").click()
                 await expect(shortcut).to_be_visible()
                 await shortcut.click()
                 settings=page.get_by_role("dialog",name="Вайлдберис",exact=True)
                 await expect(settings.get_by_role("button",name="Магазин WB",exact=True)).to_have_attribute("aria-pressed","true")
-                await settings.get_by_role("button",name="Отключить магазин от чата").click()
-                await expect(settings.get_by_role("button",name="Подключить в этом чате · Магазин WB")).to_be_visible()
+                await settings.get_by_role("button",name="Отозвать доступ к данным магазина").click()
+                await expect(settings.get_by_role("button",name="Дать доступ к данным · Магазин WB")).to_be_visible()
+                await page.keyboard.press("Escape")
+                await expect(shortcut.locator("..").get_by_text("Актив", exact=True)).to_be_visible()
+                await plugin_action(page, "Вайлдберис", "Отключить")
+                await expect(page.get_by_role("navigation", name="Установленные плагины")
+                             .get_by_text("Не актив", exact=True)).to_be_visible()
 
     async def test_startup_transfers_the_viewport_to_the_composer(self):
         member = await self.open_chat("first-browser")
@@ -640,12 +645,9 @@ class BrowserIsolation(ProductBrowser):
         await self.send_turn(page, "Проверка интерфейса")
         await expect(page.locator('[data-chat-flow-kind="assistant-step"]')).to_be_visible(timeout=45_000)
         await expect(page.get_by_role("tab", name="Траектория")).to_have_count(0)
-        trigger = page.get_by_role("button", name="Подключения", exact=True)
-        await expect(page.locator('.octo-plugin-navigation').get_by_role("button",name="Подключения")).to_be_in_viewport()
-        await expect(page.locator('[data-slot="conversation.input.dock"]').get_by_role("button",name="Подключения")).to_have_count(0)
-        await trigger.click()
-        await page.get_by_role("button", name="Добавить подключение").click()
-        dialog = page.get_by_role("dialog", name="Подключение сервиса")
+        await expect(page.get_by_role("button", name=re.compile(r"^Подключения(?:$| ·)"))).to_have_count(0)
+        await open_integrations(page)
+        dialog = page.get_by_role("dialog")
         for provider, title, field in (("wb", "Как получить токен Wildberries", "Только чтение"),
                                        ("ozon", "Как получить ключи Ozon Seller", "Client-Id продавца"),
                                        ("ozon", "Как получить ключи Ozon Performance", "Client Secret Performance")):
@@ -749,7 +751,18 @@ class BrowserIsolation(ProductBrowser):
 
     async def test_installed_plugin_follows_selected_chat(self):
         from platform_core.user_plugins.registry import Plugin
-        future = Plugin("fixture-doc", "documents", "Документы для теста", "Новый плагин", "fixture")
+        future = Plugin("reference-text", "documents", "Документы для теста", "Новый плагин", "fixture")
+        async def verify_tool(page, chat, enabled):
+            path = f"/api/chats/{chat}/tools"
+            catalogue = await page.request.get(path)
+            self.assertEqual(catalogue.status, 200)
+            self.assertEqual("summarize_text" in await catalogue.json(), enabled)
+            result = await page.request.post(path + "/summarize_text", headers={"Origin": self.base_url},
+                                             data={"arguments": {"text": "два   слова"}})
+            self.assertEqual(result.status, 200 if enabled else 404)
+            if enabled:
+                self.assertEqual(await result.json(), {"words": 2, "normalized": "два слова"})
+
         with patch.dict("platform_core.user_plugins.registry.CATALOG", {future.id: future}):
             page = await self.open_chat("first-browser")
             first = urlsplit(page.url).path.rsplit("/", 1)[-1]
@@ -760,12 +773,19 @@ class BrowserIsolation(ProductBrowser):
             await page.keyboard.press("Escape")
             nav = page.get_by_role("navigation", name="Установленные плагины")
             await expect(nav.get_by_text("Не актив",exact=True)).to_be_visible()
+            await verify_tool(page, first, False)
             await plugin_action(page, future.title, "Подключить")
             await expect(nav.get_by_text("Актив",exact=True)).to_be_visible()
+            await verify_tool(page, first, True)
+            await page.reload()
+            await expect(nav.get_by_text("Актив",exact=True)).to_be_visible()
+            await verify_tool(page, first, True)
             await page.get_by_role("button", name="Новая сессия",exact=True).filter(has_text="Новая сессия").click()
             await expect(nav.get_by_text("Не актив",exact=True)).to_be_visible()
             second = urlsplit(page.url).path.rsplit("/", 1)[-1]
             self.assertNotEqual(first,second)
+            await verify_tool(page, second, False)
+            await verify_tool(page, first, True)
             row = page.locator(f'[data-row-key="session:{first}"]')
             await row.hover()
             await row.locator("[data-context-menu-trigger]").click()
@@ -778,6 +798,9 @@ class BrowserIsolation(ProductBrowser):
             await expect(nav.get_by_text("Не актив",exact=True)).to_be_visible()
             await page.reload()
             await expect(nav.get_by_text("Не актив",exact=True)).to_be_visible()
+            await verify_tool(page, first, False)
+            await plugin_action(page, future.title, "Подключить")
+            await expect(nav.get_by_text("Актив",exact=True)).to_be_visible()
             await plugin_action(page,future.title,"Удалить")
             confirm = page.get_by_role("dialog",name="Удалить плагин?")
             await confirm.get_by_role("button",name="Отмена").click()
@@ -785,6 +808,7 @@ class BrowserIsolation(ProductBrowser):
             await plugin_action(page,future.title,"Удалить")
             await confirm.get_by_role("button",name="Удалить",exact=True).click()
             await expect(nav).to_have_count(0)
+            await verify_tool(page, first, False)
             await page.locator(f'[data-row-key="session:{second}"]').click()
             await expect(nav).to_have_count(0)
             await page.get_by_role("button",name="Плагины",exact=True).click()

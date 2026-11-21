@@ -78,6 +78,12 @@ def workspace_sidebar(source):
          b'items: [...(onGroupPick ? [{type:"label", id:"group-by",'),
         (b'id: "order-by-separator"\n\t\t\t\t\t},',
          b'id: "order-by-separator"}] : []),'),
+        # Starting a new conversation must allocate its own ID and plugin scope, even if
+        # the current conversation has no messages. Restoring a blank keeps its saved ID.
+        (b'const blank = sessions.ids.find((id) => {',
+         b'const blank = options.fresh ? void 0 : sessions.ids.find((id) => {'),
+        (b'} : void 0, agentPreset === void 0 ? {} : { agentPreset }).catch((reason) => {',
+         b'} : void 0, { fresh: true, agentPreset }).catch((reason) => {'),
         # Owned chats persist even when the user connects a plugin before the first message.
         (b'if (session.blank && session.id !== current) return false;',
          b'if (session.blank && session.id !== current && !window.harnessAccount?.hasChat(session.id)) return false;'),

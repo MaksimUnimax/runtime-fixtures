@@ -6,7 +6,7 @@
     const h=React.createElement;
     const send=(path,data)=>api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
     const catalogLabel='Плагины';
-    const {Menu:Popup,Modal,Button,Switch,IconEllipsisOutlineRegular,IconDataOutlineMedium,IconPersonalizationOutlineMedium,IconChevronRightOutlineRegular}=ui;
+    const {Menu:Popup,Modal,Button,IconEllipsisOutlineRegular,IconDataOutlineMedium,IconPersonalizationOutlineMedium,IconChevronRightOutlineRegular}=ui;
     function Dialog({label,close,children,className=''}) {
       return h(Modal,{open:true,title:label,closeLabel:'Закрыть',onClose:close,
         className:('octo-plugin-panel '+className).trim()},
@@ -107,7 +107,7 @@
             ctx.slots.entries('sidebar.settings')[0]?.store.create().actions.openSection('integrations');
           }},'Добавить магазин'),
           h('div',{className:'plugin-stores'},data.stores.map(s=>h(Action,{key:s.id,disabled:busy,'aria-pressed':cid===s.id,
-            onClick:()=>s.selected?changeStore(s.id):choose(s)},s.selected?s.name:'Подключить в этом чате · '+s.name))),
+            onClick:()=>s.selected?changeStore(s.id):choose(s)},s.selected?s.name:'Дать доступ к данным · '+s.name))),
           current&&h(React.Fragment,null,h('div',{className:'plugin-controls'},
             h('label',null,'Найти товар',h('input',{type:'search',placeholder:'Название или артикул',value:search,onChange:e=>{setSearch(e.target.value);setLimit(100);}})),
             h('label',null,'Область расчёта',h('select',{'aria-label':'Область расчёта',value:sku,disabled:busy,onChange:e=>{setSku(e.target.value);setData(null);}},
@@ -115,7 +115,7 @@
                 [p.title,p.offer,(provider==='ozon'?'SKU ':'WB ')+p.sku].filter(Boolean).join(' · '))))),
             productRows.length>limit&&h(Action,{onClick:()=>setLimit(n=>n+100)},'Показать ещё товары'),
             h(Action,{disabled:busy||catalogJob?.state==='running',onClick:()=>act(()=>send(url+'/refresh',{cid}))},'Обновить товары'),
-            h(Action,{disabled:busy,onClick:()=>act(async()=>{await send(url+'/disconnect',{cid});window.dispatchEvent(new Event('harness:grants'));changeStore('');})},'Отключить магазин от чата')),
+            h(Action,{disabled:busy,onClick:()=>act(async()=>{await send(url+'/disconnect',{cid});window.dispatchEvent(new Event('harness:grants'));changeStore('');})},'Отозвать доступ к данным магазина')),
             catalogJob?.state!=='done'&&catalogJob&&h('p',{role:'status'},catalogJob.message),
             provider==='wb'&&h(Fold,{label:'Схемы складов'},h('p',null,'Если в финансовом отчёте WB не указана схема доставки, её можно задать для этого склада.'),
               Object.entries(data.schemes||{}).map(([name,value])=>h('div',{key:name,className:'plugin-row'},h('span',null,name+' · '+value),
@@ -263,27 +263,6 @@
       return h('button',{type:'button',className:'octo-plugin-link',ref:buttonRef,title,'aria-label':title,
         'aria-haspopup':'dialog',onClick},h(Icon,{size:wide?16:18}),wide&&h('span',null,title));
     }
-    function ChatConnections({chat,wide}) {
-      const path='/api/chats/'+encodeURIComponent(chat)+'/integrations';
-      const {data,error,busy,update}=useCatalog(path);
-      const [open,setOpen]=React.useState(false);
-      const rows=data?.connections||[];
-      const active=rows.filter(row=>row.attached).map(row=>row.name);
-      const title=['Подключения',...active].join(' · ');
-      const names={ozon:'Ozon',wb:'Wildberries',wordstat:'Яндекс Вордстат'};
-      const status={saved:'Сохранено',verified:'Связь подтверждена',unconfirmed:'Связь не подтверждена',denied:'Доступ отклонён'};
-      return h(React.Fragment,null,h(SidebarLink,{wide,title,Icon:IconDataOutlineMedium,onClick:()=>setOpen(true)}),
-        open&&h(Dialog,{label:'Подключения этого чата',close:()=>setOpen(false)},
-          error&&h('p',{role:'alert'},error),
-          !data&&!error&&h('p',{role:'status'},'Загружаем подключения…'),
-          rows.some(row=>!row.attached)&&h('p',null,'При подключении магазина его плагин будет установлен и включён в этом диалоге.'),
-          rows.map(row=>h('div',{key:row.id,className:'octo-plugin-row'},
-            h('div',null,h('strong',null,row.name),h('p',null,[...row.access,status[row.status]||row.status].join(' · '))),
-            h(Switch,{label:row.name+' · '+(names[row.provider]||row.provider),checked:row.attached,disabled:busy,
-              onChange:enabled=>update(path,{connectionId:row.id,enabled})}))),
-          h(Action,{onClick:()=>{setOpen(false);window.dispatchEvent(new CustomEvent('harness:connection',{
-            detail:{newConnection:true,chatId:chat}}));}},'Добавить подключение')));
-    }
     function Menu({chat,wide,openCatalog}) {
       const url=chat?'/api/chats/'+encodeURIComponent(chat)+'/plugins':accountUrl;
       const {data,error,busy,update}=useCatalog(url);
@@ -323,7 +302,6 @@
         installed.length>0&&h('nav',{'aria-label':'Установленные плагины',className:'octo-installed-plugins'},
           wide&&h('div',{className:'octo-plugin-list-title'},'Установленные плагины'),
           h('ul',null,installed.map(installedRow))),
-        chat&&h(ChatConnections,{chat,wide}),
         remove&&h(Dialog,{label:'Удалить плагин?',close:()=>{if(!busy)setRemove(null);}},
           h('p',null,'«'+remove.title+'» будет удалён из установленных плагинов и отключён во всех ваших диалогах.'),
           error&&h('p',{role:'alert'},error),
