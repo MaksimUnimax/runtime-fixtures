@@ -14,6 +14,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 from urllib.parse import urlsplit
 
+import httpx
 import uvicorn
 from playwright.async_api import async_playwright, expect
 
@@ -133,6 +134,43 @@ class ProductBrowser(unittest.IsolatedAsyncioTestCase):
 
 
 class BrowserIsolation(ProductBrowser):
+    async def test_wildberries_catalogue_and_sidebar(self):
+        page=await self.open_chat("first-browser")
+        await page.get_by_role("button",name="Плагины",exact=True).click()
+        dialog=page.get_by_role("dialog",name="Плагины")
+        await expect(dialog.get_by_text("Аналитика",exact=True)).to_be_visible()
+        await dialog.get_by_role("switch",name="Подключить").check()
+        await expect(dialog.get_by_role("switch")).to_be_checked()
+        await dialog.get_by_role("button",name="Закрыть").click()
+        await page.get_by_role("button",name="Вайлдберис",exact=True).click()
+        settings=page.get_by_role("dialog",name="Вайлдберис")
+        await expect(settings.get_by_text("Магазины",exact=True)).to_be_visible()
+        await settings.get_by_role("button",name="Закрыть").click()
+        with patch.dict(os.environ,{"HARNESS_INTEGRATIONS_KEY_FILE":str(self.database.parent/"plugin-test-key")}):
+            (self.database.parent/"plugin-test-key").write_bytes(os.urandom(32))
+            connection=await page.request.post("/api/integrations",headers={"Origin":self.base_url},data={
+                "name":"Проверочный магазин","provider":"wb","fields":{"token":"fixture-token"}})
+            self.assertTrue(connection.ok)
+            await page.get_by_role("button",name="Вайлдберис",exact=True).click()
+            page_data={"cards":[{"nmID":82,"vendorCode":"FIXTURE","title":"Тестовый товар"}],"cursor":{"total":1}}
+            with patch.object(httpx.AsyncClient,"post",return_value=httpx.Response(200,json=page_data)):
+                await settings.get_by_role("button",name="Подключить в этом чате · Проверочный магазин").click()
+                await expect(settings.get_by_role("option",name=re.compile("Тестовый товар"))).to_have_count(1)
+            metric=settings.locator(".plugin-metric").filter(has_text="Доля отмен и возвратов")
+            await metric.get_by_role("textbox").fill("12")
+            await metric.get_by_role("button",name="Сохранить").click()
+            await expect(metric.get_by_text(re.compile("Вручную"))).to_be_visible()
+            await settings.get_by_label("Область расчёта").select_option("82")
+            await expect(metric.get_by_role("textbox")).to_have_value("")
+            await metric.get_by_role("textbox").fill("0")
+            await metric.get_by_role("button",name="Сохранить").click()
+            await expect(metric.get_by_text(re.compile("Вручную"))).to_be_visible()
+            await settings.get_by_label("Область расчёта").select_option("")
+            await expect(metric.get_by_role("textbox")).to_have_value("12")
+            await settings.get_by_role("button",name="Закрыть").click()
+        await page.reload()
+        await expect(page.get_by_role("button",name="Вайлдберис",exact=True)).to_be_visible()
+
     async def test_startup_transfers_the_viewport_to_the_composer(self):
         member = await self.open_chat("first-browser")
         guest_context = await self.browser.new_context(base_url=self.base_url)

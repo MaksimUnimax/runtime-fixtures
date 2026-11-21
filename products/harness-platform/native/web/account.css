@@ -126,3 +126,21 @@ html body[data-mode][data-ds-dark-theme] {
 .account-actions .balance-action {display:flex;align-items:center;justify-content:space-between;gap:6px}
 .sidebar-coins {font-variant-numeric:tabular-nums;overflow-wrap:anywhere;text-align:end;font-size:12px}
 .guest-coins {padding:0 8px;color:var(--dsw-alias-label-secondary);font-size:12px}
+
+.plugin-dialog {width:min(56rem,94vw);max-height:88dvh;overflow:auto}
+.plugin-dialog header,.plugin-row,.plugin-controls,.plugin-period,.plugin-buttons,.plugin-stores {display:flex;align-items:center;gap:.7rem;flex-wrap:wrap}
+.plugin-dialog header,.plugin-row {justify-content:space-between}
+.plugin-dialog header {margin-bottom:1rem}
+.plugin-dialog h2,.plugin-metric h3,.plugin-row p {margin:0}
+.plugin-dialog details {margin:.7rem 0}
+.plugin-dialog summary {cursor:pointer;font-weight:600}
+.plugin-dialog .plugin-row,.plugin-metric,.plugin-period {padding:1rem;border:1px solid color-mix(in srgb,currentColor 19%,transparent);border-radius:.8rem}
+.plugin-dialog .plugin-row {margin-top:.6rem}
+.plugin-dialog .plugin-row input {width:auto}
+.plugin-dialog label {display:grid;gap:.35rem}
+.plugin-dialog input,.plugin-dialog select {font:inherit;color:inherit;background:Canvas;border:1px solid color-mix(in srgb,currentColor 28%,transparent);border-radius:.45rem;padding:.5rem;min-width:0;max-width:100%;box-sizing:border-box}
+.plugin-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(18rem,100%),1fr));gap:.75rem}
+.plugin-controls,.plugin-period,.plugin-buttons {margin:.8rem 0}
+.plugin-dialog .plugin-stores button[aria-pressed=true] {outline:2px solid currentColor}
+.plugin-metric p,.plugin-row p {font-size:.92em}
+.account-actions .plugin-shortcut {padding-inline-start:1.5rem}
