@@ -213,6 +213,26 @@ class MarketplaceMatrix(unittest.TestCase):
             worker.execute(self.packet, self.root)
         send.assert_not_called()
 
+    def test_delivery_projection_accepts_the_chat_preview_and_single_store_total(self):
+        from urllib.error import HTTPError
+
+        cid = self.ids["ozon"]
+        self.packet.update(connections=[cid], selections=[{
+            "templateId": "economics.delivery_projection.v1", "connectionId": cid,
+            "input": {"period": {"from": "2026-10-01", "to": "2026-10-01"},
+                      "parameter_mode": "preview", "group_by": "total"},
+        }])
+        def read(req, **options):
+            options["on_dispatch"]()
+            raise HTTPError(req.full_url, 403, "forbidden", {}, None)
+
+        with patch("http_transport.read_response", side_effect=read) as send:
+            worker.execute(self.packet, self.root)
+        send.assert_called()
+        model_input = self.packet["selections"][0]["input"]
+        self.assertEqual(model_input["parameter_mode"], "preview")
+        self.assertEqual(model_input["group_by"], "total")
+
     def test_plugin_coefficients_feed_forecasts_and_fence_changes(self):
         from types import SimpleNamespace
         from platform_core.marketplace_matrix import forecast_preview
@@ -512,6 +532,9 @@ class MarketplaceMatrix(unittest.TestCase):
 
     def test_wb_advertising_keeps_stats_for_returned_campaigns_and_marks_omissions(self):
         import base64
+        from dataclasses import replace
+        from urllib.parse import parse_qs, urlsplit
+        from dataset_pipeline import build_request
 
         token = self.identity.login("matrix-seller", "fixture-password")
         claims = base64.urlsafe_b64encode(b'{"acc":3,"for":"self","t":false}').decode().rstrip("=")
@@ -519,8 +542,17 @@ class MarketplaceMatrix(unittest.TestCase):
         cid = IntegrationStore(self.identity).save(token, "wb", "Реклама WB", {"token": credential},
                                                      chatId=self.scope.chat_id)["id"]
         self.packet.update(connections=[cid], selections=[{
-            "templateId": "wb_active_ads_totals", "connectionId": cid,
-            "input": {"period": {"from": "2026-11-19", "to": "2026-11-19"}}}])
+            "templateId": tid, "connectionId": cid,
+            "input": {"period": {"from": "2026-11-19", "to": "2026-11-19"}}}
+            for tid in ("wb_active_ads", "wb_active_ads_totals", "wb_supported_ads")])
+        campaigns = {"all": 4, "adverts": [
+            {"status": 9, "count": 2, "advert_list": [{"advertId": 10}, {"advertId": 20}]},
+            {"status": 7, "count": 2, "advert_list": [{"advertId": 30}, {"advertId": 40}]},
+        ]}
+        live_row = {"advertId": 10, "views": 100, "clicks": 4, "orders": 2,
+                    "shks": 2, "sum_price": 500, "sum": 80}
+        zero_row = {"advertId": 30, "views": 0, "clicks": 0, "orders": 0,
+                    "shks": 0, "sum_price": 0, "sum": 0}
 
         def read(req, **options):
             options["on_dispatch"]()
@@ -528,16 +560,27 @@ class MarketplaceMatrix(unittest.TestCase):
             if req.host == "finance-api.wildberries.ru":
                 return b'{"currency":"RUB"}', 200
             if "/promotion/count" in req.full_url:
-                return b'{"all":2,"adverts":[{"status":9,"count":2,"advert_list":[{"advertId":10},{"advertId":20}]}]}', 200
-            self.assertIn("ids=10%2C20", req.full_url)
-            return b'[{"advertId":10,"views":100,"clicks":4,"orders":2,"shks":2,"sum_price":500,"sum":80}]', 200
+                return json.dumps(campaigns).encode(), 200
+            requested = parse_qs(urlsplit(req.full_url).query)["ids"][0]
+            if requested == "10,20":
+                return json.dumps([live_row]).encode(), 200
+            self.assertEqual(requested, "10,20,30,40")
+            return json.dumps([live_row, zero_row]).encode(), 200
 
-        with patch("http_transport.read_response", side_effect=read):
+        def without_fixture_wait(*args):
+            return replace(build_request(*args), interval=0)
+
+        with (patch("http_transport.read_response", side_effect=read),
+              patch("dataset_pipeline.build_request", side_effect=without_fixture_wait)):
             result = worker.execute(self.packet, self.root)
         self.assertTrue(result["ok"], result)
-        self.assertIn("по 1 из 2", result["answer"])
-        self.assertIn("Полная сумма", result["answer"])
-        self.assertIn("80", result["answer"])
+        answer = result["answer"]
+        self.assertIn("Статистика активных рекламных кампаний WB: WB прислал показатели по 1 из 2", answer)
+        self.assertIn("Суммарная статистика активных рекламных кампаний WB: WB прислал показатели по 1 из 2", answer)
+        self.assertIn("Статистика кампаний WB поддержанных статусов: WB прислал показатели по 2 из 4", answer)
+        self.assertEqual(answer.count("Полная сумма по выбранным кампаниям неизвестна"), 3)
+        self.assertIn("| 30 | 0 |", answer)
+        self.assertIn("| 80 |", answer)
 
     def test_forecast_requires_valid_owner_input_and_the_right_shop_credentials(self):
         from platform_core.marketplace_matrix.forecast_preview import normalise_owner_inputs, unit_cost_lines
@@ -561,6 +604,106 @@ class MarketplaceMatrix(unittest.TestCase):
         for invalid in ({"unit_cost": -1}, {"tax_amount": False}, {"ingredient": 5}):
             with self.assertRaises(ParameterError):
                 normalise_owner_inputs(invalid)
+
+    def test_ozon_packaging_uses_reconciled_signed_cost_once_in_both_scenarios(self):
+        from copy import deepcopy
+        from decimal import Decimal
+        from hashlib import sha256
+        from direct_response import compound_text
+        from parameter_support import economics_cohort as cohort, economics_orders as orders, economics_other as fees
+
+        day = "2026-10-31"
+        as_of = day + "T19:00:00+00:00"
+        scope = {"tenant_id": "tenant", "store_id": "store", "provider": "OZON", "currency": "RUB"}
+        period = {"from": day, "to": day}
+        receipts = {}
+
+        def packet(operation, request, data, receipt_id):
+            body = json.dumps(data).encode()
+            record = {"operation": operation, "request": request, "body": body, "receipt_id": receipt_id,
+                      "scope": scope, "http": 200, "received_at": as_of, "response_sha256": sha256(body).hexdigest()}
+            receipts[receipt_id] = deepcopy(record)
+            return record
+
+        def verify(value):
+            return receipts[value["receipt_id"]] == value
+
+        def encode(kind, value):
+            return sha256(f"{kind}:{value}".encode()).hexdigest()
+
+        dispatch = {"posting_number": "test-posting", "status": "delivered", "created_at": as_of,
+                    "products": [{"sku": sku, "quantity": quantity, "price": "200"}
+                                 for sku, quantity in ((101, 1), (102, 3))]}
+        scheme_packets = [packet(orders.CATALOG["schemes"][scheme]["operation"],
+                                 orders.expected_request(scheme, period, ""),
+                                 {"postings": [dispatch] if scheme == "fbo" else [], "has_next": False, "cursor": ""},
+                                 scheme) for scheme in ("fbo", "fbs")]
+        original = orders.normalize([scheme_packets[0]], [scheme_packets[1]], scope, period,
+                                    verify=verify, encode=encode)
+
+        def snapshot(items, *, omit_last=False):
+            entries, daily = [], []
+            for index, (kind, amount) in enumerate(items):
+                money = {"amount": amount, "currency": "RUB"}
+                entries.append({"type_id": kind, "accrual_date": day, "accrued": money})
+                daily.append({"accrual_id": index + 1, "date": day, "total_amount": money,
+                              "unit_number": "test-posting", "accrued_category": "NON_ITEM",
+                              "non_item_fee": {"type_id": kind, "accrued": money},
+                              "posting": None, "item_fees": None, "container_fees": None})
+            postings = packet("finance_accrual_postings", {"posting_numbers": ["test-posting"]},
+                              {"posting_accruals": [{"posting_number": "test-posting", "accruals": entries}]}, "post")
+            by_day = packet("finance_accrual_by_day", {"date": day, "last_id": ""},
+                            {"accruals": daily[:-1] if omit_last else daily, "last_id": ""}, "day")
+            return fees.normalize([postings], [by_day], original, verify=verify, encode=encode, as_of=as_of)
+
+        common = [(93, "-5")]
+        all_items = common + [(38, "-12"), (38, "2"), (39, "-3"), (39, "1")]
+        baseline, observed = snapshot(common), snapshot(all_items)
+        inputs = observed.line_inputs(original)
+        self.assertEqual(sorted(Decimal(row["packaging"]["amount"]) for row in inputs.values()),
+                         [Decimal("2.5"), Decimal("7.5")])
+        self.assertEqual(sorted(Decimal(row["packing_service"]["amount"]) for row in inputs.values()),
+                         [Decimal("0.5"), Decimal("1.5")])
+        self.assertEqual(sum(Decimal(row["amount"]) for row in inputs.values()), Decimal("5"))
+        with self.assertRaisesRegex(fees.OtherError, "OTHER_SNAPSHOT_MISMATCH"):
+            snapshot(all_items, omit_last=True)
+        with self.assertRaisesRegex(fees.OtherError, "OTHER_UNCLASSIFIED_FEE"):
+            snapshot(common + [(999, "-10")])
+
+        def block(rows):
+            return {"rows": rows, "receipt_hash": "a" * 64, "complete": True, "scope": scope,
+                    "period": period, "observed_at": as_of}
+
+        tariffs = [{"sku": str(sku), "scheme": "fbo", "quote_id": f"quote-{sku}",
+                    "fields": {"commission_percent": "10", "acquiring_per_unit": "1", "return_per_unit": "10",
+                               "processing_min": "0", "processing_max": "0"}}
+                   for sku in (101, 102)]
+        bundle = {"orders": original.for_cohort(period, scope), "tariffs": block(tariffs),
+                  "period_costs": block([{"component": component, "amount": "0", "basis": "FULL_PERIOD"}
+                                         for component in ("storage", "advertising")])}
+        costs = dict.fromkeys(inputs, "50")
+        coefficients = {key: {"loss_rate": "0.25", "delivery_mean": "20"} for key in inputs}
+        owner = {field: {"state": "NOT_PROVIDED", "value": None} for field in ("tax_amount", "own_cost_amount")}
+
+        def report(source):
+            qualified = cohort.qualify(bundle, scope, period, verify=lambda name, data, *_: bundle[name] == data,
+                                       observed_other=source)
+            return cohort.calculate(qualified, costs, coefficients, owner)
+
+        before, after = report(baseline), report(observed)
+        for scenario, result in after["scenarios"].items():
+            totals = result["totals"]
+            old = before["scenarios"][scenario]["totals"]
+            self.assertEqual(totals["other"], old["other"])
+            self.assertEqual(totals["packaging"], "10")
+            self.assertEqual(totals["packing_service"], "2")
+            self.assertEqual(result["per_original_unit"]["packaging"], "2.5")
+            self.assertEqual(result["per_original_unit"]["packing_service"], "0.5")
+            self.assertEqual(Decimal(totals["all_selected_costs"]) - Decimal(old["all_selected_costs"]), 12)
+            self.assertEqual(Decimal(old["remainder_before_owner_inputs"]) -
+                             Decimal(totals["remainder_before_owner_inputs"]), 12)
+        self.assertEqual(compound_text({"economics": after}, {}).count("Материалы для упаковки: 10,00 ₽."), 2)
+        self.assertEqual(compound_text({"economics": after}, {}).count("Услуга упаковки: 2,00 ₽."), 2)
 
     def test_replaying_financial_receipts_reuses_only_the_validated_wire_request(self):
         from read_surface import build, _checked_wire_request

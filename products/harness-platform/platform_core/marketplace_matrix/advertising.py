@@ -86,36 +86,41 @@ def qualify_daily_response(matrix, request, store, data, meta):
         raise CallError(err.code, status=meta["status"]) from None
 
 
-def record_campaign_coverage(coverage, request, store, data):
-    """Report omissions as unknown, separately from provider-confirmed zero rows."""
-    from engine import CallError
+def coverage_notes(plan, completed, names):
+    """Compare each report's compiled campaign selection with its validated rows."""
+    from dataset_pipeline import CATALOG, stage_tasks
+    from template_catalog import TEMPLATES
 
-    try:
-        requested = {int(item) for item in request.body["ids"].split(",")}
-        if not isinstance(data, list):
-            raise ValueError("Expected one list of campaign stats")
-        received = {row["advertId"] for row in data}
-        if len(received) != len(data) or not received <= requested:
-            raise ValueError("Unexpected campaign identities")
-        key = (store["id"], request.body["beginDate"], request.body["endDate"])
-    except (KeyError, TypeError, ValueError):
-        raise CallError("DATASET_CAMPAIGN_SCOPE") from None
-    asked, confirmed, missing = coverage.setdefault(key, (set(), set(), set()))
-    asked.update(requested)
-    confirmed.update(received)
-    missing.update(requested - received)
-
-
-def coverage_notes(coverage, names):
     notes = []
-    for (store_id, first, last), (asked, confirmed, missing) in coverage.items():
-        label = f"Wildberries · {names[store_id]} · {first} — {last}"
-        if missing:
-            notes.append(
-                f"{label}: WB прислал показатели по {len(confirmed)} из {len(asked)} запрошенных кампаний. "
-                f"Данные по {len(missing)} кампаниям отсутствовали хотя бы в одном ответе. "
-                "Итоги охватывают только полученные строки. Полная сумма по выбранным кампаниям неизвестна."
-            )
-        else:
-            notes.append(f"{label}: WB прислал показатели по всем {len(asked)} запрошенным кампаниям.")
+    for fragment, result in zip(plan["fragments"], completed, strict=True):
+        if fragment["kind"] != "dataset":
+            continue
+        source = fragment["plan"]
+        query_id = source["dataset"]["id"]
+        flow = CATALOG["queries"][query_id]["flows"].get("wb", [])
+        stage = next((stage for stage in flow if stage["source"] == "ds_wb_adstats"), None)
+        if stage is None:
+            continue
+        template = next(TEMPLATES[tid] for tid in fragment["template_ids"]
+                        if TEMPLATES[tid].get("dataset_query") == query_id)
+        first, last = source["period"]["from"], source["period"]["to"]
+        for store, block in zip(source["stores"], result["data"], strict=True):
+            if store["platform"] != "wb":
+                continue
+            datasets = block["datasets"]
+            label = f"Wildberries · {names[store['id']]} · {first} — {last} · {template['purpose']}"
+            asked = {str(campaign) for task in stage_tasks(source, store, stage, datasets)
+                     for campaign in task["params"]["campaigns"]}
+            received = {str(row["campaign_id"]) for row in datasets[stage["id"]]}
+            missing = asked - received
+            if not asked:
+                notes.append(f"{label}: кампаний с выбранными статусами нет.")
+            elif missing:
+                notes.append(
+                    f"{label}: WB прислал показатели по {len(received)} из {len(asked)} запрошенных кампаний. "
+                    f"Данные по {len(missing)} кампаниям отсутствуют. "
+                    "Итоги охватывают только полученные строки. Полная сумма по выбранным кампаниям неизвестна."
+                )
+            else:
+                notes.append(f"{label}: WB прислал показатели по всем {len(asked)} запрошенным кампаниям.")
     return notes

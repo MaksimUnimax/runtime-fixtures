@@ -17,7 +17,7 @@ from .authority import ChatAuthority
 from . import advertising, forecast_preview, store_currency
 
 BUNDLE = Path(__file__).with_name("runtime.tar.gz")
-BUNDLE_SHA256 = "224ba8ece8d507bc8b2b998c47fe7109cba363e76792ade0e09c845e67458336"
+BUNDLE_SHA256 = "91f5245751141307a3a0bc06e3df3dd8b8b7a66e15d5c4e28b7d1eed222a9ff1"
 
 
 def log_failure(operation, code, retry_at=None):
@@ -178,14 +178,21 @@ def execute(packet, directory):
         tid, cid = item["templateId"], item["connectionId"]
         if tid not in TEMPLATES or cid not in allowed or not _availability(engine, TEMPLATES[tid], allowed[cid]):
             raise Rejected("SOURCE_ACCESS")
-        if item["input"].get("parameter_mode", "preview") != "preview":
+        inputs = item["input"]
+        if inputs.get("parameter_mode", "preview") != "preview":
             raise Rejected("PERMISSION_DENIED")
-        if item["input"].get("owner_inputs") and tid != "economics.unit_forecast.v1":
+        if inputs.get("owner_inputs") and tid != "economics.unit_forecast.v1":
             raise Rejected("ECONOMICS_OWNER_INPUT")
-        owner_inputs = item["input"].get("owner_inputs", {})
+        owner_inputs = inputs.get("owner_inputs", {})
         if tid == "economics.unit_forecast.v1" and not {"unit_cost", "unit_cost_by_sku"} & owner_inputs.keys():
             return {"ok": True, "clarification": "Укажите себестоимость в рублях по SKU или общую для всех товаров."}
-        calls.append({"id": str(index), "template_id": tid, "store_id": cid, "input": item["input"]})
+        if TEMPLATES[tid].get("parameter_report"):
+            inputs = dict(inputs)
+            inputs.pop("parameter_mode", None)
+            # A projection is compiled separately for each selected store.
+            if inputs.get("group_by") == "total":
+                inputs["group_by"] = "marketplace"
+        calls.append({"id": str(index), "template_id": tid, "store_id": cid, "input": inputs})
     try:
         store_currency.resolve(authority, calls, allowed, fields)
     except store_currency.ProfileError as error:
@@ -200,7 +207,6 @@ def execute(packet, directory):
     engine.program_answers = False
     model_answer.step = answer_step  # Only in this request's private child interpreter.
     operations = []
-    campaign_coverage = {}
     report_pending = False
     long_report = any(TEMPLATES[call["template_id"]]["kind"] == "parameter"
                       or TEMPLATES[call["template_id"]].get("parameter_report") for call in calls)
@@ -244,8 +250,6 @@ def execute(packet, directory):
                 if error.status == 429:
                     rate_limits.append(request.operation)
                 raise
-            if request.operation == "ds_wb_adstats":
-                advertising.record_campaign_coverage(campaign_coverage, request, store, answer[0])
             if request.operation == "read.ozon.report_info" and isinstance(answer[0], dict):
                 report_pending = answer[0].get("result", {}).get("status") in ("waiting", "processing")
             if authority.resume_rate_limits and (request.operation == "ds_wb_adstats"
@@ -325,9 +329,10 @@ def execute(packet, directory):
     presentation = result.get("chat_presentation") or {}
     guidance = list(dict.fromkeys(note for item in selected
         for note in TEMPLATES[item["template_id"]].get("notes", [])))
-    source_values = formula_inputs(plan, (result.get("data") or {}).get("templates", []), authority.names) if not result.get("failure_code") else []
+    completed = (result.get("data") or {}).get("templates", [])
+    source_values = formula_inputs(plan, completed, authority.names) if not result.get("failure_code") else []
     answer = presentation.get("details") or "\n".join(result.get("pages", []))
-    coverage = advertising.coverage_notes(campaign_coverage, authority.names)
+    coverage = advertising.coverage_notes(plan, completed, authority.names) if not result.get("failure_code") else []
     if coverage:
         answer = "\n".join(coverage) + "\n\n" + answer
     coefficient=None
@@ -373,6 +378,8 @@ def seller_result(result):
         "TEMPLATE_EXECUTION_FAILED": "Рассчитать запрошенный показатель не удалось.",
         "PARAMETER_DELIVERY_SKU_UNALLOCATED": "В начислениях Ozon есть доставка без привязки к товару. Для этого SKU можно ввести сумму вручную.",
         "PARAMETER_ZERO_DENOMINATOR": "За выбранный период нет заказанных единиц для расчёта.",
+        "PARAMETER_REPORT_INPUT": "В прогноз переданы неподдерживаемые параметры.",
+        "PARAMETER_REPORT_SCOPE_UNSUPPORTED": "Этот прогноз строится по одному магазину за выбранный период. Фильтры и сравнение периодов для него недоступны.",
         "SOURCE_ACCESS": "Для подключения сейчас недоступны запрошенные данные.",
         "WB_ADVERTISING_ACCESS": "Для рекламы Wildberries нужен токен с доступом к категории «Продвижение».",
         "TARIFF_QUOTE_OR_SKU_MISSING": "В текущем каталоге Ozon отсутствует тариф для части товаров или схем доставки из выбранных заказов. Полный прогноз требует этих тарифов.",
