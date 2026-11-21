@@ -1,0 +1,103 @@
+{
+  "provider": "Yandex Search API Wordstat",
+  "capture_date": "2026-11-21",
+  "documented_data_ceiling": "2026-10-07",
+  "region": "225",
+  "devices": [
+    "DEVICE_ALL"
+  ],
+  "methods": {
+    "wide": "getTop, phrase=p",
+    "quote": "getTop, phrase in double quotes",
+    "history": "getDynamics, PERIOD_MONTHLY, 2026-04-01T00:00:00Z to 2026-09-30T00:00:00Z"
+  },
+  "numPhrases": "n from each record; ignored by getDynamics",
+  "history_count_omitted": "missing numeric field; not imputed",
+  "time_basis": "UTC. First and last server result-file writes in each batch; times apply to the batch, not individual calls.",
+  "batch_utc": [
+    "assoc.ndjson 2026-11-21 11:01:52.283112836 +0000 2026-11-21 11:01:57.537538226 +0000",
+    "deep.ndjson 2026-11-21 11:00:58.900809340 +0000 2026-11-21 11:01:33.964632263 +0000",
+    "extra.ndjson 2026-11-21 10:58:46.976335759 +0000 2026-11-21 10:59:14.542503198 +0000",
+    "qseed.ndjson 2026-11-21 10:59:07.612957227 +0000 2026-11-21 11:00:24.093022274 +0000",
+    "qtail.ndjson 2026-11-21 11:01:57.877565764 +0000 2026-11-21 11:07:56.222163903 +0000",
+    "seed.ndjson 2026-11-21 10:57:36.706868081 +0000 2026-11-21 10:58:28.901921278 +0000"
+  ],
+  "metrics": {
+    "total": 1546,
+    "types": {
+      "wide": 328,
+      "history": 8,
+      "quote": 1210
+    },
+    "counts": {
+      "На проверку": 656,
+      "Исключено": 1574,
+      "В ядре": 493,
+      "Бренд": 2
+    },
+    "unique": 2725,
+    "clusters": 20,
+    "quotes_numeric": 1040,
+    "checks": {
+      "ии агент для маркетплейсов": [
+        399,
+        212
+      ],
+      "ии сотрудник для маркетплейсов": [
+        7,
+        null
+      ],
+      "ии для маркетплейсов": [
+        5338,
+        395
+      ],
+      "ии для карточек маркетплейсов": [
+        2613,
+        466
+      ],
+      "генератор карточек для маркетплейсов": [
+        1879,
+        662
+      ],
+      "создание карточек для маркетплейсов": [
+        11934,
+        1483
+      ],
+      "сервис аналитики маркетплейсов": [
+        1590,
+        168
+      ],
+      "юнит экономика озон": [
+        2019,
+        242
+      ],
+      "калькулятор прибыли озон": [
+        1041,
+        592
+      ],
+      "бот заказов озон": [
+        104,
+        3
+      ],
+      "менеджер маркетплейсов": [
+        33886,
+        2521
+      ],
+      "октопорт": [
+        3,
+        null
+      ],
+      "octoport": [
+        null,
+        null
+      ]
+    }
+  },
+  "sha256": {
+    "clusters.tsv": "7cec0b05ed3cbebb60bfa05021ca7e10e1107abefc541713946278c40339b6f7",
+    "core.tsv": "b62615e1493768e587b31b5d6c89d6d7b6591394fa51b5ee4c822a604a13ef0e",
+    "history.tsv": "9fd315211487efc8ac1ae4132c2b470f1aeae4f8810e57ad1ccd902edf7b86a4",
+    "raw.ndjson.gz": "1736130d761e38bba880ecfdbd616fec3bd52820195ffacf9722fea05fc15065",
+    "universe.tsv.gz": "01bcfb7ab87bc0022b47d8b1b60955316bd28fdb316e39d06b921091e3d4fa40"
+  }
+}
