@@ -17,7 +17,7 @@ from .authority import ChatAuthority
 from . import advertising, forecast_preview, store_currency
 
 BUNDLE = Path(__file__).with_name("runtime.tar.gz")
-BUNDLE_SHA256 = "99ca30e8b35c6e428b16ac2b33506fa664e9d781455421636abb11c07fa37124"
+BUNDLE_SHA256 = "91f5245751141307a3a0bc06e3df3dd8b8b7a66e15d5c4e28b7d1eed222a9ff1"
 
 
 def log_failure(operation, code, retry_at=None):

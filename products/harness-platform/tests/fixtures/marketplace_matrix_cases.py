@@ -657,11 +657,13 @@ class MarketplaceMatrix(unittest.TestCase):
             return fees.normalize([postings], [by_day], original, verify=verify, encode=encode, as_of=as_of)
 
         common = [(93, "-5")]
-        all_items = common + [(38, "-12"), (38, "2")]
+        all_items = common + [(38, "-12"), (38, "2"), (39, "-3"), (39, "1")]
         baseline, observed = snapshot(common), snapshot(all_items)
         inputs = observed.line_inputs(original)
         self.assertEqual(sorted(Decimal(row["packaging"]["amount"]) for row in inputs.values()),
                          [Decimal("2.5"), Decimal("7.5")])
+        self.assertEqual(sorted(Decimal(row["packing_service"]["amount"]) for row in inputs.values()),
+                         [Decimal("0.5"), Decimal("1.5")])
         self.assertEqual(sum(Decimal(row["amount"]) for row in inputs.values()), Decimal("5"))
         with self.assertRaisesRegex(fees.OtherError, "OTHER_SNAPSHOT_MISMATCH"):
             snapshot(all_items, omit_last=True)
@@ -694,11 +696,14 @@ class MarketplaceMatrix(unittest.TestCase):
             old = before["scenarios"][scenario]["totals"]
             self.assertEqual(totals["other"], old["other"])
             self.assertEqual(totals["packaging"], "10")
+            self.assertEqual(totals["packing_service"], "2")
             self.assertEqual(result["per_original_unit"]["packaging"], "2.5")
-            self.assertEqual(Decimal(totals["all_selected_costs"]) - Decimal(old["all_selected_costs"]), 10)
+            self.assertEqual(result["per_original_unit"]["packing_service"], "0.5")
+            self.assertEqual(Decimal(totals["all_selected_costs"]) - Decimal(old["all_selected_costs"]), 12)
             self.assertEqual(Decimal(old["remainder_before_owner_inputs"]) -
-                             Decimal(totals["remainder_before_owner_inputs"]), 10)
+                             Decimal(totals["remainder_before_owner_inputs"]), 12)
         self.assertEqual(compound_text({"economics": after}, {}).count("Материалы для упаковки: 10,00 ₽."), 2)
+        self.assertEqual(compound_text({"economics": after}, {}).count("Услуга упаковки: 2,00 ₽."), 2)
 
     def test_replaying_financial_receipts_reuses_only_the_validated_wire_request(self):
         from read_surface import build, _checked_wire_request

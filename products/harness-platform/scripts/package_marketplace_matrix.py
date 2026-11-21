@@ -153,60 +153,66 @@ def patch_runtime(files, filename, old, new):
 
 
 def bind_ozon_packaging_cost(files):
-    """Add Seller API's PackageCost to the forecast as its own signed expense."""
+    """Put materials and packing services on independent reconciled expense lines."""
+    articles = {"packaging": (38, "Материалы для упаковки"), "packing_service": (39, "Услуга упаковки")}
     other_path = "parameter_support/economics_other_catalog.json"
     other = json.loads(files[other_path])
-    other["approved_packaging_types"] = [38]
+    other["approved_packaging_types"] = {name: type_id for name, (type_id, _) in articles.items()}
     files[other_path] = json.dumps(other, ensure_ascii=False, indent=2).encode() + b"\n"
 
     source = "parameter_support/economics_other.py"
     patch_runtime(files, source,
         "KNOWN=OTHER|set(CATALOG['excluded_delivery_types'])",
-        "PACKAGING=set(CATALOG['approved_packaging_types'])\n"
-        "APPROVED=OTHER|PACKAGING\n"
+        "PACKAGING=CATALOG['approved_packaging_types']\n"
+        "APPROVED=OTHER|set(PACKAGING.values())\n"
         "KNOWN=APPROVED|set(CATALOG['excluded_delivery_types'])")
     patch_runtime(files, source, "if kind in OTHER:selected.append(", "if kind in APPROVED:selected.append(")
     patch_runtime(files, source, "for entry in entries if entry['type_id']in OTHER)",
         "for entry in entries if entry['type_id']in APPROVED)")
     patch_runtime(files, source, "    inputs=_inputs(rows,selected)",
         "    inputs=_inputs(rows,[entry for entry in selected if entry['type_id']in OTHER])\n"
-        "    packaging=_inputs(rows,[entry for entry in selected if entry['type_id']in PACKAGING])\n"
-        "    for key,line in inputs.items():\n"
-        "        line['packaging']=packaging[key]")
+        "    for article,type_id in PACKAGING.items():\n"
+        "        charges=_inputs(rows,[entry for entry in selected if entry['type_id']==type_id])\n"
+        "        for key,line in inputs.items():\n"
+        "            line[article]=charges[key]")
 
     cohort_path = "parameter_support/economics_cohort_catalog.json"
     cohort = json.loads(files[cohort_path])
-    cohort["fee_groups"]["packaging"] = {**cohort["fee_groups"]["other"], "types": [38]}
-    cohort["posting_allocations"]["packaging"] = cohort["posting_allocations"]["other"]
-    cohort["line_inputs"]["packaging"] = {**deepcopy(cohort["line_inputs"]["other"]), "fee_group": "packaging"}
-    cohort["row_outputs"]["packaging"] = {"input": "packaging"}
-    cohort["report_outputs"]["all_selected_costs"] = {"add": [
-        cohort["report_outputs"]["all_selected_costs"], {"input": "packaging"}]}
-    cohort["money_outputs"].insert(cohort["money_outputs"].index("other") + 1, "packaging")
+    for name, (type_id, _) in articles.items():
+        cohort["fee_groups"][name] = {**cohort["fee_groups"]["other"], "types": [type_id]}
+        cohort["posting_allocations"][name] = cohort["posting_allocations"]["other"]
+        cohort["line_inputs"][name] = {**deepcopy(cohort["line_inputs"]["other"]), "fee_group": name}
+        cohort["row_outputs"][name] = {"input": name}
+        cohort["report_outputs"]["all_selected_costs"] = {"add": [
+            cohort["report_outputs"]["all_selected_costs"], {"input": name}]}
+    after_other = cohort["money_outputs"].index("other") + 1
+    cohort["money_outputs"][after_other:after_other] = list(articles)
     files[cohort_path] = json.dumps(cohort, ensure_ascii=False, indent=2).encode() + b"\n"
     patch_runtime(files, "parameter_support/economics_cohort.py",
         "                if group=='other'and other_inputs is not None:\n"
         "                    observed=other_inputs[c.CANON(k)]",
-        "                if group in ('other','packaging') and other_inputs is not None:\n"
+        f"                if group in {('other', *articles)!r} and other_inputs is not None:\n"
         "                    observed=other_inputs[c.CANON(k)]\n"
-        "                    if group=='packaging':observed=observed['packaging']")
+        "                    if group!='other':observed=observed[group]")
 
     for path, key in (("template_catalog.json", "templates"),
                       ("parameter_support/parameter_report_catalog.json", "reports")):
         catalog = json.loads(files[path])
         report = catalog[key]["economics.unit_forecast.v1"]
-        report["metrics"].insert(report["metrics"].index("other") + 1, "packaging")
+        after_other = report["metrics"].index("other") + 1
+        report["metrics"][after_other:after_other] = list(articles)
         notes = report["notes"]
         notes[0] = notes[0].replace("все девять групп расходов", "все статьи расходов")
-        notes.append("Материалы для упаковки Ozon — отдельная фактическая статья в обоих сценариях. "
-                     "Сохраняй знак корректировок, не применяй коэффициент потерь и не добавляй её повторно в прочие расходы.")
+        notes.append("Материалы для упаковки и услуга упаковки Ozon — отдельные фактические статьи в обоих сценариях. "
+                     "Сохраняй знак корректировок. Коэффициент потерь на эти расходы не влияет, прочие расходы их не включают.")
         files[path] = json.dumps(catalog, ensure_ascii=False, indent=2).encode() + b"\n"
+    labels = "".join(f"{name!r}: {label!r}, " for name, (_, label) in articles.items())
     patch_runtime(files, "direct_response.py",
         "            'cogs': 'Себестоимость',",
-        "            'packaging': 'Материалы для упаковки', 'cogs': 'Себестоимость',")
+        f"            {labels}'cogs': 'Себестоимость',")
     patch_runtime(files, "chat_response.py",
         "    labels = {'revenue': 'Выручка', 'all_selected_costs': 'Выбранные расходы',",
-        "    labels = {'revenue': 'Выручка', 'packaging': 'Материалы для упаковки',\n"
+        f"    labels = {{'revenue': 'Выручка', {labels.rstrip()}\n"
         "              'all_selected_costs': 'Выбранные расходы',")
 
 
