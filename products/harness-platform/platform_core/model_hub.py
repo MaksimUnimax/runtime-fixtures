@@ -117,6 +117,10 @@ class Hub:
             rows = payload["data"]
             if not rows or not all(valid_catalog_record(item) for item in rows):
                 raise ValueError("incomplete catalog")
+            for row in rows:
+                # An explicitly empty tier list has exactly the base prices.
+                if row["pricing"].get("overrides") == []:
+                    row["pricing"].pop("overrides")
             models = [(m["id"], m["name"]) for m in catalog_rows(payload).values() if m["free"]]
         except httpx.HTTPStatusError as exc:
             error = f"HTTP {exc.response.status_code}"

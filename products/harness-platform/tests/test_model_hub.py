@@ -40,7 +40,7 @@ class ModelHubTests(unittest.TestCase):
         return asyncio.run(run())
 
     def test_refresh_failure_and_zero_matches(self):
-        self.assertTrue(self.discover({"data":[model(GEMMA), dict(model("example/tiered"),
+        self.assertTrue(self.discover({"data":[dict(model(GEMMA),pricing={"prompt":"0","completion":"0","overrides":[]}), dict(model("example/tiered"),
             pricing={"prompt":"1","completion":"2","overrides":[{"utc_days":["sunday"],"prompt":"2"}]})]}))
         for data in ({"data":[]}, {"data":[{"id":"a/b","pricing":{}}]},
                      {"data":[dict(model(GEMMA),name={})]},
