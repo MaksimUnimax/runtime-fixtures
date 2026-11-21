@@ -75,6 +75,17 @@ def workspace_sidebar(source):
          b'items: [...(onGroupPick ? [{type:"label", id:"group-by",'),
         (b'id: "order-by-separator"\n\t\t\t\t\t},',
          b'id: "order-by-separator"}] : []),'),
+        # An authenticated empty chat is already stored and can receive plugin attachments.
+        (b'const showStatus = primaryStatus.state !== "idle";\n\t\t\tconst renamable',
+         b'const showStatus = primaryStatus.state !== "idle";'
+         b"\n\t\t\tconst canOpenActions = !row.blank || (window.harnessAccount?.hasChat(node.id)"
+         b" && !window.harnessAccount.guest);\n\t\t\tconst renamable"),
+        (b"...getTriggerProps(row.blank ? void 0 : {",
+         b"...getTriggerProps(!canOpenActions ? void 0 : {"),
+        (b'!row.blank && (0, react_jsx_runtime.jsxs)("span", {\n'
+         b'\t\t\t\t\t\t\tclassName: Rows_module_css_default.rowActions,',
+         b'canOpenActions && (0, react_jsx_runtime.jsxs)("span", {\n'
+         b'\t\t\t\t\t\t\tclassName: Rows_module_css_default.rowActions,'),
         # The native preview supports disabling independently of the row and its actions.
         (b'disabled: menuOpen || drag?.active === true,\n\t\t\t\tcopyText: row.blank',
          b'disabled: true,\n\t\t\t\tcopyText: row.blank'),
