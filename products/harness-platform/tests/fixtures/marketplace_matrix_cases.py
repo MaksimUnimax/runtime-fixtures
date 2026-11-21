@@ -512,6 +512,9 @@ class MarketplaceMatrix(unittest.TestCase):
 
     def test_wb_advertising_keeps_stats_for_returned_campaigns_and_marks_omissions(self):
         import base64
+        from dataclasses import replace
+        from urllib.parse import parse_qs, urlsplit
+        from dataset_pipeline import build_request
 
         token = self.identity.login("matrix-seller", "fixture-password")
         claims = base64.urlsafe_b64encode(b'{"acc":3,"for":"self","t":false}').decode().rstrip("=")
@@ -519,8 +522,17 @@ class MarketplaceMatrix(unittest.TestCase):
         cid = IntegrationStore(self.identity).save(token, "wb", "Реклама WB", {"token": credential},
                                                      chatId=self.scope.chat_id)["id"]
         self.packet.update(connections=[cid], selections=[{
-            "templateId": "wb_active_ads_totals", "connectionId": cid,
-            "input": {"period": {"from": "2026-11-19", "to": "2026-11-19"}}}])
+            "templateId": tid, "connectionId": cid,
+            "input": {"period": {"from": "2026-11-19", "to": "2026-11-19"}}}
+            for tid in ("wb_active_ads", "wb_active_ads_totals", "wb_supported_ads")])
+        campaigns = {"all": 4, "adverts": [
+            {"status": 9, "count": 2, "advert_list": [{"advertId": 10}, {"advertId": 20}]},
+            {"status": 7, "count": 2, "advert_list": [{"advertId": 30}, {"advertId": 40}]},
+        ]}
+        live_row = {"advertId": 10, "views": 100, "clicks": 4, "orders": 2,
+                    "shks": 2, "sum_price": 500, "sum": 80}
+        zero_row = {"advertId": 30, "views": 0, "clicks": 0, "orders": 0,
+                    "shks": 0, "sum_price": 0, "sum": 0}
 
         def read(req, **options):
             options["on_dispatch"]()
@@ -528,16 +540,27 @@ class MarketplaceMatrix(unittest.TestCase):
             if req.host == "finance-api.wildberries.ru":
                 return b'{"currency":"RUB"}', 200
             if "/promotion/count" in req.full_url:
-                return b'{"all":2,"adverts":[{"status":9,"count":2,"advert_list":[{"advertId":10},{"advertId":20}]}]}', 200
-            self.assertIn("ids=10%2C20", req.full_url)
-            return b'[{"advertId":10,"views":100,"clicks":4,"orders":2,"shks":2,"sum_price":500,"sum":80}]', 200
+                return json.dumps(campaigns).encode(), 200
+            requested = parse_qs(urlsplit(req.full_url).query)["ids"][0]
+            if requested == "10,20":
+                return json.dumps([live_row]).encode(), 200
+            self.assertEqual(requested, "10,20,30,40")
+            return json.dumps([live_row, zero_row]).encode(), 200
 
-        with patch("http_transport.read_response", side_effect=read):
+        def without_fixture_wait(*args):
+            return replace(build_request(*args), interval=0)
+
+        with (patch("http_transport.read_response", side_effect=read),
+              patch("dataset_pipeline.build_request", side_effect=without_fixture_wait)):
             result = worker.execute(self.packet, self.root)
         self.assertTrue(result["ok"], result)
-        self.assertIn("по 1 из 2", result["answer"])
-        self.assertIn("Полная сумма", result["answer"])
-        self.assertIn("80", result["answer"])
+        answer = result["answer"]
+        self.assertIn("Статистика активных рекламных кампаний WB: WB прислал показатели по 1 из 2", answer)
+        self.assertIn("Суммарная статистика активных рекламных кампаний WB: WB прислал показатели по 1 из 2", answer)
+        self.assertIn("Статистика кампаний WB поддержанных статусов: WB прислал показатели по 2 из 4", answer)
+        self.assertEqual(answer.count("Полная сумма по выбранным кампаниям неизвестна"), 3)
+        self.assertIn("| 30 | 0 |", answer)
+        self.assertIn("| 80 |", answer)
 
     def test_forecast_requires_valid_owner_input_and_the_right_shop_credentials(self):
         from platform_core.marketplace_matrix.forecast_preview import normalise_owner_inputs, unit_cost_lines

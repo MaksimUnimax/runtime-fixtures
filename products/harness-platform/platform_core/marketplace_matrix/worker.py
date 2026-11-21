@@ -200,7 +200,6 @@ def execute(packet, directory):
     engine.program_answers = False
     model_answer.step = answer_step  # Only in this request's private child interpreter.
     operations = []
-    campaign_coverage = {}
     report_pending = False
     long_report = any(TEMPLATES[call["template_id"]]["kind"] == "parameter"
                       or TEMPLATES[call["template_id"]].get("parameter_report") for call in calls)
@@ -244,8 +243,6 @@ def execute(packet, directory):
                 if error.status == 429:
                     rate_limits.append(request.operation)
                 raise
-            if request.operation == "ds_wb_adstats":
-                advertising.record_campaign_coverage(campaign_coverage, request, store, answer[0])
             if request.operation == "read.ozon.report_info" and isinstance(answer[0], dict):
                 report_pending = answer[0].get("result", {}).get("status") in ("waiting", "processing")
             if authority.resume_rate_limits and (request.operation == "ds_wb_adstats"
@@ -325,9 +322,10 @@ def execute(packet, directory):
     presentation = result.get("chat_presentation") or {}
     guidance = list(dict.fromkeys(note for item in selected
         for note in TEMPLATES[item["template_id"]].get("notes", [])))
-    source_values = formula_inputs(plan, (result.get("data") or {}).get("templates", []), authority.names) if not result.get("failure_code") else []
+    completed = (result.get("data") or {}).get("templates", [])
+    source_values = formula_inputs(plan, completed, authority.names) if not result.get("failure_code") else []
     answer = presentation.get("details") or "\n".join(result.get("pages", []))
-    coverage = advertising.coverage_notes(campaign_coverage, authority.names)
+    coverage = advertising.coverage_notes(plan, completed, authority.names) if not result.get("failure_code") else []
     if coverage:
         answer = "\n".join(coverage) + "\n\n" + answer
     coefficient=None
