@@ -37,7 +37,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         async def call(http,s,k,request,timeout):
             calls.append((s["provider"],request))
             if s["provider"]=="google":raise direct.Refused("HTTP 429",120)
-            return {"message":{"content":"ok"},"finish_reason":"stop"},{}, 
+            return {"message":{"content":"ok"},"finish_reason":"stop"},{}
         req={"messages":[{"role":"system","content":"private"},{"role":"user","content":"public"}],
              "tools":[{"type":"function"}],"max_tokens":128}
         with patch.object(direct,"call",call):

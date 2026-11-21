@@ -95,10 +95,10 @@ async def tariff(http, spec, key):
     return base
 
 
-PROBE = {"messages":[{"role":"user","content":"Вызови функцию report для Ozon и передай 7 заказов. Затем укажи число заказов и сумму отмен двух магазинов по ответу инструмента."}],
+PROBE = {"messages":[{"role":"user","content":"Call report with market Ozon and orders 7. After the tool responds, give the order count and the sum of both cancellation counts."}],
          "tools":[{"type":"function","function":{"name":"report","description":"Record marketplace order count",
          "parameters":{"type":"object","properties":{"market":{"type":"string"},"orders":{"type":"integer"}},
-         "required":["market","orders"]}}}],"max_tokens":400}
+         "required":["market","orders"]}}}],"max_tokens":1400}
 
 
 async def call(http, spec, key, request, timeout):
@@ -111,6 +111,10 @@ async def call(http, spec, key, request, timeout):
         data=response.json()
         choice=data["choices"][0]
         msg=choice["message"]
+        content=msg.get("content")
+        if isinstance(content,str) and content.lstrip().startswith("<thought>"):
+            _,closed,answer=content.partition("</thought>")
+            msg={**msg,"content":answer.strip() if closed else ""}
         calls=msg.get("tool_calls") or []
         if choice["finish_reason"] not in {"tool_calls","stop","length"} or not (calls or msg.get("content")):
             raise Refused("Неполный ответ модели")

@@ -184,8 +184,8 @@ class Runtime:
                 raise direct.Refused("Проверка аргументов инструмента не прошла")
             quality=1
             messages=[*direct.PROBE["messages"],first["message"],
-                      {"role":"tool","tool_call_id":tool["id"],"content":"Тестовые данные: заказов 19, отмен в WB 5, отмен в Ozon 8."}]
-            final,_=await direct.call(self.http,spec,key,{"messages":messages,"tools":direct.PROBE["tools"],"max_tokens":300},35)
+                      {"role":"tool","tool_call_id":tool["id"],"content":'Test fixture: {"orders":19,"wb_cancellations":5,"ozon_cancellations":8}'}]
+            final,_=await direct.call(self.http,spec,key,{"messages":messages,"tools":direct.PROBE["tools"],"max_tokens":1400},45)
             if final["finish_reason"]!="stop" or "19" not in (final["message"].get("content") or ""):
                 raise direct.Refused("Проверка ответа по данным не прошла")
             quality=2+int("13" in (final["message"].get("content") or ""))
@@ -196,7 +196,20 @@ class Runtime:
                          delay,int(1000*(time.monotonic()-start)),quality,"","")
 
     async def monitor(self):
-        await asyncio.gather(*(self.probe(r["key"],r["model"]) for r in self.status()))
+        # Queue all models sharing one quota. A parallel probe must not starve later keys.
+        with self.hub.database() as db:
+            last={(r[0],r[1]):r[2] for r in db.execute("""SELECT key_id,model,max(t) FROM hub_events
+                  WHERE kind='probe' GROUP BY key_id,model""")}
+            routes=sorted(self._rows(db),key=lambda row:last.get((row[2]["key"],row[2]["model"]),0))
+        groups={}
+        for key,spec,row in routes:
+            if row["ready"] and row["checked"]>time.time()-600: continue
+            group=(key["provider"],key["account_id"] or "shared")
+            groups.setdefault(group,[]).append((row["key"],row["model"]))
+        async def probe_group(routes):
+            for kid,model in routes:
+                await self.probe(kid,model)
+        await asyncio.gather(*(probe_group(group) for group in groups.values()))
         with self.hub.database() as db:
             now=int(time.time())
             db.execute("DELETE FROM hub_events WHERE t<?",(now-WINDOW,))
