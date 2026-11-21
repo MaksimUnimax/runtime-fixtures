@@ -19,6 +19,7 @@ import { applyRetryPassDecisions } from "./retry.js";
 import type {
   ApiWatchDependencies,
   ApiWatchImpact,
+  ApiWatchReport,
   ApiWatchReportSourceOutcome,
   AuthorityPassResult,
   OperationInventory,
@@ -294,6 +295,42 @@ function reportResult(
     summary: "API-watch report failed safely.",
     ...(coverage ? { coverage } : {}),
   };
+}
+
+function postcommitUnknownResult(
+  options: {
+    confirmedReport?: boolean;
+    coverage?: MonitoringCoverage;
+  } = {},
+): MonitoringRunResult {
+  return {
+    status: "FAILED",
+    // Telegram maps the older postcommit code to "report was saved".
+    // Use a different code when the terminal commit itself is unverified.
+    code: options.confirmedReport
+      ? "API_WATCH_POSTCOMMIT_OUTCOME_UNKNOWN"
+      : "API_WATCH_REPORT_COMMIT_UNKNOWN",
+    summary: options.confirmedReport
+      ? "API-watch report was saved, but a later monitoring step failed; its outcome is unknown."
+      : "API-watch report completion or later monitoring actions could not be confirmed; their outcome is unknown.",
+    ...(options.coverage ? { coverage: options.coverage } : {}),
+  };
+}
+
+// Verify exactly the report and terminal state this run attempted, not just
+// any truthy row returned by a store or injected readback adapter.
+function isConfirmedTerminalReceipt(
+  report: ApiWatchReport | undefined,
+  reportId: string,
+  expectedState: "COMPLETED" | "PARTIAL" | "BLOCKED",
+): report is ApiWatchReport & { completedAt: Date } {
+  return (
+    report !== undefined &&
+    report.reportId === reportId &&
+    report.state === expectedState &&
+    report.completedAt instanceof Date &&
+    Number.isFinite(report.completedAt.valueOf())
+  );
 }
 
 async function analyzeAcceptedOutcome(input: {
@@ -572,6 +609,7 @@ export async function runApiWatchReport(input: {
     state: "RUNNING",
     at: now,
   });
+  let terminalStateAttempted: "COMPLETED" | "PARTIAL" | "BLOCKED" | null = null;
   try {
     const previousSnapshots = await dependencies.store.listSnapshots();
     const pass = await runAuthorityPass({
@@ -616,6 +654,7 @@ export async function runApiWatchReport(input: {
           ? "PARTIAL"
           : "BLOCKED";
     const completedAt = currentTime(dependencies);
+    terminalStateAttempted = state;
     await reportStore.transitionReport({
       reportId: report.reportId,
       state,
@@ -624,6 +663,10 @@ export async function runApiWatchReport(input: {
       counts: reportCounts(sources),
     });
     const completedReport = await reportStore.getReport(report.reportId);
+    // Do not run notification/retry/operator effects or report success
+    // without an exact, finite terminal receipt for this run.
+    if (!isConfirmedTerminalReceipt(completedReport, report.reportId, state))
+      return postcommitUnknownResult();
     const crosswalkRows = dependencies.crosswalkStore
       ? await dependencies.crosswalkStore.listRows(report.reportId)
       : undefined;
@@ -656,16 +699,51 @@ export async function runApiWatchReport(input: {
       });
     return reportResult(state, coverageFromReportSources(sources, completedAt));
   } catch {
-    // A terminal transition may commit before its ACK or a later pipeline step
-    // fails. Without a completion receipt the exact artifact remains resumable.
-    const persisted = await reportStore.getReport(report.reportId);
-    if (persisted?.state === "RUNNING")
+    // The terminal transition can commit before its ACK, and subsequent
+    // getReport can return no record or throw. Never infer success from an
+    // unverified read or let an internal read error escape to consumers.
+    let persisted;
+    try {
+      persisted = await reportStore.getReport(report.reportId);
+    } catch {
+      return terminalStateAttempted !== null
+        ? postcommitUnknownResult()
+        : reportResult("FAILED");
+    }
+    if (persisted?.state === "RUNNING" && terminalStateAttempted === null)
       await reportStore.transitionReport({
         reportId: report.reportId,
         state: "FAILED",
         at: currentTime(dependencies),
         counts: { overallImpactSeverity: null },
       });
+    // A recovery read after an ACK/error is not more trustworthy than the
+    // first read. Only the exact requested durable terminal receipt can make
+    // the "report was saved" claim and expose persisted coverage.
+    if (
+      terminalStateAttempted !== null &&
+      isConfirmedTerminalReceipt(
+        persisted,
+        report.reportId,
+        terminalStateAttempted,
+      )
+    )
+      return postcommitUnknownResult({
+        confirmedReport: true,
+        coverage: coverageFromReportSources(
+          persisted.sources,
+          persisted.completedAt,
+        ),
+      });
+    // A terminal row from another report/run or a state transition whose ACK
+    // is unknown must not become ordinary success or a saved-report claim.
+    if (
+      terminalStateAttempted !== null ||
+      persisted?.state === "COMPLETED" ||
+      persisted?.state === "PARTIAL" ||
+      persisted?.state === "BLOCKED"
+    )
+      return postcommitUnknownResult();
     return reportResult("FAILED");
   }
 }
