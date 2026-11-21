@@ -132,8 +132,8 @@ export async function proveCredentialTransferEpochHandoff(
       "SELECT (SELECT count(*)::text FROM drizzle.__drizzle_migrations) AS journal,(SELECT count(*)::text FROM octoport_transfer_fence.authorized_transactions) AS contexts",
     );
     check(
-      "migrated50_no_transaction_context",
-      initial.rows[0]?.journal === "50" && initial.rows[0]?.contexts === "0",
+      "migrated51_no_transaction_context",
+      initial.rows[0]?.journal === "51" && initial.rows[0]?.contexts === "0",
     );
     await observer.transaction(async (tx) => {
       await tx.query("INSERT INTO public.users(id) VALUES($1)", [userId]);
@@ -586,11 +586,11 @@ export async function proveCredentialTransferEpochHandoff(
         );
         return r.rows[0]?.n === "0";
       });
-    await cleanupStep("context_empty_journal50_preserved", async () => {
+    await cleanupStep("context_empty_journal51_preserved", async () => {
       const r = await observer.query<{ journal: string; contexts: string }>(
         "SELECT (SELECT count(*)::text FROM drizzle.__drizzle_migrations) AS journal,(SELECT count(*)::text FROM octoport_transfer_fence.authorized_transactions) AS contexts",
       );
-      return r.rows[0]?.journal === "50" && r.rows[0]?.contexts === "0";
+      return r.rows[0]?.journal === "51" && r.rows[0]?.contexts === "0";
     });
     for (const [name, pool] of [
       ["first", firstPool],

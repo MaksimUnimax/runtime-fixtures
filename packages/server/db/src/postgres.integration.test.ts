@@ -92,6 +92,7 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
       "ai_surfaces",
       "ai_variants",
       "api_watch_authority_records",
+      "api_watch_family_attempt_fences",
       "api_watch_incidents",
       "api_watch_inventories",
       "api_watch_product_baseline_revisions",
@@ -180,7 +181,7 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
     const count = await runtime.db.execute<{ count: string }>(sql`
       SELECT count(*)::text AS "count" FROM drizzle."__drizzle_migrations"
     `);
-    expect(count.rows[0]?.count).toBe("50");
+    expect(count.rows[0]?.count).toBe("51");
     const fenceTables = await runtime.query<{ table_name: string }>(
       "SELECT table_name FROM information_schema.tables WHERE table_schema='octoport_transfer_fence' ORDER BY table_name",
     );
