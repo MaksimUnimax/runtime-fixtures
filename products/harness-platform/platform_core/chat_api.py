@@ -20,6 +20,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from .admin_costs import AdminCosts, present_chat
+from .user_plugins import service as user_plugins
 from .browser_session import browser_routes, browser_token
 from .chat_worker import ChatWorker, WorkerError
 from . import integrations, provider_keys, chat_connections, chat_defaults, turn_progress
@@ -104,6 +105,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                 with app.state.identity._write() as db:
                     db.execute(DIRECT_DEFAULT_SCHEMA)
             app.state.integrations = integrations.IntegrationStore(app.state.identity)
+            app.state.plugins = user_plugins.Service(app.state)
             async with httpx.AsyncClient(timeout=10, trust_env=False, follow_redirects=False,
                     limits=httpx.Limits(max_connections=64,max_keepalive_connections=16)) as http:
                 app.state.http = http
@@ -115,6 +117,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                     try:
                         yield
                     finally:
+                        await app.state.plugins.close()
                         await app.state.progress.close()
                         await app.state.worker.close()
 
@@ -288,6 +291,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         *web_routes(),
         *turn_progress.routes(_token),
         *chat_connections.routes(_token,_body),
+        *user_plugins.routes(_token,_body),
         *integrations.routes(_token, _body),
         *provider_keys.routes(_token, _body),
         *chat_defaults.routes(_token, _body),

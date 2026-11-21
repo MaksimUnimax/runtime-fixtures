@@ -125,7 +125,7 @@ def initialize_grants(database_path):
 
 
 def issue_grant(database_path, scope, *, source, run_key, ttl_seconds=900, coin_limit=None,
-                bind_model=None, direct_fallback=None, session_digest=None):
+                bind_model=None, direct_fallback=None, session_digest=None, direct_override=None):
     """Bind one short-lived credential to a stable, server-authorized operation.
 
     run_key is an opaque identifier (e.g. the HTTP idempotency key or scheduled
@@ -191,7 +191,7 @@ def issue_grant(database_path, scope, *, source, run_key, ttl_seconds=900, coin_
             if saved:
                 direct_model, effort = saved
             else:
-                direct_model, effort = direct_default(db, direct_fallback)
+                direct_model, effort = direct_override or direct_default(db, direct_fallback)
                 db.execute("INSERT INTO direct_operation_models VALUES(?,?,?)", (operation_id, direct_model, effort))
         token = secrets.token_urlsafe(32)
         token_hash = _digest(token)

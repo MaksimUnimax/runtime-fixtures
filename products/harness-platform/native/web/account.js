@@ -4,6 +4,7 @@ window.__ModuleLoader__.load({
     const React=require('react'), h=React.createElement;
     return {inject:['slots','uiWorkspace','sessions','contextMenus'],apply(ctx) {
       const a=window.harnessAccount;
+      const PluginMenu=window.octoPluginMenu(React,ctx,a.api);
       const subscribers=new Set();
       let panel=a.panel;
       function select(value) {panel=value;for(const listener of subscribers)listener();}
@@ -55,6 +56,7 @@ window.__ModuleLoader__.load({
         const count=available==null?'—':coinAmount.format(available);
         const title=a.guest?'Войти':'Баланс';
         return h('div',{className:'account-actions'},
+          !a.guest && h(PluginMenu,{wide}),
           wide && a.guest && h('small',{className:'guest-coins'},'Монеты · доступны после входа'),
           h('button',{type:'button',className:'balance-action','aria-label':title,
             title:a.guest?title:(available==null?'Открыть баланс':'Доступно монет: '+count),

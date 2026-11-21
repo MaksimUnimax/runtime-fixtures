@@ -66,6 +66,8 @@ class IntegrationStore:
         with identity._write() as db:
             db.execute(SCHEMA)
             db.execute(chat_connections.SCHEMA)
+            from .user_plugins.registry import install
+            install(db)
 
     def _cipher(self):
         try:
@@ -91,6 +93,8 @@ class IntegrationStore:
             cid = row[0] if row else uuid4().hex
             aad = json.dumps([ws,provider,cid]).encode()
             cipher = self._cipher()
+            if row and provider == "wb" and fields != json.loads(cipher.decrypt(row[1][:12],row[1][12:],aad)):
+                db.execute("UPDATE user_plugin_stores SET catalog_at=NULL WHERE cid=?", (cid,))
             if row and provider == "ozon":
                 previous = json.loads(cipher.decrypt(row[1][:12], row[1][12:], aad))
                 fields = previous | fields
@@ -159,7 +163,10 @@ def routes(get_token, body):
         if req.method == "GET":
             return JSONResponse(store.list(token))
         data = await body(req,"provider","name","fields",optional=("chatId",))
-        return JSONResponse(store.save(token,**data))
+        saved=store.save(token,**data)
+        if data.get("chatId") and data["provider"]=="wb":
+            req.app.state.plugins.sync_added(token,saved["id"],data["chatId"])
+        return JSONResponse(saved)
     async def check(req):
         token = get_token(req,allow_cookie=True)
         store, cid = req.app.state.integrations, req.path_params["cid"]

@@ -144,7 +144,7 @@ def roster(base, core=None):
 
 @lru_cache(maxsize=1)
 def application_bundle():
-    return encoded(b"\n;\n".join((UI / name).read_bytes() for name in ("account.js", "connections.js")))
+    return encoded(b"\n;\n".join((UI / name).read_bytes() for name in ("plugins.js", "account.js", "connections.js")))
 
 
 def core_response(request):

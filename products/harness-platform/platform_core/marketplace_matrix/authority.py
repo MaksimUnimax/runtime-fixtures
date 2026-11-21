@@ -87,6 +87,8 @@ class ChatAuthority:
                 WHERE g.token_hash=? AND g.expires_at>? AND (r.session_digest IS NULL OR s.expires_at>?)
                   AND o.source='chat.turn' AND o.run_key=?
                   AND o.actor_id=? AND o.workspace_id=? AND c.chat_id=? AND i.provider IN ('ozon','wb')
+                  AND (i.provider!='wb' OR EXISTS(SELECT 1 FROM chat_plugins p WHERE p.workspace_id=w.workspace_id
+                        AND p.chat_id=c.chat_id AND p.plugin_id='wildberries'))
                   AND i.id IN (""" + ",".join("?" for _ in self.ids) + ") ORDER BY i.id", args).fetchall()
         finally:
             db.close()

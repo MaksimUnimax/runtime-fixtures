@@ -11,6 +11,7 @@ from threading import Lock
 import time
 
 from ..catalog import Capability
+from . import coefficient_templates as extensions
 
 ROOT = Path(__file__).resolve().parents[2]
 REPORT_LOCK = Lock()
@@ -43,7 +44,7 @@ def capability(stores):
             profiles.append((store["id"], store["provider"], fields))
     if not profiles:
         return None
-    rows = catalogue(tuple(profiles))
+    rows = [*catalogue(tuple(profiles)), *extensions.catalogue(profiles)]
     if not rows:
         return None
     groups = {}
@@ -73,10 +74,21 @@ def capability(stores):
                                        "additionalProperties": {"type": ["string", "number"]}},
               }, "additionalProperties": False}},
               "additionalProperties": False}
+    plugin_inputs = {"type":"object","properties":{
+        "sku":{"type":"string","pattern":"^[1-9][0-9]{0,18}$"},
+        "quantity":{"type":"integer","minimum":1,"maximum":1000000000},
+        "sellerPrice":{"type":"number","minimum":0,"maximum":1000000000},
+        "officialRate":{"type":"number","minimum":0,"maximum":100}},"additionalProperties":False}
     item = {"type": "object", "properties": {
         "templateId": {"type": "string", "enum": [row["id"] for row in rows]},
         "connectionId": {"type": "string", "enum": [p[0] for p in profiles]}, "input": inputs},
         "required": ["templateId", "connectionId", "input"], "additionalProperties": False}
+    if any(row["id"] in extensions.TEMPLATES for row in rows):
+        item["properties"]["input"]={"type":"object"}
+        item["allOf"]=[{"if":{"properties":{"templateId":{"enum":list(extensions.TEMPLATES)}}},
+            "then":{"properties":{"input":{"type":"object","properties":{"plugin_inputs":plugin_inputs},
+                                           "additionalProperties":False}}},
+            "else":{"properties":{"input":inputs}}}]
     if len(groups) > 1:
         item["anyOf"] = [{"properties": {"templateId": {"enum": [tid for tid, _ in cards]},
                                         "connectionId": {"enum": list(ids)}}}
@@ -96,6 +108,8 @@ def capability(stores):
         "Для самостоятельного расчёта коэффициента передай его явно запрошенный интервал в period. "
         "Для прогноза передай период заказов в period, а отдельно указанные интервалы коэффициентов в parameter_periods.loss_rate "
         "и parameter_periods.delivery_mean. Без отдельного интервала матрица возьмёт последние 12 месяцев. "
+        "Для расчётных шаблонов WB укажи артикул WB в plugin_inputs.sku и исходное количество в plugin_inputs.quantity. "
+        "Коэффициенты из настроек подставляет сервер, передавать их не нужно. "
         "Выводи рассчитанные матрицей значения и следуй guidance выбранного шаблона. "
         "В рекламном отчёте WB сохрани охват кампаний. Итоги по полученным строкам нельзя выдавать за итог всех кампаний. "
         "Если площадка вернула другую ошибку, передай причину из инструмента понятным языком.\n" + menu, schema, run)
@@ -124,6 +138,30 @@ def run_report(scope, arguments):
     items = arguments["selections"]
     packet = {"actor": scope.actor_id, "workspace": scope.workspace_id, "chat": scope.chat_id,
               "connections": sorted({item["connectionId"] for item in items}), "selections": items, "turn": turn}
+    extension_calls=[i for i in items if i["templateId"] in extensions.TEMPLATES]
+    if extension_calls:
+        from contextlib import closing
+        import sqlite3
+        def saved():
+            # Match the operation, live session and store grants at lookup and again at delivery.
+            with closing(sqlite3.connect(Path(turn["databasePath"]).as_uri()+"?mode=ro",uri=True)) as db:
+                db.execute("BEGIN")
+                active=db.execute("""SELECT 1 FROM usage_operations o JOIN usage_grants g USING(operation_id)
+                    LEFT JOIN marketplace_retry_windows r ON r.token_hash=g.token_hash
+                    LEFT JOIN identity_sessions s ON s.digest=r.session_digest AND s.actor_id=o.actor_id
+                    WHERE g.token_hash=? AND g.expires_at>unixepoch() AND o.run_key=? AND o.actor_id=? AND
+                    o.workspace_id=? AND o.chat_id=? AND o.source='chat.turn' AND (r.session_digest IS NULL OR s.expires_at>unixepoch())""",
+                    (sha256(turn["token"].encode()).hexdigest(),turn["requestId"],scope.actor_id,scope.workspace_id,scope.chat_id)).fetchone()
+                if not active:
+                    raise PermissionError("Chat operation unavailable")
+                return [extensions.report(db,scope,item) for item in extension_calls]
+        results=saved()
+        ordinary=[i for i in items if i not in extension_calls]
+        if not ordinary:
+            return {"ok":True,"reports":results}
+        combined=run_report(scope,{"selections":ordinary})
+        public=combined.get("public",combined)
+        return {"public":{**public,"pluginReports":saved()},"diagnostics":combined.get("diagnostics",{})}
     try:
         return invoke(packet, None if turn.get("resumeRateLimits") is True else remaining)
     except subprocess.TimeoutExpired:
