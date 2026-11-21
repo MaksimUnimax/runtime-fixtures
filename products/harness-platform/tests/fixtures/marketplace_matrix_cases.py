@@ -462,6 +462,26 @@ class MarketplaceMatrix(unittest.TestCase):
             with self.assertRaises(ParameterError):
                 normalise_owner_inputs(invalid)
 
+    def test_replaying_financial_receipts_reuses_only_the_validated_wire_request(self):
+        from read_surface import build, _checked_wire_request
+        import read_surface
+        from semantics import Rejected
+
+        name = "finance_accrual_by_day"
+        _checked_wire_request.cache_clear()
+        self.addCleanup(_checked_wire_request.cache_clear)
+        with patch("read_surface.subprocess.run", wraps=read_surface.subprocess.run) as bridge:
+            first = build("ozon", name, {"date": "2026-11-19", "last_id": ""})
+            self.assertTrue(first["url"].startswith("https://api-seller.ozon.ru/"))
+            first["url"] = "modified by caller"
+            replay = build("ozon", name, {"last_id": "", "date": "2026-11-19"})
+            self.assertTrue(replay["url"].startswith("https://api-seller.ozon.ru/"))
+            self.assertEqual(bridge.call_count, 1)
+            build("ozon", name, {"date": "2026-11-20", "last_id": ""})
+            self.assertEqual(bridge.call_count, 2)
+            with self.assertRaises(Rejected):
+                build("ozon", name, {"date": "wrong", "last_id": ""})
+
     def test_long_report_extends_only_live_operation_window(self):
         from platform_core.marketplace_matrix.authority import ChatAuthority
         from platform_core.operation_grants import revoke_grant
