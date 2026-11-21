@@ -182,6 +182,11 @@ def bind_report_previews(files):
         "_input({'period':draft['period'],'parameter_periods':draft['parameter_periods']},root['calendar_date'])",
         "_input({'period':draft['period'],'parameter_periods':draft['parameter_periods'],"
         "'owner_inputs':draft.get('owner_inputs',{})},root['calendar_date'])")
+    patch_runtime(files, filename,
+        "        tariff_block=tariffs.for_cohort(orders.data['rows'],period,target)\n",
+        "        from parameter_support.economics_tariffs import TariffError\n"
+        "        try:tariff_block=tariffs.for_cohort(orders.data['rows'],period,target)\n"
+        "        except TariffError as error:raise Rejected(error.code)from None\n")
     filename = "parameter_support/parameter_report_contract.py"
     patch_runtime(files, filename, "'group_by','parameter_periods'},'PARAMETER_REPORT_INPUT')",
         "'group_by','parameter_periods','owner_inputs'},'PARAMETER_REPORT_INPUT')")
