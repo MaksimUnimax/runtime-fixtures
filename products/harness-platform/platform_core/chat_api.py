@@ -19,6 +19,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
+from . import model_hub
 from .admin_costs import AdminCosts, present_chat
 from .browser_session import browser_routes, browser_token
 from .chat_worker import ChatWorker, WorkerError
@@ -109,6 +110,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                 directory = lifecycle.enter_context(TemporaryDirectory())
                 shared_path = Path(directory) / "platform.sqlite3"
             app.state.identity = lifecycle.enter_context(RegistrationStore(shared_path))
+            app.state.model_hub = model_hub.Hub(os.getenv("HARNESS_MODEL_HUB_DATABASE") or Path(shared_path).parent / "model-hub.sqlite3")
             app.state.progress = turn_progress.Progress()
             app.state.admin_costs = AdminCosts()
             app.state.worker = ChatWorker(shared_path, chat_directory, composition_module)
@@ -288,6 +290,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         *turn_progress.routes(_token),
         *chat_connections.routes(_token,_body),
         *integrations.routes(_token, _body),
+        *model_hub.routes(_token, _body),
         *provider_keys.routes(_token, _body),
         *chat_defaults.routes(_token, _body),
         *(router_plugin.routes(_token, _body, disabled_models) if router_plugin else [Route("/api/model-settings",disabled_models,methods=["GET","POST"])]),

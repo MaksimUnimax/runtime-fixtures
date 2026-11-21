@@ -1,0 +1,207 @@
+"""Public candidate discovery and the private, operator-owned hub registry."""
+import argparse
+import asyncio
+import json
+import os
+import re
+import sqlite3
+import time
+from decimal import Decimal, InvalidOperation
+from contextlib import contextmanager
+from pathlib import Path
+from uuid import uuid4
+
+import httpx
+from starlette.concurrency import run_in_threadpool
+from starlette.exceptions import HTTPException
+from starlette.responses import JSONResponse
+from starlette.routing import Route
+
+from .chat_connections import vault_cipher
+from .model_catalog import catalog_rows
+
+CATALOG = "https://openrouter.ai/api/v1/models"
+# These mappings are discovery evidence, never permission to send traffic.
+PROVIDERS = {"dots": "Dots Studio", "atlas": "Atlas Cloud", "cloudflare": "Cloudflare", "google": "Google AI Studio"}
+MODELS = {
+    "dots-studio/dots-3-note-preview": ("dots", "atlas"),
+    "google/gemma-4-26b-a4b-it": ("cloudflare", "google"),
+    "google/gemma-4-31b-it": ("google",),
+}
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS candidates(model TEXT PRIMARY KEY, name TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS catalog_state(
+    id INTEGER PRIMARY KEY CHECK(id=1), attempted INTEGER, succeeded INTEGER, error TEXT);
+CREATE TABLE IF NOT EXISTS hub_keys(
+    id TEXT PRIMARY KEY, provider TEXT NOT NULL, label TEXT NOT NULL, sealed BLOB NOT NULL,
+    UNIQUE(provider,label));
+CREATE TABLE IF NOT EXISTS research(
+    model TEXT PRIMARY KEY, checked INTEGER NOT NULL, finding TEXT NOT NULL, source TEXT NOT NULL,
+    access TEXT NOT NULL, provider TEXT NOT NULL, provider_name TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS research_attempts(model TEXT PRIMARY KEY, attempted INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS research_state(
+    id INTEGER PRIMARY KEY CHECK(id=1), attempted INTEGER, succeeded INTEGER, error TEXT);
+"""
+
+def valid_rate(value):
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+        return False
+    try:
+        return Decimal(str(value)).is_finite()
+    except InvalidOperation:
+        return False
+
+
+def string_list(items):
+    return isinstance(items, list) and all(isinstance(value, str) for value in items)
+
+
+def valid_catalog_record(item):
+    if not isinstance(item, dict):
+        return False
+    architecture = item.get("architecture")
+    price = item.get("pricing")
+    return (isinstance(item.get("id"), str) and isinstance(item.get("name"), str)
+            and isinstance(architecture, dict) and string_list(architecture.get("output_modalities"))
+            and string_list(item.get("supported_parameters"))
+            and isinstance(price, dict) and {"prompt", "completion"}.issubset(price)
+            and all(valid_rate(rate) for key, rate in price.items() if key != "overrides")
+            and isinstance(price.get("overrides", []), list)
+            and all(isinstance(tier, dict) for tier in price.get("overrides", [])))
+
+
+def registry(db):
+    providers = PROVIDERS.copy()
+    for row in db.execute("""SELECT provider,provider_name FROM research
+            WHERE access='public_free' ORDER BY checked"""):
+        providers.setdefault(row["provider"], row["provider_name"])
+    for row in db.execute("SELECT DISTINCT provider FROM hub_keys"):
+        providers.setdefault(row["provider"],row["provider"])
+    return providers
+
+
+class Hub:
+    def __init__(self, path):
+        self.path = Path(path)
+
+    @contextmanager
+    def database(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        db = sqlite3.connect(self.path, timeout=8)
+        try:
+            db.row_factory = sqlite3.Row
+            db.executescript(SCHEMA)
+            with db:
+                yield db
+        finally:
+            db.close()
+
+    def record_catalog(self, models, error=None):
+        now = int(time.time())
+        with self.database() as db:
+            db.execute("""INSERT INTO catalog_state VALUES(1,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET attempted=excluded.attempted,
+                succeeded=coalesce(excluded.succeeded,succeeded),error=excluded.error""",
+                       (now, None if error else now, error))
+            if error is None:
+                db.execute("DELETE FROM candidates")
+                db.executemany("INSERT INTO candidates VALUES(?,?)", models)
+
+    async def refresh(self, client):
+        try:
+            response = await client.get(CATALOG)
+            response.raise_for_status()
+            payload = response.json()
+            if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
+                raise ValueError("catalog format")
+            rows = payload["data"]
+            if not rows or not all(valid_catalog_record(item) for item in rows):
+                raise ValueError("incomplete catalog")
+            models = [(m["id"], m["name"]) for m in catalog_rows(payload).values() if m["free"]]
+        except httpx.HTTPStatusError as exc:
+            error = f"HTTP {exc.response.status_code}"
+        except (httpx.HTTPError, ValueError, KeyError, TypeError):
+            error = "Каталог недоступен или ответ имеет неизвестный формат"
+        else:
+            await run_in_threadpool(self.record_catalog, models)
+            return True
+        await run_in_threadpool(self.record_catalog, [], error)
+        return False
+
+    def save_key(self, provider, label, key):
+        if not isinstance(provider, str) or not re.fullmatch(r"[a-z][a-z0-9-]{0,62}", provider):
+            raise ValueError("Неизвестный поставщик")
+        if not isinstance(label, str) or not 1 <= len(label.strip()) <= 70 or not label.isprintable():
+            raise ValueError("Укажите метку ключа")
+        if not isinstance(key, str) or not 10 <= len(key) <= 2048 or not all(32 < ord(c) < 127 for c in key):
+            raise ValueError("Некорректный ключ")
+        label = label.strip()
+        cipher = vault_cipher()
+        with self.database() as db:
+            db.execute("BEGIN IMMEDIATE")
+            if provider not in registry(db):
+                raise ValueError("Неизвестный поставщик")
+            previous = db.execute("SELECT id FROM hub_keys WHERE provider=? AND label=?", (provider,label)).fetchone()
+            kid = previous["id"] if previous else uuid4().hex
+            nonce = os.urandom(12)
+            aad = json.dumps(["model-hub", provider, kid]).encode()
+            sealed = nonce + cipher.encrypt(nonce, key.encode(), aad)
+            db.execute("""INSERT INTO hub_keys VALUES(?,?,?,?)
+                ON CONFLICT(provider,label) DO UPDATE SET sealed=excluded.sealed""", (kid,provider,label,sealed))
+
+    def dashboard(self):
+        with self.database() as db:
+            db.execute("BEGIN")
+            state = db.execute("SELECT attempted,succeeded,error FROM catalog_state").fetchone()
+            monitor = db.execute("SELECT attempted,succeeded,error FROM research_state").fetchone()
+            provider_names = registry(db)
+            keys = [dict(r) for r in db.execute("SELECT id,provider,label FROM hub_keys ORDER BY provider,label")]
+            findings = {r["model"]: dict(r) for r in db.execute("SELECT * FROM research")}
+            models = [dict(r) for r in db.execute("SELECT model,name FROM candidates ORDER BY model")]
+        configured = {k["provider"] for k in keys}
+        missing = {}
+        for item in models:
+            mid = item["model"]
+            providers = MODELS.get(mid.removesuffix(":free"), ())
+            review = findings.get(mid)
+            if review and review["access"] in {"paid","conditional"}:
+                providers = tuple(provider for provider in providers if provider != review["provider"])
+            if review and review["access"] == "public_free" and review["provider"] not in providers:
+                providers = (*providers, review["provider"])
+            item.update(providers=providers, research=review)
+            if not providers:
+                item["status"] = "research"
+            elif configured.intersection(providers):
+                item["status"] = "key_saved"
+            else:
+                item["status"] = "needs_key"
+                for provider in providers:
+                    missing.setdefault(provider, []).append(mid)
+        return dict(catalog=dict(state) if state else None, monitor=dict(monitor) if monitor else None,
+                    providers=provider_names, keys=keys, models=models, missing=missing)
+
+def routes(get_token, body):
+    async def dashboard(req):
+        token = get_token(req, allow_cookie=True)
+        if not await run_in_threadpool(req.app.state.identity.is_admin, token):
+            raise HTTPException(403, "Administrator required")
+        hub = req.app.state.model_hub
+        if req.method == "POST":
+            fields = await body(req, "provider", "label", "key")
+            try:
+                await run_in_threadpool(hub.save_key, **fields)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from None
+        return JSONResponse(await run_in_threadpool(hub.dashboard))
+    return [Route("/api/admin/model-hub", dashboard),
+            Route("/api/admin/model-hub/keys", dashboard, methods=["POST"])]
+
+async def refresh_database(path):
+    async with httpx.AsyncClient(timeout=15, trust_env=False, follow_redirects=False) as http:
+        return await Hub(path).refresh(http)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Update the public candidate catalogue")
+    parser.add_argument("--database", type=Path, required=True)
+    args = parser.parse_args()
+    raise SystemExit(0 if asyncio.run(refresh_database(args.database)) else 1)

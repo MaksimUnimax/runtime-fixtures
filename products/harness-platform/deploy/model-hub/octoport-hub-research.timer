@@ -1,0 +1,7 @@
+[Unit]
+Description=Review direct providers using the dedicated Codex login
+[Timer]
+OnCalendar=*:5/30
+Persistent=true
+[Install]
+WantedBy=timers.target
