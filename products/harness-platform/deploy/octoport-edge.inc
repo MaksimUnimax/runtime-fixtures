@@ -7,7 +7,7 @@ location ^~ /about/ {
     add_header X-Content-Type-Options nosniff always;
     add_header Referrer-Policy strict-origin-when-cross-origin always;
     add_header X-Frame-Options DENY always;
-    add_header Content-Security-Policy "default-src 'none'; script-src 'self' https://mc.yandex.ru https://yastatic.net; style-src 'self' https://fonts.googleapis.com; img-src 'self' data: https://mc.yandex.ru; connect-src https://mc.yandex.ru; child-src blob: https://mc.yandex.ru; frame-src blob: https://mc.yandex.ru; font-src 'self' https://fonts.gstatic.com; base-uri 'self'; form-action 'none'; frame-ancestors 'none'; object-src 'none'" always;
+    add_header Content-Security-Policy "default-src 'none'; script-src 'self' https://mc.yandex.ru https://yastatic.net; style-src 'self' https://fonts.googleapis.com; img-src 'self' data: https://mc.yandex.ru; connect-src https://octoport.ru/api/session/status https://mc.yandex.ru; child-src blob: https://mc.yandex.ru; frame-src blob: https://mc.yandex.ru; font-src 'self' https://fonts.gstatic.com; base-uri 'self'; form-action 'none'; frame-ancestors 'none'; object-src 'none'" always;
 }
 location ~ ^/(privacy|support|install|seller-analytics)(?:\.html|/)?$ {
     return 308 /about/$1$is_args$args;
@@ -19,9 +19,9 @@ location = /robots.txt {
     return 200 "User-agent: *\nDisallow: /admin\nDisallow: /api/\nDisallow: /app/\nSitemap: https://octoport.ru/about/sitemap.xml\n";
 }
 location / {
-    proxy_pass https://185.244.51.141;
+    proxy_pass https://185.219.43.9;
     proxy_ssl_server_name on;
-    proxy_ssl_name harness.185-244-51-141.sslip.io;
+    proxy_ssl_name harness.185-219-43-9.sslip.io;
     proxy_ssl_verify on;
     proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
     proxy_ssl_verify_depth 4;

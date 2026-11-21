@@ -30,6 +30,8 @@ def attach(db,scope,cid,enabled):
     if not db.execute("SELECT 1 FROM account_integrations WHERE id=? AND workspace=?",(cid,scope.workspace_id)).fetchone():
         raise HTTPException(404,"Подключение недоступно")
     if enabled:
+        from .user_plugins.registry import connect_store
+        connect_store(db,scope,cid)
         db.execute("INSERT OR IGNORE INTO chat_integrations VALUES(?,?)",(scope.chat_id,cid))
     else:
         db.execute("DELETE FROM chat_integrations WHERE chat_id=? AND connection_id=?",(scope.chat_id,cid))
@@ -45,7 +47,10 @@ def snapshot(db,scope,*,describe_saved=False):
         FROM account_integrations c LEFT JOIN chat_integrations g ON g.connection_id=c.id AND g.chat_id=?
         WHERE c.workspace=? ORDER BY c.name,c.id""",(scope.chat_id,scope.workspace_id))
     result=[]
+    from .user_plugins.registry import CATALOG, attached as has_plugin
+    active={p.provider:bool(has_plugin(db,scope,p.id)) for p in CATALOG.values()}
     for cid,name,provider,status,attached,blob in rows:
+        attached=attached and active.get(provider,True)
         kinds=[]
         if provider=="ozon" and (attached or describe_saved):
             try:
@@ -72,7 +77,10 @@ def routes(token_for,body):
                 if type(data["enabled"]) is not bool or not isinstance(data["connectionId"],str):
                     raise ValueError("Invalid connection grant")
                 attach(db,scope,data["connectionId"],data["enabled"])
-            return JSONResponse({"connections":snapshot(db,scope,describe_saved=True)})
+            response={"connections":snapshot(db,scope,describe_saved=True)}
+        if data and data["enabled"]:
+            req.app.state.plugins.sync_added(token,data["connectionId"],scope.chat_id)
+        return JSONResponse(response)
     return [Route("/api/chats/{chat_id}/integrations",connections,methods=["GET","POST"])]
 
 def read_service(provider, fields, action, args):
@@ -126,6 +134,9 @@ class ChatTools:
                          (scope.chat_id,scope.workspace_id,cid)).fetchone()
                     if not row: raise PermissionError()
                     provider,blob=row
+                    from .user_plugins.registry import CATALOG, attached as permitted
+                    if any(p.provider == provider and not permitted(db,scope,p.id) for p in CATALOG.values()):
+                        raise PermissionError()
                     fields=unseal(scope.workspace_id,provider,cid,blob)
                 if action not in ("check", provider): raise PermissionError()
                 return read_service(provider,fields,action,args)

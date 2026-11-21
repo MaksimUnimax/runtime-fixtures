@@ -33,6 +33,7 @@ class PaidAccessRequired(coins.InsufficientCoins):
     """The owner can still read history and replay completed requests."""
 
 
+CHAT_GRANT_TTL_SECONDS = 150
 _PLATFORM_APPLICATION = 0x48504C54
 _SOURCE = re.compile(r"[a-z][a-z0-9_.-]{0,63}")
 _RUN_KEY = re.compile(r"[A-Za-z0-9_.:-]{1,128}")
@@ -54,6 +55,10 @@ OPERATION_SCHEMA = (
            expires_at INTEGER NOT NULL
        )""",
     "CREATE INDEX IF NOT EXISTS usage_grants_expiry ON usage_grants(expires_at)",
+    """CREATE TABLE IF NOT EXISTS marketplace_retry_windows (
+        token_hash TEXT PRIMARY KEY REFERENCES usage_grants ON DELETE CASCADE,
+        deadline_ms INTEGER, retry_at_ms INTEGER, session_digest BLOB
+    )""",
     DIRECT_DEFAULT_SCHEMA,
     """CREATE TABLE IF NOT EXISTS direct_operation_models (
         operation_id TEXT PRIMARY KEY REFERENCES usage_operations ON DELETE CASCADE,
@@ -119,7 +124,8 @@ def initialize_grants(database_path):
                       LEFT JOIN chats AS c ON c.workspace_id=w.workspace_id LIMIT 0""")
 
 
-def issue_grant(database_path, scope, *, source, run_key, ttl_seconds=900, coin_limit=None, bind_model=None, direct_fallback=None):
+def issue_grant(database_path, scope, *, source, run_key, ttl_seconds=900, coin_limit=None,
+                bind_model=None, direct_fallback=None, session_digest=None, direct_override=None):
     """Bind one short-lived credential to a stable, server-authorized operation.
 
     run_key is an opaque identifier (e.g. the HTTP idempotency key or scheduled
@@ -185,12 +191,74 @@ def issue_grant(database_path, scope, *, source, run_key, ttl_seconds=900, coin_
             if saved:
                 direct_model, effort = saved
             else:
-                direct_model, effort = direct_default(db, direct_fallback)
+                direct_model, effort = direct_override or direct_default(db, direct_fallback)
                 db.execute("INSERT INTO direct_operation_models VALUES(?,?,?)", (operation_id, direct_model, effort))
         token = secrets.token_urlsafe(32)
+        token_hash = _digest(token)
         db.execute("INSERT INTO usage_grants(token_hash, operation_id, expires_at) VALUES (?, ?, ?)",
-                   (_digest(token), operation_id, expires))
+                   (token_hash, operation_id, expires))
+        if session_digest is not None:
+            if source != "chat.turn" or not db.execute("""
+                SELECT 1 FROM identity_sessions WHERE digest=? AND actor_id=? AND expires_at>?
+            """, (session_digest, actor, now)).fetchone():
+                raise PermissionError("Chat session unavailable")
+            db.execute("INSERT INTO marketplace_retry_windows(token_hash, session_digest) VALUES (?,?)",
+                       (token_hash, session_digest))
     return OperationGrant(operation_id, workspace, source, token, model, direct_model, effort)
+
+
+def _renew_marketplace_grant(db, token_hash, now):
+    return bool(db.execute("""
+        UPDATE usage_grants AS g SET expires_at=MAX(expires_at,?)
+        WHERE token_hash=? AND expires_at>? AND EXISTS (
+            SELECT 1 FROM usage_operations o
+            JOIN workspaces w ON w.workspace_id=o.workspace_id AND w.owner_id=o.actor_id
+            JOIN chats c ON c.chat_id=o.chat_id AND c.workspace_id=w.workspace_id
+            LEFT JOIN marketplace_retry_windows r ON r.token_hash=g.token_hash
+            LEFT JOIN identity_sessions s ON s.digest=r.session_digest AND s.actor_id=o.actor_id
+            WHERE o.operation_id=g.operation_id AND o.source='chat.turn'
+              AND (r.session_digest IS NULL OR s.expires_at>?)
+        )
+    """, (now + CHAT_GRANT_TTL_SECONDS, token_hash, now, now)).rowcount)
+
+
+def renew_marketplace_grant(database_path, token_hash, now):
+    with _transaction(database_path) as db:
+        return _renew_marketplace_grant(db, token_hash, now)
+
+
+def extend_marketplace_wait(database_path, token_hash, deadline_ms, retry_at_ms, now_ms):
+    """Pause the working budget and renew only the short authorization lease."""
+    if not (now_ms < deadline_ms and now_ms < retry_at_ms < 8_000_000_000_000_000):
+        return None
+    return set_marketplace_window(database_path, token_hash, deadline_ms,
+                                  deadline_ms + retry_at_ms - now_ms, retry_at_ms, now_ms)
+
+
+def set_marketplace_window(database_path, token_hash, previous_ms, deadline_ms, retry_at_ms, now_ms):
+    """Record safe current progress while retaining the short authorization lease."""
+    if not now_ms < previous_ms < deadline_ms < 8_000_000_000_000_000:
+        return None
+    with _transaction(database_path) as db:
+        prior = db.execute("SELECT deadline_ms FROM marketplace_retry_windows WHERE token_hash=?",
+                           (token_hash,)).fetchone()
+        if prior and prior[0] not in (None, previous_ms):
+            return None
+        if not _renew_marketplace_grant(db, token_hash, now_ms // 1000):
+            return None
+        db.execute("""
+            INSERT INTO marketplace_retry_windows(token_hash,deadline_ms,retry_at_ms) VALUES (?,?,?)
+            ON CONFLICT(token_hash) DO UPDATE SET deadline_ms=excluded.deadline_ms,
+                                                retry_at_ms=excluded.retry_at_ms
+        """, (token_hash, deadline_ms, retry_at_ms))
+        return deadline_ms
+
+
+def marketplace_deadline(database, token_hash, initial_ms):
+    with closing(sqlite3.connect(database, uri=True)) as db:
+        row = db.execute("SELECT deadline_ms FROM marketplace_retry_windows WHERE token_hash=?",
+                         (token_hash,)).fetchone()
+    return row[0] if row and row[0] is not None else initial_ms
 
 
 def revoke_grant(database_path, token):

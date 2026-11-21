@@ -1,9 +1,11 @@
 """Serve the pinned native browser client and its product plug-in."""
+import base64
 import gzip
 import hashlib
 import json
 import os
 import re
+import zipfile
 from functools import lru_cache
 from html import escape
 from pathlib import Path
@@ -26,8 +28,17 @@ HEADERS = {**_PRIVATE_HEADERS, "Content-Security-Policy":
 
 @lru_cache(maxsize=1)
 def application_name():
-    digest = hashlib.sha256(Path(__file__).read_bytes() + VERSION.encode() + (UI / "account.js").read_bytes() + (UI / "connections.js").read_bytes() + str(ROOTS).encode()).hexdigest()[:16]
-    return "application-" + digest
+    return "application-" + application_bundle()[2][:20]
+
+
+@lru_cache(maxsize=1)
+def core_assets():
+    with zipfile.ZipFile(UI / "chat-core.pack") as archive:
+        return (archive.read("sha256").decode("ascii"), archive.read("core.js.gz"), archive.read("core.js.br"))
+
+
+def core_name():
+    return "core-" + core_assets()[0][:20]
 
 
 @lru_cache(maxsize=32)
@@ -41,6 +52,17 @@ def client_source(path):
     package = path.parent.parent.name
     if package.startswith("dsh-client-ui-"):
         source = source.replace(b"DeepSeek Harness", b"octoport")
+    if package == "dsh-client-ui-workspace":
+        # Resolve the authenticated deep link before native recent-session restoration.
+        signature = b"async restoreSelection(workspaces, sessions) {"
+        source = source.replace(signature, signature +
+            b" const targetId=window.harnessAccount?.selected;"
+            b" if (targetId && sessions.byId[targetId]) {"
+            b" this.replaceMain(targetId, this.lifetime.signal, 'preserve'); return; }", 1)
+        # Empty conversations have no last-message time.
+        for name in (b"timeLabel", b"hoverTimeLabel"):
+            signature = b"function " + name + b"(updatedAt, now, t) {"
+            source = source.replace(signature, signature + b' if (!updatedAt) return "";', 1)
     if package == "dsh-client-ui-shortcuts":
         source = re.sub(rb"\bHarness\b", b"octoport", source)
     if package == "dsh-client-ui-conversation":
@@ -80,7 +102,7 @@ def modules():
     return path / GROUP.rstrip("/")
 
 @lru_cache(maxsize=4)
-def roster(base):
+def roster(base, core=None):
     entries, files = {}, {}
     def visit(name):
         if name in entries:
@@ -114,15 +136,37 @@ def roster(base):
             "url":"/ui-assets/project/connections.js","inject":[GROUP+"dsh-client-ui-settings-general"]}]
     bootstrap = entries["dsh-client-modules"]
     batches = [{"phase":"bootstrap", "url":bootstrap["url"], "rev":VERSION, "entries":[bootstrap["id"]]},
+               {"phase":"application", "url":"/ui-assets/modules/" + (core or core_name()) + ".js", "rev":VERSION,
+                "entries":[row["id"] for row in entries.values() if row is not bootstrap]},
                {"phase":"application", "url":"/ui-assets/modules/" + application_name() + ".js", "rev":VERSION,
-                "entries":[row["id"] for row in rows if row is not bootstrap]}]
+                "entries":[row["id"] for row in rows[len(entries):]]}]
     return {"rev":VERSION, "release":{"version":VERSION}, "entries":rows, "batches":batches}, files
 
-@lru_cache(maxsize=2)
-def application_bundle(base):
-    _, files = roster(base)
-    paths = [path for name, path in files.items() if name != "dsh-client-modules"]
-    return encoded(b"\n;\n".join(client_source(path) for path in [*paths, UI / "account.js", UI / "connections.js"]))
+@lru_cache(maxsize=1)
+def application_bundle():
+    return encoded(b"\n;\n".join((UI / name).read_bytes() for name in ("plugins.js", "account.js", "connections.js")))
+
+
+def core_response(request):
+    digest, gz, br = core_assets()
+    codings = {}
+    for item in request.headers.get("accept-encoding", "").lower().split(","):
+        coding, _, quality = item.strip().partition(";")
+        try:
+            codings[coding] = float(quality.strip().removeprefix("q=")) if quality else 1
+        except ValueError:
+            continue
+    headers = {"Cache-Control":"public, max-age=31536000, immutable", "Vary":"Accept-Encoding",
+               "ETag":'W/"' + digest + '"', "X-Content-Type-Options":"nosniff"}
+    if headers["ETag"] in request.headers.get("if-none-match", "").split(", "):
+        return Response(status_code=304, headers=headers)
+    if codings.get("br", 0) > 0:
+        body, headers["Content-Encoding"] = br, "br"
+    elif codings.get("gzip", 0) > 0:
+        body, headers["Content-Encoding"] = gz, "gzip"
+    else:
+        body = gzip.decompress(gz)
+    return Response(body, media_type="text/javascript", headers=headers)
 
 
 async def module_file(request):
@@ -131,19 +175,35 @@ async def module_file(request):
     except (ValueError, OSError, KeyError):
         raise HTTPException(503, "Pinned Harness client unavailable") from None
     name = request.path_params["name"]
+    if name == core_name():
+        return core_response(request)
     if name == application_name():
-        return asset_response(request, application_bundle(modules()), 'text/javascript', immutable=True)
+        return asset_response(request, application_bundle(), 'text/javascript', immutable=True)
     if name == 'manifest':
         return Response('window.__DSH_BOOT__ = ' + json.dumps(manifest) + ';', media_type='text/javascript')
     if name not in files:
         raise HTTPException(404)
     return asset_response(request, static_bytes(files[name], client_source), 'text/javascript')
 
-def shell(*, panel="", error="", recovery="", chat="", guest=False, status=200, account=None):
+@lru_cache(maxsize=1)
+def initial_script():
+    # Only trusted, release-owned JavaScript enters this block. Account data stays in HTML attributes.
+    template = (UI / "chat-bootstrap.js").read_text()
+    script = template.replace("@@application@@", application_name()).replace("@@core@@", core_name())
+    if "</script" in script.lower():
+        raise ValueError("Unexpected inline script terminator")
+    digest = base64.b64encode(hashlib.sha256(script.encode()).digest()).decode()
+    return script, "'sha256-" + digest + "'"
+
+
+def shell(*, theme="system", panel="", error="", recovery="", chat="", guest=False, status=200, account=None):
     page = (UI / "index.html").read_text()
-    page = page.replace("@@application@@", application_name())
-    for name, value in {"panel":panel, "error":error, "recovery":recovery, "chat":chat,
+    page = page.replace("@@application@@", application_name()).replace("@@core@@", core_name())
+    for name, value in {"theme":theme if theme in ("light","dark") else "system", "panel":panel, "error":error, "recovery":recovery, "chat":chat,
                         "account":json.dumps(account, separators=(",", ":")) if account is not None else "",
                         "mode":"guest" if guest else "member"}.items():
         page = page.replace("@@" + name + "@@", escape(value, quote=True))
-    return HTMLResponse(page, status_code=status, headers=HEADERS)
+    script, digest = initial_script()
+    headers = {**HEADERS, "Content-Security-Policy": HEADERS["Content-Security-Policy"].replace(
+        "script-src 'self';", "script-src 'self' " + digest + ";")}
+    return HTMLResponse(page.replace("@@bootstrap@@", script), status_code=status, headers=headers)

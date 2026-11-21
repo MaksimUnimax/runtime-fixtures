@@ -1,3 +1,4 @@
+const coinAmount = new Intl.NumberFormat('ru-RU', {minimumFractionDigits:2, maximumFractionDigits:2});
 function renderCharge(charge) {
   const row = document.createElement('li');
   row.textContent = (charge.pending ? 'На сверке' : 'Списано') + ' · ' + charge.coins + ' · ' + (charge.chatId ? 'Чат · ' + charge.chatId.slice(-8) : (charge.operationId ?? charge.requestId));
@@ -77,7 +78,7 @@ for (const form of document.querySelectorAll('form:not(#default-model)')) form.a
       document.querySelector('#charges').replaceChildren();
       document.querySelector('#meters').replaceChildren();
       const account = await request('/api/admin/accounts/' + encodeURIComponent(fields.login.trim()) + '/wallet');
-      document.querySelector('#account').textContent = fields.login + ' · Доступно ' + account.available + ' · В резерве ' + account.reserved;
+      document.querySelector('#account').textContent = fields.login + ' · Доступно ' + coinAmount.format(account.available) + ' · В резерве ' + coinAmount.format(account.reserved);
       for(const provider of ['DeepSeek','OpenRouter']) {
         const t=account.providerMeters?.[provider]||{input:0,cache:0,output:0,coins:'0'};
         const line=document.createElement('p');

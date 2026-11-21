@@ -27,9 +27,17 @@ html,body,#root{height:100%;margin:0}
 .wallet-amount{margin:6px 0 18px;font-size:34px;line-height:1.2;font-weight:600;letter-spacing:-.035em;overflow-wrap:anywhere}
 .wallet-amount span{display:block;color:var(--muted);font-size:13px;font-weight:400;letter-spacing:normal;margin-bottom:6px}
 .wallet-amount small{font-size:16px;font-weight:400;letter-spacing:normal}
-.wallet-price{margin:6px 0;color:var(--muted)}
-.wallet-history{list-style:none;padding:0;margin:20px 0 0}
-.wallet-history li{padding:9px 0;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.wallet-charges { margin-top:12px; }
+.wallet-charges > button { width:100%; }
+.wallet-history {
+  --row-height:2.5rem; max-block-size:calc(5 * var(--row-height)); overflow-y:auto;
+  overscroll-behavior:contain; list-style:none; padding:0; margin:10px 0 0;
+}
+.wallet-history li {
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  box-sizing:border-box; height:var(--row-height); margin:0; padding:0 6px;
+  border-top:1px solid var(--line); font-variant-numeric:tabular-nums;
+}
 .account-dialog [role=alert]{color:#bb3845}
 @media(prefers-color-scheme:dark){.account-dialog{--fg:#edf0f5;--muted:#acb5c5;--line:#434955;--surface:#24272e;--wash:#2f333d;--action:#5278f6}}
 @media(max-width:480px){.account-dialog{padding:24px}}
@@ -114,3 +122,49 @@ html body[data-mode][data-ds-dark-theme] {
 .thinking-dots span:nth-child(3) {animation-delay:.32s}
 @keyframes octo-think {0%,65%,100% {opacity:.45;transform:translateY(0)} 30% {opacity:1;transform:translateY(-.16em)}}
 @media(prefers-reduced-motion:reduce) {.thinking-dots span {animation:none}}
+
+.account-actions .balance-action {display:flex;align-items:center;justify-content:space-between;gap:6px}
+.sidebar-coins {font-variant-numeric:tabular-nums;overflow-wrap:anywhere;text-align:end;font-size:12px}
+.guest-coins {padding:0 8px;color:var(--dsw-alias-label-secondary);font-size:12px}
+
+/* The sidebar owns only its navigation. Harness renders both panels in its modal layer. */
+.octo-sidebar-footer { width:100%; min-width:0 }
+.octo-plugin-navigation { padding:0 6px 4px; color:var(--dsw-alias-label-primary); }
+.octo-plugin-link,.octo-plugin-fold-trigger {
+  display:flex; align-items:center; gap:10px; width:100%; cursor:pointer; color:inherit;
+  background:transparent; border:0; border-radius:var(--dsw-radius-md,8px);
+  font:inherit; text-align:start;
+}
+.octo-plugin-link { min-height:32px; padding:6px 10px; font-size:14px; }
+.octo-plugin-link:hover,.octo-plugin-fold-trigger:hover { background:var(--dsw-alias-interactive-bg-hover,var(--octo-hover)); }
+.octo-enabled-plugins { margin-top:5px; padding-top:5px; border-top:1px solid var(--dsw-alias-border-l3,var(--octo-line)); }
+.octo-enabled-plugins ul { list-style:none; padding:0; margin:0; }
+.octo-plugin-list-title { padding:4px 10px; font-size:12px; color:var(--dsw-alias-label-secondary); }
+.octo-plugin-navigation[data-wide="false"] .octo-plugin-link { justify-content:center; padding-inline:0; }
+.octo-plugin-panel { width:min(540px,calc(100vw - 32px)); max-width:100%; }
+.octo-plugin-panel.octo-plugin-settings { width:min(760px,calc(100vw - 32px)); }
+.octo-plugin-content { min-width:0; color:var(--dsw-alias-label-primary); font-size:14px; line-height:1.45; }
+.octo-plugin-content p { margin:5px 0 12px; color:var(--dsw-alias-label-secondary); }
+.octo-plugin-content h3 { font-size:15px; font-weight:600; margin:0 0 5px; }
+.octo-plugin-fold + .octo-plugin-fold { border-top:1px solid var(--dsw-alias-border-l3,var(--octo-line)); }
+.octo-plugin-fold-trigger { justify-content:space-between; padding:11px 6px; font-weight:500; }
+.octo-plugin-fold-trigger svg { flex:none; color:var(--dsw-alias-label-secondary); }
+.octo-plugin-fold-trigger[aria-expanded="true"] svg { transform:rotate(90deg); }
+.octo-plugin-fold-body:not([hidden]) { padding:0 6px 10px; }
+.octo-plugin-row,.plugin-row { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:10px 0; }
+.octo-plugin-row > div { min-width:0; }
+.octo-plugin-row [role=switch] { flex:none; }
+.octo-plugin-row p,.plugin-metric p { margin:3px 0 0; font-size:13px; }
+.plugin-controls,.plugin-stores,.plugin-period,.plugin-buttons { display:flex; flex-wrap:wrap; align-items:end; gap:8px; margin:10px 0; }
+.octo-plugin-content label { min-width:0; display:grid; gap:4px; font-size:13px; }
+.octo-plugin-content :is(input,select) {
+  color:inherit; background:var(--dsw-alias-button-elevated-fill,var(--octo-field)); font:inherit;
+  border:1px solid var(--dsw-alias-border-l3,var(--octo-line)); border-radius:var(--dsw-radius-md,8px);
+  box-sizing:border-box; padding:6px 9px; max-width:100%; min-width:0;
+}
+.plugin-stores [aria-pressed=true] { box-shadow:inset 0 0 0 1px currentColor; }
+.plugin-period { border:0; padding:0; margin-block:16px; }
+.plugin-period legend { padding:0; margin-bottom:5px; font-weight:600; }
+.plugin-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr)); gap:8px 20px; }
+.plugin-metric { min-width:0; padding:12px 0 4px; border-top:1px solid var(--dsw-alias-border-l3,var(--octo-line)); }
+.plugin-metric label { margin-top:8px; }

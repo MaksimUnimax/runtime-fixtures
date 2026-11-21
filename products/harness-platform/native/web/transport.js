@@ -1,27 +1,49 @@
 import { LiveTurns } from './live-turn.js';
 import { privatePrompt, protectPaste } from './private-input.js';
 // The native client talks to the product's cookie-bound routes. No Host RPC is published.
+async function turnResult(body) {
+  const reader = body.pipeThrough(new TextDecoderStream()).getReader();
+  let remainder = '';
+  try {
+    while (true) {
+      const {value, done} = await reader.read();
+      if (done) throw new Error('Связь с чатом прервалась');
+      const lines = (remainder + value).split('\n');
+      remainder = lines.pop();
+      for (const line of lines) {
+        if (!line) continue;
+        const message = JSON.parse(line);
+        if (!message.pending) return message;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
 async function api(path, options) {
   const res = await fetch(path, {credentials:'same-origin', cache:'no-store', ...options});
-  if (!res.ok) {
-    if (res.status === 401 && !document.body.dataset.panel) location.replace('/login');
-    const detail = await res.json().catch(() => ({}));
+  const payload = res.ok && res.headers.get('Content-Type')?.startsWith('application/x-ndjson')
+    ? await turnResult(res.body) : {status:res.status, body:await (res.ok ? res.json() : res.json().catch(() => ({})))};
+  if (payload.status < 200 || payload.status >= 300) {
+    const {status, body:detail} = payload;
+    if (status === 401 && !document.body.dataset.panel) location.replace('/login');
     const reason = {
       400: 'Проверьте введённые данные', 401: 'Требуется вход', 402: 'Недостаточно монет',
       403: 'Доступ запрещён', 404: detail.error === 'unavailable' ? 'Действие недоступно' : 'Чат недоступен',
       409: detail.error === 'chat_busy' ? 'Дождитесь завершения запроса в этом чате.' : 'Запрос требует сверки', 413: 'Сообщение слишком длинное',
     };
-    const error = new Error((path.startsWith('/api/integrations') && /[А-Яа-я]/.test(detail.error||'') ? detail.error : null) ?? reason[res.status] ?? 'Запрос не выполнен (' + res.status + ')');
-    error.status = res.status;
+    const error = new Error(((path.startsWith('/api/integrations') || path.includes('/plugins')) && /[А-Яа-я]/.test(detail.error||'') ? detail.error : null) ?? reason[status] ?? 'Запрос не выполнен (' + status + ')');
+    error.status = status;
     throw error;
   }
-  return res.json();
+  return payload.body;
 }
 const workspace = 'personal';
 const label = id => 'Чат · ' + id.slice(-8);
 function authorized(ids, guest) {
   const actions = ['session/list', 'session/follow', 'session/page', 'session/prompt', 'session/projections'];
-  if (!guest) actions.push('session/create','settings/describe');
+  actions.push('settings/describe','settings/mutate');
+  if (!guest) actions.push('session/create');
   return {type:'baseline', owner:false, grants:[
     {resource:{kind:'global'}, actions},
     {resource:{kind:'workspace', id:workspace}, actions},
@@ -60,7 +82,8 @@ export async function createTransport(data) {
   const guest = data.mode === 'guest';
   protectPaste(guest,api);
   const initial = data.account ? JSON.parse(data.account) : null;
-  const ids = guest ? (data.chat ? [data.chat] : []) : initial?.chats ?? await api('/api/chats');
+  const activity = guest ? {} : initial?.activity ?? await api('/api/chats?view=activity');
+  const ids = guest ? (data.chat ? [data.chat] : []) : initial?.chats ?? Object.keys(activity);
   const flags = initial ?? (guest ? {} : await api('/api/wallet'));
   const selected = data.chat || ids.at(-1);
   const changes = new Changes();
@@ -68,11 +91,50 @@ export async function createTransport(data) {
   const running = new Set();
   const pending = new Map();
   const live = new LiveTurns();
+  // The native sidebar filters blank sessions. Keep other saved chats reachable,
+  // including empty drafts. Only the selected chat needs an empty-state decision.
   const nonempty = new Set(ids);
-  const titles = new Map(), updated = new Map();
-  const openedAt = Date.now();
-  const account = {guest, selected, panel:data.panel, error:data.error, recovery:data.recovery,
-    canGrant:flags.canGrant, modelChoice:flags.modelChoice, api, changes, live, costs:new Map()};
+  if (guest ? !initial?.hasTurns : activity[selected] == null) nonempty.delete(selected);
+  const activityEvents = new EventTarget();
+  const titles = new Map(), updated = new Map(Object.entries(activity));
+  const themeDefaults={preference:'system',fontSize:14,codeFontSize:11,terminalFontSize:13,
+    textFontFamily:'',codeFontFamily:'',terminalFontFamily:''};
+  const themeSizes={fontSize:[10,22],codeFontSize:[10,16],terminalFontSize:[10,20]};
+  function validThemeField(key, value) {
+    if(!Object.hasOwn(themeDefaults,key))return false;
+    if(key==='preference')return ['system','light','dark'].includes(value);
+    if(typeof themeDefaults[key]==='string')return typeof value==='string' && value.length<=512;
+    const [min,max]=themeSizes[key];
+    return Number.isInteger(value) && value>=min && value<=max;
+  }
+  let themeRevision=0, fonts={};
+  try {
+    for(const [key,value] of Object.entries(JSON.parse(localStorage.getItem('octoport.fonts')||'{}'))) {
+      if(key!=='preference' && validThemeField(key,value))fonts[key]=value;
+    }
+  } catch { /* Use the native defaults when browser storage is unavailable. */ }
+  const themeView=()=>{
+    const preference=document.documentElement.dataset.theme || 'system';
+    const user={...fonts,preference};
+    const dict=Object.fromEntries(Object.keys(themeDefaults).map(k=>[k,typeof themeDefaults[k]==='number'?2:1]));
+    return {ns:'ui-theme',schema:{uid:3,refs:{1:{type:'string'},2:{type:'number'},3:{type:'object',dict}}},
+      autoGenerate:false,value:{...themeDefaults,...user},base:themeDefaults,user,
+      applies:'live',secrets:[],revision:themeRevision};
+  };
+  const account = {guest, selected, hasChat:id=>ids.includes(id), panel:data.panel, error:data.error, recovery:data.recovery,
+    balanceEvents:new EventTarget(), canGrant:flags.canGrant, modelChoice:flags.modelChoice, api, changes, live, activityEvents, costs:new Map()};
+  function recordActivity(id, at) {
+    if (!ids.includes(id) || !Number.isSafeInteger(at) || at <= (updated.get(id) ?? 0)) return;
+    updated.set(id, at);
+    activityEvents.dispatchEvent(new CustomEvent('activity', {detail:{id, at}}));
+  }
+  if (!guest) document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState !== 'visible') return;
+    try {
+      const current = await api('/api/chats?view=activity');
+      for (const [id, at] of Object.entries(current)) recordActivity(id, at);
+    } catch { /* The next foreground refresh can retry. */ }
+  });
   account.deleteChat = async id => {
     check(id);
     try {await api('/api/chats/'+encodeURIComponent(id), {method:'DELETE'});}
@@ -118,7 +180,7 @@ export async function createTransport(data) {
     if (records.length) {
       nonempty.add(id);
       const last = records.at(-1).event.time;
-      updated.set(id,Math.max(updated.get(id) ?? 0,last));
+      recordActivity(id,last);
     } else if (before == null) {
       nonempty.delete(id);
     }
@@ -137,7 +199,7 @@ export async function createTransport(data) {
     ? AbortSignal.any([signal, AbortSignal.timeout(60_000)]) : AbortSignal.timeout(60_000);
   let opening = selected ? page(selected,null,readSignal()).then(value => ({value}), error => ({error})) : null;
   const params = payload => payload.args.request ?? payload.args.input ?? payload.args;
-  function summary(id) { return {agentAvailable:true,sessionId:id,updatedAt:updated.get(id) ?? openedAt,running:running.has(id),
+  function summary(id) { return {agentAvailable:true,sessionId:id,updatedAt:updated.get(id) ?? 0,running:running.has(id),
     blank:!nonempty.has(id),cwd:'/personal',projections:{kind:'cached',...projection(id)}}; }
   async function call(channel, endpoint, payload, signal) {
     if (channel !== '/api') return failure('Действие недоступно');
@@ -146,15 +208,32 @@ export async function createTransport(data) {
       let value;
       switch(endpoint) {
         case 'session/list':
-          await opening;
           value={items:ids.map(summary)};
           break;
         case 'settings/describe': {
           // The settings shell uses this read-only schema to mount account integrations.
           const schema={uid:2,refs:{1:{type:'boolean',meta:{default:true}},
             2:{type:'object',meta:{default:{}},dict:{enabled:1}}}};
-          value={writable:false,hasDocument:false,namespaces:[{ns:'ui-settings',schema,autoGenerate:false,
-            value:{enabled:!guest},base:{enabled:!guest},user:{},applies:'live',secrets:[],revision:0}]}; break;
+          value={writable:true,hasDocument:true,namespaces:[{ns:'ui-settings',schema,autoGenerate:false,
+            value:{enabled:!guest},base:{enabled:!guest},user:{},applies:'live',secrets:[],revision:0},themeView()]}; break;
+        }
+        case 'settings/mutate': {
+          if(p.ns!=='ui-theme' || p.ops?.length!==1) return failure('Настройка недоступна');
+          const [op]=p.ops;
+          const key=op.path?.[0];
+          const setting=op.op==='unset'?themeDefaults[key]:op.value;
+          if(op.path?.length!==1 || !['set','unset'].includes(op.op) || !validThemeField(key,setting))
+            return failure('Неизвестная настройка оформления');
+          if(key==='preference') {
+            document.cookie='octoport_theme='+setting+'; Path=/; Max-Age=31536000; SameSite=Lax'
+              +(location.protocol==='https:'?'; Secure':'');
+            document.documentElement.dataset.theme=setting;
+          } else {
+            fonts={...fonts,[key]:setting};
+            try { localStorage.setItem('octoport.fonts',JSON.stringify(fonts)); } catch {}
+          }
+          themeRevision++;
+          value=themeView();break;
         }
         case 'session/create': {
           if(guest){ if(!ids.length) throw new Error('Требуется вход'); value={sessionId:ids[0]}; break;}
@@ -193,7 +272,7 @@ export async function createTransport(data) {
             try {
               await api(url,guest ? {method:'POST',signal,headers:{Accept:'application/json'},
                   body:new URLSearchParams({text,request_id:turn.requestId})} :
-                {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:turn.requestId,text})});
+                {method:'POST',headers:{'Content-Type':'application/json',Accept:'application/x-ndjson'},body:JSON.stringify({requestId:turn.requestId,text})});
               nonempty.add(id);
               if(!guest){
                 const view=live.views.get(id);
@@ -207,6 +286,7 @@ export async function createTransport(data) {
             } finally {
               controller.abort();
               running.delete(id);
+              if (!guest) account.balanceEvents.dispatchEvent(new Event('refresh'));
               changes.notify();
             }
           })();
@@ -238,7 +318,7 @@ export async function createTransport(data) {
           if(!requestId || signal.aborted || live.views.has(id))return;
           live.update(id,{rid:requestId,stage:'model',text:''});
           try {await live.watch(id,requestId,controller.signal);}
-          finally {live.clear(id,requestId);changes.notify();}
+          finally {live.clear(id,requestId);changes.notify();account.balanceEvents.dispatchEvent(new Event('refresh'));}
         }).catch(()=>{}).finally(()=>signal.removeEventListener('abort',abort));
       }
       let window;
@@ -263,7 +343,7 @@ export async function createTransport(data) {
       yield {type:'snapshot',header:{version:3,id,createdAt:0,cwd:'/personal',isSeeded:false},
         cursor:seq,...window,projections:projection(id,seq),assistantStream:{revision:0}};
       while(!signal.aborted) {
-        await next; if(signal.aborted) return; next=changes.next(signal);
+        await next; if(signal.aborted || !ids.includes(id)) return; next=changes.next(signal);
         window=await page(id,null,signal);
         while(window.hasMore && window.records[0].event.seq>seq+1){
           const older=await page(id,cuts.get(id+'|'+(window.records[0].event.seq-1)),signal);

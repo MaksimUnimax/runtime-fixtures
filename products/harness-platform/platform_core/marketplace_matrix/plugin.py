@@ -1,16 +1,20 @@
 """Offer the connected chat agent the applicable catalogue and run its selections."""
 from functools import lru_cache
+from hashlib import sha256
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from threading import Lock
 import time
 
 from ..catalog import Capability
+from . import coefficient_templates as extensions
 
 ROOT = Path(__file__).resolve().parents[2]
+REPORT_LOCK = Lock()
 PROFILE_FIELDS = {"Ozon Seller": ("seller_api_key", "seller_client_id"),
                   "Ozon Performance": ("performance_client_id", "performance_client_secret"),
                   "Wildberries API": ("seller_token",)}
@@ -40,7 +44,7 @@ def capability(stores):
             profiles.append((store["id"], store["provider"], fields))
     if not profiles:
         return None
-    rows = catalogue(tuple(profiles))
+    rows = [*catalogue(tuple(profiles)), *extensions.catalogue(profiles)]
     if not rows:
         return None
     groups = {}
@@ -50,44 +54,115 @@ def capability(stores):
         card += " [" + policy["time_axis"] + "]"
         if row.get("dataset_output"):
             card += " Поля: " + ", ".join(c["field"] for c in row["dataset_output"]["columns"])
-        groups.setdefault(tuple(row["available_stores"]), []).append(card)
-    menu = "\n".join("Для подключений " + ", ".join(ids) + ":\n" + "\n".join(cards)
-                     for ids, cards in groups.items())
+        groups.setdefault(tuple(sorted(row["available_stores"])), []).append((row["id"], card))
+    names = {cid: ("Ozon" if provider == "ozon" else "Wildberries") + " " + cid
+             for cid, provider, _ in profiles}
+    menu = "\n".join("Для " + ", ".join(names[cid] for cid in ids) + ":\n" +
+                     "\n".join(card for _, card in cards) for ids, cards in groups.items())
     period = {"type": ["object", "null"], "properties": {key: {"type": "string", "format": "date"}
                                                         for key in ("from", "to")},
               "required": ["from", "to"], "additionalProperties": False}
     inputs = {"type": "object", "properties": {"period": period, "comparison": period,
               "filters": {"type": "object"}, "group_by": {"enum": ["marketplace", "total"]},
-              "parameter_periods": {"type": "object"}, "parameter_mode": {"const": "preview"}},
+              "parameter_periods": {"type": "object", "properties": {
+                  "loss_rate": {**period, "type": "object"},
+                  "delivery_mean": {**period, "type": "object"},
+              }, "additionalProperties": False}, "parameter_mode": {"const": "preview"},
+              "owner_inputs": {"type": "object", "properties": {
+                  **{key: {"type": ["string", "number"]} for key in ("unit_cost", "tax_amount", "own_cost_amount")},
+                  "unit_cost_by_sku": {"type": "object", "propertyNames": {"pattern": "^[1-9][0-9]{0,19}$"},
+                                       "additionalProperties": {"type": ["string", "number"]}},
+              }, "additionalProperties": False}},
               "additionalProperties": False}
+    plugin_inputs = {"type":"object","properties":{
+        "sku":{"type":"string","pattern":"^[1-9][0-9]{0,19}$"},
+        "quantity":{"type":"integer","minimum":1,"maximum":1000000000},
+        "sellerPrice":{"type":"number","minimum":0,"maximum":1000000000},
+        "officialRate":{"type":"number","minimum":0,"maximum":100}},"additionalProperties":False}
     item = {"type": "object", "properties": {
         "templateId": {"type": "string", "enum": [row["id"] for row in rows]},
         "connectionId": {"type": "string", "enum": [p[0] for p in profiles]}, "input": inputs},
         "required": ["templateId", "connectionId", "input"], "additionalProperties": False}
+    if any(row["id"] in extensions.TEMPLATES for row in rows):
+        item["properties"]["input"]={"type":"object"}
+        item["allOf"]=[{"if":{"properties":{"templateId":{"enum":list(extensions.TEMPLATES)}}},
+            "then":{"properties":{"input":{"type":"object","properties":{"plugin_inputs":plugin_inputs},
+                                           "additionalProperties":False}}},
+            "else":{"properties":{"input":inputs}}}]
+    if len(groups) > 1:
+        item["anyOf"] = [{"properties": {"templateId": {"enum": [tid for tid, _ in cards]},
+                                        "connectionId": {"enum": list(ids)}}}
+                         for ids, cards in groups.items()]
     schema = {"type": "object", "properties": {
         "selections": {"type": "array", "minItems": 1, "uniqueItems": True, "items": item}},
         "required": ["selections"], "additionalProperties": False}
     return Capability("marketplace_report",
         "Сам выбери шаблоны по смыслу всей беседы. Ответ на уточнение дополняет предыдущий вопрос. "
-        "Передай все запрошенные показатели и магазины одним вызовом. Даты from/to включительно, "
+        "Используй только пары шаблона и магазина из одной группы каталога. Если части отчёта нет, получи остальные для запрошенной площадки. Даты from/to включительно, "
         "для текущего состояния period=null. Обычная группировка marketplace. "
-        "HTTP 429 — временный лимит. Матрица ждёт и повторяет тот же запрос с учётом Retry-After. "
-        "Дождись результата и продолжи выполнение остальных выбранных шаблонов без вопроса пользователю. "
-        "Если время текущего запроса исчерпано, укажи полученный retryAt; не запускай вызов раньше этого срока.\n" + menu, schema, run)
+        "Для составляющих формул используй исходные суммы из sourceValues. Округлённый процент не позволяет восстановить точный оборот. "
+        "При ограничении частоты матрица ждёт разрешённого времени и автоматически продолжает тот же запрос. "
+        "Дождись результата и продолжи выполнение остальных частей без повторной команды продавца. "
+        "Для прогноза Ozon используй owner_inputs.unit_cost только при явно одинаковой себестоимости всех товаров. "
+        "Если продавец задаёт себестоимость по SKU, передай значения в owner_inputs.unit_cost_by_sku. "
+        "Для самостоятельного расчёта коэффициента передай его явно запрошенный интервал в period. "
+        "Для прогноза передай период заказов в period, а отдельно указанные интервалы коэффициентов в parameter_periods.loss_rate "
+        "и parameter_periods.delivery_mean. Без отдельного интервала прогноз использует сохранённые коэффициенты товара или магазина. Если значения нет, матрица рассчитает его за последние 12 месяцев. "
+        "Для сохранённых коэффициентов и прогноза по количеству используй шаблоны saved_coefficients и order_projection своей площадки. Укажи Ozon SKU или артикул WB в plugin_inputs.sku и исходное количество в plugin_inputs.quantity. "
+        "Коэффициенты из настроек подставляет сервер, передавать их не нужно. "
+        "Выводи рассчитанные матрицей значения и следуй guidance выбранного шаблона. "
+        "В рекламном отчёте WB сохрани охват кампаний. Итоги по полученным строкам нельзя выдавать за итог всех кампаний. "
+        "Если площадка вернула другую ошибку, передай причину из инструмента понятным языком.\n" + menu, schema, run)
 
 
 def run(scope, arguments):
+    # The native MCP process belongs to one turn. Parallel model calls share its
+    # grant and working budget, so only one report can change its wait window.
+    with REPORT_LOCK:
+        return run_report(scope, arguments)
+
+
+def run_report(scope, arguments):
     raw = os.environ.get("HARNESS_MATRIX_TURN")
     if not raw:
         return {"ok": False, "reason": "Для отчёта нужен авторизованный чат."}
     turn = json.loads(raw)
-    remaining = turn["deadline"] / 1000 - time.time()
+    deadline = turn["deadline"]
+    if turn.get("resumeRateLimits") is True:
+        from ..operation_grants import marketplace_deadline
+        deadline = marketplace_deadline(Path(turn["databasePath"]).as_uri() + "?mode=ro",
+                                       sha256(turn["token"].encode()).hexdigest(), deadline)
+    remaining = deadline / 1000 - time.time()
     if remaining <= 0:
         return {"ok": False, "reason": "Время выполнения запроса истекло."}
     items = arguments["selections"]
     packet = {"actor": scope.actor_id, "workspace": scope.workspace_id, "chat": scope.chat_id,
               "connections": sorted({item["connectionId"] for item in items}), "selections": items, "turn": turn}
+    extension_calls=[i for i in items if i["templateId"] in extensions.TEMPLATES]
+    if extension_calls:
+        from contextlib import closing
+        import sqlite3
+        def saved():
+            # Match the operation, live session and store grants at lookup and again at delivery.
+            with closing(sqlite3.connect(Path(turn["databasePath"]).as_uri()+"?mode=ro",uri=True)) as db:
+                db.execute("BEGIN")
+                active=db.execute("""SELECT 1 FROM usage_operations o JOIN usage_grants g USING(operation_id)
+                    LEFT JOIN marketplace_retry_windows r ON r.token_hash=g.token_hash
+                    LEFT JOIN identity_sessions s ON s.digest=r.session_digest AND s.actor_id=o.actor_id
+                    WHERE g.token_hash=? AND g.expires_at>unixepoch() AND o.run_key=? AND o.actor_id=? AND
+                    o.workspace_id=? AND o.chat_id=? AND o.source='chat.turn' AND (r.session_digest IS NULL OR s.expires_at>unixepoch())""",
+                    (sha256(turn["token"].encode()).hexdigest(),turn["requestId"],scope.actor_id,scope.workspace_id,scope.chat_id)).fetchone()
+                if not active:
+                    raise PermissionError("Chat operation unavailable")
+                return [extensions.report(db,scope,item) for item in extension_calls]
+        results=saved()
+        ordinary=[i for i in items if i not in extension_calls]
+        if not ordinary:
+            return {"ok":True,"reports":results}
+        combined=run_report(scope,{"selections":ordinary})
+        public=combined.get("public",combined)
+        return {"public":{**public,"pluginReports":saved()},"diagnostics":combined.get("diagnostics",{})}
     try:
-        return invoke(packet, remaining)
+        return invoke(packet, None if turn.get("resumeRateLimits") is True else remaining)
     except subprocess.TimeoutExpired:
         return {"ok": False, "reason": "Время выполнения отчёта истекло. Данные не подтверждены."}

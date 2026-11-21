@@ -17,4 +17,6 @@ def browser_entry(path: Path) -> bytes:
     source = path.read_bytes()
     if hashlib.sha256(source).hexdigest() != _RELEASE_SHA256 or source.count(_DYNAMIC_CONFIG) != 1:
         raise ValueError("Unsupported Harness web entry revision")
-    return source.replace(_DYNAMIC_CONFIG, _LITERAL_ONLY, 1)
+    source = source.replace(_DYNAMIC_CONFIG, _LITERAL_ONLY, 1)
+    return source.replace(b'cr(ar.wordmark,"HARNESS")', b'cr(ar.wordmark,"octoport")', 1).replace(
+        'cr(ar.hint,"Loading plugins…")'.encode(), 'cr(ar.hint,"Открываем чат…")'.encode(), 1)

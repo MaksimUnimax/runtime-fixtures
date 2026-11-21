@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru"><head><base href="/"><link rel="icon" href="/ui-assets/project/octoport-icon.png" type="image/png"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="ru" data-theme="@@theme@@"><head><base href="/"><link rel="icon" href="/ui-assets/project/octoport-icon.png" type="image/png"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>octoport</title>
 <style>
   #chat-opening { position:fixed; inset:0; display:grid; place-content:center; text-align:center;
@@ -9,25 +9,30 @@
     font:14px/1.5 system-ui,sans-serif}
   #chat-history-error button {margin-left:.5rem; font:inherit; cursor:pointer}
   #chat-opening p {margin:0}
-  #chat-opening button {margin:.65rem auto 0; font:inherit; color:inherit; cursor:pointer}
-  #root:has([data-dsh-boot]:not(:has([data-dsh-boot-spinner]))) #chat-opening {display:none}
-  @media (prefers-color-scheme:dark) { #chat-opening {color:#bbc2cb;background:#131519} }
+  #root:not(:empty) + #chat-opening {display:none}
+  html[data-theme=dark] {color-scheme:dark;background:#131519}
+  html[data-theme=dark] #chat-opening {color:#bbc2cb;background:#131519}
+  @media (prefers-color-scheme:dark) {
+    html[data-theme=system] {color-scheme:dark;background:#131519}
+    html[data-theme=system] #chat-opening {color:#bbc2cb;background:#131519}
+  }
 </style>
 <link rel="modulepreload" href="/ui-assets/project/start.js">
 <link rel="modulepreload" href="/ui-assets/project/transport.js">
 <link rel="modulepreload" href="/ui-assets/project/private-input.js">
 <link rel="modulepreload" href="/ui-assets/project/live-turn.js">
+<link rel="preload" as="script" href="/ui-assets/modules/@@core@@.js">
 <link rel="preload" as="script" href="/ui-assets/modules/@@application@@.js">
-<link rel="modulepreload" href="/ui-assets/harness/dsh-web-frontend/dist/assets/index-BgUyXZcc.js">
+<link rel="modulepreload" data-chat-entry href="/ui-assets/harness/dsh-web-frontend/dist/assets/index-BgUyXZcc.js?build=octoport-2">
 <link rel="modulepreload" href="/ui-assets/harness/dsh-web-frontend/dist/assets/vendor-BUMdD3V7.js">
 <link rel="preload" as="style" data-chat-style href="/ui-assets/harness/dsh-web-frontend/dist/assets/vendor-DV2921Zo.css">
 <link rel="preload" as="style" data-chat-style href="/ui-assets/harness/dsh-web-frontend/dist/assets/index-lh_YM6sT.css">
 <link rel="preload" as="style" data-chat-style href="/ui-assets/project/appearance.css"><link rel="preload" as="style" data-chat-style href="/ui-assets/project/account.css">
-<script defer src="/session-nav.js"></script><script defer src="/ui-assets/project/bootstrap.js"></script>
-<script defer src="/ui-assets/modules/dsh-client-modules.js"></script><script defer src="/ui-assets/modules/manifest.js"></script>
+<script>@@bootstrap@@</script>
 <script type="module" src="/ui-assets/project/start.js"></script></head>
-<body data-account="@@account@@" data-mode="@@mode@@" data-panel="@@panel@@" data-chat="@@chat@@" data-error="@@error@@" data-recovery="@@recovery@@"><div id="root"><div id="chat-opening">
-<p role="status">Открываем чат…</p><form method="get"><button type="submit">Обновить страницу</button></form>
-</div></div>
+<body data-account="@@account@@" data-mode="@@mode@@" data-panel="@@panel@@" data-chat="@@chat@@" data-error="@@error@@" data-recovery="@@recovery@@"><div id="root"></div>
+<div id="chat-opening">
+<p role="status">Открываем чат…</p>
+</div>
 <form id="chat-history-error" method="get" hidden><span role="alert">Не удалось загрузить историю чата.</span>
 <button type="submit">Повторить загрузку</button></form></body></html>

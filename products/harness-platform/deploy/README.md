@@ -29,7 +29,7 @@
 В /admin у каждого провайдера отдельное поле ввода. Чтобы загрузить ключ через SSH, выполните с компьютера оператора:
 
 ```shell
-ssh -t root@185.244.51.141 "/opt/harness-prod/runtime/v1/venv/bin/python /opt/harness-prod/current/products/harness-platform/platform_core/provider_keys.py openrouter"
+ssh -t root@185.219.43.9 "/opt/harness-prod/runtime/v1/venv/bin/python /opt/harness-prod/current/products/harness-platform/platform_core/provider_keys.py openrouter"
 ```
 
 На новом сервере сначала задайте прямой ключ тем же способом с параметром deepseek. Введите ключ в скрытом приглашении. Параметр deepseek меняет прямой ключ. После первой загрузки OpenRouter обновите страницу Harness для появления выбора ИИ.

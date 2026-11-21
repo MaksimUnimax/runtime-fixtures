@@ -48,10 +48,14 @@ def create_server(dispatcher: Dispatcher) -> Server:
             return _tool_error("Tool execution failed")
 
         try:
+            diagnostics = None
+            if name == "marketplace_report" and isinstance(value, dict) and "public" in value:
+                diagnostics = value.get("diagnostics")
+                value = value["public"]
             payload = {"result": value}
             text = json.dumps(payload, ensure_ascii=False, allow_nan=False)
             return types.CallToolResult(
-                structuredContent=payload, content=[types.TextContent(type="text", text=text)]
+                structuredContent=payload, _meta=diagnostics, content=[types.TextContent(type="text", text=text)]
             )
         except (TypeError, ValueError, RecursionError):
             return _tool_error("Tool produced an invalid result")
