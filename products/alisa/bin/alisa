@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+"""Finite product build/release commands. Never inherits live DB access for tests."""
+import argparse
+import compileall
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
+import re
+
+ROOT = Path(__file__).resolve().parents[1]
+REPO = ROOT.parents[1]
+
+def run(args, **kwargs):
+    subprocess.run(list(map(str, args)), cwd=ROOT, check=True, **kwargs)
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def python():
+    p = ROOT / '.venv/bin/python'
+    if not p.exists():
+        raise RuntimeError('Run bootstrap --locked first')
+    return str(p)
+
+def pnpm(*args):
+    run(['npx', '--yes', 'pnpm@10.34.5', *args])
+
+def bootstrap():
+    if sys.version_info[:2] != (3,12): raise RuntimeError('Python 3.12 required')
+    run([sys.executable, '-m', 'venv', ROOT / '.venv'])
+    run([python(), '-m', 'pip', 'install', '--require-hashes', '-r', ROOT / 'requirements-dev.lock'])
+    pnpm('install', '--frozen-lockfile', '--ignore-scripts')
+
+def manifest(source):
+    if not re.fullmatch(r'[0-9a-f]{40}', source):
+        raise RuntimeError('Full source commit SHA is required')
+    actual = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=REPO, text=True).strip()
+    if source != actual:
+        raise RuntimeError('Source differs from checkout HEAD')
+    dirty = subprocess.check_output(['git', 'status', '--porcelain', '--', 'products/alisa'], cwd=REPO, text=True)
+    if dirty.strip():
+        raise RuntimeError('Commit source changes before packaging')
+    paths = [ROOT/'pnpm-lock.yaml', ROOT/'services/platform/requirements.lock', ROOT/'services/identity/requirements.lock']
+    contracts = sorted(p for p in (ROOT/'contracts').rglob('*') if p.is_file())
+    migrations = sorted((ROOT/'services').glob('*/src/*/*/migrations/[0-9]*.py'))
+    return {'artifact_id': 'alisa-' + source[:16], 'source_sha': source, 'schema': 1,
+            'toolchain': {'python': sys.version.split()[0], 'node': subprocess.check_output(['node','--version'], text=True).strip(), 'pnpm': '10.34.5', 'platform': sys.platform, 'architecture': os.uname().machine},
+            'locks': {str(p.relative_to(ROOT)): sha(p) for p in paths},
+            'contracts': {str(p.relative_to(ROOT)): sha(p) for p in contracts},
+            'migrations': {str(p.relative_to(ROOT)): sha(p) for p in migrations},
+            'runtime_port': '1', 'runtime_status': 'RUNTIME_NOT_CONNECTED',
+            'required_config_names': ['ALISA_ENV','ALISA_RELEASE','ALISA_ALLOWED_HOSTS','ALISA_SECRET_KEY','ALISA_DB_NAME','ALISA_DB_USER','ALISA_DB_PASSWORD','ALISA_DB_HOST','ALISA_DB_PORT'],
+            'schema_compatibility': {'foundation': ['0001_initial']}, 'acceptance': 'NOT_ACCEPTED'}
+
+def package(source):
+    m = manifest(source)
+    dist = ROOT/'dist'; dist.mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='alisa-package-') as temp:
+        release = Path(temp)/m['artifact_id']; release.mkdir()
+        tracked = subprocess.check_output(['git','ls-files','-z','--','products/alisa'], cwd=REPO).decode().split('\0')
+        allowed = {'services','contracts','infra','bin','README.md','pnpm-lock.yaml','package.json'}
+        for name in filter(None, tracked):
+            relative = Path(name).relative_to('products/alisa')
+            if relative.parts[0] not in allowed: continue
+            source_file = ROOT/relative
+            if source_file.is_symlink(): raise RuntimeError('Source symlinks are not allowed')
+            target = release/relative; target.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copy2(source_file,target)
+        for app in ['web','admin']:
+            built=ROOT/'apps'/app/'.next'
+            if not (built/'standalone').exists(): raise RuntimeError('Build UI before packaging')
+            target=release/'ui'/app
+            shutil.copytree(built/'standalone', target, symlinks=True)
+            shutil.copytree(built/'static', target/'apps'/app/'.next/static', dirs_exist_ok=True)
+        run([python(),'-m','pip','download','--only-binary=:all:','--require-hashes','-r',ROOT/'services/platform/requirements.lock','--dest',release/'wheels'])
+        # Files are allowlisted above. Never walk the checkout's private configuration.
+        m['files']={str(p.relative_to(release)):sha(p) for p in release.rglob('*') if p.is_file() and not p.is_symlink()}
+        m['links']={str(p.relative_to(release)):os.readlink(p) for p in release.rglob('*') if p.is_symlink()}
+        if any(not (release/name).resolve().is_relative_to(release.resolve()) for name in m['links']):
+            raise RuntimeError('Package link escapes release namespace')
+        (release/'manifest.json').write_text(json.dumps(m,indent=2)+'\n')
+        artifact=dist/(m['artifact_id']+'.tar.gz')
+        with tarfile.open(artifact,'w:gz') as archive: archive.add(release,arcname=m['artifact_id'])
+    (dist/(artifact.name+'.sha256')).write_text(sha(artifact)+'  '+artifact.name+'\n')
+    print(json.dumps({'artifact':str(artifact),'sha256':sha(artifact),'source_sha':source}))
+
+def config(env, component):
+    # A trusted private file is parsed as data; never source/eval it as shell code.
+    path=Path('/etc/alisa-platform')/env/(component+'.env')
+    values={}
+    if path.stat().st_mode & 0o007: raise RuntimeError('Configuration is world-accessible')
+    for line in path.read_text().splitlines():
+        if not line.strip() or line.lstrip().startswith('#'):continue
+        key,sep,value=line.partition('=')
+        if not sep or not re.fullmatch(r'[A-Z][A-Z0-9_]*',key): raise RuntimeError('Invalid configuration file')
+        values[key]=value
+    if values.get('ALISA_ENV') != env: raise RuntimeError('Environment mismatch')
+    return {**os.environ, **values}
+
+def doctor(env):
+    missing=[]
+    for tool in ['node','python3','git','npx']:
+        if not shutil.which(tool): missing.append(tool)
+    for component in ['web','admin','platform','identity','platform-migration','identity-migration']:
+        try: config(env,component)
+        except (OSError,RuntimeError): missing.append('private config: '+component)
+    print(json.dumps({'environment':env,'missing':missing,'ready':not missing},indent=2))
+    if missing: raise RuntimeError('Prerequisites incomplete')
+
+def migration(env, apply, release):
+    current=Path('/opt/alisa-platform')/env/'releases'/release
+    if not current.is_dir(): raise RuntimeError('Installed release not found')
+    for component in ['platform','identity']:
+        conf=config(env,component+'-migration')
+        conf['PYTHONDONTWRITEBYTECODE']='1'
+        run([current/'.venv/bin/python',current/'services'/component/'manage.py','migrate', '--noinput' if apply else '--plan'],env=conf)
+
+def main():
+    parser=argparse.ArgumentParser()
+    sub=parser.add_subparsers(dest='command',required=True)
+    p=sub.add_parser('bootstrap');p.add_argument('--locked',action='store_true',required=True)
+    sub.add_parser('build')
+    p=sub.add_parser('test');p.add_argument('--scope',choices=['foundation'],required=True)
+    p=sub.add_parser('package');p.add_argument('--source',required=True)
+    p=sub.add_parser('doctor');p.add_argument('--env',choices=['stage','prod'],required=True)
+    p=sub.add_parser('migrate');p.add_argument('--env',choices=['stage','prod'],required=True);p.add_argument('--release',required=True)
+    group=p.add_mutually_exclusive_group(required=True);group.add_argument('--plan',action='store_true');group.add_argument('--apply',action='store_true')
+    for command in ['deploy','rollback','verify','evidence']:
+        p=sub.add_parser(command);p.add_argument('--env',choices=['stage','prod'],required=True)
+        if command=='deploy':p.add_argument('--artifact',required=True);p.add_argument('--sha256',required=True)
+        if command=='rollback':p.add_argument('--release',required=True)
+        if command=='verify':p.add_argument('--scope',choices=['foundation'],required=True)
+        if command=='evidence':p.add_argument('--step',choices=['AL-S00'],required=True)
+    args=parser.parse_args()
+    if args.command=='bootstrap':bootstrap()
+    elif args.command=='doctor':doctor(args.env)
+    elif args.command=='build':
+        run([python(),ROOT/'tests/architecture/check.py'])
+        run([python(),ROOT/'bin/generate_contracts.py','--check'])
+        pnpm('typecheck');pnpm('build')
+        if not compileall.compile_dir(ROOT/'services',quiet=1):raise RuntimeError('Python compilation failed')
+    elif args.command=='test':
+        run([python(),'-m','unittest','discover','-s',ROOT/'tests','-p','test_*.py','-v'])
+        run(['node','--experimental-strip-types',ROOT/'tests/contracts/engineering-boundary.mjs'])
+    elif args.command=='package':package(args.source)
+    elif args.command=='migrate':
+        if not re.fullmatch(r'alisa-[0-9a-f]{16}',args.release):raise RuntimeError('Invalid release ID')
+        migration(args.env,args.apply,args.release)
+    else:
+        # Keep actual deploy logic isolated from developer dependencies.
+        run([sys.executable,ROOT/'infra/release.py',*sys.argv[1:]])
+
+if __name__=='__main__':
+    try: main()
+    except (RuntimeError,OSError,subprocess.CalledProcessError) as exc:
+        print('ALISA_COMMAND_FAILED: '+(str(exc) if isinstance(exc,RuntimeError) else type(exc).__name__),file=sys.stderr)
+        sys.exit(1)

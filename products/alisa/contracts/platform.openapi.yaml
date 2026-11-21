@@ -1,0 +1,49 @@
+openapi: 3.1.0
+info:
+  title: Alisa foundation internal API
+  version: 0.0.1
+servers:
+  - url: http://127.0.0.1:18102
+paths:
+  /health/live:
+    get:
+      responses:
+        '200': {description: Process is alive; says nothing about database readiness}
+  /health/ready:
+    get:
+      responses:
+        '200': {description: Required database and foundation migration available}
+        '503': {description: Database or schema unavailable}
+  /internal/foundation/probes:
+    post:
+      description: Stage flag plus dedicated BFF identity required; absent in production
+      security: [{serviceToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: './foundation-probe-v1.json'}
+      responses:
+        '202': {description: Probe and durable job committed}
+        '200': {description: Same committed probe returned on retry}
+        '401': {description: Missing or invalid service identity}
+        '404': {description: Probe disabled}
+        '410': {description: Probe expired}
+        '422': {description: Invalid bounded payload}
+        '503': {description: Database unavailable; no false success}
+  /internal/foundation/probes/{probe_id}:
+    get:
+      security: [{serviceToken: []}]
+      parameters:
+        - name: probe_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200': {description: Persisted probe state}
+        '401': {description: Missing or invalid service identity}
+        '404': {description: Probe absent, expired or disabled}
+        '503': {description: Database unavailable}
+components:
+  securitySchemes:
+    serviceToken: {type: http, scheme: bearer}

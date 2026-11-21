@@ -1,0 +1,10 @@
+[Unit]
+Description=Alisa technical probe retention (%i)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+Unit=alisa-probe-cleanup@%i.service
+
+[Install]
+WantedBy=timers.target
