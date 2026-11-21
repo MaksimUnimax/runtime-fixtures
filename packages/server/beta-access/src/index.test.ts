@@ -136,6 +136,59 @@ describe("S1.1 beta admission domain", () => {
     expect(request?.ttlMs).toBe(24 * 60 * 60_000);
   });
 
+  it("rejects local-part controls and invisible direction overrides before inviting an identity", async () => {
+    let repositoryCalls = 0;
+    const service = new BetaAdmissionService({
+      resolve: async () => ({ kind: "NONE" }),
+      read: async () => ({
+        mode: "CLOSED",
+        capacity: 1,
+        admitted: 0,
+        remaining: 1,
+        revision: 1,
+        updatedAt: new Date(),
+      }),
+      mutate: async () => ({ kind: "CONFLICT" }),
+      readIdentityInvitation: async () => null,
+      inviteIdentity: async () => {
+        repositoryCalls++;
+        return { kind: "NOT_FOUND" as const };
+      },
+      revokeIdentityInvitation: async () => ({ kind: "NOT_FOUND" as const }),
+    });
+    const request = {
+      actorPrincipalId: "synthetic-beta-admin",
+      requestId: "synthetic-localpart-controls",
+      correlationId: "synthetic-localpart-correlation",
+      expectedRevision: 1,
+      reason: "synthetic invitation identity validation",
+    };
+    for (const normalizedIdentityTarget of [
+      "reader\u0000tag@example.test",
+      "reader\u0001tag@example.test",
+      "reader\u001ftag@example.test",
+      "reader\u007ftag@example.test",
+      "reader\u0085tag@example.test",
+      "reader\u061ctag@example.test",
+      "reader\u200etag@example.test",
+      "reader\u202etag@example.test",
+      "reader\u2066tag@example.test",
+    ]) {
+      await expect(
+        service.createIdentityInvitation({
+          ...request,
+          normalizedIdentityTarget,
+        }),
+      ).resolves.toEqual({ kind: "CONFLICT" });
+    }
+    expect(repositoryCalls).toBe(0);
+    await service.createIdentityInvitation({
+      ...request,
+      normalizedIdentityTarget: "mañana+tag@bücher.example",
+    });
+    expect(repositoryCalls).toBe(1);
+  });
+
   it("rejects malformed invitation domain labels before repository mutation", async () => {
     let invitations = 0;
     const forwardedTargets: string[] = [];
