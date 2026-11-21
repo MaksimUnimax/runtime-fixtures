@@ -9,23 +9,10 @@ from contextlib import closing
 from uuid import uuid4
 
 from ..integrations import SECRET_TEXT
-from . import telegram_api as tg
+from .. import telegram_api as tg
 
 PLUGIN = "telegram-reports"
 SCHEMA = (
-    """CREATE TABLE IF NOT EXISTS telegram_widget_receipts(
-        signature TEXT PRIMARY KEY, expires INTEGER NOT NULL)""",
-    """CREATE TABLE IF NOT EXISTS telegram_recipients(
-        workspace TEXT PRIMARY KEY REFERENCES workspaces(workspace_id) ON DELETE CASCADE,
-        bot TEXT NOT NULL, recipient INTEGER NOT NULL, UNIQUE(bot,recipient))""",
-    """CREATE TRIGGER IF NOT EXISTS telegram_uninstall AFTER DELETE ON entitlements
-        WHEN OLD.plugin_id='telegram-reports' BEGIN
-        DELETE FROM telegram_recipients WHERE workspace=OLD.workspace_id; END""",
-    """CREATE TABLE IF NOT EXISTS telegram_consents(
-        session BLOB PRIMARY KEY, state TEXT UNIQUE NOT NULL, chat TEXT NOT NULL REFERENCES chats ON DELETE CASCADE,
-        bot TEXT NOT NULL, verifier TEXT NOT NULL, nonce TEXT NOT NULL, expires INTEGER NOT NULL,
-        workspace TEXT NOT NULL, plugin TEXT NOT NULL,
-        FOREIGN KEY(workspace,chat,plugin) REFERENCES chat_plugins ON DELETE CASCADE)""",
     """CREATE TABLE IF NOT EXISTS telegram_subscriptions(
         workspace TEXT NOT NULL REFERENCES telegram_recipients(workspace) ON DELETE CASCADE,
         chat TEXT PRIMARY KEY, plugin TEXT NOT NULL, generation TEXT NOT NULL, cursor INTEGER NOT NULL,
@@ -92,16 +79,15 @@ def subscribe(db, scope, cursor):
 
 
 class Delivery:
-    def __init__(self, state, config):
+    def __init__(self, state):
         self.state = state
-        self.config = config
         self.wake = asyncio.Event()
         with state.identity._write() as db:
             for sql in SCHEMA:
                 db.execute(sql)
             # A process may have stopped after Telegram accepted the HTTP request.
             db.execute("UPDATE telegram_subscriptions SET status='unknown' WHERE status='sending'")
-        self.task = asyncio.create_task(self.run()) if config else None
+        self.task = asyncio.create_task(self.run()) if state.telegram.config else None
 
     async def close(self):
         if self.task:
@@ -117,7 +103,7 @@ class Delivery:
                         s.generation,r.recipient FROM telegram_subscriptions s
                         JOIN telegram_recipients r USING(workspace) JOIN workspaces w ON w.workspace_id=s.workspace
                         WHERE r.bot=? AND s.status IN ('ready','limited') AND s.retry_at<=unixepoch()""",
-                        (self.config.bot,)).fetchall()
+                        (self.state.telegram.config.bot,)).fetchall()
                 # Each recipient progresses independently. Per-bot burst is bounded.
                 for offset in range(0, len(rows), 4):
                     await asyncio.gather(*(self.process(row) for row in rows[offset:offset+4]))
@@ -143,20 +129,15 @@ class Delivery:
                     AND retry_at<=unixepoch() AND EXISTS(SELECT 1 FROM telegram_recipients
                     WHERE workspace=? AND bot=? AND recipient=?)""",
                     (revision, "sending" if text else "ready", chat, generation, cursor,
-                     workspace, self.config.bot, uid)).rowcount
+                     workspace, self.state.telegram.config.bot, uid)).rowcount
             if not claimed:
                 return
             if text:
                 try:
-                    await tg.send(self.config, uid, text)
+                    await self.state.telegram.send(workspace, text)
                 except tg.DeliveryError as error:
                     with self.state.identity._write() as db:
-                        if error.status == "blocked":
-                            # Preserve other accounts and any replacement binding.
-                            db.execute("""DELETE FROM telegram_recipients WHERE workspace=? AND bot=? AND recipient=?
-                                AND EXISTS(SELECT 1 FROM telegram_subscriptions WHERE chat=? AND generation=?)""",
-                                (workspace,self.config.bot,uid,chat,generation))
-                        else:
+                        if error.status not in ("blocked", "disconnected"):
                             db.execute("""UPDATE telegram_subscriptions SET cursor=?,status=?,retry_at=?
                                 WHERE chat=? AND generation=?""",
                                 (cursor if error.status == "limited" else revision, error.status,
