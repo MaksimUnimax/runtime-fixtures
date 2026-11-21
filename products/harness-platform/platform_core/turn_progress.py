@@ -6,7 +6,7 @@ from starlette.exceptions import HTTPException
 from starlette.responses import StreamingResponse, JSONResponse
 from starlette.routing import Route
 
-STAGES={"accepted","model","thinking","tool","writing"}
+STAGES={"accepted","model","thinking","tool","marketplace_wait","writing"}
 
 class LiveTurn:
     def __init__(self):
@@ -24,6 +24,8 @@ class LiveTurn:
         if stage=="model":
             self.step+=1
             self.text=""
+        if stage=="marketplace_wait":
+            self.text = ""
         if stage=="writing" and isinstance(data.get("text"),str):
             self.text=(self.text+data["text"])[:65536]
         self.wake()
@@ -36,6 +38,7 @@ class LiveTurn:
 class Progress:
     def __init__(self):
         self.turns={}
+        self.tasks=set()
 
     def begin(self,scope,rid):
         key=(scope,rid)
@@ -45,6 +48,18 @@ class Progress:
         self.turns[key]=turn
         return turn,True
 
+    def run(self, work):
+        task = asyncio.create_task(work)
+        self.tasks.add(task)
+        task.add_done_callback(self.tasks.discard)
+        return task
+
+    async def close(self):
+        tasks = tuple(self.tasks)
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
     def finish(self,scope,rid,turn):
         turn.done=True
         turn.wake()
@@ -52,6 +67,20 @@ class Progress:
             if self.turns.get((scope,rid)) is turn:
                 del self.turns[scope,rid]
         asyncio.get_running_loop().call_later(5,forget)
+
+def stream_response(task):
+    """Keep the original request connected through reverse-proxy idle timeouts."""
+    async def messages():
+        while not task.done():
+            yield '{"pending":true}\n'
+            await asyncio.wait((task,), timeout=10)
+        response = await task
+        yield json.dumps({"status": response.status_code, "body": json.loads(response.body)},
+                         ensure_ascii=False, allow_nan=False) + "\n"
+
+    return StreamingResponse(messages(), media_type="application/x-ndjson",
+                             headers={"X-Accel-Buffering": "no", "Cache-Control": "no-store"})
+
 
 def routes(token_for):
     async def stream(req):

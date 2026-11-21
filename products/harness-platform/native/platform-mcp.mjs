@@ -35,7 +35,12 @@ export function platformMcpEntry({
     config: {
       serverName: 'platform', transport: 'stdio', command: pythonExecutable,
       cwd: productDirectory, args, failOnStartupError: true,
-      ...(marketplaceTurn ? { toolCallTimeoutMs: Math.max(1, marketplaceTurn.deadline - Date.now()) } : {}),
+      ...(marketplaceTurn ? {
+        // The native turn enforces its live deadline. The SDK requires a finite
+        // timer and cannot extend an outstanding tools/call on provider backoff.
+        toolCallTimeoutMs: marketplaceTurn.resumeRateLimits ? 2_147_483_647
+          : Math.max(1, marketplaceTurn.deadline - Date.now()),
+      } : {}),
       ...((integrationKeyFile || marketplaceTurn) ? { env: {
         ...(integrationKeyFile ? { HARNESS_INTEGRATIONS_KEY_FILE: integrationKeyFile } : {}),
         ...(marketplaceTurn ? { HARNESS_MATRIX_TURN: JSON.stringify({ ...marketplaceTurn, databasePath }) } : {}),

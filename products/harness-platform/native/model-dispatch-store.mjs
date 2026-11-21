@@ -11,6 +11,7 @@ export function modelDispatchStore(db, fail) {
   const lookup = db.prepare('SELECT * FROM native_model_dispatch WHERE scope_key=? AND request_id=?');
   const active = db.prepare('SELECT 1 FROM native_model_dispatch WHERE scope_key=? AND active_until>?');
   const insert = db.prepare('INSERT INTO native_model_dispatch VALUES (?,?,?,?,?)');
+  const extend = db.prepare('UPDATE native_model_dispatch SET active_until=? WHERE scope_key=? AND request_id=? AND active_until>0');
   const release = db.prepare('UPDATE native_model_dispatch SET active_until=0 WHERE scope_key=? AND request_id=?');
   const discard = db.prepare('DELETE FROM native_model_dispatch WHERE scope_key=? AND request_id=?');
   function atomic(fn) {
@@ -39,6 +40,7 @@ export function modelDispatchStore(db, fail) {
       if (req.deadline <= Date.now()) fail('busy');
       insert.run(key, req.requestId, digest(req.text), req.grant.operationId, req.deadline);
     },
+    extend(key, id, deadline) { extend.run(deadline, key, id); },
     release(key, id) { release.run(key, id); },
     discard(key, id) { discard.run(key, id); },
   };

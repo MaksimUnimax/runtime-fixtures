@@ -109,7 +109,7 @@ window.__ModuleLoader__.load({
         React.useEffect(()=>{if(open && !dialog.current.open)dialog.current.showModal();},[open]);
         const active=(rows||[]).filter(row=>row.attached);
         const labels={sending:'Отправляю сообщение…',accepted:'Сообщение принято',model:'Модель готовит ответ',
-          thinking:'Модель обдумывает ответ',tool:'Модель запрашивает данные',writing:'Модель отвечает…',failed:'Не удалось завершить запрос'};
+          thinking:'Модель обдумывает ответ',tool:'Модель запрашивает данные',marketplace_wait:'Ждём следующей разрешённой попытки',writing:'Модель отвечает…',failed:'Не удалось завершить запрос'};
         async function toggle(row,enabled){
           const before=rows;
           setBusy(true);setError('');
@@ -119,7 +119,7 @@ window.__ModuleLoader__.load({
         }
         return h('div',{className:'chat-access'},
           view && h('div',{'data-live-turn':view.stage,className:'chat-live'},
-            h('small',{role:'status'},labels[view.stage], ['model','thinking','tool'].includes(view.stage) &&
+            h('small',{role:'status'},labels[view.stage], ['model','thinking','tool','marketplace_wait'].includes(view.stage) &&
               h('span',{className:'thinking-dots','aria-hidden':true},[0,1,2].map(i=>h('span',{key:i},'.')))),view.text && h('div',{className:'chat-live-text'},view.text),
             view.stage==='failed' && h('button',{onClick:()=>a.live.clear(sessionId,view.rid)},'Закрыть')),
           h('button',{className:'chat-access-trigger','aria-haspopup':'dialog',onClick:()=>setOpen(true)},
