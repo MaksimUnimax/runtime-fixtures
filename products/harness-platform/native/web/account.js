@@ -172,23 +172,7 @@ window.__ModuleLoader__.load({
               h('li',{key:c.operationId||c.requestId},h('span',null,c.pending?'На сверке':'Списано'),
                 h('span',null,coinAmount.format(c.coins),' монет'))))));
       }
-      let pluginTarget, deletion;
-      function openCatalog(chat,title) {
-        pluginTarget={chat,title};
-        select('chat-plugins');
-      }
-      if (!a.guest) {
-        const id='octoport.chat-plugins';
-        ctx.slots.inject('contextMenu.icon',()=>ctx.slots.register({name:'contextMenu.icon',key:id},
-          ui.IconPersonalizationOutlineMedium));
-        ctx.effect(()=>ctx.contextMenus.register({
-          id,target:'session',order:640,
-          resolve:({sessionId,displayTitle})=>a.hasChat(sessionId) ? [{
-            id,label:'Подключить плагин',icon:{key:id},
-            run:()=>openCatalog(sessionId,displayTitle || 'Новая сессия')
-          }] : []
-        }),'chat plugins menu');
-      }
+      let deletion;
       if (!a.guest) ctx.effect(()=>ctx.contextMenus.register({
         id:'octoport.delete-chat',target:'session',order:650,
         resolve:({sessionId,displayTitle})=>[{
@@ -233,7 +217,7 @@ window.__ModuleLoader__.load({
         const close=()=>{select('');if(['/register','/login'].includes(location.pathname))history.replaceState(null,'',a.selected ? '/app/chats/'+encodeURIComponent(a.selected) : '/');};
         if(!mode)return null;
         if(mode==='delete-chat')return h(DeleteChat,{target:deletion,close});
-        if(mode==='chat-plugins')return h(PluginCatalog,{key:pluginTarget.chat,...pluginTarget,close});
+        if(mode==='plugins')return h(PluginCatalog,{close});
         if(mode==='notice') return h('dialog',{className:'account-dialog',ref,onCancel:close},
           h('h2',null,a.error),h('button',{type:'button',onClick:close},'Закрыть'));
         const closeButton=h('button',{className:'account-close',type:'button','aria-label':'Закрыть',onClick:close},'×');
@@ -259,7 +243,7 @@ window.__ModuleLoader__.load({
       ctx.slots.inject('settings.launcher',()=>ctx.slots.register({name:'settings.launcher'},AccountLauncher));
       if (!a.guest) ctx.slots.inject('sidebar.workspaces.afterList',()=>ctx.slots.register({
         name:'sidebar.workspaces.afterList'
-      },props=>h(PluginSidebar,{...props,openCatalog})));
+      },props=>h(PluginSidebar,{...props,openCatalog:()=>select('plugins')})));
       ctx.slots.inject('shell.overlay',()=>ctx.slots.register({name:'shell.overlay',id:'harness-auth'},Dialog));
       function Cost({seq,sessionId}) {
         const cost=a.costs.get(sessionId+'|'+seq);

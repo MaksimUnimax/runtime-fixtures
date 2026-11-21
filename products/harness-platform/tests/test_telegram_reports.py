@@ -57,6 +57,8 @@ class TelegramReports(TestCase):
         self.toggle(True)
 
     def toggle(self, enabled):
+        if enabled:
+            self.post("/api/plugins", {"plugin":PLUGIN,"installed":True}).raise_for_status()
         self.client.post(self.base,headers=HEAD,json={"plugin":PLUGIN,"enabled":enabled}).raise_for_status()
 
     def post(self,path,body=None):
@@ -110,6 +112,14 @@ class TelegramReports(TestCase):
         self.assertTrue(self.client.get(self.url).json()["linked"])
         self.post(self.url+"/disconnect").raise_for_status()
         self.assertFalse(self.client.get(self.url).json()["linked"])
+
+    def test_uninstall_removes_receiver_and_pending_subscriptions(self):
+        self.bind()
+        self.post("/api/plugins",{"plugin":PLUGIN,"installed":False}).raise_for_status()
+        self.toggle(True)
+        status=self.client.get(self.url).json()
+        self.assertFalse(status["linked"])
+        self.assertFalse(status["subscribed"])
 
     def test_declined_or_revoked_link_never_subscribes(self):
         query=self.start()

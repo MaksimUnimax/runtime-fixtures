@@ -5,7 +5,7 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 from playwright.async_api import expect
 
 from platform_core.user_plugins import telegram_api as tg
-from test_account_browser import ProductBrowser
+from test_account_browser import ProductBrowser, plugin_action
 
 
 class TelegramBrowser(ProductBrowser):
@@ -25,11 +25,11 @@ class TelegramBrowser(ProductBrowser):
         await page.route(re.compile(r"^https://oauth\.telegram\.org/"),mock_provider)
         await page.get_by_role("button",name="Плагины",exact=True).click()
         catalog = page.get_by_role("dialog",name="Плагины")
-        toggle = catalog.get_by_role("switch",name="Подключить Отчёты в Telegram")
-        await toggle.click()
-        await expect(toggle).to_be_checked()
+        await catalog.get_by_role("button",name="Установить Отчёты в Telegram").click()
+        await expect(catalog.get_by_text("Установлен",exact=True)).to_be_visible()
         await catalog.get_by_role("button",name="Закрыть").click()
-        selector = page.get_by_role("navigation",name="Подключённые плагины").get_by_role("button",name="Отчёты в Telegram",exact=True)
+        await plugin_action(page,"Отчёты в Telegram","Подключить")
+        selector = page.get_by_role("navigation",name="Установленные плагины").get_by_role("button",name="Отчёты в Telegram",exact=True)
         await selector.click()
         panel = page.get_by_role("dialog",name="Отчёты в Telegram")
         with patch.object(tg,"verified_user",AsyncMock(return_value=884)), patch.object(tg,"send",AsyncMock(return_value=1)) as sender:

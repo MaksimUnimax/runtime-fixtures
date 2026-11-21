@@ -70,13 +70,17 @@ def enable(db, scope, plugin):
     db.execute("INSERT OR IGNORE INTO chat_plugins VALUES(?,?,?)",(scope.workspace_id,scope.chat_id,plugin.id))
 
 
-def connect_store(db,scope,cid):
+def _connect_plugin_store(db, scope, cid, plugin):
     from uuid import uuid4
+    enable(db, scope, plugin)
+    db.execute("INSERT OR IGNORE INTO user_plugin_stores VALUES(?,?,?,NULL)", (plugin.id, cid, uuid4().hex))
+
+
+def connect_store(db,scope,cid):
     provider=db.execute("SELECT provider FROM account_integrations WHERE id=? AND workspace=?",(cid,scope.workspace_id)).fetchone()
     for plugin in CATALOG.values():
         if provider==(plugin.provider,):
-            enable(db,scope,plugin)
-            db.execute("INSERT OR IGNORE INTO user_plugin_stores VALUES(?,?,?,NULL)",(plugin.id,cid,uuid4().hex))
+            _connect_plugin_store(db,scope,cid,plugin)
 
 
 def install(db):
@@ -98,5 +102,5 @@ def install(db):
             WHERE i.provider=? AND NOT EXISTS(SELECT 1 FROM entitlements e
               WHERE e.workspace_id=w.workspace_id AND e.plugin_id=?)""",(plugin.provider,plugin.id)).fetchall()
         for actor,ws,chat,cid in rows:
-            connect_store(db,Scope(actor,ws,chat),cid)
+            _connect_plugin_store(db,Scope(actor,ws,chat),cid,plugin)
         db.execute("INSERT INTO user_plugin_migrations VALUES(?)",(plugin.id,))

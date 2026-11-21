@@ -47,15 +47,9 @@ html,body,#root{height:100%;margin:0}
 [data-sidebar-right-expand]{display:none!important}
 
 .chat-access{box-sizing:border-box;align-self:center;width:calc(100% - 2 * var(--dsh-composer-side-clearance,16px));max-width:var(--dsh-composer-card-max-width,100%);min-width:0;margin-inline:auto;padding:3px 0 5px;font:inherit}
-.chat-access-trigger{max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;border:0;border-radius:8px;padding:4px 8px;background:transparent;color:inherit;font:inherit;font-size:13px;cursor:pointer}
-.chat-access-trigger:hover,.chat-access-trigger:focus-visible{background:#edf2fb;color:#234ead}
 .chat-live{border-inline-start:2px solid #5880d8;padding:5px 12px;margin-bottom:6px}
 .chat-live small{display:block;color:#626b79}
 .chat-live-text{max-height:32vh;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:4px}
-.chat-grants header{display:flex;align-items:center;gap:12px}
-.chat-grants header{justify-content:space-between}
-.chat-grants h2{margin:0}
-.chat-grants>button:last-child{margin-top:16px}
 
 .octo-mark {
   display:inline-block; flex:none; background:currentColor;
@@ -80,7 +74,7 @@ html body[data-mode][data-ds-dark-theme] {
   --surface:var(--dsw-alias-bg-layer-1); --wash:var(--dsw-alias-button-ghost-active-fill); --action:var(--dsw-alias-button-primary-fill);
 }
 .account-actions :is(a,button),.account-dialog a,.account-dialog button:not(.account-close,[role=switch]),
-.service-settings button,.chat-access-trigger {
+.service-settings button {
   min-height:32px; padding:4px 12px; border-radius:var(--dsw-radius-md,8px); border:1px solid var(--dsw-alias-border-l3);
   background:var(--dsw-alias-button-elevated-fill); color:var(--dsw-alias-label-primary);
   font:500 14px/22px var(--dsw-font-family,var(--octo-font)); text-decoration:none;
@@ -91,7 +85,7 @@ html body[data-mode][data-ds-dark-theme] {
   background:var(--dsw-alias-button-primary-fill); color:var(--dsw-alias-label-primary-foreground);
 }
 .account-dialog a+button { margin-top:8px; }
-.account-dialog :is(a,button):not([role=switch]):hover,.service-settings button:hover,.chat-access-trigger:hover,.account-actions :is(a,button):hover {
+.account-dialog :is(a,button):not([role=switch]):hover,.service-settings button:hover,.account-actions :is(a,button):hover {
   background:var(--dsw-alias-button-ghost-active-hover); color:var(--dsw-alias-label-primary); text-decoration:none;
 }
 .account-dialog .account-primary:hover { background:var(--dsw-alias-button-primary-hover); color:var(--dsw-alias-label-primary-foreground); }
@@ -187,11 +181,11 @@ body[data-ds-dark-theme] .octo-coin { color:#d9b56c; }
 }
 .octo-plugin-link { min-height:32px; padding:6px 10px; font-size:14px; }
 .octo-plugin-link:where(button):hover,.octo-plugin-fold-trigger:hover { background:var(--dsw-alias-interactive-bg-hover,var(--octo-hover)); }
-.octo-enabled-plugins { margin-top:5px; padding-top:5px; border-top:1px solid var(--dsw-alias-border-l3,var(--octo-line)); }
-.octo-enabled-plugins ul { list-style:none; padding:0; margin:0; }
-.octo-enabled-plugins li { display:flex; align-items:center; min-width:0; border-radius:var(--dsw-radius-md,8px); }
-.octo-enabled-plugins li:is(:hover,:focus-within) { background:var(--dsw-alias-interactive-bg-hover,var(--octo-hover)); }
-.octo-enabled-plugins .octo-plugin-link { flex:1; min-width:0; }
+.octo-installed-plugins { margin-top:5px; padding-top:5px; border-top:1px solid var(--dsw-alias-border-l3,var(--octo-line)); }
+.octo-installed-plugins ul { list-style:none; padding:0; margin:0; }
+.octo-installed-plugins li { display:flex; align-items:center; min-width:0; border-radius:var(--dsw-radius-md,8px); }
+.octo-installed-plugins li:is(:hover,:focus-within) { background:var(--dsw-alias-interactive-bg-hover,var(--octo-hover)); }
+.octo-installed-plugins .octo-plugin-link { flex:1; min-width:0; }
 .octo-plugin-label { cursor:inherit; box-sizing:border-box; }
 .octo-plugin-link > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .octo-plugin-link svg { flex:none; }
@@ -201,10 +195,16 @@ body[data-ds-dark-theme] .octo-coin { color:#d9b56c; }
   color:inherit; border-radius:var(--dsw-radius-md,8px); cursor:pointer;
 }
 @media (hover:hover) and (pointer:fine) {
-  .octo-enabled-plugins li:not(:hover,:focus-within) .octo-plugin-more:not([aria-expanded=true]) { opacity:0; }
+  .octo-installed-plugins li:not(:hover,:focus-within) .octo-plugin-more:not([aria-expanded=true]) { opacity:0; }
 }
 .octo-plugin-compact { position:relative; }
-.octo-plugin-compact .octo-plugin-dots { position:absolute; inset-inline-end:1px; inset-block-end:0; }
+.octo-installed-plugins li { --plugin-state:#ad3036; }
+.octo-installed-plugins li[data-active="true"] { --plugin-state:#186c41; }
+body[data-ds-dark-theme] .octo-installed-plugins li { --plugin-state:#ff959d; }
+body[data-ds-dark-theme] .octo-installed-plugins li[data-active="true"] { --plugin-state:#7bdfa4; }
+.octo-plugin-state { flex:none; color:var(--plugin-state); font-size:12px; }
+.octo-plugin-indicator { position:absolute; inset-inline-end:3px; bottom:4px; width:7px; height:7px;
+  border:1px solid var(--dsw-specific-sidebar-fill); border-radius:50%; background:var(--plugin-state); }
 .octo-plugin-navigation[data-wide="false"] .octo-plugin-overflow { width:100%; }
 .octo-plugin-list-title { padding:4px 10px; font-size:12px; color:var(--dsw-alias-label-secondary); }
 .octo-plugin-navigation[data-wide="false"] .octo-plugin-link { justify-content:center; padding-inline:0; }
@@ -216,7 +216,6 @@ body[data-ds-dark-theme] .octo-coin { color:#d9b56c; }
 .octo-plugin-panel.octo-plugin-settings { width:min(760px,calc(100vw - 32px)); }
 .octo-plugin-content { min-width:0; color:var(--dsw-alias-label-primary); font-size:14px; line-height:1.45; }
 .octo-plugin-content p { margin:5px 0 12px; color:var(--dsw-alias-label-secondary); }
-.octo-plugin-target { overflow-wrap:anywhere; }
 .octo-plugin-content h3 { font-size:15px; font-weight:600; margin:0 0 5px; }
 .octo-plugin-fold + .octo-plugin-fold { border-top:1px solid var(--dsw-alias-border-l3,var(--octo-line)); }
 .octo-plugin-fold-trigger { justify-content:space-between; padding:11px 6px; font-weight:500; }

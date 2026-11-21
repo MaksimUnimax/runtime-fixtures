@@ -16,6 +16,9 @@ SCHEMA = (
     """CREATE TABLE IF NOT EXISTS telegram_recipients(
         workspace TEXT PRIMARY KEY REFERENCES workspaces(workspace_id) ON DELETE CASCADE,
         bot TEXT NOT NULL, recipient INTEGER NOT NULL, UNIQUE(bot,recipient))""",
+    """CREATE TRIGGER IF NOT EXISTS telegram_uninstall AFTER DELETE ON entitlements
+        WHEN OLD.plugin_id='telegram-reports' BEGIN
+        DELETE FROM telegram_recipients WHERE workspace=OLD.workspace_id; END""",
     """CREATE TABLE IF NOT EXISTS telegram_consents(
         session BLOB PRIMARY KEY, state TEXT UNIQUE NOT NULL, chat TEXT NOT NULL REFERENCES chats ON DELETE CASCADE,
         bot TEXT NOT NULL, verifier TEXT NOT NULL, nonce TEXT NOT NULL, expires INTEGER NOT NULL,
