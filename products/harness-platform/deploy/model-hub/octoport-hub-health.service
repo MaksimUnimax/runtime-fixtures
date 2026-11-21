@@ -14,7 +14,7 @@ LoadCredential=integration-vault:/etc/octoport-harness-inbound/integration-vault
 Environment=HARNESS_INTEGRATIONS_KEY_FILE=%d/integration-vault
 Environment=HARNESS_MODEL_EGRESS_REQUIRED=1
 ExecStart=/opt/octoport-harness-inbound/runtime/venv/bin/python -m platform_core.hub_runtime --database /var/lib/octoport-model-hub/model-hub.sqlite3
-TimeoutStartSec=160
+TimeoutStartSec=5min
 UMask=0077
 NoNewPrivileges=yes
 PrivateTmp=yes

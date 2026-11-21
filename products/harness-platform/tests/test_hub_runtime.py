@@ -77,3 +77,16 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(AUTO,self.runtime.catalog())
         self.assertIn(PUBLIC,self.runtime.catalog())
         self.assertIsNone(self.runtime._acquire("private",AUTO,set()))
+
+    async def test_text_health_admits_public_questions_without_admitting_a_report(self):
+        self.hub.key_control(self.atlas,"disable")
+        with self.hub.database() as db:
+            db.execute("DELETE FROM hub_health")
+        async def correct(http,spec,key,request,timeout):
+            self.assertNotIn("tools",request)
+            return {"message":{"content":"23"},"finish_reason":"stop"},{}
+        with patch.object(direct,"call",correct):
+            await self.runtime.probe_text(self.google,self.g)
+        self.assertIn(PUBLIC,self.runtime.catalog())
+        self.assertNotIn(AUTO,self.runtime.catalog())
+        self.assertIsNone(self.runtime._acquire("private",AUTO,set()))

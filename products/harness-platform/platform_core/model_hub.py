@@ -174,6 +174,7 @@ class Hub:
             if expected_sealed is not None and key["sealed"] != expected_sealed:
                 raise ValueError("Ключ Cloudflare изменился во время проверки")
             db.execute("DELETE FROM hub_health WHERE key_id=?",(key_id,))
+            db.execute("DELETE FROM hub_text_health WHERE key_id=?",(key_id,))
             db.execute("""INSERT INTO hub_cloudflare_accounts(key_id, account_id) VALUES(?,?)
                 ON CONFLICT(key_id) DO UPDATE SET account_id=excluded.account_id""",
                        (key_id, account_id.strip().lower()))
@@ -196,6 +197,7 @@ class Hub:
             else:
                 db.execute("UPDATE hub_control SET enabled=? WHERE key_id=?",(action=="enable",key_id))
             db.execute("DELETE FROM hub_health WHERE key_id=?",(key_id,))
+            db.execute("DELETE FROM hub_text_health WHERE key_id=?",(key_id,))
 
     def dashboard(self):
         with self.database() as db:

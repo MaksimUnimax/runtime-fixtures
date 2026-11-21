@@ -55,7 +55,7 @@ function render(data) {
     const windows=Object.entries(r.windows).map(([window,w])=>window+' · вызовы '+w.calls+' · проверки '+w.probes+
       ' · p95 '+(w.p95===null?'—':w.p95+' мс')+' · простой '+w.down+' с · восстановлений '+w.recoveries+
       ' · отказы '+(Object.entries(w.errors).map(([e,n])=>e+' × '+n).join(', ')||'0')).join(' | ');
-    return r.label+' · '+r.model+' · '+colors[r.color]+' · '+r.reason+' · '+(r.scope==='public'?'только публичные вопросы':'чат и матрица')+
+    return r.label+' · '+r.model+' · матрица: '+colors[r.color]+' · '+r.reason+' · текст: '+(r.public_ready?'доступен':r.text_reason)+' · '+(r.scope==='public'?'только публичные вопросы':'чат и матрица')+
       ' · качество '+r.power+' (тест v1) · занято '+r.in_use+'/'+r.capacity+' · проверено '+(r.checked?stamp(r.checked):'—')+
       (r.retry>Date.now()/1000?' · повтор после '+stamp(r.retry):'')+' · '+windows;
   }),'Ожидается прямая проверка');
