@@ -146,7 +146,7 @@ describe.sequential("API-watch document scope migration 0055", () => {
          FROM drizzle."__drizzle_migrations"`,
     );
     expect(migrationCount.rows).toEqual([
-      { count: "50", latest: "1791907801000" },
+      { count: "52", latest: "1793114658111" },
     ]);
 
     expect((await documentColumns()).rows).toEqual([
@@ -308,6 +308,6 @@ describe.sequential("API-watch document scope migration 0055", () => {
              FROM drizzle."__drizzle_migrations"`,
         )
       ).rows,
-    ).toEqual([{ count: "50", latest: "1791907801000" }]);
+    ).toEqual([{ count: "52", latest: "1793114658111" }]);
   });
 });

@@ -4,8 +4,8 @@ import { makeWorker, signFixtureBootstrap } from "../worker-harness.mjs";
 
 const runtime = path.resolve(process.argv[2]);
 const AUTH = "seller_agents_control_auth_v2";
-const CHATGPT = { family: "chatgpt", surface: "web", variant: null };
-const ALICE = { family: "alice", surface: "web", variant: null };
+const CURRENT_AI = { family: "alice", surface: "web", variant: null };
+const FOREIGN_AI = { family: "chatgpt", surface: "web", variant: null };
 const clone = value => JSON.parse(JSON.stringify(value));
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -100,10 +100,10 @@ async function makeCachedFixture({ accountOnly = false } = {}) {
     onlinePayload = clone(backing.local[AUTH].authority.payload);
     onlinePayload.features = clone(expectedFeatures);
     onlinePayload.entitlements = clone(expectedEntitlements);
-    const result = await worker.call("SellerAgentsControlClient.getVerifiedBootstrapMetadata", { detectedAi: CHATGPT });
+    const result = await worker.call("SellerAgentsControlClient.getVerifiedBootstrapMetadata", { detectedAi: CURRENT_AI });
     assertProjection(result, "ONLINE", "FRESH");
     assert.equal(result.ai.status, "RESOLVED");
-    assert.equal(result.ai.detected.family, "chatgpt");
+    assert.equal(result.ai.detected.family, "alice");
     assert.match(result.ai.profile.contentSha256, /^[0-9a-f]{64}$/);
     const authority = await worker.call("SellerAgentsControlClient.getAuthority");
     assert.equal(authority.payload.features["fixture.feature_on"], true);
@@ -118,7 +118,7 @@ async function makeCachedFixture({ accountOnly = false } = {}) {
   const fixture = await makeCachedFixture();
   try {
     const before = fixture.backing.local[AUTH].authority.workAllowed;
-    const result = await fixture.worker.call("SellerAgentsControlClient.getVerifiedBootstrapMetadata", { detectedAi: CHATGPT });
+    const result = await fixture.worker.call("SellerAgentsControlClient.getVerifiedBootstrapMetadata", { detectedAi: CURRENT_AI });
     assertProjection(result, "CACHE", "STALE_BUT_OFFLINE_GRACE_ELIGIBLE");
     assert.equal(result.ai.status, "RESOLVED");
     assert.equal(fixture.backing.local[AUTH].authority.workAllowed, before, "metadata read does not escalate persisted Work authority");
@@ -129,19 +129,20 @@ async function makeCachedFixture({ accountOnly = false } = {}) {
   }
 }
 
-// Cached profile context remains exact. A ChatGPT snapshot cannot be borrowed
-// as Alice metadata merely because transport fallback is eligible.
+// Cached profile context remains exact. An Alice snapshot cannot authorize the
+// excluded ChatGPT family; release admission rejects before transport or fallback.
 {
   const fixture = await makeCachedFixture();
   try {
     let failure;
     try {
-      await fixture.worker.call("SellerAgentsControlClient.getVerifiedBootstrapMetadata", { detectedAi: ALICE });
+      await fixture.worker.call("SellerAgentsControlClient.getVerifiedBootstrapMetadata", { detectedAi: FOREIGN_AI });
     } catch (error) {
       failure = error;
     }
     assert.ok(failure, "AI-context mismatch must reject");
-    assert.equal(failure.code, "CONTROL_TRANSPORT_UNAVAILABLE");
+    assert.equal(failure.code, "WORK_UNSUPPORTED_AI");
+    assert.equal(fixture.worker.controlNetwork.length, 0);
   } finally {
     fixture.worker.close();
   }

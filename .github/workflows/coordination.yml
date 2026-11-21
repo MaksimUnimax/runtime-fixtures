@@ -29,9 +29,13 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 24.20.0
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - name: Install lockfile-pinned parser for flattened Firefox config
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
       - run: python3 -m unittest discover -s tooling/coordination -p 'test_*.py'
       - run: node --test tooling/b1/release-safety.test.mjs
       - run: node --test tooling/b1/release-development-material.test.mjs
       - run: node --test tooling/b1/release-zip-macos-mode.test.mjs
       - run: node --test tooling/b1/release-input-snapshot.test.mjs
+      - run: node --test tooling/b1/release-needed-version.test.mjs
       - run: node --test tests/regression/extension-core/client-i1/browser-proof.test.mjs

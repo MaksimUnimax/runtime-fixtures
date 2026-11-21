@@ -1,5 +1,9 @@
 import { operatorPipelineConsumed } from "./operator-receipt.js";
 import { createHash, randomUUID } from "node:crypto";
+import {
+  assertMonitoringMemoryWrite,
+  fenceMonitoringSqlRuntime,
+} from "@product/monitoring-control";
 import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 import { basename, resolve } from "node:path";
@@ -180,6 +184,7 @@ export class InMemoryApiWatchStore implements ApiWatchStore {
   async saveAuthorityRecords(
     inputs: AuthorityRecordInput[],
   ): Promise<AuthorityRecord[]> {
+    assertMonitoringMemoryWrite();
     let sequence = [...this.state.authorities.values()].reduce(
       (latest, prior) => Math.max(latest, authorityRecordSequence(prior)),
       0,
@@ -203,6 +208,7 @@ export class InMemoryApiWatchStore implements ApiWatchStore {
       };
     });
     // Validate and construct every row before publishing any family member.
+    assertMonitoringMemoryWrite();
     for (const record of records)
       this.state.authorities.set(record.recordId, record);
     return records.map(cloneRecord);
@@ -220,6 +226,7 @@ export class InMemoryApiWatchStore implements ApiWatchStore {
   }
 
   async saveSnapshot(metadata: import("./types.js").SnapshotMetadata) {
+    assertMonitoringMemoryWrite();
     const key = JSON.stringify([
       metadata.sourceFamily,
       metadata.documentKey ?? null,
@@ -227,6 +234,7 @@ export class InMemoryApiWatchStore implements ApiWatchStore {
     ]);
     const existing = this.state.snapshots.get(key);
     if (existing) return cloneSnapshot(existing);
+    assertMonitoringMemoryWrite();
     this.state.snapshots.set(key, { ...metadata });
     return cloneSnapshot(metadata);
   }
@@ -235,6 +243,7 @@ export class InMemoryApiWatchStore implements ApiWatchStore {
     metadata: SnapshotMetadata,
     inventory: OperationInventory,
   ): Promise<SnapshotMetadata> {
+    assertMonitoringMemoryWrite();
     assertSnapshotInventoryPair(metadata, inventory);
     // Prepare all serializable data before publishing either in-memory row.
     const inventoryCopy = JSON.parse(
@@ -270,6 +279,7 @@ export class InMemoryApiWatchStore implements ApiWatchStore {
     const prior = this.state.snapshots.get(key);
     const published = prior ?? { ...metadata };
     // No await separates these two mutations.
+    assertMonitoringMemoryWrite();
     this.state.snapshots.set(key, published);
     this.state.inventories.set(
       `${inventory.sourceFamily}:${inventory.snapshotSha256}`,
@@ -283,6 +293,7 @@ export class InMemoryApiWatchStore implements ApiWatchStore {
   }
 
   async saveInventory(inventory: import("./types.js").OperationInventory) {
+    assertMonitoringMemoryWrite();
     const key = `${inventory.sourceFamily}:${inventory.snapshotSha256}`;
     const compatible = [...this.state.snapshots.values()]
       .filter(
@@ -299,6 +310,7 @@ export class InMemoryApiWatchStore implements ApiWatchStore {
     const serialized = JSON.parse(
       JSON.stringify(inventory),
     ) as import("./types.js").OperationInventory;
+    assertMonitoringMemoryWrite();
     this.state.inventories.set(key, serialized);
   }
 
@@ -317,9 +329,11 @@ export class InMemoryApiWatchStore implements ApiWatchStore {
   }
 
   async saveSemanticDiff(diff: SemanticDiff): Promise<SemanticDiff> {
+    assertMonitoringMemoryWrite();
     const key = `${diff.sourceFamily}:${diff.baseSnapshotSha256}:${diff.targetSnapshotSha256}:${diff.diffSha256}`;
     const existing = this.state.diffs.get(key);
     if (existing) return cloneSemanticDiff(existing);
+    assertMonitoringMemoryWrite();
     this.state.diffs.set(key, cloneSemanticDiff(diff));
     return cloneSemanticDiff(diff);
   }
@@ -436,6 +450,7 @@ function mapSnapshot(
 export function createPostgresApiWatchStore(
   runtime: ApiWatchSqlRuntime,
 ): ApiWatchStore {
+  runtime = fenceMonitoringSqlRuntime(runtime);
   return {
     async saveAuthorityRecord(input) {
       return runtime.transaction((query) =>

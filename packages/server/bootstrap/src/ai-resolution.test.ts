@@ -547,11 +547,25 @@ describe("P7.3 detected hierarchy lookup identity", () => {
 
   it("reads the original prompt tree only after a valid exact hierarchy", async () => {
     const promptTree = vi.fn(async () => null);
+    const aliceDetected = { family: "alice", surface: "web", variant: null };
+    const aliceSnapshot = () =>
+      snapshot({
+        hierarchy: {
+          ...hierarchy,
+          adapterKey: "alice",
+          surfaceKey: "web",
+          variantId: null,
+          variantKey: null,
+        },
+        exactAssignment: null,
+      });
     const service = new BootstrapAiResolutionService({
-      resolve: async () => snapshot(),
+      resolve: async () => aliceSnapshot(),
       promptTree,
     });
-    await expect(service.resolvePromptTree(baseInput)).resolves.toEqual({
+    await expect(
+      service.resolvePromptTree({ ...baseInput, detected: aliceDetected }),
+    ).resolves.toEqual({
       aiId: hierarchy.adapterId,
       publication: null,
     });
@@ -559,14 +573,24 @@ describe("P7.3 detected hierarchy lookup identity", () => {
   });
 
   it("preserves the valid browser-specific local candidate", async () => {
+    const aliceDetected = { family: "alice", surface: "web", variant: null };
     const service = new BootstrapAiResolutionService({
       resolve: async ({ browserFamily }) =>
         browserFamily === "chrome"
-          ? snapshot()
+          ? snapshot({
+              hierarchy: {
+                ...hierarchy,
+                adapterKey: "alice",
+                surfaceKey: "web",
+                variantId: null,
+                variantKey: null,
+              },
+              exactAssignment: null,
+            })
           : snapshot({ exactAssignment: null, defaultAssignment: null }),
     });
     const result = await service.resolveLocalCandidates({
-      detected,
+      detected: aliceDetected,
       contractVersion: baseInput.contractVersion,
       accountId: baseInput.accountId,
       deviceId: baseInput.deviceId,
@@ -574,7 +598,73 @@ describe("P7.3 detected hierarchy lookup identity", () => {
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
       browserFamily: "chrome",
-      resolution: { status: "RESOLVED", detected },
+      resolution: { status: "RESOLVED", detected: aliceDetected },
     });
   });
+});
+
+describe("Alice-first production resolution ceiling", () => {
+  for (const family of [
+    "chatgpt",
+    "alice",
+    "qwen",
+    "kimi",
+    "grok",
+    "gemini",
+    "claude",
+    "deepseek",
+  ]) {
+    it(`${family}: clamps real resolution, local candidates and prompt-tree consumption`, async () => {
+      const detected = { family, surface: "web", variant: null };
+      const value = snapshot({
+        hierarchy: {
+          ...hierarchy,
+          adapterKey: family,
+          surfaceKey: "web",
+          variantId: null,
+          variantKey: null,
+          variantStatus: null,
+        },
+        exactAssignment: null,
+      });
+      const input = { ...baseInput, detected };
+      // The retained registry/profile foundation remains structurally usable.
+      expect(resolveBootstrapAiSnapshot(input, value).status).toBe("RESOLVED");
+      const promptTree = vi.fn(async () => null);
+      const service = new BootstrapAiResolutionService({
+        resolve: async ({ browserFamily }) =>
+          browserFamily === "chrome"
+            ? value
+            : { ...value, defaultAssignment: null },
+        promptTree,
+      });
+      const resolution = await service.resolve(input);
+      const candidates = await service.resolveLocalCandidates({
+        detected,
+        contractVersion: input.contractVersion,
+        accountId: input.accountId,
+        deviceId: input.deviceId,
+      });
+      expect(candidates).toHaveLength(1);
+      expect(candidates[0]?.resolution).toEqual(resolution);
+      if (family === "alice") {
+        expect(resolution.status).toBe("RESOLVED");
+        await expect(service.resolvePromptTree(input)).resolves.toEqual({
+          aiId: hierarchy.adapterId,
+          publication: null,
+        });
+        expect(promptTree).toHaveBeenCalledExactlyOnceWith(hierarchy.adapterId);
+      } else {
+        expect(resolution).toEqual({
+          status: "UNAVAILABLE",
+          detected,
+          reason: "AI_DISABLED",
+        });
+        await expect(service.resolvePromptTree(input)).rejects.toBeInstanceOf(
+          BootstrapAiResolutionError,
+        );
+        expect(promptTree).not.toHaveBeenCalled();
+      }
+    });
+  }
 });

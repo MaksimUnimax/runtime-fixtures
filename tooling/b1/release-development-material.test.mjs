@@ -6,6 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import aiReleaseDescriptor from "../../packages/contracts/src/ai-release-scope.v1.json" with { type: "json" };
+const AI_RELEASE_SCOPE = { descriptor: aiReleaseDescriptor, sha256: "10c20b39daec4d0a9733173222167ea7a56da2a128bbc182132591c8e5596261" };
 
 import {
   prepare as prepareCandidate,
@@ -49,7 +51,8 @@ function authorityFixture() {
     ],
   };
   return {
-    schemaVersion: "octoport_release_authority_v1",
+    schemaVersion: "octoport_release_authority_v2",
+    aiReleaseScope: structuredClone(AI_RELEASE_SCOPE),
     source: sourceIdentity(),
     ...productFacts(),
     environment: "PREPRODUCTION",
@@ -89,6 +92,7 @@ function fixture(mode) {
       extensionVersion: authority.productVersion,
       contractVersion: authority.contractVersion,
       trustBundle: authority.trustBundle,
+      aiReleaseScope: authority.aiReleaseScope,
     };
     const worker =
       "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=" +

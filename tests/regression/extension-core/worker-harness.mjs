@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { webcrypto } from "node:crypto";
+import aiReleaseDescriptor from "../../../packages/contracts/src/ai-release-scope.v1.json" with { type: "json" };
+export const AI_RELEASE_SCOPE_FIXTURE = { descriptor: aiReleaseDescriptor, sha256: "10c20b39daec4d0a9733173222167ea7a56da2a128bbc182132591c8e5596261" };
 
 const AUTH_STORAGE_KEY = "seller_agents_control_auth_v2";
 const fixtureIndexedDBByBacking = new WeakMap();
@@ -33,7 +35,7 @@ function createFixtureIndexedDB() {
                       kind === "get"
                         ? structuredClone(records.get(value))
                         : kind === "all"
-                          ? [...records.values()].map(structuredClone)
+                          ? [...records.values()].map(value => structuredClone(value))
                           : undefined;
                     result.onsuccess?.();
                     queueMicrotask(() => tx.oncomplete?.());
@@ -152,15 +154,16 @@ export async function until(fn, description) {
 export async function makeWorker(directory, options = {}) {
   const fixtureUserAgent = options.userAgent || DEFAULT_FIXTURE_USER_AGENT;
   const fixtureBrowser = fixtureBrowserIdentity(fixtureUserAgent);
-  const fixtureAiFamily = options.aiFamily || "chatgpt";
+  // Generic Work scenarios exercise the currently released AI. Retained adapter
+  // foundation/denial tests select another family explicitly.
+  const fixtureAiFamily = options.aiFamily || "alice";
   assert.ok(
-    ["chatgpt", "alice"].includes(fixtureAiFamily),
+    ["chatgpt", "alice", "qwen", "kimi", "grok", "gemini", "claude", "deepseek"].includes(fixtureAiFamily),
     "unsupported fixture AI family",
   );
-  const fixtureAiOrigin =
-    fixtureAiFamily === "alice"
-      ? "https://alice.yandex.ru"
-      : "https://chatgpt.com";
+  const fixtureAiOrigin = ({ chatgpt: "https://chatgpt.com", alice: "https://alice.yandex.ru",
+    qwen: "https://chat.qwen.ai", kimi: "https://www.kimi.ai", grok: "https://grok.com",
+    gemini: "https://gemini.google.com", claude: "https://claude.ai", deepseek: "https://chat.deepseek.com" })[fixtureAiFamily];
   const fixtureConversationId =
     fixtureAiFamily === "alice"
       ? "alice-fixture-dialogue"
@@ -250,12 +253,18 @@ export async function makeWorker(directory, options = {}) {
     await webcrypto.subtle.digest("SHA-256", spki),
   ).toString("hex");
   const defaultKeyId = "fixture-key";
+  const fixtureEnvironment = options.fixtureEnvironment || "LOCAL DEVELOPMENT";
+  assert.ok(["LOCAL DEVELOPMENT", "PREPRODUCTION"].includes(fixtureEnvironment));
+  // Store runtime keeps its compiled origin guards. Only the in-process
+  // fixture authority uses synthetic HTTPS endpoints and its own signer.
+  const httpsFixture = fixtureEnvironment === "PREPRODUCTION";
   const fixtureConfig = options.packagedConfig || {
-    environment: "LOCAL DEVELOPMENT",
-    controlApiOrigin: "http://127.0.0.1:43100",
-    portalOrigin: "http://127.0.0.1:43101",
+    environment: fixtureEnvironment,
+    controlApiOrigin: httpsFixture ? "https://api.fixture.invalid" : "http://127.0.0.1:43100",
+    portalOrigin: httpsFixture ? "https://portal.fixture.invalid" : "http://127.0.0.1:43101",
     extensionVersion: "0.2.4",
     contractVersion: "control_plane_v2",
+    aiReleaseScope: structuredClone(AI_RELEASE_SCOPE_FIXTURE),
     trustBundle: {
       trustBundleVersion: "bootstrap_trust_bundle_v1",
       algorithm: "Ed25519",
@@ -432,7 +441,8 @@ export async function makeWorker(directory, options = {}) {
       ),
     ).toString("hex");
     const cacheBinding = {
-      cacheVersion: "control_cache_binding_v1",
+      cacheVersion: "control_cache_binding_v2",
+      aiReleaseScopeSha256: AI_RELEASE_SCOPE_FIXTURE.sha256,
       controlApiOrigin: fixtureConfig.controlApiOrigin,
       portalOrigin: fixtureConfig.portalOrigin,
       contractVersion: fixtureConfig.contractVersion,
@@ -736,14 +746,14 @@ export async function makeWorker(directory, options = {}) {
         method: init.method || "GET",
         body: init.body,
       };
-      (record.url.includes("127.0.0.1:43100") ||
-      record.url.includes("127.0.0.1:43101")
+      const target = new URL(record.url);
+      (target.origin === fixtureConfig.controlApiOrigin ||
+      target.origin === fixtureConfig.portalOrigin
         ? controlNetwork
         : network
       ).push(record);
       const healthEndpoint = record.url.endsWith("/v1/health-authority");
       const syncEndpoint = record.url.endsWith("/v1/sync");
-      const target = new URL(record.url);
       if (target.origin === fixtureConfig.controlApiOrigin &&
           target.pathname === "/v1/ai-prompt-tree") {
         if (options.treeFetch)
@@ -1026,8 +1036,9 @@ export async function makeWorker(directory, options = {}) {
       return next;
     },
     setDialogue(id) {
-      identity.conversation_id = id;
-      tab.url = identity.origin + "/c/" + id;
+      const current = identities.get(tabId) || identity;
+      current.conversation_id = id;
+      tab.url = current.origin + (current.ai_id === "alice" ? "/chat/" : "/c/") + id;
     },
     async fireAlarm(name) {
       for (const listener of alarmListeners)

@@ -1,5 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
+  uniqueIndex,
+  foreignKey,
   check,
   index,
   integer,
@@ -58,8 +60,8 @@ export const feedbackSignalEvent = pgEnum("feedback_signal_event", [
   "first_store_added",
   "first_start",
   "feedback_case_created",
-  "feedback_case_triaged",
   "feedback_case_resolved",
+  "feedback_case_triaged",
   "feedback_case_closed",
 ]);
 
@@ -67,18 +69,9 @@ export const feedbackCases = pgTable(
   "feedback_cases",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    accountId: uuid("account_id").references(() => accounts.id, {
-      onDelete: "set null",
-      onUpdate: "restrict",
-    }),
-    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-      onUpdate: "restrict",
-    }),
-    deviceId: uuid("device_id").references(() => devices.id, {
-      onDelete: "set null",
-      onUpdate: "restrict",
-    }),
+    accountId: uuid("account_id"),
+    createdByUserId: uuid("created_by_user_id"),
+    deviceId: uuid("device_id"),
     category: feedbackCategory("category").notNull(),
     severity: feedbackSeverity("severity").notNull().default("LOW"),
     status: feedbackCaseStatus("status").notNull().default("NEW"),
@@ -92,10 +85,7 @@ export const feedbackCases = pgTable(
     marketplace: feedbackMarketplace("marketplace").notNull().default("NONE"),
     supportCode: varchar("support_code", { length: 128 }),
     releaseIdentity: varchar("release_identity", { length: 128 }),
-    assignedAdminPrincipalId: uuid("assigned_admin_principal_id").references(
-      () => adminPrincipals.id,
-      { onDelete: "set null", onUpdate: "restrict" },
-    ),
+    assignedAdminPrincipalId: uuid("assigned_admin_principal_id"),
     resolutionCode: varchar("resolution_code", { length: 128 }),
     closedAt: timestamp("closed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -106,6 +96,34 @@ export const feedbackCases = pgTable(
       .defaultNow(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.accountId],
+      foreignColumns: [accounts.id],
+      name: "feedback_cases_account_fk",
+    })
+      .onDelete("set null")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.createdByUserId],
+      foreignColumns: [users.id],
+      name: "feedback_cases_created_by_user_fk",
+    })
+      .onDelete("set null")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.deviceId],
+      foreignColumns: [devices.id],
+      name: "feedback_cases_device_fk",
+    })
+      .onDelete("set null")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.assignedAdminPrincipalId],
+      foreignColumns: [adminPrincipals.id],
+      name: "feedback_cases_admin_principal_fk",
+    })
+      .onDelete("set null")
+      .onUpdate("restrict"),
     index("feedback_cases_account_created_index").on(
       table.accountId,
       table.createdAt,
@@ -131,27 +149,37 @@ export const feedbackFollowups = pgTable(
   "feedback_followups",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    caseId: uuid("case_id")
-      .notNull()
-      .references(() => feedbackCases.id, {
-        onDelete: "cascade",
-        onUpdate: "restrict",
-      }),
+    caseId: uuid("case_id").notNull(),
     authorType: varchar("author_type", { length: 16 }).notNull(),
-    authorUserId: uuid("author_user_id").references(() => users.id, {
-      onDelete: "set null",
-      onUpdate: "restrict",
-    }),
-    authorAdminPrincipalId: uuid("author_admin_principal_id").references(
-      () => adminPrincipals.id,
-      { onDelete: "set null", onUpdate: "restrict" },
-    ),
+    authorUserId: uuid("author_user_id"),
+    authorAdminPrincipalId: uuid("author_admin_principal_id"),
     body: varchar("body", { length: 4000 }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.caseId],
+      foreignColumns: [feedbackCases.id],
+      name: "feedback_followups_case_fk",
+    })
+      .onDelete("cascade")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.authorUserId],
+      foreignColumns: [users.id],
+      name: "feedback_followups_user_fk",
+    })
+      .onDelete("set null")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.authorAdminPrincipalId],
+      foreignColumns: [adminPrincipals.id],
+      name: "feedback_followups_admin_fk",
+    })
+      .onDelete("set null")
+      .onUpdate("restrict"),
     index("feedback_followups_case_created_index").on(
       table.caseId,
       table.createdAt,
@@ -173,14 +201,8 @@ export const feedbackSignalEvents = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     event: feedbackSignalEvent("event").notNull(),
     schemaVersion: integer("schema_version").notNull().default(1),
-    accountId: uuid("account_id").references(() => accounts.id, {
-      onDelete: "set null",
-      onUpdate: "restrict",
-    }),
-    deviceId: uuid("device_id").references(() => devices.id, {
-      onDelete: "set null",
-      onUpdate: "restrict",
-    }),
+    accountId: uuid("account_id"),
+    deviceId: uuid("device_id"),
     subjectId: uuid("subject_id"),
     idempotencyKey: varchar("idempotency_key", { length: 128 }).notNull(),
     payloadHash: varchar("payload_hash", { length: 64 }).notNull(),
@@ -198,24 +220,43 @@ export const feedbackSignalEvents = pgTable(
       .defaultNow(),
   },
   (table) => [
+    index("feedback_signal_events_funnel_filter_index").on(
+      table.occurredAt,
+      table.event,
+      table.accountId,
+      table.subjectId,
+      table.marketplace,
+    ),
+    uniqueIndex("feedback_signal_events_account_first_milestone_unique")
+      .on(table.accountId, table.event)
+      .where(
+        sql`${table.accountId} IS NOT NULL AND ${table.event} IN ('registration_started','account_created','device_activated','first_store_added','first_start')`,
+      ),
+    uniqueIndex("feedback_signal_events_idempotency_key_unique").on(
+      table.idempotencyKey,
+    ),
+    foreignKey({
+      columns: [table.accountId],
+      foreignColumns: [accounts.id],
+      name: "feedback_signal_events_account_id_fkey",
+    })
+      .onDelete("set null")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.deviceId],
+      foreignColumns: [devices.id],
+      name: "feedback_signal_events_device_id_fkey",
+    })
+      .onDelete("set null")
+      .onUpdate("restrict"),
     index("feedback_signal_events_aggregate_index").on(
       table.occurredAt,
       table.event,
       table.productVersion,
       table.extensionVersion,
       table.browserFamily,
-      table.browserVersion,
-      table.marketplace,
       table.category,
       table.status,
-    ),
-    index("feedback_signal_events_account_occurred_index").on(
-      table.accountId,
-      table.occurredAt,
-    ),
-    index("feedback_signal_events_subject_occurred_index").on(
-      table.subjectId,
-      table.occurredAt,
     ),
   ],
 );

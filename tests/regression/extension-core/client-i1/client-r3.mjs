@@ -63,7 +63,7 @@ async function signed(backing, payload) { return json(await signFixtureBootstrap
     assert.equal(second.accountId, account(2));
     assert.equal(second.workAllowed, false);
     assert.equal(starts, 2); assert.equal(exchanges, 2); assert.equal(worker.portalTabs.length, 2);
-    await worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: { family: "chatgpt", surface: "web", variant: null } });
+    await worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: { family: "alice", surface: "web", variant: null } });
     assert.equal(await worker.call("SellerAgentsControlClient.currentAccount"), account(2));
     assert.equal(await worker.call("SellerAgentsControlClient.canWork"), true);
   } finally { worker.close(); }
@@ -106,17 +106,19 @@ for (const oldOutcome of ["success", "failure"]) {
 {
   const backing = { local: {}, session: {} };
   const refreshKeys = [];
-  let refreshAttempts = 0;
+  let refreshAttempts = 0, serverPayload;
   const worker = await makeWorker(runtime, { backing, fetch: async (url, init) => {
     if (url.endsWith("/v1/bootstrap")) {
       if (!worker.bootstrapSeen) { worker.bootstrapSeen = true; return json({ error: { code: "UNAUTHORIZED" } }, 401); }
       assert.equal(init.headers.get("Authorization"), "Bearer rotated_access_token");
-      return signed(backing, backing.local[AUTH_KEY].authority.payload);
+      return signed(backing, serverPayload);
     }
     if (url.endsWith("/v1/auth/refresh")) { refreshAttempts++; refreshKeys.push(init.headers.get("Idempotency-Key")); if (refreshAttempts === 1) throw new Error("lost refresh response"); return json({ tokenType: "Bearer", accessToken: "rotated_access_token", accessTokenExpiresAt: future(3600000), refreshToken: "R".repeat(43), refreshTokenExpiresAt: future(7200000) }); }
     throw new Error("unexpected control request " + url);
   } });
   try {
+    // The issuer's response is independent of the client's revoked cache.
+    serverPayload = structuredClone(backing.local[AUTH_KEY].authority.payload);
     const before = backing.local[AUTH_KEY].credentials.accessToken;
     await worker.call("SellerAgentsControlClient.bootstrap");
     const after = backing.local[AUTH_KEY].credentials;
@@ -149,12 +151,12 @@ for (const kind of ["maintenance", "requested-profile"]) {
   const worker = await makeWorker(runtime, { backing, fetch: async (url, init) => {
     if (!url.endsWith("/v1/bootstrap")) throw new Error("unexpected control request " + url);
     const requested = JSON.parse(init.body).detectedAi;
-    const next = kind === "maintenance" ? { ...accountPayload(payload, payload.account.id), compatibility: { ...payload.compatibility, browser: { status: "MAINTENANCE" } } } : accountPayload(payload, payload.account.id);
+    const next = kind === "maintenance" ? { ...accountPayload(payload, payload.account.id), compatibility: { ...payload.compatibility, browser: { status: "MAINTENANCE" } } } : accountPayload(payload, payload.account.id, { ...payload.ai, detected: { ...payload.ai.detected, family: "chatgpt" } });
     return signed(backing, next);
   } });
   try {
     assert.equal(await worker.call("SellerAgentsControlClient.canWork"), true);
-    await assert.rejects(worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: kind === "requested-profile" ? { family: "alice", surface: "web", variant: null } : { family: "chatgpt", surface: "web", variant: null } }), /BOOTSTRAP_PROFILE_INCOMPATIBLE|BOOTSTRAP_EXPIRED_OR_INCOMPATIBLE/);
+    await assert.rejects(worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: { family: "alice", surface: "web", variant: null } }), /BOOTSTRAP_PROFILE_INCOMPATIBLE|BOOTSTRAP_EXPIRED_OR_INCOMPATIBLE/);
     const state = await worker.call("SellerAgentsControlClient.status");
     assert.equal(state.authenticated, false); assert.equal(state.workAllowed, false); assert.equal(state.accountId, null);
   } finally { worker.close(); }
@@ -179,7 +181,7 @@ for (const [label, minimum, expected, topMinimum = null] of versionCases) {
     return signed(backing, { ...base, compatibility: { ...base.compatibility, extension: { ...base.compatibility.extension, minimumVersion: topMinimum } }, ai: { ...base.ai, profile } });
   } });
   try {
-    const call = worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: { family: "chatgpt", surface: "web", variant: null } });
+    const call = worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: { family: "alice", surface: "web", variant: null } });
     if (expected) { try { await call; } catch (error) { throw new Error(`${label}: ${error.code || error.message}`); } assert.equal(await worker.call("SellerAgentsControlClient.canWork"), true, label); }
     else { await assert.rejects(call, /BOOTSTRAP_PROFILE_INCOMPATIBLE/); assert.equal(await worker.call("SellerAgentsControlClient.canWork"), false, label); }
   } finally { worker.close(); }
@@ -194,7 +196,7 @@ for (const [label, minimum, expected] of [["browser-fourth-component", "120.0", 
     return signed(backing, { ...base, ai: { ...base.ai, profile } });
   } });
   try {
-    const call = worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: { family: "chatgpt", surface: "web", variant: null } });
+    const call = worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: { family: "alice", surface: "web", variant: null } });
     if (expected) { await call; assert.equal(await worker.call("SellerAgentsControlClient.canWork"), true, label); }
     else { await assert.rejects(call, /BOOTSTRAP_PROFILE_INCOMPATIBLE/); assert.equal(await worker.call("SellerAgentsControlClient.canWork"), false, label); }
   } finally { worker.close(); }

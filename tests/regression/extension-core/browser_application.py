@@ -89,9 +89,9 @@ def snapshot_worker_startup_diagnostics(context):
     return summary
 
 
-def seed_authority(worker, private_key):
+def seed_authority(worker, private_key, ai_family="alice"):
     encoded = base64.b64encode(private_key.read_bytes()).decode('ascii')
-    worker.evaluate("""async ({pkcs8, fixtureKeyId}) => {
+    worker.evaluate("""async ({pkcs8, fixtureKeyId, aiFamily}) => {
       const v = SellerAgentsBootstrapVerifier;
       const fromB64 = value => Uint8Array.from(atob(value), char => char.charCodeAt(0));
       const b64 = bytes => btoa(String.fromCharCode(...bytes));
@@ -129,8 +129,8 @@ def seed_authority(worker, private_key):
         serverTime: new Date().toISOString(), accessBasis: 'BETA', account: {id: '11111111-1111-4222-8111-111111111111', status: 'ACTIVE'},
         subscription: {state: 'NONE', planRevision: null}, devicePolicy: {status: 'ACTIVE'},
         compatibility: {extension: {status: 'SUPPORTED', minimumVersion: null}, browser: {status: 'SUPPORTED'}},
-        entitlements: {'source.ozon': true, 'source.wildberries': true, 'ai.chatgpt': true}, features: {},
-        ai: {status: 'RESOLVED', detected: {family: 'chatgpt', surface: 'web', variant: null},
+        entitlements: {'source.ozon': true, 'source.wildberries': true, ['ai.'+aiFamily]: true}, features: {},
+        ai: {status: 'RESOLVED', detected: {family: aiFamily, surface: 'web', variant: null},
           profile: {profileKey: 'browser-fixture-profile', revision: 1, scopeVariant: null, schemaVersion: 'adapter_profile_v1', contentSha256, content, compatibility}}
       };
       const payloadBytes = new TextEncoder().encode(v.canonicalJson(payload));
@@ -142,46 +142,81 @@ def seed_authority(worker, private_key):
       const envelope = {envelopeVersion: 'bootstrap_envelope_v2', algorithm: 'Ed25519', keyId, payload: v.base64urlEncode(payloadBytes), signature: v.base64urlEncode(signature)};
       const cfg = SellerAgentsControlConfig;
       const trustBundleSha256 = hex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v.canonicalJson(cfg.trustBundle)))));
-      const cacheBinding = {cacheVersion: 'control_cache_binding_v1', controlApiOrigin: cfg.controlApiOrigin, portalOrigin: cfg.portalOrigin, contractVersion: cfg.contractVersion, extensionVersion: cfg.extensionVersion, browser, detectedAi: {family: 'chatgpt', surface: 'web', variant: null}, trustBundleSha256};
+      const cacheBinding = {cacheVersion: 'control_cache_binding_v2', aiReleaseScopeSha256: SellerAgentsAiReleaseScope.snapshot().sha256, controlApiOrigin: cfg.controlApiOrigin, portalOrigin: cfg.portalOrigin, contractVersion: cfg.contractVersion, extensionVersion: cfg.extensionVersion, browser, detectedAi: {family: aiFamily, surface: 'web', variant: null}, trustBundleSha256};
       const serverTimeMs = Date.parse(payload.serverTime);
       const cacheClock = {cacheVersion: 'control_cache_clock_v1', owner: {controlApiOrigin: cfg.controlApiOrigin, portalOrigin: cfg.portalOrigin, contractVersion: cfg.contractVersion, deviceId, sessionId}, trustedServerTimeMs: serverTimeMs, effectiveTimeMs: serverTimeMs};
       const credentials = {deviceId, sessionId, tokenType: 'Bearer', accessToken: 'fixture_access_token', accessTokenExpiresAt: '2099-09-16T00:00:00Z', refreshToken: 'A'.repeat(43), refreshTokenExpiresAt: '2099-09-17T00:00:00Z'};
-      await chrome.storage.local.set({seller_agents_control_auth_v2: {generation: 1, credentials, pending: null, rotation: null, authority: {verified: true, workAllowed: true, payload, envelope, deviceId, sessionId, generation: 1, requestedAi: 'chatgpt', cacheBinding}, cacheClock, lastError: null}});
-    }""", {"pkcs8": encoded, "fixtureKeyId": os.environ.get('SA_TEST_TRUST_KEY_ID', 'browser-fixture-key')})
+      await chrome.storage.local.set({seller_agents_control_auth_v2: {generation: 1, credentials, pending: null, rotation: null, authority: {verified: true, workAllowed: true, payload, envelope, deviceId, sessionId, generation: 1, requestedAi: aiFamily, cacheBinding}, cacheClock, lastError: null}});
+    }""", {"pkcs8": encoded, "fixtureKeyId": os.environ.get('SA_TEST_TRUST_KEY_ID', 'browser-fixture-key'), 'aiFamily':ai_family})
 
-def run(runtime,output,private_key):
+def verify_own_sandbox_arguments(profile):
+    # Read only processes in this fixture's own cgroup. The CDP command-line
+    # endpoint requires an unrelated automation flag, so do not depend on it.
+    group=Path('/proc/self/cgroup').read_text()
+    candidates=[]
+    for process in Path('/proc').iterdir():
+        if not process.name.isdigit():continue
+        try:
+            if (process/'cgroup').read_text()!=group:continue
+            arguments=(process/'cmdline').read_bytes().decode().split('\0')
+        except (OSError,UnicodeError):
+            continue
+        if f'--user-data-dir={profile}' in arguments and not any(a.startswith('--type=') for a in arguments):
+            candidates.append(arguments)
+    assert len(candidates)==1, 'One owned browser process must be observable'
+    forbidden={'--no-sandbox','--disable-setuid-sandbox','--disable-namespace-sandbox','--disable-seccomp-filter-sandbox','--disable-web-security'}
+    assert not any(arg.split('=',1)[0] in forbidden for arg in candidates[0])
+    return True
+
+def run(runtime,output,private_key,target_ai="alice"):
+    assert target_ai in {"alice", "chatgpt"}, "Unknown fixture surface"
     output.mkdir(parents=True,exist_ok=True)
-    fixture=(ROOT/'tests/regression/extension-core/fixtures/application-chat.html').read_text()
+    fixture_path = 'application-alice.html' if target_ai == 'alice' else 'application-chat.html'
+    fixture=(ROOT/'tests/regression/extension-core/fixtures'/fixture_path).read_text()
+    if target_ai == 'alice':
+        conversation_id = '11111111-1111-4222-8111-111111111111'
+        fixture = fixture.replace('__CONVERSATION_ID__', conversation_id).replace('<main id="turns">', '<main id="turns" data-conversation-id="'+conversation_id+'">')
+    origin = 'https://alice.yandex.ru' if target_ai == 'alice' else 'https://chatgpt.com'
+    chat_url = origin + '/c/11111111-1111-4222-8111-111111111111'
     result={'status':'RUNNING','live_provider_calls':0,'installed_acceptance':False,'scope':'native Chromium fixture; popup active-tab port controlled; synthetic AI/fetch'}
     with sync_playwright() as p,tempfile.TemporaryDirectory() as profile:
-        opts={'headless':True,'channel':'chromium','args':['--no-sandbox',f'--disable-extensions-except={runtime}',f'--load-extension={runtime}']}
+        # A constrained non-root fixture can require the browser sandbox without
+        # changing existing runner defaults or any installed browser/profile.
+        require_sandbox=os.environ.get('SA_TEST_REQUIRE_SANDBOX')=='1'
+        opts={'headless':True,'channel':'chromium','chromium_sandbox':require_sandbox,'args':[f'--disable-extensions-except={runtime}',f'--load-extension={runtime}']}
+        if not require_sandbox:opts['args'].insert(0,'--no-sandbox')
+        result['chromium_sandbox_required']=require_sandbox
         if os.getenv('SA_TEST_CHROMIUM'):opts['executable_path']=os.environ['SA_TEST_CHROMIUM'];opts.pop('channel')
         context=p.chromium.launch_persistent_context(profile,**opts)
         page=popup=worker=None
         worker_stage="initial_launch"
         errors=[]
         try:
+            if require_sandbox:
+                result['sandbox_disabling_flags_absent']=verify_own_sandbox_arguments(profile)
             worker=discover_service_worker(context)
             worker_stage="active"
             empty_status=worker.evaluate("async()=>SellerAgentsControlClient.status()")
             assert empty_status['authenticated'] is False
-            seed_authority(worker, private_key)
+            seed_authority(worker, private_key, ai_family=target_ai)
             worker.evaluate("()=>{globalThis.__seller_agents_native_fixture_sentinel='first-worker-only'}")
             extension_url=worker.url
             context.close()
             context=None
             worker_stage="relaunch"
             context=p.chromium.launch_persistent_context(profile,**opts)
+            if require_sandbox:
+                result['sandbox_disabling_flags_absent']=verify_own_sandbox_arguments(profile)
             worker=discover_service_worker(context)
             worker_stage="active"
             assert worker.url == extension_url
             assert worker.evaluate("()=>globalThis.__seller_agents_native_fixture_sentinel") is None
             restored=worker.evaluate("async()=>SellerAgentsControlClient.status()")
             assert restored['authenticated'] is True and restored['workAllowed'] is True
-            context.route('https://**/*',lambda route:route.fulfill(body=fixture,content_type='text/html') if route.request.url.startswith('https://chatgpt.com/c/') else route.abort())
+            context.route('https://**/*',lambda route:route.fulfill(body=fixture,content_type='text/html') if route.request.url == chat_url else route.abort())
             page=context.new_page();page.on('pageerror',lambda e:errors.append(str(e)))
-            page.goto('https://chatgpt.com/c/11111111-1111-4222-8111-111111111111')
-            tab_id=until(lambda:worker.evaluate("async()=>{const tabs=await chrome.tabs.query({url:'https://chatgpt.com/c/*'});return tabs[0]?.id}"))
+            page.goto(chat_url)
+            tab_id=until(lambda:worker.evaluate("async url=>{const tabs=await chrome.tabs.query({});return tabs.find(tab=>tab.url===url)?.id}",chat_url))
             worker.evaluate("""()=>{globalThis.fixtureFetches=[];globalThis.fetch=async(url,init)=>{
               if(!String(url).includes('.wildberries.ru/'))throw new Error('Fixture forbids unmocked provider');
               fixtureFetches.push(String(url));
@@ -224,149 +259,181 @@ def run(runtime,output,private_key):
             page.wait_for_timeout(300)
             assert page.locator('.ozon-bridge-block-action').count()==0
             page.evaluate("fixtureCommand('WB_HELP_V1 {\"operation\":\"describe\",\"params\":{\"alias\":\"seller_info\"}}\\nWB_API_V1 {\"operation\":\"seller_info\",\"params\":{}}')")
-            page.locator("section[data-turn='assistant'] .code").last.scroll_into_view_if_needed()
+            page.locator("article[data-message-role='alice'] .CodeBlock" if target_ai=='alice' else "section[data-turn='assistant'] .code").last.scroll_into_view_if_needed()
             button=page.locator('.ozon-bridge-block-action').last
             button.wait_for();assert button.inner_text()=='Октопорт';button.click()
             page.wait_for_function('sent.length===2',timeout=30000)
             assert page.evaluate("sent[1].startsWith('WB_BATCH_RESULT_V1')")
-            assert page.locator('section[data-turn="user"]').last.inner_text().strip() == page.evaluate("sent[1].trim()"), "fixture must preserve the full rendered report text"
+            assert page.locator('article[data-message-role="user"]' if target_ai=='alice' else 'section[data-turn="user"]').last.inner_text().strip() == page.evaluate("sent[1].trim()"), "fixture must preserve the full rendered report text"
             until(lambda:worker.evaluate("async()=>Object.values((await chrome.storage.local.get('ozmb_manual_operations')).ozmb_manual_operations||{})[0]?.status==='completed'"))
             assert worker.evaluate('fixtureFetches.length')==1
             # Hiding keeps the session active; the popup persists the bound marketplace.
             popup.click('#visibility');until(lambda:'скрыта' in popup.locator('#connection').inner_text())
             assert page.locator('.ozon-bridge-block-action').count()==0
             popup.click('#visibility');until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
-            page.locator("section[data-turn='assistant'] .code").last.scroll_into_view_if_needed()
+            page.locator("article[data-message-role='alice'] .CodeBlock" if target_ai=='alice' else "section[data-turn='assistant'] .code").last.scroll_into_view_if_needed()
             button=page.locator('.ozon-bridge-block-action').last;button.click();page.wait_for_timeout(250)
             assert worker.evaluate('fixtureFetches.length')==1
-            # Current ChatGPT fenced-code DOM: li[data-message-role=assistant] + Copy code/data-code-copy-state.
-            current_assistant=page.evaluate("()=>fixtureCurrentChatGPTBlock('WB_HELP_V1 {\"operation\":\"describe\",\"params\":{\"alias\":\"seller_info\"}}','assistant')")
-            until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
-            assert page.locator('.ozon-bridge-block-action').last.inner_text()=='Октопорт'
-            current_user=page.evaluate("()=>fixtureCurrentChatGPTBlock('WB_API_V1 {\"operation\":\"seller_info\",\"params\":{}}','user')")
-            page.wait_for_timeout(250)
-            assert page.locator('.ozon-bridge-block-action').count()==2
-            page.evaluate('(ids)=>ids.forEach(id=>document.getElementById(id)?.remove())',[current_assistant,current_user])
-            until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
+            if target_ai == 'chatgpt':
+                # Current ChatGPT fenced-code DOM: li[data-message-role=assistant] + Copy code/data-code-copy-state.
+                current_assistant=page.evaluate("()=>fixtureCurrentChatGPTBlock('WB_HELP_V1 {\"operation\":\"describe\",\"params\":{\"alias\":\"seller_info\"}}','assistant')")
+                until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
+                assert page.locator('.ozon-bridge-block-action').last.inner_text()=='Октопорт'
+                current_user=page.evaluate("()=>fixtureCurrentChatGPTBlock('WB_API_V1 {\"operation\":\"seller_info\",\"params\":{}}','user')")
+                page.wait_for_timeout(250)
+                assert page.locator('.ozon-bridge-block-action').count()==2
+                page.evaluate('(ids)=>ids.forEach(id=>document.getElementById(id)?.remove())',[current_assistant,current_user])
+                until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
 
-            # New DOM matrix: multiple assistant blocks/localized Copy are recognized,
-            # while user, ambiguous and unrelated Response-actions containers are rejected.
-            multi_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
-              'role':'assistant','id':'modern-multi',
-              'blocks':[
-                {'text':'WB_HELP_V1 {"operation":"describe","params":{"alias":"seller_info"}}','label':'Copy code'},
-                {'text':'WB_API_V1 {"operation":"seller_info","params":{}}','label':'Копировать код'}
-              ]
-            })
-            user_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
-              'role':'user','id':'modern-user',
-              'blocks':[{'text':'WB_API_V1 {"operation":"seller_info","params":{}}','label':'Copy code'}]
-            })
-            ambiguous_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
-              'explicitRole':False,'id':'ambiguous-response','responseActions':'Response actions','userDescendant':True,
-              'blocks':[{'text':'WB_API_V1 {"operation":"seller_info","params":{}}','label':'Copy code'}]
-            })
-            unrelated_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
-              'explicitRole':False,'assistantMarker':False,'id':'unrelated-response','responseActions':'Response actions',
-              'blocks':[{'text':'WB_API_V1 {"operation":"seller_info","params":{}}','plain':True,'label':'Copy code'}]
-            })
-            editor_id=page.evaluate("(spec)=>fixtureModernChatGPT(spec)",{
-              'editor':True,'id':'assistant-editor-negative',
-              'text':'WB_API_V1 {"operation":"seller_info","params":{}}','copyLabel':'Copy code'
-            })
-            until(lambda:page.locator('.ozon-bridge-block-action').count()==3)
-            page.wait_for_timeout(200)
-            assert page.locator('.ozon-bridge-block-action').count()==3
-            page.evaluate('(ids)=>ids.forEach(id=>document.getElementById(id)?.remove())',[multi_id,user_id,ambiguous_id,unrelated_id,editor_id])
-            until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
+                # New DOM matrix: multiple assistant blocks/localized Copy are recognized,
+                # while user, ambiguous and unrelated Response-actions containers are rejected.
+                multi_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
+                  'role':'assistant','id':'modern-multi',
+                  'blocks':[
+                    {'text':'WB_HELP_V1 {"operation":"describe","params":{"alias":"seller_info"}}','label':'Copy code'},
+                    {'text':'WB_API_V1 {"operation":"seller_info","params":{}}','label':'Копировать код'}
+                  ]
+                })
+                user_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
+                  'role':'user','id':'modern-user',
+                  'blocks':[{'text':'WB_API_V1 {"operation":"seller_info","params":{}}','label':'Copy code'}]
+                })
+                ambiguous_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
+                  'explicitRole':False,'id':'ambiguous-response','responseActions':'Response actions','userDescendant':True,
+                  'blocks':[{'text':'WB_API_V1 {"operation":"seller_info","params":{}}','label':'Copy code'}]
+                })
+                unrelated_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
+                  'explicitRole':False,'assistantMarker':False,'id':'unrelated-response','responseActions':'Response actions',
+                  'blocks':[{'text':'WB_API_V1 {"operation":"seller_info","params":{}}','plain':True,'label':'Copy code'}]
+                })
+                editor_id=page.evaluate("(spec)=>fixtureModernChatGPT(spec)",{
+                  'editor':True,'id':'assistant-editor-negative',
+                  'text':'WB_API_V1 {"operation":"seller_info","params":{}}','copyLabel':'Copy code'
+                })
+                until(lambda:page.locator('.ozon-bridge-block-action').count()==3)
+                page.wait_for_timeout(200)
+                assert page.locator('.ozon-bridge-block-action').count()==3
+                page.evaluate('(ids)=>ids.forEach(id=>document.getElementById(id)?.remove())',[multi_id,user_id,ambiguous_id,unrelated_id,editor_id])
+                until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
 
-            # Response-actions Copy belongs to the whole assistant response, not code.
-            # Even a misleading data-code-copy-state must not create a bridge action.
-            response_only_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
-              'role':'assistant','id':'response-copy-only','assistantResponseActions':True,
-              'responseActions':'Response actions',
-              'blocks':[{'text':'WB_API_V1 {"operation":"seller_info","params":{}}','plain':True,'copy':False}],
-              'responseActionCopy':{'label':'Copy','dataCodeCopy':True}
-            })
-            page.wait_for_timeout(250)
-            assert page.locator('.ozon-bridge-block-action').count()==1
-            page.evaluate("""(id)=>{document.getElementById(id)?.remove();fixtureChatGPTMessage({role:'assistant',id,assistantResponseActions:true,responseActions:'Действия с ответом',blocks:[{text:'WB_API_V1 {"operation":"seller_info","params":{}}',plain:true,copy:false}],responseActionCopy:{textLabel:'Копировать'}});}""",response_only_id)
-            page.wait_for_timeout(250)
-            assert page.locator('.ozon-bridge-block-action').count()==1
-            page.evaluate('(id)=>document.getElementById(id)?.remove()',response_only_id)
+                # Response-actions Copy belongs to the whole assistant response, not code.
+                # Even a misleading data-code-copy-state must not create a bridge action.
+                response_only_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
+                  'role':'assistant','id':'response-copy-only','assistantResponseActions':True,
+                  'responseActions':'Response actions',
+                  'blocks':[{'text':'WB_API_V1 {"operation":"seller_info","params":{}}','plain':True,'copy':False}],
+                  'responseActionCopy':{'label':'Copy','dataCodeCopy':True}
+                })
+                page.wait_for_timeout(250)
+                assert page.locator('.ozon-bridge-block-action').count()==1
+                page.evaluate("""(id)=>{document.getElementById(id)?.remove();fixtureChatGPTMessage({role:'assistant',id,assistantResponseActions:true,responseActions:'Действия с ответом',blocks:[{text:'WB_API_V1 {"operation":"seller_info","params":{}}',plain:true,copy:false}],responseActionCopy:{textLabel:'Копировать'}});}""",response_only_id)
+                page.wait_for_timeout(250)
+                assert page.locator('.ozon-bridge-block-action').count()==1
+                page.evaluate('(id)=>document.getElementById(id)?.remove()',response_only_id)
 
-            # Fenced code remains authoritative without a code Copy button, while a
-            # real code-copy plus response-copy pair still creates only one action.
-            fenced_response_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
-              'role':'assistant','id':'fenced-with-response-copy','responseActions':'Response actions',
-              'blocks':[{'text':'WB_HELP_V1 {"operation":"describe","params":{"alias":"seller_info"}}','copy':False}],
-              'responseActionCopy':{'label':'Copy'}
-            })
-            until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
-            page.evaluate('(id)=>document.getElementById(id)?.remove()',fenced_response_id)
-            until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
+                # Fenced code remains authoritative without a code Copy button, while a
+                # real code-copy plus response-copy pair still creates only one action.
+                fenced_response_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
+                  'role':'assistant','id':'fenced-with-response-copy','responseActions':'Response actions',
+                  'blocks':[{'text':'WB_HELP_V1 {"operation":"describe","params":{"alias":"seller_info"}}','copy':False}],
+                  'responseActionCopy':{'label':'Copy'}
+                })
+                until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
+                page.evaluate('(id)=>document.getElementById(id)?.remove()',fenced_response_id)
+                until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
 
-            both_copy_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
-              'role':'assistant','id':'real-and-response-copy','responseActions':'Response actions',
-              'blocks':[{'text':'WB_HELP_V1 {"operation":"describe","params":{"alias":"seller_info"}}','plain':True,'label':'Copy code'}],
-              'responseActionCopy':{'label':'Copy'}
-            })
-            until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
-            page.wait_for_timeout(200)
-            assert page.locator('.ozon-bridge-block-action').count()==2
-            page.evaluate('(id)=>document.getElementById(id)?.remove()',both_copy_id)
-            until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
+                both_copy_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
+                  'role':'assistant','id':'real-and-response-copy','responseActions':'Response actions',
+                  'blocks':[{'text':'WB_HELP_V1 {"operation":"describe","params":{"alias":"seller_info"}}','plain':True,'label':'Copy code'}],
+                  'responseActionCopy':{'label':'Copy'}
+                })
+                until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
+                page.wait_for_timeout(200)
+                assert page.locator('.ozon-bridge-block-action').count()==2
+                page.evaluate('(id)=>document.getElementById(id)?.remove()',both_copy_id)
+                until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
 
-            # Unmarked project/desktop-style assistant ownership: Response actions +
-            # assistant content marker. Plain <code> (no <pre>) and text-only localized
-            # Copy are enough only inside that proven assistant container.
-            plain_command='WB_API_V1 {"operation":"seller_info","params":{}}'
-            plain_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
-              'explicitRole':False,'id':'unmarked-plain','tag':'article','responseActions':'Действия с ответом',
-              'blocks':[{'text':plain_command,'plain':True,'dataCodeCopy':False,'textLabel':'Копировать код'}]
-            })
-            until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
-            page.locator('#'+plain_id).scroll_into_view_if_needed()
-            plain_button=page.locator('.ozon-bridge-block-action').last
-            plain_button.wait_for(state='visible')
-            plain_fetches_before=worker.evaluate('fixtureFetches.length')
-            plain_sent_before=page.evaluate('sent.length')
-            plain_operation_before=worker.evaluate("async()=>Object.values((await chrome.storage.local.get('ozmb_manual_operations')).ozmb_manual_operations||{})[0]?.operation_id||null")
-            plain_button.click()
-            until(lambda:worker.evaluate("async(prev)=>{const row=Object.values((await chrome.storage.local.get('ozmb_manual_operations')).ozmb_manual_operations||{})[0];return row?.operation_id&&row.operation_id!==prev&&row.status==='completed'}",plain_operation_before))
-            manual_row=worker.evaluate("async()=>Object.values((await chrome.storage.local.get('ozmb_manual_operations')).ozmb_manual_operations||{})[0]")
-            assert manual_row['execution_context']['commandHash']==hashlib.sha256(plain_command.encode()).hexdigest()
-            assert manual_row['last_operation']=='seller_info' and manual_row['last_error'] is None
-            assert worker.evaluate('fixtureFetches.length')==plain_fetches_before+1
-            page.wait_for_function('(n)=>sent.length===n+1',arg=plain_sent_before,timeout=30000)
-            page.evaluate('(id)=>document.getElementById(id)?.remove()',plain_id)
-            until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
+                # Unmarked project/desktop-style assistant ownership: Response actions +
+                # assistant content marker. Plain <code> (no <pre>) and text-only localized
+                # Copy are enough only inside that proven assistant container.
+                plain_command='WB_API_V1 {"operation":"seller_info","params":{}}'
+                plain_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
+                  'explicitRole':False,'id':'unmarked-plain','tag':'article','responseActions':'Действия с ответом',
+                  'blocks':[{'text':plain_command,'plain':True,'dataCodeCopy':False,'textLabel':'Копировать код'}]
+                })
+                until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
+                page.locator('#'+plain_id).scroll_into_view_if_needed()
+                plain_button=page.locator('.ozon-bridge-block-action').last
+                plain_button.wait_for(state='visible')
+                plain_fetches_before=worker.evaluate('fixtureFetches.length')
+                plain_sent_before=page.evaluate('sent.length')
+                plain_operation_before=worker.evaluate("async()=>Object.values((await chrome.storage.local.get('ozmb_manual_operations')).ozmb_manual_operations||{})[0]?.operation_id||null")
+                plain_button.click()
+                until(lambda:worker.evaluate("async(prev)=>{const row=Object.values((await chrome.storage.local.get('ozmb_manual_operations')).ozmb_manual_operations||{})[0];return row?.operation_id&&row.operation_id!==prev&&row.status==='completed'}",plain_operation_before))
+                manual_row=worker.evaluate("async()=>Object.values((await chrome.storage.local.get('ozmb_manual_operations')).ozmb_manual_operations||{})[0]")
+                assert manual_row['execution_context']['commandHash']==hashlib.sha256(plain_command.encode()).hexdigest()
+                assert manual_row['last_operation']=='seller_info' and manual_row['last_error'] is None
+                assert worker.evaluate('fixtureFetches.length')==plain_fetches_before+1
+                page.wait_for_function('(n)=>sent.length===n+1',arg=plain_sent_before,timeout=30000)
+                page.evaluate('(id)=>document.getElementById(id)?.remove()',plain_id)
+                until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
 
-            # Rerender/replacement of the same message must replace the binding, not duplicate it.
-            rerender_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
-              'role':'assistant','id':'rerender-modern',
-              'blocks':[{'text':'WB_HELP_V1 {"operation":"describe","params":{"alias":"seller_info"}}','label':'Copy code'}]
-            })
-            until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
-            page.evaluate("(id)=>{document.getElementById(id)?.remove();fixtureChatGPTMessage({role:'assistant',id,blocks:[{text:'WB_HELP_V1 {\\\"operation\\\":\\\"describe\\\",\\\"params\\\":{\\\"alias\\\":\\\"seller_info\\\"}}',plain:true,dataCodeCopy:false,textLabel:'Copy code'}]});}",rerender_id)
-            until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
-            page.wait_for_timeout(200)
-            assert page.locator('.ozon-bridge-block-action').count()==2
-            page.evaluate('(id)=>document.getElementById(id)?.remove()',rerender_id)
-            until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
+                # Rerender/replacement of the same message must replace the binding, not duplicate it.
+                rerender_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
+                  'role':'assistant','id':'rerender-modern',
+                  'blocks':[{'text':'WB_HELP_V1 {"operation":"describe","params":{"alias":"seller_info"}}','label':'Copy code'}]
+                })
+                until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
+                page.evaluate("(id)=>{document.getElementById(id)?.remove();fixtureChatGPTMessage({role:'assistant',id,blocks:[{text:'WB_HELP_V1 {\\\"operation\\\":\\\"describe\\\",\\\"params\\\":{\\\"alias\\\":\\\"seller_info\\\"}}',plain:true,dataCodeCopy:false,textLabel:'Copy code'}]});}",rerender_id)
+                until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
+                page.wait_for_timeout(200)
+                assert page.locator('.ozon-bridge-block-action').count()==2
+                page.evaluate('(id)=>document.getElementById(id)?.remove()',rerender_id)
+                until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
+
+            else:
+                # The active surface uses Alice's actual CodeBlock/Copy contract.
+                # Retained ChatGPT-specific DOM definitions remain above for its
+                # later qualified release; they are not reported as Alice PASS.
+                command='WB_HELP_V1 {"operation":"describe","params":{"alias":"seller_info"}}'
+                owned=page.evaluate('(text)=>fixtureAliceMessage({id:"alice-multi",blocks:[{text,label:"Copy code"},{text,label:"Копировать код"}]})',command)
+                user=page.evaluate('(text)=>fixtureAliceMessage({role:"user",blocks:[{text}]})',command)
+                unrelated=page.evaluate('(text)=>fixtureAliceMessage({role:null,blocks:[{text}]})',command)
+                no_code_copy=page.evaluate('(text)=>fixtureAliceMessage({blocks:[{text,copy:false}]})',command)
+                until(lambda:page.locator('.ozon-bridge-block-action').count()==3)
+                page.wait_for_timeout(200)
+                assert page.locator('.ozon-bridge-block-action').count()==3
+                page.evaluate('(ids)=>ids.forEach(id=>document.getElementById(id)?.remove())',[owned,user,unrelated,no_code_copy])
+                until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
+                rerender=page.evaluate('(text)=>fixtureAliceMessage({id:"alice-rerender",blocks:[{text}]})',command)
+                until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
+                page.evaluate('(text)=>{document.getElementById("alice-rerender").remove();fixtureAliceMessage({id:"alice-rerender",blocks:[{text}]});}',command)
+                until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
+                page.wait_for_timeout(200)
+                assert page.locator('.ozon-bridge-block-action').count()==2
+                page.evaluate('(id)=>document.getElementById(id).remove()',rerender)
+                until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
 
             # Actual native File/IndexedDB/chunk/attachment/send path for a binary WB result.
             command=worker.evaluate("""()=>{fixtureBinary=true;const m=Object.values(SellerAgentsWBReference.contract.OPERATIONS).find(m=>m.response_mode==='binary'&&m.execution_enabled&&m.privacy==='standard');return 'WB_API_V1 '+JSON.stringify({operation:m.alias,params:{path:Object.fromEntries([...m.path.matchAll(/\\{([^}]+)\\}/g)].map(m=>[m[1],'fixture'])),query:Object.fromEntries(m.required_query_keys.map(k=>[k,'1'])),...(m.body_required?{body:{}}:{})}})}""")
             page.evaluate('(text)=>fixtureCommand(text)',command)
-            page.locator("section[data-turn='assistant'] .code").last.scroll_into_view_if_needed()
+            page.locator("article[data-message-role='alice'] .CodeBlock" if target_ai=='alice' else "section[data-turn='assistant'] .code").last.scroll_into_view_if_needed()
             button=page.locator('.ozon-bridge-block-action').last;button.wait_for()
             binary_fetches_before=worker.evaluate('fixtureFetches.length');binary_sent_before=page.evaluate('sent.length');button.click()
             page.wait_for_function('files.length>=1',timeout=30000)
             actual=page.evaluate("files.find(f=>f.name==='native-report.pdf')")
             assert actual['bytes']==[37,80,68,70,45,49,10,0,255]
-            page.wait_for_function('(n)=>sent.length===n+1',arg=binary_sent_before,timeout=30000)
+            page.wait_for_function('(spec)=>sent.length===spec.before+spec.parts',arg={'before':binary_sent_before,'parts':2 if target_ai=='alice' else 1},timeout=30000)
             until(lambda:worker.evaluate("async()=>Object.values((await chrome.storage.local.get('ozmb_manual_operations')).ozmb_manual_operations||{})[0]?.status==='completed'"))
             assert worker.evaluate('fixtureFetches.length')==binary_fetches_before+1
+            if target_ai=='alice':
+                uploaded=page.evaluate('files')
+                assert len(uploaded)==2 and sum(file['name']=='native-report.pdf' for file in uploaded)==1
+                txt=next(file for file in uploaded if file['name']!='native-report.pdf')
+                assert txt['bytes'] and txt['name'].endswith('.txt')
+                turns=page.evaluate('(n)=>sentFiles.slice(n)',binary_sent_before)
+                assert len(turns)==2 and all(len(files)==1 for files in turns)
+                assert sorted(file for files in turns for file in files)==sorted(file['name'] for file in uploaded)
             popup.click('#finish');until(lambda:'Завершено' in popup.locator('#connection').inner_text())
             assert page.locator('.ozon-bridge-block-action').count()==0
             # Popup dimensions at normal and enlarged typography; no horizontal clipping.
@@ -378,7 +445,10 @@ def run(runtime,output,private_key):
                 popup.screenshot(path=str(output/f'popup-{width}-{scale}.png'),full_page=True)
                 popup.click('#cancel')
             assert not errors,errors
-            result.update(status='PASS',browser=context.browser.version,checks=['popup create/edit','real Work prompt','old-history baseline','WB mixed block text send','no replay','Show/Hide','current li[data-message-role] fenced code','multi-block localized Copy','response-actions Copy excluded from code ownership','response-copy rerender no stale action','fenced fallback and real code-copy precedence','user/editor/ambiguous/unrelated action rejection','unmarked Response-actions plain code exact extraction','rerender no duplicates','native binary File/IDB/port send','Finish','320/380px and enlarged typography'])
+            result['qualified_ai']=target_ai
+            if target_ai=='alice':
+                result['retained_chatgpt_dom_scope']='Original definitions retained; positive Work is deferred until that provider is qualified. Current Alice result does not accept them.'
+            result.update(status='PASS',browser=context.browser.version,checks=(['Alice native CodeBlock ownership/user/unrelated rejection','Alice rerender no duplicate actions','Alice complete two-file bundle one file per turn'] if target_ai=='alice' else ['current ChatGPT li/data-message-role and Copy matrix retained'])+['popup create/edit','real Work prompt','old-history baseline','WB mixed block text send','no replay','Show/Hide','native binary File/IDB/port send','Finish','320/380px and enlarged typography'])
         except Exception as error:
             result.update(status='FAIL',error=str(error),traceback=traceback.format_exc(),page_errors=errors)
             if context and worker_stage in ("initial_launch", "relaunch"):
@@ -401,4 +471,4 @@ def run(runtime,output,private_key):
     print(json.dumps(result,ensure_ascii=False));assert result['status']=='PASS',result.get('error')
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--runtime',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);parser.add_argument('--fixture-private-key',type=Path,required=True);args=parser.parse_args();run(args.runtime.resolve(),args.output.resolve(),args.fixture_private_key.resolve())
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--runtime',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);parser.add_argument('--fixture-private-key',type=Path,required=True);parser.add_argument('--target-ai',choices=['alice','chatgpt'],default='alice');args=parser.parse_args();run(args.runtime.resolve(),args.output.resolve(),args.fixture_private_key.resolve(),args.target_ai)

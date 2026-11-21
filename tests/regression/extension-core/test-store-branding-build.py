@@ -83,7 +83,11 @@ class StoreAuthoritySnapshotTests(unittest.TestCase):
     @staticmethod
     def authority(control="https://api-a.example.test"):
         return {
-            "schemaVersion": "octoport_release_authority_v1",
+            "schemaVersion": "octoport_release_authority_v2",
+            "aiReleaseScope": {
+                "descriptor": json.loads((ROOT / "packages/contracts/src/ai-release-scope.v1.json").read_bytes()),
+                "sha256": "10c20b39daec4d0a9733173222167ea7a56da2a128bbc182132591c8e5596261",
+            },
             "source": {"head": "0" * 40, "tree": "1" * 40},
             "productVersion": "0.2.37",
             "contractVersion": "control_plane_v2",
@@ -130,7 +134,7 @@ class StoreAuthoritySnapshotTests(unittest.TestCase):
 
             def overwrite_after_parse(text, *args, **kwargs):
                 parsed = original_json_loads(text, *args, **kwargs)
-                if isinstance(parsed, dict) and parsed.get("schemaVersion") == "octoport_release_authority_v1" and not changed:
+                if isinstance(parsed, dict) and parsed.get("schemaVersion") == "octoport_release_authority_v2" and not changed:
                     file.write_bytes(replacement)
                     changed.append(True)
                 return parsed

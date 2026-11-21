@@ -1,5 +1,6 @@
 import { sql, type SQLWrapper } from "drizzle-orm";
 import {
+  foreignKey,
   bigint,
   boolean,
   check,
@@ -61,24 +62,11 @@ export const subscriptions = pgTable(
   "subscriptions",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    accountId: uuid("account_id")
-      .notNull()
-      .references(() => accounts.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    accountId: uuid("account_id").notNull(),
     state: subscriptionState("state").notNull(),
     stateRevision: integer("state_revision").notNull().default(1),
-    currentPlanRevisionId: uuid("current_plan_revision_id")
-      .notNull()
-      .references(() => planRevisions.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
-    boundPriceRevisionId: uuid("bound_price_revision_id").references(
-      () => priceRevisions.id,
-      { onDelete: "restrict", onUpdate: "restrict" },
-    ),
+    currentPlanRevisionId: uuid("current_plan_revision_id").notNull(),
+    boundPriceRevisionId: uuid("bound_price_revision_id"),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     currentPeriodStart: timestamp("current_period_start", {
       withTimezone: true,
@@ -99,6 +87,27 @@ export const subscriptions = pgTable(
       .defaultNow(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.accountId],
+      foreignColumns: [accounts.id],
+      name: "subscriptions_account_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.currentPlanRevisionId],
+      foreignColumns: [planRevisions.id],
+      name: "subscriptions_current_plan_revision_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.boundPriceRevisionId],
+      foreignColumns: [priceRevisions.id],
+      name: "subscriptions_bound_price_revision_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     check(
       "subscriptions_state_revision_positive",
       sql`${table.stateRevision} > 0`,
@@ -142,12 +151,7 @@ export const subscriptionTransitions = pgTable(
   "subscription_transitions",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    subscriptionId: uuid("subscription_id")
-      .notNull()
-      .references(() => subscriptions.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    subscriptionId: uuid("subscription_id").notNull(),
     transitionRevision: integer("transition_revision").notNull(),
     fromState: subscriptionState("from_state"),
     toState: subscriptionState("to_state").notNull(),
@@ -161,6 +165,13 @@ export const subscriptionTransitions = pgTable(
       .defaultNow(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.subscriptionId],
+      foreignColumns: [subscriptions.id],
+      name: "subscription_transitions_subscription_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     unique("subscription_transitions_subscription_revision_unique").on(
       table.subscriptionId,
       table.transitionRevision,
@@ -191,26 +202,13 @@ export const payments = pgTable(
   "payments",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    accountId: uuid("account_id")
-      .notNull()
-      .references(() => accounts.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
-    subscriptionId: uuid("subscription_id").references(() => subscriptions.id, {
-      onDelete: "restrict",
-      onUpdate: "restrict",
-    }),
+    accountId: uuid("account_id").notNull(),
+    subscriptionId: uuid("subscription_id"),
     provider: varchar("provider", { length: 64 }).notNull(),
     providerPaymentId: varchar("provider_payment_id", {
       length: 256,
     }).notNull(),
-    priceRevisionId: uuid("price_revision_id")
-      .notNull()
-      .references(() => priceRevisions.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    priceRevisionId: uuid("price_revision_id").notNull(),
     amountMinor: bigint("amount_minor", { mode: "number" }).notNull(),
     currency: varchar("currency", { length: 3 }).notNull(),
     state: paymentState("state").notNull(),
@@ -229,6 +227,27 @@ export const payments = pgTable(
     confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
   },
   (table) => [
+    foreignKey({
+      columns: [table.accountId],
+      foreignColumns: [accounts.id],
+      name: "payments_account_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.subscriptionId],
+      foreignColumns: [subscriptions.id],
+      name: "payments_subscription_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.priceRevisionId],
+      foreignColumns: [priceRevisions.id],
+      name: "payments_price_revision_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     unique("payments_provider_payment_unique").on(
       table.provider,
       table.providerPaymentId,
@@ -283,24 +302,36 @@ export const billingEvents = pgTable(
     receivedAt: timestamp("received_at", { withTimezone: true }).notNull(),
     verifiedAt: timestamp("verified_at", { withTimezone: true }).notNull(),
     processedAt: timestamp("processed_at", { withTimezone: true }),
-    paymentId: uuid("payment_id").references(() => payments.id, {
-      onDelete: "restrict",
-      onUpdate: "restrict",
-    }),
-    subscriptionId: uuid("subscription_id").references(() => subscriptions.id, {
-      onDelete: "restrict",
-      onUpdate: "restrict",
-    }),
-    subscriptionTransitionId: uuid("subscription_transition_id").references(
-      () => subscriptionTransitions.id,
-      { onDelete: "restrict", onUpdate: "restrict" },
-    ),
+    paymentId: uuid("payment_id"),
+    subscriptionId: uuid("subscription_id"),
+    subscriptionTransitionId: uuid("subscription_transition_id"),
     failureCode: varchar("failure_code", { length: 128 }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.paymentId],
+      foreignColumns: [payments.id],
+      name: "billing_events_payment_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.subscriptionId],
+      foreignColumns: [subscriptions.id],
+      name: "billing_events_subscription_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.subscriptionTransitionId],
+      foreignColumns: [subscriptionTransitions.id],
+      name: "billing_events_subscription_transition_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     unique("billing_events_provider_identity_unique").on(
       table.provider,
       table.eventIdentity,

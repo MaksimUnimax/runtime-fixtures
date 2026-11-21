@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import path from "node:path";
-import { makeWorker, signFixtureBootstrap, until } from "../worker-harness.mjs";
+import { makeWorker, signFixtureBootstrap, until, AI_RELEASE_SCOPE_FIXTURE } from "../worker-harness.mjs";
 
 const runtime = path.resolve(process.argv[2]);
 const AUTH = "seller_agents_control_auth_v2";
-const CHATGPT = { family: "chatgpt", surface: "web", variant: null };
+const ALICE = { family: "alice", surface: "web", variant: null };
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 const caseResults = [], caseFailures = [];
 const negativeControls = [];
@@ -82,7 +82,7 @@ function packagedConfig(backing, changes = {}) {
   const key = backing.local.__seller_agents_fixture_signing_key;
   const publicKey = Buffer.from(key.publicKey, "base64");
   const fingerprint = createHash("sha256").update(publicKey).digest("hex");
-  return { environment: "LOCAL DEVELOPMENT", controlApiOrigin: "http://127.0.0.1:43100", portalOrigin: "http://127.0.0.1:43101", extensionVersion: "0.2.4", contractVersion: "control_plane_v2", trustBundle: { trustBundleVersion: "bootstrap_trust_bundle_v1", algorithm: "Ed25519", publicKeyFormat: "spki_der", publicKeyEncoding: "base64", fingerprintAlgorithm: "sha256", fingerprintEncoding: "lowercase_hex", keys: [{ keyId: "fixture-key", publicKey: key.publicKey, fingerprintSha256: fingerprint, lifecycle: "ACTIVE", trustEligibility: "SIGNING_AND_VERIFICATION" }] }, ...changes };
+  return { environment: "LOCAL DEVELOPMENT", controlApiOrigin: "http://127.0.0.1:43100", portalOrigin: "http://127.0.0.1:43101", extensionVersion: "0.2.4", contractVersion: "control_plane_v2", aiReleaseScope: structuredClone(AI_RELEASE_SCOPE_FIXTURE), trustBundle: { trustBundleVersion: "bootstrap_trust_bundle_v1", algorithm: "Ed25519", publicKeyFormat: "spki_der", publicKeyEncoding: "base64", fingerprintAlgorithm: "sha256", fingerprintEncoding: "lowercase_hex", keys: [{ keyId: "fixture-key", publicKey: key.publicKey, fingerprintSha256: fingerprint, lifecycle: "ACTIVE", trustEligibility: "SIGNING_AND_VERIFICATION" }] }, ...changes };
 }
 
 async function signed(backing, payload) { return json(await signFixtureBootstrap(backing, payload)); }
@@ -100,7 +100,7 @@ async function prepared(options = {}) {
     backing.local[AUTH].authority.payload = payload;
     backing.local[AUTH].authority.envelope = await signFixtureBootstrap(backing, payload);
     backing.local[AUTH].authority.requestedAi = options.requestedAi === undefined ? original.authority.requestedAi : options.requestedAi;
-    backing.local[AUTH].authority.cacheBinding.detectedAi = backing.local[AUTH].authority.requestedAi === null ? null : CHATGPT;
+    backing.local[AUTH].authority.cacheBinding.detectedAi = backing.local[AUTH].authority.requestedAi === null ? null : ALICE;
   }
   if (options.credentials) Object.assign(backing.local[AUTH].credentials, options.credentials);
   await options.mutateBacking?.(backing);
@@ -120,6 +120,7 @@ async function prepared(options = {}) {
     sessionId: options.sessionId,
     userAgent: options.userAgent,
     packagedConfig,
+    timerScale: options.timerScale,
     fetch: options.fetch || (async url => { throw new Error("unexpected control request " + url); }),
     onStorageWrite: options.onStorageWrite,
     onStorageRemove: options.onStorageRemove,
@@ -149,12 +150,16 @@ async function assertTransportCase(kind, responseFactory, expectedFreshness = "S
   } });
   try {
     const before = structuredClone(fixture.backing.local[AUTH].authority);
-    const result = await policy(fixture.worker, { detectedAi: CHATGPT });
+    const generation = fixture.backing.local[AUTH].generation;
+    const accessEpoch = fixture.backing.local[AUTH].accessEpoch;
+    const result = await policy(fixture.worker, { detectedAi: ALICE });
     assert.equal(result.source, "CACHE", kind);
     assert.equal(result.freshness, expectedFreshness, kind);
     assert.equal(canonical(result.payload), canonical(before.payload), `${kind} preserves payload`);
     assert.equal(canonical(fixture.backing.local[AUTH].authority.envelope), canonical(before.envelope), `${kind} preserves signed envelope`);
     assert.equal(fixture.worker.controlNetwork.filter(row => row.url.endsWith("/v1/bootstrap")).length, 1, `${kind} observed online failure`);
+    assert.equal(fixture.backing.local[AUTH].generation, generation, `${kind} retains generation`);
+    assert.equal(fixture.backing.local[AUTH].accessEpoch, accessEpoch, `${kind} retains access epoch`);
   } finally { fixture.worker.close(); }
 }
 
@@ -174,7 +179,7 @@ await assertTransportCase("audited bootstrap 503 with fresh access", () => json(
   } });
   try {
     const before = structuredClone(fixture.backing.local[AUTH].authority);
-    await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT }), /CONTROL_HTTP_503/);
+    await assert.rejects(policy(fixture.worker, { detectedAi: ALICE }), /CONTROL_HTTP_503/);
     assert.equal(canonical(fixture.backing.local[AUTH].authority), canonical(before), "local body failure leaves signed cache unchanged");
   } finally { fixture.worker.close(); }
 }
@@ -191,19 +196,287 @@ for (const [label, responseFactory] of [
   ["malformed 200", () => json({ malformed: true }, 200)],
 ]) {
   const fixture = await prepared({ fetch: async url => { assert.ok(url.endsWith("/v1/bootstrap")); return responseFactory(); } });
-  try { await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT })); assert.notEqual(fixture.worker.controlNetwork.length, 0, label); assert.ok(fixture.backing.local[AUTH] === undefined || fixture.backing.local[AUTH]?.authority == null || fixture.backing.local[AUTH]?.authority?.payload); }
+  try { await assert.rejects(policy(fixture.worker, { detectedAi: ALICE })); assert.notEqual(fixture.worker.controlNetwork.length, 0, label); assert.ok(fixture.backing.local[AUTH] === undefined || fixture.backing.local[AUTH]?.authority == null || fixture.backing.local[AUTH]?.authority?.payload); }
   finally { fixture.worker.close(); }
 }
 
-// A body-read failure after Response is not transport and therefore cannot
-// acquire cache. The verifier sees a missing body and rejects the bootstrap.
-{
-  const fixture = await prepared({ fetch: async url => {
-    assert.ok(url.endsWith("/v1/bootstrap"));
-    return new Response(new ReadableStream({ start(controller) { controller.error(new Error("body read failure")); } }), { status: 200 });
-  } });
-  try { await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT }), /BOOTSTRAP_/); }
-  finally { fixture.worker.close(); }
+// An incomplete successful HTTP response is transport uncertainty, never a
+// successfully received null envelope. No arbitrary fields from its cause may
+// become an HTTP/auth error or audited 503 provenance.
+function failedBody(kind, status = 200) {
+  const failure = Object.assign(new Error("PRIVATE_BODY_READ_DETAIL"), {
+    code: "BOOTSTRAP_UNAVAILABLE", status: 401,
+  });
+  if (kind === "text") return {
+    ok: status >= 200 && status < 300, status, headers: new Headers(),
+    text: async () => { throw failure; },
+  };
+  let reads = 0;
+  return new Response(new ReadableStream({ pull(controller) {
+    if (kind === "partial" && reads++ === 0)
+      controller.enqueue(new TextEncoder().encode('{"incomplete":'));
+    else controller.error(failure);
+  } }), { status });
+}
+for (const kind of ["stream", "partial", "text"]) {
+  await assertTransportCase(`HTTP200 ${kind} read failure`, () => failedBody(kind));
+  await assertTransportCase(`fresh HTTP200 ${kind} read failure`, () => failedBody(kind), "FRESH", {
+    expiresAt: new Date(Date.now() + 3600000).toISOString(),
+    offlineGraceUntil: new Date(Date.now() + 7200000).toISOString(),
+  });
+  const fixture = await prepared({ fetch: async () => failedBody(kind) });
+  try {
+    const before = clone(fixture.backing.local[AUTH]);
+    const failure = await exactFailure(() => fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: ALICE }),
+      { code: "CONTROL_TRANSPORT_UNAVAILABLE", status: 200, responseOk: true }, `${kind} raw bootstrap`);
+    assert.ok(!String(failure).includes("PRIVATE_BODY_READ_DETAIL"));
+    assert.equal(fixture.backing.local[AUTH].generation, before.generation);
+    assert.equal(fixture.backing.local[AUTH].accessEpoch, before.accessEpoch);
+    assert.equal(canonical(fixture.backing.local[AUTH].authority.envelope), canonical(before.authority.envelope));
+    assert.equal(paths(fixture.worker).filter(p => p === "/v1/bootstrap").length, 1, "read failure does not retry the POST");
+  } finally { fixture.worker.close(); }
+}
+// Completed empty/invalid JSON and actual HTTP denials remain ineligible.
+for (const [label, factory] of [
+  ["empty 200", () => new Response("", { status: 200 })],
+  ["invalid JSON 200", () => new Response("{broken", { status: 200 })],
+  ["401 read failure", () => failedBody("stream", 401)],
+  ["403 read failure", () => failedBody("text", 403)],
+]) {
+  const fixture = await prepared({ fetch: async () => factory() });
+  try {
+    const before = fixture.backing.local[AUTH].generation;
+    await assert.rejects(policy(fixture.worker, { detectedAi: ALICE }),
+      e => /^(BOOTSTRAP_|CONTROL_HTTP_401|CONTROL_HTTP_403)/.test(e.code), label);
+    assert.equal(fixture.backing.local[AUTH]?.authority ?? null, null, `${label} cannot reuse cache`);
+    assert.ok((fixture.backing.local[AUTH]?.generation ?? before + 1) > before);
+  } finally { fixture.worker.close(); }
+}
+
+// Known non-OK responses cannot turn into transport-only cache eligibility.
+// These are request failures, not a common authentication revocation. Only a
+// completed, audited BOOTSTRAP_UNAVAILABLE body may allow the 503 fallback.
+for (const status of [429, 500, 502, 503, 504]) {
+  for (const mode of ["rejects-abort", "ignores-abort", "headers-at-abort"]) {
+    await namedCase(`HTTP${status}-non-ok-${mode}`, async () => {
+      let releaseRead;
+      const fixture = await prepared({ timerScale: 0.001, fetch: async (url, init) => {
+        assert.ok(url.endsWith("/v1/bootstrap"));
+        const response = { ok: false, status, headers: new Headers(), body: { getReader: () => ({
+          read: () => new Promise((resolve, reject) => {
+            releaseRead = () => resolve({ done: true });
+            if (mode === "rejects-abort") init.signal.addEventListener("abort", () =>
+              reject(Object.assign(new Error("PRIVATE_BODY_FAILURE"), { code: "BOOTSTRAP_UNAVAILABLE" })),
+              { once: true });
+          }), cancel: async () => {},
+        }) } };
+        if (mode !== "headers-at-abort") return response;
+        return new Promise(resolve => init.signal.addEventListener("abort", () => resolve(response), { once: true }));
+      } });
+      try {
+        const before = clone(fixture.backing.local[AUTH]);
+        const failure = await exactFailure(() => policy(fixture.worker, { detectedAi: ALICE }),
+          { status, code: `CONTROL_HTTP_${status}` }, `${status} ${mode} cannot acquire cache`);
+        assert.ok(!String(failure).includes("PRIVATE_BODY_FAILURE"));
+        assert.equal(canonical(fixture.backing.local[AUTH].authority), canonical(before.authority),
+          "nonterminal HTTP error does not revoke the existing signed authority");
+        assert.equal(fixture.backing.local[AUTH].generation, before.generation);
+        assert.equal(fixture.backing.local[AUTH].accessEpoch, before.accessEpoch);
+        assert.equal(paths(fixture.worker).filter(p => p === "/v1/bootstrap").length, 1,
+          "body interruption never replays the bootstrap POST");
+      } finally { releaseRead?.(); fixture.worker.close(); }
+    });
+  }
+}
+
+for (const status of [429, 503]) {
+  await namedCase(`HTTP${status}-headers-during-cache-write`, async () => {
+    let reply, releaseWrite, releaseRead, held = false, reading = false, dispatched = false;
+    const clock = { wall: Date.now(), mono: 1000 };
+    const fixture = await prepared({ clock, timerScale: 0.001,
+      onStorageWrite: async (kind, values) => {
+        if (dispatched && !held && kind === "local" && values[AUTH]?.authority) {
+          held = true;
+          await new Promise(resolve => { releaseWrite = resolve; });
+        }
+      },
+      fetch: url => {
+        assert.ok(url.endsWith("/v1/bootstrap")); dispatched = true;
+        return new Promise(resolve => { reply = () => resolve({
+          ok: false, status, headers: new Headers(), body: { getReader: () => ({
+            read: () => new Promise(done => { reading = true; releaseRead = () => done({ done: true }); }),
+            cancel: async () => {},
+          }) },
+        }); });
+      },
+    });
+    try {
+      const before = clone(fixture.backing.local[AUTH]);
+      clock.wall += 100; clock.mono += 100;
+      const pending = policy(fixture.worker, { detectedAi: ALICE });
+      await until(() => held, "cache write after genuine no-headers timeout");
+      reply();
+      await until(() => reading, "late non-OK headers observed before cache write finishes");
+      releaseWrite();
+      await exactFailure(() => pending, { status, code: `CONTROL_HTTP_${status}` }, "late status prevents cache return");
+      assert.equal(canonical(fixture.backing.local[AUTH].authority.envelope), canonical(before.authority.envelope));
+      assert.equal(fixture.backing.local[AUTH].generation, before.generation);
+      assert.equal(fixture.backing.local[AUTH].accessEpoch, before.accessEpoch);
+      assert.equal(paths(fixture.worker).filter(p => p === "/v1/bootstrap").length, 1);
+    } finally { releaseWrite?.(); releaseRead?.(); fixture.worker.close(); }
+  });
+}
+
+// Observe the interval BEFORE body settlement, not only the eventual failure.
+for (const status of [401, 403]) {
+  await namedCase(`HTTP${status}-current-headers-immediately-fence-Work`, async () => {
+    let releaseRead, fixture;
+    let bootstrapCalls = 0;
+    fixture = await prepared({ fetch: async url => {
+      if (url.endsWith("/v1/auth/refresh")) return json({ ...fixture.original.credentials,
+        accessToken: "replacement_access_token_fixture", refreshToken: "r".repeat(43) });
+      assert.ok(url.endsWith("/v1/bootstrap"));
+      if (++bootstrapCalls > 1) return signed(fixture.backing, fixture.original.authority.payload);
+      return { ok: false, status, headers: new Headers(), body: { getReader: () => ({
+        read: () => new Promise(resolve => { releaseRead = () => resolve({ done: true }); }), cancel: async () => {},
+      }) } };
+    } });
+    let pending;
+    try {
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "alice"), true);
+      const before = fixture.backing.local[AUTH].generation;
+      pending = policy(fixture.worker, { detectedAi: ALICE });
+      const settled = pending.then(value => ({ value }), error => ({ error }));
+      await until(() => releaseRead, "current denial headers with an unsettled body");
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "alice"), false);
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.canContinueCached", "alice"), false);
+      assert.equal((await fixture.worker.call("SellerAgentsControlClient.status", "alice")).workAllowed, false);
+      assert.equal((await fixture.worker.call("SellerAgentsControlClient.getAuthority", "alice"))?.workAllowed ?? false, false);
+      assert.equal((await fixture.worker.call("SellerAgentsControlClient.getCachedContinuationState", "alice")).localInvalidation.revoked, true);
+      await until(() => fixture.backing.local[AUTH].generation > before, "durable current header denial");
+      assert.equal(fixture.backing.local[AUTH].generation, before + 1);
+      assert.equal(fixture.backing.local[AUTH].authority, null);
+      assert.equal(paths(fixture.worker).filter(p => p === "/v1/auth/refresh").length, 0, "headers do not replay or refresh a pending request");
+      releaseRead();
+      const result = await settled;
+      if (status === 401) {
+        assert.equal(result.error, undefined, result.error?.code);
+        assert.equal(result.value.source, "ONLINE");
+        assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "alice"), true);
+        assert.equal(paths(fixture.worker).filter(p => p === "/v1/auth/refresh").length, 1);
+        assert.equal(bootstrapCalls, 2, "only the existing one-time 401 refresh retry is retained");
+      } else {
+        assert.equal(result.error?.status, 403);
+        assert.equal(fixture.backing.local[AUTH].generation, before + 1, "settled body must not commit the same denial twice");
+        assert.equal(bootstrapCalls, 1);
+      }
+    } finally { releaseRead?.(); await pending?.catch(() => {}); fixture.worker.close(); }
+  });
+}
+
+// Headers are already authoritative when a denial body stalls. A deadline
+// may bound the read; it must not turn the observed denial into offline allow.
+for (const status of [401, 403]) {
+  await namedCase(`HTTP${status}-headers-fence-Work-behind-held-writer`, async () => {
+    let armed = false, releaseWrite, releaseRead, pending, oldRead;
+    const fixture = await prepared({
+      onStorageWrite: async (kind, values) => {
+        if (armed && !releaseWrite && kind === "local" && values[AUTH])
+          await new Promise(resolve => { releaseWrite = resolve; });
+      },
+      fetch: async url => {
+        if (url.endsWith("/v1/auth/refresh")) throw new TypeError("fixture refresh unavailable");
+        return { ok: false, status, headers: new Headers(), body: { getReader: () => ({
+          read: () => new Promise(resolve => { releaseRead = () => resolve({ done: true }); }), cancel: async () => {},
+        }) } };
+      },
+    });
+    try {
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "alice"), true);
+      armed = true;
+      oldRead = fixture.worker.call("SellerAgentsControlClient.canWork", "alice");
+      await until(() => releaseWrite, "prior allow checkpoint holds storage writer");
+      pending = policy(fixture.worker, { detectedAi: ALICE });
+      const settled = pending.catch(error => error);
+      await until(() => releaseRead, "denial headers precede writer release");
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "alice"), false);
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.canContinueCached", "alice"), false);
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.getAuthority", "alice"), null);
+      await assert.rejects(fixture.worker.call("SellerAgentsControlClient.ensureForIdentity", "alice"), { code: "WORK_NOT_ALLOWED" });
+      await assert.rejects(fixture.worker.call("SellerAgentsControlClient.getHealthAuthorityContext"), { code: "HEALTH_CONTEXT_INVALID" });
+      releaseWrite();
+      assert.equal(await oldRead, false, "a previously captured allow cannot escape after denial headers");
+      releaseRead();
+      assert.equal((await settled).status, status);
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "alice"), false);
+    } finally { releaseWrite?.(); releaseRead?.(); await oldRead?.catch(() => {}); await pending?.catch(() => {}); fixture.worker.close(); }
+  });
+}
+
+for (const status of [401, 403]) for (const settleOnAbort of [true, false]) {
+  await namedCase(`HTTP${status}-body-timeout-${settleOnAbort ? "rejects" : "ignores"}-abort`, async () => {
+    let releaseRead;
+    const fixture = await prepared({ timerScale: 0.001, fetch: async (url, init) => {
+      if (url.endsWith("/v1/auth/refresh")) throw new TypeError("fixture refresh unavailable");
+      assert.ok(url.endsWith("/v1/bootstrap"));
+      return { ok: false, status, headers: new Headers(), body: { getReader: () => ({
+        read: () => new Promise((resolve, reject) => {
+          releaseRead = () => resolve({ done: true });
+          if (settleOnAbort) init.signal.addEventListener("abort", () => reject(new Error("fixture aborted body")), { once: true });
+        }), cancel: async () => {},
+      }) } };
+    } });
+    try {
+      const before = fixture.backing.local[AUTH].generation;
+      await assert.rejects(policy(fixture.worker, { detectedAi: ALICE }), { status });
+      assert.equal(fixture.backing.local[AUTH]?.authority ?? null, null, "known denial cannot use cache");
+      assert.ok((fixture.backing.local[AUTH]?.generation ?? before + 1) > before);
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "alice"), false);
+      assert.equal(paths(fixture.worker).filter(p => p === "/v1/bootstrap").length, 1, "denial body never replays bootstrap POST");
+    } finally { releaseRead?.(); fixture.worker.close(); }
+  });
+}
+for (const status of [401, 403]) {
+  await namedCase(`HTTP${status}-headers-delivered-by-timeout-abort`, async () => {
+    let releaseRead;
+    const fixture = await prepared({ timerScale: 0.001, fetch: async (url, init) => {
+      if (url.endsWith("/v1/auth/refresh")) throw new TypeError("fixture refresh unavailable");
+      assert.ok(url.endsWith("/v1/bootstrap"));
+      return await new Promise(resolve => init.signal.addEventListener("abort", () => resolve({
+        ok: false, status, headers: new Headers(), body: { getReader: () => ({
+          read: () => new Promise(done => { releaseRead = () => done({ done: true }); }),
+          cancel: async () => {},
+        }) },
+      }), { once: true }));
+    } });
+    try {
+      await assert.rejects(policy(fixture.worker, { detectedAi: ALICE }));
+      assert.equal(fixture.backing.local[AUTH]?.authority ?? null, null);
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "alice"), false);
+      assert.equal(paths(fixture.worker).filter(p => p === "/v1/bootstrap").length, 1);
+    } finally { releaseRead?.(); fixture.worker.close(); }
+  });
+  await namedCase(`HTTP${status}-late-headers-with-unsettled-body`, async () => {
+    let reply, releaseRead;
+    const fixture = await prepared({ timerScale: 0.001, fetch: url => {
+      assert.ok(url.endsWith("/v1/bootstrap"));
+      return new Promise(resolve => { reply = () => resolve({
+        ok: false, status, headers: new Headers(), body: { getReader: () => ({
+          read: () => new Promise(done => { releaseRead = () => done({ done: true }); }),
+          cancel: async () => {},
+        }) },
+      }); });
+    } });
+    try {
+      const cached = await policy(fixture.worker, { detectedAi: ALICE });
+      assert.equal(cached.source, "CACHE", "before headers the genuine transport deadline may use signed cache");
+      reply();
+      await until(() => (fixture.backing.local[AUTH]?.authority ?? null) === null,
+                  "late denial headers invalidate authority without awaiting body");
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "alice"), false);
+      assert.equal(paths(fixture.worker).filter(p => p === "/v1/bootstrap").length, 1);
+    } finally { releaseRead?.(); fixture.worker.close(); }
+  });
 }
 
 // Exact expiry boundaries use the real signed envelope and the production
@@ -213,8 +486,8 @@ for (const [label, offset, expected] of [["expiresAt", 0, "STALE_BUT_OFFLINE_GRA
   const fixture = await prepared({ clock, payload: base => ({ ...base, expiresAt: new Date(clock.wall).toISOString(), offlineGraceUntil: new Date(clock.wall + 3600000).toISOString() }), fetch: async url => { assert.ok(url.endsWith("/v1/bootstrap")); return json({ error: { code: "BOOTSTRAP_UNAVAILABLE" } }, 503); } });
   clock.wall += offset; clock.mono += offset;
   try {
-    if (expected === "CACHE_EXPIRED") await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT }), new RegExp(expected));
-    else { const result = await policy(fixture.worker, { detectedAi: CHATGPT }); assert.equal(result.freshness, expected, label); }
+    if (expected === "CACHE_EXPIRED") await assert.rejects(policy(fixture.worker, { detectedAi: ALICE }), new RegExp(expected));
+    else { const result = await policy(fixture.worker, { detectedAi: ALICE }); assert.equal(result.freshness, expected, label); }
   } finally { fixture.worker.close(); }
 }
 
@@ -224,7 +497,7 @@ for (const [label, offset, expected] of [["expiresAt", 0, "STALE_BUT_OFFLINE_GRA
 {
   const clock = { wall: Date.now(), mono: 1000 };
   const preflight = await prepared({ clock, credentials: { accessTokenExpiresAt: new Date(clock.wall - 1000).toISOString() }, payload: base => ({ ...base, expiresAt: new Date(clock.wall - 1).toISOString(), offlineGraceUntil: new Date(clock.wall + 3600000).toISOString() }), fetch: async url => { assert.ok(url.endsWith("/v1/auth/refresh")); throw new TypeError("refresh transport"); } });
-  try { const result = await policy(preflight.worker, { detectedAi: CHATGPT }); assert.equal(result.source, "CACHE"); assert.ok(preflight.backing.local[AUTH].rotation, "rotation intent retained"); }
+  try { const result = await policy(preflight.worker, { detectedAi: ALICE }); assert.equal(result.source, "CACHE"); assert.ok(preflight.backing.local[AUTH].rotation, "rotation intent retained"); }
   catch (error) { throw error; }
   finally { preflight.worker.close(); }
 }
@@ -233,7 +506,7 @@ for (const [label, offset, expected] of [["expiresAt", 0, "STALE_BUT_OFFLINE_GRA
     if (url.endsWith("/v1/bootstrap")) return json({ error: { code: "AUTH_CHALLENGE" } }, 401);
     assert.ok(url.endsWith("/v1/auth/refresh")); throw new TypeError("forced refresh transport");
   } });
-  try { await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT }), /AUTH_CHALLENGE/); assert.equal(fixture.backing.local[AUTH].credentials, null, "known auth challenge is terminal"); assert.equal(fixture.backing.local[AUTH].authority, null); }
+  try { await assert.rejects(policy(fixture.worker, { detectedAi: ALICE }), /AUTH_CHALLENGE/); assert.equal(fixture.backing.local[AUTH].credentials, null, "known auth challenge is terminal"); assert.equal(fixture.backing.local[AUTH].authority, null); }
   finally { fixture.worker.close(); }
 }
 
@@ -257,7 +530,7 @@ for (const [label, offset, expected] of [["expiresAt", 0, "STALE_BUT_OFFLINE_GRA
     onStorageWrite: async (kind, values) => {
       if (kind !== "local" || !values[AUTH]) return;
       const entry = structuredClone(values[AUTH]);
-      const grantAuthority = Object.values(entry.grants || {}).find(g => g.authority?.requestedAi === "chatgpt")?.authority || entry.authority;
+      const grantAuthority = Object.values(entry.grants || {}).find(g => g.authority?.requestedAi === "alice")?.authority || entry.authority;
       writes.push({ workAllowed: grantAuthority?.workAllowed, floor: entry.cacheClock?.effectiveTimeMs, configVersion: grantAuthority?.payload?.configVersion });
       if (!denialHeld && grantAuthority?.workAllowed === false) {
         denialHeld = true;
@@ -268,18 +541,18 @@ for (const [label, offset, expected] of [["expiresAt", 0, "STALE_BUT_OFFLINE_GRA
   });
   try {
     clock.wall += 7200000; clock.mono += 7200000;
-    const old = policy(fixture.worker, { detectedAi: CHATGPT }); old.catch(() => {});
+    const old = policy(fixture.worker, { detectedAi: ALICE }); old.catch(() => {});
     await until(() => denialHeld && writes.some(row => row.workAllowed === true) && typeof denialRelease === "function", "P2 denial AUTH write");
     const oldFloor = fixture.backing.local[AUTH].cacheClock.effectiveTimeMs;
-    const later = fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT });
+    const later = fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: ALICE });
     await assert.rejects(later, { code: "BOOTSTRAP_SECURITY_QUARANTINE" });
     assert.equal(bootstrapCalls, 1, "P2 no second dispatch during an unconfirmed denial commit");
     denialRelease();
     await assert.rejects(old, { code: "BOOTSTRAP_SECURITY_QUARANTINE" });
     await until(() => fixture.backing.local[AUTH] === undefined, "P2 quarantined AUTH removal after held write settles");
     assert.equal(fixture.removeAttempts, 1, "P2 retirement during unknown commit retains durable denial");
-    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), false);
-    await assert.rejects(fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT }), { code: "AUTH_STATE_COMMIT_UNCONFIRMED" });
+    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "alice"), false);
+    await assert.rejects(fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: ALICE }), { code: "AUTH_STATE_COMMIT_UNCONFIRMED" });
     assert.equal(bootstrapCalls, 1, "P2 quarantine is not cleared by a later ordinary call");
     assert.ok(writes.some(row => row.workAllowed === true) && writes.some(row => row.workAllowed === false));
   } finally { fixture.worker.close(); }
@@ -310,15 +583,15 @@ for (const [label, offset, expected] of [["expiresAt", 0, "STALE_BUT_OFFLINE_GRA
   });
   try {
     clock.wall += 3600001; clock.mono += 3600001;
-    const old = policy(fixture.worker, { detectedAi: CHATGPT }); old.catch(() => {});
+    const old = policy(fixture.worker, { detectedAi: ALICE }); old.catch(() => {});
     await until(() => checkpointHeld && typeof releaseCheckpoint === "function", "G checkpoint write");
-    const incompatible = fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT });
+    const incompatible = fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: ALICE });
     await assert.rejects(incompatible, { code: "BOOTSTRAP_REQUEST_CONFLICT", acquisition: "NOT_STARTED", retryRequiresExplicitAction: true });
     assert.equal(calls, 1, "G incompatible request never dispatches");
     releaseCheckpoint();
     const cached = await old;
     assert.equal(cached.source, "CACHE");
-    const result = await fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT });
+    const result = await fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: ALICE });
     assert.equal(calls, 2, "G only the later explicit raw call dispatches");
     assert.equal(result.source, undefined, "G raw result is a payload, not a policy wrapper");
     assert.equal(result.configVersion, 2);
@@ -369,7 +642,7 @@ for (const [label, changes, userAgent] of [
     fetch: async url => { assert.ok(url.endsWith("/v1/bootstrap")); return json({ error: { code: "BOOTSTRAP_UNAVAILABLE" } }, 503); },
   });
   try {
-    await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT }), /BOOTSTRAP_UNAVAILABLE|CACHE_CONTEXT_MISMATCH|AUTH_REQUIRED/);
+    await assert.rejects(policy(fixture.worker, { detectedAi: ALICE }), /BOOTSTRAP_UNAVAILABLE|CACHE_CONTEXT_MISMATCH|AUTH_REQUIRED/);
     assert.ok(fixture.worker.controlNetwork.filter(row => row.url.endsWith("/v1/bootstrap")).length <= 1, `${label} source`);
     assert.equal(fixture.backing.local[AUTH]?.authority, null, `${label} restore denial`);
   } finally { fixture.worker.close(); }
@@ -377,7 +650,8 @@ for (const [label, changes, userAgent] of [
 {
   const fixture = await prepared({ payload: base => ({ ...base, expiresAt: new Date(Date.now() - 1).toISOString(), offlineGraceUntil: new Date(Date.now() + 3600000).toISOString() }), fetch: async url => { assert.ok(url.endsWith("/v1/bootstrap")); return json({ error: { code: "BOOTSTRAP_UNAVAILABLE" } }, 503); } });
   try {
-    await assert.rejects(policy(fixture.worker, { detectedAi: { family: "alice", surface: "web", variant: null } }), /BOOTSTRAP_UNAVAILABLE|CACHE_CONTEXT_MISMATCH/);
+    await assert.rejects(policy(fixture.worker, { detectedAi: { family: "chatgpt", surface: "web", variant: null } }), /WORK_UNSUPPORTED_AI/);
+    assert.equal(fixture.worker.controlNetwork.length, 0, "unsupported family is rejected before transport");
     assert.ok(fixture.backing.local[AUTH]?.authority, "requested-AI mismatch keeps the original authority");
   } catch (error) { throw error; }
   finally { fixture.worker.close(); }
@@ -391,7 +665,7 @@ for (const [label, field, value] of [
     mutateBacking: backing => { backing.local[AUTH].credentials[field] = value; },
     fetch: async url => { assert.ok(url.endsWith("/v1/bootstrap")); return json({ error: { code: "BOOTSTRAP_UNAVAILABLE" } }, 503); },
   });
-  try { await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT }), /AUTH_REQUIRED|BOOTSTRAP_UNAVAILABLE/); assert.equal(fixture.backing.local[AUTH]?.authority, null, `${label} authority denied`); }
+  try { await assert.rejects(policy(fixture.worker, { detectedAi: ALICE }), /AUTH_REQUIRED|BOOTSTRAP_UNAVAILABLE/); assert.equal(fixture.backing.local[AUTH]?.authority, null, `${label} authority denied`); }
   finally { fixture.worker.close(); }
 }
 {
@@ -400,7 +674,7 @@ for (const [label, field, value] of [
     mutateBacking: backing => { const signature = backing.local[AUTH].authority.envelope.signature; backing.local[AUTH].authority.envelope.signature = `${signature[0] === "A" ? "B" : "A"}${signature.slice(1)}`; },
     fetch: async url => { assert.ok(url.endsWith("/v1/bootstrap")); return json({ error: { code: "BOOTSTRAP_UNAVAILABLE" } }, 503); },
   });
-  try { await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT }), /BOOTSTRAP_UNAVAILABLE|AUTH_REQUIRED/); assert.equal(fixture.backing.local[AUTH]?.authority, null, "differently signed envelope is denied"); }
+  try { await assert.rejects(policy(fixture.worker, { detectedAi: ALICE }), /BOOTSTRAP_UNAVAILABLE|AUTH_REQUIRED/); assert.equal(fixture.backing.local[AUTH]?.authority, null, "differently signed envelope is denied"); }
   finally { fixture.worker.close(); }
 }
 {
@@ -420,9 +694,9 @@ for (const [label, field, value] of [
     return signed(fixture.backing, { ...payload, configVersion: 2 });
   } });
   try {
-    const old = cancellablePolicy(fixture.worker, { detectedAi: CHATGPT }), oldFailure = assert.rejects(old, { code: "BOOTSTRAP_WAITER_CANCELLED" }); await until(() => release, "held policy A");
+    const old = cancellablePolicy(fixture.worker, { detectedAi: ALICE }), oldFailure = assert.rejects(old, { code: "BOOTSTRAP_WAITER_CANCELLED" }); await until(() => release, "held policy A");
     await cancelPolicy(fixture.worker); await oldFailure;
-    const replacement = fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT });
+    const replacement = fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: ALICE });
     await until(() => calls === 2, "raw online B"); release();
     await replacement; await oldFailure;
     assert.equal(fixture.backing.local[AUTH].authority.payload.configVersion, 2);
@@ -439,9 +713,9 @@ for (const [label, field, value] of [
     return json({ error: { code: "LATER_FORBIDDEN" } }, 403);
   } });
   try {
-    const old = cancellablePolicy(fixture.worker, { detectedAi: CHATGPT }), oldFailure = assert.rejects(old, { code: "BOOTSTRAP_WAITER_CANCELLED" }); await until(() => release, "held policy before 403");
+    const old = cancellablePolicy(fixture.worker, { detectedAi: ALICE }), oldFailure = assert.rejects(old, { code: "BOOTSTRAP_WAITER_CANCELLED" }); await until(() => release, "held policy before 403");
     await cancelPolicy(fixture.worker); await oldFailure;
-    const forbidden = fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT }), forbiddenFailure = assert.rejects(forbidden, /LATER_FORBIDDEN/);
+    const forbidden = fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: ALICE }), forbiddenFailure = assert.rejects(forbidden, /LATER_FORBIDDEN/);
     await until(() => calls === 2, "later 403"); release();
     await forbiddenFailure; await oldFailure;
     assert.equal(fixture.backing.local[AUTH].authority, null);
@@ -454,16 +728,16 @@ for (const [label, field, value] of [
   let fail = false, writes = 0, removes = 0;
   const fixture = await prepared({ payload: base => ({ ...base, expiresAt: new Date(Date.now() - 1).toISOString(), offlineGraceUntil: new Date(Date.now() + 3600000).toISOString() }), fetch: async url => { assert.ok(url.endsWith("/v1/bootstrap")); return json({ error: { code: "BOOTSTRAP_UNAVAILABLE" } }, 503); }, onStorageWrite: async (kind, values) => { if (kind === "local" && values[AUTH] && fail) { writes++; throw new Error("injected storage failure"); } }, onStorageRemove: async kind => { if (kind === "local" && fail) removes++; } });
   try {
-    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), true);
+    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "alice"), true);
     fail = true;
     fixture.clock.wall += 100; fixture.clock.mono += 100;
-    await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT }), { code: "BOOTSTRAP_SECURITY_QUARANTINE" });
+    await assert.rejects(policy(fixture.worker, { detectedAi: ALICE }), { code: "BOOTSTRAP_SECURITY_QUARANTINE" });
     await until(() => removes === 1, "failed checkpoint AUTH cleanup");
     assert.equal(writes, 1); assert.equal(removes, 1);
     assert.equal(fixture.backing.local[AUTH], undefined, "verified removal protects restart");
     fail = false;
-    await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT }), { code: "AUTH_STATE_COMMIT_UNCONFIRMED" });
-    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), false);
+    await assert.rejects(policy(fixture.worker, { detectedAi: ALICE }), { code: "AUTH_STATE_COMMIT_UNCONFIRMED" });
+    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "alice"), false);
   } finally { fixture.worker.close(); }
 }
 
@@ -482,9 +756,9 @@ for (const [label, field, value] of [
   });
   const persistedFloor = fixture.backing.local[AUTH].cacheClock.effectiveTimeMs;
   try {
-    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), true);
+    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "alice"), true);
     clock.wall += 7200000; clock.mono += 7200000; failDenial = true;
-    await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT }), { code: "BOOTSTRAP_SECURITY_QUARANTINE" });
+    await assert.rejects(policy(fixture.worker, { detectedAi: ALICE }), { code: "BOOTSTRAP_SECURITY_QUARANTINE" });
     await until(() => removals.length === 1, "failed denial cleanup attempt");
     assert.equal(writes.length, 1); assert.equal(removals.length, 1);
     assert.ok(fixture.backing.local[AUTH].cacheClock.effectiveTimeMs >= persistedFloor, "successful floor checkpoint is retained");
@@ -504,7 +778,7 @@ for (const [label, field, value] of [
     return signed(fixture.backing, { ...payload, configVersion: 3 });
   } });
   try {
-    const result = await policy(fixture.worker, { detectedAi: CHATGPT });
+    const result = await policy(fixture.worker, { detectedAi: ALICE });
     assert.equal(result.source, "ONLINE"); assert.equal(result.freshness, "FRESH");
     assert.equal(result.payload.configVersion, 3); assert.equal(fixture.worker.controlNetwork.length, 1);
     await fixture.worker.call("SellerAgentsControlClient.canWork"); await fixture.worker.call("SellerAgentsControlClient.status");
@@ -519,7 +793,7 @@ await namedCase("Q1-A-refresh503-not-cache", async () => {
     return json({ error: { code: "BOOTSTRAP_UNAVAILABLE" } }, 503);
   } });
   try {
-    const failure = await exactFailure(() => policy(fixture.worker, { detectedAi: CHATGPT }), { code: "BOOTSTRAP_UNAVAILABLE", status: 503 }, "Q1-A");
+    const failure = await exactFailure(() => policy(fixture.worker, { detectedAi: ALICE }), { code: "BOOTSTRAP_UNAVAILABLE", status: 503 }, "Q1-A");
     assert.equal(failure.code, "BOOTSTRAP_UNAVAILABLE");
     assert.deepEqual(paths(fixture.worker), ["/v1/auth/refresh"]);
     assert.equal(paths(fixture.worker).filter(pathname => pathname === "/v1/bootstrap").length, 0);
@@ -534,7 +808,7 @@ for (const status of [200, 503]) await namedCase("Q1-B-oversized-" + status, asy
     return new Response("x".repeat(1024 * 1024 + 1), { status, headers: { "content-type": "application/json" } });
   } });
   try {
-    const failure = await exactFailure(() => policy(fixture.worker, { detectedAi: CHATGPT }), { code: "CONTROL_RESPONSE_TOO_LARGE", status, responseOk: status >= 200 && status < 300 }, "Q1-B-" + status);
+    const failure = await exactFailure(() => policy(fixture.worker, { detectedAi: ALICE }), { code: "CONTROL_RESPONSE_TOO_LARGE", status, responseOk: status >= 200 && status < 300 }, "Q1-B-" + status);
     assert.deepEqual(paths(fixture.worker), ["/v1/bootstrap"]);
     assert.equal(failure.body, null);
     assert.equal(fixture.worker.controlNetwork.length, 1);
@@ -561,7 +835,7 @@ for (const [label, expected, response] of onlineEnvelopeCases) await namedCase("
     return response(fixture.backing, base);
   } });
   try {
-    await exactFailure(() => policy(fixture.worker, { detectedAi: CHATGPT }), expected, "Q1-C-" + label);
+    await exactFailure(() => policy(fixture.worker, { detectedAi: ALICE }), expected, "Q1-C-" + label);
     assert.deepEqual(paths(fixture.worker), ["/v1/bootstrap"]);
     assert.equal(fixture.backing.local[AUTH]?.authority, null);
   } finally { fixture.worker.close(); }
@@ -574,7 +848,7 @@ for (const status of [401, 403]) await namedCase("Q1-D-preflight-refresh-" + sta
     return json({ error: { code: "REFRESH_TERMINAL_" + status } }, status);
   } });
   try {
-    await exactFailure(() => policy(fixture.worker, { detectedAi: CHATGPT }), { code: "REFRESH_TERMINAL_" + status, status }, "Q1-D-preflight-" + status);
+    await exactFailure(() => policy(fixture.worker, { detectedAi: ALICE }), { code: "REFRESH_TERMINAL_" + status, status }, "Q1-D-preflight-" + status);
     assert.deepEqual(paths(fixture.worker), ["/v1/auth/refresh"]);
     assert.equal(fixture.backing.local[AUTH].credentials, null);
     assert.equal(fixture.backing.local[AUTH].authority, null);
@@ -595,7 +869,7 @@ for (const status of [401, 403]) await namedCase("Q1-D-bootstrap401-refresh-" + 
     return json({ error: { code: "FORCED_REFRESH_" + status } }, status);
   } });
   try {
-    await exactFailure(() => policy(fixture.worker, { detectedAi: CHATGPT }), { code: "BOOTSTRAP_AUTH_CHALLENGE", status: 401 }, "Q1-D-bootstrap401-" + status);
+    await exactFailure(() => policy(fixture.worker, { detectedAi: ALICE }), { code: "BOOTSTRAP_AUTH_CHALLENGE", status: 401 }, "Q1-D-bootstrap401-" + status);
     assert.deepEqual(paths(fixture.worker), ["/v1/bootstrap", "/v1/auth/refresh"]);
     assert.equal(fixture.backing.local[AUTH].credentials, null);
     assert.equal(fixture.backing.local[AUTH].authority, null);
@@ -612,9 +886,9 @@ await namedCase("Q1-E-storage503-is-not-http503", async () => {
     assert.equal(new URL(url).pathname, "/v1/bootstrap"); return json({ error: { code: "BOOTSTRAP_UNAVAILABLE" } }, 503);
   }, onStorageWrite: async (kind, values) => { if (failStorage && kind === "local" && values[AUTH]) throw injected; } });
   try {
-    await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt");
+    await fixture.worker.call("SellerAgentsControlClient.canWork", "alice");
     failStorage = true; clock.wall = T0 + 100; clock.mono = 1100;
-    const failure = await exactFailure(() => policy(fixture.worker, { detectedAi: CHATGPT }), "BOOTSTRAP_SECURITY_QUARANTINE", "Q1-E");
+    const failure = await exactFailure(() => policy(fixture.worker, { detectedAi: ALICE }), "BOOTSTRAP_SECURITY_QUARANTINE", "Q1-E");
     assert.notEqual(failure.status, 503);
     assert.deepEqual(paths(fixture.worker), ["/v1/bootstrap"]);
   } finally { fixture.worker.close(); }
@@ -624,12 +898,12 @@ for (const [label, offset, expected] of [["expires-minus-one", 999, "FRESH"], ["
   const clock = { wall: T0, mono: 1000 }, fixture = await prepared({ clock, payload: fixedPayload(clock), fetch: async url => { assert.equal(new URL(url).pathname, "/v1/bootstrap"); return json({ error: { code: "BOOTSTRAP_UNAVAILABLE" } }, 503); } });
   try {
     clock.wall = T0 + offset; clock.mono = 1000 + offset;
-    if (expected === "CACHE_EXPIRED") await exactFailure(() => policy(fixture.worker, { detectedAi: CHATGPT }), expected, "Q2-A-" + label);
-    else { const result = await policy(fixture.worker, { detectedAi: CHATGPT }); assert.equal(result.source, "CACHE"); assert.equal(result.freshness, expected); }
+    if (expected === "CACHE_EXPIRED") await exactFailure(() => policy(fixture.worker, { detectedAi: ALICE }), expected, "Q2-A-" + label);
+    else { const result = await policy(fixture.worker, { detectedAi: ALICE }); assert.equal(result.source, "CACHE"); assert.equal(result.freshness, expected); }
     const grants = Object.values(fixture.backing.local[AUTH].grants);
     assert.equal(grants.length, 1);
     assert.equal(grants[0].authority.workAllowed, expected !== "CACHE_EXPIRED");
-    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), expected !== "CACHE_EXPIRED");
+    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "alice"), expected !== "CACHE_EXPIRED");
   } finally { fixture.worker.close(); }
 });
 
@@ -640,7 +914,7 @@ await namedCase("Q2-B-held-write-crosses-grace", async () => {
   } });
   try {
     clock.wall = T0 + 2999; clock.mono = 3999;
-    const pending = policy(fixture.worker, { detectedAi: CHATGPT });
+    const pending = policy(fixture.worker, { detectedAi: ALICE });
     await until(() => held, "Q2-B increased-floor write");
     clock.wall = T0 + 3000; clock.mono = 4000; release();
     await exactFailure(() => pending, "CACHE_EXPIRED", "Q2-B");
@@ -648,7 +922,7 @@ await namedCase("Q2-B-held-write-crosses-grace", async () => {
     const grants = Object.values(fixture.backing.local[AUTH].grants);
     assert.equal(grants.length, 1);
     assert.equal(grants[0].authority.workAllowed, false);
-    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), false);
+    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "alice"), false);
   } finally { release?.(); fixture.worker.close(); }
 });
 
@@ -657,7 +931,7 @@ await namedCase("Q2-C-resolved-AI-signed-grace-remains-authorized", async () => 
   try {
     assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork"), true);
     clock.wall = T0 + 1001; clock.mono = 2001;
-    const cached = await policy(fixture.worker, { detectedAi: CHATGPT });
+    const cached = await policy(fixture.worker, { detectedAi: ALICE });
     assert.equal(cached.source, "CACHE"); assert.equal(cached.freshness, "STALE_BUT_OFFLINE_GRACE_ELIGIBLE");
     const count = fixture.worker.controlNetwork.length;
     assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork"), true);
@@ -671,10 +945,10 @@ await namedCase("Q2-D-rollback-consumed-grace-restart", async () => {
   const clock = { wall: T0, mono: 1000 }, fixture = await prepared({ clock, payload: fixedPayload(clock), fetch: async url => { assert.equal(new URL(url).pathname, "/v1/bootstrap"); return json({ error: { code: "BOOTSTRAP_UNAVAILABLE" } }, 503); } });
   try {
     clock.wall = T0 + 500; clock.mono = 1500;
-    const first = await policy(fixture.worker, { detectedAi: CHATGPT });
+    const first = await policy(fixture.worker, { detectedAi: ALICE });
     assert.equal(first.source, "CACHE"); assert.equal(first.freshness, "FRESH");
     clock.wall = T0 - 500; clock.mono = 2500;
-    const rolled = await policy(fixture.worker, { detectedAi: CHATGPT });
+    const rolled = await policy(fixture.worker, { detectedAi: ALICE });
     assert.equal(rolled.source, "CACHE"); assert.equal(rolled.freshness, "STALE_BUT_OFFLINE_GRACE_ELIGIBLE");
     const consumedFloor = fixture.backing.local[AUTH].cacheClock.effectiveTimeMs;
     assert.equal(consumedFloor, T0 + 1500);
@@ -683,11 +957,11 @@ await namedCase("Q2-D-rollback-consumed-grace-restart", async () => {
     const restarted = await makeWorker(runtime, { backing: fixture.backing, seedAuthority: false, wallClock: () => restartClock.wall, monotonicClock: () => restartClock.mono, fetch: async url => { assert.equal(new URL(url).pathname, "/v1/bootstrap"); return json({ error: { code: "BOOTSTRAP_UNAVAILABLE" } }, 503); } });
     try {
       assert.equal(fixture.backing.local[AUTH].cacheClock.effectiveTimeMs, consumedFloor);
-      const cached = await policy(restarted, { detectedAi: CHATGPT });
+      const cached = await policy(restarted, { detectedAi: ALICE });
       assert.equal(cached.source, "CACHE");
       assert.equal(cached.freshness, "STALE_BUT_OFFLINE_GRACE_ELIGIBLE");
       restartClock.wall = T0 + 3000; restartClock.mono = 1501;
-      await exactFailure(() => policy(restarted, { detectedAi: CHATGPT }), "CACHE_EXPIRED", "Q2-D grace");
+      await exactFailure(() => policy(restarted, { detectedAi: ALICE }), "CACHE_EXPIRED", "Q2-D grace");
       assert.ok(restarted.backing.local[AUTH].cacheClock.effectiveTimeMs >= T0 + 3000);
       assert.deepEqual(paths(restarted), ["/v1/bootstrap", "/v1/bootstrap"]);
       restarted.close();
@@ -696,7 +970,7 @@ await namedCase("Q2-D-rollback-consumed-grace-restart", async () => {
         assert.equal((await again.call("SellerAgentsControlClient.canWork")), false);
         assert.equal((await again.call("SellerAgentsControlClient.getAuthority")).workAllowed, false);
         assert.ok(again.backing.local[AUTH].cacheClock.effectiveTimeMs >= T0 + 3000);
-        await exactFailure(() => policy(again, { detectedAi: CHATGPT }), "CACHE_EXPIRED", "Q2-D rollback denial");
+        await exactFailure(() => policy(again, { detectedAi: ALICE }), "CACHE_EXPIRED", "Q2-D rollback denial");
         assert.deepEqual(paths(again), ["/v1/bootstrap"]);
       } finally { again.close(); }
     } finally { if (restarted) restarted.close(); }
@@ -713,10 +987,10 @@ await namedCase("Q3-A-first-floor-both-storage-fail-and-idb-retention", async ()
     const seedWriteCount = idb.stats.writes;
     assert.equal(seedWriteCount, 1);
     assert.deepEqual(await idbGet(idb, record.artifact_key), record);
-    await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt");
+    await fixture.worker.call("SellerAgentsControlClient.canWork", "alice");
     const oldBytes = clone(backing.local[AUTH]), oldFloor = oldBytes.cacheClock.effectiveTimeMs;
     fail = true; clock.wall = T0 + 100; clock.mono = 1100;
-    await exactFailure(() => policy(fixture.worker, { detectedAi: CHATGPT }), "BOOTSTRAP_SECURITY_QUARANTINE", "Q3-A");
+    await exactFailure(() => policy(fixture.worker, { detectedAi: ALICE }), "BOOTSTRAP_SECURITY_QUARANTINE", "Q3-A");
     await until(() => removes === 1, "Q3-A failed removal settled");
     assert.equal(writes, 1); assert.equal(removes, 1);
     assert.deepEqual(backing.local[AUTH], oldBytes);
@@ -737,8 +1011,8 @@ await namedCase("Q3-A-first-floor-both-storage-fail-and-idb-retention", async ()
 
     fail = false;
     clock.wall = T0 - 100; clock.mono = 1100;
-    await exactFailure(() => policy(fixture.worker, { detectedAi: CHATGPT }), "AUTH_STATE_COMMIT_UNCONFIRMED", "Q3-A storage recovery does not clear quarantine");
-    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), false);
+    await exactFailure(() => policy(fixture.worker, { detectedAi: ALICE }), "AUTH_STATE_COMMIT_UNCONFIRMED", "Q3-A storage recovery does not clear quarantine");
+    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "alice"), false);
     assert.deepEqual(backing.local[AUTH], oldBytes);
     assert.deepEqual(await idbGet(idb, record.artifact_key), record);
     assert.equal(idb.stats.writes, seedWriteCount, "Q3 recovery does not rewrite IDB");
@@ -752,7 +1026,7 @@ await namedCase("Q3-A-first-floor-both-storage-fail-and-idb-retention", async ()
       assert.equal(idb.stats.writes, seedWriteCount, "Q3 restart does not rewrite IDB");
       restartClock.wall = T0 + 100; restartClock.mono = 1100;
       // Both persistent denial mechanisms failed: this counterexample does not claim restart protection.
-      const restartedRecovery = await policy(restarted, { detectedAi: CHATGPT });
+      const restartedRecovery = await policy(restarted, { detectedAi: ALICE });
       assert.equal(restartedRecovery.source, "CACHE"); assert.equal(restartedRecovery.freshness, "FRESH");
       assert.equal(restarted.backing.local[AUTH].cacheClock.effectiveTimeMs, T0 + 100);
       assert.deepEqual(await idbGet(idb, record.artifact_key), record);
@@ -764,7 +1038,7 @@ await namedCase("Q3-A-first-floor-both-storage-fail-and-idb-retention", async ()
 await namedCase("Q4-A-no-authority-cache-control", async () => {
   const clock = { wall: T0, mono: 1000 }, fixture = await prepared({ clock, payload: fixedPayload(clock), mutateBacking: backing => { backing.local[AUTH].authority = null; }, fetch: async url => { assert.equal(new URL(url).pathname, "/v1/bootstrap"); return json({ error: { code: "BOOTSTRAP_UNAVAILABLE" } }, 503); } });
   try {
-    await exactFailure(() => policy(fixture.worker, { detectedAi: CHATGPT }), { code: "BOOTSTRAP_UNAVAILABLE", status: 503 }, "Q4-A");
+    await exactFailure(() => policy(fixture.worker, { detectedAi: ALICE }), { code: "BOOTSTRAP_UNAVAILABLE", status: 503 }, "Q4-A");
     assert.deepEqual(paths(fixture.worker), ["/v1/bootstrap"]);
     assert.equal(fixture.backing.local[AUTH].authority, null);
   } finally { fixture.worker.close(); }
@@ -772,7 +1046,7 @@ await namedCase("Q4-A-no-authority-cache-control", async () => {
 
 await namedCase("Q4-B-signed-out-auth-required-zero-requests", async () => {
   const worker = await makeWorker(runtime, { seedAuthority: false, wallClock: () => T0, monotonicClock: () => 1, fetch: async () => { throw new Error("signed-out policy must not request"); } });
-  try { await exactFailure(() => policy(worker, { detectedAi: CHATGPT }), "AUTH_REQUIRED", "Q4-B"); assert.equal(worker.network.length, 0); } finally { worker.close(); }
+  try { await exactFailure(() => policy(worker, { detectedAi: ALICE }), "AUTH_REQUIRED", "Q4-B"); assert.equal(worker.network.length, 0); } finally { worker.close(); }
 });
 
 await namedCase("Q4-C-account-only-online-positive", async () => {
@@ -793,9 +1067,9 @@ await namedCase("Q4-D-account-replacement-online-positive", async () => {
     return signed(fixture.backing, { ...base, account: { id: "99999999-9999-4999-8999-999999999999", status: "ACTIVE" } });
   } });
   try {
-    const positive = await fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT });
+    const positive = await fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: ALICE });
     assert.equal(positive.account.id, fixture.backing.local[AUTH].authority.payload.account.id);
-    const result = await policy(fixture.worker, { detectedAi: CHATGPT });
+    const result = await policy(fixture.worker, { detectedAi: ALICE });
     assert.equal(result.source, "ONLINE");
     assert.equal(result.payload.account.id, "99999999-9999-4999-8999-999999999999");
     assert.equal(fixture.backing.local[AUTH].authority.payload.account.id, result.payload.account.id);
@@ -820,16 +1094,16 @@ await namedCase("Q4-D-account-replacement-obsoletes-held-online-verification", a
     return signed(backing, payload);
   } });
   try {
-    const sameAccount = await fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT });
+    const sameAccount = await fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: ALICE });
     assert.equal(sameAccount.account.id, "11111111-1111-4111-8111-111111111111");
     const aRecord = clone(backing.local[AUTH]);
     const aDeviceId = aRecord.authority.deviceId, aSessionId = aRecord.authority.sessionId;
     held.armed = true;
-    const old = cancellablePolicy(fixture.worker, { detectedAi: CHATGPT }); old.catch(() => {});
+    const old = cancellablePolicy(fixture.worker, { detectedAi: ALICE }); old.catch(() => {});
     await until(() => held.entered, "Q4-D held signed online-envelope verification");
     await cancelPolicy(fixture.worker);
     await exactFailure(() => old, "BOOTSTRAP_WAITER_CANCELLED", "Q4-D explicit cancellation");
-    const b = fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT });
+    const b = fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: ALICE });
     const bResult = await b;
     const bSnapshot = clone(backing.local[AUTH]);
     assert.equal(bResult.account.id, accountB);
@@ -874,7 +1148,7 @@ await namedCase("Q5-A-held-A-then-real-B-activation", async () => {
   } });
   try {
     aPayload = clone(backing.local[AUTH].authority.payload);
-    const old = policy(fixture.worker, { detectedAi: CHATGPT }); old.catch(() => {});
+    const old = policy(fixture.worker, { detectedAi: ALICE }); old.catch(() => {});
     await until(() => typeof releaseA === "function", "Q5-A held policy");
     await fixture.worker.call("SellerAgentsControlClient.localReset");
     await fixture.worker.call("SellerAgentsControlClient.startActivation");
@@ -904,13 +1178,13 @@ for (const later of ["replacement", "forbidden"]) await namedCase("Q5-B-held-onl
     return signed(backing, { ...base, configVersion: 2, serverTime: new Date(T0 + 1).toISOString() });
   } });
   try {
-    await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt");
+    await fixture.worker.call("SellerAgentsControlClient.canWork", "alice");
     held.armed = true;
-    const old = cancellablePolicy(fixture.worker, { detectedAi: CHATGPT }); old.catch(() => {});
+    const old = cancellablePolicy(fixture.worker, { detectedAi: ALICE }); old.catch(() => {});
     await until(() => held.entered, "Q5-B held signed online verification");
     await cancelPolicy(fixture.worker);
     await exactFailure(() => old, "BOOTSTRAP_WAITER_CANCELLED", "Q5-B explicit cancellation");
-    const b = fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT }); b.catch(() => {});
+    const b = fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: ALICE }); b.catch(() => {});
     await until(() => calls === 2, "Q5-B B request");
     let bSnapshot;
     if (later === "replacement") {
@@ -954,17 +1228,17 @@ for (const later of ["replacement", "forbidden"]) await namedCase("Q5-C-held-pos
   } });
   try {
     const expectedOwnedCredentials = clone(fixture.backing.local[AUTH].credentials);
-    await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt");
+    await fixture.worker.call("SellerAgentsControlClient.canWork", "alice");
     clock.wall = T0 + 100; clock.mono = 1100;
-    const old = cancellablePolicy(fixture.worker, { detectedAi: CHATGPT }); old.catch(() => {});
+    const old = cancellablePolicy(fixture.worker, { detectedAi: ALICE }); old.catch(() => {});
     await until(() => held, "Q5-C held positive AUTH write");
     await cancelPolicy(fixture.worker);
     await exactFailure(() => old, "BOOTSTRAP_WAITER_CANCELLED", "Q5-C explicit waiter cancellation");
-    await exactFailure(() => fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT }), "AUTH_STATE_COMMIT_UNCONFIRMED", "Q5-C no competing request");
+    await exactFailure(() => fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: ALICE }), "AUTH_STATE_COMMIT_UNCONFIRMED", "Q5-C no competing request");
     assert.equal(calls, 1);
     releaseWrite();
     await until(() => fixture.backing.local[AUTH] === undefined, "Q5-C held write settled and quarantined AUTH removed");
-    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), false);
+    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "alice"), false);
     assert.equal(calls, 1, "Q5-C settled storage cannot clear quarantine or dispatch B");
   } finally { releaseWrite?.(); fixture.worker.close(); }
 });
@@ -975,7 +1249,7 @@ await namedCase("Q6-final-public-return-fence", async () => {
   const monotonicClock = () => {
     if (scheduleB && !bStarted) {
       bStarted = true;
-      queueMicrotask(() => { bPromise = worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT }); bPromise.catch(() => {}); });
+      queueMicrotask(() => { bPromise = worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: ALICE }); bPromise.catch(() => {}); });
     }
     return clock.mono;
   };
@@ -989,9 +1263,9 @@ await namedCase("Q6-final-public-return-fence", async () => {
   } });
   worker = fixture.worker;
   try {
-    await worker.call("SellerAgentsControlClient.canWork", "chatgpt");
+    await worker.call("SellerAgentsControlClient.canWork", "alice");
     clock.wall = T0 + 100; clock.mono = 1100;
-    const old = policy(worker, { detectedAi: CHATGPT }); old.catch(() => {});
+    const old = policy(worker, { detectedAi: ALICE }); old.catch(() => {});
     await until(() => bStarted, "Q6 queued raw B");
     await new Promise(resolve => setImmediate(resolve));
     assert.ok(bPromise, "Q6 raw B promise was scheduled");
@@ -1000,7 +1274,7 @@ await namedCase("Q6-final-public-return-fence", async () => {
     assert.equal(cached.payload.configVersion, 1, "Q6 original policy never receives a raw result");
     if (calls === 1) {
       await exactFailure(() => bPromise, "BOOTSTRAP_REQUEST_CONFLICT", "Q6 incompatible caller before retirement");
-      bPromise = worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT });
+      bPromise = worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: ALICE });
     }
     await until(() => typeof releaseB === "function", "Q6 explicit raw request after original acquisition");
     assert.equal(calls, 2);

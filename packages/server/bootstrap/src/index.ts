@@ -2,6 +2,7 @@ import {
   AiPromptTreeKnownV1Schema,
   type AiPromptTreeClaimV1,
   type SignedAiPromptTreeEnvelopeV1,
+  isAiPermissionEnabledInReleaseV1,
 } from "@product/contracts";
 import type {
   BootstrapRequestV1,
@@ -40,7 +41,11 @@ import {
   BootstrapRequestV2Schema,
   HealthClaimV1Schema,
 } from "@product/contracts";
-import { BootstrapAiResolutionService } from "./ai-resolution.js";
+import {
+  BootstrapAiResolutionService,
+  applyAiReleaseScopeV1,
+  type BootstrapAiResolutionInput,
+} from "./ai-resolution.js";
 import type { LocalClientAuthorityMaterializer } from "./local-client-authority.js";
 import type { BetaAccessResolution } from "@product/beta-access";
 
@@ -169,10 +174,10 @@ function materializeBetaCapabilityPermissions(
       !descriptor ||
       !descriptor.enumerable ||
       !("value" in descriptor) ||
-      descriptor.value !== true
+      typeof descriptor.value !== "boolean"
     )
       throw new Error("SELLER_AGENTS_BETA_CAPABILITY_POLICY_INVALID");
-    materialized[entitlementKey] = true;
+    materialized[entitlementKey] = descriptor.value;
   }
   return materialized;
 }
@@ -184,12 +189,21 @@ function composeSignedEntitlements(
   const entitlements: SafeEntitlementMap = input.commercialEligible
     ? { ...input.commercialEntitlements }
     : {};
-  if (!input.betaEligible) return entitlements;
-
-  const betaPermissions = materializeBetaCapabilityPermissions(
-    betaCapabilityPermissions.resolve(),
-  );
-  return { ...entitlements, ...betaPermissions };
+  const betaPermissions = input.betaEligible
+    ? materializeBetaCapabilityPermissions(betaCapabilityPermissions.resolve())
+    : {};
+  const effective: SafeEntitlementMap = { ...entitlements, ...betaPermissions };
+  // A release ceiling never grants a paid/beta permission. It prevents an old
+  // commercial map or an injected beta resolver from re-enabling a deferred AI.
+  for (const key of SELLER_AGENTS_CAPABILITY_PERMISSION_KEYS) {
+    if (
+      key.startsWith("ai.") &&
+      !isAiPermissionEnabledInReleaseV1(key) &&
+      Object.hasOwn(effective, key)
+    )
+      effective[key] = false;
+  }
+  return effective;
 }
 
 export class BootstrapError extends Error {
@@ -214,6 +228,11 @@ export class BootstrapService {
     private readonly bootstrapVerifier?: BootstrapSnapshotVerifier,
     private readonly localClientAuthority?: BootstrapLocalClientAuthorityMaterializer,
   ) {}
+
+  private async resolveReleasedAi(input: BootstrapAiResolutionInput) {
+    if (!this.aiResolution) throw new BootstrapError("UNAVAILABLE");
+    return applyAiReleaseScopeV1(await this.aiResolution.resolve(input));
+  }
 
   async issuePromptTree(
     subject: BootstrapSubject,
@@ -356,7 +375,7 @@ export class BootstrapService {
     };
     if (eligible && bootstrapRequest.detectedAi && this.aiResolution) {
       try {
-        ai = await this.aiResolution.resolve({
+        ai = await this.resolveReleasedAi({
           detected: {
             family: bootstrapRequest.detectedAi.family,
             surface: bootstrapRequest.detectedAi.surface,
@@ -578,7 +597,7 @@ export class BootstrapService {
         ai = { status: "UNAVAILABLE", detected, reason: "NO_PROFILE" };
       } else if (this.aiResolution) {
         try {
-          ai = await this.aiResolution.resolve({
+          ai = await this.resolveReleasedAi({
             detected,
             contractVersion: request.contractVersion,
             extensionVersion: request.extensionVersion,
@@ -765,7 +784,7 @@ export class BootstrapService {
           ai = { status: "UNAVAILABLE", detected, reason: "NO_PROFILE" };
         else if (this.aiResolution) {
           try {
-            ai = await this.aiResolution.resolve({
+            ai = await this.resolveReleasedAi({
               detected,
               contractVersion: request.contractVersion,
               extensionVersion: request.extensionVersion,
@@ -970,7 +989,7 @@ export class BootstrapService {
           ai = { status: "UNAVAILABLE", detected, reason: "NO_PROFILE" };
         else if (this.aiResolution) {
           try {
-            ai = await this.aiResolution.resolve({
+            ai = await this.resolveReleasedAi({
               detected,
               contractVersion: "control_plane_v2",
               extensionVersion: request.extensionVersion,

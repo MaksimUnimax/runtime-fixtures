@@ -2,6 +2,8 @@
 from pathlib import Path
 import importlib.util
 import json
+import hashlib
+import os
 import subprocess
 import struct
 import zlib
@@ -24,12 +26,19 @@ firefox = load("store_firefox", "tooling/build/extension_firefox.py")
 def verify_firefox_contract(runtime: Path) -> None:
     # Run the existing Firefox-specific manifest test against an actual
     # Firefox package derivative, not the common Chromium manifest.
-    subprocess.run(
-        ["node", str(ROOT / "tests/regression/extension-core/firefox-package-contract.mjs"), str(runtime)],
-        cwd=ROOT,
-        check=True,
-        timeout=45,
-    )
+    # The corpus starts many real builder CLIs. Reuse Node's compilation of
+    # the pinned parser code within this one private, finite invocation. Each
+    # builder still parses its own input; all cases and the 45-second bound run.
+    with tempfile.TemporaryDirectory(prefix="octoport-firefox-compile-") as cache:
+        child_environment = os.environ.copy()
+        child_environment["NODE_COMPILE_CACHE"] = cache
+        subprocess.run(
+            ["node", str(ROOT / "tests/regression/extension-core/firefox-package-contract.mjs"), str(runtime)],
+            cwd=ROOT,
+            env=child_environment,
+            check=True,
+            timeout=45,
+        )
 
 
 PUBLIC_KEY = "MCowBQYDK2VwAyEAFG3DxyJOAU0cI1T50i6+tDUonQ74Qzw1Ra6USuEWYRg="
@@ -38,11 +47,15 @@ FINGERPRINT = "69e2ddf7c78d4221d06b65be0212063b923e4e827c2e271385fef0d04cce85dc"
 
 def authority(control="https://api.octoport.ru", portal="https://app.octoport.ru"):
     return {
-        "schemaVersion": "octoport_release_authority_v1",
+        "schemaVersion": "octoport_release_authority_v2",
+        "aiReleaseScope": {
+            "descriptor": json.loads((ROOT / "packages/contracts/src/ai-release-scope.v1.json").read_bytes()),
+            "sha256": "10c20b39daec4d0a9733173222167ea7a56da2a128bbc182132591c8e5596261",
+        },
         "source": {"head": "0" * 40, "tree": "1" * 40},
-        "productVersion": "0.2.37",
+        "productVersion": "0.2.42",
         "contractVersion": "control_plane_v2",
-        "migrationLevel": 48,
+        "migrationLevel": 52,
         "environment": "PREPRODUCTION",
         "origins": {"controlApiOrigin": control, "portalOrigin": portal},
         "trustBundle": {
@@ -140,9 +153,12 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     development_runtime, development_extracted, development_receipt = composed.build(
         root / "development"
     )
-    assert development_receipt["version"] == "0.2.37"
+    assert development_receipt["version"] == "0.2.42"
     development_worker = (development_runtime / "service_worker.js").read_bytes()
     assert b'development: config.environment === "LOCAL DEVELOPMENT"' in development_worker
+    assert development_worker.count(b"I1_CLIENT_DIAGNOSTICS_BEGIN") == 1
+    assert development_worker.count(b"I1_SCHEDULER_DIAGNOSTICS_BEGIN") == 1
+    assert b"__OCTOPORT_I1_BOOTSTRAP_DIAGNOSTIC_V1__" in development_worker
     assert (development_runtime / "shared/bootstrap_verifier.js").read_bytes() == development_verifier
     assert (development_extracted / "shared/bootstrap_verifier.js").read_bytes() == development_verifier
     firefox_development = root / "firefox-development-runtime"
@@ -193,6 +209,12 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     assert "control_plane_v2" in worker and "PREPRODUCTION" in worker
     assert "PACKAGED_CONFIG_REQUIRED" in worker
     assert "LOCAL DEVELOPMENT" not in worker
+    assert "__OCTOPORT_I1_BOOTSTRAP_DIAGNOSTIC_V1__" not in worker
+    assert "I1_CLIENT_DIAGNOSTICS_BEGIN" not in worker
+    assert "I1_SCHEDULER_DIAGNOSTICS_BEGIN" not in worker
+    assert worker.count("function i1BootstrapDiagnostic() {}") == 2
+    assert worker.count("function i1BootstrapDiagnosticContext() { return null; }") == 1
+    assert worker.count("function i1BootstrapRequestDiagnostic() {}") == 1
     assert "development: false" in worker
     assert "127.0.0.1:43100" not in worker and "127.0.0.1:43101" not in worker
     assert "config-local-development" not in worker
@@ -207,9 +229,19 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     assert "BETA · результаты сразу в ИИ · буфер до 1 часа" in popup
     assert receipt["build_mode"] == "store"
     assert receipt["environment"] == "PREPRODUCTION"
-    assert receipt["package"]["name"] == "OCTOPORT_v0.2.37_CHROMIUM_STORE.zip"
+    assert receipt["package"]["name"] == "OCTOPORT_v0.2.42_CHROMIUM_STORE.zip"
     assert receipt["package"]["repeat_archive_match"] is True
     assert receipt["release_authority_sha256"] == composed.baseline.sha256(auth.read_bytes())
+
+    # Exercise the extracted store runtime with its compiled production origin
+    # guards intact. The in-process harness supplies only synthetic HTTPS
+    # authority/signatures; this is not installed or real-server acceptance.
+    subprocess.run(
+        ["node", "--max-old-space-size=512",
+         str(ROOT / "tests/regression/extension-core/client-i1/client-artifact-integrity.mjs"),
+         str(extracted), "--store"],
+        cwd=ROOT, check=True, timeout=45,
+    )
 
     firefox_receipt = firefox.build(runtime, root / "firefox-runtime")
     verify_firefox_contract(root / "firefox-runtime")
@@ -219,7 +251,7 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     assert "sidePanel" not in firefox_manifest.get("permissions", [])
     assert "side_panel" not in firefox_manifest
     assert firefox_receipt["build_mode"] == "store"
-    assert firefox_receipt["package"]["name"] == "OCTOPORT_v0.2.37_FIREFOX_STORE.zip"
+    assert firefox_receipt["package"]["name"] == "OCTOPORT_v0.2.42_FIREFOX_STORE.zip"
     for size, icon in firefox_manifest["icons"].items():
         verify_rgba_png(root / "firefox-runtime" / icon, int(size))
     assert firefox_manifest["browser_specific_settings"]["gecko"]["id"] == "octoport@octoport.ru"

@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  foreignKey,
   check,
   index,
   integer,
@@ -13,12 +14,7 @@ import { payments } from "./billing";
 export const billingReconciliationJobs = pgTable(
   "billing_reconciliation_jobs",
   {
-    paymentId: uuid("payment_id")
-      .primaryKey()
-      .references(() => payments.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    paymentId: uuid("payment_id").primaryKey(),
     state: varchar("state", { length: 16 }).notNull(),
     nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
     leaseToken: uuid("lease_token"),
@@ -33,6 +29,25 @@ export const billingReconciliationJobs = pgTable(
       .defaultNow(),
   },
   (table) => [
+    check(
+      "billing_reconciliation_jobs_ready_shape",
+      sql`${table.state} <> 'READY' OR (${table.nextAttemptAt} IS NOT NULL AND ${table.leaseToken} IS NULL AND ${table.leaseUntil} IS NULL)`,
+    ),
+    check(
+      "billing_reconciliation_jobs_leased_shape",
+      sql`${table.state} <> 'LEASED' OR (${table.nextAttemptAt} IS NULL AND ${table.leaseToken} IS NOT NULL AND ${table.leaseUntil} IS NOT NULL)`,
+    ),
+    check(
+      "billing_reconciliation_jobs_terminal_shape",
+      sql`${table.state} NOT IN ('SETTLED','BLOCKED') OR (${table.nextAttemptAt} IS NULL AND ${table.leaseToken} IS NULL AND ${table.leaseUntil} IS NULL)`,
+    ),
+    foreignKey({
+      columns: [table.paymentId],
+      foreignColumns: [payments.id],
+      name: "billing_reconciliation_jobs_payment_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     check(
       "billing_reconciliation_jobs_state_safe",
       sql`${table.state} IN ('READY','LEASED','SETTLED','BLOCKED')`,

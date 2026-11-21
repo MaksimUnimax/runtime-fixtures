@@ -9,6 +9,7 @@ const SOURCE = "44444444-4444-4444-8444-444444444444";
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 const results = [];
 async function check(id, fn) {
+  if (process.env.SA_TRANSFER_CASE_FILTER && !new RegExp(process.env.SA_TRANSFER_CASE_FILTER).test(id)) return;
   try { await fn(); results.push({ id, status: "PASS" }); }
   catch (error) { results.push({ id, status: "FAIL", error: `${error.code ? error.code + ": " : ""}${error.message || error}` }); }
 }
@@ -52,6 +53,7 @@ function transferServer() {
       const pathname = new URL(url).pathname, method = init.method || "GET", body = init.body ? JSON.parse(init.body) : null;
       if (pathname === "/v1/credential-transfers" && method === "POST") {
         state.createCalls += 1;
+        if (state.createErrorStatus) return json({ error: { code: "CONNECTION_TRANSFER_APPROVAL_REQUIRED" } }, state.createErrorStatus);
         if (!state.request) state.request = { requestId: body.requestId, accountId: ACCOUNT, recipientDeviceId: body.recipientDeviceId, sourceDeviceId: body.sourceDeviceId, recipientPublicKeySpki: body.recipientPublicKeySpki, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + body.expiresInSeconds * 1000).toISOString(), state: "REQUESTED", selectedStores: body.selectedStores, revision: 1 };
         else {
           assert.equal(body.requestId, state.request.requestId); assert.equal(body.recipientPublicKeySpki, state.request.recipientPublicKeySpki); assert.deepEqual(body.selectedStores, state.request.selectedStores);
@@ -663,6 +665,40 @@ await check("TRR-11-mismatched-terminal-readback-preserves-imported-result", asy
     assert.equal([...idb.records.values()][0].phase, "IMPORTED_PENDING_ACK");
   } finally { worker.close(); }
 });
+
+
+// A definitive pre-create denial must not turn into an automatic request after
+// approval. A non-definitive response must retain the original recovery record.
+for (const status of [409, 503]) {
+  await check("TRR-CONNECTION-approval-response-" + status, async () => {
+    const server = transferServer(), idb = fakeIDB(), backing = { local: {}, session: {} };
+    server.state.createErrorStatus = status;
+    let worker = await workerWith({ backing, idb, server, seedAuthority: true });
+    try {
+      await assert.rejects(worker.call("SellerAgentsControlClient.createCredentialTransfer",
+        { consent: true, selectedStoreIds: ["transfer-store"] }),
+        error => error.code === "CONNECTION_TRANSFER_APPROVAL_REQUIRED" && error.status === status);
+      assert.equal(server.state.createCalls, 1);
+      assert.equal(server.state.request, null);
+      assert.equal(idb.records.size, status === 409 ? 0 : 1);
+      const prepared = status === 503 ? [...idb.records.values()][0] : null;
+      worker.close();
+      worker = await workerWith({ backing, idb, server });
+      server.state.createErrorStatus = null;
+      const restored = await worker.call("SellerAgentsControlClient.listCredentialTransferRecipients");
+      assert.equal(restored.length, status === 409 ? 0 : 1);
+      assert.equal(server.state.createCalls, status === 409 ? 1 : 2);
+      if (status === 409) {
+        await worker.call("SellerAgentsControlClient.createCredentialTransfer",
+          { consent: true, selectedStoreIds: ["transfer-store"] });
+        assert.equal(server.state.createCalls, 2);
+      } else {
+        assert.equal(server.state.request.requestId, prepared.requestId);
+        assert.equal(server.state.request.recipientPublicKeySpki, prepared.publicKeySpki);
+      }
+    } finally { worker.close(); }
+  });
+}
 
 const failed = results.filter(row => row.status !== "PASS");
 console.log(JSON.stringify({ status: failed.length ? "FAIL" : "PASS", scope: "A02_MV3_TRANSFER_RECIPIENT_RECOVERY", results, failures: failed, executionAuthority: false }, null, 2));

@@ -11,7 +11,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run && pnpm build && node smoke-built-esm.mjs",
+    "test": "vitest run && pnpm build && node smoke-built-esm.mjs && node smoke-built-lease.mjs",
     "acceptance": "vitest run src/acceptance.test.ts",
     "build": "tsup --config tsup.config.mjs"
   },

@@ -32,27 +32,28 @@
       return /^rpf_[sp]_[A-Za-z0-9_-]+$/.test(ref) ? ref : null;
     }
 
+    function successfulProviderFileRef(entry, marketplace) {
+      if (!entry || entry.status !== "complete") return null;
+      const status = Number(entry.http_status || 0);
+      if (!(status >= 200 && status < 300)) return null;
+      if (marketplace === "wildberries")
+        return /^sa_file_[a-f0-9]{64}$/.test(entry.provider_file_ref || "")
+          ? entry.provider_file_ref : null;
+      const operation = String(entry?.command?.operation || entry?.operation || "");
+      const ref = operation === "report_file_get"
+        ? String(entry?.command?.params?.file_ref || "").trim()
+        : directInlineFileRefFromReportText(entry);
+      return /^rpf_[sp]_[A-Za-z0-9_-]+$/.test(ref || "") ? ref : null;
+    }
+
     function reportFileRefsFromBatch(run) {
       const refs = [];
       const seen = new Set();
       for (const entry of Array.isArray(run?.batch?.entries)
         ? run.batch.entries
         : []) {
-        if (!entry || entry.status !== "complete") continue;
-        const httpStatus = Number(entry.http_status || 0);
-        if (!(httpStatus >= 200 && httpStatus < 300)) continue;
-        const operation = String(
-          entry?.command?.operation || entry?.operation || "",
-        );
-        let ref = "";
-        if (run?.execution_context?.marketplace === "wildberries" && /^sa_file_[A-Za-z0-9-]+$/.test(entry.provider_file_ref || "")) {
-          if (!seen.has(entry.provider_file_ref)) { seen.add(entry.provider_file_ref); refs.push(entry.provider_file_ref); }
-          continue;
-        }
-        if (operation === "report_file_get")
-          ref = String(entry?.command?.params?.file_ref || "").trim();
-        else ref = directInlineFileRefFromReportText(entry) || "";
-        if (!/^rpf_[sp]_[A-Za-z0-9_-]+$/.test(ref) || seen.has(ref)) continue;
+        const ref = successfulProviderFileRef(entry, run?.execution_context?.marketplace);
+        if (!ref || seen.has(ref)) continue;
         seen.add(ref);
         refs.push(ref);
       }
@@ -80,6 +81,23 @@
       };
       return `OZON_BATCH_RESULT_V1\n${JSON.stringify(payload)}`;
     }
+    function derivedFileRefs(run, payload) {
+      const refs=payload.derived_file_refs;
+      if(refs===undefined)return [];
+      if(!Array.isArray(refs) || refs.length>1)throw new Error("DERIVED_FILE_REFS_INVALID");
+      return refs.map(ref=>{
+        if(run?.execution_context?.marketplace!=="wildberries" || !ref || ref.source_kind!=="derived_business_report" ||
+           !/^derived:cap19:[a-f0-9]{64}$/.test(ref.artifact_key||"") ||
+           ref.serialization!=="json" || ref.serialization_version!==1 || ref.identity_version!==1 ||
+           ref.extension!=="txt" || ref.mime_type!=="text/plain;charset=utf-8" || ref.complete!==true ||
+           ref.owner_operation_id!==run.operation_id || ref.scope_sha256!==run.cap19_collection?.scope_sha256 ||
+           ref.artifact_key!==run.cap19_artifact_intent?.artifact_key || ref.sha256!==run.cap19_artifact_intent?.sha256 ||
+           !Number.isSafeInteger(ref.byte_length) || ref.byte_length<1 || ref.byte_length>8000000 ||
+           !Number.isSafeInteger(ref.expires_at_ms) || ref.expires_at_ms<=Date.now())
+          throw new Error("DERIVED_FILE_DESCRIPTOR_INVALID");
+        return Object.freeze({...ref});
+      });
+    }
     function attachmentDeliveryPlan(run, payload) {
       const requestedMode = String(payload.mode || "legacy");
       if (requestedMode !== "batch_watch_v1") return null;
@@ -95,9 +113,10 @@
         threshold: null,
       };
       const providerFileRefs = reportFileRefsFromBatch(run);
+      const derivedRefs = derivedFileRefs(run, payload);
       const needsGeneratedDocument =
         textDecision.representation === "text_document";
-      if (!needsGeneratedDocument && providerFileRefs.length === 0) return null;
+      if (!needsGeneratedDocument && providerFileRefs.length === 0 && derivedRefs.length === 0) return null;
       const deliveryId = String(payload.deliveryId || "");
       const generatedDocument = needsGeneratedDocument
         ? {
@@ -118,18 +137,20 @@
             generatedDocument,
             providerFileRefs,
           })
-        : outgoingText;
+        : derivedRefs.length ? "WB_BATCH_RESULT_V1\n"+JSON.stringify({delivery_representation:"ATTACHED_DOCUMENT_BUNDLE",derived_business_report_count:derivedRefs.length,delivery_id:deliveryId,complete:true}) : outgoingText;
       return Object.freeze({
         adapter_id: adapterId,
         original_outgoing_text: outgoingText,
         outgoing_text: markerText,
         generated_text_document: generatedDocument,
         provider_file_refs: providerFileRefs,
+        derived_file_refs: Object.freeze(derivedRefs),
         text_decision: textDecision,
       });
     }
     return Object.freeze({
       directInlineFileRefFromReportText,
+      successfulProviderFileRef,
       reportFileRefsFromBatch,
       attachmentDeliveryPlan,
     });

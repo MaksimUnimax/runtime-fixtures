@@ -1,4 +1,8 @@
 import { randomUUID } from "node:crypto";
+import {
+  assertMonitoringMemoryWrite,
+  fenceMonitoringSqlRuntime,
+} from "@product/monitoring-control";
 import type {
   ApiWatchReport,
   ApiWatchReportSourceOutcome,
@@ -93,9 +97,11 @@ export class InMemoryApiWatchReportStore implements ApiWatchReportStore {
   async createReport(
     input: Parameters<ApiWatchReportStore["createReport"]>[0],
   ) {
+    assertMonitoringMemoryWrite();
     const report = emptyReport(input);
     if (this.reports.has(report.reportId))
       throw new Error("REPORT_ALREADY_EXISTS");
+    assertMonitoringMemoryWrite();
     this.reports.set(report.reportId, report);
     return cloneReport(report);
   }
@@ -108,9 +114,11 @@ export class InMemoryApiWatchReportStore implements ApiWatchReportStore {
   async transitionReport(
     input: Parameters<ApiWatchReportStore["transitionReport"]>[0],
   ) {
+    assertMonitoringMemoryWrite();
     const report = this.reports.get(input.reportId);
     if (!report) throw new Error("REPORT_NOT_FOUND");
     const next = transition(report, input);
+    assertMonitoringMemoryWrite();
     this.reports.set(input.reportId, next);
     return cloneReport(next);
   }
@@ -162,6 +170,7 @@ async function readReport(
 export function createPostgresApiWatchReportStore(
   runtime: ApiWatchSqlRuntime,
 ): ApiWatchReportStore {
+  runtime = fenceMonitoringSqlRuntime(runtime);
   return {
     async createReport(input) {
       const report = emptyReport(input);

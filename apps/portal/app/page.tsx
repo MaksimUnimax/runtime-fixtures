@@ -3,6 +3,7 @@ export default function PortalPage() {
     <main>
       <h1>Product Control Plane Portal</h1>
       <p>
+        <a href="/connect">Подключить расширение</a> ·{" "}
         <a href="/login">Sign in</a> · <a href="/devices">Devices</a> ·{" "}
         <a href="/feedback">Feedback</a>
       </p>

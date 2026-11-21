@@ -17,6 +17,20 @@ import {
 import type { CommercialAccessResolution } from "@product/commercial-access";
 import { getSellerAgentsFreeBetaCapabilityPermissions } from "@product/entitlements/seller-agents-beta-capability-policy";
 
+// Explicit test contract: keep the expected vocabulary independent of policy output.
+const expectedBetaEntitlements = Object.freeze({
+  "source.ozon": true,
+  "source.wildberries": true,
+  "ai.chatgpt": false,
+  "ai.alice": true,
+  "ai.qwen": false,
+  "ai.deepseek": false,
+  "ai.grok": false,
+  "ai.claude": false,
+  "ai.gemini": false,
+  "ai.kimi": false,
+});
+
 const subject = {
   accountId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   deviceId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
@@ -70,6 +84,56 @@ describe("BootstrapService", () => {
       ),
     };
   }
+
+  for (const version of [1, 2, 3] as const)
+    it(`Alice release clamps commercial all-eight permissions in signed bootstrap v${version}`, async () => {
+      const commercial = eligibleCommercial();
+      if (commercial.kind !== "OK")
+        throw new Error("commercial fixture required");
+      commercial.value.entitlements = Object.fromEntries([
+        ["source.ozon", true],
+        ["source.wildberries", true],
+        ["unrelated.permission", true],
+        ...[
+          "chatgpt",
+          "alice",
+          "qwen",
+          "kimi",
+          "grok",
+          "gemini",
+          "claude",
+          "deepseek",
+        ].map((family) => ["ai." + family, true]),
+      ]);
+      const before = structuredClone(commercial.value.entitlements);
+      const { service, pair } = signedService(commercial);
+      const keys = new Map([["config-key", pair.publicKey]]);
+      const verified =
+        version === 1
+          ? verifyBootstrapEnvelope(await service.issue(subject, request), keys)
+          : version === 2
+            ? verifyBootstrapEnvelopeV2(
+                await service.issueV2(subject, {
+                  ...request,
+                  contractVersion: "control_plane_v2",
+                }),
+                keys,
+              )
+            : verifyBootstrapEnvelopeV3(
+                await service.issueV3(subject, {
+                  ...request,
+                  contractVersion: "control_plane_v3",
+                }),
+                keys,
+              );
+      expect(verified.ok).toBe(true);
+      if (!verified.ok) throw new Error("signature failed");
+      expect(verified.payload.entitlements).toEqual({
+        ...expectedBetaEntitlements,
+        "unrelated.permission": true,
+      });
+      expect(commercial.value.entitlements).toEqual(before);
+    });
 
   it("keeps v1 payloads compatible and binds the account only in v2", async () => {
     const { service, pair } = signedService(eligibleCommercial());
@@ -857,13 +921,7 @@ describe("BootstrapService", () => {
       expect(verified.payload.offlineGraceUntil).toBe(
         "2026-01-02T00:15:00.000Z",
       );
-      expect(verified.payload.entitlements).toEqual({
-        "source.ozon": true,
-        "source.wildberries": true,
-        "ai.chatgpt": true,
-        "ai.alice": true,
-        "ai.qwen": true,
-      });
+      expect(verified.payload.entitlements).toEqual(expectedBetaEntitlements);
     }
   });
   it("emits the exact beta permissions in both signed V1 and V2 snapshots", async () => {
@@ -887,13 +945,7 @@ describe("BootstrapService", () => {
     expect(v1).toMatchObject({ ok: true });
     expect(v2).toMatchObject({ ok: true });
     if (v1.ok && v2.ok) {
-      const expected = {
-        "source.ozon": true,
-        "source.wildberries": true,
-        "ai.chatgpt": true,
-        "ai.alice": true,
-        "ai.qwen": true,
-      };
+      const expected = expectedBetaEntitlements;
       expect(v1.payload.accessBasis).toBe("BETA");
       expect(v1.payload.entitlements).toEqual(expected);
       expect(v2.payload.accessBasis).toBe("BETA");
@@ -937,7 +989,7 @@ describe("BootstrapService", () => {
       });
     }
   });
-  it("overlays only the four beta permissions over commercial access", async () => {
+  it("overlays only the ten reviewed beta permissions over commercial access", async () => {
     const commercial = eligibleCommercial();
     if (commercial.kind === "OK") {
       commercial.value.entitlements = {
@@ -959,11 +1011,7 @@ describe("BootstrapService", () => {
     if (verified.ok) {
       expect(verified.payload.accessBasis).toBe("BETA");
       expect(verified.payload.entitlements).toEqual({
-        "source.ozon": true,
-        "source.wildberries": true,
-        "ai.chatgpt": true,
-        "ai.alice": true,
-        "ai.qwen": true,
+        ...expectedBetaEntitlements,
         "device.max_active": 0,
         "provider.analytics": false,
       });
@@ -1084,11 +1132,7 @@ describe("BootstrapService", () => {
           planRevision: commercialSubscription.currentPlanRevisionId,
         });
         expect(verified.payload.entitlements).toEqual({
-          "source.ozon": true,
-          "source.wildberries": true,
-          "ai.chatgpt": true,
-          "ai.alice": true,
-          "ai.qwen": true,
+          ...expectedBetaEntitlements,
           "device.max_active": 0,
         });
         expect(verified.payload.ai).toEqual(
@@ -1404,16 +1448,34 @@ describe("R3 H-WIRE issuer SOURCE subsets (not deployment freshness proof)", () 
           throw new Error("identified authority required");
         return value.payload;
       };
-      const chatgpt = await issue("chatgpt"),
-        alice = await issue("alice");
-      expect(chatgpt.ai).toMatchObject({
-        status: "RESOLVED",
-        detected: { family: "chatgpt", surface: "web", variant: null },
-      });
-      expect(alice.ai).toMatchObject({
-        status: "RESOLVED",
-        detected: { family: "alice", surface: "web", variant: null },
-      });
+      const families = [
+        "chatgpt",
+        "alice",
+        "qwen",
+        "kimi",
+        "grok",
+        "gemini",
+        "claude",
+        "deepseek",
+      ];
+      const outputs = [];
+      for (const family of families) {
+        const output = await issue(family);
+        expect(output.ai).toMatchObject(
+          family === "alice"
+            ? {
+                status: "RESOLVED",
+                detected: { family, surface: "web", variant: null },
+              }
+            : {
+                status: "UNAVAILABLE",
+                reason: "AI_DISABLED",
+                detected: { family, surface: "web", variant: null },
+              },
+        );
+        outputs.push(output);
+      }
+      const chatgpt = outputs[0]!;
       allowed = false;
       const deny = await issue("chatgpt");
       expect(deny.accessBasis).toBe("NONE");
@@ -1429,15 +1491,15 @@ describe("R3 H-WIRE issuer SOURCE subsets (not deployment freshness proof)", () 
       expect(chatgpt.serverTime).toBe(deny.serverTime);
       expect(recovered.serverTime).toBe(deny.serverTime);
       expect(reads.filter((x) => x.startsWith("access:"))).toEqual([
-        "access:true",
-        "access:true",
+        ...families.map(() => "access:true"),
         "access:false",
         "access:true",
       ]);
-      expect(reads.filter((x) => x === "policy")).toHaveLength(4);
-      expect(reads.filter((x) => x === "chatgpt" || x === "alice")).toEqual([
-        "chatgpt",
-        "alice",
+      expect(reads.filter((x) => x === "policy")).toHaveLength(
+        families.length + 2,
+      );
+      expect(reads.filter((x) => families.includes(x))).toEqual([
+        ...families,
         "alice",
       ]);
     });

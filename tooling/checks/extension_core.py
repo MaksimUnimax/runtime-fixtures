@@ -55,12 +55,17 @@ def main():
         runner.run("core-store-package-contract", [sys.executable, ROOT / "tests/regression/extension-core/store-package-contract.py"])
         runner.run("core-build-create-pending-extraction", ["node", ROOT / "tests/regression/extension-core/client-i1/create-pending-work-start-extraction.mjs"])
         runner.run("core-work-start-pending-readback", ["node", "--test", ROOT / "tests/regression/extension-core/client-i1/client-a01-pending-readback.mjs"])
+        runner.run("core-alice-release-descriptor", ["node", ROOT / "tests/regression/extension-core/client-i1/alice-release-scope.mjs"])
+        runner.run("core-source-ozon-grouped-json-projection",
+                   ["node", ROOT / "tests/regression/extension-core/ozon-grouped-json-projection.mjs", ROOT])
         source, extracted, receipt = composed.build(output / "package")
         result["composition"] = receipt
         runner.run("core-store-metadata-and-import-fences", ["node", ROOT / "tests/regression/extension-core/client-i1/client-d3s2-store-metadata-state.mjs", ROOT])
         work = output / "work"
         work.mkdir()
         for runtime, label, source_route in [(source, "core-source", True), (extracted, "core-package", False)]:
+            runner.run(label + "-alice-release-runtime", ["node", ROOT / "tests/regression/extension-core/client-i1/alice-release-runtime.mjs", runtime])
+            runner.run(label + "-alice-release-lifecycle", ["node", ROOT / "tests/regression/extension-core/client-i1/alice-release-lifecycle.mjs", runtime])
             original.ozon_route(runner, work, runtime, label, source_route, expected_version=original.current_composed_version())
             # A04 safety regressions must exercise the composed runtime AND
             # the exact extracted ZIP, not merely the repository source.
@@ -79,6 +84,10 @@ def main():
             runner.run(label + "-ozon-seller-postfetch-diagnostics",
                        ["node", ROOT / "tests/regression/extension-core/ozon-seller-postfetch-diagnostics.mjs", provider, transport])
             runner.run(label + "-contracts", ["node", ROOT / "tests/regression/extension-core/core-contracts.mjs", runtime])
+            runner.run(label + "-ozon-grouped-json-projection",
+                       ["node", ROOT / "tests/regression/extension-core/ozon-grouped-json-projection.mjs", runtime])
+            runner.run(label + "-report-guidance-consumer",
+                       ["node", ROOT / "tests/regression/extension-core/report-guidance-consumer.mjs", runtime])
             runner.run(label + "-ozon-guidance-entitlement", ["node", ROOT / "tests/regression/extension-core/ozon-guidance-entitlement.mjs", runtime])
             runner.run(label + "-ozon-advertising-guidance-readiness", ["node", ROOT / "tests/regression/extension-core/ozon-advertising-guidance-readiness.mjs", runtime])
             runner.run(label + "-ozon-search-guidance-readiness", ["node", ROOT / "tests/regression/extension-core/ozon-search-guidance-readiness.mjs", runtime])
@@ -88,8 +97,12 @@ def main():
             runner.run(label + "-context", ["node", ROOT / "tests/regression/extension-core/batch-context.mjs", runtime])
             runner.run(label + "-attachment-port-idle", ["node", ROOT / "tests/regression/extension-core/attachment-port-idle.mjs", runtime])
             runner.run(label + "-wb-adapter", ["node", ROOT / "tests/regression/extension-core/wb-adapter.mjs", runtime])
+            # CAP19 runs through the current producer, queue and real attachment port in both exact artifacts.
+            runner.run(label + "-wb-sales-finance-runtime-wiring", ["node", ROOT / "tests/regression/extension-core/wb-sales-finance-runtime-wiring.mjs", runtime])
+            runner.run(label + "-wb-sales-finance-derived-attachment", ["node", ROOT / "tests/regression/extension-core/wb-sales-finance-derived-attachment.mjs", runtime])
             runner.run(label + "-wb-token-field-name-privacy", ["node", ROOT / "tests/regression/extension-core/wb-token-field-name-privacy.mjs", runtime])
             runner.run(label + "-application", ["node", ROOT / "tests/regression/extension-core/application.mjs", runtime])
+            runner.run(label + "-delivery-send-target", ["node", ROOT / "tests/regression/extension-core/delivery-send-target.mjs", runtime])
             runner.run(label + "-backup-runtime-context", ["node", ROOT / "tests/regression/extension-core/client-i1/client-backup-runtime-context-wiring.mjs", runtime])
             runner.run(label + "-owner-opera-start-keys", ["node", ROOT / "tests/regression/extension-core/owner-opera-start-keys.mjs", runtime])
             runner.run(label + "-transfer-recipient-recovery", ["node", ROOT / "tests/regression/extension-core/client-i1/client-transfer-recipient-recovery.mjs", runtime])

@@ -20,8 +20,9 @@ async function saBrowserPage(tabId) {
 async function saUnavailablePage(tabId, error) {
   let page = null;
   try { page = await saBrowserPage(tabId); } catch (_) {}
-  return { supported: Boolean(page), aiFamily: page?.aiFamily || null,
-    runtimeStatus: "unavailable", errorCode: saSupportCode(error?.code) || "IDENTITY_UNAVAILABLE",
+  const releaseSupported = Boolean(page && globalThis.SellerAgentsAiReleaseScope?.supportsFamily?.(page.aiFamily));
+  return { supported: releaseSupported, releaseSupported, aiFamily: page?.aiFamily || null,
+    runtimeStatus: "unavailable", errorCode: page && !releaseSupported ? "AI_NOT_IN_CURRENT_RELEASE" : saSupportCode(error?.code) || "IDENTITY_UNAVAILABLE",
     transportClass: safeTabMessageTransportClass(error?.transport_class) };
 }
 async function saPreparePageReceiver(tabId) {
@@ -29,6 +30,8 @@ async function saPreparePageReceiver(tabId) {
   if (saPageEntryFlights.has(tab)) return saPageEntryFlights.get(tab);
   const flight = (async () => {
     const before = await saBrowserPage(tab);
+    if (!globalThis.SellerAgentsAiReleaseScope?.supportsFamily?.(before.aiFamily))
+      throw saError("WORK_UNSUPPORTED_AI");
     // Another Start or document_idle may have installed the receiver meanwhile.
     const observed = await tabMessage(tab, { type: "OZ_GET_IDENTITY" });
     if (observed?.ok && observed.identity) return;
@@ -158,20 +161,25 @@ async function saInitializeOnce() {
 async function saTransferSourceSend(message) {
   const request = message.request;
   if (!request?.requestId || !request.recipientPublicKeySpki) throw saError("TRANSFER_INVALID");
-  const accountId = await SellerAgentsControlClient.currentAccount(), authority = await SellerAgentsControlClient.getAuthority();
-  const sourceDeviceId = authority?.deviceId;
+  // Pin the existing account/session generation across catalog and crypto awaits.
+  const sourceContext = await SellerAgentsControlClient.captureBackupContext();
+  const { accountId, deviceId: sourceDeviceId } = sourceContext;
   if (!accountId || !sourceDeviceId || request.accountId !== accountId) throw saError("TRANSFER_ACCOUNT_MISMATCH");
-  await SellerAgentsControlClient.markCredentialTransferSourceSeen(request.requestId);
+  if (!["REQUESTED", "SOURCE_SEEN"].includes(request.state) || request.sourceDeviceId && request.sourceDeviceId !== sourceDeviceId) throw saError("TRANSFER_CONFLICT");
+  if (!Array.isArray(request.selectedStores) || request.selectedStores.some(item => typeof item?.storeId !== "string" || !item.storeId)) throw saError("TRANSFER_INVALID");
   // Empty selection is the recipient's explicit request for all locally
   // available stores (including on a fresh installation with no catalog).
-  const selected = new Set((request.selectedStores || []).map(item => item.storeId));
+  const selected = new Set(request.selectedStores.map(item => item.storeId));
   const stores = [];
   for (const store of await saCatalog.list()) {
+    SellerAgentsControlClient.assertCredentialTransferContext(sourceContext);
     if (selected.size && !selected.has(store.id)) continue;
     const full = await saCatalog.get(store.id);
+    SellerAgentsControlClient.assertCredentialTransferContext(sourceContext);
     if (full.accountId !== accountId) throw saError("TRANSFER_ACCOUNT_MISMATCH");
-    const hasKeys = full.marketplace === "wildberries" ? Boolean(full.credentials?.token) : Boolean(full.credentials?.seller?.clientId && full.credentials?.seller?.apiKey);
-    if (full.credentialsStale || !hasKeys) {
+    const present = value => typeof value === "string" && value.trim().length > 0;
+    const hasKeys = full.marketplace === "wildberries" ? present(full.credentials?.token) : full.marketplace === "ozon" && present(full.credentials?.seller?.clientId) && present(full.credentials?.seller?.apiKey);
+    if (full.credentialsStale || !hasKeys || (full.lifecycleState || "ACTIVE") !== "ACTIVE" || !present(full.credentialRevision)) {
       if (selected.size) throw saError("TRANSFER_CREDENTIALS_MISSING");
       continue;
     }
@@ -180,7 +188,12 @@ async function saTransferSourceSend(message) {
   if (!stores.length || selected.size && stores.length !== selected.size) throw saError("TRANSFER_CREDENTIALS_MISSING");
   const packetId = crypto.randomUUID();
   const envelope = await SellerAgentsCredentialTransferCrypto.encrypt({ accountId, requestId: request.requestId, sourceDeviceId, recipientDeviceId: request.recipientDeviceId, packetId, recipientPublicKeySpki: request.recipientPublicKeySpki, payload: { transferPayloadVersion: "seller_agents_credential_payload_v1", stores } });
-  await SellerAgentsControlClient.submitCredentialTransferPacket({ requestId: request.requestId, packetId, envelope });
+  SellerAgentsControlClient.assertCredentialTransferContext(sourceContext);
+  // All local validation and encryption precede the server's atomic source claim.
+  // An empty or partially eligible installation must leave another source free.
+  await SellerAgentsControlClient.markCredentialTransferSourceSeen(request.requestId, sourceContext);
+  SellerAgentsControlClient.assertCredentialTransferContext(sourceContext);
+  await SellerAgentsControlClient.submitCredentialTransferPacket({ requestId: request.requestId, packetId, envelope }, sourceContext);
   return { ok: true, requestId: request.requestId, packetId };
 }
 async function saTransferReceive(message) {
@@ -326,18 +339,73 @@ async function saPendingGuard(pending) {
       provenance.aiProfileContentSha256 !== profile.contentSha256)
     throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
 }
+// Diagnostic-only projection. Never persist evaluator input, envelopes, identifiers,
+// free-form error text, or values from a producer response.
+const saWorkAdmissionDiagnostics = new WeakMap();
+const saWorkAdmissionBranches = new Set([
+  "SIGNED_HEALTH_DENY", "HEALTH_ACQUISITION", "LOCAL_EVALUATOR",
+  "LOCAL_EVALUATOR_ERROR", "LOCAL_CONTEXT", "START_PREPARATION", "UNKNOWN",
+]);
+const saWorkAdmissionReasons = new Set([
+  "DENY_AUTH_INVALIDATED", "DENY_CACHE_EXPIRED", "DENY_ACCOUNT_MISMATCH",
+  "DENY_DEVICE_SESSION_MISMATCH", "DENY_AI_PROFILE_MISMATCH",
+  "DENY_BINDING_CONTEXT", "DENY_STORE_CONTEXT", "DENY_CREDENTIAL_REVISION",
+  "DENY_CAPABILITY", "DENY_HEALTH_OBSERVATION", "healthObservation",
+]);
+const saWorkAdmissionGates = new Set([
+  "signedBootstrap", "freshness", "cacheOwnership", "bootstrapCompatibility",
+  "accessBasis", "cacheBinding", "account", "device", "session", "generation",
+  "pageIdentity", "aiProfile", "dialogue", "store", "binding", "bindingStore",
+  "credentialRevision", "bindingRevision", "workIntent", "aiProfileContent",
+  "sourceCapability", "aiCapability",
+]);
+const saWorkAdmissionHealthCodes = new Set([
+  "WORK_AUTHORITY_DENIED", "CONTROL_TRANSPORT_UNAVAILABLE",
+  "BOOTSTRAP_UNAVAILABLE", "PRODUCER_UNAVAILABLE", "AUTH_REQUIRED",
+  "AUTH_CONTEXT_INVALID", "AUTH_GENERATION_CHANGED", "HEALTH_CONTEXT_INVALID",
+  "HEALTH_CONTEXT_MISMATCH", "HEALTH_INVALID_SIGNATURE",
+  "HEALTH_INVALID_PAYLOAD_SCHEMA", "HEALTH_TECHNICAL_PERMISSION_REQUIRED",
+  "HEALTH_INVALID_ENVELOPE", "HEALTH_UNKNOWN_SIGNING_KEY",
+  "HEALTH_INVALID_PAYLOAD_ENCODING", "HEALTH_INVALID_PAYLOAD_JSON",
+  "HEALTH_NON_CANONICAL_PAYLOAD",
+]);
+function saProjectWorkAdmissionDiagnostic(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const reasons = Array.isArray(value.deniedGates) ? value.deniedGates : [];
+  const failed = Array.isArray(value.failedGates) ? value.failedGates : [];
+  const health = value.health && typeof value.health === "object" ? value.health : {};
+  return Object.freeze({
+    schemaVersion: "work_admission_diagnostic_v1",
+    branch: saWorkAdmissionBranches.has(value.branch) ? value.branch : "UNKNOWN",
+    deniedGates: Object.freeze([...new Set(reasons.filter(code => saWorkAdmissionReasons.has(code)))]),
+    failedGates: Object.freeze([...new Set(failed.filter(gate => saWorkAdmissionGates.has(gate)))]),
+    executionAuthorityRejected: value.executionAuthorityRejected === true,
+    health: Object.freeze({
+      observation: ["PASS", "DENY", "UNAVAILABLE", "ERROR"].includes(health.observation) ? health.observation : "NOT_OBSERVED",
+      code: saWorkAdmissionHealthCodes.has(health.code) ? health.code : health.code == null ? null : "UNRECOGNIZED",
+      httpStatus: Number.isInteger(health.httpStatus) && health.httpStatus >= 100 && health.httpStatus <= 599 ? health.httpStatus : null,
+    }),
+  });
+}
+function saRememberWorkAdmissionDiagnostic(error, value) {
+  if (error && (typeof error === "object" || typeof error === "function") &&
+      !saWorkAdmissionDiagnostics.has(error)) {
+    saWorkAdmissionDiagnostics.set(error, saProjectWorkAdmissionDiagnostic(value));
+  }
+  return error;
+}
 function saAdmissionError(code, deniedGates = []) {
   const error = saError(code);
   error.deniedGates = [...deniedGates];
   return error;
 }
-async function saRecordBindingMutation(binding, conversationKey, store = null) {
+async function saRecordBindingMutation(binding, conversationKey, store = null, workGeneration = null) {
   if (!globalThis.SellerAgentsSyncJournal || !binding) return null;
-  return SellerAgentsSyncJournal.recordBinding({ binding, conversationKey, store }).catch(() => null);
+  return SellerAgentsSyncJournal.recordBinding({ binding, conversationKey, store, workGeneration }).catch(() => null);
 }
-async function saRecordFinishMutation(conversationKey, binding = null, store = null) {
+async function saRecordFinishMutation(conversationKey, binding = null, store = null, workGeneration = null) {
   if (!globalThis.SellerAgentsSyncJournal) return null;
-  return SellerAgentsSyncJournal.recordFinish({ binding, conversationKey, store }).catch(() => null);
+  return SellerAgentsSyncJournal.recordFinish({ binding, conversationKey, store, workGeneration }).catch(() => null);
 }
 async function saRecordDeliveryMarker(conversationKey, binding = null, store = null, deliveryId = "", deliveryOrder = null) {
   if (!globalThis.SellerAgentsSyncJournal) return null;
@@ -405,6 +473,8 @@ function saCancelAdmission(tabId, conversationKey = null) {
   const tab = Number(tabId);
   const key = conversationKey ? normalizeConversationKey(conversationKey) : null;
   const waits = [];
+  try { globalThis.SellerAgentsWBSalesFinanceManual?.invalidateForTab(tab, key); }
+  catch (_) { globalThis.SellerAgentsWBCAP19CancellationFault = true; }
   for (const token of saAdmissionEpochs.values()) {
     if (token.tabId === tab || key && token.conversationKey === key) {
       token.cancelled = true;
@@ -415,6 +485,8 @@ function saCancelAdmission(tabId, conversationKey = null) {
 }
 function saCancelAdmissionsForStore(storeId) {
   const waits = [];
+  try { globalThis.SellerAgentsWBSalesFinanceManual?.invalidateForStore(storeId); }
+  catch (_) { globalThis.SellerAgentsWBCAP19CancellationFault = true; }
   for (const token of saAdmissionEpochs.values()) if (token.store?.id === storeId) {
     token.cancelled = true;
     if (token.mutationFlight) waits.push(token.mutationFlight);
@@ -662,9 +734,18 @@ async function saReadAdmissionSnapshot({ operation, tabId, store, intentId, conv
   const newInactiveStart = operation === "start" &&
     work?.state === OzonWorkSessionModel.STATES.INACTIVE &&
     binding?.store_context?.storeId === store?.id;
-  const bindingContext = newInactiveStart && binding.store_context.authGeneration !== undefined
-    ? { ...binding.store_context, authGeneration: await SellerAgentsControlClient.generation() }
-    : binding?.store_context;
+  // Store policy edits finish the old Work without rewriting its binding.
+  // Only a new explicit Start after that proven Finish may pin the current
+  // policy. Resume/commands and the account/store/credential fences stay strict.
+  const finishedRestart = newInactiveStart && work.finished === true &&
+    work.terminal_state_known === true && Boolean(work.start_intent_id) &&
+    work.work_session_id === work.start_intent_id;
+  const bindingContext = newInactiveStart ? {
+    ...binding.store_context,
+    ...(finishedRestart ? { policyRevision: saStoreContext(store).policyRevision } : {}),
+    ...(binding.store_context.authGeneration === undefined ? {} :
+      { authGeneration: await SellerAgentsControlClient.generation() }),
+  } : binding?.store_context;
   const bindingStore = bindingContext ? await saAssertStore(bindingContext) : null;
   const liveStore = store ? await saAssertStore(saStoreContext(store)) : (binding?.store_context ? await saAssertStore(binding.store_context) : null);
   if (!liveStore) throw saAdmissionError("STORE_NOT_FOUND");
@@ -714,17 +795,24 @@ function saIsHealthTransportUnavailable(error) {
   return error?.code === "CONTROL_TRANSPORT_UNAVAILABLE" ||
     error?.status === 503 && ["PRODUCER_UNAVAILABLE", "BOOTSTRAP_UNAVAILABLE"].includes(error?.code);
 }
-async function saObserveHealth(initial) {
+async function saObserveHealth(initial, observation = null) {
   try {
     const health = await SellerAgentsControlClient.acquireSignedHealthAuthority({
       detectedAi: { family: initial.identity.ai_id, surface: initial.authority.payload.ai.detected.surface, variant: initial.authority.payload.ai.detected.variant },
       context: { generation: initial.fence.generation, deviceId: initial.fence.deviceId, sessionId: initial.fence.sessionId }
     });
-    if (health?.payload?.status === "DENY") throw saAdmissionError("WORK_AUTHORITY_DENIED", ["healthObservation"]);
+    if (observation) observation.health = { observation: health?.payload?.status };
+    if (health?.payload?.status === "DENY") throw saRememberWorkAdmissionDiagnostic(
+      saAdmissionError("WORK_AUTHORITY_DENIED", ["healthObservation"]),
+      { branch: "SIGNED_HEALTH_DENY", deniedGates: ["healthObservation"], health: observation?.health },
+    );
     return health;
   } catch (error) {
+    const health = { observation: saIsHealthTransportUnavailable(error) ? "UNAVAILABLE" : "ERROR", code: error?.code, httpStatus: error?.status };
+    if (observation && !observation.health) observation.health = health;
     if (saIsHealthTransportUnavailable(error)) return null;
-    throw error;
+    throw saRememberWorkAdmissionDiagnostic(error, { branch: "HEALTH_ACQUISITION", health });
+
   }
 }
 async function saAdmitWork({ operation, tabId, store, intentId, conversationKey = null, rebindPlan = null, entryToken = null }) {
@@ -745,7 +833,8 @@ async function saAdmitWork({ operation, tabId, store, intentId, conversationKey 
   try {
     /* Health is an optional online observation. It can report a verified denial,
      * but its successful acquisition is never the lifecycle authority. */
-    await saObserveHealth(initial);
+    const observation = {};
+    await saObserveHealth(initial, observation);
     if (!saAdmissionCurrent(token)) throw saAdmissionError("WORK_ADMISSION_CANCELLED");
     const afterHealth = await saReadAdmissionSnapshot({ operation, tabId, store, intentId, conversationKey, admissionEpoch: token.id });
     if (!saSameFence(initial.fence, afterHealth.fence)) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
@@ -753,14 +842,28 @@ async function saAdmitWork({ operation, tabId, store, intentId, conversationKey 
     if (!saSameFence(afterHealth.fence, inputSnapshot.fence)) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
     const projection = validatedPlan ? saRebindProjection(validatedPlan) : null;
     const input = await saAdmissionInput({ operation, tabId, identity: inputSnapshot.identity, key: inputSnapshot.key, binding: projection ? projection.binding : inputSnapshot.binding, work: projection ? projection.work : inputSnapshot.work, store: inputSnapshot.store });
-    const decision = await SellerAgentsAutonomousWorkAuthority.evaluate(input);
+    let decision;
+    try { decision = await SellerAgentsAutonomousWorkAuthority.evaluate(input); }
+    catch (error) {
+      throw saRememberWorkAdmissionDiagnostic(error, { branch: "LOCAL_EVALUATOR_ERROR", health: observation.health });
+    }
     if (!saAdmissionCurrent(token)) throw saAdmissionError("WORK_ADMISSION_CANCELLED");
     const beforeMutation = await saReadAdmissionSnapshot({ operation, tabId, store, intentId, conversationKey, admissionEpoch: token.id });
     if (!saSameFence(inputSnapshot.fence, beforeMutation.fence)) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
-    if (decision.executionAuthority !== false || decision.allowed !== true) throw saAdmissionError("WORK_AUTHORITY_DENIED", decision.deniedGates);
+    if (decision.executionAuthority !== false || decision.allowed !== true) throw saRememberWorkAdmissionDiagnostic(
+      saAdmissionError("WORK_AUTHORITY_DENIED", decision.deniedGates),
+      {
+        branch: "LOCAL_EVALUATOR", deniedGates: decision.deniedGates,
+        failedGates: Object.keys(decision.gates || {}).filter(gate => decision.gates[gate] === false),
+        executionAuthorityRejected: decision.executionAuthority !== false,
+        health: observation.health,
+      },
+    );
     token.fence = beforeMutation.fence;
     token.admitted = true;
     return { token, snapshot: beforeMutation, decision };
+  } catch (error) {
+    throw saRememberWorkAdmissionDiagnostic(error, { branch: "LOCAL_CONTEXT" });
   } finally {
     if (!token.admitted && saAdmissionEpochs.get(admissionKey) === token) saAdmissionEpochs.delete(admissionKey);
   }
@@ -1016,7 +1119,12 @@ async function saGuard(owner) {
 const SA_SIGNED_PROFILE_ORIGINS = Object.freeze({
   chatgpt: Object.freeze(["https://chatgpt.com", "https://chat.openai.com"]),
   alice: Object.freeze(["https://alice.yandex.ru"]),
-  qwen: Object.freeze(["https://chat.qwen.ai"])
+  qwen: Object.freeze(["https://chat.qwen.ai"]),
+  kimi: Object.freeze(["https://www.kimi.ai"]),
+  grok: Object.freeze(["https://grok.com"]),
+  gemini: Object.freeze(["https://gemini.google.com"]),
+  claude: Object.freeze(["https://claude.ai"]),
+  deepseek: Object.freeze(["https://chat.deepseek.com"])
 });
 function saSignedProfileOriginAllowed(family, origin) {
   const allowed = SA_SIGNED_PROFILE_ORIGINS[family];
@@ -1097,6 +1205,9 @@ async function saSignedProfileRequest(message, sender) {
   catch (_) { return saSignedProfileUnavailable(message, "AI_SCOPE_MISMATCH"); }
   if (identity?.ai_id !== message.ai.family || String(identity.origin || "").toLowerCase() !== trusted.origin)
     return saSignedProfileUnavailable(message, "AI_SCOPE_MISMATCH");
+
+  if (consumer.releaseAvailable?.(message.ai) !== true)
+    return saSignedProfileUnavailable(message, "WORK_NOT_ALLOWED");
 
   const captured = await saSignedProfileSnapshot(identity).catch(() => null);
   if (!captured) return saSignedProfileUnavailable(message, "NO_VERIFIED_AUTHORITY");
@@ -1187,7 +1298,7 @@ async function saSignedProfileReceipt(message, sender) {
 async function saBroadcastSignedProfileRefresh(reason = "authority_changed") {
   const boundedReason = reason === "profile_changed" ? "profile_changed" : "authority_changed";
   const tabs = await chrome.tabs.query({
-    url: ["https://chatgpt.com/*", "https://chat.openai.com/*", "https://alice.yandex.ru/*", "https://chat.qwen.ai/*"]
+    url: ["https://chatgpt.com/*", "https://chat.openai.com/*", "https://alice.yandex.ru/*", "https://chat.qwen.ai/*", "https://www.kimi.ai/*", "https://grok.com/*", "https://gemini.google.com/*", "https://claude.ai/*", "https://chat.deepseek.com/*"]
   }).catch(() => []);
   await Promise.allSettled(tabs.filter(tab => Number.isSafeInteger(tab?.id))
     .map(tab => tabMessage(tab.id, { type: "OZ_SIGNED_AI_PROFILE_REFRESH", reason: boundedReason })));
@@ -1346,6 +1457,8 @@ async function saLastStartDiagnostic(tabId = null) {
         stage: saSupportToken(row.stage) || "request",
         code: saSupportCode(row.code),
         outcome: saSupportToken(row.outcome) || "unknown",
+        ...(row.admission?.schemaVersion === "work_admission_diagnostic_v1"
+          ? { admission: saProjectWorkAdmissionDiagnostic(row.admission) } : {}),
       };
     }
     if (event === "WORK_START_ASYNC_DISPATCH_FAILED" || event === "WORK_START_SEND_FAILED") {
@@ -1407,7 +1520,7 @@ async function saSupportSnapshot(tabId) {
   const version = typeof observed.version === "string" && /^\d+(?:\.\d+){0,3}$/.test(observed.version) ? observed.version : null;
   const workState = saSupportToken(popup.work?.state);
   const detectedAiFamily = popup.identity?.ai_id || popup.page?.aiFamily;
-  const aiFamily = ["chatgpt", "alice", "qwen"].includes(detectedAiFamily) ? detectedAiFamily : null;
+  const aiFamily = ["chatgpt", "alice", "qwen", "kimi", "grok", "gemini", "claude", "deepseek"].includes(detectedAiFamily) ? detectedAiFamily : null;
   const lastStart = popup.lastStart || null;
   return Object.freeze({
     snapshotVersion: "seller_agents_support_snapshot_v1",
@@ -1481,7 +1594,8 @@ async function saPopupState(tabId) {
   try {
     live = await tabIdentity(normalizeTabId(tabId));
     usableIdentity = true;
-    page = { supported: true, aiFamily: live.ai_id, runtimeStatus: "ready", errorCode: null, transportClass: null };
+    const releaseSupported = globalThis.SellerAgentsAiReleaseScope?.supportsFamily?.(live.ai_id) === true;
+    page = { supported: releaseSupported, releaseSupported, aiFamily: live.ai_id, runtimeStatus: "ready", errorCode: releaseSupported ? null : "AI_NOT_IN_CURRENT_RELEASE", transportClass: null };
   } catch (error) { page = await saUnavailablePage(tabId, error); }
   const key = usableIdentity && live.conversation_id ? conversationKeyFromIdentity(live) : null;
   const pending = usableIdentity ? (await getPendingWorkStarts())[String(tabId)] || null : null;
@@ -1502,6 +1616,83 @@ async function saPopupState(tabId) {
     identity: live, page, conversation_key: key, context, work: publicWork, lastStart, dispatchProgress,
     recovery: key ? await saR3RecoverySummary(key, work) : [],
     operation: key ? publicManualOperation(await getManualOperation(key)) : null };
+}
+// The binding commit follows an acknowledged Finish, whose revision is one
+// greater than the local binding. Recheck that exact predecessor here: Start
+// admission may have happened before an asynchronous identity/response wait.
+async function saNextBindingRevision({ binding, conversationKey, workStartIntentId }) {
+  const revision = Number(binding?.revision || 0);
+  if (!Number.isSafeInteger(revision) || revision < 0 || !Number.isSafeInteger(revision + 1))
+    throw saError("SYNC_BINDING_FENCE");
+  if (!binding || !workStartIntentId || !await saEnabled() || !globalThis.SellerAgentsSyncJournal)
+    return revision + 1;
+  const accountId = await SellerAgentsControlClient.currentAccount();
+  const entityId = await SellerAgentsSyncJournal.entityIdForConversation(conversationKey);
+  const journal = await SellerAgentsSyncJournal.read();
+  const known = journal.reconciliation[`${accountId}\u001f${entityId}`];
+  const server = known?.serverState;
+  if (server?.bindingState !== "FINISHED") return revision + 1;
+  const work = await workSessionFor(conversationKey);
+  const source = binding.store_context;
+  const unresolved = Object.values(journal.entries).some(entry =>
+    entry.accountId === accountId && entry.entityId === entityId &&
+    ["BINDING_UPSERT", "FINISH"].includes(entry.kind));
+  if (!accountId || source?.accountId !== accountId ||
+      unresolved || !["IN_SYNC", "SERVER_AHEAD_COMPATIBLE"].includes(known?.classification) ||
+      work?.state !== OzonWorkSessionModel.STATES.INACTIVE ||
+      work.finished !== true || work.terminal_state_known !== true ||
+      !work.start_intent_id || work.work_session_id !== work.start_intent_id ||
+      workStartIntentId === work.start_intent_id ||
+      server.bindingId !== binding.binding_id || server.bindingRevision !== revision + 1 ||
+      server.storeId !== source.storeId || server.marketplace !== source.marketplace ||
+      (server.workGeneration !== null && server.workGeneration !== work.start_intent_id) ||
+      (server.accountId != null && server.accountId !== accountId) ||
+      (server.entityId != null && server.entityId !== entityId) ||
+      !Number.isSafeInteger(server.bindingRevision + 1) ||
+      manualOperationActive(await getManualOperation(conversationKey)) ||
+      await SellerAgentsControlClient.currentAccount() !== accountId)
+    throw saError("SYNC_SERVER_FINISH_FENCE");
+  return server.bindingRevision + 1;
+}
+
+async function saAssertExplicitStartReconciliation({ binding, store, sourceStore = null, key, work, intentId, plan }) {
+  try {
+    return await saAssertReconciliationAction(binding, sourceStore || store, key, work?.start_intent_id || null);
+  } catch (error) {
+    // A new explicit Start may supersede only this Work's acknowledged Finish.
+    // Resume, commands, deliveries and genuine conflicts retain the normal fence.
+    if (error?.code !== "SYNC_SERVER_FINISH_FENCE" || !plan) throw error;
+    const current = await saReadAdmissionSnapshot({
+      operation: "start", tabId: plan.tabId, store, intentId, conversationKey: key,
+    });
+    saValidateRebindPlan(plan, current);
+    const finished = current.work;
+    if (finished?.state !== OzonWorkSessionModel.STATES.INACTIVE ||
+        finished.finished !== true || finished.terminal_state_known !== true ||
+        !finished.start_intent_id || finished.work_session_id !== finished.start_intent_id ||
+        finished.start_intent_id !== plan.sourceWorkIntentId ||
+        !intentId || intentId === finished.start_intent_id) throw error;
+    if (manualOperationActive(await getManualOperation(key))) throw saError("WORK_START_ALREADY_IN_PROGRESS");
+    const accountId = await SellerAgentsControlClient.currentAccount();
+    if (!accountId || accountId !== plan.accountId) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
+    const entityId = await SellerAgentsSyncJournal.entityIdForConversation(key);
+    const journal = await SellerAgentsSyncJournal.read();
+    const known = journal.reconciliation[`${accountId}\u001f${entityId}`];
+    const server = known?.serverState;
+    const unresolved = Object.values(journal.entries).some(entry =>
+      entry.accountId === accountId && entry.entityId === entityId &&
+      ["BINDING_UPSERT", "FINISH"].includes(entry.kind));
+    if (unresolved || !["IN_SYNC", "SERVER_AHEAD_COMPATIBLE"].includes(known?.classification) ||
+        server?.bindingState !== "FINISHED" || server.bindingId !== plan.bindingId ||
+        !Number.isSafeInteger(plan.bindingRevision) || server.bindingRevision !== plan.bindingRevision + 1 ||
+        server.storeId !== plan.sourceStoreId || server.marketplace !== plan.sourceMarketplace ||
+        (server.workGeneration !== null && server.workGeneration !== finished.start_intent_id) ||
+        (server.accountId != null && server.accountId !== accountId) ||
+        (server.entityId != null && server.entityId !== entityId)) throw error;
+    // A null generation is retained only for the already-acknowledged legacy
+    // Finish. The successor gets a new intent and binding through normal Start.
+    return true;
+  }
 }
 async function saWorkStart(message, sender) {
   OzonWorkSessionModel.assertStorageAvailable();
@@ -1548,9 +1739,12 @@ async function saWorkStart(message, sender) {
     if (changingStore && await getManualOperation(key).then(manualOperationActive)) throw saError("WORK_START_ALREADY_IN_PROGRESS");
     const intentId = String(message.start_intent_id || "").trim() || `work-start-${crypto.randomUUID()}`;
     const authority = await SellerAgentsControlClient.getAuthority(live);
-    const sourceStore = changingStore ? await saAssertStore(binding.store_context) : null;
-    await saAssertReconciliationAction(binding, sourceStore || store, key);
-    const plan = changingStore ? saRebindPlan({ tabId: message.tab_id, identity: live, key, binding, work, sourceStore, targetStore: store, intentId, authority }) : null;
+    const restartingFinished = Boolean(binding && work?.state === OzonWorkSessionModel.STATES.INACTIVE &&
+      work.finished === true && work.terminal_state_known === true);
+    const sourceStore = changingStore ? await saAssertStore(binding.store_context) : restartingFinished ? store : null;
+    const plan = changingStore || restartingFinished
+      ? saRebindPlan({ tabId: message.tab_id, identity: live, key, binding, work, sourceStore, targetStore: store, intentId, authority }) : null;
+    await saAssertExplicitStartReconciliation({ binding, store, sourceStore, key, work, intentId, plan });
     if (key && !changingStore && ![OzonWorkSessionModel.STATES.INACTIVE, OzonWorkSessionModel.STATES.ERROR].includes(work?.state))
       throw saError("WORK_START_ALREADY_IN_PROGRESS");
     if (entry.generation !== await SellerAgentsControlClient.generation()) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
@@ -1571,6 +1765,10 @@ async function saWorkStart(message, sender) {
         await saAdmissionMutationGuard({ operation: "start", tabId: message.tab_id, conversationKey: admission.snapshot.key, intentId });
         await saEnsureTabSignedProfile(message.tab_id, admission.snapshot.fence);
         await saAdmissionMutationGuard({ operation: "start", tabId: message.tab_id, conversationKey: admission.snapshot.key, intentId });
+        if (restartingFinished) {
+          await saAssertExplicitStartReconciliation({ binding, store, sourceStore, key, work, intentId, plan });
+          await saAdmissionMutationGuard({ operation: "start", tabId: message.tab_id, conversationKey: admission.snapshot.key, intentId });
+        }
         const started = await saLegacyMessage({ type: "OZ_WORK_START", tab_id: message.tab_id, start_intent_id: intentId, admission_provenance: provenance, prompt_tree: promptTree.pin }, sender);
         return { ...started, prompt_tree_available: promptTree.available, prompt_tree_warning: promptTree.warning };
       });
@@ -1593,6 +1791,8 @@ async function saWorkStart(message, sender) {
       stage: "rejected",
       code: saSupportCode(error?.code) || "WORK_START_FAILED",
       outcome: "failed",
+      admission: saWorkAdmissionDiagnostics.get(error) ||
+        saProjectWorkAdmissionDiagnostic({ branch: "START_PREPARATION" }),
       external_request_executed: false,
     });
     throw error;
@@ -1643,6 +1843,8 @@ async function saHandleMessage(message, sender) {
   if (message?.type?.startsWith("SA_")) {
     if (!saPopupSender(sender) && !saBackupImportSender(sender, message.type)) throw saError("POPUP_SENDER_REQUIRED");
     if (message.type === "SA_AUTH_STATE") return { ok: true, auth: await SellerAgentsControlClient.status() };
+    if (message.type === "SA_AUTH_CONNECT_CODE") return { ok: true, auth: await SellerAgentsControlClient.connectWithCode({ code: message.code }) };
+    if (message.type === "SA_AUTH_OPEN_CABINET") return { ok: true, portalUrl: await SellerAgentsControlClient.openConnectionCabinet() };
     if (message.type === "SA_AUTH_START") return { ok: true, auth: await SellerAgentsControlClient.startActivation() };
     if (message.type === "SA_AUTH_OPEN_PORTAL") return { ok: true, portalUrl: await SellerAgentsControlClient.openPortal() };
     if (message.type === "SA_AUTH_CANCEL") return { ok: true, auth: await SellerAgentsControlClient.cancelActivation() };
@@ -1777,14 +1979,19 @@ async function saHandleMessage(message, sender) {
         const baseline = message.chatgpt_user_baseline;
         if (baseline !== undefined && (!Array.isArray(baseline) || baseline.length > 4096 ||
           !Array.from(baseline).every(id => typeof id === "string" && id.length > 0 && id.length <= 512))) throw saError("DELIVERY_BASELINE_INVALID");
+        const observationEpoch = message.user_observation_epoch;
+        if (observationEpoch !== undefined && (typeof observationEpoch !== "string" ||
+          !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(observationEpoch))) throw saError("DELIVERY_BASELINE_INVALID");
         granted = true;
         committedDelivery = { ...owner.delivery, sa_send_actor: message.actor_id, sa_send_committed_at: Date.now(),
-          sa_chatgpt_user_baseline: Array.isArray(baseline) ? [...new Set(baseline)] : null };
+          sa_chatgpt_user_baseline: Array.isArray(baseline) ? [...new Set(baseline)] : null,
+          sa_user_observation_epoch: observationEpoch || null };
         return { ...owner, delivery: committedDelivery };
       });
       return { ok: true, click_allowed: granted, code: granted ? "SEND_COMMITTED" : "SEND_OUTCOME_UNKNOWN_NO_RETRY",
         send_click_committed: Boolean(committedDelivery?.sa_send_actor),
-        chatgpt_user_baseline: Array.isArray(committedDelivery?.sa_chatgpt_user_baseline) ? committedDelivery.sa_chatgpt_user_baseline : null };
+        chatgpt_user_baseline: Array.isArray(committedDelivery?.sa_chatgpt_user_baseline) ? committedDelivery.sa_chatgpt_user_baseline : null,
+        user_observation_epoch: typeof committedDelivery?.sa_user_observation_epoch === "string" ? committedDelivery.sa_user_observation_epoch : null };
     }
     if (message.type === "OZ_WORK_START") throw saError("STORE_SELECTION_REQUIRED");
     if (["OZ_WORK_SHOW", "OZ_WORK_HIDE", "OZ_WORK_FINISH", "OZ_WORK_REFRESH"].includes(message.type) && !saPopupSender(sender)) throw saError("POPUP_SENDER_REQUIRED");
@@ -1808,7 +2015,8 @@ async function saHandleMessage(message, sender) {
         if (pending.conversation_key) {
           const binding = await bindingForConversationKey(pending.conversation_key);
           const store = binding?.store_context ? await saAssertStore(binding.store_context).catch(() => null) : null;
-          await saRecordFinishMutation(pending.conversation_key, binding, store);
+          const work = await workSessionFor(pending.conversation_key);
+          await saRecordFinishMutation(pending.conversation_key, binding, store, work?.start_intent_id || null);
         }
         return { ok: true, pending_cancelled: true };
       }
@@ -1843,12 +2051,15 @@ async function saHandleMessage(message, sender) {
   const result = await saLegacyMessage(message, sender);
   if (enabled && result?.ok && message.type === "OZ_WORK_PENDING_IDENTITY" && result.binding) {
     const store = result.binding.store_context ? await saAssertStore(result.binding.store_context) : null;
-    await saRecordBindingMutation(result.binding, result.binding.conversation_key || message.conversation_key, store);
+    const key = result.binding.conversation_key || message.conversation_key;
+    const work = await workSessionFor(key);
+    await saRecordBindingMutation(result.binding, key, store, work?.start_intent_id || null);
   }
   if (enabled && result?.ok && message.type === "OZ_WORK_FINISH") {
     const key = normalizeConversationKey(message.conversation_key), binding = await bindingForConversationKey(key);
     const store = binding?.store_context ? await saAssertStore(binding.store_context).catch(() => null) : null;
-    await saRecordFinishMutation(key, binding, store);
+    const work = await workSessionFor(key);
+    await saRecordFinishMutation(key, binding, store, work?.start_intent_id || null);
   }
   if (enabled && result?.ok && ["OZ_BATCH_DELIVERY_COMPLETE", "OZ_REPORT_DELIVERY_CONFIRMED"].includes(message.type)) {
     const copyOwner = await getManualOperation(message.conversation_key);
@@ -1890,7 +2101,10 @@ async function saCheckStore(message) {
   } catch (error) { result = { ok: false, http_status: error.http_status || 0 }; }
   await saAssertStore(pinned);
   const httpStatus = Number(result.http_status || 0);
-  const code = result.ok ? "ACCESS_CONFIRMED" : httpStatus === 401 ? "CREDENTIAL_REJECTED" : httpStatus === 403 ? "ACCESS_DENIED" : "CHECK_FAILED";
+  const credentialsRejected = httpStatus === 401 ||
+    (store.marketplace === "ozon" && message.part !== "performance" && httpStatus === 400 &&
+      String(result.code) === "3" && result.provider_error_category === "auth_or_permission");
+  const code = result.ok ? "ACCESS_CONFIRMED" : credentialsRejected ? "CREDENTIAL_REJECTED" : httpStatus === 403 ? "ACCESS_DENIED" : "CHECK_FAILED";
   let saved = await saCatalog.noteVerification(store.id, store.credentialRevision,
     store.marketplace === "wildberries" ? "token" : message.part === "performance" ? "performance" : "seller", { code, httpStatus });
   // Provider identity is authoritative only when the provider path explicitly
@@ -1931,9 +2145,18 @@ function saPrunePayload(owner, now = Date.now()) {
     })).slice(-32),
     delivery_id: owner.delivery?.delivery_id || owner.delivery_id || null,
   };
-  return { ...owner, status: "failed", batch: null, outgoing_text: null, delivery: null,
-    completed_at: owner.completed_at || new Date(now).toISOString(), recovery_fence: replayFence,
-    last_error: { code: "RESULT_BUFFER_EXPIRED" } };
+  // Retention expires report bytes, not a recorded terminal outcome. Completed
+  // delivery may retain its original buffer for Copy; failed/unknown outcomes
+  // must retain their original cause. Unfinished work still fails closed.
+  const terminal = owner.status === MANUAL_OPERATION_STATUSES.COMPLETED ||
+    owner.status === MANUAL_OPERATION_STATUSES.FAILED;
+  const outcome = terminal ? {} : {
+    status: MANUAL_OPERATION_STATUSES.FAILED,
+    completed_at: owner.completed_at || new Date(now).toISOString(),
+    last_error: { code: "RESULT_BUFFER_EXPIRED" },
+  };
+  return { ...owner, ...outcome, batch: null, outgoing_text: null, delivery: null,
+    recovery_fence: replayFence };
 }
 async function saAssertDeliveryOwner(owner) {
   if (!owner?.execution_context) throw SellerAgentsExecutionContext.error("EXECUTION_CONTEXT_MISSING");
@@ -1978,10 +2201,17 @@ const saFileOwners = SellerAgentsLocalOperations.createRecordStore({ read: keys 
 async function saCheckOzonFileRef(command, context) {
   if (command.operation !== "report_file_get") return;
   const owner = await saFileOwners.get(command.params.file_ref), pinned = context?.snapshot;
-  if (!pinned || !owner || owner.expires_at_ms <= Date.now() ||
-    ["accountId", "storeId", "credentialRevision"].some(field => owner[field] !== pinned[field]))
-    throw saError("REPORT_FILE_STORE_MISMATCH");
+  const assertFileOwner = () => {
+    if (!pinned || !owner || !Number.isSafeInteger(owner.expires_at_ms) ||
+      owner.expires_at_ms <= Date.now() ||
+      ["accountId", "storeId", "credentialRevision"].some(field => owner[field] !== pinned[field]))
+      throw saError("REPORT_FILE_STORE_MISMATCH");
+  };
+  assertFileOwner();
   await context.assertCurrent();
+  // The caller checks synchronously after its final pre-provider await. A
+  // previously valid ref must not outlive its owner deadline during preparation.
+  return assertFileOwner;
 }
 async function saRememberOzonFileRefs(response, context) {
   if (!context) return;
@@ -2231,7 +2461,7 @@ async function saR3RetryConfirm(message) {
 }
 
 function saR3CopyCandidate(owner) {
-  return Boolean(owner?.r3_execution_id && owner.outgoing_text && owner.payload_expires_at_ms > Date.now() &&
+  return Boolean(owner?.attachment_finalization?.state !== "PENDING" && owner?.r3_execution_id && owner.outgoing_text && owner.payload_expires_at_ms > Date.now() &&
     ["batch_watch_v1", "attachment_watch_v1"].includes(owner.delivery?.mode) &&
     (owner.status === MANUAL_OPERATION_STATUSES.COMPLETED || owner.delivery?.sa_send_actor || owner.delivery?.attachment_send_actor_id ||
       owner.delivery?.phase === BridgeAutorunModel.ATTACHMENT_PHASES.ATTACH_COMMITTED ||
@@ -2325,8 +2555,24 @@ async function saR3ReadBuffer(executionId, context) {
 }
 async function saR3RecordCopyConfirmation(key, deliveryId) {
   const owner = await getManualOperation(key);
-  if (owner?.r3_copy_delivery_id !== deliveryId || owner.status !== MANUAL_OPERATION_STATUSES.COMPLETED ||
-      !owner.delivery_confirmed || owner.last_confirmed_delivery_id !== deliveryId) return;
-  await saR3Ledger().recordCopyOutcome({ conversationKey: key, context: owner.execution_context, deliveryId, outcome: "CONFIRMED" });
-  saR3CopyPermits.delete(deliveryId);
+  if(owner?.r3_copy_delivery_id!==deliveryId)return;
+  const f=owner.attachment_finalization;
+  const confirmed=owner.status===MANUAL_OPERATION_STATUSES.COMPLETED && owner.delivery_confirmed===true && owner.last_confirmed_delivery_id===deliveryId;
+  const pending=f?.schema==="attachment_finalization_v1" && f.state==="PENDING" && f.all_parts_confirmed===true &&
+    f.owner_id===owner.operation_id && f.delivery_id===deliveryId && f.conversation_key===key;
+  if(!confirmed && !pending)return;
+  const sameConfirmed=current=>{
+    const row=current?.r3_commands?.deliveries?.[deliveryId];
+    return row?.state==="CONFIRMED" && row.deliveryId===deliveryId &&
+      SellerAgentsBootstrapVerifier.canonicalJson(row.context)===SellerAgentsBootstrapVerifier.canonicalJson(owner.execution_context);
+  };
+  if(!sameConfirmed(owner)){
+    try{await saR3Ledger().recordCopyOutcome({conversationKey:key,context:owner.execution_context,deliveryId,outcome:"CONFIRMED"});}
+    catch(error){
+      // An ACK write may have committed before its response failed. Only the
+      // exact same stored CONFIRMED outcome resolves that uncertainty.
+      if(!sameConfirmed(await getManualOperation(key)))throw error;
+    }
+  }
+  if(confirmed)saR3CopyPermits.delete(deliveryId);
 }

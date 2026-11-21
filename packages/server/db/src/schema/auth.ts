@@ -65,6 +65,10 @@ export const refreshTokens = pgTable(
     replayExpiresAt: timestamp("replay_expires_at", { withTimezone: true }),
   },
   (table) => [
+    check(
+      "refresh_tokens_p2_4_rotation_replay",
+      sql`(${table.rotationIdempotencyHash} IS NULL) = (${table.replayExpiresAt} IS NULL)`,
+    ),
     unique("refresh_tokens_token_hash_unique").on(table.tokenHash),
     index("refresh_tokens_session_id_index").on(table.sessionId),
     index("refresh_tokens_rotation_replay_index").on(

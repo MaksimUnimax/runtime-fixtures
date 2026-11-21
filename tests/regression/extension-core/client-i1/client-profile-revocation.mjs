@@ -45,7 +45,7 @@ for (const change of ["revision", "content", "compatibility"]) {
       payload.serverTime = new Date(Date.now() + ++count).toISOString();
       payload.configVersion += count;
       payload.ai.detected.family = family;
-      if (material && family === "chatgpt") {
+      if (material && family === "alice") {
         if (change === "revision") payload.ai.profile.revision++;
         if (change === "content") payload.ai.profile.content.observation.intervalMs++;
         if (change === "compatibility") payload.ai.profile.compatibility.browserFamilies.push("opera");
@@ -57,7 +57,9 @@ for (const change of ["revision", "content", "compatibility"]) {
         { headers: { "content-type": "application/json" } });
     } });
     template = structuredClone(backing.local[AUTH].authority.payload);
-    await worker.call("SellerAgentsControlClient.bootstrapWithPolicy", ai("chatgpt"));
+    // The excluded neighboring family must never acquire a grant or alter the Alice cache.
+    await assert.rejects(worker.call("SellerAgentsControlClient.bootstrapWithPolicy", ai("chatgpt")), {code:"WORK_UNSUPPORTED_AI"});
+    assert.equal(worker.controlNetwork.length, 0);
     await worker.call("SellerAgentsControlClient.bootstrapWithPolicy", ai("alice"));
     const saved = await worker.popup({ type: "SA_STORE_SAVE", store: {
       marketplace: "ozon", credentials: { seller: { clientId: "FIXTURE-CLIENT", apiKey: "FIXTURE-KEY" }, performance: {} },
@@ -69,8 +71,11 @@ for (const change of ["revision", "content", "compatibility"]) {
       'OZON_API_V1 {"operation":"seller_info","params":{}}', "profile-boundary-context");
     assert.ok(context);
     assert.equal((await validate(worker, context)).rejected, false);
-    const aliceBefore = (await worker.call("SellerAgentsControlClient.getCachedContinuationState", "alice")).authority.grantEpoch;
-    await worker.call("SellerAgentsControlClient.bootstrapWithPolicy", ai("chatgpt"));
+    const neighborBefore = await worker.call("SellerAgentsControlClient.getCachedContinuationState", "chatgpt");
+    assert.equal(neighborBefore.authority, null);
+    assert.equal(neighborBefore.grantEpoch, null);
+    assert.equal(await worker.call("SellerAgentsControlClient.canWork", "chatgpt"), false);
+    await worker.call("SellerAgentsControlClient.bootstrapWithPolicy", ai("alice"));
     const unchanged = await validate(worker, context);
     assert.equal(unchanged.rejected, false);
     assert.equal(unchanged.epoch, context.grantEpoch);
@@ -85,15 +90,16 @@ for (const change of ["revision", "content", "compatibility"]) {
       providerAttemptId: first.providerAttemptId, outcome: "UNKNOWN" });
     const late = await ledger(worker, "beginProviderAttempt", { ...input, executionId: reserved.executionId, ordinal: 1 });
     material = true;
-    await worker.call("SellerAgentsControlClient.bootstrapWithPolicy", ai("chatgpt"));
+    await worker.call("SellerAgentsControlClient.bootstrapWithPolicy", ai("alice"));
     const changed = await validate(worker, context);
     observation.oldContextRejected = changed.rejected;
     observation.beforeEpoch = context.grantEpoch;
     observation.afterEpoch = changed.epoch;
     assert.equal(changed.rejected, true, "new signed profile must revoke the captured execution context");
     assert.ok(changed.epoch > context.grantEpoch);
-    assert.equal((await worker.call("SellerAgentsControlClient.getCachedContinuationState", "alice")).authority.grantEpoch, aliceBefore);
-    observation.neighborGrantPreserved = true;
+    assert.deepEqual(await worker.call("SellerAgentsControlClient.getCachedContinuationState", "chatgpt"), neighborBefore);
+    assert.equal(await worker.call("SellerAgentsControlClient.canWork", "chatgpt"), false);
+    observation.excludedNeighborRemainsUnusable = true;
     await assert.rejects(ledger(worker, "beginProviderAttempt", { ...input, executionId: reserved.executionId, ordinal: 0 }),
       { code: "EXECUTION_CONTEXT_CHANGED" });
     await assert.rejects(ledger(worker, "recordProviderOutcome", { ...input, executionId: reserved.executionId,

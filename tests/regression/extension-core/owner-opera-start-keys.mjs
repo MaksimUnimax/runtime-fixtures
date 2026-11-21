@@ -14,6 +14,10 @@ const start = source.indexOf('  async function sendWorkSessionPrompt(');
 const end = source.indexOf('\n  async function currentRecovery(', start);
 assert(start >= 0 && end > start);
 const body = source.slice(start, end);
+const stagingStart = source.indexOf('  async function stageOwnedComposerText(');
+const stagingEnd = source.indexOf('\n  }\n', stagingStart);
+assert(stagingStart >= 0 && stagingEnd > stagingStart, 'one actual staging helper in composed runtime');
+const stagingBody = source.slice(stagingStart, stagingEnd + '\n  }\n'.length);
 const results = [];
 async function test(id, fn) { await fn(); results.push({ id, status: 'PASS' }); }
 await test('tab-message-transport-classification-is-bounded', async () => {
@@ -128,12 +132,12 @@ await test('last-start-projects-only-allowlisted-transport-class', async () => {
 });
 
 function setup(options = {}) {
-  const state = { draft: options.draft || '', writes: 0, clicks: 0, committed: options.committed || false, outcomes: [], current: true, conversation: 'synthetic-dialogue' };
+  const state = { draft: options.draft || '', writes: 0, clicks: 0, committed: options.committed || false, outcomes: [], sequence: [], current: true, conversation: 'synthetic-dialogue' };
   const composer = {};
-  const context = { composer };
+  const context = { composer, root: {} };
   const canonicalText = x => String(x || '').trim();
   const sandbox = {
-    console, Set, runtimeId: 'synthetic-content-actor', workRuntimeGeneration: 'synthetic-generation',
+    console, Set, location: { href: 'https://synthetic.invalid/dialogue-a' }, runtimeId: 'synthetic-content-actor', workRuntimeGeneration: 'synthetic-generation',
     current: () => state.current,
     waitForWorkStartComposerContext: async () => context,
     primaryComposerContext: () => context,
@@ -156,13 +160,26 @@ function setup(options = {}) {
       if (options.loseOutcome) return { ok: false, code: 'RUNTIME_ERROR' };
       return { ok: true, accepted: true, send_outcome: 'sent_acknowledged' };
     },
-    clickComposerUntilEmpty: async () => { state.clicks++; state.draft = ''; return { click_event_observed: true, composer_empty: true }; },
+    clickComposerUntilEmpty: async () => { state.clicks++; state.sequence.push('click'); state.draft = ''; return { click_event_observed: true, composer_empty: true }; },
     startWorkStartResponseWatch: () => {}, recordContentDiagnostic: () => {},
   };
   // Send transaction boundary; shared surface has separate model and browser coverage.
-  sandbox.currentAIAdapter = () => ({});
+  const activeAdapter = options.kimi ? {
+    id: 'kimi',
+    async setComposerText(_composer, value, { isCurrent }) {
+      assert.equal(isCurrent(), true);
+      state.writes++; state.sequence.push('insert');
+      await Promise.resolve();
+      if (options.editDuringInsertion) state.draft = 'owner typed during settlement';
+      else state.draft = value;
+      if (options.navigateDuringInsertion) sandbox.location.href = 'https://synthetic.invalid/dialogue-b';
+      if (options.replaceDuringInsertion) state.current = false;
+      state.sequence.push('settled');
+    },
+  } : { id: 'chatgpt' };
+  sandbox.currentAIAdapter = () => activeAdapter;
   sandbox.SellerAgentsConversationSurface = { beginStart: () => sandbox.conversationIdentity() };
-  vm.createContext(sandbox); vm.runInContext(body + '\nglobalThis.send = sendWorkSessionPrompt;', sandbox);
+  vm.createContext(sandbox); vm.runInContext(stagingBody + '\n' + body + '\nglobalThis.send = sendWorkSessionPrompt;', sandbox);
   return { state, send: () => sandbox.send('synthetic initial instruction', 'synthetic-intent', 1) };
 }
 await test('committed-intent-does-not-reinsert-draft', async () => {
@@ -217,6 +234,27 @@ await test('authority-is-rechecked-after-target-readiness', async () => {
   await assert.rejects(send(), { code: 'WORK_ADMISSION_CONTEXT_CHANGED' });
   assert.equal(state.clicks, 0);
 });
+await test('kimi-start-awaits-one-staging-write-before-click', async () => {
+  const { state, send } = setup({ kimi: true });
+  assert.equal((await send()).sent, true);
+  assert.deepEqual(state.sequence, ['insert', 'settled', 'click']);
+  assert.equal(state.writes, 1); assert.equal(state.clicks, 1);
+  await send();
+  assert.equal(state.writes, 1); assert.equal(state.clicks, 1);
+});
+for (const [id, options] of [
+  ['owner-edit', { editDuringInsertion: true }],
+  ['navigation', { navigateDuringInsertion: true }],
+  ['runtime-replacement', { replaceDuringInsertion: true }],
+]) {
+  await test('kimi-' + id + '-during-settlement-blocks-click', async () => {
+    const { state, send } = setup({ kimi: true, ...options });
+    await assert.rejects(send(), { code: 'COMPOSER_TEXT_CHANGED' });
+    assert.equal(state.writes, 1); assert.equal(state.clicks, 0);
+    assert.equal(state.outcomes[0].click_event_observed, false);
+    if (options.editDuringInsertion) assert.equal(state.draft, 'owner typed during settlement');
+  });
+}
 await test('encrypted-file-roundtrip-preserves-Ozon-and-WB-keys', async () => {
   const sourceWorker = await makeWorker(runtime);
   const targetWorker = await makeWorker(runtime);

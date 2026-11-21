@@ -1,3 +1,7 @@
+import {
+  assertMonitoringMemoryWrite,
+  fenceMonitoringSqlRuntime,
+} from "./run-authority.js";
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { link, mkdir, open, unlink } from "node:fs/promises";
@@ -231,6 +235,7 @@ export class InMemorySwaggerSourceStore implements SwaggerSourceStore {
   async createRequest(
     input: Parameters<SwaggerSourceStore["createRequest"]>[0],
   ) {
+    assertMonitoringMemoryWrite();
     const request: SwaggerSourceRequest = {
       requestId: input.requestId ?? randomUUID(),
       sourceFamily: SwaggerSourceFamilySchema.parse(input.sourceFamily),
@@ -279,6 +284,7 @@ export class InMemorySwaggerSourceStore implements SwaggerSourceStore {
   async renewRequest(
     input: Parameters<SwaggerSourceStore["createRequest"]>[0],
   ) {
+    assertMonitoringMemoryWrite();
     const at = input.createdAt ?? new Date();
     const related = [...this.state.requests.values()].filter((request) =>
       sameRequestIdentity(request, input),
@@ -323,6 +329,7 @@ export class InMemorySwaggerSourceStore implements SwaggerSourceStore {
   }
 
   async listPending(now: Date) {
+    assertMonitoringMemoryWrite();
     const pending: SwaggerSourceRequest[] = [];
     for (const request of this.state.requests.values()) {
       if (
@@ -387,6 +394,7 @@ export class InMemorySwaggerSourceStore implements SwaggerSourceStore {
     );
     if (duplicate)
       return { inserted: false, artifact: cloneArtifact(duplicate) };
+    assertMonitoringMemoryWrite();
     this.state.artifacts.set(artifact.artifactId, cloneArtifact(artifact));
     return { inserted: true, artifact: cloneArtifact(artifact) };
   }
@@ -411,6 +419,7 @@ export class InMemorySwaggerSourceStore implements SwaggerSourceStore {
       !options.expectedStatuses.includes(request.status)
     )
       return false;
+    assertMonitoringMemoryWrite();
     request.status = status;
     return options?.preserveTerminal || options?.expectedStatuses
       ? true
@@ -538,6 +547,7 @@ async function insertSwaggerRequest(
 export function createPostgresSwaggerSourceStore(
   runtime: SwaggerSourceSqlRuntime,
 ): SwaggerSourceStore {
+  runtime = fenceMonitoringSqlRuntime(runtime);
   return {
     async createRequest(input) {
       return insertSwaggerRequest(runtime, input);

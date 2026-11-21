@@ -10,7 +10,7 @@ async function test(id, fn) {
 }
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
-function trustedSender(worker, family = "chatgpt") {
+function trustedSender(worker, family = "alice") {
   const url =
     family === "alice"
       ? "https://alice.yandex.ru/chat/alice-fixture-dialogue"
@@ -23,7 +23,7 @@ function trustedSender(worker, family = "chatgpt") {
     tab: { id: worker.tabId, url },
   };
 }
-function requestFor(family = "chatgpt") {
+function requestFor(family = "alice") {
   return {
     messageType: "OZ_REQUEST_SIGNED_AI_PROFILE",
     protocolVersion: "signed_ai_profile_consumer_v1",
@@ -228,6 +228,11 @@ await test("PROFILE-02A-Alice-current-authority-origin-refresh-and-receipt", asy
       "https://chat.openai.com/*",
       "https://alice.yandex.ru/*",
       "https://chat.qwen.ai/*",
+      "https://www.kimi.ai/*",
+      "https://grok.com/*",
+      "https://gemini.google.com/*",
+      "https://claude.ai/*",
+      "https://chat.deepseek.com/*",
     ]);
     const refreshes = worker.messages
       .slice(before)
@@ -493,7 +498,7 @@ await test("PROFILE-07-authority-loss-during-receipt-validation-rejects-stale-ac
 });
 
 await test("PROFILE-08-failed-ensure-blocks-Start-and-Resume-before-legacy-action", async () => {
-  for (const family of ["chatgpt", "alice"]) {
+  for (const family of ["alice"]) {
     let allowEnsure = true;
     const worker = await makeWorker(runtime, {
       aiFamily: family,

@@ -50,6 +50,10 @@
       identity_scope: "document" };
     return { ...base, source: "new_conversation_pending" };
   }
+  // An observed first-send destination, never a conversation identity by itself.
+  function qwenStartFinalPath(path) {
+    return path === "/c/guest" || typeof path === "string" && path.startsWith("/c/") && UUID.test(path.slice(3));
+  }
   function createTracker({ newToken, now = () => Date.now() }) {
     if (typeof newToken !== "function") throw new TypeError("newToken is required");
     let state = null;
@@ -70,10 +74,10 @@
       if (start?.intentId !== String(intentId)) return;
       // Only the completed, witnessed first send may bridge its still-pending
       // route promotion. Cancellation never authorizes later continuity.
-      const qwenGuestRouteOnly = start.promoted && state?.provider === "qwen" && state.path === "/c/new-chat";
-      if (retainWitness && start.empty && start.witnessId && (!start.promoted || qwenGuestRouteOnly)) {
+      const qwenInitialRouteOnly = start.promoted && state?.provider === "qwen" && state.path === "/c/new-chat";
+      if (retainWitness && start.empty && start.witnessId && (!start.promoted || qwenInitialRouteOnly)) {
         start.completed = true;
-        start.qwenGuestRouteOnly = qwenGuestRouteOnly;
+        start.qwenInitialRouteOnly = qwenInitialRouteOnly;
       } else start = null;
     }
     // Only the content observer can attest that the same owned user node kept
@@ -88,7 +92,7 @@
         state.identity?.status === "confirmed" && state.identity.identity_scope === "document" &&
         originOf(input.origin) === state.origin && token(input.accountScope) === state.account &&
         state.provider === "qwen" && input.provider === "qwen" &&
-        state.path === "/c/guest" && input.pathname === state.path && permit.path === state.path &&
+        qwenStartFinalPath(state.path) && input.pathname === state.path && permit.path === state.path &&
         input.surfaceConfirmed === true && !input.conflict && opaque(input.explicitIds).length === 0 &&
         input.startWitness === permit.intentId && previousId === permit.messageId &&
         state.ids.has(previousId) && nextId && nextId !== previousId && !state.ids.has(nextId) &&
@@ -108,7 +112,7 @@
       const explicit = opaque(input.explicitIds);
       const externalId = explicit.length === 1 ? externalKey(explicit[0]) : null;
       if (renamePermit) {
-        const permittedPromotion = renamePermit.path === "/c/new-chat" && path === "/c/guest" &&
+        const permittedPromotion = renamePermit.path === "/c/new-chat" && qwenStartFinalPath(path) &&
           start?.intentId === renamePermit.intentId && start.root === input.root;
         if (now() > renamePermit.deadline || origin !== state?.origin || provider !== "qwen" ||
             account !== state?.account || input.root !== renamePermit.root ||
@@ -136,7 +140,7 @@
           input.startWitnessMessageId === start.witnessId && ids.includes(start.witnessId);
         const promotion = start && start.empty && start.surfaceId === state.surfaceId &&
           (start.root === input.root || retainedWitness) && input.startWitness === start.intentId &&
-          (!start.qwenGuestRouteOnly || (state.path === "/c/new-chat" && path === "/c/guest")) &&
+          (!start.qwenInitialRouteOnly || (state.path === "/c/new-chat" && qwenStartFinalPath(path))) &&
           (!start.completed || (input.startWitnessMessageId === start.witnessId &&
             ids.includes(start.witnessId)));
         if (!sameId && !promotion) {
@@ -144,8 +148,8 @@
           reason = "navigation";
         } else if (promotion) {
           start.promoted = true;
-          // A completed Start may reach /c/guest before Qwen assigns the
-          // final UUID. Carry only the already-validated permit to this route;
+          // The first send may finalize at the guest or authenticated route.
+          // Carry only the already-validated permit to this one final route;
           // keep its original deadline even when promotion clears start.
           if (renamePermit) renamePermit.path = path;
           if (start.completed) start = null;
@@ -203,7 +207,7 @@
       if (!renameSpent && start?.empty && provider === "qwen" &&
           identity.status === "confirmed" && identity.identity_scope === "document" &&
           input.root === start.root && input.surfaceConfirmed === true && !input.conflict && !explicit.length &&
-          ["/c/new-chat", "/c/guest"].includes(path) &&
+          (path === "/c/new-chat" || qwenStartFinalPath(path)) &&
           input.startWitness === start.intentId && input.startWitnessMessageId === start.witnessId &&
           ids.includes(start.witnessId)) {
         renamePermit = { intentId: start.intentId, messageId: start.witnessId, root: input.root,
@@ -237,6 +241,6 @@
     return /(?:^|\|)local:[a-z0-9:-]+$/i.test(String(value || ""));
   }
   globalThis.SellerAgentsConversationIdentity = Object.freeze({
-    VERSION, locator, originOf, resolveEvidence, createTracker, isLocal, normalizeProof, matchingProof
+    VERSION, locator, originOf, resolveEvidence, createTracker, isLocal, normalizeProof, matchingProof, qwenStartFinalPath
   });
 })();

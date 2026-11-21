@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  uniqueIndex,
   boolean,
   check,
   foreignKey,
@@ -135,27 +136,11 @@ export const healthRuns = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     runKind: healthRunKind("run_kind").notNull().default("BASELINE_CONTOUR"),
-    suiteRevisionId: uuid("suite_revision_id").references(
-      () => healthSuiteRevisions.id,
-      {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      },
-    ),
-    adapterId: uuid("adapter_id")
-      .notNull()
-      .references(() => aiAdapters.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    suiteRevisionId: uuid("suite_revision_id"),
+    adapterId: uuid("adapter_id").notNull(),
     surfaceId: uuid("surface_id").notNull(),
     variantId: uuid("variant_id"),
-    profileId: uuid("profile_id")
-      .notNull()
-      .references(() => adapterProfiles.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    profileId: uuid("profile_id").notNull(),
     profileRevisionId: uuid("profile_revision_id").notNull(),
     profileRevision: integer("profile_revision").notNull(),
     browserFamily: varchar("browser_family", { length: 32 }).notNull(),
@@ -181,6 +166,27 @@ export const healthRuns = pgTable(
       .defaultNow(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.suiteRevisionId],
+      foreignColumns: [healthSuiteRevisions.id],
+      name: "health_runs_suite_revision_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.adapterId],
+      foreignColumns: [aiAdapters.id],
+      name: "health_runs_adapter_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.profileId],
+      foreignColumns: [adapterProfiles.id],
+      name: "health_runs_profile_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     foreignKey({
       columns: [table.surfaceId, table.adapterId],
       foreignColumns: [aiSurfaces.id, aiSurfaces.adapterId],
@@ -250,8 +256,11 @@ export const healthRuns = pgTable(
       "health_runs_maintenance_authority",
       sql`NOT ${table.operatorMaintenance} OR ${table.operatorMaintenanceAuthority} IS NOT NULL`,
     ),
-    index("health_runs_scope_index").on(table.scopeSha256, table.createdAt),
-    unique("health_runs_scheduled_run_unique").on(table.scheduledRunId),
+    index("health_runs_scope_index").on(
+      table.scopeSha256,
+      table.createdAt.desc().nullsFirst(),
+    ),
+    uniqueIndex("health_runs_scheduled_run_unique").on(table.scheduledRunId),
   ],
 );
 
@@ -277,6 +286,7 @@ export const healthSchedules = pgTable(
       .defaultNow(),
   },
   (table) => [
+    index("health_schedules_due_index").on(table.enabled, table.nextDueAt),
     unique("health_schedules_target_revision_unique").on(
       table.monitorTarget,
       table.revision,
@@ -304,12 +314,7 @@ export const healthSchedules = pgTable(
 export const healthScheduleRetentionWatermarks = pgTable(
   "health_schedule_retention_watermarks",
   {
-    scheduleId: uuid("schedule_id")
-      .primaryKey()
-      .references(() => healthSchedules.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    scheduleId: uuid("schedule_id").primaryKey(),
     retiredThroughRevision: integer("retired_through_revision").notNull(),
     retiredThroughDueSlotAt: timestamp("retired_through_due_slot_at", {
       withTimezone: true,
@@ -320,6 +325,13 @@ export const healthScheduleRetentionWatermarks = pgTable(
       .defaultNow(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.scheduleId],
+      foreignColumns: [healthSchedules.id],
+      name: "health_schedule_retention_watermarks_schedule_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     check(
       "health_schedule_retention_watermarks_revision_positive",
       sql`${table.retiredThroughRevision} > 0`,
@@ -331,12 +343,7 @@ export const healthScheduledRuns = pgTable(
   "health_scheduled_runs",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    scheduleId: uuid("schedule_id")
-      .notNull()
-      .references(() => healthSchedules.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    scheduleId: uuid("schedule_id").notNull(),
     monitorTarget: varchar("monitor_target", { length: 128 }).notNull(),
     provider: varchar("provider", { length: 32 }).notNull(),
     surface: varchar("surface", { length: 64 }).notNull(),
@@ -356,10 +363,7 @@ export const healthScheduledRuns = pgTable(
     nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
     failureClass: healthFailureClass("failure_class"),
     failureCode: varchar("failure_code", { length: 128 }),
-    healthRunId: uuid("health_run_id").references(() => healthRuns.id, {
-      onDelete: "restrict",
-      onUpdate: "restrict",
-    }),
+    healthRunId: uuid("health_run_id"),
     healthState: varchar("health_state", { length: 16 }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -369,6 +373,29 @@ export const healthScheduledRuns = pgTable(
       .defaultNow(),
   },
   (table) => [
+    index("health_scheduled_runs_schedule_index").on(
+      table.scheduleId,
+      table.dueSlotAt.desc().nullsFirst(),
+    ),
+    index("health_scheduled_runs_claim_index").on(
+      table.state,
+      table.nextAttemptAt,
+      table.leaseExpiresAt,
+    ),
+    foreignKey({
+      columns: [table.scheduleId],
+      foreignColumns: [healthSchedules.id],
+      name: "health_scheduled_runs_schedule_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.healthRunId],
+      foreignColumns: [healthRuns.id],
+      name: "health_scheduled_runs_health_run_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     unique("health_scheduled_runs_idempotency_unique").on(
       table.scheduleId,
       table.scheduleRevision,
@@ -393,12 +420,7 @@ export const healthContourResults = pgTable(
   "health_contour_results",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    runId: uuid("run_id")
-      .notNull()
-      .references(() => healthRuns.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    runId: uuid("run_id").notNull(),
     contourKey: varchar("contour_key", { length: 64 }).notNull(),
     result: jsonb("result").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -406,6 +428,13 @@ export const healthContourResults = pgTable(
       .defaultNow(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.runId],
+      foreignColumns: [healthRuns.id],
+      name: "health_contour_results_run_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     unique("health_contour_results_run_contour_unique").on(
       table.runId,
       table.contourKey,
@@ -443,7 +472,7 @@ export const healthEvidenceReferences = pgTable(
     })
       .onDelete("restrict")
       .onUpdate("restrict"),
-    check("health_evidence_references_key", contourKeyCheck(table.contourKey)),
+    // The composite contour FK enforces the canonical parent key vocabulary.
     check(
       "health_evidence_references_rule",
       sql`${table.ruleId} IN ('NO_EVIDENCE', 'SAFE_ELEMENT_METADATA', 'BOUNDED_DOM_FRAGMENT', 'SAFE_SCREENSHOT_REFERENCE', 'STATE_TRANSITION_TRACE')`,
@@ -466,12 +495,7 @@ export const healthEvidenceReferences = pgTable(
 export const healthNoSessionObservations = pgTable(
   "health_no_session_observations",
   {
-    runId: uuid("run_id")
-      .primaryKey()
-      .references(() => healthRuns.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    runId: uuid("run_id").primaryKey(),
     providerId: varchar("provider_id", { length: 32 }).notNull(),
     observationSurfaceId: varchar("observation_surface_id", {
       length: 64,
@@ -490,6 +514,26 @@ export const healthNoSessionObservations = pgTable(
     observation: jsonb("observation").notNull(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.runId],
+      foreignColumns: [healthRuns.id],
+      name: "health_no_session_observations_run_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    check(
+      "health_no_session_observations_columns_match",
+      sql`
+    ${table.observation}->>'providerId'=${table.providerId} AND ${table.observation}->>'surfaceId'=${table.observationSurfaceId}
+    AND ${table.observation}->>'targetKey'=${table.targetKey} AND ${table.observation}->>'strategyId'=${table.strategyId}
+    AND (${table.observation}->>'strategyRevision')::integer=${table.strategyRevision}
+    AND ${table.observation}->>'classification'=${table.classification}
+    AND ${table.observation}->>'classificationBasis'=${table.classificationBasis}
+    AND ${table.observation}->>'surfaceOutcome'=${table.surfaceOutcome}
+    AND ${table.observation}->>'blocker'=${table.blocker}
+    AND (${table.observation}->>'observedAt')::timestamptz=${table.observedAt}
+  `,
+    ),
     check(
       "health_no_session_observations_revision_positive",
       sql`${table.strategyRevision} > 0`,
@@ -513,12 +557,7 @@ export const healthNoSessionEvidenceReferences = pgTable(
   "health_no_session_evidence_references",
   {
     evidenceId: uuid("evidence_id").primaryKey(),
-    runId: uuid("run_id")
-      .notNull()
-      .references(() => healthNoSessionObservations.runId, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    runId: uuid("run_id").notNull(),
     ruleId: varchar("rule_id", { length: 64 }).notNull(),
     classification: varchar("classification", { length: 32 }).notNull(),
     sha256: varchar("sha256", { length: 64 }).notNull(),
@@ -528,6 +567,13 @@ export const healthNoSessionEvidenceReferences = pgTable(
       .defaultNow(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.runId],
+      foreignColumns: [healthNoSessionObservations.runId],
+      name: "health_no_session_evidence_run_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     check(
       "health_no_session_evidence_rule",
       sql`${table.ruleId} IN ('SAFE_ELEMENT_METADATA','STATE_TRANSITION_TRACE')`,
@@ -551,18 +597,8 @@ export const healthNoSessionRunReceipts = pgTable(
   "health_no_session_run_receipts",
   {
     runId: uuid("run_id").primaryKey(),
-    scheduledRunId: uuid("scheduled_run_id")
-      .notNull()
-      .references(() => healthScheduledRuns.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
-    scheduleId: uuid("schedule_id")
-      .notNull()
-      .references(() => healthSchedules.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    scheduledRunId: uuid("scheduled_run_id").notNull(),
+    scheduleId: uuid("schedule_id").notNull(),
     scheduleRevision: integer("schedule_revision").notNull(),
     dueSlotAt: timestamp("due_slot_at", { withTimezone: true }).notNull(),
     idempotencyKey: varchar("idempotency_key", { length: 64 }).notNull(),
@@ -595,6 +631,20 @@ export const healthNoSessionRunReceipts = pgTable(
       .defaultNow(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.scheduleId],
+      foreignColumns: [healthSchedules.id],
+      name: "health_no_session_run_receipts_schedule_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.scheduledRunId],
+      foreignColumns: [healthScheduledRuns.id],
+      name: "health_no_session_run_receipts_scheduled_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     unique("health_no_session_run_receipts_scheduled_unique").on(
       table.scheduledRunId,
     ),
@@ -631,7 +681,7 @@ export const healthNoSessionRunReceipts = pgTable(
     ),
     index("health_no_session_run_receipts_scope_completed_index").on(
       table.scopeSha256,
-      table.completedAt,
+      table.completedAt.desc().nullsFirst(),
     ),
   ],
 );
@@ -716,12 +766,7 @@ export const healthNoSessionScopeStates = pgTable(
 export const healthNoSessionRecentStates = pgTable(
   "health_no_session_recent_states",
   {
-    scopeSha256: varchar("scope_sha256", { length: 64 })
-      .notNull()
-      .references(() => healthNoSessionScopeStates.scopeSha256, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    scopeSha256: varchar("scope_sha256", { length: 64 }).notNull(),
     slot: integer("slot").notNull(),
     normalizedResultSha256: varchar("normalized_result_sha256", {
       length: 64,
@@ -745,6 +790,13 @@ export const healthNoSessionRecentStates = pgTable(
       .defaultNow(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.scopeSha256],
+      foreignColumns: [healthNoSessionScopeStates.scopeSha256],
+      name: "health_no_session_recent_states_scope_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     primaryKey({
       columns: [table.scopeSha256, table.slot],
       name: "health_no_session_recent_states_pk",
@@ -779,7 +831,7 @@ export const healthNoSessionRecentStates = pgTable(
     ),
     index("health_no_session_recent_states_recent_index").on(
       table.scopeSha256,
-      table.lastSeenAt,
+      table.lastSeenAt.desc().nullsFirst(),
       table.slot,
     ),
   ],
@@ -791,18 +843,8 @@ export const healthIncidents = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     scopeSha256: varchar("scope_sha256", { length: 64 }).notNull(),
     status: healthIncidentStatus("status").notNull(),
-    firstSeenRunId: uuid("first_seen_run_id")
-      .notNull()
-      .references(() => healthRuns.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
-    latestSeenRunId: uuid("latest_seen_run_id")
-      .notNull()
-      .references(() => healthRuns.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    firstSeenRunId: uuid("first_seen_run_id").notNull(),
+    latestSeenRunId: uuid("latest_seen_run_id").notNull(),
     rootContourKey: varchar("root_contour_key", { length: 64 }),
     incidentScopeSha256: varchar("incident_scope_sha256", {
       length: 64,
@@ -812,22 +854,11 @@ export const healthIncidents = pgTable(
     }).notNull(),
     firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
-    lastObservedRunId: uuid("last_observed_run_id")
-      .notNull()
-      .references(() => healthRuns.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    lastObservedRunId: uuid("last_observed_run_id").notNull(),
     lastObservedAt: timestamp("last_observed_at", {
       withTimezone: true,
     }).notNull(),
-    resolvedByRunId: uuid("resolved_by_run_id").references(
-      () => healthRuns.id,
-      {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      },
-    ),
+    resolvedByRunId: uuid("resolved_by_run_id"),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -837,6 +868,44 @@ export const healthIncidents = pgTable(
       .defaultNow(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.firstSeenRunId],
+      foreignColumns: [healthRuns.id],
+      name: "health_incidents_first_run_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.latestSeenRunId],
+      foreignColumns: [healthRuns.id],
+      name: "health_incidents_latest_run_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.lastObservedRunId],
+      foreignColumns: [healthRuns.id],
+      name: "health_incidents_last_observed_run_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.resolvedByRunId],
+      foreignColumns: [healthRuns.id],
+      name: "health_incidents_resolved_run_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    index("health_incidents_scope_status_index").on(
+      table.incidentScopeSha256,
+      table.status,
+      table.lastObservedAt.desc().nullsFirst(),
+    ),
+    uniqueIndex("health_incidents_active_key_unique")
+      .on(table.incidentKeySha256)
+      .where(
+        sql`${table.status} IN ('OPEN','INVESTIGATING','CANDIDATE_FIX','CANDIDATE_PASS','CANARY_ROLLOUT','ROLLOUT','MAINTENANCE')`,
+      ),
     check(
       "health_incidents_scope_checksum_format",
       sql`${table.scopeSha256} ~ '^[0-9a-f]{64}$'`,
@@ -850,7 +919,7 @@ export const healthIncidents = pgTable(
       sql`${table.incidentScopeSha256} ~ '^[0-9a-f]{64}$'`,
     ),
     check(
-      "health_incidents_key_checksum_format",
+      "health_incidents_incident_key_checksum_format",
       sql`${table.incidentKeySha256} ~ '^[0-9a-f]{64}$'`,
     ),
     check(
@@ -858,7 +927,7 @@ export const healthIncidents = pgTable(
       sql`${table.lastSeenAt} >= ${table.firstSeenAt}`,
     ),
     check(
-      "health_incidents_observed_after_first",
+      "health_incidents_last_observed_after_first",
       sql`${table.lastObservedAt} >= ${table.firstSeenAt}`,
     ),
     check(
@@ -878,18 +947,8 @@ export const healthNotificationIntents = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     dedupKey: varchar("dedup_key", { length: 256 }).notNull(),
     sourceDomain: varchar("source_domain", { length: 32 }).notNull(),
-    incidentId: uuid("incident_id")
-      .notNull()
-      .references(() => healthIncidents.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
-    healthRunId: uuid("health_run_id")
-      .notNull()
-      .references(() => healthRuns.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    incidentId: uuid("incident_id").notNull(),
+    healthRunId: uuid("health_run_id").notNull(),
     eventKind: healthNotificationEventKind("event_kind").notNull(),
     severity: healthNotificationSeverity("severity").notNull(),
     routeKey: varchar("route_key", { length: 64 }).notNull(),
@@ -929,6 +988,20 @@ export const healthNotificationIntents = pgTable(
       .defaultNow(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.incidentId],
+      foreignColumns: [healthIncidents.id],
+      name: "health_notification_intents_incident_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.healthRunId],
+      foreignColumns: [healthRuns.id],
+      name: "health_notification_intents_health_run_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     unique("health_notification_intents_dedup_key_unique").on(table.dedupKey),
     check(
       "health_notification_intents_source_domain",
@@ -1015,7 +1088,21 @@ export const healthProfileEvaluations = pgTable(
       .defaultNow(),
   },
   (table) => [
-    unique("health_profile_evaluations_key_unique").on(
+    foreignKey({
+      columns: [table.baselineProfileRevisionId],
+      foreignColumns: [adapterProfileRevisions.id],
+      name: "health_profile_evaluations_baseline_revision_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.candidateProfileRevisionId],
+      foreignColumns: [adapterProfileRevisions.id],
+      name: "health_profile_evaluations_candidate_revision_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    uniqueIndex("health_profile_evaluations_key_unique").on(
       table.evaluationKeySha256,
     ),
     check(

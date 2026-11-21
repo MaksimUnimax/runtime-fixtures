@@ -1,4 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
+import {
+  assertMonitoringMemoryWrite,
+  fenceMonitoringSqlRuntime,
+  currentMonitoringEffectAdmission,
+  withMonitoringEffect,
+} from "@product/monitoring-control";
 import type {
   ApiWatchIncident,
   ApiWatchIncidentEvent,
@@ -52,6 +58,7 @@ export class InMemoryApiWatchIncidentStore implements ApiWatchIncidentStore {
     >,
   ) {
     const existing = this.incidents.get(input.incidentKey);
+    assertMonitoringMemoryWrite();
     if (existing) {
       const next = {
         ...existing,
@@ -75,6 +82,7 @@ export class InMemoryApiWatchIncidentStore implements ApiWatchIncidentStore {
     return { incident: copy(created), opened: true };
   }
   async resolve(key: string, at: Date, expectedOccurrenceCount: number) {
+    assertMonitoringMemoryWrite();
     const current = this.incidents.get(key);
     if (
       !Number.isSafeInteger(expectedOccurrenceCount) ||
@@ -108,6 +116,7 @@ export class InMemoryApiWatchIncidentStore implements ApiWatchIncidentStore {
 export function createPostgresApiWatchIncidentStore(
   runtime: ApiWatchSqlRuntime,
 ): ApiWatchIncidentStore {
+  runtime = fenceMonitoringSqlRuntime(runtime);
   const projectionColumns = `incident_id AS "incidentId",incident_key AS "incidentKey",incident_type AS "incidentType",source_family AS "sourceFamily",document_key AS "documentKey",operation_identity AS "operationIdentity",first_seen_at AS "firstSeenAt",last_seen_at AS "lastSeenAt",resolved_at AS "resolvedAt",occurrence_count AS "occurrenceCount",severity,latest_report_id AS "latestReportId",latest_diff_sha256 AS "latestDiffSha256",safe_summary_code AS "safeSummaryCode",state`;
   const projection = `SELECT ${projectionColumns} FROM api_watch_incidents`;
   const transitionLockKey = (key: string) =>
@@ -209,7 +218,13 @@ async function observeAndNotify(
 ) {
   const result = await store.observe(input);
   if (result.opened && notifier)
-    await notifier({ kind: "OPENED", incident: result.incident });
+    await withMonitoringEffect(() =>
+      notifier({
+        kind: "OPENED",
+        incident: result.incident,
+        admission: currentMonitoringEffectAdmission(),
+      }),
+    );
   return result.incident;
 }
 
@@ -422,7 +437,13 @@ export async function evaluateApiWatchIncidents(input: {
           open.occurrenceCount,
         );
         if (resolved && input.notifier)
-          await input.notifier({ kind: "RESOLVED", incident: resolved });
+          await withMonitoringEffect(() =>
+            input.notifier!({
+              kind: "RESOLVED",
+              incident: resolved,
+              admission: currentMonitoringEffectAdmission(),
+            }),
+          );
       }
     }
   }

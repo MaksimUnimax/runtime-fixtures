@@ -1,3 +1,4 @@
+import { rateLimitClientIp } from "./rate-limit-client-ip.js";
 import type {
   FastifyInstance,
   RawReplyDefaultExpression,
@@ -50,7 +51,7 @@ export function registerRefreshRoutes(
           body.refreshToken,
           key,
           request.id,
-          request.ip,
+          rateLimitClientIp(request),
         );
       } catch {
         throw new ControlledError(

@@ -19,7 +19,8 @@ from playwright.sync_api import sync_playwright
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "client-i1"))
-from browser_c1_acceptance import BrowserFixture, CHAT_FIXTURE, seed_authority, wait_for
+from browser_c1_acceptance import BrowserFixture, seed_authority, wait_for
+CHAT_FIXTURE = HERE / "fixtures/application-alice.html"
 from synthetic_health_server import SyntheticHealthServer
 from browser_fixture_shutdown import assert_http_fixture_stopped
 
@@ -45,7 +46,7 @@ class FirstBootstrapServer(SyntheticHealthServer):
                 if self.path != "/v1/bootstrap":
                     return super().do_POST()
                 body = json.loads(self.rfile.read(int(self.headers.get("content-length", "0"))))
-                assert body.get("detectedAi", {}).get("family") == "chatgpt"
+                assert body.get("detectedAi", {}).get("family") == "alice"
                 encoded = json.dumps(fixture.bootstrap_envelope).encode()
                 self.send_response(200)
                 self.send_header("content-type", "application/json")
@@ -123,10 +124,10 @@ def main():
             browser_cleanup.callback(close_test_context)
             context.route("https://**/*", lambda route: route.fulfill(
                 body=CHAT_FIXTURE.read_text(), content_type="text/html"
-            ) if route.request.url.startswith("https://chatgpt.com/") else route.abort())
+            ) if route.request.url.startswith("https://alice.yandex.ru/") else route.abort())
             page = context.new_page()
-            page.goto("https://chatgpt.com/", wait_until="load")
-            page.evaluate("document.querySelector('#turns').replaceChildren()")
+            page.goto("https://alice.yandex.ru/", wait_until="load")
+            page.evaluate("document.querySelector('#turns').replaceChildren();document.querySelector('aside').replaceChildren()")
             browser_session = context.browser.new_browser_cdp_session()
             # A branded-Chrome-specific run must prove the actual launched
             # binary and its CDP product, not merely the launch argument.
@@ -151,9 +152,9 @@ def main():
             # Finish client initialization before writing exactly one cache
             # snapshot. Never expose a transient RESOLVED cache to startup.
             worker.evaluate("async()=>SellerAgentsControlClient.status()")
-            seeded = seed_authority(worker, private, initial_ai_unconfigured=True)
+            seeded = seed_authority(worker, private, initial_ai_unconfigured=True, ai_family="alice")
             server.bootstrap_envelope = seeded["resolvedEnvelope"]
-            tab_id = worker.evaluate("async()=>(await chrome.tabs.query({url:'https://chatgpt.com/*'}))[0].id")
+            tab_id = worker.evaluate("async()=>(await chrome.tabs.query({url:'https://alice.yandex.ru/*'}))[0].id")
             extension_url = worker.url.rsplit("/", 1)[0]
             # Restart only the background worker so the real verifier restores
             # the signed test cache, preserving the already open AI document.
@@ -192,15 +193,18 @@ def main():
             wait_for(lambda: "Аккаунт · 11111111" in popup.locator("#account").inner_text(), "signed test authority")
             store = fixture.add_ozon("Synthetic new-dialogue store")
             assert popup.locator("#start").is_enabled(), "Start disabled on supported pre-existing new chat"
-            assert page.url == "https://chatgpt.com/"
+            assert page.url == "https://alice.yandex.ru/"
             report["cases"].append({"name": "start-enabled-without-conversation-id-or-content-receiver", "status": "PASS"})
-            # The production ChatGPT identity parser requires /c/<UUID>.
-            # An arbitrary path ending in UUID can display a new URL while
-            # failing to establish an actual confirmed conversation identity.
+            # Alice promotes a new surface only with a current active-chat
+            # witness and the actual two sent/received turns, not a URL alone.
             conversation_id = "77777777-7777-4777-8777-777777777777"
-            target = f"https://chatgpt.com/c/{conversation_id}"
-            page.evaluate("""target=>document.querySelector('[data-testid="send-button"]').addEventListener(
-                'click',()=>history.replaceState({},'',target),{once:true})""", target)
+            target = f"https://alice.yandex.ru/c/{conversation_id}"
+            page.evaluate("""({target,id})=>document.querySelector('[data-testid="oknyx"]').addEventListener(
+                'click',()=>{history.replaceState({},'',target);const item=document.createElement('div');
+                  item.className='ChatListItem';item.id=id;
+                  const active=document.createElement('button');active.dataset.testid='chatlist-item-active';
+                  active.setAttribute('aria-current','page');item.append(active);document.querySelector('aside').append(item);
+                  document.querySelector('#turns').dataset.conversationId=id;},{once:true})""", {"target":target,"id":conversation_id})
             generation_before = worker.evaluate("async()=>SellerAgentsControlClient.generation()")
             report["generation_before"] = generation_before
             assert worker.evaluate("async()=>(await SellerAgentsControlClient.getAuthority()).payload.ai.status") == "UNCONFIGURED"
@@ -220,8 +224,8 @@ def main():
             assert active["context"]["store_id"] == store["id"]
             identity = active["identity"]
             assert identity["status"] == "confirmed", identity
-            assert identity["origin"] == "https://chatgpt.com", identity
-            assert identity["ai_id"] == "chatgpt", identity
+            assert identity["origin"] == "https://alice.yandex.ru", identity
+            assert identity["ai_id"] == "alice", identity
             assert identity["chat_path"] == f"/c/{conversation_id}", identity
             scoped_id = identity["conversation_id"]
             assert isinstance(scoped_id, str) and scoped_id, identity
@@ -232,10 +236,10 @@ def main():
             assert proof["version"] == 1, proof
             assert proof["locator_digest"] == hashlib.sha256(target.encode("utf8")).hexdigest(), proof
             observed_turns = page.evaluate("""() => ({
-                user: [...document.querySelectorAll('#turns section[data-turn="user"][data-turn-id]')]
-                    .map(node => node.dataset.turnId),
-                assistant: [...document.querySelectorAll('#turns section[data-turn="assistant"][data-turn-id]')]
-                    .map(node => node.dataset.turnId)
+                user: [...document.querySelectorAll('#turns article[data-message-role="user"][id]')]
+                    .map(node => node.id),
+                assistant: [...document.querySelectorAll('#turns article[data-message-role="alice"][id]')]
+                    .map(node => node.id)
             })""")
             assert len(observed_turns["user"]) == 1, observed_turns
             assert len(observed_turns["assistant"]) == 1, observed_turns
@@ -257,7 +261,7 @@ def main():
                 # A promoted external ID needs positive conversation scope.
                 assert identity["identity_scope"] == "conversation", identity
                 assert scoped_id == conversation_id, identity
-            bound_key = f"https://chatgpt.com|{scoped_id}"
+            bound_key = f"https://alice.yandex.ru|{scoped_id}"
             assert active["conversation_key"] == bound_key, active["conversation_key"]
             assert active["work"]["conversation_key"] == bound_key, active["work"]
             assert active["work"]["conversation_id"] == scoped_id, active["work"]
@@ -270,8 +274,8 @@ def main():
             diagnostic = worker.evaluate("async id=>saLastStartDiagnostic(id)", tab_id)
             assert diagnostic == {"stage": "active", "code": None, "outcome": "active"}, diagnostic
             report["cases"].append({"name": "successful-binding-reported-active-not-failed", "status": "PASS"})
-            page.evaluate("""()=>fixtureCurrentChatGPTBlock('OZON_HELP_V2 {"cluster":"catalog_products"}')""")
-            page.locator("[data-assistant-stream-block]").last.scroll_into_view_if_needed()
+            page.evaluate("""()=>fixtureCommand('OZON_HELP_V2 {"cluster":"catalog_products"}')""")
+            page.locator(".CodeBlock").last.scroll_into_view_if_needed()
             button = page.locator(".ozon-bridge-block-action").last
             button.wait_for(timeout=10000)
             assert button.inner_text() == "Октопорт"
@@ -311,8 +315,8 @@ def main():
             wait_for(lambda: ((s := fixture.state()).get("context", {}).get("store_id") == wb["id"] and (s.get("work") or {}).get("state") == "active_visible" and not s.get("pending")), "WB store binding", 25)
             assert page.evaluate("sent.length") == 4
             assert page.evaluate("sent[3].includes('WB_HELP_V1')")
-            page.evaluate("""()=>fixtureCurrentChatGPTBlock('WB_HELP_V1 {"operation":"describe","params":{"alias":"seller_info"}}')""")
-            page.locator("[data-assistant-stream-block]").last.scroll_into_view_if_needed()
+            page.evaluate("""()=>fixtureCommand('WB_HELP_V1 {"operation":"describe","params":{"alias":"seller_info"}}')""")
+            page.locator(".CodeBlock").last.scroll_into_view_if_needed()
             wb_button = page.locator(".ozon-bridge-block-action").last
             wb_button.wait_for(timeout=10000)
             assert wb_button.inner_text() == "Октопорт"

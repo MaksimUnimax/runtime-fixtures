@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  index,
   check,
   foreignKey,
   integer,
@@ -70,12 +71,7 @@ export const aiSurfaces = pgTable(
   "ai_surfaces",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    adapterId: uuid("adapter_id")
-      .notNull()
-      .references(() => aiAdapters.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    adapterId: uuid("adapter_id").notNull(),
     machineKey: varchar("machine_key", { length: 64 }).notNull(),
     displayName: varchar("display_name", { length: 256 }).notNull(),
     status: aiSurfaceStatus("status").notNull().default("ACTIVE"),
@@ -87,6 +83,13 @@ export const aiSurfaces = pgTable(
       .defaultNow(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.adapterId],
+      foreignColumns: [aiAdapters.id],
+      name: "ai_surfaces_adapter_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     unique("ai_surfaces_adapter_machine_key_unique").on(
       table.adapterId,
       table.machineKey,
@@ -104,12 +107,7 @@ export const aiVariants = pgTable(
   "ai_variants",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    surfaceId: uuid("surface_id")
-      .notNull()
-      .references(() => aiSurfaces.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    surfaceId: uuid("surface_id").notNull(),
     machineKey: varchar("machine_key", { length: 64 }).notNull(),
     displayName: varchar("display_name", { length: 256 }).notNull(),
     status: aiVariantStatus("status").notNull().default("ACTIVE"),
@@ -121,6 +119,13 @@ export const aiVariants = pgTable(
       .defaultNow(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.surfaceId],
+      foreignColumns: [aiSurfaces.id],
+      name: "ai_variants_surface_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     unique("ai_variants_surface_machine_key_unique").on(
       table.surfaceId,
       table.machineKey,
@@ -138,12 +143,7 @@ export const adapterProfiles = pgTable(
   "adapter_profiles",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    adapterId: uuid("adapter_id")
-      .notNull()
-      .references(() => aiAdapters.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    adapterId: uuid("adapter_id").notNull(),
     surfaceId: uuid("surface_id").notNull(),
     variantId: uuid("variant_id"),
     machineKey: varchar("machine_key", { length: 64 }).notNull(),
@@ -157,6 +157,17 @@ export const adapterProfiles = pgTable(
       .defaultNow(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.adapterId],
+      foreignColumns: [aiAdapters.id],
+      name: "adapter_profiles_adapter_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    index("adapter_profiles_surface_index").on(
+      table.surfaceId,
+      table.variantId,
+    ),
     unique("adapter_profiles_machine_key_unique").on(table.machineKey),
     unique("adapter_profiles_identity_hierarchy_unique").on(
       table.id,
@@ -207,21 +218,25 @@ export const adapterProfileRevisions = pgTable(
       .notNull()
       .defaultNow(),
     publishedAt: timestamp("published_at", { withTimezone: true }),
-    createdByAdminPrincipalId: uuid("created_by_admin_principal_id").references(
-      () => adminPrincipals.id,
-      {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      },
-    ),
-    publishedByAdminPrincipalId: uuid(
-      "published_by_admin_principal_id",
-    ).references(() => adminPrincipals.id, {
-      onDelete: "restrict",
-      onUpdate: "restrict",
-    }),
+    createdByAdminPrincipalId: uuid("created_by_admin_principal_id"),
+    publishedByAdminPrincipalId: uuid("published_by_admin_principal_id"),
   },
   (table) => [
+    foreignKey({
+      columns: [table.createdByAdminPrincipalId],
+      foreignColumns: [adminPrincipals.id],
+      name: "adapter_profile_revisions_created_by_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.publishedByAdminPrincipalId],
+      foreignColumns: [adminPrincipals.id],
+      name: "adapter_profile_revisions_published_by_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    index("adapter_profile_revisions_profile_index").on(table.profileId),
     unique("adapter_profile_revisions_profile_revision_unique").on(
       table.profileId,
       table.revision,

@@ -1,5 +1,6 @@
 import type { OperatorPipelineCandidate } from "./operator-receipt.js";
 import type {
+  MonitoringEffectAdmission,
   SwaggerArtifact,
   SwaggerSourceFamily,
   SwaggerSourceRequest,
@@ -534,9 +535,11 @@ export type ApiWatchIncident = {
   safeSummaryCode: string;
   state: ApiWatchIncidentState;
 };
-export type ApiWatchIncidentEvent =
-  | { kind: "OPENED"; incident: ApiWatchIncident }
-  | { kind: "RESOLVED"; incident: ApiWatchIncident };
+export type ApiWatchIncidentEvent = {
+  kind: "OPENED" | "RESOLVED";
+  incident: ApiWatchIncident;
+  admission?: MonitoringEffectAdmission;
+};
 export interface ApiWatchIncidentStore {
   observe(
     input: Omit<

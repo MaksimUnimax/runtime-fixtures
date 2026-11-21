@@ -236,7 +236,11 @@ async function graph(
 }
 
 async function store0211UpgradeGraph(
-  options: { targetRelease?: boolean; includeProfile?: boolean } = {},
+  options: {
+    targetRelease?: boolean;
+    includeProfile?: boolean;
+    profileFamily?: "alice" | "chatgpt";
+  } = {},
 ) {
   const publication = createP3PolicyPublicationRepository(db);
   const publishedAt = new Date("2026-10-01T00:00:00.000Z");
@@ -325,14 +329,14 @@ async function store0211UpgradeGraph(
   );
   if (targetConfig.configVersion !== previousConfig.configVersion + 1)
     throw new Error("STORE0211_CONFIG_VERSION_NOT_CONSECUTIVE");
-  if (options.includeProfile) await seedStore0211Profile();
+  if (options.includeProfile) await seedStore0211Profile(options.profileFamily);
   return {
     ...targetConfig,
     previousConfigVersion: previousConfig.configVersion,
   };
 }
 
-async function seedStore0211Profile() {
+async function seedStore0211Profile(family: "alice" | "chatgpt" = "chatgpt") {
   const actorId = randomUUID();
   const actorUserId = randomUUID();
   await db.query("INSERT INTO users(id) VALUES($1)", [actorUserId]);
@@ -346,8 +350,8 @@ async function seedStore0211Profile() {
   );
   const commands = createP7AdminAiCommandRepository(db);
   const adapter = await commands.createAdapter({
-    machineKey: "chatgpt",
-    displayName: "ChatGPT",
+    machineKey: family,
+    displayName: family === "alice" ? "Alice" : "ChatGPT",
     description: "STORE1 regression fixture",
     actorId,
     correlationId: "store0211-ai-adapter",
@@ -366,7 +370,7 @@ async function seedStore0211Profile() {
     surfaceId: surface.id,
     variantId: null,
     machineKey: STORE1_PROFILE_KEY,
-    displayName: "ChatGPT Web Opera",
+    displayName: family === "alice" ? "Alice Web Opera" : "ChatGPT Web Opera",
     actorId,
     correlationId: "store0211-ai-profile",
     reason: "disposable regression fixture",
@@ -807,74 +811,87 @@ describe.sequential("P3.4 real PostgreSQL authenticated bootstrap", () => {
     });
   });
 
-  it("resolves the published STORE1 ChatGPT profile after a 0.2.9 session refresh into 0.2.11", async () => {
-    const legacy = await authenticated("0.2.9", "opera");
-    await seedCommercialEligibility(legacy.accountId);
-    const release = await store0211UpgradeGraph({ includeProfile: true });
-    const refreshedResponse = await postRefresh(
-      legacy.refreshToken,
-      "store0211-ai-profile-refresh",
-    );
-    expect(refreshedResponse.statusCode).toBe(200);
-    const refreshed = refreshedResponse.json<{ accessToken: string }>();
-    const response = await post(
-      {
-        contractVersion: "control_plane_v2",
-        extensionVersion: "0.2.11",
-        browser: { family: "opera", version: "136.0.6008.22" },
-        deviceId: legacy.deviceId,
-        lastConfigVersion: release.previousConfigVersion,
-        detectedAi: { family: "chatgpt", surface: "web", variant: null },
-      },
-      refreshed.accessToken,
-    );
-    expect(response.statusCode).toBe(200);
-    const verified = verifyBootstrapEnvelopeV2(
-      response.json(),
-      new Map([[material.keyId, material.publicKey]]),
-    );
-    expect(verified).toMatchObject({
-      ok: true,
-      payload: {
-        contractVersion: "control_plane_v2",
-        configVersion: release.configVersion,
-        account: { id: legacy.accountId, status: "ACTIVE" },
-        devicePolicy: { status: "ACTIVE" },
-        compatibility: {
-          extension: { status: "SUPPORTED" },
-          browser: { status: "SUPPORTED" },
+  it.each(["alice", "chatgpt"] as const)(
+    "refreshes the published STORE1 %s profile with the current release ceiling",
+    async (family) => {
+      const legacy = await authenticated("0.2.9", "opera");
+      await seedCommercialEligibility(legacy.accountId);
+      const release = await store0211UpgradeGraph({
+        includeProfile: true,
+        profileFamily: family,
+      });
+      const refreshedResponse = await postRefresh(
+        legacy.refreshToken,
+        "store0211-ai-profile-refresh",
+      );
+      expect(refreshedResponse.statusCode).toBe(200);
+      const refreshed = refreshedResponse.json<{ accessToken: string }>();
+      const response = await post(
+        {
+          contractVersion: "control_plane_v2",
+          extensionVersion: "0.2.11",
+          browser: { family: "opera", version: "136.0.6008.22" },
+          deviceId: legacy.deviceId,
+          lastConfigVersion: release.previousConfigVersion,
+          detectedAi: { family, surface: "web", variant: null },
         },
-        ai: {
-          status: "RESOLVED",
-          detected: { family: "chatgpt", surface: "web", variant: null },
-          profile: {
-            profileKey: STORE1_PROFILE_KEY,
-            contentSha256: STORE1_PROFILE_SHA256,
-            compatibility: STORE1_PROFILE_COMPATIBILITY,
+        refreshed.accessToken,
+      );
+      expect(response.statusCode).toBe(200);
+      const verified = verifyBootstrapEnvelopeV2(
+        response.json(),
+        new Map([[material.keyId, material.publicKey]]),
+      );
+      expect(verified).toMatchObject({
+        ok: true,
+        payload: {
+          contractVersion: "control_plane_v2",
+          configVersion: release.configVersion,
+          account: { id: legacy.accountId, status: "ACTIVE" },
+          devicePolicy: { status: "ACTIVE" },
+          compatibility: {
+            extension: { status: "SUPPORTED" },
+            browser: { status: "SUPPORTED" },
           },
+          ai:
+            family === "alice"
+              ? {
+                  status: "RESOLVED",
+                  detected: { family, surface: "web", variant: null },
+                  profile: {
+                    profileKey: STORE1_PROFILE_KEY,
+                    contentSha256: STORE1_PROFILE_SHA256,
+                    compatibility: STORE1_PROFILE_COMPATIBILITY,
+                  },
+                }
+              : {
+                  status: "UNAVAILABLE",
+                  detected: { family, surface: "web", variant: null },
+                  reason: "AI_DISABLED",
+                },
         },
-      },
-    });
-    const counts = await db.query<{
-      devices: string;
-      sessions: string;
-      refreshes: string;
-      admissions: string;
-    }>(
-      `SELECT
+      });
+      const counts = await db.query<{
+        devices: string;
+        sessions: string;
+        refreshes: string;
+        admissions: string;
+      }>(
+        `SELECT
          (SELECT count(*)::text FROM devices WHERE account_id=$1) AS devices,
          (SELECT count(*)::text FROM sessions WHERE account_id=$1) AS sessions,
          (SELECT count(*)::text FROM refresh_tokens WHERE session_id=$2) AS refreshes,
          (SELECT count(*)::text FROM beta_admissions WHERE account_id=$1) AS admissions`,
-      [legacy.accountId, legacy.sessionId],
-    );
-    expect(counts.rows[0]).toEqual({
-      devices: "1",
-      sessions: "1",
-      refreshes: "2",
-      admissions: "0",
-    });
-  });
+        [legacy.accountId, legacy.sessionId],
+      );
+      expect(counts.rows[0]).toEqual({
+        devices: "1",
+        sessions: "1",
+        refreshes: "2",
+        admissions: "0",
+      });
+    },
+  );
 
   it("keeps a refreshed 0.2.9 account signed and fail-closed when STORE1 assignment material is absent", async () => {
     const legacy = await authenticated("0.2.9", "opera");

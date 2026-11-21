@@ -21,7 +21,7 @@ const requestBase = {
     browser: { family: "chrome" as const, version: "120" },
     deviceId: subject.deviceId,
     lastConfigVersion: null,
-    detectedAi: { family: "chatgpt", surface: "web", variant: null },
+    detectedAi: { family: "alice", surface: "web", variant: null },
   },
 };
 const policy = {
@@ -63,9 +63,9 @@ function service(
       features: {},
       ai: {
         status: "RESOLVED",
-        detected: { family: "chatgpt", surface: "web", variant: null },
+        detected: { family: "alice", surface: "web", variant: null },
         profile: {
-          profileKey: "chatgpt-web",
+          profileKey: "alice-web",
           revision: 3,
           scopeVariant: null,
           schemaVersion: "adapter_profile_v1",
@@ -82,9 +82,9 @@ function service(
   const aiResolution = {
     resolve: async () => ({
       status: "RESOLVED" as const,
-      detected: { family: "chatgpt", surface: "web", variant: null },
+      detected: { family: "alice", surface: "web", variant: null },
       profile: {
-        profileKey: "chatgpt-web",
+        profileKey: "alice-web",
         revision: 3,
         scopeVariant: null,
         schemaVersion: "adapter_profile_v1" as const,

@@ -14,9 +14,9 @@ const subject = {
   deviceId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
   sessionId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
 };
-const detected = { family: "chatgpt", surface: "web", variant: null } as const;
+const detected = { family: "alice", surface: "web", variant: null } as const;
 const profile = {
-  profileKey: "chatgpt-web",
+  profileKey: "alice-web",
   revision: 3,
   scopeVariant: null,
   schemaVersion: "adapter_profile_v1" as const,
@@ -369,7 +369,7 @@ describe("Health transport R2 trust order", () => {
       "TO-05 AI mismatch",
       {
         request: {
-          detectedAi: { family: "alice", surface: "web", variant: null },
+          detectedAi: { family: "chatgpt", surface: "web", variant: null },
         },
       },
     ],

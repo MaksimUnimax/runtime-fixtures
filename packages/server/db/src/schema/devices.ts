@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  foreignKey,
   index,
   pgEnum,
   pgTable,
@@ -12,6 +13,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { BrowserFamilies } from "@product/shared";
 import { accounts, users } from "./identity";
+import { accountConnectionCredentials } from "./connection-codes";
 
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   dataType() {
@@ -75,16 +77,24 @@ export const deviceAuthorizations = pgTable(
     exchangeReplayUntil: timestamp("exchange_replay_until", {
       withTimezone: true,
     }),
-    exchangedDeviceId: uuid("exchanged_device_id").references(
-      () => devices.id,
-      { onDelete: "restrict", onUpdate: "restrict" },
-    ),
-    exchangedSessionId: uuid("exchanged_session_id").references(
-      () => sessions.id,
-      { onDelete: "restrict", onUpdate: "restrict" },
-    ),
+    exchangedDeviceId: uuid("exchanged_device_id"),
+    exchangedSessionId: uuid("exchanged_session_id"),
   },
   (table) => [
+    foreignKey({
+      name: "device_authorizations_exchanged_device_id_fkey",
+      columns: [table.exchangedDeviceId],
+      foreignColumns: [devices.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      name: "device_authorizations_exchanged_session_id_fkey",
+      columns: [table.exchangedSessionId],
+      foreignColumns: [sessions.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     unique("device_authorizations_device_code_hash_unique").on(
       table.deviceCodeHash,
     ),
@@ -120,6 +130,14 @@ export const devices = pgTable(
       }),
     status: deviceStatus("status").notNull().default("ACTIVE"),
     label: varchar("label", { length: 256 }),
+    connectionCredentialId: uuid("connection_credential_id"),
+    credentialTransferApprovedAt: timestamp("credential_transfer_approved_at", {
+      withTimezone: true,
+    }),
+    credentialTransferApprovedByUserId: uuid(
+      "credential_transfer_approved_by_user_id",
+    ),
+
     browserFamily: browserFamily("browser_family"),
     browserVersionLastSeen: varchar("browser_version_last_seen", {
       length: 64,
@@ -136,7 +154,34 @@ export const devices = pgTable(
     revokeReason: varchar("revoke_reason", { length: 256 }),
   },
   (table) => [
+    foreignKey({
+      name: "devices_credential_transfer_approved_by_user_id_fkey",
+      columns: [table.credentialTransferApprovedByUserId],
+      foreignColumns: [users.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     index("devices_account_id_index").on(table.accountId),
+    foreignKey({
+      name: "devices_connection_credential_account_fk",
+      columns: [table.connectionCredentialId, table.accountId],
+      foreignColumns: [
+        accountConnectionCredentials.id,
+        accountConnectionCredentials.accountId,
+      ],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    index("devices_connection_credential_index").on(
+      table.connectionCredentialId,
+    ),
+    check(
+      "devices_credential_transfer_approval_shape",
+      sql.raw(
+        "(credential_transfer_approved_at IS NULL AND credential_transfer_approved_by_user_id IS NULL) OR (credential_transfer_approved_at IS NOT NULL AND credential_transfer_approved_by_user_id IS NOT NULL)",
+      ),
+    ),
+
     index("devices_account_id_status_index").on(table.accountId, table.status),
     check(
       "devices_client_metadata_shape",

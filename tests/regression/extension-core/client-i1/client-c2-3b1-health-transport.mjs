@@ -113,7 +113,7 @@ async function main() {
   });
   const metadata = await read.worker.call(
     "SellerAgentsControlClient.getVerifiedHealthMetadata",
-    { detectedAi: { family: "chatgpt", surface: "web", variant: null } },
+    { detectedAi: { family: "alice", surface: "web", variant: null } },
   );
   assert.equal(metadata.verified, true);
   assert.equal(metadata.current, true);
@@ -167,7 +167,7 @@ async function main() {
   });
   const expiredMetadata = await expired.worker.call(
     "SellerAgentsControlClient.getVerifiedHealthMetadata",
-    { detectedAi: { family: "chatgpt", surface: "web", variant: null } },
+    { detectedAi: { family: "alice", surface: "web", variant: null } },
   );
   assert.equal(expiredMetadata.verified, true);
   assert.equal(expiredMetadata.current, false);
@@ -198,7 +198,7 @@ async function main() {
     if (id === "HT-10") {
       const result = await bad.worker.call(
         "SellerAgentsControlClient.getVerifiedHealthMetadata",
-        { detectedAi: { family: "chatgpt", surface: "web", variant: null } },
+        { detectedAi: { family: "alice", surface: "web", variant: null } },
       );
       assert.equal(result.current, false);
     } else
@@ -207,7 +207,7 @@ async function main() {
           bad.worker.call(
             "SellerAgentsControlClient.getVerifiedHealthMetadata",
             {
-              detectedAi: { family: "chatgpt", surface: "web", variant: null },
+              detectedAi: { family: "alice", surface: "web", variant: null },
             },
           ),
         /HEALTH_/,
@@ -220,7 +220,7 @@ async function main() {
       "HT-16",
       {
         ...healthClaim(payload).context,
-        ai: { ...healthClaim(payload).context.ai, family: "alice" },
+        ai: { ...healthClaim(payload).context.ai, family: "chatgpt" },
       },
     ],
     [
@@ -293,7 +293,7 @@ async function main() {
   });
   const negativeMetadata = await negative.worker.call(
     "SellerAgentsControlClient.getVerifiedHealthMetadata",
-    { detectedAi: { family: "chatgpt", surface: "web", variant: null } },
+    { detectedAi: { family: "alice", surface: "web", variant: null } },
   );
   assert.equal(negativeMetadata.verified, true);
   assert.equal(negativeMetadata.current, false);

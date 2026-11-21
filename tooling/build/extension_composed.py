@@ -25,6 +25,7 @@ baseline = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(baseline)
 RECIPE = ROOT / "apps/extension/composition.json"
 MAX_STORE_AUTHORITY_BYTES = 1024 * 1024
+AI_RELEASE_SCOPE_SOURCE = "packages/contracts/src/ai-release-scope.v1.json"
 STORE_VISIBLE_BRAND_TARGETS = (
     "popup.html",
     "popup.js",
@@ -82,6 +83,42 @@ def read_input(relative, inputs):
     data = path.read_bytes()
     inputs[relative] = {"sha256": baseline.sha256(data), "bytes": len(data)}
     return data
+
+
+def canonical_release_json(value):
+    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+
+def bundled_ai_release_scope(inputs=None):
+    def unique_members(pairs):
+        result = {}
+        for key, value in pairs:
+            assert key not in result, "Duplicate AI release scope JSON member"
+            result[key] = value
+        return result
+    data = read_input(AI_RELEASE_SCOPE_SOURCE, inputs) if inputs is not None else (ROOT / AI_RELEASE_SCOPE_SOURCE).read_bytes()
+    assert len(data) <= 4096, "AI release scope limit"
+    descriptor = json.loads(data.decode("utf-8"), object_pairs_hook=unique_members)
+    expected = {
+        "schemaVersion": "ai_release_scope_v1", "releaseId": "alice_first_v1", "revision": 1,
+        "enabledAi": [{"family": "alice", "surface": "web", "variant": None}],
+        "retainedAiFamilies": ["chatgpt", "alice", "qwen", "kimi", "grok", "gemini", "claude", "deepseek"],
+        "executionAuthority": False,
+    }
+    canonical = canonical_release_json(descriptor)
+    assert canonical == canonical_release_json(expected), "Unsupported AI release scope"
+    digest = baseline.sha256(canonical.encode())
+    module = ROOT / "packages/control-client/src/ai-release-scope.js"
+    source = module.read_bytes()
+    assert source.count(("const CANONICAL_DESCRIPTOR = '" + canonical + "';").encode()) == 1, "AI release descriptor mirror mismatch"
+    assert source.count(('const DESCRIPTOR_SHA256 = "' + digest + '";').encode()) == 1, "AI release descriptor hash mismatch"
+    return {"descriptor": descriptor, "sha256": digest}
+
+
+def validate_ai_release_scope(bundle, expected=None):
+    expected = bundled_ai_release_scope() if expected is None else expected
+    assert canonical_release_json(bundle) == canonical_release_json(expected), "AI release scope mismatch"
+    return expected
 
 
 def canonical_https_origin(value):
@@ -252,9 +289,9 @@ def store_config(authority_path, recipe):
     )
     assert isinstance(authority, dict) and set(authority) == {
         "schemaVersion", "source", "productVersion", "contractVersion", "migrationLevel",
-        "environment", "origins", "trustBundle"
+        "environment", "origins", "trustBundle", "aiReleaseScope"
     }
-    assert authority["schemaVersion"] == "octoport_release_authority_v1"
+    assert authority["schemaVersion"] == "octoport_release_authority_v2"
     assert isinstance(authority["source"], dict) and set(authority["source"]) == {"head", "tree"}
     assert re.fullmatch(r"[a-f0-9]{40}", authority["source"]["head"])
     assert re.fullmatch(r"[a-f0-9]{40}", authority["source"]["tree"])
@@ -269,6 +306,7 @@ def store_config(authority_path, recipe):
     portal = canonical_https_origin(authority["origins"]["portalOrigin"])
     assert control != portal
     validate_trust_bundle(authority["trustBundle"])
+    ai_release_scope = validate_ai_release_scope(authority["aiReleaseScope"])
     config = {
         "environment": authority["environment"],
         "controlApiOrigin": control,
@@ -276,6 +314,7 @@ def store_config(authority_path, recipe):
         "extensionVersion": authority["productVersion"],
         "contractVersion": authority["contractVersion"],
         "trustBundle": authority["trustBundle"],
+        "aiReleaseScope": ai_release_scope,
     }
     return config, baseline.sha256(authority_bytes)
 
@@ -291,6 +330,7 @@ def compose(directory, mode="development", release_authority=None):
     assert recipe["stage"] == "I1-C1"
     inputs = {}
     read_input("apps/extension/composition.json", inputs)
+    ai_release_scope = bundled_ai_release_scope(inputs)
     output = {}
     for row in baseline.runtime_rows("ozon"):
         relative = row["relative_runtime_path"]
@@ -351,6 +391,9 @@ def compose(directory, mode="development", release_authority=None):
                 assert set(parsed_config) >= {"environment", "controlApiOrigin", "portalOrigin", "extensionVersion", "contractVersion", "trustBundle"}
                 assert parsed_config["environment"] == "LOCAL DEVELOPMENT"
                 assert parsed_config["extensionVersion"] == recipe["version"]
+                if "aiReleaseScope" in parsed_config:
+                    validate_ai_release_scope(parsed_config["aiReleaseScope"], ai_release_scope)
+                parsed_config["aiReleaseScope"] = ai_release_scope
             except (AssertionError, TypeError, ValueError) as error:
                 raise AssertionError("invalid SA_PACKAGED_CONFIG_JSON") from error
     if parsed_config is None:
@@ -362,6 +405,10 @@ def compose(directory, mode="development", release_authority=None):
         versioned_config = re.sub(pattern, b"extensionVersion: " + json.dumps(version).encode(), development_config)
         assert output["service_worker.js"].count(development_config) == 1
         output["service_worker.js"] = output["service_worker.js"].replace(development_config, versioned_config, 1)
+        output["service_worker.js"] = (
+            b"globalThis.__SELLER_AGENTS_PACKAGED_AI_RELEASE_SCOPE__=" +
+            canonical_release_json(ai_release_scope).encode() + b";\n" + output["service_worker.js"]
+        )
     if parsed_config is not None:
         config_bytes = json.dumps(parsed_config, ensure_ascii=False, separators=(",", ":"))
         output["service_worker.js"] = b"globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=" + json.dumps(config_bytes).encode() + b";\n" + output["service_worker.js"]
@@ -388,6 +435,28 @@ def compose(directory, mode="development", release_authority=None):
             output["service_worker.js"] = output["service_worker.js"].replace(
                 development_scope, b"development: false", 1
             )
+            # A store package cannot acquire the local I1 observation port,
+            # even if one is injected into its privileged worker at runtime.
+            # Compile only the two explicitly delimited diagnostic helpers to
+            # no-ops. Transport, limits, scheduling and authority code remain.
+            for relative, marker, replacement in (
+                ("packages/control-client/src/client.js", b"I1_CLIENT_DIAGNOSTICS",
+                 b"function i1BootstrapDiagnostic() {}\n"
+                 b"function i1BootstrapDiagnosticContext() { return null; }\n"
+                 b"function i1BootstrapRequestDiagnostic() {}"),
+                ("packages/control-client/src/parallel-authority.js", b"I1_SCHEDULER_DIAGNOSTICS",
+                 b"function i1BootstrapDiagnostic() {}"),
+            ):
+                source = read_input(relative, inputs)
+                begin = b"/* " + marker + b"_BEGIN */"
+                end = b"/* " + marker + b"_END */"
+                assert source.count(begin) == source.count(end) == 1
+                start, stop = source.index(begin), source.index(end) + len(end)
+                assert start < stop
+                helpers = source[start:stop]
+                assert output["service_worker.js"].count(helpers) == 1
+                output["service_worker.js"] = output["service_worker.js"].replace(helpers, replacement, 1)
+            assert b"__OCTOPORT_I1_BOOTSTRAP_DIAGNOSTIC_V1__" not in output["service_worker.js"]
     for patch in json.loads(read_input(recipe["application_patches"], inputs)):
         text = output[patch["target"]].decode()
         assert isinstance(patch["old"], str)
@@ -480,6 +549,7 @@ def compose(directory, mode="development", release_authority=None):
         "build_mode": mode,
         "environment": parsed_config["environment"] if parsed_config else "LOCAL DEVELOPMENT",
         "release_authority_sha256": release_authority_sha256,
+        "ai_release_scope": ai_release_scope,
         "packaged_origins": {
             "controlApi": parsed_config["controlApiOrigin"] if parsed_config else recipe.get("control_api_origin", "http://127.0.0.1:43100"),
             "portal": parsed_config["portalOrigin"] if parsed_config else recipe.get("portal_origin", "http://127.0.0.1:43101"),

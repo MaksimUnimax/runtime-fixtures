@@ -257,6 +257,9 @@ await test('real-content-state-ignores-late-A-after-B-and-finish',async()=>{
 
 await test('real-popup-refresh-and-finish-ignore-obsolete-actions',async()=>{
  const source=fs.readFileSync(path.join(runtime,'popup.js'),'utf8');
+ const feedbackStart=source.indexOf('function rememberStartFeedback(');
+ const feedbackEnd=source.indexOf('\nfunction transferReceivePresentation(',feedbackStart);
+ assert(feedbackStart>=0&&feedbackEnd>feedbackStart);
  const actionStart=source.indexOf('async function action(');
  const actionEnd=source.indexOf('\nfunction selected()',actionStart);
  const refreshStart=source.indexOf('async function refresh(');
@@ -268,8 +271,8 @@ await test('real-popup-refresh-and-finish-ignore-obsolete-actions',async()=>{
   actionSuccessText:result=>result.label,
   request:()=>deferred?new Promise(resolve=>requests.push(resolve)):Promise.resolve({context:{},stores:[],key:'B'})};
  vm.createContext(ctx);
- vm.runInContext('let busy=false, actionGeneration=0, refreshGeneration=0, state=null, refreshTimer=null, refreshRequested=false;\n'+
- source.slice(actionStart,actionEnd)+'\n'+source.slice(refreshStart,refreshEnd)+
+ vm.runInContext('let tabId=1, startFeedback=null, busy=false, actionGeneration=0, refreshGeneration=0, state=null, refreshTimer=null, refreshRequested=false;\n'+
+ source.slice(feedbackStart,feedbackEnd)+'\n'+source.slice(actionStart,actionEnd)+'\n'+source.slice(refreshStart,refreshEnd)+
  '\nglobalThis.api={action,refresh,read:()=>({busy,state})};',ctx);
  const a=ctx.api.refresh(),b=ctx.api.refresh();
  requests[1]({context:{},stores:[],key:'B'});await b;
@@ -290,6 +293,9 @@ await test('real-popup-refresh-and-finish-ignore-obsolete-actions',async()=>{
 
 await test('real-popup-finish-refresh-cannot-silently-drop-next-start',async()=>{
  const source=fs.readFileSync(path.join(runtime,'popup.js'),'utf8');
+ const feedbackStart=source.indexOf('function rememberStartFeedback(');
+ const feedbackEnd=source.indexOf('\nfunction transferReceivePresentation(',feedbackStart);
+ assert(feedbackStart>=0&&feedbackEnd>feedbackStart);
  const actionStart=source.indexOf('async function action(');
  const actionEnd=source.indexOf('\nfunction selected()',actionStart);
  assert(actionStart>=0&&actionEnd>actionStart);
@@ -302,8 +308,8 @@ await test('real-popup-finish-refresh-cannot-silently-drop-next-start',async()=>
   refresh:async()=>{startVisible=true;await new Promise(resolve=>{refreshRelease=resolve;});}
  };
  vm.createContext(ctx);
- vm.runInContext('let busy=false, actionGeneration=0, refreshGeneration=0, state={}, refreshRequested=false;\n'+
-  source.slice(actionStart,actionEnd)+
+ vm.runInContext('let tabId=1, startFeedback=null, busy=false, actionGeneration=0, refreshGeneration=0, state={}, refreshRequested=false;\n'+
+  source.slice(feedbackStart,feedbackEnd)+'\n'+source.slice(actionStart,actionEnd)+
   '\nglobalThis.api={action,read:()=>({busy})};',ctx);
  const finish=ctx.api.action(async()=>({label:'finished'}),{interrupt:true});
  for(let i=0;i<20&&!startVisible;i++) await new Promise(resolve=>setImmediate(resolve));

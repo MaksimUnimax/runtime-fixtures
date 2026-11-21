@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import path from "node:path";
+import descriptor from "../../../../packages/contracts/src/ai-release-scope.v1.json" with {type:"json"};
+const aiReleaseScope={descriptor,sha256:"10c20b39daec4d0a9733173222167ea7a56da2a128bbc182132591c8e5596261"};
 import { makeWorker, signFixtureBootstrap, until } from "../worker-harness.mjs";
 
 const runtime = path.resolve(process.argv[2]);
@@ -225,7 +227,7 @@ for (const [label, makeInvalid] of [["invalid-origin", pending => { pending.auth
     assert.equal(await worker.call("SellerAgentsControlClient.canWork"), true, "expiresAt starts signed offline grace");
     clock.wall = baseWall; clock.mono += 10;
     assert.equal(await worker.call("SellerAgentsControlClient.canWork"), true, "wall rollback remains grace-eligible");
-    assert.equal(backing.local[AUTH].authority.cacheBinding.cacheVersion, "control_cache_binding_v1");
+    assert.equal(backing.local[AUTH].authority.cacheBinding.cacheVersion, "control_cache_binding_v2");
   } finally { worker.close(); }
 }
 
@@ -341,11 +343,11 @@ for (const [label, makeInvalid] of [["invalid-origin", pending => { pending.auth
   for (const [label, change, originChanged] of dimensions) {
     const seed = await fixture(); const original = clone(seed.backing.local[AUTH]); seed.worker.close();
     const trustBundle = fixtureTrustBundle(seed.backing); if (change.trustChanged) trustBundle.keys[0].fingerprintSha256 = "0".repeat(64);
-    if (change.requestedChanged) seed.backing.local[AUTH].authority.requestedAi = "alice";
+    if (change.requestedChanged) seed.backing.local[AUTH].authority.requestedAi = "chatgpt";
     if (change.deviceChanged) seed.backing.local[AUTH].credentials.deviceId = "44444444-4444-4444-8444-444444444444";
     if (change.sessionChanged) seed.backing.local[AUTH].credentials.sessionId = "55555555-5555-4555-8555-555555555555";
     if (change.generationChanged) seed.backing.local[AUTH].generation = 2;
-    const network = []; const worker = await makeWorker(runtime, { backing: seed.backing, seedAuthority: false, userAgent: change.userAgent, packagedConfig: { environment: "LOCAL DEVELOPMENT", controlApiOrigin: change.controlApiOrigin || "http://127.0.0.1:43100", portalOrigin: change.portalOrigin || "http://127.0.0.1:43101", extensionVersion: change.extensionVersion || "0.2.4", contractVersion: change.contractVersion || "control_plane_v2", trustBundle }, fetch: async (url) => { network.push(url); return json({ error: { code: "UNEXPECTED" } }, 500); } });
+    const network = []; const worker = await makeWorker(runtime, { backing: seed.backing, seedAuthority: false, userAgent: change.userAgent, packagedConfig: { environment: "LOCAL DEVELOPMENT", controlApiOrigin: change.controlApiOrigin || "http://127.0.0.1:43100", portalOrigin: change.portalOrigin || "http://127.0.0.1:43101", extensionVersion: change.extensionVersion || "0.2.4", contractVersion: change.contractVersion || "control_plane_v2", aiReleaseScope, trustBundle }, fetch: async (url) => { network.push(url); return json({ error: { code: "UNEXPECTED" } }, 500); } });
     try { assert.equal(await worker.call("SellerAgentsControlClient.canWork"), false, label); if (originChanged) { await assert.rejects(worker.call("SellerAgentsControlClient.bootstrap"), /AUTH_REQUIRED/); assert.equal(network.length, 0); } else if (!change.deviceChanged && !change.sessionChanged && !change.generationChanged) { assert.equal((await worker.call("SellerAgentsControlClient.getAuthority")), null, label); assert.ok(seed.backing.local[AUTH]?.credentials, `${label} preserves credentials`); } } finally { worker.close(); }
   }
   const positive = await fixture(); try { assert.equal(await positive.worker.call("SellerAgentsControlClient.canWork"), true); } finally { positive.worker.close(); }
@@ -574,7 +576,7 @@ for (const [label, makeInvalid] of [["invalid-origin", pending => { pending.auth
 {
   const seed = await fixture(); const saved = clone(seed.backing.local[AUTH]); seed.backing.local.catalog_fixture = { keep: true }; seed.worker.close();
   const network = [];
-  const changed = await makeWorker(runtime, { backing: seed.backing, seedAuthority: false, packagedConfig: { environment: "LOCAL DEVELOPMENT", controlApiOrigin: "http://127.0.0.1:43199", portalOrigin: "http://127.0.0.1:43101", extensionVersion: "0.2.4", contractVersion: "control_plane_v2", trustBundle: fixtureTrustBundle(seed.backing) }, fetch: async (url, init) => { network.push({ url, body: init?.body || "" }); return url.endsWith("/v1/device-authorizations") ? json({ status: "pending", authorizationId: "66666666-6666-4666-8666-666666666666", deviceCode: "N".repeat(43), userCode: "ABCD-EFGH", expiresAt: new Date(baseWall + 60000).toISOString() }) : json({ error: { code: "MUST_NOT_USE_OLD_SECRET" } }, 500); } });
+  const changed = await makeWorker(runtime, { backing: seed.backing, seedAuthority: false, packagedConfig: { environment: "LOCAL DEVELOPMENT", controlApiOrigin: "http://127.0.0.1:43199", portalOrigin: "http://127.0.0.1:43101", extensionVersion: "0.2.4", contractVersion: "control_plane_v2", aiReleaseScope, trustBundle: fixtureTrustBundle(seed.backing) }, fetch: async (url, init) => { network.push({ url, body: init?.body || "" }); return url.endsWith("/v1/device-authorizations") ? json({ status: "pending", authorizationId: "66666666-6666-4666-8666-666666666666", deviceCode: "N".repeat(43), userCode: "ABCD-EFGH", expiresAt: new Date(baseWall + 60000).toISOString() }) : json({ error: { code: "MUST_NOT_USE_OLD_SECRET" } }, 500); } });
   try {
     assert.equal((await changed.call("SellerAgentsControlClient.status")).authenticated, false);
     await assert.rejects(changed.call("SellerAgentsControlClient.bootstrap"), /AUTH_REQUIRED/);
@@ -585,7 +587,7 @@ for (const [label, makeInvalid] of [["invalid-origin", pending => { pending.auth
   } finally { changed.close(); }
   const sameOriginBacking = { local: {}, session: {} }, sameSeed = await fixture({ backing: sameOriginBacking });
   const raisedFloor = sameOriginBacking.local[AUTH].cacheClock.effectiveTimeMs + 5000; sameOriginBacking.local[AUTH].cacheClock.effectiveTimeMs = raisedFloor; sameSeed.worker.close();
-  const replacementPayload = clone(sameOriginBacking.local[AUTH].authority.payload); const replacement = await makeWorker(runtime, { backing: sameOriginBacking, seedAuthority: false, wallClock: () => baseWall, monotonicClock: () => 1000, packagedConfig: { environment: "LOCAL DEVELOPMENT", controlApiOrigin: "http://127.0.0.1:43100", portalOrigin: "http://127.0.0.1:43101", extensionVersion: "0.2.5", contractVersion: "control_plane_v2", trustBundle: fixtureTrustBundle(sameOriginBacking) }, fetch: async url => url.endsWith("/v1/bootstrap") ? signed(sameOriginBacking, { ...replacementPayload, serverTime: new Date(baseWall).toISOString(), expiresAt: new Date(baseWall + 3600000).toISOString(), offlineGraceUntil: new Date(baseWall + 7200000).toISOString() }) : json({ error: { code: "UNEXPECTED" } }, 500) });
+  const replacementPayload = clone(sameOriginBacking.local[AUTH].authority.payload); const replacement = await makeWorker(runtime, { backing: sameOriginBacking, seedAuthority: false, wallClock: () => baseWall, monotonicClock: () => 1000, packagedConfig: { environment: "LOCAL DEVELOPMENT", controlApiOrigin: "http://127.0.0.1:43100", portalOrigin: "http://127.0.0.1:43101", extensionVersion: "0.2.5", contractVersion: "control_plane_v2", aiReleaseScope, trustBundle: fixtureTrustBundle(sameOriginBacking) }, fetch: async url => url.endsWith("/v1/bootstrap") ? signed(sameOriginBacking, { ...replacementPayload, serverTime: new Date(baseWall).toISOString(), expiresAt: new Date(baseWall + 3600000).toISOString(), offlineGraceUntil: new Date(baseWall + 7200000).toISOString() }) : json({ error: { code: "UNEXPECTED" } }, 500) });
   try { assert.equal((await replacement.call("SellerAgentsControlClient.status")).authenticated, false); assert.ok(replacement.backing.local[AUTH].credentials); assert.ok(replacement.backing.local[AUTH].cacheClock.effectiveTimeMs >= raisedFloor); await replacement.call("SellerAgentsControlClient.bootstrap"); assert.equal((await replacement.call("SellerAgentsControlClient.status")).authenticated, true); } finally { replacement.close(); }
 }
 
@@ -686,7 +688,7 @@ for (const marketplace of ["ozon", "wildberries"]) {
       assert.deepEqual(originalBytes, Buffer.from(bytes));
     }
     assert.equal(idb.stats.reads, readsBefore, "T7 guard precedes artifact reads");
-    for (const type of ["OZ_CONTENT_READY", "OZ_CONTENT_SYNC"]) { const recovery = await worker.request({ type, identity: worker.identity }, t7IdentitySender(worker)); assert.equal(recovery.outgoing_text, undefined); assert.equal(recovery.recovery, undefined); assert.equal(recovery.manual_recovery, undefined); }
+    for (const type of ["OZ_CONTENT_READY", "OZ_CONTENT_SYNC"]) { const recovery = await worker.request({ type, identity: worker.identity }, t7IdentitySender(worker)); assert.equal(recovery.outgoing_text, undefined); assert.equal(recovery.recovery, null); assert.equal(recovery.manual_recovery, null); }
     assert.equal(worker.messages.filter(message => message.type === "OZ_BATCH_DELIVERY_AVAILABLE").length, advertisements);
     assert.equal(providerCalls, 1); assert.equal(controlRequests, controlsBeforeExpiry, "T7 local guards add no control-plane HTTP");
   } finally { cleanupResolve(); worker.close(); }

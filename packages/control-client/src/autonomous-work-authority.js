@@ -7,9 +7,9 @@
   const packaged = globalThis.SellerAgentsPackagedCapabilities;
   const intersection = globalThis.SellerAgentsCapabilityIntersection;
   const sourcePermission = Object.freeze({ ozon: "source.ozon", wildberries: "source.wildberries" });
-  const aiPermission = Object.freeze({ chatgpt: "ai.chatgpt", alice: "ai.alice", qwen: "ai.qwen" });
-  const capabilityId = Object.freeze({ "source.ozon": "marketplace.ozon.adapter", "source.wildberries": "marketplace.wildberries.adapter", "ai.chatgpt": "ai.chatgpt.web.adapter", "ai.alice": "ai.alice.web.adapter", "ai.qwen": "ai.qwen.web.adapter" });
-  const aiFamilies = new Set(["chatgpt", "alice", "qwen"]);
+  const aiPermission = Object.freeze({ chatgpt: "ai.chatgpt", alice: "ai.alice", qwen: "ai.qwen", kimi: "ai.kimi", grok: "ai.grok", gemini: "ai.gemini", claude: "ai.claude", deepseek: "ai.deepseek" });
+  const capabilityId = Object.freeze({ "source.ozon": "marketplace.ozon.adapter", "source.wildberries": "marketplace.wildberries.adapter", "ai.chatgpt": "ai.chatgpt.web.adapter", "ai.alice": "ai.alice.web.adapter", "ai.qwen": "ai.qwen.web.adapter", "ai.kimi": "ai.kimi.web.adapter", "ai.grok": "ai.grok.web.adapter", "ai.gemini": "ai.gemini.web.adapter", "ai.claude": "ai.claude.web.adapter", "ai.deepseek": "ai.deepseek.web.adapter" });
+  const aiFamilies = new Set(["chatgpt", "alice", "qwen", "kimi", "grok", "gemini", "claude", "deepseek"]);
   const maxDate = 8640000000000000;
   const plain = value => Boolean(value && typeof value === "object" && !Array.isArray(value));
   const text = value => typeof value === "string" && value.length > 0;
@@ -68,7 +68,7 @@
       device: same(authority.deviceId, current.deviceId) && (current.expectedDeviceId === undefined || current.expectedDeviceId === authority.deviceId),
       session: same(authority.sessionId, current.sessionId) && (current.expectedSessionId === undefined || current.expectedSessionId === authority.sessionId),
       generation: Number.isSafeInteger(authority.generation) && authority.generation === current.generation && (current.expectedGeneration === undefined || current.expectedGeneration === current.generation),
-      pageIdentity: (family === "chatgpt" && ["https://chatgpt.com", "https://chat.openai.com"].includes(origin) || family === "alice" && origin === "https://alice.yandex.ru" || family === "qwen" && origin === "https://chat.qwen.ai") && (conversationId === null || conversationKey === `${origin}|${conversationId}`),
+      pageIdentity: (family === "chatgpt" && ["https://chatgpt.com", "https://chat.openai.com"].includes(origin) || family === "alice" && origin === "https://alice.yandex.ru" || family === "qwen" && origin === "https://chat.qwen.ai" || family === "kimi" && origin === "https://www.kimi.ai" || family === "grok" && origin === "https://grok.com" || family === "gemini" && origin === "https://gemini.google.com" || family === "claude" && origin === "https://claude.ai" || family === "deepseek" && origin === "https://chat.deepseek.com") && (conversationId === null || conversationKey === `${origin}|${conversationId}`),
       aiProfile: payload.ai?.status === "RESOLVED" && aiFamilies.has(family) && payload.ai.detected?.family === family && authority.requestedAi === family && payload.ai.detected?.surface === current.aiSurface && payload.ai.detected?.variant === current.aiVariant && profile?.scopeVariant === null && actualProfile.profileKey === profile.profileKey && actualProfile.revision === profile.revision && actualProfile.scopeVariant === profile.scopeVariant && actualProfile.contentSha256 === profile.contentSha256,
       dialogue: conversationId === null || conversationKey === `${origin}|${conversationId}`,
       store: text(store.accountId) && store.accountId === payload.account?.id && text(store.id || store.storeId) && (current.storeId === undefined || (store.id || store.storeId) === current.storeId) && ["ozon", "wildberries"].includes(store.marketplace) && store.marketplace === current.marketplace && text(store.credentialRevision) && store.credentialRevision === current.credentialRevision && (store.selectedStoreId == null || store.selectedStoreId === store.id || store.selectedStoreId === store.storeId) && (store.expectedStoreId == null || store.expectedStoreId === store.id || store.expectedStoreId === store.storeId),
@@ -101,9 +101,13 @@
     gates.accessBasis = payload.contractVersion !== "control_plane_v3" || payload.accessBasis !== "NONE";
     if (!gates.accessBasis) deny(denied, "DENY_AUTH_INVALIDATED");
     const trustBundleSha256 = await digest(config.trustBundle), expectedAi = payload.ai?.status === "RESOLVED" ? { family: payload.ai.detected.family, surface: payload.ai.detected.surface, variant: payload.ai.detected.variant } : null;
-    gates.cacheBinding = plain(authority.cacheBinding) && authority.cacheBinding.cacheVersion === "control_cache_binding_v1" && authority.cacheBinding.controlApiOrigin === config.controlApiOrigin && authority.cacheBinding.portalOrigin === config.portalOrigin && authority.cacheBinding.contractVersion === payload.contractVersion && authority.cacheBinding.extensionVersion === config.extensionVersion && authority.cacheBinding.browser?.family === browserFamily() && authority.cacheBinding.browser?.version === browserVersion() && authority.cacheBinding.trustBundleSha256 === trustBundleSha256 && verifier.canonicalJson(authority.cacheBinding.detectedAi) === verifier.canonicalJson(expectedAi);
+    gates.cacheBinding = plain(authority.cacheBinding) && authority.cacheBinding.cacheVersion === "control_cache_binding_v2" && authority.cacheBinding.aiReleaseScopeSha256 === globalThis.SellerAgentsAiReleaseScope?.snapshot?.()?.sha256 && authority.cacheBinding.controlApiOrigin === config.controlApiOrigin && authority.cacheBinding.portalOrigin === config.portalOrigin && authority.cacheBinding.contractVersion === payload.contractVersion && authority.cacheBinding.extensionVersion === config.extensionVersion && authority.cacheBinding.browser?.family === browserFamily() && authority.cacheBinding.browser?.version === browserVersion() && authority.cacheBinding.trustBundleSha256 === trustBundleSha256 && verifier.canonicalJson(authority.cacheBinding.detectedAi) === verifier.canonicalJson(expectedAi);
     if (!gates.cacheBinding) deny(denied, "DENY_AUTH_INVALIDATED");
     const details = context(value, current, authority, payload, operation); Object.assign(gates, details.gates);
+    gates.releaseScope = globalThis.SellerAgentsAiReleaseScope?.supportsAi?.({
+      family: details.family, surface: payload.ai?.detected?.surface, variant: payload.ai?.detected?.variant,
+    }) === true;
+    if (!gates.releaseScope) deny(denied, "DENY_AI_RELEASE_SCOPE");
     if (!details.gates.account) deny(denied, "DENY_ACCOUNT_MISMATCH");
     if (!details.gates.device || !details.gates.session || !details.gates.generation) deny(denied, "DENY_DEVICE_SESSION_MISMATCH");
     if (!details.gates.aiProfile) deny(denied, "DENY_AI_PROFILE_MISMATCH");

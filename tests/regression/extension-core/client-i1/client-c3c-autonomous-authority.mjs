@@ -13,14 +13,14 @@ function inputFor(worker, overrides = {}) {
   const payload = authority.payload;
   const profile = payload.ai.profile;
   const store = { accountId: payload.account.id, id: "c3c-store", marketplace: "ozon", credentialRevision: "credential-r1" };
-  const identity = { origin: "https://chatgpt.com", conversationId: "c3c-dialogue", key: "https://chatgpt.com|c3c-dialogue", provider: "chatgpt" };
-  const binding = { binding_id: "c3c-binding", revision: 2, origin: identity.origin, ai_id: "chatgpt", conversation_id: identity.conversationId, conversation_key: identity.key, store_context: { ...store, authGeneration: authority.generation } };
+  const identity = { origin: "https://alice.yandex.ru", conversationId: "c3c-dialogue", key: "https://alice.yandex.ru|c3c-dialogue", provider: "alice" };
+  const binding = { binding_id: "c3c-binding", revision: 2, origin: identity.origin, ai_id: "alice", conversation_id: identity.conversationId, conversation_key: identity.key, store_context: { ...store, authGeneration: authority.generation } };
   const current = {
     accountId: payload.account.id, expectedAccountId: payload.account.id,
     generation: authority.generation, expectedGeneration: authority.generation,
     deviceId: authority.deviceId, expectedDeviceId: authority.deviceId,
     sessionId: authority.sessionId, expectedSessionId: authority.sessionId,
-    aiFamily: "chatgpt", aiSurface: "web", aiVariant: null,
+    aiFamily: "alice", aiSurface: "web", aiVariant: null,
     aiProfile: { profileKey: profile.profileKey, revision: profile.revision, scopeVariant: profile.scopeVariant, contentSha256: profile.contentSha256 },
     origin: identity.origin, conversationId: identity.conversationId, conversationKey: identity.key,
     storeId: store.id, marketplace: store.marketplace, credentialRevision: store.credentialRevision,
@@ -89,7 +89,7 @@ try {
     else if (field === "accountId") current[field] = "other-account";
     else if (field === "deviceId") current[field] = "other-device";
     else if (field === "generation") current[field] += 1;
-    else if (field === "aiFamily") current[field] = "alice";
+    else if (field === "aiFamily") current[field] = "chatgpt";
     else if (field === "storeId") current[field] = "other-store";
     else if (field === "credentialRevision") current[field] = "changed";
     else if (field === "bindingRevision") current[field] += 1;

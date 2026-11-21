@@ -150,7 +150,7 @@ await test("synthetic storage failure never reports successful import", async ()
 });
 
 
-await test("captured backup context is frozen and synchronous guard expires on ordinary cancellation", async () => {
+await test("confirmed enrollment ignores late cancel; real reset expires frozen backup context", async () => {
   const target = await worker();
   try {
     const pinned = await target.call("SellerAgentsControlClient.captureBackupContext");
@@ -158,6 +158,12 @@ await test("captured backup context is frozen and synchronous guard expires on o
     assert.equal(target.call("SellerAgentsControlClient.assertBackupContext", pinned), true);
     const cancelled = await target.request({ type: "SA_AUTH_CANCEL" }, popup);
     assert.equal(cancelled.ok, true);
+    assert.equal(await target.call("SellerAgentsControlClient.generation"), pinned.generation);
+    assert.equal(target.call("SellerAgentsControlClient.assertBackupContext", pinned), true);
+    assert.equal((await target.call("SellerAgentsControlClient.status")).authenticated, true);
+    const reset = await target.request({ type: "SA_AUTH_RESET" }, popup);
+    assert.equal(reset.ok, true);
+    assert.equal(reset.auth.authenticated, false);
     assert.throws(() => target.call("SellerAgentsControlClient.assertBackupContext", pinned),
       error => error.code === "AUTH_GENERATION_CHANGED");
     assertNoProviderCalls(target);
@@ -219,8 +225,10 @@ async function queuedImportInvalidation(transition) {
     await until(() => planRead, "ordinary import reached planning while prior write is pending");
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(importSettled, false);
-    if (transition === "cancel") {
-      assert.equal((await target.request({ type: "SA_AUTH_CANCEL" }, popup)).ok, true);
+    if (transition === "reset") {
+      const reset = await target.request({ type: "SA_AUTH_RESET" }, popup);
+      assert.equal(reset.ok, true);
+      assert.equal(reset.auth.authenticated, false);
     } else {
       const reset = await target.request({ type: "SA_AUTH_RESET" }, popup);
       assert.equal(reset.ok, true);
@@ -232,16 +240,26 @@ async function queuedImportInvalidation(transition) {
       assert.equal(backing.local[authKey].authority.verified, true);
     }
     assert.ok(await target.call("SellerAgentsControlClient.generation") > original.generation);
-    assert.equal(await target.call("SellerAgentsControlClient.currentAccount"), original.accountId);
+    assert.equal(await target.call("SellerAgentsControlClient.currentAccount"),
+      transition === "reset" ? null : original.accountId);
     releaseWrite();
     const saved = await blocker;
-    assert.equal(saved.ok, true);
+    if (transition === "reset") {
+      // This write was already dispatched before reset. Its old-account bytes
+      // may settle, but the signed-out caller must not receive a success.
+      assert.equal(saved.ok, false);
+      assert.equal(saved.code, "AUTH_REQUIRED");
+    } else assert.equal(saved.ok, true);
     const response = await importing;
     assert.equal(response.ok, false);
     assert.equal(response.code, "AUTH_GENERATION_CHANGED");
     assert.equal(attempts, 1, "the pending import must add no catalog write");
     const stores = backing.local[catalogKey].accounts[target.accountId].stores;
-    assert.deepEqual(Object.keys(stores), [saved.store.id]);
+    if (transition === "reset") {
+      assert.equal(Object.keys(stores).length, 1);
+      assert.equal(Object.values(stores)[0].name, "Synthetic independent ordinary save");
+      assert.equal(Object.values(stores)[0].accountId, original.accountId);
+    } else assert.deepEqual(Object.keys(stores), [saved.store.id]);
     assertNoProviderCalls(target);
   } finally {
     releaseWrite();
@@ -249,8 +267,8 @@ async function queuedImportInvalidation(transition) {
     target.close();
   }
 }
-await test("ordinary generation cancellation invalidates pending public import before write",
-  () => queuedImportInvalidation("cancel"));
+await test("ordinary signed-out reset invalidates pending public import before write",
+  () => queuedImportInvalidation("reset"));
 await test("ordinary reset and signed same-account reactivation invalidate pending public import",
   () => queuedImportInvalidation("reactivate"));
 

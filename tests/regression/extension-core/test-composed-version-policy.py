@@ -227,16 +227,22 @@ class VersionPolicyTests(unittest.TestCase):
                     self.last_setup_calls = setup.call_count
 
     def test_current_ai_host_inventory_is_exact(self):
-        approved = ["https://chat.qwen.ai/*", "https://www.kimi.ai/*"]
+        approved = [
+            "https://chat.qwen.ai/*", "https://www.kimi.ai/*",
+            "https://grok.com/*", "https://gemini.google.com/*",
+            "https://claude.ai/*", "https://chat.deepseek.com/*",
+        ]
         with self.assertRaises(ReachedPreservedBehavior):
-            self.exercise_actual_entry("0.2.37", "0.2.37", ai_hosts=approved, manifest_ai_hosts=approved)
+            self.exercise_actual_entry("0.2.42", "0.2.42", ai_hosts=approved, manifest_ai_hosts=approved)
         self.assertEqual(self.last_child_calls, 1)
-        invalid = [approved[:1], approved + [approved[-1]], list(reversed(approved)),
-                   approved[:1] + ["https://kimi.ai/*"], approved + ["https://extra.invalid/*"]]
+        invalid = [approved[:i] + approved[i + 1:] for i in range(len(approved))]
+        invalid += [approved + [approved[-1]], list(reversed(approved)),
+                    approved[:1] + ["https://kimi.ai/*"] + approved[2:],
+                    approved + ["https://extra.invalid/*"]]
         for bad in invalid:
             for where in ("recipe", "manifest"):
                 with self.subTest(where=where, hosts=bad), self.assertRaises(AssertionError):
-                    self.exercise_actual_entry("0.2.37", "0.2.37",
+                    self.exercise_actual_entry("0.2.42", "0.2.42",
                         ai_hosts=bad if where == "recipe" else approved,
                         manifest_ai_hosts=bad if where == "manifest" else approved)
                 self.assertEqual(self.last_child_calls, 0)

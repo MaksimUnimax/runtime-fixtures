@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
 import {
+  assertMonitoringMemoryWrite,
+  fenceMonitoringSqlRuntime,
+  withMonitoringSqlLease,
+  type MonitoringRunAuthority,
+} from "./run-authority.js";
+import {
   MONITORING_DEFAULT_INTERVAL_SECONDS,
   MONITORING_LANES,
   MonitoringCoverageSchema,
@@ -18,6 +24,21 @@ import {
 export { MONITORING_LANES } from "./contracts.js";
 
 export interface MonitoringScheduleStore {
+  assertRunCurrentSync?(run: MonitoringRun, now: Date): void;
+  withRunLease<T>(
+    authority: MonitoringRunAuthority,
+    now: Date,
+    operation: () => Promise<T>,
+  ): Promise<T>;
+  cancelRun(input: {
+    lane: MonitoringLane;
+    runId: string;
+    now: Date;
+  }): Promise<void>;
+  withCompletedRun<T>(
+    input: { lane: MonitoringLane; runId: string },
+    operation: () => Promise<T>,
+  ): Promise<T>;
   ensureDefaults(now: Date): Promise<void>;
   getState(lane: MonitoringLane): Promise<MonitoringLaneState>;
   setInterval(
@@ -50,6 +71,7 @@ export interface MonitoringScheduleStore {
   }): Promise<MonitoringLaneState>;
   recordNotificationFailure(input: {
     lane: MonitoringLane;
+    runId?: string;
     now: Date;
     error: string;
   }): Promise<void>;
@@ -90,6 +112,57 @@ export class InMemoryMonitoringScheduleStore
   implements MonitoringScheduleStore
 {
   private readonly states = new Map<MonitoringLane, MonitoringLaneState>();
+
+  assertRunCurrentSync(
+    run: Pick<MonitoringRun, "lane" | "runId">,
+    now: Date,
+  ): void {
+    const current = this.state(run.lane).activeRun;
+    if (
+      !current ||
+      current.runId !== run.runId ||
+      current.leaseExpiresAt <= now
+    )
+      throw new Error("MONITORING_RUN_STALE_OWNER");
+  }
+
+  async withRunLease<T>(
+    authority: MonitoringRunAuthority,
+    now: Date,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    if (authority.signal.aborted) throw new Error("MONITORING_RUN_CANCELLED");
+    this.assertRunCurrentSync(authority, now);
+    return operation();
+  }
+
+  async cancelRun(input: {
+    lane: MonitoringLane;
+    runId: string;
+    now: Date;
+  }): Promise<void> {
+    const state = this.state(input.lane);
+    if (state.activeRun?.runId !== input.runId) return;
+    if (state.activeRun.source === "SCHEDULED")
+      state.nextRunAt = new Date(
+        Math.min(
+          state.nextRunAt.valueOf(),
+          state.activeRun.startedAt.valueOf(),
+        ),
+      );
+    state.activeRun = null;
+    state.updatedAt = new Date(input.now);
+  }
+
+  async withCompletedRun<T>(
+    input: { lane: MonitoringLane; runId: string },
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const state = this.state(input.lane);
+    if (state.activeRun || state.lastResult?.runId !== input.runId)
+      throw new Error("MONITORING_RUN_STALE_OWNER");
+    return operation();
+  }
 
   async ensureDefaults(now: Date): Promise<void> {
     for (const lane of MONITORING_LANES) {
@@ -134,6 +207,7 @@ export class InMemoryMonitoringScheduleStore
   }
 
   async scheduleEarlier(lane: MonitoringLane, retryAt: Date, now: Date) {
+    assertMonitoringMemoryWrite();
     const state = this.state(lane);
     if (retryAt < state.nextRunAt) state.nextRunAt = new Date(retryAt);
     state.updatedAt = new Date(now);
@@ -163,7 +237,11 @@ export class InMemoryMonitoringScheduleStore
     if (source === "SCHEDULED")
       state.nextRunAt = new Date(now.valueOf() + state.intervalSeconds * 1000);
     state.updatedAt = new Date(now);
-    return { kind: "STARTED", run };
+    return {
+      kind: "STARTED",
+      run,
+      cancellationDeadlineMonotonicMs: performance.now() + leaseMs,
+    };
   }
 
   async releaseUnstartedRun({
@@ -214,10 +292,16 @@ export class InMemoryMonitoringScheduleStore
 
   async recordNotificationFailure({
     lane,
+    runId,
     now,
     error,
   }: NotificationFailureInput): Promise<void> {
     const state = this.state(lane);
+    if (
+      runId !== undefined &&
+      (state.activeRun || state.lastResult?.runId !== runId)
+    )
+      return;
     state.notificationFailureCount += 1;
     state.lastNotificationError = error.slice(0, 160);
     state.updatedAt = new Date(now);
@@ -332,6 +416,53 @@ export function createPostgresMonitoringScheduleStore(
     return mapState(result.rows[0]);
   }
   return {
+    async withRunLease(authority, _now, operation) {
+      let completion: Promise<unknown> | undefined;
+      let initiated = false;
+      try {
+        await withMonitoringSqlLease(runtime, authority, async () => {
+          // Initiate while holding ownership, but never hold the database lock
+          // while waiting for an external transport that may ignore abort.
+          initiated = true;
+          completion = operation();
+          void completion.catch(() => {});
+        });
+      } catch (error) {
+        if (initiated)
+          throw new Error("MONITORING_EFFECT_OUTCOME_UNKNOWN", {
+            cause: error,
+          });
+        throw error;
+      }
+      return completion as ReturnType<typeof operation>;
+    },
+    async cancelRun({ lane, runId }) {
+      await runtime.query(
+        `UPDATE monitoring_lane_schedules SET next_run_at=CASE WHEN active_run_source='SCHEDULED' THEN LEAST(next_run_at,active_run_started_at) ELSE next_run_at END,active_run_id=NULL,active_run_source=NULL,active_run_started_at=NULL,active_run_lease_expires_at=NULL,updated_at=clock_timestamp() WHERE lane=$1 AND active_run_id=$2`,
+        [lane, runId],
+      );
+    },
+    async withCompletedRun({ lane, runId }, operation) {
+      let completion: Promise<unknown> | undefined;
+      let initiated = false;
+      try {
+        await runtime.transaction(async (query) => {
+          const current = await read(query, lane, true);
+          if (current.activeRun || current.lastResult?.runId !== runId)
+            throw new Error("MONITORING_RUN_STALE_OWNER");
+          initiated = true;
+          completion = operation();
+          void completion.catch(() => {});
+        });
+      } catch (error) {
+        if (initiated)
+          throw new Error("MONITORING_EFFECT_OUTCOME_UNKNOWN", {
+            cause: error,
+          });
+        throw error;
+      }
+      return completion as ReturnType<typeof operation>;
+    },
     async ensureDefaults(now) {
       for (const lane of MONITORING_LANES) {
         const interval = MONITORING_DEFAULT_INTERVAL_SECONDS[lane];
@@ -356,7 +487,7 @@ export function createPostgresMonitoringScheduleStore(
     async scheduleEarlier(lane, retryAt, _now) {
       // The minimum must be computed under PostgreSQL's row-level UPDATE lock.
       // A read-then-unconditional-write can lose another worker's earlier retry.
-      const changed = await runtime.query<StateRow>(
+      const changed = await fenceMonitoringSqlRuntime(runtime).query<StateRow>(
         `UPDATE monitoring_lane_schedules SET next_run_at=LEAST(next_run_at,$2),updated_at=clock_timestamp() WHERE lane=$1 RETURNING ${stateColumns}`,
         [lane, retryAt],
       );
@@ -371,6 +502,10 @@ export function createPostgresMonitoringScheduleStore(
         const current = await read(query, lane, true);
         // The row lock and the DB clock establish one lease authority.
         // The scheduler's (possibly skewed) supplied clock is not trusted.
+        // Start a conservative local budget at the DB time request, AFTER
+        // the row-lock wait. This includes response/commit latency without
+        // comparing absolute clocks on different machines.
+        const reservationMonotonicMs = performance.now();
         const clock = await query.query<{ now: Date }>(
           'SELECT clock_timestamp() AS "now"',
         );
@@ -410,7 +545,11 @@ export function createPostgresMonitoringScheduleStore(
             databaseNow,
           ],
         );
-        return { kind: "STARTED", run };
+        return {
+          kind: "STARTED",
+          run,
+          cancellationDeadlineMonotonicMs: reservationMonotonicMs + leaseMs,
+        };
       });
     },
     async releaseUnstartedRun({ lane, runId, now }) {
@@ -465,10 +604,15 @@ export function createPostgresMonitoringScheduleStore(
         return mapState(changed.rows[0]!);
       });
     },
-    async recordNotificationFailure({ lane, now, error }) {
+    async recordNotificationFailure({ lane, runId, now, error }) {
       await runtime.query(
-        `UPDATE monitoring_lane_schedules SET notification_failure_count=notification_failure_count+1,last_notification_error=$2,updated_at=$3 WHERE lane=$1`,
-        [lane, error.slice(0, 160), now],
+        `UPDATE monitoring_lane_schedules SET notification_failure_count=notification_failure_count+1,last_notification_error=$2,updated_at=$3 WHERE lane=$1${runId === undefined ? "" : " AND active_run_id IS NULL AND last_result->>'runId'=$4"}`,
+        [
+          lane,
+          error.slice(0, 160),
+          now,
+          ...(runId === undefined ? [] : [runId]),
+        ],
       );
     },
   };

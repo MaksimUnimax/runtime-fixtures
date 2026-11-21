@@ -1,5 +1,6 @@
 import { sql, type SQLWrapper } from "drizzle-orm";
 import {
+  foreignKey,
   check,
   index,
   integer,
@@ -29,31 +30,14 @@ export const checkoutIntentState = pgEnum("checkout_intent_state", [
 const hash = (column: SQLWrapper) => sql`${column} ~ '^[0-9a-f]{64}$'`;
 const machineKey = (column: SQLWrapper) =>
   sql`${column} ~ '^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$'`;
-const opaque = (column: SQLWrapper) =>
-  sql`${column} ~ '^[A-Za-z0-9._:-]+$' AND ${column} !~* '^https?:'`;
 
 export const checkoutIntents = pgTable(
   "checkout_intents",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    accountId: uuid("account_id")
-      .notNull()
-      .references(() => accounts.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
-    priceRevisionId: uuid("price_revision_id")
-      .notNull()
-      .references(() => priceRevisions.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
-    planRevisionId: uuid("plan_revision_id")
-      .notNull()
-      .references(() => planRevisions.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    accountId: uuid("account_id").notNull(),
+    priceRevisionId: uuid("price_revision_id").notNull(),
+    planRevisionId: uuid("plan_revision_id").notNull(),
     provider: varchar("provider", { length: 64 }).notNull(),
     state: checkoutIntentState("state").notNull(),
     idempotencyKeyHash: varchar("idempotency_key_hash", {
@@ -70,10 +54,7 @@ export const checkoutIntents = pgTable(
     providerCheckoutId: varchar("provider_checkout_id", { length: 256 }),
     providerPaymentId: varchar("provider_payment_id", { length: 256 }),
     checkoutReference: varchar("checkout_reference", { length: 256 }),
-    paymentId: uuid("payment_id").references(() => payments.id, {
-      onDelete: "restrict",
-      onUpdate: "restrict",
-    }),
+    paymentId: uuid("payment_id"),
     failureCode: varchar("failure_code", { length: 128 }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -84,6 +65,34 @@ export const checkoutIntents = pgTable(
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
   (table) => [
+    foreignKey({
+      columns: [table.accountId],
+      foreignColumns: [accounts.id],
+      name: "checkout_intents_account_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.priceRevisionId],
+      foreignColumns: [priceRevisions.id],
+      name: "checkout_intents_price_revision_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.planRevisionId],
+      foreignColumns: [planRevisions.id],
+      name: "checkout_intents_plan_revision_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.paymentId],
+      foreignColumns: [payments.id],
+      name: "checkout_intents_payment_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     unique("checkout_intents_account_idempotency_unique").on(
       table.accountId,
       table.idempotencyKeyHash,
@@ -123,15 +132,15 @@ export const checkoutIntents = pgTable(
     ),
     check(
       "checkout_intents_provider_checkout_opaque",
-      sql`${table.providerCheckoutId} IS NULL OR ${opaque(table.providerCheckoutId)}`,
+      sql`${table.providerCheckoutId} IS NULL OR (${table.providerCheckoutId} ~ '^[A-Za-z0-9._:-]+$' AND ${table.providerCheckoutId} !~* '^https?:')`,
     ),
     check(
       "checkout_intents_provider_payment_opaque",
-      sql`${table.providerPaymentId} IS NULL OR ${opaque(table.providerPaymentId)}`,
+      sql`${table.providerPaymentId} IS NULL OR (${table.providerPaymentId} ~ '^[A-Za-z0-9._:-]+$' AND ${table.providerPaymentId} !~* '^https?:')`,
     ),
     check(
       "checkout_intents_reference_opaque",
-      sql`${table.checkoutReference} IS NULL OR ${opaque(table.checkoutReference)}`,
+      sql`${table.checkoutReference} IS NULL OR (${table.checkoutReference} ~ '^[A-Za-z0-9._:-]+$' AND ${table.checkoutReference} !~* '^https?:')`,
     ),
     check(
       "checkout_intents_failure_code_safe",
