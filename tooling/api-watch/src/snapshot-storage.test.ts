@@ -76,8 +76,11 @@ vi.mock("node:fs/promises", async (importOriginal) => {
           if (key === "close")
             return async () => {
               await target.close();
-              if (fault.closeFailure) throw fault.closeFailure;
-              if (fault.stage === "close") throw failure();
+              // Only the synthetic TEMP file carries injected close failures.
+              if (String(args[0]).endsWith(".tmp")) {
+                if (fault.closeFailure) throw fault.closeFailure;
+                if (fault.stage === "close") throw failure();
+              }
             };
           const value = Reflect.get(target, key, target);
           return typeof value === "function" ? value.bind(target) : value;
