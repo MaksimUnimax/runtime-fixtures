@@ -21,6 +21,7 @@ location = /robots.txt {
 location / {
     location = /api/session/uploadFileBinary {
         client_max_body_size 8m;
+        proxy_pass https://185.219.43.9;
     }
     proxy_pass https://185.219.43.9;
     proxy_ssl_server_name on;
