@@ -19,6 +19,7 @@ from starlette.routing import Route
 
 from .chat_connections import vault_cipher
 from .model_catalog import catalog_rows
+from . import hub_runtime
 
 CATALOG = "https://openrouter.ai/api/v1/models"
 # These mappings are discovery evidence, never permission to send traffic.
@@ -95,7 +96,7 @@ class Hub:
         try:
             db.row_factory = sqlite3.Row
             db.execute("PRAGMA foreign_keys = ON")
-            db.executescript(SCHEMA)
+            db.executescript(SCHEMA + hub_runtime.SCHEMA)
             with db:
                 yield db
         finally:
@@ -157,6 +158,8 @@ class Hub:
             sealed = nonce + cipher.encrypt(nonce, key.encode(), aad)
             db.execute("""INSERT INTO hub_keys VALUES(?,?,?,?)
                 ON CONFLICT(provider,label) DO UPDATE SET sealed=excluded.sealed""", (kid,provider,label,sealed))
+            if previous:
+                hub_runtime.invalidate(db,kid)
             if previous and provider == "cloudflare":
                 db.execute("DELETE FROM hub_cloudflare_accounts WHERE key_id=?", (kid,))
 
@@ -170,9 +173,29 @@ class Hub:
                 raise ValueError("Выберите сохранённый ключ Cloudflare")
             if expected_sealed is not None and key["sealed"] != expected_sealed:
                 raise ValueError("Ключ Cloudflare изменился во время проверки")
+            db.execute("DELETE FROM hub_health WHERE key_id=?",(key_id,))
             db.execute("""INSERT INTO hub_cloudflare_accounts(key_id, account_id) VALUES(?,?)
                 ON CONFLICT(key_id) DO UPDATE SET account_id=excluded.account_id""",
                        (key_id, account_id.strip().lower()))
+
+    def key_control(self,key_id,action):
+        if action not in ("disable","enable","revoke","google-private","google-public"):
+            raise ValueError("Неизвестное действие")
+        with self.database() as db:
+            db.execute("BEGIN IMMEDIATE")
+            k=db.execute("SELECT provider FROM hub_keys WHERE id=?",(key_id,)).fetchone()
+            if not k: raise ValueError("Ключ отсутствует")
+            if action=="revoke":
+                db.execute("DELETE FROM hub_keys WHERE id=?",(key_id,))
+                return
+            db.execute("INSERT OR IGNORE INTO hub_control(key_id) VALUES(?)",(key_id,))
+            if action.startswith("google-"):
+                if k[0]!="google": raise ValueError("Только для проекта Google")
+                expires=int(time.time())+86400*30 if action=="google-private" else 0
+                db.execute("UPDATE hub_control SET private_until=? WHERE key_id=?",(expires,key_id))
+            else:
+                db.execute("UPDATE hub_control SET enabled=? WHERE key_id=?",(action=="enable",key_id))
+            db.execute("DELETE FROM hub_health WHERE key_id=?",(key_id,))
 
     def dashboard(self):
         with self.database() as db:
@@ -181,8 +204,8 @@ class Hub:
             monitor = db.execute("SELECT attempted,succeeded,error FROM research_state").fetchone()
             provider_names = registry(db)
             keys = [dict(r) for r in db.execute("""SELECT k.id,k.provider,k.label,
-                    a.key_id IS NOT NULL AS account_configured
-                FROM hub_keys k LEFT JOIN hub_cloudflare_accounts a ON a.key_id=k.id
+                    a.key_id IS NOT NULL AS account_configured, coalesce(c.enabled,1) enabled, coalesce(c.private_until,0) private_until
+                FROM hub_keys k LEFT JOIN hub_cloudflare_accounts a ON a.key_id=k.id LEFT JOIN hub_control c ON c.key_id=k.id
                 ORDER BY k.provider,k.label""")]
             findings = {r["model"]: dict(r) for r in db.execute("SELECT * FROM research WHERE checked>0")}
             models = [dict(r) for r in db.execute("SELECT model,name FROM candidates ORDER BY model")]
@@ -217,7 +240,10 @@ def routes(get_token, body):
         hub = req.app.state.model_hub
         if req.method == "POST":
             try:
-                if "key_id" in req.path_params:
+                if req.url.path.endswith("/control"):
+                    fields = await body(req,"action")
+                    await run_in_threadpool(hub.key_control,req.path_params["key_id"],fields["action"])
+                elif "key_id" in req.path_params:
                     fields = await body(req, "account_id")
                     await run_in_threadpool(hub.save_cloudflare_account,
                                            req.path_params["key_id"], fields["account_id"])
@@ -226,9 +252,14 @@ def routes(get_token, body):
                     await run_in_threadpool(hub.save_key, **fields)
             except ValueError as exc:
                 raise HTTPException(400, str(exc)) from None
-        return JSONResponse(await run_in_threadpool(hub.dashboard))
+        data = await run_in_threadpool(hub.dashboard)
+        runtime = getattr(req.app.state.model_router,"hub",None)
+        if runtime:
+            data.update(await run_in_threadpool(runtime.summary))
+        return JSONResponse(data)
     return [Route("/api/admin/model-hub", dashboard),
             Route("/api/admin/model-hub/keys", dashboard, methods=["POST"]),
+            Route("/api/admin/model-hub/keys/{key_id}/control", dashboard, methods=["POST"]),
             Route("/api/admin/model-hub/keys/{key_id}/cloudflare-account", dashboard, methods=["POST"])]
 
 def provider_http(*, timeout):

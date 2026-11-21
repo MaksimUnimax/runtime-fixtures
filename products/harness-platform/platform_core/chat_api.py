@@ -82,7 +82,7 @@ async def _body(request, *keys, optional=()):
 
 def create_app(database_path, chat_directory, *, composition_module=None):
     router_plugin = None
-    if os.getenv("HARNESS_OPENROUTER_ENABLED") == "1" and find_spec("platform_core.model_router"):
+    if (os.getenv("HARNESS_OPENROUTER_ENABLED") == "1" or os.getenv("HARNESS_HUB_INFERENCE") == "1") and find_spec("platform_core.model_router"):
         from . import model_router as router_plugin
 
     async def disabled_models(req):
@@ -126,7 +126,8 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                     if router_plugin:
                         model_http = await extensions.enter_async_context(model_hub.provider_http(timeout=10))
                         app.state.model_router = await extensions.enter_async_context(
-                            router_plugin.activate(app.state.identity, model_http, app.state.worker))
+                            router_plugin.activate(app.state.identity, model_http, app.state.worker,
+                                model_hub.hub_runtime.Runtime(app.state.model_hub,model_http) if os.getenv("HARNESS_HUB_INFERENCE")=="1" else None))
                         if app.state.model_router:
                             app.state.model_router.progress = app.state.progress
                     try:
@@ -256,7 +257,10 @@ def create_app(database_path, chat_directory, *, composition_module=None):
             router = req.app.state.model_router
             if router and (refusal := router.free_refusal(exc.operation_id)):
                 status, message = refusal
-                return JSONResponse({"error":message,"operationId":exc.operation_id},status_code=status)
+                with router.identity._lock:
+                    resume=router.identity._db.execute("SELECT 1 FROM hub_resume WHERE operation_id=? AND expires>unixepoch()",
+                                                       (exc.operation_id,)).fetchone() is not None
+                return JSONResponse({"error":message,"operationId":exc.operation_id,"resume":resume},status_code=status)
             error = {"error": exc.code, "operationId": exc.operation_id}
             result = await run_in_threadpool(present_chat, req.app.state.identity, req.app.state.admin_costs,
                                              token, scope, "turn", error)

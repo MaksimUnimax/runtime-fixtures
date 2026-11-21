@@ -204,6 +204,11 @@ def issue_grant(database_path, scope, *, source, run_key, ttl_seconds=900, coin_
         token = secrets.token_urlsafe(32)
         db.execute("INSERT INTO usage_grants(token_hash, operation_id, expires_at) VALUES (?, ?, ?)",
                    (_digest(token), operation_id, expires))
+        if model and model.startswith("hub:"):
+            # This grant now protects the resumed zero-cost order from close_orders.
+            db.execute("""UPDATE coin_orders SET closed=0 WHERE operation_id=? AND cap=0
+                AND EXISTS(SELECT 1 FROM hub_resume WHERE operation_id=? AND expires>unixepoch())""",
+                       (operation_id,operation_id))
     return OperationGrant(operation_id, workspace, source, token, model, direct_model, effort)
 
 

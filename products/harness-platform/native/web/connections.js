@@ -83,16 +83,20 @@ window.__ModuleLoader__.load({
             checked:!data.freeUnavailable && data.model===id,onChange:()=>choose(id)}),title);
         const groups=new Map();
         for(const m of [...(data?.models||[])].sort((a,b)=>a.id.localeCompare(b.id))){
-          if(freeOnly && !m.free)continue;
+          if(m.family==="Хаб Octoport" || (freeOnly && !m.free))continue;
           if(!(m.id+' '+m.name).toLowerCase().includes(filter.toLowerCase()))continue;
           if(!groups.has(m.family))groups.set(m.family,[]);groups.get(m.family).push(m);
         }
         return h('section',{className:'service-settings'},h('h2',null,'Выбор ИИ'),!freeOnly && radio('direct','DeepSeek · прямое подключение'),
+          data.hubEnabled && h('fieldset',null,h('legend',null,'Хаб Octoport · бесплатно'),
+            data.models.filter(m=>m.family==='Хаб Octoport' && (m.name+' '+m.id).toLowerCase().includes(filter.toLowerCase())).map(m=>radio(m.id,m.name)),
+            !data.models.some(m=>m.id==='hub:auto') && h('p',null,'Для отчётов WB/Ozon пока нет проверенного прямого маршрута.'),
+            data.models.some(m=>m.id==='hub:public') && h('p',null,'В публичном режиме поставщику передаётся только текущий вопрос. Используйте общедоступные сведения.')),
           h('label',null,'Поиск модели',h('input',{type:'search',value:filter,onChange:e=>setFilter(e.target.value)})),
           h('button',{type:'button',disabled:busy,onClick:()=>refresh(true)},'Обновить список'),
           h('label',{className:'service-model'},h('input',{type:'checkbox',checked:freeOnly,onChange:e=>setFreeOnly(e.target.checked)}),
             'Только бесплатные ('+data.models.filter(m=>m.free).length+')'),
-          freeOnly && !groups.size && h('p',{role:'status'},filter?'По этому запросу бесплатных моделей нет.':'Сейчас нет доступных бесплатных моделей с поддержкой инструментов.'),
+          freeOnly && !groups.size && !data.models.some(m=>m.family==="Хаб Octoport") && h('p',{role:'status'},filter?'По этому запросу бесплатных моделей нет.':'Сейчас нет доступных бесплатных моделей с поддержкой инструментов.'),
           data?.catalogMessage && h('p',{role:'status'},data.catalogMessage),
           data.freeUnavailable && h('p',{role:'status'},'Бесплатный тариф выбранной модели недоступен: '+data.model+'. Выберите другую модель.'),
           !data.freeUnavailable && data.model!=='direct' && !data.models.some(m=>m.id===data.model) &&
@@ -143,6 +147,7 @@ window.__ModuleLoader__.load({
         return h('div',{className:'chat-access'},
           view && h('div',{'data-live-turn':view.stage,className:'chat-live'},
             h('small',{role:'status'},labels[view.stage]),view.text && h('div',{className:'chat-live-text'},view.text),
+            view.retry && h('button',{onClick:()=>view.retry().catch(e=>setError(e.message))},'Продолжить отчёт'),
             view.stage==='failed' && h('button',{onClick:()=>a.live.clear(sessionId,view.rid)},'Закрыть')),
           h('button',{className:'chat-access-trigger','aria-haspopup':'dialog',onClick:()=>setOpen(true)},
             'Подключения'+(active.length?' · '+active.map(r=>r.name).join(', '):'')),

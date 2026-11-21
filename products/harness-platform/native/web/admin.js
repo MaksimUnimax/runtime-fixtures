@@ -8,7 +8,7 @@ function renderCharge(charge) {
     if (charge.meter.providerUsd !== null) detail.append('Себестоимость · $' + charge.meter.providerUsd);
     for (const attempt of charge.meter.attempts) {
       const part = document.createElement('p'), u = attempt.usage;
-      part.textContent = (attempt.tariff==='openrouter-v1'?'OpenRouter':'DeepSeek')+' · '+attempt.model + ' · ' + (u
+      part.textContent = (attempt.tariff==='hub-free-v1'?'Хаб Octoport':attempt.tariff==='openrouter-v1'?'OpenRouter':'DeepSeek')+' · '+attempt.model + ' · ' + (u
         ? 'Вход ' + u.input_tokens + ' · Из кэша ' + u.cache_read_input_tokens + ' · Выход ' + u.output_tokens
         : 'Ожидается сверка расхода');
       detail.append(part);

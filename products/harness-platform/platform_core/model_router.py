@@ -19,7 +19,7 @@ from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from . import coins, provider_keys
+from . import coins, provider_keys, hub_direct, hub_runtime, hub_checkpoint
 from .model_catalog import amount, catalog_rows
 from .identity import _principal
 from .operation_grants import free_selection
@@ -34,7 +34,8 @@ TABLES = (
 )
 
 class ModelRouter:
-    def __init__(self, identity, http, key):
+    def __init__(self, identity, http, key, hub=None):
+        self.hub = hub
         self.identity, self.http, self.key = identity, http, key
         self.catalog, self.expires, self.refresh = {}, 0, asyncio.Lock()
         self.catalog_key = None
@@ -42,7 +43,7 @@ class ModelRouter:
         self.catalog_message = ""
         self.active, self.total = {}, 0
         with identity._write() as db:
-            for sql in TABLES:
+            for sql in (*TABLES,hub_checkpoint.SCHEMA):
                 db.execute(sql)
 
     async def models(self, *, refresh=False):
@@ -82,15 +83,19 @@ class ModelRouter:
             self.expires = time.monotonic() + retry_after
             return self.catalog
 
+    def direct_catalog(self):
+        return self.hub.catalog() if self.hub else {}
+
     def preference(self, token, model=None):
+        catalog = {**self.catalog, **self.direct_catalog()}
         with self.identity._write() as db:
             _, ws = _principal(db,token)
             if model is not None:
-                if model != "direct" and (not isinstance(model,str) or model not in self.catalog):
+                if model != "direct" and (not isinstance(model,str) or model not in catalog):
                     raise HTTPException(400,"Модель недоступна")
                 db.execute("INSERT INTO model_preferences VALUES(?,?) ON CONFLICT(workspace) DO UPDATE SET model=excluded.model",(ws,model))
                 db.execute("DELETE FROM free_model_preferences WHERE workspace=?", (ws,))
-                if model != "direct" and self.catalog[model]["free"]:
+                if model != "direct" and catalog[model]["free"]:
                     db.execute("INSERT INTO free_model_preferences VALUES(?,?)", (ws,model))
             row = db.execute("""SELECT p.model,f.model IS NOT NULL FROM model_preferences p
                 LEFT JOIN free_model_preferences f ON f.workspace=p.workspace AND f.model=p.model
@@ -99,7 +104,7 @@ class ModelRouter:
 
     def uses_router(self, workspace):
         with self.identity._lock:
-            return self.identity._db.execute("SELECT 1 FROM model_preferences WHERE workspace=? AND model!='direct'",(workspace,)).fetchone() is not None
+            return self.identity._db.execute("SELECT 1 FROM model_preferences WHERE workspace=? AND model!='direct' AND model NOT LIKE 'hub:%'",(workspace,)).fetchone() is not None
 
     def bind(self, db, scope, operation):
         row = db.execute("SELECT model,input_rate,output_rate,request_rate FROM operation_routes WHERE operation_id=?",(operation,)).fetchone()
@@ -110,6 +115,12 @@ class ModelRouter:
         rates = ["0"]*3
         free = False
         free_choice = free_selection(db,scope.workspace_id)
+        if model.startswith("hub:"):
+            # Keep the chosen free service across outages. The dispatcher rechecks actual routes.
+            if not self.hub:
+                raise HTTPException(503,"Хаб временно недоступен")
+            db.execute("INSERT INTO operation_routes VALUES(?,?,?,?,?)",(operation,model,*rates))
+            return model,True
         if free_choice and not (self.available() and self.catalog.get(model,{}).get("free")):
             raise HTTPException(503,"Выбранная бесплатная модель сейчас недоступна. Выберите другую в настройках.")
         if not self.available():
@@ -150,6 +161,11 @@ class ModelRouter:
                     return None
                 bound = int(((base+max_out*orr)*scale).to_integral_value(rounding=ROUND_CEILING))
             aid = uuid4().hex
+            if model.startswith("hub:"):
+                db.execute("""INSERT INTO coin_attempts(attempt_id,operation_id,bound,charge,model,started_ms,rate_version,period,evidence)
+                    VALUES(?,?,0,0,?,?,'hub-free-v1','provider','hub-start')""",(aid,op,model,int(time.time()*1000)))
+                request.update(model=model,max_tokens=max_out)
+                return ws,aid
             db.execute("""INSERT INTO coin_attempts(attempt_id,operation_id,bound,model,started_ms,rate_version,period)
                 VALUES(?,?,?,?,?,'openrouter-v1','provider')""",(aid,op,bound,model,int(time.time()*1000)))
             request.update(model=model,max_tokens=max_out,provider={"require_parameters":True,
@@ -195,6 +211,8 @@ class ModelRouter:
             row = self.identity._db.execute("""SELECT a.evidence FROM coin_attempts a
                 JOIN coin_orders o USING(operation_id) WHERE a.operation_id=? AND o.cap=0
                 ORDER BY a.started_ms DESC,a.rowid DESC LIMIT 1""",(operation,)).fetchone()
+        if row and (row[0] or "").startswith("hub-unavailable:"):
+            return 503,"Хаб временно недоступен. "+row[0].split(":",1)[1]
         if row and row[0] == "openrouter-http:429":
             return 429,"OpenRouter достиг лимита бесплатных запросов. Попробуйте позже."
         if row and row[0] == "openrouter-http:404":
@@ -221,7 +239,7 @@ class ModelRouter:
                     continue
 
     def credential(self):
-        return provider_keys.read("openrouter") or self.key
+        return (provider_keys.read("openrouter") or self.key) if not self.hub or os.getenv("HARNESS_OPENROUTER_ENABLED")=="1" else ""
 
     def available(self):
         return bool(self.credential())
@@ -293,6 +311,44 @@ class ModelRouter:
                     row=self.identity._db.execute("""SELECT actor_id,workspace_id,chat_id,run_key FROM usage_operations
                         JOIN coin_attempts USING(operation_id) WHERE attempt_id=?""",(aid,)).fetchone()
                 if row: live=hub.turns.get((Scope(*row[:3]),row[3]))
+            if request["model"].startswith("hub:"):
+                with self.identity._lock:
+                    op=self.identity._db.execute("SELECT operation_id FROM coin_attempts WHERE attempt_id=?",(aid,)).fetchone()[0]
+                choice=request["model"]
+                with self.identity._lock:
+                    stamp=hub_checkpoint.scope_snapshot(self.identity._db,op)
+                try:
+                    with self.identity._lock:
+                        request=hub_checkpoint.restore(self.identity._db,op,stamp,request)
+                    if "_final" in request:
+                        choice_data,actual=request["_final"]
+                        with self.identity._write() as db:
+                            db.execute("UPDATE coin_attempts SET evidence='hub-replay',model=? WHERE attempt_id=?",(actual,aid))
+                        return JSONResponse(choice_data)
+                    if choice!=hub_runtime.PUBLIC and request["messages"][-1].get("role")=="tool":
+                        with self.identity._write() as db:
+                            hub_checkpoint.save(db,op,stamp,request)
+                    if not self.hub:
+                        raise hub_direct.Refused("Хаб временно недоступен")
+                    result,usage,actual=await self.hub.complete(op,choice,request)
+                except hub_direct.Refused as exc:
+                    with self.identity._write() as db:
+                        if choice!=hub_runtime.PUBLIC and not db.execute("SELECT 1 FROM hub_resume WHERE operation_id=?",(op,)).fetchone():
+                            hub_checkpoint.save(db,op,stamp,request)
+                        db.execute("UPDATE coin_attempts SET evidence=? WHERE attempt_id=?",("hub-unavailable:"+exc.reason,aid))
+                    raise HTTPException(503,"Бесплатные маршруты недоступны") from None
+                counts={"input_tokens":usage.get("prompt_tokens",0),"output_tokens":usage.get("completion_tokens",0),
+                        "cache_read_input_tokens":0,"cache_creation_input_tokens":0}
+                with self.identity._write() as db:
+                    if choice!=hub_runtime.PUBLIC and not result["message"].get("tool_calls"):
+                        hub_checkpoint.persist(db,op,stamp,{"_final":[result,actual]})
+                    else:
+                        db.execute("DELETE FROM hub_resume WHERE operation_id=?",(op,))
+                    db.execute("UPDATE coin_attempts SET evidence='hub-free',model=?,usage_json=? WHERE attempt_id=?",
+                               (actual,json.dumps(counts),aid))
+                if live and result["message"].get("content"):
+                    live.set({"stage":"writing","text":result["message"]["content"]})
+                return JSONResponse(result)
             request.update(stream=True,stream_options={"include_usage":True})
             async with self.http.stream("POST",BASE+"/chat/completions",headers=self.headers,json=request,timeout=90) as r:
                 if r.status_code in (400,401,402,403,404,422,429):
@@ -325,19 +381,19 @@ class LocalServer(uvicorn.Server):
         yield
 
 @contextlib.asynccontextmanager
-async def activate(identity, http, worker):
+async def activate(identity, http, worker, hub=None):
     path = os.getenv("HARNESS_OPENROUTER_KEY_FILE")
-    if os.getenv("HARNESS_OPENROUTER_ENABLED","0")!="1" or not worker.gateway:
+    if (os.getenv("HARNESS_OPENROUTER_ENABLED","0")!="1" and not hub) or not worker.gateway:
         yield None
         return
     try:
         key = Path(path).read_text().strip() if path else ""
     except (OSError,UnicodeError):
         key = ""
-    if not key and not provider_keys.directory():
+    if not hub and not key and not provider_keys.directory():
         yield None
         return
-    router = ModelRouter(identity,http,key)
+    router = ModelRouter(identity,http,key,hub)
     app = Starlette(routes=[Route("/complete",router.complete,methods=["POST"])])
     server = LocalServer(uvicorn.Config(app,access_log=False,log_level="warning",lifespan="off"))
     with socket.socket() as sock:
@@ -359,16 +415,20 @@ def routes(get_token,body,disabled_models):
         router = req.app.state.model_router
         token = get_token(req,allow_cookie=True)
         req.app.state.identity.validate_session(token)
-        if router is None or not router.available():
+        if router is None or (not router.hub and not router.available()):
             return await disabled_models(req)
         selected = None
         if req.method=="POST":
             selected=(await body(req,"model"))["model"]
             if not isinstance(selected,str):
                 raise ValueError("Invalid model")
-        catalog = await router.models(refresh=req.method=="GET" and req.query_params.get("refresh")=="1")
+        direct = router.direct_catalog()
+        # A direct hub selection never depends on a successful OpenRouter catalogue request.
+        external = router.catalog if selected and selected.startswith("hub:") else (
+            await router.models(refresh=req.method=="GET" and req.query_params.get("refresh")=="1") if router.available() else {})
+        catalog = {**external, **direct}
         model, free_choice = router.preference(token,selected)
         free_unavailable = bool(free_choice and not catalog.get(model,{}).get("free"))
-        return JSONResponse({"enabled":True,"model":model,"freeUnavailable":free_unavailable,"catalogMessage":router.catalog_message,"models":[
+        return JSONResponse({"enabled":True,"model":model,"freeUnavailable":free_unavailable,"hubEnabled":bool(router.hub),"catalogMessage":router.catalog_message,"models":[
             {k:m[k] for k in ("id","family","name","free")} for m in catalog.values()]})
     return [Route("/api/model-settings",models,methods=["GET","POST"])]
