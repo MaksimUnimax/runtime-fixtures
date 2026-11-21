@@ -1,0 +1,22 @@
+[Unit]
+Description=Octoport direct provider tariff and inference checks
+After=network-online.target octoport-harness-inbound.service
+[Service]
+Type=oneshot
+User=harness-inbound
+Group=harness-inbound
+DynamicUser=yes
+StateDirectory=octoport-model-hub
+StateDirectoryMode=0700
+WorkingDirectory=/opt/octoport-model-hub/current/products/harness-platform
+EnvironmentFile=/etc/octoport-provider-router-client.env
+LoadCredential=integration-vault:/etc/octoport-harness-inbound/integration-vault.key
+Environment=HARNESS_INTEGRATIONS_KEY_FILE=%d/integration-vault
+Environment=HARNESS_MODEL_EGRESS_REQUIRED=1
+ExecStart=/opt/octoport-harness-inbound/runtime/venv/bin/python -m platform_core.hub_runtime --database /var/lib/octoport-model-hub/model-hub.sqlite3
+TimeoutStartSec=5min
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict

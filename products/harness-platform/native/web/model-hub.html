@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Хаб моделей · Octoport</title><link rel="stylesheet" href="/ui-assets/project/appearance.css">
+<link rel="stylesheet" href="/ui-assets/project/admin.css"><script type="module" src="/ui-assets/project/model-hub.js"></script></head>
+<body class="octo-admin"><main><nav><a href="/admin">← Администрирование</a></nav><h1>Хаб моделей</h1>
+<section><h2>Мониторинг</h2><p id="catalog" role="status"></p><p id="monitor"></p><button id="refresh" type="button">Обновить показания</button></section>
+<section><h2>Прямые маршруты</h2><p>Рейтинг учитывает результат проверки инструмента и ответа по данным. Статистика показана за 24 часа и 7 дней.</p><ul id="direct"></ul><h3>Переключения</h3><ul id="switches"></ul></section>
+<section><h2>Требуются ключи</h2><ul id="missing"></ul></section>
+<section><h2>Где получить ключ</h2><ul id="enrollment"></ul><details><summary>Регистрация отключена для проекта</summary><ul id="excluded"></ul></details></section>
+<section><h2>Ключи хаба</h2><ul id="keys"></ul><form id="save" autocomplete="off">
+<label>Поставщик<select required name="provider"></select></label>
+<label>Метка ключа<input name="label" required maxlength="70"></label>
+<label>Ключ API<input type="password" required name="key" autocomplete="new-password"></label>
+<button>Сохранить ключ</button><output id="saved" aria-live="polite"></output></form>
+<div hidden><form id="cloudflare-account" autocomplete="off">
+<label>Ключ Cloudflare<select name="key_id" required></select></label>
+<label>Cloudflare Account ID<input name="account_id" maxlength="32" pattern="[0-9A-Fa-f]{32}" required spellcheck="false"></label>
+<button>Сохранить Account ID</button><output aria-live="polite"></output>
+</form></div></section>
+<section><h2>Кандидаты из каталога</h2><ul id="models"></ul></section><p id="problem" role="alert"></p></main></body></html>

@@ -210,6 +210,9 @@ export async function openWorker(env) {
           typeof req.requestId !== 'string' || !req.requestId.length || req.requestId.length > 128) {
         fail('invalid_request');
       }
+      if (metered && req.grant?.model?.startsWith('hub:')) {
+        req.resumeHub=Boolean(platform.prepare('SELECT 1 FROM hub_resume WHERE operation_id=? AND expires>unixepoch()').get(req.grant.operationId));
+      }
       const result = dispatch.atomic(() => {
         const cached = previous(key, req);
         if (!cached) dispatch.check(key, req);

@@ -1,0 +1,83 @@
+[
+  {
+    "id": "zai",
+    "name": "Z.ai",
+    "kind": "free",
+    "url": "https://z.ai/manage-apikey/apikey-list",
+    "steps": "Войдите в Z.ai, откройте API Keys и создайте Standard API Key.",
+    "terms": "GLM-4.7-Flash, GLM-4.5-Flash и GLM-4.6V-Flash имеют нулевые ставки. Варианты FlashX тарифицируются отдельно.",
+    "reference": "https://docs.z.ai/guides/overview/pricing"
+  },
+  {
+    "id": "groq",
+    "name": "GroqCloud",
+    "kind": "free",
+    "url": "https://console.groq.com/keys",
+    "steps": "Войдите, выберите организацию с Free Plan. В API Keys нажмите Create API Key.",
+    "terms": "Для нескольких моделей есть бесплатная квота на организацию. Ограничения по запросам и токенам зависят от модели.",
+    "reference": "https://console.groq.com/docs/rate-limits"
+  },
+  {
+    "id": "google",
+    "name": "Google AI Studio",
+    "kind": "free",
+    "url": "https://aistudio.google.com/apikey",
+    "steps": "Выберите проект в AI Studio, откройте API keys и нажмите Create API key.",
+    "terms": "Один ключ проекта для обеих Gemma 4. Область применения определяется условиями проекта и проверкой хаба.",
+    "reference": "https://ai.google.dev/gemini-api/docs/pricing"
+  },
+  {
+    "id": "cloudflare",
+    "name": "Cloudflare",
+    "kind": "free",
+    "url": "https://dash.cloudflare.com/profile/api-tokens",
+    "steps": "Войдите в Cloudflare, откройте API Tokens → Create Token. Хабу нужны Workers AI и чтение подписок аккаунта (Billing Read). Сохраните Account ID отдельно в хабе.",
+    "terms": "Для бесплатного маршрута хаб проверяет план Workers Free и разрешения токена.",
+    "reference": "https://developers.cloudflare.com/workers-ai/platform/pricing/"
+  },
+  {
+    "id": "dots",
+    "name": "Dots Studio",
+    "kind": "excluded",
+    "url": "",
+    "steps": "",
+    "terms": "Регистрация недоступна для проекта. По решению владельца запросы на регистрацию отключены.",
+    "reference": ""
+  },
+  {
+    "id": "atlas",
+    "name": "Atlas Cloud",
+    "kind": "excluded",
+    "url": "",
+    "steps": "",
+    "terms": "По решению владельца запросы на регистрацию отключены. Состояние имеющегося ключа отображается в маршрутах.",
+    "reference": ""
+  },
+  {
+    "id": "nvidia",
+    "name": "NVIDIA",
+    "kind": "excluded",
+    "url": "",
+    "steps": "",
+    "terms": "NVIDIA исключена владельцем из поставщиков хаба.",
+    "reference": ""
+  },
+  {
+    "id": "mistral",
+    "name": "Mistral",
+    "kind": "excluded",
+    "url": "",
+    "steps": "",
+    "terms": "Mistral исключена владельцем. Бесплатный режим предназначен для оценки и прототипов.",
+    "reference": ""
+  },
+  {
+    "id": "liquid-ai",
+    "name": "Liquid AI",
+    "kind": "excluded",
+    "url": "",
+    "steps": "",
+    "terms": "У Liquid AI платная тарификация и разовый кредит. Регистрация для бесплатного хаба отключена.",
+    "reference": ""
+  }
+]

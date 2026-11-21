@@ -1,0 +1,8 @@
+[Unit]
+Description=Check direct model routes independently of discovery
+[Timer]
+OnBootSec=1min
+OnUnitInactiveSec=2min
+RandomizedDelaySec=30
+[Install]
+WantedBy=timers.target

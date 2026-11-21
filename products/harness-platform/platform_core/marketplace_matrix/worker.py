@@ -149,6 +149,14 @@ def execute(packet, directory):
              "operations": operations}
     if turn.get("model"):
         trace["selectionModel"] = turn["model"]
+        if turn["model"].startswith("hub:"):
+            import sqlite3
+            from contextlib import closing
+            with closing(sqlite3.connect(authority.database,uri=True)) as db:
+                actual=db.execute("""SELECT a.model FROM coin_attempts a JOIN usage_grants g USING(operation_id)
+                    WHERE g.token_hash=? AND a.evidence='hub-free' ORDER BY a.started_ms DESC,a.rowid DESC LIMIT 1""",
+                    (authority.grant_hash,)).fetchone()
+            if actual: trace["selectionModel"]=actual[0]
     if row["state"] != "READY":
         code = row.get("error") or row["state"]
         return {"ok": False, "code": code, "reason": explain(code)["text"], "trace": trace}

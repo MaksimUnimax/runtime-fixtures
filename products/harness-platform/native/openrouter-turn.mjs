@@ -26,7 +26,10 @@ export async function runRouterTurn({gatewayUrl,model,grant,onTransport,signal,.
       onTransport();
       const res=await fetch(gatewayUrl+'/complete',{method:'POST',signal:options.signal,
         headers:{'Content-Type':'application/json','x-operation':grant.token},
-        body:JSON.stringify(project(options.messages,options.tools,options.system))});
+        // Harness may append a user-role clock/context message after the real prompt.
+        body:JSON.stringify(model==='hub:public'
+          ? {messages:[{role:'user',content:turn.text}]}
+          : project(options.messages,options.tools,options.system))});
       if(!res.ok)throw new Error('Model request failed');
       const {message,finish_reason:reason}=await res.json();
       if(!['stop','length','tool_calls'].includes(reason))throw new Error('Incomplete model response');
@@ -48,5 +51,5 @@ export async function runRouterTurn({gatewayUrl,model,grant,onTransport,signal,.
       yield {type:'finish',reason:{kind:reason==='length'?'max-tokens':reason==='tool_calls'?'tool-calls':'stop'}};
     }
   }
-  return runNativeTurn({...turn,provider:'platform-openrouter',model,adapter:new Adapter(),signal});
+  return runNativeTurn({...turn,provider:model.startsWith('hub:')?'platform-model-hub':'platform-openrouter',model,adapter:new Adapter(),signal});
 }

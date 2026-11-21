@@ -14,6 +14,7 @@ async function api(path, options) {
     const scopedError=path.startsWith('/api/integrations') || path.endsWith('/integrations') || path==='/api/model-settings' || path.endsWith('/turns');
     const error = new Error((scopedError && /[А-Яа-я]/.test(detail.error||'') ? detail.error : null) ?? reason[res.status] ?? 'Запрос не выполнен (' + res.status + ')');
     error.status = res.status;
+    error.resume = detail.resume===true;
     throw error;
   }
   return res.json();
@@ -182,8 +183,10 @@ export async function createTransport(data) {
               pending.delete(id);
             } catch(error){
               if([400,401,402,403,404,413].includes(error.status))pending.delete(id);
-              if(!early){live.clear(id,turn.requestId);throw error;}
-              live.update(id,{rid:turn.requestId,stage:'failed',text:error.message});
+              if(!early && !error.resume){live.clear(id,turn.requestId);throw error;}
+              live.update(id,{rid:turn.requestId,stage:'failed',text:error.message,
+                retry:error.resume?()=>call('/api','session/prompt',{args:{sessionId:id,requestId:turn.requestId,
+                  content:[{type:'text',text}]}},new AbortController().signal):null});
             } finally {
               controller.abort();
               running.delete(id);

@@ -19,6 +19,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
+from . import model_hub
 from .admin_costs import AdminCosts, present_chat
 from .browser_session import browser_routes, browser_token
 from .chat_worker import ChatWorker, WorkerError
@@ -81,7 +82,7 @@ async def _body(request, *keys, optional=()):
 
 def create_app(database_path, chat_directory, *, composition_module=None):
     router_plugin = None
-    if os.getenv("HARNESS_OPENROUTER_ENABLED") == "1" and find_spec("platform_core.model_router"):
+    if (os.getenv("HARNESS_OPENROUTER_ENABLED") == "1" or os.getenv("HARNESS_HUB_INFERENCE") == "1") and find_spec("platform_core.model_router"):
         from . import model_router as router_plugin
 
     async def disabled_models(req):
@@ -109,6 +110,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                 directory = lifecycle.enter_context(TemporaryDirectory())
                 shared_path = Path(directory) / "platform.sqlite3"
             app.state.identity = lifecycle.enter_context(RegistrationStore(shared_path))
+            app.state.model_hub = model_hub.Hub(os.getenv("HARNESS_MODEL_HUB_DATABASE") or Path(shared_path).parent / "model-hub.sqlite3")
             app.state.progress = turn_progress.Progress()
             app.state.admin_costs = AdminCosts()
             app.state.worker = ChatWorker(shared_path, chat_directory, composition_module)
@@ -120,10 +122,14 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                     limits=httpx.Limits(max_connections=64,max_keepalive_connections=16)) as http:
                 app.state.http = http
                 async with AsyncExitStack() as extensions:
-                    app.state.model_router = await extensions.enter_async_context(
-                        router_plugin.activate(app.state.identity,http,app.state.worker)) if router_plugin else None
-                    if app.state.model_router:
-                        app.state.model_router.progress=app.state.progress
+                    app.state.model_router = None
+                    if router_plugin:
+                        model_http = await extensions.enter_async_context(model_hub.provider_http(timeout=10))
+                        app.state.model_router = await extensions.enter_async_context(
+                            router_plugin.activate(app.state.identity, model_http, app.state.worker,
+                                model_hub.hub_runtime.Runtime(app.state.model_hub,model_http) if os.getenv("HARNESS_HUB_INFERENCE")=="1" else None))
+                        if app.state.model_router:
+                            app.state.model_router.progress = app.state.progress
                     try:
                         yield
                     finally:
@@ -251,7 +257,10 @@ def create_app(database_path, chat_directory, *, composition_module=None):
             router = req.app.state.model_router
             if router and (refusal := router.free_refusal(exc.operation_id)):
                 status, message = refusal
-                return JSONResponse({"error":message,"operationId":exc.operation_id},status_code=status)
+                with router.identity._lock:
+                    resume=router.identity._db.execute("SELECT 1 FROM hub_resume WHERE operation_id=? AND expires>unixepoch()",
+                                                       (exc.operation_id,)).fetchone() is not None
+                return JSONResponse({"error":message,"operationId":exc.operation_id,"resume":resume},status_code=status)
             error = {"error": exc.code, "operationId": exc.operation_id}
             result = await run_in_threadpool(present_chat, req.app.state.identity, req.app.state.admin_costs,
                                              token, scope, "turn", error)
@@ -288,6 +297,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         *turn_progress.routes(_token),
         *chat_connections.routes(_token,_body),
         *integrations.routes(_token, _body),
+        *model_hub.routes(_token, _body),
         *provider_keys.routes(_token, _body),
         *chat_defaults.routes(_token, _body),
         *(router_plugin.routes(_token, _body, disabled_models) if router_plugin else [Route("/api/model-settings",disabled_models,methods=["GET","POST"])]),

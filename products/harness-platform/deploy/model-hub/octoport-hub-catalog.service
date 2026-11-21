@@ -1,0 +1,20 @@
+[Unit]
+Description=Octoport public model catalog
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=harness-inbound
+Group=harness-inbound
+DynamicUser=yes
+StateDirectory=octoport-model-hub
+StateDirectoryMode=0700
+WorkingDirectory=/opt/octoport-model-hub/current/products/harness-platform
+ExecStart=/opt/octoport-harness-inbound/runtime/venv/bin/python -m platform_core.model_hub --database /var/lib/octoport-model-hub/model-hub.sqlite3
+TimeoutStartSec=60
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/octoport-model-hub

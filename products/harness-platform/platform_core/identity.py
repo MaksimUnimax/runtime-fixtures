@@ -262,7 +262,7 @@ class IdentityStore(Store):
                 charges.append(entry)
             meters = {}
             if admin:
-                totals = db.execute("""SELECT CASE WHEN a.rate_version='openrouter-v1' THEN 'OpenRouter' ELSE 'DeepSeek' END,
+                totals = db.execute("""SELECT CASE WHEN a.rate_version='openrouter-v1' THEN 'OpenRouter' WHEN a.rate_version='hub-free-v1' THEN 'Хаб Octoport' ELSE 'DeepSeek' END,
                     SUM(COALESCE(json_extract(a.usage_json,'$.input_tokens'),0)+COALESCE(json_extract(a.usage_json,'$.cache_creation_input_tokens'),0)),
                     SUM(COALESCE(json_extract(a.usage_json,'$.cache_read_input_tokens'),0)),
                     SUM(COALESCE(json_extract(a.usage_json,'$.output_tokens'),0)), SUM(COALESCE(a.charge,0))
@@ -310,7 +310,7 @@ class IdentityStore(Store):
             receipt = result.setdefault(operation, {"coins": coins.display(spent),
                 "rub": coins.display(spent) if fx else None, "pending": False, "tokens": None, "providers": {}})
             receipt["pending"] |= charge is None
-            provider = "OpenRouter" if tariff == "openrouter-v1" else "DeepSeek"
+            provider = {"openrouter-v1":"OpenRouter","hub-free-v1":"Хаб Octoport"}.get(tariff,"DeepSeek")
             per = receipt["providers"].setdefault(provider, {"input":0,"cache":0,"output":0})
             if raw and (usage := json.loads(raw)):
                 per["input"] += usage.get("input_tokens",0) + usage.get("cache_creation_input_tokens",0)

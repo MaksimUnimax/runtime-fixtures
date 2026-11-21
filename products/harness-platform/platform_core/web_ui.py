@@ -53,7 +53,8 @@ async def admin(request):
     token = browser_token(request)
     if not await run_in_threadpool(request.app.state.identity.is_admin, token):
         raise HTTPException(403, "Administrator required")
-    return FileResponse(UI / "admin.html", media_type="text/html", headers=HEADERS)
+    filename = "model-hub.html" if request.url.path == "/admin/model-hub" else "admin.html"
+    return FileResponse(UI / filename, media_type="text/html", headers=HEADERS)
 
 async def icon(_request):
     return FileResponse(UI / "octoport-icon.png", media_type="image/png")
@@ -65,7 +66,7 @@ async def project_asset(request):
         return asset_response(request, static_bytes(UI / name), "image/svg+xml")
     if name in {"octoport-mark.png", "octoport-icon.png"}:
         return FileResponse(UI / name, media_type="image/png")
-    if name not in {"bootstrap.js", "start.js", "connections.js","private-input.js", "account.js", "account.css", "appearance.css", "transport.js","live-turn.js", "admin.css", "admin.js"}:
+    if name not in {"bootstrap.js", "start.js", "connections.js","private-input.js", "account.js", "account.css", "appearance.css", "transport.js","live-turn.js", "admin.css", "admin.js", "model-hub.js"}:
         raise HTTPException(404)
     path = _PROJECT_UI / name
     if not path.is_file():
@@ -119,7 +120,7 @@ def web_routes():
     return [
         Route("/favicon.ico", icon),
         Route("/plugins/@deepseek-ai/dsh-client-ui-chat/assets/running-whale@2x-06738fa29b2f.png", icon),
-        Route("/", page), Route("/admin", admin), Route("/ui-assets/modules/{name}.js", module_file), Route("/app/", page), Route("/app/chats/{chat_id}", page),
+        Route("/", page), Route("/admin", admin), Route("/admin/model-hub", admin), Route("/ui-assets/modules/{name}.js", module_file), Route("/app/", page), Route("/app/chats/{chat_id}", page),
         Route("/ui-assets/project/{name}", project_asset),
         Route("/ui-assets/harness/{package}/{asset:path}", harness_asset),
     ]

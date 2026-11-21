@@ -1,0 +1,7 @@
+[Unit]
+Description=Refresh the Octoport model catalog
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+[Install]
+WantedBy=timers.target
