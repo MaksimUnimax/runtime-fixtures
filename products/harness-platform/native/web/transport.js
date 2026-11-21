@@ -93,7 +93,7 @@ class Changes {
   }
   notify() { this.revision++; for (const finish of [...this.listeners]) finish(); }
 }
-export async function createTransport(data) {
+export async function createTransport(data, initialHistory) {
   const guest = data.mode === 'guest';
   protectPaste(guest,api);
   const initial = data.account ? JSON.parse(data.account) : null;
@@ -166,10 +166,10 @@ export async function createTransport(data) {
   const projection = (id,seq=-1) => ({asOfSeq:seq, values:{title:titles.get(id) ?? (guest?'Справка octoport':label(id)), cwd:'/personal'}});
   const failure = (message) => ({ok:false,error:{code:'gateway/method-unavailable',message,details:{}}});
   function check(id) { if (!ids.includes(id)) throw new Error('Чат недоступен'); }
-  async function page(id, before, signal) {
+  async function page(id, before, signal, existing) {
     check(id);
     const path = (guest?'/guest':'/api') + '/chats/' + encodeURIComponent(id) + '/events';
-    const result = await api(path + (before==null?'':'?before=' + encodeURIComponent(before)), {signal});
+    const result = await (existing ?? api(path + (before==null?'':'?before=' + encodeURIComponent(before)), {signal}));
     if (!guest && before==null) {
       const previous=account.savedIllustrations.get(id) || [];
       const saved=result.savedIllustrations || [];
@@ -221,7 +221,7 @@ export async function createTransport(data) {
   // Allow the worker its 45-second read deadline plus network transit.
   const readSignal = signal => signal
     ? AbortSignal.any([signal, AbortSignal.timeout(60_000)]) : AbortSignal.timeout(60_000);
-  let opening = selected ? page(selected,null,readSignal()).then(value => ({value}), error => ({error})) : null;
+  let opening = selected ? page(selected,null,readSignal(),initialHistory).then(value => ({value}), error => ({error})) : null;
   const params = payload => payload.args.request ?? payload.args.input ?? payload.args;
   function summary(id) { return {agentAvailable:true,sessionId:id,updatedAt:updated.get(id) ?? 0,running:running.has(id),
     blank:!nonempty.has(id),cwd:'/personal',projections:{kind:'cached',...projection(id)}}; }

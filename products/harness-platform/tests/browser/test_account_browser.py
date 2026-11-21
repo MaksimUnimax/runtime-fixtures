@@ -372,6 +372,80 @@ class BrowserIsolation(ProductBrowser):
         finally:
             await guest_context.close()
 
+    async def test_opening_draft_reaches_native_editor_without_sending(self):
+        member = await self.open_chat("first-browser")
+        guest = await self.browser.new_page(base_url=self.base_url)
+        self.addAsyncCleanup(guest.close)
+        for page in (member, guest):
+            gate = asyncio.Event()
+            async def delay(route):
+                await gate.wait()
+                await route.continue_()
+            await page.route("**/ui-assets/modules/core-*.js", delay)
+            posts = []
+            page.on("request", lambda request: posts.append(request.url) if request.url.endswith("/turns") and request.method == "POST" else None)
+            try:
+                await page.goto(page.url if page == member else "/", wait_until="commit")
+                await page.get_by_role("textbox", name="Черновик сообщения").fill("Мой черновик")
+            finally:
+                gate.set()
+            editor = page.locator("[data-composer-input][contenteditable=true]")
+            await expect(editor).to_have_text("Мой черновик")
+            await expect(page.get_by_role("button", name="Отправить сообщение")).to_be_enabled()
+            self.assertEqual(posts, [])
+
+    async def test_saved_chat_reads_history_once_while_native_core_is_pending(self):
+        page = await self.open_chat("first-browser")
+        marker = "История до запуска интерфейса"
+        await self.send_turn(page, marker)
+        conversation = page.locator('[data-slot="conversation.view"]')
+        await expect(conversation).to_contain_text("Тестовая модель", timeout=45_000)
+        release, started = asyncio.Event(), asyncio.Event()
+        requests = []
+
+        async def hold_core(route):
+            started.set()
+            await release.wait()
+            await route.continue_()
+
+        await page.route("**/ui-assets/modules/core-*.js", hold_core)
+        page.on("request", lambda request: requests.append(request.url)
+                if urlsplit(request.url).path.endswith("/events") else None)
+        try:
+            await page.reload(wait_until="commit")
+            await asyncio.wait_for(started.wait(), 15)
+            preview = page.get_by_role("region", name="История чата")
+            await expect(preview).to_contain_text(marker)
+            await expect(preview).to_be_visible()
+            self.assertEqual(len(requests), 1)
+        finally:
+            release.set()
+        await expect(conversation).to_contain_text(marker)
+        await expect(page.locator("#chat-opening")).to_have_count(0)
+        self.assertEqual(len(requests), 1)
+
+    async def test_stylesheet_load_event_does_not_gate_chat(self):
+        page = await self.open_chat("first-browser")
+        await page.add_init_script("""window.addEventListener('load', e => {
+          if(e.target instanceof HTMLLinkElement && e.target.hasAttribute('data-chat-style'))
+            e.stopImmediatePropagation();
+        }, true)""")
+        await page.reload()
+        await expect(page.locator('[data-composer-input]').last).to_be_visible()
+
+    async def test_failed_native_bundle_preserves_readable_history(self):
+        page = await self.open_chat("first-browser")
+        marker = "Сохранённое сообщение при ошибке интерфейса"
+        await self.send_turn(page, marker)
+        await expect(page.locator('[data-slot="conversation.view"]')).to_contain_text("Тестовая модель", timeout=45_000)
+        # The pinned loader can recover from a failed batch via individual modules.
+        # Exercise the terminal failure by also denying its fallback.
+        await page.route("**/ui-assets/modules/*.js*", lambda route: route.abort())
+        await page.reload()
+        await expect(page.get_by_role("region", name="История чата")).to_contain_text(marker)
+        await expect(page.locator('#chat-opening [role="status"]')).to_have_text("Не удалось загрузить интерфейс чата.")
+        await expect(page.locator('#chat-opening')).to_be_visible()
+
     async def test_direct_link_displays_while_resources_and_history_are_pending(self):
         page = await self.open_chat("first-browser")
         marker = "Проверка открытия переписки"

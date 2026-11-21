@@ -140,7 +140,7 @@ async def harness_asset(request):
         except ValueError:
             raise HTTPException(503, "Unsupported native UI entry build") from None
         return asset_response(request, parts, "text/css" if asset.endswith(".css") else "text/javascript",
-                              immutable="/langs/" not in asset)
+                              immutable="/langs/" not in asset, frontend=asset in _FRONTEND_ASSETS and asset.endswith(".js"))
     return FileResponse(file, headers={"X-Content-Type-Options":"nosniff"})
 
 
