@@ -12,32 +12,29 @@ from .dispatch import Dispatcher, InvalidToolInput, UnavailableTool
 
 def _tool_error(message: str) -> types.CallToolResult:
     return types.CallToolResult(
-        isError=True, content=[types.TextContent(type="text", text=message)]
+        is_error=True, content=[types.TextContent(type="text", text=message)]
     )
 
 
 def create_server(dispatcher: Dispatcher) -> Server:
-    server = Server("harness-platform")
-
-    @server.list_tools()
-    async def list_tools() -> list[types.Tool]:
+    async def list_tools(_ctx, _params) -> types.ListToolsResult:
         try:
-            return [
+            return types.ListToolsResult(tools=[
                 types.Tool(
                     name=tool.name,
                     description=tool.description,
-                    inputSchema=tool.input_schema,
+                    input_schema=tool.input_schema,
                 )
                 for tool in dispatcher.list_tools()
-            ]
+            ])
         except Exception:
             # Underlying storage/provider messages can contain private details.
             raise RuntimeError("Tool catalog unavailable") from None
 
     # The dispatcher checks current grants before it validates input. Using the
     # SDK's cached schema here could disclose a revoked tool's contract.
-    @server.call_tool(validate_input=False)
-    async def call_tool(name: str, arguments: dict) -> types.CallToolResult:
+    async def call_tool(_ctx, params: types.CallToolRequestParams) -> types.CallToolResult:
+        name, arguments = params.name, params.arguments or {}
         try:
             value = await asyncio.to_thread(dispatcher.call_tool, name, arguments)
         except UnavailableTool:
@@ -55,12 +52,12 @@ def create_server(dispatcher: Dispatcher) -> Server:
             payload = {"result": value}
             text = json.dumps(payload, ensure_ascii=False, allow_nan=False)
             return types.CallToolResult(
-                structuredContent=payload, _meta=diagnostics, content=[types.TextContent(type="text", text=text)]
+                structured_content=payload, meta=diagnostics, content=[types.TextContent(type="text", text=text)]
             )
         except (TypeError, ValueError, RecursionError):
             return _tool_error("Tool produced an invalid result")
 
-    return server
+    return Server("harness-platform",on_list_tools=list_tools,on_call_tool=call_tool)
 
 
 async def serve_stdio(dispatcher: Dispatcher) -> None:

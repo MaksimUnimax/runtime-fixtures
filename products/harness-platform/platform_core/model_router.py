@@ -20,7 +20,7 @@ from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from . import coins, provider_keys, model_choices
+from . import coins, provider_keys, model_choices, router_status, router_recovery
 from .model_choices import catalog_rows, amount
 from .operation_grants import active_chat_grant, extend_marketplace_wait, renew_marketplace_grant
 from .identity import _principal
@@ -28,6 +28,8 @@ from .user_plugins import illustrations
 
 BASE = "https://openrouter.ai/api/v1"
 TABLES = (
+    router_status.SCHEMA, router_recovery.SCHEMA,
+    "CREATE TABLE IF NOT EXISTS openrouter_stopped_outputs (illustration TEXT PRIMARY KEY REFERENCES plugin_illustrations(id) ON DELETE CASCADE)",
     "CREATE TABLE IF NOT EXISTS model_preferences(workspace TEXT PRIMARY KEY REFERENCES workspaces, model TEXT NOT NULL)",
     """CREATE TABLE IF NOT EXISTS operation_routes(operation_id TEXT PRIMARY KEY REFERENCES usage_operations,
        model TEXT NOT NULL, input_rate TEXT NOT NULL, output_rate TEXT NOT NULL, request_rate TEXT NOT NULL)""",
@@ -54,10 +56,13 @@ class ModelRouter:
         self.next_manual = 0
         self.catalog_message = ""
         self.active, self.total = {}, 0
+        self.waiters = {}
         self.reconcile_cursor = 0
         with identity._write() as db:
             for sql in (*TABLES,*model_choices.SCHEMA):
                 db.execute(sql)
+            if "resume_owner" not in {r[1] for r in db.execute("PRAGMA table_info(openrouter_waits)")}:
+                db.execute("ALTER TABLE openrouter_waits ADD COLUMN resume_owner TEXT")
 
     async def models(self, refresh=False, *, current_tariff=False):
         async with self.refresh:
@@ -108,6 +113,7 @@ class ModelRouter:
                 self.catalog, self.expires, self.loaded_at = {}, 0, None
                 self.catalog_message = "Ключ OpenRouter изменился. Обновите список моделей."
                 return self.catalog
+            router_status.note(self, headers["Authorization"][7:], 'catalog', self.catalog_message or "Каталог получен.", not self.catalog_message)
             self.expires = time.monotonic() + retry_after
             if current_tariff and self.catalog_message:
                 return {}
@@ -170,32 +176,36 @@ class ModelRouter:
 
     def settle(self, aid, generation, usage):
         with self.identity._write() as db:
-            row = db.execute("""SELECT bound,fx_e4 FROM coin_attempts JOIN coin_ruble_orders USING(operation_id)
-                WHERE attempt_id=? AND charge IS NULL AND rate_version='openrouter-v1'""",(aid,)).fetchone()
-            if not row:
+            self.settle_in(db,aid,generation,usage)
+
+    @staticmethod
+    def settle_in(db,aid,generation,usage):
+        row = db.execute("""SELECT bound,fx_e4 FROM coin_attempts JOIN coin_ruble_orders USING(operation_id)
+            WHERE attempt_id=? AND charge IS NULL AND rate_version='openrouter-v1'""",(aid,)).fetchone()
+        if not row:
+            return
+        if isinstance(generation,str) and re.fullmatch(r"[a-zA-Z0-9_-]{1,200}",generation):
+            db.execute("UPDATE coin_attempts SET provider_id=? WHERE attempt_id=?",(generation,aid))
+        try:
+            cost = amount(usage["cost"])
+            prompt,out = usage["prompt_tokens"],usage["completion_tokens"]
+            details = usage.get("prompt_tokens_details") or {}
+            if not isinstance(details, dict):
                 return
-            if isinstance(generation,str) and re.fullmatch(r"[a-zA-Z0-9_-]{1,200}",generation):
-                db.execute("UPDATE coin_attempts SET provider_id=? WHERE attempt_id=?",(generation,aid))
-            try:
-                cost = amount(usage["cost"])
-                prompt,out = usage["prompt_tokens"],usage["completion_tokens"]
-                details = usage.get("prompt_tokens_details") or {}
-                if not isinstance(details, dict):
-                    return
-                cache = details.get("cached_tokens",0)
-                if any(type(v) is not int or v<0 for v in (prompt,out,cache)) or cache>prompt:
-                    return
-            except (KeyError,TypeError,ValueError):
+            cache = details.get("cached_tokens",0)
+            if any(type(v) is not int or v<0 for v in (prompt,out,cache)) or cache>prompt:
                 return
-            charge = int((cost*row[1]*coins.UNIT/10000).to_integral_value(rounding=ROUND_CEILING))
-            counts = {"input_tokens":prompt-cache,"cache_read_input_tokens":cache,
-                      "cache_creation_input_tokens":0,"output_tokens":out}
-            if charge > row[0]:
-                db.execute("UPDATE coin_attempts SET usage_json=?,evidence=? WHERE attempt_id=?",
-                           (json.dumps(counts), "openrouter-review-usd:" + str(cost), aid))
-                return
-            db.execute("UPDATE coin_attempts SET charge=?,usage_json=?,evidence=? WHERE attempt_id=? AND charge IS NULL",
-                       (charge,json.dumps(counts),"openrouter-usd:"+str(cost),aid))
+        except (KeyError,TypeError,ValueError):
+            return
+        charge = int((cost*row[1]*coins.UNIT/10000).to_integral_value(rounding=ROUND_CEILING))
+        counts = {"input_tokens":prompt-cache,"cache_read_input_tokens":cache,
+                  "cache_creation_input_tokens":0,"output_tokens":out}
+        if charge > row[0]:
+            db.execute("UPDATE coin_attempts SET usage_json=?,evidence=? WHERE attempt_id=?",
+                       (json.dumps(counts), "openrouter-review-usd:" + str(cost), aid))
+            return
+        db.execute("UPDATE coin_attempts SET charge=?,usage_json=?,evidence=? WHERE attempt_id=? AND charge IS NULL",
+                   (charge,json.dumps(counts),"openrouter-usd:"+str(cost),aid))
 
     async def reconcile(self):
         while True:
@@ -283,18 +293,50 @@ class ModelRouter:
         if not re.fullmatch(r"[A-Za-z0-9_-]{43}",token):
             raise HTTPException(403)
         raw = await req.body()
-        if len(raw)>2_000_000:
+        if len(raw)>8_000_000:
             raise HTTPException(413)
         try:
             request = json.loads(raw)
         except (ValueError,UnicodeError):
             raise HTTPException(400,"Некорректный запрос модели.") from None
-        if not isinstance(request,dict) or not isinstance(request.get("messages"),list) or request.keys()-{"messages","tools"}:
+        if not isinstance(request,dict):
             raise HTTPException(400)
-        reservation = self.reserve(token,request)
-        if reservation is None:
-            raise HTTPException(402)
-        ws,aid = reservation
+        checkpoint=request.pop("checkpoint",None)
+        resumed=request.pop("resumeAttempt",None)
+        if checkpoint is not None and not router_recovery.valid_checkpoint(checkpoint):
+            raise HTTPException(400)
+        if not isinstance(request.get("messages"),list) or request.keys()-{"messages","tools"} or len(json.dumps(request,ensure_ascii=False).encode())>2_000_000:
+            raise HTTPException(400)
+        initial_wait = 0
+        if resumed is not None:
+            if not isinstance(resumed,str) or not re.fullmatch(r"[a-f0-9]{32}",resumed):
+                raise HTTPException(400)
+            parked=router_recovery.read_parked(self,token,resumed,owner=True)
+            if not parked or "messages" not in parked[1]:
+                raise HTTPException(403)
+            ws,request,initial_wait=parked
+            aid=resumed
+        else:
+            reservation = self.reserve(token,request)
+            if reservation is None:
+                raise HTTPException(402)
+            ws,aid = reservation
+        lease=contextlib.nullcontext(True) if resumed else router_recovery.ownership(self.database_path,aid)
+        with lease as owned:
+            if not owned:
+                raise HTTPException(409)
+            return await self.dispatch_attempt(req,token,ws,aid,request,checkpoint,initial_wait,bool(resumed))
+
+    def can_send(self,token,workspace,attempt):
+        digest=hashlib.sha256(token.encode()).hexdigest()
+        with self.identity._lock:
+            db=self.identity._db
+            return active_chat_grant(db,digest) and db.execute("""SELECT 1 FROM coin_attempts a
+                JOIN usage_grants g USING(operation_id) WHERE a.attempt_id=? AND g.token_hash=? AND a.charge IS NULL
+                AND (a.bound=0 OR EXISTS(SELECT 1 FROM workspace_paid_model_access WHERE workspace_id=?))""",
+                (attempt,digest,workspace)).fetchone() is not None
+
+    async def dispatch_attempt(self,req,token,ws,aid,request,checkpoint,initial_wait,parked):
         live = None
         if hub := getattr(self, "progress", None):
             from .storage import Scope
@@ -304,15 +346,31 @@ class ModelRouter:
             if row:
                 live = hub.turns.get((Scope(*row[:3]), row[3]))
         request.update(stream=True, stream_options={"include_usage":True})
+        ticket = object()
+        known_unsent = True
         try:
+            if initial_wait > 0:
+                await self.wait_limit(token,req,initial_wait)
             while True:
-                if self.total < 32 and self.active.get(ws, 0) < 2:
+                self.waiters[ticket] = ws
+                # Earlier workspaces at their own limit do not block other workspaces.
+                first = next((t for t,w in self.waiters.items() if self.active.get(w, 0) < 2), None)
+                if self.total < 32 and first is ticket:
+                    del self.waiters[ticket]
                     self.active[ws] = self.active.get(ws, 0) + 1
                     self.total += 1
                     try:
                         if live:
                             live.set({"stage":"model"})
+                        if parked:
+                            if not router_recovery.read_parked(self,token,aid,consume=True):
+                                raise HTTPException(403)
+                            parked=False
+                        elif not self.can_send(token,ws,aid):
+                            raise HTTPException(403)
+                        known_unsent = False
                         result, delay = await self.send_attempt(request, aid, live)
+                        known_unsent = delay is not None
                     finally:
                         self.total -= 1
                         self.active[ws] -= 1
@@ -320,19 +378,29 @@ class ModelRouter:
                             del self.active[ws]
                     if delay is None:
                         return result
+                    if checkpoint is not None:
+                        parked=router_recovery.park(self,token,aid,checkpoint,request,delay)
                 else:
                     delay = 1
                 # No generation was accepted, so waiting can be safely cancelled or retried.
-                try:
-                    await self.wait_limit(token, req, delay)
-                except (HTTPException, asyncio.CancelledError):
-                    self.settle(aid, None, {"cost":0,"prompt_tokens":0,"completion_tokens":0})
-                    raise
+                await self.wait_limit(token, req, delay)
+        except (HTTPException, asyncio.CancelledError) as exc:
+            if parked:
+                # A disconnected worker may be replaced; an explicit cancellation/revocation is terminal.
+                if isinstance(exc,HTTPException) and (exc.headers or {}).get("X-Octoport-Wait")!="disconnected":
+                    router_recovery.close_rejected(self,aid)
+            elif known_unsent:
+                self.settle(aid,None,{"cost":0,"prompt_tokens":0,"completion_tokens":0})
+            raise
         except (httpx.ProxyError,httpx.ConnectError):
             self.settle(aid,None,{"cost":0,"prompt_tokens":0,"completion_tokens":0})
-            raise HTTPException(503,"Нет связи с роутером OpenRouter.") from None
+            router_status.note(self,self.credential(),'generation','Нет связи с роутером OpenRouter.')
+            raise HTTPException(503,"Нет связи с роутером OpenRouter.",headers={"X-Octoport-Reason":"provider_connection"}) from None
         except (httpx.HTTPError,KeyError,IndexError,ValueError,TypeError):
             raise HTTPException(502) from None
+
+        finally:
+            self.waiters.pop(ticket, None)
 
     async def wait_limit(self,token,request,delay):
         if not isinstance(delay,(int,float)):
@@ -359,7 +427,9 @@ class ModelRouter:
             while True:
                 if cancel.is_set():
                     raise HTTPException(409,"Ожидание отменено.",headers={"X-Octoport-Wait":"cancelled"})
-                if await request.is_disconnected() or not renew_marketplace_grant(self.database_path,digest,int(time.time())):
+                if await request.is_disconnected():
+                    raise HTTPException(409,"Соединение прервано.",headers={"X-Octoport-Wait":"disconnected"})
+                if not renew_marketplace_grant(self.database_path,digest,int(time.time())):
                     raise HTTPException(409,"Ожидание запроса отменено.")
                 remaining=until/1000-time.time()
                 if remaining<=0:
@@ -374,22 +444,33 @@ class ModelRouter:
                 live.set({"stage":"tool"})
 
     async def send_attempt(self,request,aid,live):
-        async with self.http.stream("POST",BASE+"/chat/completions",headers=self.headers,json=request,timeout=90) as r:
+        headers = self.headers
+        key = headers["Authorization"][7:]
+        async with self.http.stream("POST",BASE+"/chat/completions",headers=headers,json=request,timeout=90) as r:
+            if not r.is_success:
+                router_status.note(self,key,'generation',router_status.refusal(r.status_code))
             if r.status_code == 429:
                 delay = retry_seconds(r.headers.get("retry-after"))
                 return None,delay
             if r.status_code in (400,401,402,403,404,422):
                 self.settle(aid,None,{"cost":"0","prompt_tokens":0,"completion_tokens":0})
-            if not r.is_success: raise HTTPException(502)
+            if not r.is_success:
+                reasons={401:'provider_key',403:'provider_access',402:'provider_balance',404:'provider_model'}
+                hint={"X-Octoport-Reason":reasons[r.status_code]} if r.status_code in reasons else None
+                raise HTTPException(502,headers=hint)
             if "text/event-stream" in r.headers.get("content-type",""):
-                return JSONResponse(await self.streamed_choice(r,aid,live)),None
+                result = await self.streamed_choice(r,aid,live)
+                router_status.note(self,key,"generation","Ответ модели получен.",True)
+                return JSONResponse(result),None
             await r.aread()
             data = r.json(parse_float=Decimal)
             self.settle(aid,data.get("id"),data.get("usage"))
             choice=data["choices"][0]
             if live and isinstance(choice["message"].get("content"),str):
                 live.set({"stage":"writing","text":choice["message"]["content"]})
-            return JSONResponse({"message":choice["message"],"finish_reason":choice["finish_reason"]}),None
+            response=JSONResponse({"message":choice["message"],"finish_reason":choice["finish_reason"]})
+            router_status.note(self,key,"generation","Ответ модели получен.",True)
+            return response,None
 
 
 def retry_seconds(value):
@@ -435,12 +516,14 @@ async def activate(identity, http, worker):
         reconcile = asyncio.create_task(router.reconcile())
         worker.env["HARNESS_ROUTER_LOCAL"] = "http://127.0.0.1:"+str(sock.getsockname()[1])
         worker.router = router
+        recovery=asyncio.create_task(router_recovery.Recovery(router,worker).run())
         try:
             yield router
         finally:
             server.should_exit=True
             reconcile.cancel()
-            await asyncio.gather(task,reconcile,return_exceptions=True)
+            recovery.cancel()
+            await asyncio.gather(task,reconcile,recovery,return_exceptions=True)
             if http is not None:
                 await http.aclose()
 

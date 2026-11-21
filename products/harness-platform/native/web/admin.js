@@ -42,7 +42,14 @@ request('/api/admin/coin-pricing').then(value=>{
 function keyStates(state) {
   for(const id of ['deepseek','openrouter']){
     const output=document.getElementById(id).querySelector('output');
-    output.textContent=state[id].configured?'Ключ настроен':'Ключ ещё не добавлен';
+    const lines=[state[id].configured?'Ключ настроен':'Ключ ещё не добавлен'];
+    if(id==='openrouter'){
+      const h=state[id].health || {};
+      const when=value=>value?new Date(value*1000).toLocaleString('ru-RU'):'ещё не подтверждено';
+      lines.push('Каталог: '+when(h.catalogAt),'Последняя успешная генерация: '+when(h.generatedAt));
+      if(h.checkedAt)lines.push('Последняя проверка: '+when(h.checkedAt)+' · '+h.detail);
+    }
+    output.textContent=lines.join(' · ');
   }
 }
 request('/api/admin/provider-keys').then(keyStates).catch(e=>{document.querySelector('#problem').textContent=e.message;});
@@ -60,7 +67,7 @@ for (const form of document.querySelectorAll('form:not(#default-model)')) form.a
       keyStates(await request('/api/admin/provider-keys/'+form.id,{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({key:fields.key})}));
       form.reset();
-      form.querySelector('output').textContent='Новый ключ сохранён';
+      form.querySelector('output').prepend('Новый ключ сохранён. ');
     } else if (form.id === 'pricing') {
       if(markup.disabled)return;
       const value=await request('/api/admin/coin-pricing',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -125,6 +132,7 @@ refreshModels.addEventListener('click',async ()=>{
   busy(true); modelStatus.textContent='Загружаю доступные модели…';
   try {
     const [catalog,current]=await Promise.all([defaultsRequest('chat-models'),defaultsRequest('chat-default')]);
+    keyStates(await request("/api/admin/provider-keys"));
     choices=catalog.models; showDefault(current);
     defaultsForm.hidden=!choices.some(m=>m.chat);
     const select=defaultsForm.elements.model;

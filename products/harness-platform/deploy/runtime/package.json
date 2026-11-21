@@ -1,0 +1,14 @@
+{
+  "name": "octoport-harness-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.2.2-rc.1"
+  },
+  "overrides": {
+    "fflate": "0.8.3",
+    "zod": "4.6.7",
+    "undici": "8.12.2",
+    "@modelcontextprotocol/client": "2.3.0"
+  }
+}

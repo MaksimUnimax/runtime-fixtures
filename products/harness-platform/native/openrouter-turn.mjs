@@ -21,20 +21,29 @@ export function project(messages, tools, system, model) {
     type:'function',function:{name,description,parameters}
   }))} : {})};
 }
-export async function runRouterTurn({gatewayUrl,model,grant,onTransport,onWaitCancelled,signal,...turn}) {
+export async function runRouterTurn({gatewayUrl,model,grant,onTransport,onWaitCancelled,onProviderRefusal,signal,restore,checkpointContext,...turn}) {
   const llm=await turn.load('dsh-llm');
-  let callsStarted = 0;
+  const capture={};
+  let callsStarted = restore?.priorCalls || 0;
+  let parked=restore?.imageCall ? null : restore;
   class Adapter extends llm.LlmAdapter {
     async *stream(options) {
       options.signal?.throwIfAborted();
-      const firstCall = ++callsStarted === 1;
+      const resumed=parked;
+      parked=null;
+      const priorCalls=callsStarted++;
+      const firstCall=priorCalls===0;
       onTransport();
       const res=await fetch(gatewayUrl+'/complete',{method:'POST',signal:options.signal,
         headers:{'Content-Type':'application/json','x-operation':grant.token},
-        body:JSON.stringify(project(options.messages,options.tools,options.system,model))});
+        body:JSON.stringify({...project(options.messages,options.tools,options.system,model),
+          ...(checkpointContext ? {checkpoint:{...checkpointContext,events:capture.snapshot(),priorCalls}} : {}),
+          ...(resumed ? {resumeAttempt:resumed.attempt} : {})})});
       if(!res.ok) {
         // Only the first model call can be cancelled without losing a previous tool result.
         if(firstCall && res.status===409 && res.headers.get('x-octoport-wait')==='cancelled') onWaitCancelled();
+        const reason=res.headers.get('x-octoport-reason');
+        if(firstCall && ['provider_key','provider_access','provider_balance','provider_model','provider_connection'].includes(reason)) onProviderRefusal(reason);
         throw new Error('Model request failed');
       }
       const {message,finish_reason:reason}=await res.json();
@@ -57,5 +66,5 @@ export async function runRouterTurn({gatewayUrl,model,grant,onTransport,onWaitCa
       yield {type:'finish',...(message.reasoning_details?.length ? {replayState:{response:{reasoning_details:message.reasoning_details}}} : {}),reason:{kind:reason==='length'?'max-tokens':reason==='tool_calls'?'tool-calls':'stop'}};
     }
   }
-  return runNativeTurn({...turn,provider:'platform-openrouter',model,adapter:new Adapter(),signal});
+  return runNativeTurn({...turn,provider:'platform-openrouter',model,adapter:new Adapter(),signal,restore,capture});
 }

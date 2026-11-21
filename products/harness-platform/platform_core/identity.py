@@ -318,6 +318,16 @@ class IdentityStore(Store):
             else:
                 db.execute("DELETE FROM identity_admins WHERE actor_id=?", row)
 
+    def unattached_illustrations(self, scope):
+        with self._lock:
+            if not self._db.execute("SELECT 1 FROM sqlite_master WHERE name='openrouter_stopped_outputs'").fetchone():
+                return []
+            rows=self._db.execute("""SELECT i.id FROM openrouter_stopped_outputs s
+                JOIN plugin_illustrations i ON i.id=s.illustration JOIN usage_operations o USING(operation_id)
+                WHERE i.chat=? AND o.actor_id=? AND o.workspace_id=? ORDER BY i.rowid""",
+                (scope.chat_id,scope.actor_id,scope.workspace_id)).fetchall()
+            return [f"/api/chats/{scope.chat_id}/illustrations/{row[0]}" for row in rows]
+
     def chat_receipts(self, scope, ids):
         if not ids:
             return {}

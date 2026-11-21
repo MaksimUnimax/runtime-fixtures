@@ -1,5 +1,5 @@
 /* Private JSON-lines worker. Only the authenticated product server supplies scope. */
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -100,7 +100,22 @@ export async function openWorker(env) {
   const byRequest = db.prepare('SELECT * FROM native_batches WHERE scope_key=? AND request_id=?');
   const all = db.prepare('SELECT * FROM native_batches WHERE scope_key=? ORDER BY revision');
   const insert = db.prepare('INSERT INTO native_batches VALUES (?,?,?,?,?,?,?)');
-  const dispatch = modelDispatchStore(db, fail);
+  const waitTable = platform?.prepare("SELECT 1 FROM sqlite_master WHERE name='openrouter_waits'");
+  function checkParked(req) {
+    if (!waitTable?.get()) {
+      if (req.restore) fail('unavailable');
+      return;
+    }
+    const {actorId,workspaceId,chatId}=req.scope;
+    const row=platform.prepare(`SELECT w.attempt,w.resume_owner,o.operation_id FROM openrouter_waits w
+      JOIN coin_attempts a ON a.attempt_id=w.attempt JOIN usage_operations o USING(operation_id)
+      WHERE o.actor_id=? AND o.workspace_id=? AND o.chat_id=? LIMIT 1`).get(actorId,workspaceId,chatId);
+    if (req.restore) {
+      if (!row || row.attempt!==req.restore.attempt || row.operation_id!==req.grant?.operationId
+          || row.resume_owner!==createHash('sha256').update(req.grant.token).digest('hex')) fail('busy');
+    } else if (row) fail('chat_busy');
+  }
+  const dispatch = modelDispatchStore(db, fail, checkParked);
   const recent = db.prepare(`SELECT b.request_id, b.events, d.operation_id FROM native_batches b
     LEFT JOIN native_model_dispatch d USING (scope_key, request_id)
     WHERE b.scope_key=? ORDER BY b.revision DESC LIMIT ? OFFSET ?`);
@@ -270,6 +285,9 @@ export async function openWorker(env) {
     let reserved = false;
     let transportStarted = false;
     let waitCancelled = false;
+    let providerRefusal;
+    let checkpointContext;
+    let seedLength;
     let timer;
     let deadline = req.deadline;
     try {
@@ -295,7 +313,11 @@ export async function openWorker(env) {
             timeoutMs:2147483647,
             async execute({prompt},exec){
               const response=await fetch(env.HARNESS_ROUTER_LOCAL+'/illustrate',{method:'POST',signal:exec.signal,
-                headers:{'Content-Type':'application/json','x-operation':req.grant.token},body:JSON.stringify({prompt})});
+                headers:{'Content-Type':'application/json','x-operation':req.grant.token},
+                body:JSON.stringify({prompt,...(exec.agent && checkpointContext ? {checkpoint:{
+                  ...checkpointContext, events:exec.agent.session.snapshotEvents(seedLength),
+                  priorCalls:exec.agent.session.snapshotEvents(seedLength).filter(e=>e.type==='assistant/message').length
+                },callId:exec.callId} : {})})});
               if(!response.ok)return 'Не удалось создать изображение. '+(await response.text()).slice(0,250);
               await response.json();
               return 'Изображение готово и прикреплено к ответу в этом чате.';
@@ -336,6 +358,10 @@ export async function openWorker(env) {
       }
       const rows = all.all(key);
       const seed = rows.flatMap(row => JSON.parse(row.events));
+      seedLength=seed.length;
+      checkpointContext={baseRevision:rows.length,text:req.text,connections:req.connections||[],
+        illustrations:!!req.illustrations,availableServices:req.availableServices||[],connectionGuides:req.connectionGuides||{}};
+      if(req.restore && req.restore.baseRevision!==rows.length) fail('conflict');
       const createdAt = rows[0]?.created_at ?? Date.now();
       let events;
       if (req.action === 'append') {
@@ -366,7 +392,7 @@ export async function openWorker(env) {
               }
               if (deadline > dispatchLease && now >= dispatchLease - 60_000) {
                 const lease = Math.min(deadline, now + 120_000);
-                dispatch.extend(key, req.requestId, lease);
+                dispatch.extend(key, req, lease);
                 dispatchLease = lease;
               }
             } catch (error) {
@@ -383,9 +409,38 @@ export async function openWorker(env) {
             else timer = setTimeout(watchDeadline, Math.min(deadline - now, followsMarketplace ? 500 : 120_000));
           };
           watchDeadline();
+          if (req.restore?.imageCall) {
+            transportStarted=true;
+            const response=await fetch(env.HARNESS_ROUTER_LOCAL+'/illustrate',{method:'POST',signal:controller.signal,
+              headers:{'Content-Type':'application/json','x-operation':req.grant.token},
+              body:JSON.stringify({resumeAttempt:req.restore.attempt,checkpoint:checkpointContext})});
+            if (!response.ok) fail('turn_unconfirmed');
+            await response.json();
+            const events=req.restore.events;
+            const assistant=events.findLast(e=>e.type==='assistant/message');
+            const calls=assistant?.data.message.content.filter(block=>block.type==='tool-call') || [];
+            const current=calls.find(call=>call.id===req.restore.imageCall && call.name==='create_illustration');
+            if (!current) fail('turn_unconfirmed');
+            const call=events.findLast(e=>e.type==='tool/call' && e.data.callId===current.id);
+            const step=call?.data || assistant.data;
+            const last=events.at(-1);
+            const ready='Изображение готово и прикреплено к ответу в этом чате.';
+            const toolMessage={role:'tool',source:{kind:'tool',callId:current.id},toolCallId:current.id,
+              content:[{type:'text',text:ready}],isError:false,id:randomUUID()};
+            events.push({type:'tool/result',seq:last.seq+1,time:Date.now(),surfaceOp:'append',
+              ...(call?{sourceEventSeqs:[call.seq]}:{}),data:{turn:step.turn,step:step.step,message:toolMessage}});
+            const completed=new Set(events.filter(e=>e.type==='tool/result' && e.seq>assistant.seq).map(e=>e.data.message.toolCallId));
+            if (calls.some(item=>!completed.has(item.id))) {
+              // Other parallel tools may already have had side effects. Never replay them.
+              fail('turn_unconfirmed');
+            }
+          }
           turn = await runGatewayTurn({ ...input, grant: req.grant,
+            restore:req.restore,
+            checkpointContext:req.grant.model ? checkpointContext : undefined,
             onTransport: () => { transportStarted = true; },
             onWaitCancelled: () => { waitCancelled = true; },
+            onProviderRefusal: reason => { providerRefusal = reason; },
             gatewayUrl: req.grant.model ? env.HARNESS_ROUTER_LOCAL : env.HARNESS_MODEL_GATEWAY_URL,
             model: req.grant.model || req.grant.directModel || env.HARNESS_CHAT_MODEL,
             reasoningEffort: req.grant.model ? undefined : req.grant.effort,
@@ -405,7 +460,7 @@ export async function openWorker(env) {
         if (deleted.get(key)) fail('unavailable');
         const cached = previous(key, req);
         if (cached) return cached;
-        if (metered && deadline <= Date.now()) fail('turn_unconfirmed');
+        if (metered && (deadline <= Date.now() || !dispatch.owns(key,req))) fail('turn_unconfirmed');
         if (!metered) dispatch.check(key, req);
         try {
           insert.run(key, rows.length, req.requestId, req.action, req.text, createdAt, JSON.stringify(events));
@@ -413,13 +468,14 @@ export async function openWorker(env) {
           if (error.errcode === 1555 || error.errcode === 2067) fail('conflict');
           throw error;
         }
-        if (metered) dispatch.release(key, req.requestId);
+        if (metered) dispatch.release(key, req);
         return metered ? { ...messages.at(-1), operationId: req.grant.operationId } : messages.at(-1);
       });
       reserved = false;
       return answer;
     } catch (error) {
       if (waitCancelled) fail('model_wait_cancelled');
+      if (providerRefusal) fail(providerRefusal);
       if (transportStarted && !(error instanceof RequestError)) {
         const billing = budget.get(req.grant.operationId);
         if (billing?.budget_hit) {
@@ -434,9 +490,9 @@ export async function openWorker(env) {
       clearTimeout(timer);
       try {
         if (reserved) {
-          if (waitCancelled) dispatch.cancel(key, req.requestId);
-          else if (transportStarted) dispatch.release(key, req.requestId);
-          else dispatch.discard(key, req.requestId);
+          if (waitCancelled) dispatch.cancel(key, req);
+          else if (transportStarted) dispatch.release(key, req);
+          else dispatch.discard(key, req);
         }
       } finally {
         await ctx.fiber.dispose();

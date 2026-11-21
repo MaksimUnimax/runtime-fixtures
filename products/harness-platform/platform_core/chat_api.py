@@ -279,7 +279,9 @@ def create_app(database_path, chat_directory, *, composition_module=None):
             return JSONResponse({"error": "Chat unavailable"}, status_code=404)
         if isinstance(exc, WorkerError):
             statuses = {"invalid_request": 400, "chat_busy": 409, "conflict": 409, "unavailable": 404, "busy": 503,
-                        "result_too_large": 502, "turn_unconfirmed": 409, "model_wait_cancelled": 409, "payment_required": 402}
+                        "result_too_large": 502, "turn_unconfirmed": 409, "model_wait_cancelled": 409, "payment_required": 402,
+                        "provider_key":503,"provider_access":503,"provider_balance":503,
+                        "provider_model":503,"provider_connection":503}
             status = statuses.get(exc.code, 503)
             body = {"error": exc.code if exc.code in statuses else "worker_unavailable"}
             return JSONResponse(body, status_code=status)

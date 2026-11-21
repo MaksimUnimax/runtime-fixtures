@@ -2,6 +2,8 @@
 import asyncio
 import base64
 import binascii
+import contextlib
+import json
 from decimal import Decimal, ROUND_CEILING
 import hashlib
 import re
@@ -13,7 +15,7 @@ from starlette.exceptions import HTTPException
 from starlette.responses import Response, JSONResponse
 from starlette.routing import Route
 
-from .. import coins
+from .. import router_status, router_recovery, coins
 from ..chat_connections import scope_for
 from ..storage import Scope
 from ..operation_grants import active_chat_grant
@@ -102,54 +104,116 @@ async def create(router,req):
         _,_,chat,operation,_,_=grant_scope(db,token)
         stored=db.execute("SELECT id FROM plugin_illustrations WHERE operation_id=? AND content IS NOT NULL",(operation,)).fetchone()
     fields=await req.json()
-    prompt=fields.get("prompt") if isinstance(fields,dict) else None
-    if not isinstance(prompt,str) or not 0<len(prompt.strip())<=4000:
-        raise HTTPException(400,"Укажите описание иллюстрации.")
-    if stored:
-        return JSONResponse({"url":f"/api/chats/{chat}/illustrations/{stored[0]}"})
-    catalog = await router.models(current_tariff=True)
-    if not catalog:
-        raise HTTPException(503,"Не удалось получить актуальные тарифы OpenRouter. Повторите запрос позже.")
-    chat,art,attempt,model=reserve(router,token,prompt)
-    if attempt:
+    if not isinstance(fields,dict):
+        raise HTTPException(400)
+    resumed=fields.get("resumeAttempt")
+    if resumed is not None:
+        if not isinstance(resumed,str) or not re.fullmatch(r"[a-f0-9]{32}",resumed):
+            raise HTTPException(400)
+        parked=router_recovery.read_parked(router,token,resumed,owner=True)
+        if not parked or "image" not in parked[1]:
+            raise HTTPException(403)
+        payload=parked[1]
+        with router.identity._lock:
+            db=router.identity._db
+            row=db.execute("""SELECT i.id,w.checkpoint FROM plugin_illustrations i
+                JOIN openrouter_waits w ON w.attempt=i.attempt WHERE i.attempt=? AND i.operation_id=?""",
+                (resumed,operation)).fetchone()
+        if not row:
+            raise HTTPException(409)
+        art,checkpoint=row[0],json.loads(row[1])
+        attempt=resumed
+        delay=parked[2]
+    else:
+        prompt=fields.get("prompt")
+        if not isinstance(prompt,str) or not 0<len(prompt.strip())<=4000:
+            raise HTTPException(400,"Укажите описание иллюстрации.")
+        checkpoint=fields.get("checkpoint")
+        if checkpoint is not None:
+            if not router_recovery.valid_checkpoint(checkpoint) or not isinstance(fields.get("callId"),str):
+                raise HTTPException(400)
+            checkpoint={**checkpoint,"imageCall":fields["callId"]}
+        if stored:
+            return artifact(chat,stored[0])
+        if not await router.models(current_tariff=True):
+            raise HTTPException(503,"Не удалось получить актуальные тарифы OpenRouter. Повторите запрос позже.")
+        chat,art,attempt,model=reserve(router,token,prompt)
+        if not attempt:
+            return artifact(chat,art)
         quote=router.catalog[model]
-        try:
-            while True:
-                r=await router.http.post("https://openrouter.ai/api/v1/images",headers=router.headers,
-                                json={"model":model,"prompt":prompt,"n":1},timeout=110)
-                if r.status_code!=429:
-                    break
+        payload={"image":{"model":model,"prompt":prompt,"n":1},"price":quote["imagePrice"],"free":quote["free"]}
+        delay=None
+    lease=contextlib.nullcontext(True) if resumed else router_recovery.ownership(router.database_path,attempt)
+    with lease as owned:
+        if not owned:
+            raise HTTPException(409)
+        return await render(router,req,token,chat,art,attempt,payload,checkpoint,delay,resumed is not None)
+
+
+def artifact(chat,art):
+    return JSONResponse({"url":f"/api/chats/{chat}/illustrations/{art}"})
+
+
+async def render(router,req,token,chat,art,attempt,payload,checkpoint,delay,parked):
+    from ..model_router import retry_seconds
+    image=payload["image"]
+    zero={"cost":0,"prompt_tokens":0,"completion_tokens":0}
+    try:
+        while True:
+            if delay is not None:
                 try:
-                    await router.wait_limit(token,req,r.headers.get("retry-after"))
+                    if delay>0:
+                        await router.wait_limit(token,req,delay)
                     catalog=await router.models(current_tariff=True)
-                    current=catalog.get(model,{})
-                    if not current.get("image") or (current["free"],current["imagePrice"]) != (quote["free"],quote["imagePrice"]):
+                    current=catalog.get(image["model"],{})
+                    if (not current.get("image") or current["free"]!=payload["free"]
+                            or list(current["imagePrice"] or ())!=list(payload["price"] or ())):
                         raise HTTPException(409,"Тариф генератора изменился. Проверьте выбор в плагине.")
                     with router.identity._lock:
                         grant_scope(router.identity._db,token)
-                except (HTTPException,asyncio.CancelledError):
-                    router.settle(attempt,None,{"cost":0,"prompt_tokens":0,"completion_tokens":0})
+                    if parked and not router_recovery.read_parked(router,token,attempt,consume=True):
+                        raise HTTPException(403)
+                    parked=False
+                except (HTTPException,asyncio.CancelledError) as error:
+                    disconnected=isinstance(error,asyncio.CancelledError) or (error.headers or {}).get("X-Octoport-Wait")=="disconnected"
+                    if parked and not disconnected:
+                        router_recovery.close_rejected(router,attempt)
+                    elif not parked:
+                        router.settle(attempt,None,zero)
                     raise
-        except (httpx.ProxyError,httpx.ConnectError) as exc:
-            router.settle(attempt,None,{"cost":0,"prompt_tokens":0,"completion_tokens":0})
-            raise HTTPException(503,"Нет связи с роутером OpenRouter.") from exc
-        except httpx.HTTPError as exc:
-            raise HTTPException(503,"Ответ генератора прервался. Запрос на сверке.") from exc
-        if not r.is_success:
-            if r.status_code in (400,401,402,403,404,422):
-                router.settle(attempt,None,{"cost":0,"prompt_tokens":0,"completion_tokens":0})
-            raise HTTPException(502,"Генератор не вернул иллюстрацию.")
-        try:
-            data=r.json(parse_float=Decimal)
+            headers=router.headers
+            r=await router.http.post("https://openrouter.ai/api/v1/images",headers=headers,json=image,timeout=110)
+            if not r.is_success:
+                router_status.note(router,headers["Authorization"][7:],"generation",router_status.refusal(r.status_code))
+            if r.status_code!=429:
+                break
+            delay=retry_seconds(r.headers.get("retry-after"))
+            parked=router_recovery.park(router,token,attempt,checkpoint,payload,delay)
+    except (httpx.ProxyError,httpx.ConnectError) as exc:
+        router.settle(attempt,None,zero)
+        raise HTTPException(503,"Нет связи с роутером OpenRouter.") from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(503,"Ответ генератора прервался. Запрос на сверке.") from exc
+    if not r.is_success:
+        if r.status_code in (400,401,402,403,404,422):
+            router.settle(attempt,None,zero)
+        raise HTTPException(502,"Генератор не вернул иллюстрацию.")
+    data=None
+    try:
+        data=r.json(parse_float=Decimal)
+        mime,raw=picture(data["data"][0]["b64_json"])
+    except (ValueError,TypeError,KeyError,IndexError,binascii.Error) as exc:
+        if isinstance(data,dict):
             router.settle(attempt,data.get("id"),data.get("usage"))
-            mime,raw=picture(data["data"][0]["b64_json"])
-        except (ValueError,TypeError,KeyError,IndexError,binascii.Error) as exc:
-            raise HTTPException(502,"Не удалось подтвердить файл изображения.") from exc
-        with router.identity._write() as db:
-            db.execute("UPDATE plugin_illustrations SET mime=?,content=? WHERE id=?",(mime,raw,art))
-        with router.identity._lock:
-            grant_scope(router.identity._db,token)
-    return JSONResponse({"url":f"/api/chats/{chat}/illustrations/{art}"})
+        raise HTTPException(502,"Не удалось подтвердить файл изображения.") from exc
+    with router.identity._write() as db:
+        db.execute("UPDATE plugin_illustrations SET mime=?,content=? WHERE id=?",(mime,raw,art))
+        db.execute("INSERT OR IGNORE INTO openrouter_stopped_outputs VALUES(?)",(art,))
+        router.settle_in(db,attempt,data.get("id"),data.get("usage"))
+    router_status.note(router,headers["Authorization"][7:],"generation","Изображение получено.",True)
+    with router.identity._lock:
+        grant_scope(router.identity._db,token)
+    return artifact(chat,art)
 
 
 def routes(get_token):

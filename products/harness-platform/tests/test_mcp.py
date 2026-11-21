@@ -3,11 +3,9 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-from datetime import timedelta
 
-from mcp import ClientSession, StdioServerParameters
+from mcp import Client, ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
-from mcp.shared.memory import create_connected_server_and_client_session
 
 from platform_core.catalog import Capability, Catalog, Plugin
 from platform_core.dispatch import Dispatcher
@@ -43,29 +41,29 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
             ],
         )
         async with stdio_client(params) as (read, write):
-            async with ClientSession(read, write, read_timeout_seconds=timedelta(seconds=10)) as client:
+            async with ClientSession(read, write, read_timeout_seconds=10) as client:
                 await client.initialize()
                 self.assertEqual((await client.list_tools()).tools, [])
                 self.grant("reference-text")
                 tools = (await client.list_tools()).tools
                 self.assertEqual([tool.name for tool in tools], ["summarize_text"])
-                self.assertEqual(tools[0].inputSchema["required"], ["text"])
+                self.assertEqual(tools[0].input_schema["required"], ["text"])
 
                 result = await client.call_tool("summarize_text", {"text": "два   слова"})
-                self.assertFalse(result.isError)
-                self.assertEqual(result.structuredContent["result"]["words"], 2)
-                self.assertEqual(json.loads(result.content[0].text), result.structuredContent)
+                self.assertFalse(result.is_error)
+                self.assertEqual(result.structured_content["result"]["words"], 2)
+                self.assertEqual(json.loads(result.content[0].text), result.structured_content)
 
                 invalid = await client.call_tool("summarize_text", {"actor_id": "another-actor"})
-                self.assertTrue(invalid.isError)
+                self.assertTrue(invalid.is_error)
                 self.assertNotIn("another-actor", invalid.content[0].text)
 
                 self.store.set_entitlement("space-a", "reference-text", False)
                 # Deliberately call from the client's stale tool list before rediscovery.
                 revoked = await client.call_tool("summarize_text", {"text": "try again"})
                 unknown = await client.call_tool("unknown_tool", {})
-                self.assertTrue(revoked.isError)
-                self.assertTrue(unknown.isError)
+                self.assertTrue(revoked.is_error)
+                self.assertTrue(unknown.is_error)
                 self.assertEqual(revoked.content, unknown.content)
                 self.assertEqual((await client.list_tools()).tools, [])
 
@@ -84,10 +82,11 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
         catalog = Catalog([Plugin("sample", "1.0.0", (tool,))])
         self.grant("sample")
         server = create_server(Dispatcher(catalog, self.store, self.scope))
-        async with create_connected_server_and_client_session(server) as client:
+        async with Client(server) as connected:
+            client=connected.session
             result = await client.call_tool("probe", {})
-            self.assertFalse(result.isError)
-            self.assertEqual(result.structuredContent["result"], [None, 0, False])
+            self.assertFalse(result.is_error)
+            self.assertEqual(result.structured_content["result"], [None, 0, False])
             failure = await client.call_tool("probe", {"fail": True})
-            self.assertTrue(failure.isError)
+            self.assertTrue(failure.is_error)
             self.assertNotIn("private fixture details", failure.content[0].text)

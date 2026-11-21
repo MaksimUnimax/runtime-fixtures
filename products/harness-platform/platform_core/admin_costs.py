@@ -71,6 +71,10 @@ def present_chat(identity, costs, token, scope, action, result):
         if operation is not None:
             references.append((message, operation))
     images = [(m, op) for m, op in references if m.get("role") == "assistant"]
+    if action=="events":
+        saved=identity.unattached_illustrations(scope)
+        if saved:
+            result["savedIllustrations"]=saved
     if images:
         with identity._lock:
             if identity._db.execute("SELECT 1 FROM sqlite_master WHERE name='plugin_illustrations'").fetchone():

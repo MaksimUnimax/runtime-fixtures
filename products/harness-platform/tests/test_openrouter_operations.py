@@ -341,6 +341,43 @@ class RouterOperations(unittest.TestCase):
             self.assertEqual(self.complete(grant).status_code,200)
         self.assertEqual((waited,len(self.seen),len(self.attempts()),self.router.total),([1],1,1,0))
 
+    def test_admin_health_persists_last_success_and_reports_provider_refusal(self):
+        self.state.identity.set_admin('owner',True)
+        self.complete(self.grant()).raise_for_status()
+        def health():
+            return self.client.get('/api/admin/provider-keys',headers=self.headers).json()['openrouter']['health']
+        success=health()
+        self.assertGreater(success['catalogAt'],0)
+        self.assertGreater(success['generatedAt'],0)
+        failing=httpx.AsyncClient(transport=httpx.MockTransport(lambda req:httpx.Response(402)))
+        self.addCleanup(self.client.portal.call,failing.aclose)
+        with patch.object(self.router,'http',failing):
+            refused=self.complete(self.grant())
+        self.assertEqual(refused.headers['x-octoport-reason'],'provider_balance')
+        self.assertIn('средств',health()['detail'])
+        self.assertEqual(health()['generatedAt'],success['generatedAt'])
+        with patch.object(self.router,'key','different-key'):
+            self.assertEqual(health(),{})
+
+    def test_local_capacity_serves_older_eligible_waiter_first(self):
+        self.router.total=32
+        grant=self.grant()
+        def ask(label):
+            return self.complete(grant,[{'role':'user','content':label}])
+        with ThreadPoolExecutor(2) as pool:
+            first=pool.submit(ask,'first')
+            limit=time.monotonic()+3
+            while len(self.router.waiters)<1 and time.monotonic()<limit:
+                time.sleep(.01)
+            second=pool.submit(ask,'second')
+            limit=time.monotonic()+3
+            while len(self.router.waiters)<2 and time.monotonic()<limit:
+                time.sleep(.01)
+            self.assertEqual(len(self.router.waiters),2)
+            self.router.total=31
+            self.assertEqual((first.result(5).status_code,second.result(5).status_code),(200,200))
+        self.assertEqual([x['messages'][0]['content'] for x in self.seen],['first','second'])
+
     def test_stream_error_keeps_provider_id_for_reconciliation(self):
         self.reply='error-with-id'
         self.assertEqual(self.complete(self.grant()).status_code,502)
