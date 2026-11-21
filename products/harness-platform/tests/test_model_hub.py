@@ -90,6 +90,14 @@ class ModelHubTests(unittest.TestCase):
         self.assertEqual(validate(source="https://openrouter.ai/example")[3],"unknown")
         self.assertEqual(validate(provider="google",source="https://docs.cloud.google.com/example",access="paid")[4],"google-vertex")
 
+    def test_limited_free_quota_keeps_known_key_candidate(self):
+        self.discover({"data":[model(GEMMA)]})
+        def review(batch):
+            return [(GEMMA,"Бесплатно в пределах квоты","https://developers.cloudflare.com/workers-ai/platform/pricing/",
+                     "conditional","cloudflare","Cloudflare")]
+        self.assertTrue(hub_research.run(self.hub,review))
+        self.assertIn("cloudflare",self.hub.dashboard()["missing"])
+
     def test_admin_and_member_through_http(self):
         db = self.root / "identity.db"
         with RegistrationStore(db) as store:

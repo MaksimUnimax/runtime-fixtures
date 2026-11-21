@@ -169,7 +169,8 @@ class Hub:
             mid = item["model"]
             providers = MODELS.get(mid.removesuffix(":free"), ())
             review = findings.get(mid)
-            if review and review["access"] in {"paid","conditional"}:
+            # A vetted free quota may have conditions such as region or daily capacity.
+            if review and review["access"] == "paid":
                 providers = tuple(provider for provider in providers if provider != review["provider"])
             if review and review["access"] == "public_free" and review["provider"] not in providers:
                 providers = (*providers, review["provider"])
