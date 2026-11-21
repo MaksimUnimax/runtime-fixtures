@@ -133,7 +133,7 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
         await switch.press("Space")
         await expect(switch).not_to_be_checked()
         await expect(switch).to_be_enabled()
-        await page.wait_for_function("(x) => document.querySelector('.chat-grants [role=switch] span').getBoundingClientRect().x < x-2",arg=on["x"])
+        await page.wait_for_function("(x) => document.querySelector('[role=dialog] [role=switch] span').getBoundingClientRect().x < x-2",arg=on["x"])
         await expect(grants.get_by_role("checkbox")).to_have_count(0)
         await grants.get_by_role("button",name="Закрыть").click()
         await account_action(page, "Администрирование")

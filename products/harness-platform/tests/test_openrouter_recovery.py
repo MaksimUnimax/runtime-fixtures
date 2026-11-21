@@ -81,6 +81,7 @@ def serve(root, phase, image):
             (root/'chat').write_text(chat)
             if not direct: client.post('/api/model-settings',headers=headers,json={'model':model,'revision':0}).raise_for_status()
             if image:
+                client.post('/api/plugins',headers=headers,json={'plugin':'illustrations','installed':True}).raise_for_status()
                 for path,values in [('plugins',{'plugin':'illustrations','enabled':True}),('plugins/illustrations/model',{'model':'test/image','effort':'auto'})]:
                     client.post('/api/chats/'+chat+'/'+path,headers=headers,json=values).raise_for_status()
             client.post('/api/chats/'+chat+'/turns',headers=headers,json={'requestId':'fixture','text':question}).raise_for_status()

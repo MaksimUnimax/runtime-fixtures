@@ -108,7 +108,33 @@ class PluginFlow(unittest.TestCase):
             time.sleep(.02)
         self.fail("operation timed out")
 
+    def test_installation_and_revocation_across_chats_and_accounts(self):
+        key = "illustrations"
+        def catalog(url, headers):
+            payload = self.client.get(url, headers=headers).json()
+            return next(p for p in payload["plugins"] if p["id"] == key)
+        account = "/api/plugins"
+        second = "/api/chats/"+self.other_scope.chat_id+"/plugins"
+        attach = {"plugin": key, "enabled": True}
+        install = {"plugin": key, "installed": True}
+        self.assertEqual(self.client.post(self.base, headers=self.headers, json=attach).status_code, 409)
+        self.post(account, install)
+        self.assertTrue(catalog(second, self.headers)["installed"])
+        self.assertFalse(catalog(self.base, self.headers)["enabled"])
+        self.assertFalse(catalog(account, self.other)["installed"])
+        self.client.post(account, headers=self.other, json=install).raise_for_status()
+        for path in (self.base, second):
+            self.post(path, attach)
+        self.post(self.base, {"plugin":key, "enabled":False})
+        self.assertTrue(catalog(second, self.headers)["enabled"])
+        self.post(account, {"plugin":key, "installed":False})
+        self.assertTrue(catalog(account, self.other)["installed"])
+        self.assertEqual(self.client.post(second, headers=self.headers, json=attach).status_code, 409)
+        self.post(account, install)
+        self.assertFalse(catalog(second, self.headers)["enabled"])
+
     def test_backoff_resumes_and_does_not_replay_a_paid_request(self):
+        self.post("/api/plugins",{"plugin":"wildberries","installed":True})
         self.post(self.base,{"plugin":"wildberries","enabled":True})
         self.wait(self.post(self.url+"/store",{"cid":self.cid})["job"])
         original=self.client.app.state.http.post

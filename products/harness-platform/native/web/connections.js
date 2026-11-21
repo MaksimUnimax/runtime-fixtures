@@ -2,7 +2,7 @@ window.__ModuleLoader__.load({
   id:'harness-integrations',
   factory(require) {
     const React=require('react'),h=React.createElement;
-    const {Switch}=require('@deepseek-ai/dsh-client-ui-primitives');
+
     return {inject:['slots'],apply(ctx) {
       const a=window.harnessAccount;
       const post=(url,data)=>a.api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
@@ -44,7 +44,7 @@ window.__ModuleLoader__.load({
           entry && h('form',{autoComplete:'off',onSubmit:e=>{e.preventDefault();act(async()=>{
             await post('/api/integrations',{provider,name:name.trim()||entry.title,fields,...(initial.chatId?{chatId:initial.chatId}:{})});
             window.dispatchEvent(new Event('harness:grants'));setFields({});setProvider('');setName('');await refresh();
-            const notice=initial.chatId?'Подключение добавлено в этот чат':'Ключи сохранены. Нажмите «Подключения» над полем сообщения и включите магазин.';
+            const notice=initial.chatId?'Подключение добавлено в этот чат':'Ключи сохранены. Нажмите «Подключения» в левом меню и включите магазин.';
             setMsg(notice);after?.(notice);
           });}},
             h('label',null,'Название подключения',h('input',{maxLength:80,value:name,placeholder:entry.title,onChange:e=>setName(e.target.value)})),
@@ -52,6 +52,7 @@ window.__ModuleLoader__.load({
             Object.entries(entry.fields).map(([k,label])=>h('label',{key:k},label,h('input',{
               type:'password',required:provider!=='ozon',autoComplete:'off',spellCheck:false,maxLength:8192,value:fields[k]||'',
               onChange:e=>setFields(old=>{const n={...old};if(e.target.value)n[k]=e.target.value;else delete n[k];return n;})}))),
+            initial.chatId&&h('p',null,'Если у сервиса есть плагин, он будет установлен и включён в этом диалоге.'),
             h('button',{disabled:busy},'Сохранить подключение')),
           h('p',{role:'status'},msg));
       }
@@ -117,41 +118,18 @@ window.__ModuleLoader__.load({
       }
       ctx.slots.inject('shell.overlay',()=>ctx.slots.register({name:'shell.overlay',id:'private-connection'},PrivateDialog));
       if(a.guest)return;
-      const names={ozon:'Ozon',wb:'Wildberries',wordstat:'Яндекс Вордстат'};
       function ChatDock({sessionId}){
-        const [rows,setRows]=React.useState(null),[open,setOpen]=React.useState(false);
-        const [error,setError]=React.useState(''),[busy,setBusy]=React.useState(false);
-        const dialog=React.useRef(null);
-        const url='/api/chats/'+encodeURIComponent(sessionId)+'/integrations';
+        const [error,setError]=React.useState('');
         const view=React.useSyncExternalStore(React.useCallback(listener=>a.live.subscribe(sessionId,listener),[sessionId]),
           ()=>a.live.views.get(sessionId)||null);
-        React.useEffect(()=>{
-          const controller=new AbortController();
-          const refresh=()=>a.api(url,{signal:controller.signal}).then(v=>{if(!controller.signal.aborted)setRows(v.connections);})
-            .catch(e=>{if(!controller.signal.aborted)setError(e.message);});
-          setRows(null);setError('');setOpen(false);refresh();
-          window.addEventListener('harness:grants',refresh);
-          return ()=>{controller.abort();window.removeEventListener('harness:grants',refresh);};
-        },[url]);
-        React.useEffect(()=>{if(open && !dialog.current.open)dialog.current.showModal();},[open]);
         const saved=React.useSyncExternalStore(React.useCallback(listener=>{
           const update=e=>{if(e.detail===sessionId)listener();};
           a.activityEvents.addEventListener('saved-images',update);
           return ()=>a.activityEvents.removeEventListener('saved-images',update);
         },[sessionId]),()=>a.savedIllustrations.get(sessionId));
-        const active=(rows||[]).filter(row=>row.attached);
         const labels={sending:'Отправляю сообщение…',accepted:'Сообщение принято',model:'Модель готовит ответ',
           thinking:'Модель обдумывает ответ',tool:'Модель запрашивает данные',model_wait:'Модель временно занята. Повторим запрос автоматически',marketplace_wait:'Ждём следующей разрешённой попытки',writing:'Модель отвечает…',failed:'Не удалось завершить запрос'};
-        async function toggle(row,enabled){
-          const before=rows;
-          setBusy(true);setError('');
-          setRows(before.map(item=>item.id===row.id?{...item,attached:!item.attached}:item));
-          try {
-            setRows((await post(url,{connectionId:row.id,enabled})).connections);
-            window.dispatchEvent(new Event('harness:grants'));
-          }
-          catch(e){setRows(before);setError(e.message);}finally{setBusy(false);}
-        }
+        if(!view && !saved?.length)return null;
         return h('div',{className:'chat-access'},
           saved?.length>0 && h('section',{'aria-label':'Готовые иллюстрации'},
             h('p',null,'Готовые иллюстрации этого чата'),
@@ -161,23 +139,7 @@ window.__ModuleLoader__.load({
               h('span',{className:'thinking-dots','aria-hidden':true},[0,1,2].map(i=>h('span',{key:i},'.')))),view.text && h('div',{className:'chat-live-text'},view.text),
             view.stage==='model_wait' && h('button',{type:'button',onClick:()=>post('/api/chats/'+encodeURIComponent(sessionId)+'/progress/'+encodeURIComponent(view.rid)+'/cancel',{}).catch(e=>setError(e.message))},'Отменить ожидание'),
             view.stage==='failed' && h('button',{onClick:()=>a.live.clear(sessionId,view.rid)},'Закрыть')),
-          h('button',{className:'chat-access-trigger','aria-haspopup':'dialog',onClick:()=>setOpen(true)},
-            'Подключения'+(active.length?' · '+active.map(r=>r.name).join(', '):'')),
-          open && h('dialog',{ref:dialog,className:'account-dialog chat-grants','aria-label':'Подключения этого чата',onCancel:()=>setOpen(false)},
-            h('header',null,h('h2',null,'Подключения этого чата'),
-              h('button',{type:'button','aria-label':'Закрыть',onClick:()=>setOpen(false)},'×')),
-            !error && (rows===null ? h('p',{role:'status'},'Загружаем подключения…') :
-              h('p',null,rows.length ? 'Включите переключатель рядом с нужным магазином. Изменения действуют в этом чате.' :
-                'Нажмите «Добавить подключение» и выберите Ozon или Wildberries. В форме есть пошаговая инструкция по получению ключей.')),
-            // Reuse the pinned General Settings row and its native animated Switch.
-            (rows||[]).map(row=>h('div',{key:row.id,className:'Pt1bsG_row'},
-              h('div',null,h('div',{className:'Pt1bsG_title'},row.name),
-                h('div',{className:'Pt1bsG_description'},
-                  (row.access.length?row.access.join(', '):names[row.provider])+' · '+(status[row.status]||row.status))),
-              h(Switch,{label:row.name+' · '+names[row.provider],checked:row.attached,disabled:busy,onChange:enabled=>toggle(row,enabled)}))),
-            error && h('p',{role:'alert'},error),
-            h('button',{onClick:()=>{setOpen(false);window.dispatchEvent(new CustomEvent('harness:connection',{
-              detail:{newConnection:true,chatId:sessionId}}));}},'Добавить подключение')));
+          error && h('p',{role:'alert'},error));
       }
       ctx.slots.inject('conversation.input.dock',()=>ctx.slots.register({
         name:'conversation.input.dock',id:'harness-chat-connections',inject:sessionId=>({sessionId})
