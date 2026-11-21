@@ -35,6 +35,9 @@ def serve(root, phase, image):
             f.write(json.dumps([phase,path,data])+'\n')
         usage={'cost':0,'prompt_tokens':10,'completion_tokens':4}
         if path.endswith('/images'):
+            if os.getenv('INTERRUPT_IMAGE') and phase=='original':
+                (root/'accepted-image').touch()
+                time.sleep(90)
             if image_wait and phase=='original':
                 return httpx.Response(429,headers={'Retry-After':'3'})
             if image_wait:
@@ -83,6 +86,11 @@ def serve(root, phase, image):
             client.post('/api/chats/'+chat+'/turns',headers=headers,json={'requestId':'fixture','text':question}).raise_for_status()
         else:
             chat=(root/'chat').read_text()
+            if phase=='uncertain':
+                url='/api/chats/'+chat+'/turns'
+                r=client.post(url,headers=headers,json={'requestId':'fixture','text':question})
+                assert r.status_code==409 and r.json()['error']=='turn_unconfirmed', r.status_code
+                return
             if phase=='competing':
                 r=client.post('/api/chats/'+chat+'/turns',headers=headers,json={'requestId':'new-request','text':'Other question'})
                 assert r.status_code in (409,429), (r.status_code,r.text)
@@ -119,7 +127,7 @@ def serve(root, phase, image):
 
 @unittest.skipUnless(os.environ.get('HARNESS_NODE_MODULES'),'requires installed Harness')
 class CrashRecovery(unittest.TestCase):
-    def exercise(self,image,logout=False,replicas=1,competing=False,image_wait=False,direct=False):
+    def exercise(self,image,logout=False,replicas=1,competing=False,image_wait=False,direct=False,uncertain=False):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);(root/'key').write_text('fixture-only')
             env={**os.environ,'OPENROUTER_PROXY_URL':'','HARNESS_OPENROUTER_ENABLED':'1','HARNESS_OFFLINE_MODEL':'0',
@@ -128,6 +136,7 @@ class CrashRecovery(unittest.TestCase):
             if competing: env['COMPETING']='true'
             if image_wait: env['IMAGE_WAIT']='true'
             if direct: env['DIRECT_IMAGE']='true'
+            if uncertain: env['INTERRUPT_IMAGE']='true'
             def start(phase):
                 return subprocess.Popen([sys.executable,__file__,temp,phase,str(int(image))],env=env,start_new_session=True)
             def stop(p):
@@ -138,6 +147,7 @@ class CrashRecovery(unittest.TestCase):
             try:
                 end=time.monotonic()+15
                 while time.monotonic()<end:
+                    if uncertain and (root/'accepted-image').exists():break
                     if (root/'platform.db').exists():
                         try:
                             with sqlite3.connect(root/'platform.db') as db:
@@ -159,7 +169,10 @@ class CrashRecovery(unittest.TestCase):
             if logout:
                 with RegistrationStore(root/'platform.db') as store:
                     store.logout((root/'session').read_text())
-            others=[start('denied' if logout else 'restarted') for _ in range(replicas)]
+            if uncertain:
+                with sqlite3.connect(root/'chats'/'native-chats.sqlite3') as journal:
+                    journal.execute('UPDATE native_model_dispatch SET active_until=0')
+            others=[start('uncertain' if uncertain else 'denied' if logout else 'restarted') for _ in range(replicas)]
             try:
                 for app in others:
                     self.assertEqual(app.wait(timeout=40),0)
@@ -167,6 +180,12 @@ class CrashRecovery(unittest.TestCase):
                 for app in others: stop(app)
             rows=[json.loads(x) for x in (root/'requests').read_text().splitlines()]
             calls=[r for r in rows if r[1].endswith('/completions')]
+            if uncertain:
+                self.assertEqual([(r[0],r[1].split('/')[-1]) for r in rows],[('original','completions'),('original','images')])
+                with sqlite3.connect(root/'platform.db') as db:
+                    self.assertEqual(db.execute('SELECT count(*) FROM openrouter_waits').fetchone()[0],0)
+                    self.assertEqual(db.execute("SELECT charge FROM coin_attempts WHERE period='plugin.illustrations.create_image'").fetchall(),[(None,)])
+                return
             if logout:
                 self.assertEqual([r[0] for r in calls],['original']*(2 if image else 1))
                 self.assertEqual(sum(r[1].endswith('/images') for r in rows),int(image))
@@ -195,6 +214,9 @@ class CrashRecovery(unittest.TestCase):
             with sqlite3.connect(root/'platform.db') as db:
                 self.assertEqual(db.execute('SELECT count(*) FROM openrouter_waits').fetchone()[0],0)
                 self.assertEqual(db.execute('SELECT count(*),count(charge) FROM coin_attempts').fetchone(),(3,3) if image else (1,1))
+
+    def test_service_killed_after_image_request_without_receipt_never_resubmits(self):
+        self.exercise(True,image_wait=True,uncertain=True)
 
     def test_direct_deepseek_resumes_rejected_openrouter_image(self):
         self.exercise(True,image_wait=True,direct=True)

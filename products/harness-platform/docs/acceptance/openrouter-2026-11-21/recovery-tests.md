@@ -1,0 +1,178 @@
+# Поимённая приёмка исправлений OpenRouter
+
+Выпуск приложения `f3866e6a2`. Прошли 166 различных автоматических тестов. 29 проверок OpenRouter были также повторены отдельным прогоном. Результаты повторов в общий счёт не входят.
+
+## Python и сквозные проверки
+
+- Пройдено · `test_account_chat_e2e.AccountChatAcceptance.test_parallel_chats_resume_in_the_same_service`
+- Пройдено · `test_admin_costs.EstimateProjection.test_disputed_attempt_cannot_turn_subtotal_into_full_price`
+- Пройдено · `test_admin_costs.EstimateProjection.test_revocation_while_reading_releases_only_message_text`
+- Пройдено · `test_admin_costs.EstimateProjection.test_uses_verified_group_and_never_reuses_stale_amount`
+- Пройдено · `test_archive_chat.ArchiveChatAcceptance.test_authenticated_turn_matches_fixture_and_survives_restart`
+- Пройдено · `test_archive_chat_scope.ArchiveChatScopeTest.test_report_turn_is_owned_replayable_and_revocable`
+- Пройдено · `test_browser_session.BrowserSessionTests.test_https_cookie_round_trip_and_real_logout`
+- Пройдено · `test_browser_session.BrowserSessionTests.test_origin_transport_and_credentials_validation`
+- Пройдено · `test_browser_session.BrowserSessionTests.test_switch_replaces_the_browser_session`
+- Пройдено · `test_browser_session.BrowserSessionTests.test_websocket_uses_the_matching_http_origin`
+- Пройдено · `test_catalog.CatalogTests.test_duplicate_tool_and_plugin_ids_fail_at_startup`
+- Пройдено · `test_catalog.CatalogTests.test_invalid_manifest_metadata_handler_and_effect_fail_eagerly`
+- Пройдено · `test_catalog.CatalogTests.test_schema_errors_and_references_are_rejected_eagerly`
+- Пройдено · `test_catalog.CatalogTests.test_trusted_registration_and_empty_composition`
+- Пройдено · `test_catalog.CatalogTests.test_validation_uses_an_immutable_snapshot_without_logging_arguments`
+- Пройдено · `test_chat_api.RequestBoundaryTests.test_server_owns_scope_and_rejects_malformed_payloads_before_dispatch`
+- Пройдено · `test_coin_wallet.CoinWallet.test_admin_grant_concurrent_turn_and_exact_debit`
+- Пройдено · `test_coin_wallet.CoinWallet.test_unknown_keeps_hold_until_evidence_and_small_budget_retries`
+- Пройдено · `test_dispatch.CompositionTest.test_add_second_plugin_via_composition_only_and_revoke`
+- Пройдено · `test_dispatch.CompositionTest.test_arguments_cannot_supply_authority`
+- Пройдено · `test_dispatch.CompositionTest.test_empty_composition_with_existing_entitlements`
+- Пройдено · `test_dispatch.CompositionTest.test_handler_errors_and_lossy_results_are_sanitized`
+- Пройдено · `test_dispatch.CompositionTest.test_unknown_and_unauthorized_look_the_same`
+- Пройдено · `test_guest_registration.GuestRegistrationTests.test_concurrent_replay_and_revocation`
+- Пройдено · `test_guest_registration.GuestRegistrationTests.test_draft_isolation_pagination_expiry_and_name_collision`
+- Пройдено · `test_guest_registration.GuestRegistrationTests.test_guest_form_and_retry_after_lost_registration_response`
+- Пройдено · `test_guest_registration.GuestRegistrationTests.test_memory_store_keeps_its_faq_in_memory`
+- Пройдено · `test_guest_registration.GuestRegistrationTests.test_native_retry_and_restart_preserve_messages_and_context`
+- Пройдено · `test_guest_registration.GuestRegistrationTests.test_shared_service_faq_runs_without_credentials_or_external_dispatch`
+- Пройдено · `test_guest_registration.GuestRegistrationTests.test_upgrade_updates_chat_directions_and_preserves_edited_answers`
+- Пройдено · `test_guest_stage.GuestStageTests.test_public_service_starts_without_a_gateway_or_node`
+- Пройдено · `test_identity.IdentityTests.test_concurrent_accounts_distinct_scopes_and_reconnect`
+- Пройдено · `test_identity.IdentityTests.test_credential_storage_expiry_and_duplicate_provision`
+- Пройдено · `test_identity.IdentityTests.test_eleven_character_password_round_trip`
+- Пройдено · `test_identity.IdentityTests.test_existing_core_ownership_and_plugin_grants_survive_identity_init`
+- Пройдено · `test_identity.IdentityTests.test_failed_attempts_persist_and_unlock_at_window_boundary`
+- Пройдено · `test_identity.IdentityTests.test_old_password_check_cannot_issue_a_session_after_concurrent_reset`
+- Пройдено · `test_identity.IdentityTests.test_recovery_is_single_use_under_race_and_revokes_every_device`
+- Пройдено · `test_marketplace_matrix.MarketplaceMatrixIsolation.test_selector_and_marketplace_contracts`
+- Пройдено · `test_marketplace_report_replay.MarketplaceReportReplayTests.test_advertising_difference_keeps_its_sign`
+- Пройдено · `test_marketplace_report_replay.MarketplaceReportReplayTests.test_charge_without_any_units_cannot_be_verified_from_a_unit_ledger`
+- Пройдено · `test_marketplace_report_replay.MarketplaceReportReplayTests.test_cli_accepts_matching_connector_with_extra_metadata`
+- Пройдено · `test_marketplace_report_replay.MarketplaceReportReplayTests.test_cli_rejects_full_coverage_on_an_incomplete_day`
+- Пройдено · `test_marketplace_report_replay.MarketplaceReportReplayTests.test_cli_reports_mismatched_or_missing_connector_fields`
+- Пройдено · `test_marketplace_report_replay.MarketplaceReportReplayTests.test_drr_is_unknown_with_zero_turnover_and_posted_spend`
+- Пройдено · `test_marketplace_report_replay.MarketplaceReportReplayTests.test_duplicate_archive_member_is_ambiguous`
+- Пройдено · `test_marketplace_report_replay.MarketplaceReportReplayTests.test_incorrect_store_figures_cannot_cancel_out_in_the_total`
+- Пройдено · `test_marketplace_report_replay.MarketplaceReportReplayTests.test_missing_ledger_fails_even_if_summary_is_complete`
+- Пройдено · `test_marketplace_report_replay.MarketplaceReportReplayTests.test_missing_operational_amount_does_not_override_posted_spend`
+- Пройдено · `test_marketplace_report_replay.MarketplaceReportReplayTests.test_mixed_report_dates_fail`
+- Пройдено · `test_marketplace_report_replay.MarketplaceReportReplayTests.test_operational_amount_cannot_replace_posted_advertising`
+- Пройдено · `test_marketplace_report_replay.MarketplaceReportReplayTests.test_operational_coverage_depends_on_source_completeness`
+- Пройдено · `test_marketplace_report_replay.MarketplaceReportReplayTests.test_report_uses_original_turnover_and_rounds_after_aggregation`
+- Пройдено · `test_marketplace_report_replay.MarketplaceReportReplayTests.test_summary_cannot_replace_weighted_drr_with_mean`
+- Пройдено · `test_marketplace_report_replay.MarketplaceReportReplayTests.test_summary_must_include_both_stores`
+- Пройдено · `test_mcp.McpTests.test_non_object_result_and_handler_failure`
+- Пройдено · `test_mcp.McpTests.test_real_stdio_discovery_call_and_revocation`
+- Пройдено · `test_metered_chat_e2e.MeteredChatAcceptance.test_admin_model_default_applies_to_existing_chats_and_persists`
+- Пройдено · `test_metered_chat_e2e.MeteredChatAcceptance.test_marketplace_chat_stream_commits_once_and_keeps_json_api`
+- Пройдено · `test_metered_chat_e2e.MeteredChatAcceptance.test_ordinary_chat_omits_internal_receipts_and_admin_role_is_live`
+- Пройдено · `test_metered_chat_e2e.MeteredChatAcceptance.test_parallel_owners_model_tool_step_and_replay_after_restart`
+- Пройдено · `test_metered_chat_e2e.MeteredChatAcceptance.test_payment_and_admin_membership_are_independent`
+- Пройдено · `test_metered_chat_e2e.MeteredChatAcceptance.test_provider_sees_attach_and_revoke_after_a_previous_answer`
+- Пройдено · `test_metered_chat_e2e.MeteredChatAcceptance.test_uncertain_provider_result_is_not_redispatched`
+- Пройдено · `test_metered_chat_e2e.MeteredChatAcceptance.test_worker_crash_after_admission_keeps_a_single_attempt`
+- Пройдено · `test_openrouter_catalog.OpenRouterCatalog.test_inflight_rotation_discards_old_result`
+- Пройдено · `test_openrouter_catalog.OpenRouterCatalog.test_rotation_revocation_and_recovery`
+- Пройдено · `test_openrouter_catalog.OpenRouterCatalog.test_transient_error_empty_catalog_and_rejected_key`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_admin_health_persists_last_success_and_reports_provider_refusal`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_cancel_after_accepted_tool_preserves_uncertainty_and_does_not_replay`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_cancelled_turn_reports_cancellation_on_replay_and_allows_new_message`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_chat_list_opens_while_model_catalogue_is_waiting`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_failed_image_tariff_refresh_never_uses_old_paid_price`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_image_choice_is_independent_and_attachment_is_idempotent`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_interrupted_stream_reconciled_once_without_replaying`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_local_capacity_serves_older_eligible_waiter_first`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_local_capacity_wait_keeps_one_provider_attempt`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_native_tool_roundtrip_preserves_signature_and_streams_visible_text_once`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_no_proxy_and_invalid_proxy_never_choose_direct_http`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_positive_receipt_above_nonzero_reservation_caps_customer_charge`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_positive_receipt_on_free_tariff_waits_for_review_at_zero_user_cost`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_publication_pins_effort_and_rejects_stale_personal_save`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_reconciliation_reaches_attempts_after_fifty_missing_receipts`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_saved_free_tariff_may_not_become_paid`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_session_expiry_prevents_next_provider_attempt`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_stored_image_reopens_when_provider_is_unavailable`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_stream_error_keeps_provider_id_for_reconciliation`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_stream_keeps_ordered_reasoning_for_tool_continuation`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_user_can_cancel_confirmed_limit`
+- Пройдено · `test_openrouter_operations.RouterOperations.test_zero_balance_retry_same_operation_and_attempt`
+- Пройдено · `test_openrouter_recovery.CrashRecovery.test_direct_deepseek_resumes_rejected_openrouter_image`
+- Пройдено · `test_openrouter_recovery.CrashRecovery.test_generator_rejection_recovers_once_and_charges_one_image`
+- Пройдено · `test_openrouter_recovery.CrashRecovery.test_logout_after_image_preserves_output_for_owner`
+- Пройдено · `test_openrouter_recovery.CrashRecovery.test_logout_during_service_outage_revokes_restart`
+- Пройдено · `test_openrouter_recovery.CrashRecovery.test_new_request_cannot_overtake_parked_turn_after_lease_expiry`
+- Пройдено · `test_openrouter_recovery.CrashRecovery.test_service_killed_after_completed_image_and_rejected_continuation`
+- Пройдено · `test_openrouter_recovery.CrashRecovery.test_service_killed_after_first_rejection`
+- Пройдено · `test_ozon_plugin.OzonFlow.test_annual_job_idempotency_no_overwrite_and_saved_projection`
+- Пройдено · `test_ozon_plugin.OzonFlow.test_catalogue_429_resumes_original_request`
+- Пройдено · `test_ozon_plugin.OzonFlow.test_migration_existing_chats_and_deliberate_disconnect`
+- Пройдено · `test_ozon_plugin.OzonFlow.test_model_and_reasoning_are_independent_between_plugins`
+- Пройдено · `test_ozon_plugin.OzonFlow.test_store_scope_and_performance_guidance`
+- Пройдено · `test_ozon_plugin.ProductCatalogue.test_all_pages_and_product_source_skus`
+- Пройдено · `test_ozon_plugin.ProductCatalogue.test_partial_or_repeated_catalogue_rejected`
+- Пройдено · `test_public_info.PublicInfoTests.test_published_navigation_and_documents`
+- Пройдено · `test_report_archive.ReportArchiveTests.test_aggregate_files_are_not_used_as_a_replacement_for_missing_snapshots`
+- Пройдено · `test_report_archive.ReportArchiveTests.test_each_snapshot_must_declare_its_date_and_supported_version`
+- Пройдено · `test_report_archive.ReportArchiveTests.test_independent_source_snapshots_match_reference`
+- Пройдено · `test_report_archive.ReportArchiveTests.test_missing_or_ambiguous_snapshot_is_rejected`
+- Пройдено · `test_report_archive.ReportArchiveTests.test_operational_coverage_and_posted_wb_spend_are_independent`
+- Пройдено · `test_report_archive.ReportArchiveTests.test_workspace_scope_selects_archive_and_caller_can_only_choose_a_date`
+- Пройдено · `test_report_archive.ReportArchiveTests.test_zero_turnover_is_distinct_from_zero_ad_spend`
+- Пройдено · `test_service_plugins.ServicePlugins.test_admin_rotates_independent_provider_keys`
+- Пройдено · `test_service_plugins.ServicePlugins.test_chat_deletion_keeps_other_histories_account_keys_and_receipts`
+- Пройдено · `test_service_plugins.ServicePlugins.test_chat_grants_are_scoped_and_revoke_native_mcp_tools`
+- Пройдено · `test_service_plugins.ServicePlugins.test_connections_scope_checks_and_semantics`
+- Пройдено · `test_service_plugins.ServicePlugins.test_real_harness_model_route_billing_replay_and_disable`
+- Пройдено · `test_service_plugins.ServicePlugins.test_turn_receives_store_setup_steps_for_missing_access`
+- Пройдено · `test_storage.StorageTests.test_concurrent_retries_and_restart`
+- Пройдено · `test_storage.StorageTests.test_entitlement_and_chat_choice_are_both_required`
+- Пройдено · `test_storage.StorageTests.test_foreign_chat_workspace_and_actor_are_denied`
+- Пройдено · `test_storage.StorageTests.test_malformed_flags_cannot_become_truthy_grants`
+- Пройдено · `test_storage.StorageTests.test_opening_unknown_or_newer_database_preserves_it`
+- Пройдено · `test_storage.StorageTests.test_provision_rolls_back_new_workspace_on_chat_conflict`
+- Пройдено · `test_storage.StorageTests.test_revocation_forgets_opt_ins_only_in_the_affected_workspace`
+- Пройдено · `test_storage.StorageTests.test_strict_open_never_initializes_missing_or_empty_file`
+- Пройдено · `test_web_ui.WebUiTests.test_cookie_routes_share_membership_and_session_revocation`
+- Пройдено · `test_web_ui.WebUiTests.test_payment_quote_tracks_configured_price_and_keeps_wallet_private`
+- Пройдено · `test_web_ui.WebUiTests.test_ui_assets_only_serve_browser_distribution`
+- Пройдено · `test_wildberries_plugin.CoefficientTests.test_catalogue_reads_last_page`
+- Пройдено · `test_wildberries_plugin.CoefficientTests.test_commission_signed_corrections_and_tariff_dates`
+- Пройдено · `test_wildberries_plugin.CoefficientTests.test_order_and_logistics_units_and_pagination`
+- Пройдено · `test_wildberries_plugin.PluginFlow.test_backoff_resumes_and_does_not_replay_a_paid_request`
+- Пройдено · `test_wildberries_plugin.PluginFlow.test_ordinary_connection_opt_in_matrix_scope_and_calculation`
+- Пройдено · `test_openrouter_recovery.CrashRecovery.test_service_killed_after_image_request_without_receipt_never_resubmits`
+
+## Chromium
+
+- Пройдено · `test_account_browser.BrowserIsolation.test_appearance_choice_survives_reload_and_overrides_system`
+- Пройдено · `test_account_browser.BrowserIsolation.test_chat_controls_and_store_setup`
+- Пройдено · `test_account_browser.BrowserIsolation.test_delete_active_chats_in_series_keeps_document`
+- Пройдено · `test_account_browser.BrowserIsolation.test_delete_background_chat_preserves_current_draft`
+- Пройдено · `test_account_browser.BrowserIsolation.test_direct_link_displays_while_resources_and_history_are_pending`
+- Пройдено · `test_account_browser.BrowserIsolation.test_failed_chat_module_can_retry_the_same_direct_link`
+- Пройдено · `test_account_browser.BrowserIsolation.test_failed_history_can_retry_without_creating_a_chat`
+- Пройдено · `test_account_browser.BrowserIsolation.test_guest_registers_and_resumes_the_same_chat`
+- Пройдено · `test_account_browser.BrowserIsolation.test_ozon_catalogue_and_sidebar`
+- Пройдено · `test_account_browser.BrowserIsolation.test_plugin_navigation_on_collapsed_sidebar_and_mobile`
+- Пройдено · `test_account_browser.BrowserIsolation.test_sidebar_preserves_individual_activity_on_reload`
+- Пройдено · `test_account_browser.BrowserIsolation.test_startup_survives_missing_external_boot_scripts`
+- Пройдено · `test_account_browser.BrowserIsolation.test_startup_transfers_the_viewport_to_the_composer`
+- Пройдено · `test_account_browser.BrowserIsolation.test_store_connection_updates_plugin_shortcut_without_reloading`
+- Пройдено · `test_account_browser.BrowserIsolation.test_two_browser_profiles_keep_their_own_chat`
+- Пройдено · `test_account_browser.BrowserIsolation.test_wallet_rounds_and_scrolls_five_charges`
+- Пройдено · `test_account_browser.BrowserIsolation.test_wildberries_catalogue_and_sidebar`
+- Пройдено · `test_archive_report_browser.ArchiveReportBrowser.test_scoped_report_is_visible_and_restores_after_reload`
+- Пройдено · `test_guest_paid_journey.GuestPaidJourney.test_guest_message_reaches_paid_model_in_original_chat`
+- Пройдено · `test_metered_browser.MeteredBrowser.test_turn_from_chat_page_has_a_reconciled_operation`
+- Пройдено · `test_public_info_browser.PublicInfoBrowser.test_public_navigation_uses_live_session_and_fits_viewport`
+- Пройдено · `test_saved_illustration_browser.SavedIllustrationBrowser.test_recovered_link_is_visible_only_in_its_chat`
+
+## Node
+
+- Пройдено · `scope, event ordering, retry, conflict and replay across two native workers`
+- Пройдено · `two chats in one host have distinct, live native MCP capabilities`
+- Пройдено · `concurrent first reads import the guest transcript exactly once`
+- Пройдено · `tool continuation replays signed model data only to the same model and keeps it out of browser events`
+- Пройдено · `Cordis preset selects official stdio client with a fixed scoped invocation`
+- Пройдено · `refuses incomplete identity, ambiguous paths and invalid composition`
+- Пройдено · `programmatic mounting awaits Cordis activation and propagates activation failure`
+- Пройдено · `rc.1 official native client discovers and invokes a real scoped Python stdio tool`
+- Пройдено · `the browser receives visible text and lifecycle without private event payloads`
