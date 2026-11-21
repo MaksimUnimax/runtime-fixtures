@@ -238,7 +238,7 @@ class BrowserIsolation(ProductBrowser):
 
             @asynccontextmanager
             async def selected(*args, **kwargs):
-                yield SimpleNamespace(direct_model="fixture",token="fixture"), ("parameter.delivery_mean.v1",)
+                yield SimpleNamespace(model=None,direct_model="fixture",token="fixture"), ("parameter.delivery_mean.v1",)
 
             async def calculated(scope, cid, metric_id, period, sku, grant, job, database):
                 self.assertEqual((metric_id,sku),("forward","82"))

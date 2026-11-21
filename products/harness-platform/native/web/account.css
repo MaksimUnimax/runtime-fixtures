@@ -168,3 +168,6 @@ html body[data-mode][data-ds-dark-theme] {
 .plugin-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr)); gap:8px 20px; }
 .plugin-metric { min-width:0; padding:12px 0 4px; border-top:1px solid var(--dsw-alias-border-l3,var(--octo-line)); }
 .plugin-metric label { margin-top:8px; }
+
+.chat-illustration { display:grid; gap:6px; width:fit-content; max-width:100%; margin:8px 0; }
+.chat-illustration img { display:block; width:auto; height:auto; max-width:100%; max-height:360px; border-radius:8px; }

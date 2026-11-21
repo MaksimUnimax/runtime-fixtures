@@ -95,6 +95,8 @@ window.__ModuleLoader__.load({
           h('button',{type:'button',disabled:busy,onClick:()=>refresh(true)},'Обновить список'),
           h('label',null,h('input',{type:'checkbox',checked:free,onChange:e=>setFree(e.target.checked)}),' Только бесплатные'),
           data?.catalogAt&&h('small',null,'Каталог обновлён '+new Date(data.catalogAt*1000).toLocaleString('ru-RU')),
+          data?.choiceMessage && h('p',{role:'status'},data.choiceMessage),
+          data?.confirmTariff && h('button',{type:'button',disabled:busy,onClick:()=>choose(data.model)},'Выбрать платный тариф'),
           data?.catalogMessage && h('p',{role:'status'},data.catalogMessage),
           !data&&!msg && h('p',{role:'status'},'Загрузка каталога…'),
           data&&!groups.size && h('p',{role:'status'},'Подходящих моделей нет.'),

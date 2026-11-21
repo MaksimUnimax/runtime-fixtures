@@ -122,7 +122,7 @@ export async function createTransport(data) {
       applies:'live',secrets:[],revision:themeRevision};
   };
   const account = {guest, selected, hasChat:id=>ids.includes(id), panel:data.panel, error:data.error, recovery:data.recovery,
-    balanceEvents:new EventTarget(), canGrant:flags.canGrant, modelChoice:flags.modelChoice, api, changes, live, activityEvents, costs:new Map()};
+    balanceEvents:new EventTarget(), canGrant:flags.canGrant, modelChoice:flags.modelChoice, api, changes, live, activityEvents, costs:new Map(), illustrations:new Map()};
   function recordActivity(id, at) {
     if (!ids.includes(id) || !Number.isSafeInteger(at) || at <= (updated.get(id) ?? 0)) return;
     updated.set(id, at);
@@ -165,9 +165,7 @@ export async function createTransport(data) {
         records.push({type:'event',event:{seq,type:'harness/omitted',time:event.time,data:{},ignorable:true}});
       if (event.type==='assistant/message') {
         const reply=assistants[assistantIndex++];
-        if(reply?.illustration){
-          event.data.message.content.push({type:'text',text:'\n\n![Иллюстрация]('+reply.illustration+')\n\n[Открыть иллюстрацию]('+reply.illustration+')'});
-        }
+        if(reply?.illustration) account.illustrations.set(id+'|'+event.seq,reply.illustration);
         const cost=reply?.modelUsage ?? reply?.modelCost;
         if(result.adminCosts && cost) account.costs.set(id+'|'+event.seq,cost);
         event.data.stream ??= [];

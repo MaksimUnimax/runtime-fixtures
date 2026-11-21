@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 import tempfile
@@ -15,7 +16,7 @@ from platform_core import model_choices
 from platform_core.chat_api import create_app
 from platform_core.guest_registration import RegistrationStore
 from platform_core.identity import _secret_digest
-from platform_core.model_router import egress_client
+from platform_core.model_router import ModelRouter, egress_client
 from platform_core.operation_grants import issue_grant
 
 
@@ -43,14 +44,24 @@ class RouterOperations(unittest.TestCase):
         self.model='~maker/model'
         self.price='0'
         self.reply='ok'
+        self.image_calls=0
         self.router.http=httpx.AsyncClient(transport=httpx.MockTransport(self.upstream))
         self.addCleanup(self.client.portal.call,self.router.http.aclose)
         self.choose()
 
     def upstream(self, req):
         if req.url.path.endswith('/models/user'):
-            return httpx.Response(200,json={'data':[{'id':self.model,'architecture':{'output_modalities':['text']},
+            images=[{'id':'maker/'+name,'architecture':{'output_modalities':['image']},'pricing':{'image':'0','prompt':'0','completion':'0'}} for name in ('illustrator','illustrator-b','unsupported')]
+            return httpx.Response(200,json={'data':[*images,{'id':self.model,'architecture':{'output_modalities':['text']},
                 'supported_parameters':['tools','reasoning'],'pricing':{'prompt':self.price,'completion':self.price}}]})
+        if req.url.path.endswith('/images/models'):
+            return httpx.Response(200,json={'data':[{'id':'maker/illustrator'},{'id':'maker/illustrator-b'}]})
+        if req.url.path.endswith('/images'):
+            self.image_calls+=1
+            if self.reply=='image-rejected':
+                return httpx.Response(422)
+            png=base64.b64encode(b'\x89PNG\r\n\x1a\nfixture').decode()
+            return httpx.Response(200,json={'usage':{'cost':0,'prompt_tokens':9,'completion_tokens':11},'data':[{'b64_json':png}]})
         if req.url.path.endswith('/generation'):
             return httpx.Response(200,json={'data':{'id':'gen-fixture','total_cost':'0.000012',
                 'native_tokens_prompt':100,'native_tokens_cached':40,'native_tokens_completion':3}})
@@ -127,7 +138,8 @@ class RouterOperations(unittest.TestCase):
         self.assertEqual(self.complete(self.grant()).status_code,502)
         self.assertIsNone(self.attempts()[0][1])
         self.assertEqual(self.attempts()[0][3],'gen-fixture')
-        self.client.portal.call(self.router.reconcile_once)
+        restarted=ModelRouter(self.state.identity,self.router.http,self.router.key)
+        self.client.portal.call(restarted.reconcile_once)
         before=self.attempts()
         self.client.portal.call(self.router.reconcile_once)
         self.assertEqual(self.attempts(),before)
@@ -135,3 +147,41 @@ class RouterOperations(unittest.TestCase):
         self.assertEqual(before[0][1],960000000)
         self.assertEqual(json.loads(before[0][2]),dict(input_tokens=60,cache_read_input_tokens=40,
                          cache_creation_input_tokens=0,output_tokens=3))
+
+    def test_image_choice_is_independent_and_attachment_is_idempotent(self):
+        url='/api/chats/'+self.chat+'/plugins'
+        def post(path,body):
+            r=self.client.post(path,headers=self.headers,json=body)
+            self.assertEqual(r.status_code,200,r.text)
+            return r.json()
+        for plugin in ('illustrations','wildberries'):
+            post(url,{'plugin':plugin,'enabled':True})
+        image=url+'/illustrations'
+        offered=self.client.get(image+'?models=1',headers=self.headers).json()['models']
+        self.assertEqual({m['id'] for m in offered},{'maker/illustrator','maker/illustrator-b'})
+        for mid in ('maker/illustrator','maker/illustrator-b'):
+            post(image+'/model',{'model':mid,'effort':'auto'})
+        self.assertEqual(self.client.get(url+'/wildberries',headers=self.headers).json()['model'],'')
+        self.assertEqual(self.client.get('/api/model-settings',headers=self.headers).json()['model'],self.model)
+        self.state.identity.set_admin('owner',True)
+        post('/api/admin/chat-default',{'model':self.model,'effort':'high'})
+        post('/api/model-settings',{'model':'direct','revision':1})
+        self.assertEqual(self.client.get(image,headers=self.headers).json()['model'],'maker/illustrator-b')
+        post('/api/model-settings',{'model':'default','revision':1})
+        grant=self.grant()
+        def draw(g):
+            return httpx.post(self.state.worker.env['HARNESS_ROUTER_LOCAL']+'/illustrate',trust_env=False,
+                              headers={'x-operation':g.token},json={'prompt':'Draw a blue circle'})
+        one=draw(grant)
+        self.assertEqual(one.status_code,200,one.text)
+        self.assertEqual(draw(grant).json(),one.json())
+        self.assertEqual(self.image_calls,1)
+        self.assertEqual(len(self.attempts()),1)
+        self.assertEqual(self.client.get(one.json()['url'],headers=self.headers).headers['content-type'],'image/png')
+        grant=issue_grant(self.path,self.scope,source='chat.turn',run_key='image-failure',bind_model=self.router.bind)
+        self.reply='image-rejected'
+        self.assertEqual(draw(grant).status_code,502)
+        self.assertEqual(draw(grant).status_code,409)
+        self.assertEqual(self.image_calls,2)
+        self.assertEqual(self.attempts()[-1][1],0)
+        self.assertEqual(self.complete(grant).status_code,200)

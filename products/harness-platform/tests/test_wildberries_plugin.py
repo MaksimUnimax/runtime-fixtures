@@ -151,6 +151,12 @@ class PluginFlow(unittest.TestCase):
                 schema=matrix.capability([{"id":self.cid,"provider":"wb","access":["Wildberries API"]},
                                           {"id":"o","provider":"ozon","access":["Ozon Seller"]}])
                 schema.validate({"selections":[item]})
+                lookup={"templateId":templates.SAVED,"connectionId":self.cid}
+                schema.validate({"selections":[lookup]})
+                self.assertEqual(schema.handler(self.scope,{"selections":[lookup]})["reports"][0]["coefficients"]["forward"]["value"],"12.5")
+                schema.validate({"selections":[{"templateId":templates.OZON_SAVED,"connectionId":"o"}]})
+                with self.assertRaises(ValueError):
+                    schema.validate({"selections":[{"templateId":templates.PROJECT,"connectionId":self.cid}]})
                 with self.assertRaises(ValueError):
                     schema.validate({"selections":[{**item,"connectionId":"o"}]})
                 result=schema.handler(self.scope,{"selections":[item]})["reports"][0]

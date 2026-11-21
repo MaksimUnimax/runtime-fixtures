@@ -433,8 +433,17 @@ def routes(get_token,body):
                 if not isinstance(fields["model"],str):
                     raise ValueError("Invalid model")
                 model_choices.save_choice(db,workspace,fields["model"],fields.get("revision",0),catalog)
-            model,effort,_,revision,inherited=model_choices.selection(db,workspace)
+            model,effort,free,revision,inherited=model_choices.selection(db,workspace)
+        choice_message=""
+        confirm_tariff=False
+        if model!="direct":
+            entry=catalog.get(model,{})
+            if not entry.get("chat"):
+                choice_message="Выбранная модель сейчас недоступна. Обновите каталог или выберите другую модель."
+            elif free and not entry.get("free"):
+                confirm_tariff=True
+                choice_message="Бесплатный тариф выбранной модели закончился. Выберите другую модель или подтвердите новый тариф."
         return JSONResponse({"enabled":router.available(),"model":model,"revision":revision,"inherited":inherited,
-                "catalogAt":router.loaded_at,"catalogMessage":router.catalog_message,
+                "catalogAt":router.loaded_at,"catalogMessage":router.catalog_message,"choiceMessage":choice_message,"confirmTariff":confirm_tariff,
                 "models":[{k:v for k,v in m.items() if k not in ("rates","imagePrice")} for m in catalog.values()]})
     return [Route("/api/model-settings",models,methods=["GET","POST"])]

@@ -183,6 +183,15 @@ window.__ModuleLoader__.load({
         return h('small',{className:'model-cost'},amount ?
           'Оценка стоимости · '+amount.replace('.',',')+(cost.rub?' ₽':' USD') : 'Оценка стоимости пока недоступна');
       }
+      function Illustration({seq,sessionId}) {
+        const url=a.illustrations.get(sessionId+'|'+seq);
+        if(!url)return null;
+        return h('a',{href:url,target:'_blank',rel:'noopener',className:'chat-illustration'},
+          h('img',{src:url,alt:'Иллюстрация к ответу',loading:'lazy'}),h('span',null,'Открыть иллюстрацию'));
+      }
+      if(!a.guest)ctx.slots.inject('conversation.chat.turnTail',()=>ctx.slots.register({
+        name:'conversation.chat.turnTail',id:'chat-illustration',inject:sessionId=>({sessionId})
+      },Illustration));
       if(a.canGrant)ctx.slots.inject('conversation.chat.turnTail',()=>ctx.slots.register({
         name:'conversation.chat.turnTail',id:'harness-cost',inject:sessionId=>({sessionId})
       },Cost));

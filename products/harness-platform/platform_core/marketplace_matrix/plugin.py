@@ -59,6 +59,12 @@ def capability(stores):
              for cid, provider, _ in profiles}
     menu = "\n".join("Для " + ", ".join(names[cid] for cid in ids) + ":\n" +
                      "\n".join(card for _, card in cards) for ids, cards in groups.items())
+    lookups = [json.dumps({"selections":[{"templateId":tid,"connectionId":cid}]},ensure_ascii=False,
+                         separators=(",",":"))
+               for group,cards in groups.items() for tid,_ in cards if tid in extensions.STORE_LOOKUPS
+               for cid in group]
+    lookup_guide = ("Чтобы прочитать сохранённые коэффициенты всего магазина, выбери его вызов: "
+                    + " или ".join(lookups) + ". ") if lookups else ""
     period = {"type": ["object", "null"], "properties": {key: {"type": "string", "format": "date"}
                                                         for key in ("from", "to")},
               "required": ["from", "to"], "additionalProperties": False}
@@ -89,6 +95,11 @@ def capability(stores):
             "then":{"properties":{"input":{"type":"object","properties":{"plugin_inputs":plugin_inputs},
                                            "additionalProperties":False}}},
             "else":{"properties":{"input":inputs}}}]
+    if any(row["id"] in extensions.STORE_LOOKUPS for row in rows):
+        item["required"] = ["templateId", "connectionId"]
+        item.setdefault("allOf", []).append({
+            "if":{"properties":{"templateId":{"enum":list(extensions.STORE_LOOKUPS)}}},
+            "else":{"required":["input"]}})
     if len(groups) > 1:
         item["anyOf"] = [{"properties": {"templateId": {"enum": [tid for tid, _ in cards]},
                                         "connectionId": {"enum": list(ids)}}}
@@ -98,6 +109,8 @@ def capability(stores):
         "required": ["selections"], "additionalProperties": False}
     return Capability("marketplace_report",
         "Сам выбери шаблоны по смыслу всей беседы. Ответ на уточнение дополняет предыдущий вопрос. "
+        "В каждом элементе массива selections передай templateId (точный ID шаблона из каталога) и "
+        "connectionId (ID магазина из заголовка группы). Поле input содержит параметры. Для чтения сохранённых коэффициентов всего магазина достаточно этих двух ID, без периода и артикула. "
         "Используй только пары шаблона и магазина из одной группы каталога. Если части отчёта нет, получи остальные для запрошенной площадки. Даты from/to включительно, "
         "для текущего состояния period=null. Обычная группировка marketplace. "
         "Для составляющих формул используй исходные суммы из sourceValues. Округлённый процент не позволяет восстановить точный оборот. "
@@ -108,7 +121,8 @@ def capability(stores):
         "Для самостоятельного расчёта коэффициента передай его явно запрошенный интервал в period. "
         "Для прогноза передай период заказов в period, а отдельно указанные интервалы коэффициентов в parameter_periods.loss_rate "
         "и parameter_periods.delivery_mean. Без отдельного интервала прогноз использует сохранённые коэффициенты товара или магазина. Если значения нет, матрица рассчитает его за последние 12 месяцев. "
-        "Для сохранённых коэффициентов и прогноза по количеству используй шаблоны saved_coefficients и order_projection своей площадки. Укажи Ozon SKU или артикул WB в plugin_inputs.sku и исходное количество в plugin_inputs.quantity. "
+        + lookup_guide +
+        "Для прогноза выбери из каталога шаблон прогноза площадки и передай количество в input.plugin_inputs.quantity. Для конкретного товара передай Ozon SKU или артикул WB в input.plugin_inputs.sku. "
         "Коэффициенты из настроек подставляет сервер, передавать их не нужно. "
         "Выводи рассчитанные матрицей значения и следуй guidance выбранного шаблона. "
         "В рекламном отчёте WB сохрани охват кампаний. Итоги по полученным строкам нельзя выдавать за итог всех кампаний. "

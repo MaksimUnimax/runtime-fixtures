@@ -15,6 +15,7 @@ TEMPLATES = {
 
 OZON_SAVED="ozon.saved_coefficients"
 OZON_PROJECT="ozon.order_projection"
+STORE_LOOKUPS = (SAVED, OZON_SAVED)
 TEMPLATES.update({
     OZON_SAVED:"Прочитать сохранённые в плагине Озон коэффициенты магазина или указанного Ozon SKU.",
     OZON_PROJECT:"Прогноз Ozon по сохранённым коэффициентам для заданного количества исходных заказов, при наличии SKU применяются его значения.",
@@ -38,7 +39,7 @@ def report(db,scope,item):
     plugin=OZON if item["templateId"] in (OZON_SAVED,OZON_PROJECT) else WB
     metrics=adapter(plugin).METRICS
     store_row(db,scope,plugin,cid)
-    args=item["input"].get("plugin_inputs",{})
+    args=item.get("input",{}).get("plugin_inputs",{})
     sku=args.get("sku","")
     valid_sku(db,cid,sku,plugin)
     store=values(db,cid,"",plugin)
