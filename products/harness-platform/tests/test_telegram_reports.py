@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import hmac
 import json
 import sqlite3
 import tempfile
@@ -120,6 +121,43 @@ class TelegramReports(TestCase):
         status=self.client.get(self.url).json()
         self.assertFalse(status["linked"])
         self.assertFalse(status["subscribed"])
+
+    def test_widget_checks_signature_time_session_and_single_use(self):
+        cfg = tg.Config("123", None, "123:unit-test")
+        self.client.app.state.telegram.config = cfg
+
+        def begin():
+            response = self.post(self.url + "/connect")
+            response.raise_for_status()
+            params = parse_qs(urlsplit(response.json()["url"]).query)
+            self.assertEqual(params["origin"], [ORIGIN])
+            self.assertEqual(params["bot_id"], [cfg.bot])
+            self.assertEqual(params["request_access"], ["write"])
+            return parse_qs(urlsplit(params["return_to"][0]).query)["state"][0]
+
+        def profile(stamp):
+            signed = f"auth_date={stamp}\nfirst_name=Ирина\nid=884".encode()
+            key = hashlib.sha256(cfg.token.encode()).digest()
+            return {"auth_date": stamp, "id": 884, "first_name": "Ирина",
+                    "hash": hmac.digest(key, signed, "sha256").hex()}
+
+        state = begin()
+        now = int(time.time())
+        user = profile(now)
+        with patch.object(tg, "send", AsyncMock(return_value=9)) as delivery:
+            for rejected in (dict(user, id=900), profile(now - 700), profile(now + 100)):
+                response = self.post("/api/telegram/complete", {"state":state, "user":rejected})
+                self.assertEqual(response.status_code, 400)
+            self.client.cookies.set("__Host-harness_session", self.other)
+            self.assertEqual(self.post("/api/telegram/complete", {"state":state, "user":user}).status_code,409)
+            self.client.cookies.set("__Host-harness_session", self.token)
+            delivery.assert_not_awaited()
+            success = self.post("/api/telegram/complete", {"state":state, "user":user})
+            self.assertEqual(success.json(), {"chat":self.scope.chat_id})
+            self.assertTrue(self.client.get(self.url).json()["subscribed"])
+            self.assertEqual(self.post("/api/telegram/complete", {"state":begin(), "user":user}).status_code,409)
+            self.assertEqual(delivery.await_count, 1)
+            self.assertEqual(delivery.await_args.args[1], 884)
 
     def test_declined_or_revoked_link_never_subscribes(self):
         query=self.start()

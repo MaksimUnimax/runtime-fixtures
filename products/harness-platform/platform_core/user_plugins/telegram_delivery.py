@@ -13,6 +13,8 @@ from . import telegram_api as tg
 
 PLUGIN = "telegram-reports"
 SCHEMA = (
+    """CREATE TABLE IF NOT EXISTS telegram_widget_receipts(
+        signature TEXT PRIMARY KEY, expires INTEGER NOT NULL)""",
     """CREATE TABLE IF NOT EXISTS telegram_recipients(
         workspace TEXT PRIMARY KEY REFERENCES workspaces(workspace_id) ON DELETE CASCADE,
         bot TEXT NOT NULL, recipient INTEGER NOT NULL, UNIQUE(bot,recipient))""",
