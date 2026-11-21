@@ -183,7 +183,9 @@ class ModelRouter:
                 return
             counts = {"input_tokens":prompt-cache,"cache_read_input_tokens":cache,
                       "cache_creation_input_tokens":0,"output_tokens":out}
-            if rejected in (404,429) and row[0]==0:
+            if rejected == "proxy":
+                evidence = "openrouter-proxy-refused"
+            elif rejected in (404,429) and row[0]==0:
                 evidence = "openrouter-http:"+str(rejected)
             db.execute("UPDATE coin_attempts SET charge=?,usage_json=?,evidence=? WHERE attempt_id=? AND charge IS NULL",
                        (charge,json.dumps(counts),evidence,aid))
@@ -305,6 +307,10 @@ class ModelRouter:
                 if live and isinstance(choice["message"].get("content"),str):
                     live.set({"stage":"writing","text":choice["message"]["content"]})
                 return JSONResponse({"message":choice["message"],"finish_reason":choice["finish_reason"]})
+        except httpx.ProxyError:
+            # The proxy rejected the tunnel before the API received the request.
+            self.settle(aid,None,{"cost":"0","prompt_tokens":0,"completion_tokens":0},rejected="proxy")
+            raise HTTPException(502) from None
         except (httpx.HTTPError,KeyError,IndexError,ValueError,TypeError):
             raise HTTPException(502) from None
         finally:

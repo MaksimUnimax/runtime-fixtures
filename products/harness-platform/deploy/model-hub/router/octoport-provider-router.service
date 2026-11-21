@@ -1,0 +1,24 @@
+[Unit]
+Description=Octoport outbound provider router
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+RuntimeDirectory=octoport-provider-router
+EnvironmentFile=/etc/octoport-provider-router/router.env
+ExecStart=/usr/sbin/apache2 -f /etc/octoport-provider-router/httpd.conf -DFOREGROUND
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

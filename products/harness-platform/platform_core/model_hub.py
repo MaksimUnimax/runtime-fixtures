@@ -231,8 +231,19 @@ def routes(get_token, body):
             Route("/api/admin/model-hub/keys", dashboard, methods=["POST"]),
             Route("/api/admin/model-hub/keys/{key_id}/cloudflare-account", dashboard, methods=["POST"])]
 
+def provider_http(*, timeout):
+    proxy = os.getenv("HARNESS_MODEL_EGRESS_PROXY", "").strip()
+    if not proxy and os.getenv("HARNESS_MODEL_EGRESS_REQUIRED") == "1":
+        raise RuntimeError("Model providers require an outbound router")
+    return httpx.AsyncClient(
+        proxy=proxy or None, timeout=timeout,
+        trust_env=False, follow_redirects=False,
+        limits=httpx.Limits(max_connections=64, max_keepalive_connections=16),
+    )
+
+
 async def refresh_database(path):
-    async with httpx.AsyncClient(timeout=15, trust_env=False, follow_redirects=False) as http:
+    async with provider_http(timeout=15) as http:
         return await Hub(path).refresh(http)
 
 if __name__ == "__main__":

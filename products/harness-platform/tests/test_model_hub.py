@@ -10,7 +10,7 @@ import httpx
 from starlette.testclient import TestClient
 
 from platform_core import hub_research
-from platform_core.model_hub import Hub, CATALOG
+from platform_core.model_hub import Hub, CATALOG, provider_http
 from platform_core.chat_api import create_app
 from platform_core.guest_registration import RegistrationStore
 from platform_core.identity import _principal
@@ -51,6 +51,32 @@ class ModelHubTests(unittest.TestCase):
         self.assertEqual(self.hub.dashboard()["catalog"]["error"], "HTTP 503")
         self.assertTrue(self.discover({"data":[dict(model(GEMMA),pricing={"prompt":"1","completion":"1"})]}))
         self.assertEqual(self.hub.dashboard()["models"], [])
+
+    def test_provider_traffic_uses_the_explicit_router(self):
+        async def check():
+            requests = []
+
+            async def reject(reader, writer):
+                request = await reader.readuntil(b"\r\n\r\n")
+                requests.append(request.splitlines()[0])
+                writer.write(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                await writer.drain()
+                writer.close()
+                await writer.wait_closed()
+
+            async with await asyncio.start_server(reject, "127.0.0.1", 0) as proxy:
+                address = proxy.sockets[0].getsockname()
+                with patch.dict(os.environ, {"HARNESS_MODEL_EGRESS_PROXY": f"http://{address[0]}:{address[1]}"}):
+                    async with provider_http(timeout=3) as client:
+                        self.assertFalse(await self.hub.refresh(client))
+            self.assertEqual(requests, [b"CONNECT openrouter.ai:443 HTTP/1.1"])
+
+        asyncio.run(check())
+
+    def test_required_router_with_empty_address_cannot_send_directly(self):
+        with patch.dict(os.environ, {"HARNESS_MODEL_EGRESS_REQUIRED": "1", "HARNESS_MODEL_EGRESS_PROXY": " "}):
+            with self.assertRaisesRegex(RuntimeError, "require an outbound router"):
+                provider_http(timeout=3)
 
     def test_alternatives_dedup_rotation_and_encryption(self):
         self.discover({"data":[model(GEMMA),model(GEMMA)]})

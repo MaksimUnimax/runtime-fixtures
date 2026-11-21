@@ -2,7 +2,8 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import httpx
 from starlette.testclient import TestClient
@@ -118,6 +119,27 @@ class OpenRouterCatalog(unittest.TestCase):
         self.assertEqual(tuple(identity._db.execute('SELECT charge,evidence FROM coin_attempts').fetchone()),
                          (0,'openrouter-free-price-mismatch:0.01'))
         self.assertEqual(identity._db.execute('SELECT closed FROM coin_orders').fetchone()[0],1)
+
+    def test_refused_proxy_tunnel_releases_paid_reservation(self):
+        self.settings(self.rows[0]['id'])
+        identity = self.client.app.state.identity
+        identity.set_paid('catalog-owner', True)
+        identity.grant_coins('catalog-owner', '20', 'proxy-fixture-credit', 'test')
+        token = self.headers['Authorization'][7:]
+        scope = identity.create_user_chat(token)
+        grant = issue_grant(self.database,scope,source='chat.turn',run_key='proxy-refused',bind_model=self.router.bind)
+        req = SimpleNamespace(headers={'x-operation':grant.token},
+                              body=AsyncMock(return_value=b'{"messages":[{"role":"user","content":"hello"}]}'))
+        with patch.object(self.router.http, 'stream', side_effect=httpx.ProxyError('403 Forbidden')):
+            with self.assertRaises(HTTPException) as error:
+                self.client.portal.call(self.router.complete, req)
+        self.assertEqual(error.exception.status_code,502)
+        bound,charge,evidence = identity._db.execute('SELECT bound,charge,evidence FROM coin_attempts').fetchone()
+        self.assertGreater(bound,0)
+        self.assertEqual((charge,evidence),(0,'openrouter-proxy-refused'))
+        revoke_grant(self.database,grant.token)
+        wallet = identity.wallet(token)
+        self.assertEqual((wallet['available'],wallet['reserved']),('20','0'))
 
     def test_disabling_router_does_not_bill_the_direct_model(self):
         self.rows[0]['pricing']={'prompt':'0','completion':'0'}

@@ -122,10 +122,13 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                     limits=httpx.Limits(max_connections=64,max_keepalive_connections=16)) as http:
                 app.state.http = http
                 async with AsyncExitStack() as extensions:
-                    app.state.model_router = await extensions.enter_async_context(
-                        router_plugin.activate(app.state.identity,http,app.state.worker)) if router_plugin else None
-                    if app.state.model_router:
-                        app.state.model_router.progress=app.state.progress
+                    app.state.model_router = None
+                    if router_plugin:
+                        model_http = await extensions.enter_async_context(model_hub.provider_http(timeout=10))
+                        app.state.model_router = await extensions.enter_async_context(
+                            router_plugin.activate(app.state.identity, model_http, app.state.worker))
+                        if app.state.model_router:
+                            app.state.model_router.progress = app.state.progress
                     try:
                         yield
                     finally:
