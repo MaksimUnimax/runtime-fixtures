@@ -25,5 +25,5 @@ class SavedIllustrationBrowser(ProductBrowser):
         other = await page.request.post("/api/chats", headers={"Origin": self.base_url})
         self.assertEqual(other.status, 201)
         await page.goto("/app/chats/" + (await other.json())["chatId"])
-        await expect(page.get_by_role("button", name="Подключения", exact=True)).to_be_visible()
+        await expect(page.get_by_role("button", name="Плагины", exact=True)).to_be_visible()
         await expect(link).to_have_count(0)
