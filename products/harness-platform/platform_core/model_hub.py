@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS hub_keys(
 CREATE TABLE IF NOT EXISTS research(
     model TEXT PRIMARY KEY, checked INTEGER NOT NULL, finding TEXT NOT NULL, source TEXT NOT NULL,
     access TEXT NOT NULL, provider TEXT NOT NULL, provider_name TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS research_versions(version TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS research_attempts(model TEXT PRIMARY KEY, attempted INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS research_state(
     id INTEGER PRIMARY KEY CHECK(id=1), attempted INTEGER, succeeded INTEGER, error TEXT);
@@ -73,7 +74,7 @@ def valid_catalog_record(item):
 def registry(db):
     providers = PROVIDERS.copy()
     for row in db.execute("""SELECT provider,provider_name FROM research
-            WHERE access='public_free' ORDER BY checked"""):
+            WHERE access='public_free' AND checked>0 ORDER BY checked"""):
         providers.setdefault(row["provider"], row["provider_name"])
     for row in db.execute("SELECT DISTINCT provider FROM hub_keys"):
         providers.setdefault(row["provider"],row["provider"])
@@ -160,7 +161,7 @@ class Hub:
             monitor = db.execute("SELECT attempted,succeeded,error FROM research_state").fetchone()
             provider_names = registry(db)
             keys = [dict(r) for r in db.execute("SELECT id,provider,label FROM hub_keys ORDER BY provider,label")]
-            findings = {r["model"]: dict(r) for r in db.execute("SELECT * FROM research")}
+            findings = {r["model"]: dict(r) for r in db.execute("SELECT * FROM research WHERE checked>0")}
             models = [dict(r) for r in db.execute("SELECT model,name FROM candidates ORDER BY model")]
         configured = {k["provider"] for k in keys}
         missing = {}

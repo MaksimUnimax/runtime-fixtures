@@ -80,6 +80,16 @@ class ModelHubTests(unittest.TestCase):
         self.assertEqual(self.hub.dashboard()["missing"],{})
         self.assertTrue(hub_research.run(self.hub,lambda _: self.fail("checked too soon")))
 
+    def test_research_separates_provider_products_and_trial_rights(self):
+        mid = "nvidia/nemotron:free"
+        record = dict(model=mid,finding="Direct API",source="https://build.nvidia.com/model",
+                      access="public_free",provider="nvidia",provider_name="NVIDIA")
+        def validate(**changes):
+            return hub_research.validate({"results":[record | changes]},[mid])[0]
+        self.assertEqual(validate()[3],"conditional")
+        self.assertEqual(validate(source="https://openrouter.ai/example")[3],"unknown")
+        self.assertEqual(validate(provider="google",source="https://docs.cloud.google.com/example",access="paid")[4],"google-vertex")
+
     def test_admin_and_member_through_http(self):
         db = self.root / "identity.db"
         with RegistrationStore(db) as store:
