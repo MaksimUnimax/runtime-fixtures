@@ -44,6 +44,7 @@ async function api(path, options) {
       error.message=providerErrors[detail.error];
       error.providerRefusal=true;
     }
+    if (detail.error === 'attachment_unavailable') error.message = 'Вложение недоступно. Выберите файл заново в этом диалоге.';
     error.status = status;
     if (detail.error === 'model_wait_cancelled') {
       error.code = 'model_wait_cancelled';
@@ -58,7 +59,7 @@ const label = id => 'Чат · ' + id.slice(-8);
 function authorized(ids, guest) {
   const actions = ['session/list', 'session/follow', 'session/page', 'session/prompt', 'session/projections'];
   actions.push('settings/describe','settings/mutate');
-  if (!guest) actions.push('session/create');
+  if (!guest) actions.push('session/create','fileUploads/upload');
   return {type:'baseline', owner:false, grants:[
     {resource:{kind:'global'}, actions},
     {resource:{kind:'workspace', id:workspace}, actions},
@@ -273,13 +274,17 @@ export async function createTransport(data, initialHistory) {
         }
         case 'session/prompt': {
           const id=p.sessionId; check(id);
-          if (!Array.isArray(p.content)||!p.content.length||p.content.some(part=>part.type!=='text'))
-            throw new Error('Доступны текстовые сообщения');
-          const text=p.content.map(part=>part.text).join('\n');
-          if(await privatePrompt(text,guest,api,id)){ value={accepted:true}; break; }
+          const allowed = guest ? ['text'] : ['text','file'];
+          if (!Array.isArray(p.content) || !p.content.length || p.content.some(part=>!allowed.includes(part.type)))
+            throw new Error('Неподдерживаемый тип вложения');
+          const text=p.content.filter(part=>part.type==='text').map(part=>part.text).join('\n');
+          const attachments=p.content.filter(part=>part.type==='file').map(part=>part.receiptId);
+          if (attachments.length && attachments.some(id=>typeof id!=='string')) throw new Error('Выберите файл заново.');
+          if (!attachments.length && await privatePrompt(text,guest,api,id)){ value={accepted:true}; break; }
+          const inputKey = JSON.stringify([text,attachments]);
           let turn = pending.get(id);
-          if (!turn || turn.text !== text) {
-            turn = {text, requestId:p.requestId};
+          if (!turn || turn.inputKey !== inputKey) {
+            turn = {inputKey, requestId:p.requestId};
             pending.set(id, turn);
           }
           if(running.has(id))throw new Error('Дождитесь ответа на предыдущее сообщение');
@@ -296,7 +301,7 @@ export async function createTransport(data, initialHistory) {
             try {
               await api(url,guest ? {method:'POST',signal,headers:{Accept:'application/json'},
                   body:new URLSearchParams({text,request_id:turn.requestId})} :
-                {method:'POST',headers:{'Content-Type':'application/json',Accept:'application/x-ndjson'},body:JSON.stringify({requestId:turn.requestId,text})});
+                {method:'POST',headers:{'Content-Type':'application/json',Accept:'application/x-ndjson'},body:JSON.stringify({requestId:turn.requestId,text,...attachments.length ? {attachments} : {}})});
               nonempty.add(id);
               if(!guest){
                 const view=live.views.get(id);

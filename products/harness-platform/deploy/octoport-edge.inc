@@ -19,6 +19,10 @@ location = /robots.txt {
     return 200 "User-agent: *\nDisallow: /admin\nDisallow: /api/\nDisallow: /app/\nSitemap: https://octoport.ru/about/sitemap.xml\n";
 }
 location / {
+    location = /api/session/uploadFileBinary {
+        client_max_body_size 8m;
+        proxy_pass https://185.219.43.9;
+    }
     proxy_pass https://185.219.43.9;
     proxy_ssl_server_name on;
     proxy_ssl_name harness.185-219-43-9.sslip.io;

@@ -39,7 +39,7 @@ export function modelDispatchStore(db, fail, checkParked) {
   function check(key, req) {
     checkParked(req);
     const row = lookup.get(key, req.requestId);
-    if (row && (req.action !== 'turn' || row.input_hash !== digest(req.text))) fail('conflict');
+    if (row && (req.action !== 'turn' || row.input_hash !== digest(req.inputKey ?? req.text))) fail('conflict');
     const now = Date.now();
     if (row?.active_until === cancelled) fail('model_wait_cancelled');
     if(req.restore){
@@ -57,7 +57,7 @@ export function modelDispatchStore(db, fail, checkParked) {
       check(key, req);
       if (req.deadline <= Date.now()) fail('busy');
       if(req.restore) restore.run(req.deadline,owner(req),key,req.requestId);
-      else insert.run(key, req.requestId, digest(req.text), req.grant.operationId, req.deadline,owner(req));
+      else insert.run(key, req.requestId, digest(req.inputKey ?? req.text), req.grant.operationId, req.deadline,owner(req));
     },
     owns(key,req) { return lookup.get(key,req.requestId)?.owner===owner(req); },
     extend(key,req,deadline) { extend.run(deadline,key,req.requestId,owner(req)); },

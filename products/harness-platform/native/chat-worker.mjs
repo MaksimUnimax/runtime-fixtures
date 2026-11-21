@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { modelDispatchStore } from './model-dispatch-store.mjs';
 import { mountPlatformMcp } from './platform-mcp.mjs';
 import { publicEvents } from './public-events.mjs';
+import { chatFiles } from './chat-files.mjs';
 
 class RequestError extends Error {}
 const fail = code => { throw new RequestError(code); };
@@ -50,7 +51,8 @@ function scopeKey(scope) {
   return createHash('sha256').update(JSON.stringify(parts)).digest('hex');
 }
 
-function visible(events, requestId, operationId) {
+function visible(events, requestId, operationId, historyFiles = []) {
+  let attached = false;
   const messages = events.flatMap(event => {
     let message;
     if (event.type === 'user/message' && event.data.source?.kind !== 'runtime-context') message = event.data;
@@ -60,7 +62,12 @@ function visible(events, requestId, operationId) {
     if (message.role === 'assistant' && !text && message.content.some(block => block.type === 'tool-call')) {
       return [];
     }
-    return [{ requestId, role: message.role, text }];
+    const attachments = message.content.filter(block => block.type === 'file').map(block => block.attachment);
+    if (!attached && message.role === 'user') {
+      attachments.push(...historyFiles);
+      attached = true;
+    }
+    return [{ requestId, role: message.role, text, ...(attachments.length ? {attachments} : {}) }];
   });
   const last = messages.at(-1);
   if (operationId && last?.role === 'assistant') last.operationId = operationId;
@@ -89,6 +96,8 @@ export async function openWorker(env) {
     CREATE INDEX IF NOT EXISTS native_activity_by_scope
       ON native_batches(scope_key, revision DESC, json_extract(events,'$[#-1].time'));
   `);
+  db.exec(await readFile(new URL('./chat-attachments.sql', import.meta.url), 'utf8'));
+  const files = chatFiles(db, fail, env.HARNESS_TEST_PYTHON);
   const platform = env.HARNESS_MODEL_GATEWAY_URL ? new DatabaseSync(env.HARNESS_PLATFORM_DATABASE, { readOnly: true }) : null;
   platform?.exec('PRAGMA busy_timeout=5000');
   const budget = platform?.prepare(`SELECT budget_hit, EXISTS(SELECT 1 FROM coin_attempts a
@@ -136,7 +145,7 @@ export async function openWorker(env) {
   function previous(key, req) {
     const row = byRequest.get(key, req.requestId);
     if (!row) return undefined;
-    if (row.action !== req.action || row.input !== req.text) fail('conflict');
+    if (row.action !== req.action || row.input !== req.inputKey) fail('conflict');
     return visible(JSON.parse(row.events), req.requestId, dispatch.operationId(key, req.requestId)).at(-1);
   }
 
@@ -214,6 +223,7 @@ export async function openWorker(env) {
       writer.prepare('DELETE FROM account.guest_chats WHERE chat_id=? AND claimed_actor=?').run(chatId,actorId);
       writer.prepare('INSERT INTO deleted_chat_scopes VALUES (?)').run(key);
       writer.prepare('DELETE FROM native_batches WHERE scope_key=?').run(key);
+      writer.prepare('DELETE FROM chat_files WHERE scope_key=?').run(key);
       writer.exec('COMMIT');
       return {deleted:true};
     } finally { writer.close(); } // Closing rolls back any unfinished transaction.
@@ -250,25 +260,32 @@ export async function openWorker(env) {
         const window = rows.slice(0, limit).reverse();
         const events = [], messages = [];
         for (const row of window) {
-          const batch = publicEvents(JSON.parse(row.events));
+          const batch = publicEvents(JSON.parse(row.events), files.forTurn(key, row.request_id, req.scope.chatId));
           events.push(...batch);
           messages.push(...visible(batch, row.request_id, row.operation_id));
         }
         return { events, messages, nextBefore: rows.length > limit ? window[0].revision : null };
       }
       return recent.all(key, limit, offset).reverse()
-        .flatMap(row => visible(JSON.parse(row.events), row.request_id, row.operation_id));
+        .flatMap(row => visible(JSON.parse(row.events), row.request_id, row.operation_id, files.forTurn(key, row.request_id, req.scope.chatId)));
     }
     const metered = req.action === 'turn' && Boolean(env.HARNESS_MODEL_GATEWAY_URL);
     const write = req.action === 'append' || req.action === 'turn';
+    let attachments = [];
     if (write) {
-      if (typeof req.text !== 'string' || !req.text.trim() || Buffer.byteLength(req.text) > 8192 ||
+      if (typeof req.text !== 'string' || Buffer.byteLength(req.text) > 8192 ||
           typeof req.requestId !== 'string' || !req.requestId.length || req.requestId.length > 128) {
         fail('invalid_request');
       }
       const result = dispatch.atomic(() => {
+        attachments = files.resolve(key, req);
+        if (!req.text.trim() && !attachments.length) fail('invalid_request');
+        req.inputKey = attachments.length ? JSON.stringify([req.text, req.attachments]) : req.text;
         const cached = previous(key, req);
-        if (!cached) dispatch.check(key, req);
+        if (!cached) {
+          dispatch.check(key, req);
+          files.refresh(key, attachments);
+        }
         return cached;
       });
       if (result) return result;
@@ -324,6 +341,7 @@ export async function openWorker(env) {
             }
           }));
         }
+        if (req.action === 'turn') await files.mount(ctx, load, key, attachments);
         registerConnectionContext(ctx,attached,available,req.connectionGuides);
       }
       if (req.action === 'tools') {
@@ -359,7 +377,9 @@ export async function openWorker(env) {
       const rows = all.all(key);
       const seed = rows.flatMap(row => JSON.parse(row.events));
       seedLength=seed.length;
-      checkpointContext={baseRevision:rows.length,text:req.text,connections:req.connections||[],
+      const promptText = req.text.trim() || !attachments.length ? req.text : "Разбери приложенные файлы.";
+      checkpointContext={baseRevision:rows.length,text:req.text,
+        ...(attachments.length ? {attachments:req.attachments} : {}),connections:req.connections||[],
         illustrations:!!req.illustrations,availableServices:req.availableServices||[],connectionGuides:req.connectionGuides||{}};
       if(req.restore && req.restore.baseRevision!==rows.length) fail('conflict');
       const createdAt = rows[0]?.created_at ?? Date.now();
@@ -371,7 +391,7 @@ export async function openWorker(env) {
         session.append('user/message', message, { surfaceOp: 'append' });
         events = session.snapshotEvents(seed.length);
       } else {
-        const input = { load, ctx, chatId: key, seed, progress:req.grant?.model ? undefined : req.progress, text: req.text, requestId: req.requestId };
+        const input = { load, ctx, chatId: key, seed, progress:req.grant?.model ? undefined : req.progress, text: promptText, requestId: req.requestId };
         let turn;
         if (metered) {
           const runGatewayTurn = req.grant.model ? (await import('./openrouter-turn.mjs')).runRouterTurn
@@ -453,7 +473,7 @@ export async function openWorker(env) {
       }
       const messages = visible(events, req.requestId);
       const role = req.action === 'append' ? 'user' : 'assistant';
-      if (messages[0]?.role !== 'user' || messages[0]?.text !== req.text || messages.at(-1)?.role !== role) {
+      if (messages[0]?.role !== 'user' || messages[0]?.text !== promptText || messages.at(-1)?.role !== role) {
         throw new Error('Incomplete native turn');
       }
       const answer = dispatch.atomic(() => {
@@ -463,7 +483,9 @@ export async function openWorker(env) {
         if (metered && (deadline <= Date.now() || !dispatch.owns(key,req))) fail('turn_unconfirmed');
         if (!metered) dispatch.check(key, req);
         try {
-          insert.run(key, rows.length, req.requestId, req.action, req.text, createdAt, JSON.stringify(events));
+          files.resolve(key, req);
+          insert.run(key, rows.length, req.requestId, req.action, req.inputKey, createdAt, JSON.stringify(events));
+          files.commit(key, req.requestId, attachments);
         } catch (error) {
           if (error.errcode === 1555 || error.errcode === 2067) fail('conflict');
           throw error;

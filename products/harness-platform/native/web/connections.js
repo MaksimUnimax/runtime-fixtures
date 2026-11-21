@@ -12,11 +12,103 @@ window.__ModuleLoader__.load({
         return h('details',{className:'connection-guide'},h('summary',null,title),
           h('ol',null,steps.map(step=>h('li',{key:step},step))));
       }
+      function TelegramDialog({close,linked}) {
+        const dialog=React.useRef(null),frame=React.useRef(null);
+        const [attempt,retry]=React.useReducer(n=>n+1,0),[request,setRequest]=React.useState(null);
+        const [error,setError]=React.useState(''),[phase,setPhase]=React.useState('loading');
+        React.useLayoutEffect(()=>{
+          const element=dialog.current;
+          element.showModal();
+          function escape(e){
+            if(e.key==='Escape'&&element.open){
+              e.preventDefault();e.stopImmediatePropagation();close();
+            }
+          }
+          window.addEventListener('keydown',escape,true);
+          return ()=>{window.removeEventListener('keydown',escape,true);element.close();};
+        },[]);
+        React.useEffect(()=>{
+          let active=true;
+          setError('');setRequest(null);setPhase('loading');
+          post('/api/integrations/telegram/connect',{}).then(reply=>{
+            if(!active)return;
+            const url=new URL(reply.url,location.href);
+            const widget=url.origin===location.origin&&url.pathname==='/telegram/return'&&url.searchParams.get('widget')==='1';
+            if(!widget&&(url.origin!=='https://oauth.telegram.org'||url.pathname!=='/auth'))throw Error('Не удалось открыть подключение.');
+            const state=url.searchParams.get('state');
+            if(!state)throw Error('Не удалось начать подключение.');
+            if(widget)url.searchParams.set('embed','1');
+            setRequest({url:url.href,state,widget});
+            if(!widget)setPhase('ready');
+          }).catch(e=>{if(active)setError(e.message);});
+          return ()=>{active=false;};
+        },[attempt]);
+        React.useEffect(()=>{
+          if(!request)return;
+          let active=true,checking=false;
+          async function check(){
+            if(!active||checking)return;
+            checking=true;
+            try {
+              const account=await a.api('/api/integrations');
+              if(active&&account.telegram?.linked)linked(account);
+            } catch(e){if(active)setError(e.message);} finally{checking=false;}
+          }
+          function receive(e){
+            const m=e.data;
+            if(e.origin!==location.origin||e.source!==frame.current?.contentWindow||
+               m?.type!=='octoport.telegram.result'||m.state!==request.state)return;
+            if(m.outcome==='linked')check();
+            else if(m.outcome==='error')setError(m.message||'Telegram не подтвердил подключение.');
+          }
+          window.addEventListener('message',receive);
+          let channel;
+          if(!request.widget){
+            window.addEventListener('focus',check);
+            if('BroadcastChannel' in window){
+              channel=new BroadcastChannel('octoport.telegram');
+              channel.onmessage=e=>{if(e.data?.state===request.state&&e.data.linked)check();};
+            }
+          }
+          return ()=>{active=false;window.removeEventListener('message',receive);window.removeEventListener('focus',check);channel?.close();};
+        },[request,linked]);
+        React.useEffect(()=>{
+          if(!request?.widget||phase!=='loading'||error)return;
+          const timer=setTimeout(()=>setError('Кнопка Telegram не загрузилась. Проверьте соединение и попробуйте ещё раз.'),15000);
+          return ()=>clearTimeout(timer);
+        },[request,phase,error]);
+        function loaded(){
+          let doc;
+          try{doc=frame.current?.contentDocument;}catch{return;}
+          if(!doc||doc.URL==='about:blank')return;
+          const sdk=doc.querySelector('script[data-telegram-login]');
+          if(sdk&&doc.querySelector('iframe'))setPhase('ready');
+          else if(doc.querySelector('script[src="/telegram/return.js"]'))setPhase('checking');
+          else setError('Не удалось загрузить кнопку Telegram. Начните подключение заново.');
+        }
+        return h('dialog',{ref:dialog,className:'account-dialog telegram-dialog','aria-labelledby':'telegram-dialog-title',
+            onCancel:e=>{e.preventDefault();close();}},
+          h('button',{type:'button',className:'account-close','aria-label':'Закрыть',onClick:close},'×'),
+          h('h2',{id:'telegram-dialog-title'},'Подключить Telegram'),
+          h('p',null,'Выберите свой аккаунт Telegram и разрешите боту Октопорта присылать сообщения.'),
+          error?h(React.Fragment,null,h('p',{role:'alert'},error),
+            h('button',{type:'button',onClick:retry},'Попробовать снова')):
+            h(React.Fragment,null,
+              phase!=='ready'&&h('p',{role:'status'},phase==='checking'?'Проверяем подключение…':'Загружаем Telegram…'),
+              request?.widget&&h('iframe',{ref:frame,title:'Вход через Telegram',className:'telegram-widget-frame',
+                hidden:phase!=='ready',src:request.url,onLoad:loaded,referrerPolicy:'no-referrer'}),
+              request&&!request.widget&&h('a',{href:request.url,target:'_blank',rel:'noopener noreferrer'},'Войти через Telegram')));
+      }
       function Connections({initial={},after,chat}) {
         const [list,setList]=React.useState(null),[provider,setProvider]=React.useState(initial.provider||'');
         const [fields,setFields]=React.useState(initial.fields||{}),[name,setName]=React.useState(initial.name||'');
         const [msg,setMsg]=React.useState(initial.notice||''),[busy,setBusy]=React.useState(false);
         const [target,setTarget]=React.useState(''),[phrase,setPhrase]=React.useState(''),[rows,setRows]=React.useState([]);
+        const [telegramOpen,setTelegramOpen]=React.useState(false);
+        const telegramLinked=React.useCallback(account=>{
+          setList(old=>({...old,...account}));setTelegramOpen(false);setProvider('');
+          setMsg('Telegram подключён к вашему аккаунту.');
+        },[]);
         const grantsUrl=chat&&'/api/chats/'+encodeURIComponent(chat)+'/integrations';
         async function refresh(){
           const [account,grants]=await Promise.all([a.api('/api/integrations'),grantsUrl&&a.api(grantsUrl)]);
@@ -60,11 +152,8 @@ window.__ModuleLoader__.load({
             key:kind,title:'Как получить ключи '+kind,steps:list.keyGuides[kind]})),
           entry?.auth==='telegram'&&!list.telegram.hasBinding&&h('div',null,
             h('p',null,list.telegram.configured?'Разрешите боту Октопорта писать вам. Подключение будет доступно плагинам этого аккаунта.':'Администратору нужно настроить бота Октопорта.'),
-            list.telegram.configured&&h('button',{type:'button',disabled:busy,onClick:()=>act(async()=>{
-              const reply=await post('/api/integrations/telegram/connect',{});
-              sessionStorage.setItem('octoport.telegram.return',location.pathname);
-              location.assign(reply.url);
-            })},'Подключить Telegram')),
+            list.telegram.configured&&h('button',{type:'button',disabled:busy,onClick:()=>setTelegramOpen(true)},'Подключить Telegram')),
+          telegramOpen&&h(TelegramDialog,{close:()=>setTelegramOpen(false),linked:telegramLinked}),
           entry && !entry.auth && h('form',{autoComplete:'off',onSubmit:e=>{e.preventDefault();act(async()=>{
             await post('/api/integrations',{provider,name:name.trim()||entry.title,fields,...(initial.chatId?{chatId:initial.chatId}:{})});
             window.dispatchEvent(new Event('harness:grants'));setFields({});setProvider('');setName('');await refresh();

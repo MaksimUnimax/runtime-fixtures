@@ -62,6 +62,9 @@ try {
   const transport = await createTransport(data, initialHistory);
   window.harnessAccount = transport.account;
   window.__DSH_TRANSPORT__ = {rpc: transport.rpc};
+  window.__DSH_FILE_UPLOAD__ = {fetch: (path, options) => fetch(new URL(path, document.baseURI), {
+    ...options, credentials:'same-origin', cache:'no-store',
+  })};
   window.__DSH_REMOTE_ACCESS__ = transport.access();
   window.__DSH_LOCALE__ = {read:async () => ({languages:['ru'], preference:'ru'}), onChange() {}};
   window.__DSH_SHORTCUTS_CONFIG__ = {stopSequenceMs:500};
