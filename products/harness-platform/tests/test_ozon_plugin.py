@@ -67,6 +67,7 @@ class OzonFlow(unittest.TestCase):
         self.fail("Job timed out")
 
     def test_store_scope_and_performance_guidance(self):
+        self.post("/api/plugins",{"plugin":"ozon","installed":True})
         self.post(self.base,{"plugin":"ozon","enabled":True})
         self.assertFalse(self.client.get(self.base,headers=self.headers).json()["plugins"][0]["enabled"])
         second=self.post("/api/integrations",dict(provider="ozon",name="Реклама",fields={
@@ -85,7 +86,9 @@ class OzonFlow(unittest.TestCase):
             "cid":self.cid,"sku":"18","metric":"loss","value":"0","revision":None}).status_code,400)
 
     def test_model_and_reasoning_are_independent_between_plugins(self):
+        self.post("/api/plugins",{"plugin":"wildberries","installed":True})
         self.post(self.base,{"plugin":"wildberries","enabled":True})
+        self.post("/api/plugins",{"plugin":"ozon","installed":True})
         self.post(self.base,{"plugin":"ozon","enabled":True})
         models={"alpha":{"id":"alpha","efforts":["off","high"]},
                 "beta":{"id":"beta","efforts":["low","high"]}}
@@ -115,6 +118,7 @@ class OzonFlow(unittest.TestCase):
             self.assertFalse(registry.attached(db,self.scope,"ozon"))
 
     def test_catalogue_429_resumes_original_request(self):
+        self.post("/api/plugins",{"plugin":"ozon","installed":True})
         self.post(self.base,{"plugin":"ozon","enabled":True})
         original=self.client.app.state.http.post
         requests=[]
@@ -166,6 +170,7 @@ class OzonFlow(unittest.TestCase):
         with self.client.app.state.identity._write() as db:
             registry.install(db)
             self.assertFalse(registry.attached(db,self.scope,"ozon"))
+        self.post("/api/plugins",{"plugin":"ozon","installed":True})
         self.post(self.base,{"plugin":"ozon","enabled":True})
         restored=self.client.get(self.url,params={"cid":self.cid,"sku":"17"},headers=self.headers).json()
         self.assertEqual(restored["values"]["loss"]["value"],"0")

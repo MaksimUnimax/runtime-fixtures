@@ -174,6 +174,7 @@ class RouterOperations(unittest.TestCase):
     @unittest.skipUnless(os.environ.get('HARNESS_NODE_MODULES'),'requires pinned native Harness')
     def test_cancel_after_accepted_tool_preserves_uncertainty_and_does_not_replay(self):
         url='/api/chats/'+self.chat
+        self.client.post('/api/plugins',headers=self.headers,json={'plugin':'illustrations','installed':True}).raise_for_status()
         self.client.post(url+'/plugins',headers=self.headers,json={'plugin':'illustrations','enabled':True}).raise_for_status()
         self.client.post(url+'/plugins/illustrations/model',headers=self.headers,json={'model':'maker/illustrator','effort':'auto'}).raise_for_status()
         calls=[]
@@ -231,6 +232,7 @@ class RouterOperations(unittest.TestCase):
             self.assertEqual(r.status_code,200,r.text)
             return r.json()
         for plugin in ('illustrations','wildberries'):
+            post('/api/plugins',{'plugin':plugin,'installed':True})
             post(url,{'plugin':plugin,'enabled':True})
         image=url+'/illustrations'
         offered=self.client.get(image+'?models=1',headers=self.headers).json()['models']
@@ -400,7 +402,8 @@ class RouterOperations(unittest.TestCase):
 
     def test_stored_image_reopens_when_provider_is_unavailable(self):
         base='/api/chats/'+self.chat+'/plugins'
-        for path,params in [(base,{'plugin':'illustrations','enabled':True}),
+        for path,params in [('/api/plugins',{'plugin':'illustrations','installed':True}),
+                            (base,{'plugin':'illustrations','enabled':True}),
                             (base+'/illustrations/model',{'model':'maker/illustrator','effort':'auto'})]:
             self.client.post(path,json=params,headers=self.headers).raise_for_status()
         grant=self.grant()
@@ -441,7 +444,8 @@ class RouterOperations(unittest.TestCase):
     @unittest.skipUnless(os.environ.get('HARNESS_NODE_MODULES'),'requires pinned native Harness')
     def test_native_tool_roundtrip_preserves_signature_and_streams_visible_text_once(self):
         base='/api/chats/'+self.chat
-        for path,params in [(base+'/plugins',{'plugin':'illustrations','enabled':True}),
+        for path,params in [('/api/plugins',{'plugin':'illustrations','installed':True}),
+                            (base+'/plugins',{'plugin':'illustrations','enabled':True}),
                             (base+'/plugins/illustrations/model',{'model':'maker/illustrator','effort':'auto'})]:
             self.client.post(path,json=params,headers=self.headers).raise_for_status()
         signature=[{'type':'reasoning.encrypted','data':'opaque-control','index':0}]

@@ -144,6 +144,13 @@ class ProductBrowser(unittest.IsolatedAsyncioTestCase):
 
 
 
+async def plugin_action(page, title, action):
+    row = page.get_by_role("navigation", name="Установленные плагины").get_by_role("listitem").filter(has_text=title)
+    await row.hover()
+    await row.get_by_role("button", name="Действия плагина «"+title+"»").click()
+    await page.get_by_role("menuitem", name=action, exact=True).click()
+
+
 class BrowserIsolation(ProductBrowser):
     async def test_wildberries_catalogue_and_sidebar(self):
         await self.check_catalogue_and_sidebar("wb", "Вайлдберис")
@@ -156,27 +163,28 @@ class BrowserIsolation(ProductBrowser):
         await page.get_by_role("button",name="Плагины",exact=True).click()
         dialog=page.get_by_role("dialog",name="Плагины")
         catalog=page.get_by_role("button",name="Плагины",exact=True)
-        connected=page.get_by_role("navigation",name="Подключённые плагины")
+        connected=page.get_by_role("navigation",name="Установленные плагины")
         shortcut=connected.get_by_role("button",name=title,exact=True)
         for category in ("Аналитика","Реклама","Графика","Документы"):
             await expect(dialog.get_by_role("button",name=category,exact=True)).to_be_visible()
         analytics=dialog.get_by_role("button",name="Аналитика",exact=True)
-        switch=dialog.get_by_role("switch",name="Подключить "+title)
+        install=dialog.get_by_role("button",name="Установить "+title)
         await analytics.click()
-        await expect(switch).to_be_hidden()
+        await expect(install).to_be_hidden()
         await analytics.click()
         await expect(dialog.get_by_text(re.compile("Отчёты "+("WB" if provider=="wb" else "Ozon")))).to_be_visible()
-        await switch.click()
-        await expect(switch).to_be_checked()
-        await expect(switch).to_be_enabled()
-        self.assertEqual(await switch.evaluate("el=>el.tagName"),"BUTTON")
+        await install.click()
+        await expect(dialog.get_by_text("Установлен",exact=True)).to_be_visible()
         close=dialog.get_by_role("button",name="Закрыть",exact=True)
         close_box=await close.bounding_box()
         panel_box=await dialog.bounding_box()
         self.assertLess(close_box["width"],48)
         self.assertGreater(close_box["x"],panel_box["x"]+panel_box["width"]*.75)
         await close.click()
-        await expect(connected.get_by_text("Подключённые плагины",exact=True)).to_be_visible()
+        await expect(connected.get_by_text("Установленные плагины",exact=True)).to_be_visible()
+        await expect(connected.get_by_text("Не актив",exact=True)).to_be_visible()
+        await plugin_action(page,title,"Подключить")
+        await expect(connected.get_by_text("Актив",exact=True)).to_be_visible()
         await expect(shortcut).to_be_in_viewport()
         self.assertTrue(await shortcut.evaluate("""plugin => {
             const list = plugin.closest('.octo-workspace-list');
@@ -283,52 +291,50 @@ class BrowserIsolation(ProductBrowser):
         other=await page.request.post("/api/chats",headers={"Origin":self.base_url})
         self.assertEqual(other.status,201)
         await page.goto("/app/chats/"+(await other.json())["chatId"])
-        await catalog.click()
-        await expect(switch).not_to_be_checked()
-        await page.keyboard.press("Escape")
-        await expect(connected).to_have_count(0)
+        await expect(connected.get_by_text("Не актив",exact=True)).to_be_visible()
         await page.goto(original)
         await expect(shortcut).to_be_visible()
-        await shortcut.hover()
-        await connected.get_by_role("button",name="Действия плагина «"+title+"»").click()
-        await page.get_by_role("menuitem",name="Отключить плагин",exact=True).click()
-        await expect(shortcut).to_have_count(0)
+        await plugin_action(page,title,"Отключить")
+        await expect(connected.get_by_text("Не актив",exact=True)).to_be_visible()
         await page.reload()
+        await expect(connected.get_by_text("Не актив",exact=True)).to_be_visible()
         await catalog.click()
-        await expect(switch).not_to_be_checked()
-        await expect(switch).to_be_enabled()
+        await expect(dialog.get_by_text("Установлен",exact=True)).to_be_visible()
         await page.keyboard.press("Escape")
-        await expect(connected).to_have_count(0)
 
     async def test_plugin_navigation_on_collapsed_sidebar_and_mobile(self):
         page=await self.open_chat("first-browser")
         catalog=page.get_by_role("button",name="Плагины",exact=True)
         dialog=page.get_by_role("dialog",name="Плагины")
         await catalog.click()
-        await dialog.get_by_role("switch",name="Подключить Озон").click()
-        await expect(dialog.get_by_role("switch",name="Подключить Озон")).to_be_checked()
-        await dialog.get_by_role("switch",name="Подключить Вайлдберис").click()
-        await expect(dialog.get_by_role("switch",name="Подключить Вайлдберис")).to_be_checked()
+        for title in ("Озон","Вайлдберис"):
+            install=dialog.get_by_role("button",name="Установить "+title)
+            await install.click()
+            await expect(install).to_have_count(0)
         await page.keyboard.press("Escape")
         await page.locator("[data-sidebar-toggle]:visible").click()
-        await expect(page.locator('.octo-plugin-navigation[data-wide="false"]')).to_be_visible()
-        shortcuts=page.get_by_role("navigation",name="Подключённые плагины")
-        await shortcuts.get_by_role("button",name="Озон",exact=True).click()
+        compact=page.locator('.octo-plugin-navigation[data-wide="false"]')
+        await expect(compact).to_be_visible()
+        shortcut=compact.get_by_role("button",name="Озон",exact=True)
+        await expect(shortcut).to_have_attribute("aria-description","Не актив")
+        await shortcut.click()
+        await page.get_by_role("menuitem",name="Подключить",exact=True).click()
+        await expect(shortcut).to_have_attribute("aria-description","Актив")
+        await shortcut.click()
         await page.get_by_role("menuitem",name="Открыть плагин",exact=True).click()
         await expect(page.get_by_role("dialog",name="Озон")).to_be_visible()
         await page.keyboard.press("Escape")
-        await shortcuts.get_by_role("button",name="Вайлдберис",exact=True).click()
-        await page.get_by_role("menuitem",name="Отключить плагин",exact=True).click()
-        await expect(shortcuts.get_by_role("button",name="Вайлдберис",exact=True)).to_have_count(0)
         await page.locator("[data-sidebar-toggle]:visible").click()
-        await account_action(page, "Настройки")
+        await account_action(page,"Настройки")
         await page.get_by_role("button",name="Тёмная",exact=True).click()
         await page.keyboard.press("Escape")
         await page.set_viewport_size({"width":390,"height":700})
         await page.locator("[data-sidebar-opener]:visible").click()
+        await plugin_action(page,"Озон","Отключить")
+        rows=page.get_by_role("navigation",name="Установленные плагины")
+        await expect(rows.get_by_text("Не актив",exact=True)).to_have_count(2)
         await catalog.click()
-        await expect(dialog.get_by_role("switch",name="Подключить Вайлдберис")).not_to_be_checked()
-        await expect(dialog.get_by_role("switch",name="Подключить Озон")).to_be_checked()
+        await expect(dialog.get_by_text("Установлен",exact=True)).to_have_count(2)
         await expect(page.locator("body[data-ds-dark-theme]")).to_have_count(1)
         close=dialog.get_by_role("button",name="Закрыть")
         await expect(close).to_be_in_viewport()
@@ -346,7 +352,7 @@ class BrowserIsolation(ProductBrowser):
             await page.reload()
             await page.get_by_role("button",name="Подключения",exact=True).click()
             dialog=page.get_by_role("dialog",name="Подключения этого чата")
-            shortcut=page.get_by_role("navigation",name="Подключённые плагины").get_by_role("button",name="Вайлдберис",exact=True)
+            shortcut=page.get_by_role("navigation",name="Установленные плагины").get_by_role("button",name="Вайлдберис",exact=True)
             await expect(shortcut).to_have_count(0)
             with patch.object(httpx.AsyncClient,"post",return_value=httpx.Response(200,json={"cards":[],"cursor":{"total":0}})):
                 await dialog.get_by_role("switch",name="Магазин WB · Wildberries").click()
@@ -635,17 +641,8 @@ class BrowserIsolation(ProductBrowser):
         await expect(page.locator('[data-chat-flow-kind="assistant-step"]')).to_be_visible(timeout=45_000)
         await expect(page.get_by_role("tab", name="Траектория")).to_have_count(0)
         trigger = page.get_by_role("button", name="Подключения", exact=True)
-        for width in (1200, 390):
-            await page.set_viewport_size({"width": width, "height": 850})
-            await expect(trigger).to_be_visible()
-            # The sidebar switches layouts on resize. Compare both boxes in the same frame.
-            await page.wait_for_function("""width => {
-                const pill = document.querySelector('.chat-access-trigger');
-                const card = document.querySelector('[data-composer-input]')?.closest('.uV2eYG_card');
-                return innerWidth === width && pill && card &&
-                    Math.abs(pill.getBoundingClientRect().left - card.getBoundingClientRect().left) <= 2;
-            }""", arg=width, timeout=5000)
-        await page.set_viewport_size({"width": 1200, "height": 850})
+        await expect(page.locator('.octo-plugin-navigation').get_by_role("button",name="Подключения")).to_be_in_viewport()
+        await expect(page.locator('[data-slot="conversation.input.dock"]').get_by_role("button",name="Подключения")).to_have_count(0)
         await trigger.click()
         await page.get_by_role("button", name="Добавить подключение").click()
         dialog = page.get_by_role("dialog", name="Подключение сервиса")
@@ -750,67 +747,48 @@ class BrowserIsolation(ProductBrowser):
             await expect(page.locator("[data-composer-input]").last).to_be_visible()
             await expect(page.locator("body[data-ds-dark-theme]")).to_have_count(int(value != "light"))
 
-    async def test_chat_menu_attaches_catalog_plugin_to_target_chat(self):
+    async def test_installed_plugin_follows_selected_chat(self):
         from platform_core.user_plugins.registry import Plugin
-
-        future = Plugin("fixture-doc", "documents", "Документы для теста", "Проверочный плагин", "fixture")
+        future = Plugin("fixture-doc", "documents", "Документы для теста", "Новый плагин", "fixture")
         with patch.dict("platform_core.user_plugins.registry.CATALOG", {future.id: future}):
             page = await self.open_chat("first-browser")
-            current = page.url
-            active = urlsplit(current).path.rsplit("/", 1)[-1]
-            response = await page.request.post("/api/chats", headers={"Origin": self.base_url})
-            other = (await response.json())["chatId"]
-            await page.reload()
-            composer = page.locator("[data-composer-input]").last
-            await composer.fill("Черновик открытого чата")
+            first = urlsplit(page.url).path.rsplit("/", 1)[-1]
+            await page.get_by_role("button", name="Плагины", exact=True).click()
             dialog = page.get_by_role("dialog", name="Плагины", exact=True)
-
-            async def open_from_row(chat):
-                row = page.locator(f'[data-row-key="session:{chat}"]')
-                await row.hover()
-                await row.locator("[data-context-menu-trigger]").click()
-                await page.get_by_role("menuitem", name="Подключить плагин", exact=True).click()
-                await expect(dialog).to_be_visible()
-                await expect(dialog.get_by_text(re.compile(r"^Чат «.+»$"))).to_be_visible()
-
-            async def enabled(chat):
-                response = await page.request.get(f"/api/chats/{chat}/plugins")
-                return {p["id"] for p in (await response.json())["plugins"] if p["enabled"]}
-
-            await open_from_row(other)
-            target = dialog.get_by_role("switch", name="Подключить "+future.title, exact=True)
-            await target.click()
-            await expect(target).to_be_checked()
+            await dialog.get_by_role("button", name="Установить "+future.title).click()
+            await expect(dialog.get_by_text("Установлен",exact=True)).to_be_visible()
             await page.keyboard.press("Escape")
-            await expect(dialog).to_have_count(0)
-            await expect(page).to_have_url(current)
-            await expect(composer).to_have_text("Черновик открытого чата")
-            self.assertEqual(await enabled(other), {future.id})
-            self.assertEqual(await enabled(active), set())
-
-            # A new, empty chat exposes its own actions even on a short mobile viewport.
-            await page.set_viewport_size({"width": 680, "height": 320})
-            opener = page.locator("[data-sidebar-opener]:visible")
-            await opener.click()
-            await open_from_row(active)
-            self.assertTrue(await dialog.evaluate('''el => {
-                const {top, bottom} = el.getBoundingClientRect();
-                return top >= 0 && bottom <= innerHeight && el.scrollHeight > el.clientHeight;
-            }'''))
-            await expect(target).not_to_be_checked()
-            builtin = dialog.get_by_role("switch", name="Подключить Озон", exact=True)
-            await builtin.scroll_into_view_if_needed()
-            await builtin.click()
-            await expect(builtin).to_be_checked()
-            await dialog.get_by_role("button", name="Закрыть", exact=True).click()
-            await page.set_viewport_size({"width": 1280, "height": 800})
-            connected = page.get_by_role("navigation", name="Подключённые плагины")
-            await expect(connected.get_by_role("button", name="Озон", exact=True)).to_be_visible()
-            self.assertEqual(await enabled(active), {"ozon"})
-            self.assertEqual(await enabled(other), {future.id})
-            await page.locator(f'[data-row-key="session:{other}"]').click()
-            await expect(connected.get_by_text(future.title, exact=True)).to_be_visible()
-            await expect(connected.get_by_role("button", name=future.title, exact=True)).to_have_count(0)
+            nav = page.get_by_role("navigation", name="Установленные плагины")
+            await expect(nav.get_by_text("Не актив",exact=True)).to_be_visible()
+            await plugin_action(page, future.title, "Подключить")
+            await expect(nav.get_by_text("Актив",exact=True)).to_be_visible()
+            await page.get_by_role("button", name="Новая сессия",exact=True).filter(has_text="Новая сессия").click()
+            await expect(nav.get_by_text("Не актив",exact=True)).to_be_visible()
+            second = urlsplit(page.url).path.rsplit("/", 1)[-1]
+            self.assertNotEqual(first,second)
+            row = page.locator(f'[data-row-key="session:{first}"]')
+            await row.hover()
+            await row.locator("[data-context-menu-trigger]").click()
+            await expect(page.get_by_role("menuitem",name="Удалить чат")).to_be_visible()
+            await expect(page.get_by_role("menuitem",name="Подключить плагин")).to_have_count(0)
+            await page.keyboard.press("Escape")
+            await row.click()
+            await expect(nav.get_by_text("Актив",exact=True)).to_be_visible()
+            await plugin_action(page,future.title,"Отключить")
+            await expect(nav.get_by_text("Не актив",exact=True)).to_be_visible()
+            await page.reload()
+            await expect(nav.get_by_text("Не актив",exact=True)).to_be_visible()
+            await plugin_action(page,future.title,"Удалить")
+            confirm = page.get_by_role("dialog",name="Удалить плагин?")
+            await confirm.get_by_role("button",name="Отмена").click()
+            await expect(nav.get_by_text(future.title)).to_be_visible()
+            await plugin_action(page,future.title,"Удалить")
+            await confirm.get_by_role("button",name="Удалить",exact=True).click()
+            await expect(nav).to_have_count(0)
+            await page.locator(f'[data-row-key="session:{second}"]').click()
+            await expect(nav).to_have_count(0)
+            await page.get_by_role("button",name="Плагины",exact=True).click()
+            await expect(dialog.get_by_role("button",name="Установить "+future.title)).to_be_visible()
 
     async def test_delete_background_chat_preserves_current_draft(self):
         page = await self.open_chat("first-browser")

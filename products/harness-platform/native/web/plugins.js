@@ -1,4 +1,4 @@
-// Use the same per-chat catalogue from the sidebar and chat actions.
+// The catalogue installs plugins in the account. Sidebar actions target the selected chat.
 (() => {
   const components = new WeakMap();
   window.octoPluginMenu = (React,ctx,api,ui) => {
@@ -174,102 +174,137 @@
         h(Action,{disabled:busy,onClick:save},'Сохранить модель'),h('p',{role:'status'},msg));
     }
     const panels={wb:Marketplace,ozon:Marketplace,images:Illustrations};
-    function usePlugins(chat) {
-      const url='/api/chats/'+encodeURIComponent(chat)+'/plugins';
-      const [data,setData]=React.useState(null),[err,setErr]=React.useState(''),[busy,setBusy]=React.useState(false);
-      const latest=React.useRef(0);
+    function useCatalog(url) {
+      const [data,setData]=React.useState(null),[error,setError]=React.useState(''),[busy,setBusy]=React.useState(false);
       React.useEffect(()=>{
         const controller=new AbortController();
+        let revision=0;
         async function refresh() {
-          const revision=++latest.current;
+          const version=++revision;
           try {
-            const result=await api(url,{signal:controller.signal});
-            if(revision===latest.current){setData(result);setErr('');}
-          } catch(e) {
-            if(revision===latest.current&&!controller.signal.aborted)setErr(e.message);
-          }
+            const next=await api(url,{signal:controller.signal});
+            if(!controller.signal.aborted&&version===revision){setData(next);setError('');}
+          }catch(e){if(!controller.signal.aborted&&version===revision)setError(e.message);}
         }
+        const foreground=()=>{if(document.visibilityState==='visible')refresh();};
         refresh();window.addEventListener('harness:grants',refresh);
-        return()=>{latest.current++;controller.abort();window.removeEventListener('harness:grants',refresh);};
+        document.addEventListener('visibilitychange',foreground);
+        return ()=>{
+          controller.abort();window.removeEventListener('harness:grants',refresh);
+          document.removeEventListener('visibilitychange',foreground);
+        };
       },[url]);
-      async function toggle(p,enabled) {
-        latest.current++;
-        setBusy(true);setErr('');
+      async function update(path,body) {
+        setBusy(true);setError('');
         try {
-          const result=await send(url,{plugin:p.id,enabled});
-          latest.current++;setData(result);
+          await send(path,body);
           window.dispatchEvent(new Event('harness:grants'));
-        } catch(e){setErr(e.message);}finally{setBusy(false);}
+        }catch(e){setError(e.message);return false;}
+        finally{setBusy(false);}
+        return true;
       }
-      return {url,data,err,busy,toggle};
+      return {data,error,busy,update};
     }
-    function Catalog({chat,title,close}) {
-      const {data,err,busy,toggle}=usePlugins(chat);
+    const accountUrl='/api/plugins';
+    function Catalog({close}) {
+      const {data,error,busy,update}=useCatalog(accountUrl);
       function branch(parent) {
         return data.categories.filter(c=>c.parent===parent).map(c=>{
           const items=data.plugins.filter(p=>p.category===c.id);
           return h(Fold,{key:c.id,label:c.title,initial:items.length>0},
             items.map(p=>h('div',{key:p.id,className:'octo-plugin-row'},
               h('div',null,h('strong',null,p.title),h('p',null,p.description)),
-              h(Switch,{label:'Подключить '+p.title,checked:p.enabled,disabled:busy,onChange:()=>toggle(p,!p.enabled)}))),
+              p.installed?h('span',null,'Установлен'):h(Action,{disabled:busy,'aria-label':'Установить '+p.title,
+                onClick:()=>update(accountUrl,{plugin:p.id,installed:true})},'Установить'))),
             !items.length&&!data.categories.some(x=>x.parent===c.id)&&h('p',null,'Плагинов пока нет.'),branch(c.id));
         });
       }
       return h(Dialog,{label:catalogLabel,close,className:'octo-plugin-catalog'},
-        title&&h('p',{className:'octo-plugin-target'},'Чат «'+title+'»'),
-        err&&h('p',{role:'alert'},err),
-        data ? branch(null) : !err&&h('p',{role:'status'},'Загружаем каталог…'));
+        error&&h('p',{role:'alert'},error),
+        data ? branch(null) : !error&&h('p',{role:'status'},'Загружаем каталог…'));
+    }
+    function SidebarLink({title,Icon,wide,onClick,buttonRef}) {
+      return h('button',{type:'button',className:'octo-plugin-link',ref:buttonRef,title,'aria-label':title,
+        'aria-haspopup':'dialog',onClick},h(Icon,{size:wide?16:18}),wide&&h('span',null,title));
+    }
+    function ChatConnections({chat,wide}) {
+      const path='/api/chats/'+encodeURIComponent(chat)+'/integrations';
+      const {data,error,busy,update}=useCatalog(path);
+      const [open,setOpen]=React.useState(false);
+      const rows=data?.connections||[];
+      const active=rows.filter(row=>row.attached).map(row=>row.name);
+      const title=['Подключения',...active].join(' · ');
+      const names={ozon:'Ozon',wb:'Wildberries',wordstat:'Яндекс Вордстат'};
+      const status={saved:'Сохранено',verified:'Связь подтверждена',unconfirmed:'Связь не подтверждена',denied:'Доступ отклонён'};
+      return h(React.Fragment,null,h(SidebarLink,{wide,title,Icon:IconDataOutlineMedium,onClick:()=>setOpen(true)}),
+        open&&h(Dialog,{label:'Подключения этого чата',close:()=>setOpen(false)},
+          error&&h('p',{role:'alert'},error),
+          !data&&!error&&h('p',{role:'status'},'Загружаем подключения…'),
+          rows.some(row=>!row.attached)&&h('p',null,'При подключении магазина его плагин будет установлен и включён в этом диалоге.'),
+          rows.map(row=>h('div',{key:row.id,className:'octo-plugin-row'},
+            h('div',null,h('strong',null,row.name),h('p',null,[...row.access,status[row.status]||row.status].join(' · '))),
+            h(Switch,{label:row.name+' · '+(names[row.provider]||row.provider),checked:row.attached,disabled:busy,
+              onChange:enabled=>update(path,{connectionId:row.id,enabled})}))),
+          h(Action,{onClick:()=>{setOpen(false);window.dispatchEvent(new CustomEvent('harness:connection',{
+            detail:{newConnection:true,chatId:chat}}));}},'Добавить подключение')));
     }
     function Menu({chat,wide,openCatalog}) {
-      const {url,data,err,busy,toggle}=usePlugins(chat);
-      const [panel,setPanel]=React.useState(''),[actions,setActions]=React.useState('');
-      const catalogButton=React.useRef(null),overflowTrigger=React.useRef(null);
-      const plugin=data?.plugins.find(p=>p.id===panel&&p.enabled);
-      const enabled=(data?.plugins||[]).filter(p=>p.enabled);
-      function link(title,Icon,open,ref) {
-        return h('button',{type:'button',className:'octo-plugin-link',ref,title,'aria-label':title,'aria-haspopup':'dialog',
-          onClick:open},h(Icon,{size:wide?16:18}),wide&&h('span',null,title));
-      }
-      function enabledRow(p) {
+      const url=chat?'/api/chats/'+encodeURIComponent(chat)+'/plugins':accountUrl;
+      const {data,error,busy,update}=useCatalog(url);
+      const [panel,setPanel]=React.useState(''),[actions,setActions]=React.useState(''),[remove,setRemove]=React.useState(null);
+      const catalogButton=React.useRef(null);
+      const installed=(data?.plugins||[]).filter(p=>p.installed);
+      const plugin=installed.find(p=>p.id===panel&&p.enabled);
+      function installedRow(p) {
         const Icon=p.provider==='wb'?IconDataOutlineMedium:IconPersonalizationOutlineMedium;
-        const isOpen=actions===p.id;
-        const hasSettings=Object.hasOwn(panels,p.provider);
+        const isOpen=actions===p.id, hasSettings=p.enabled&&Object.hasOwn(panels,p.provider);
+        const state=p.enabled?'Актив':'Не актив';
         const items=[...(!wide&&hasSettings?[{id:'open',label:'Открыть плагин'}]:[]),
-          {id:'disable',label:'Отключить плагин'}];
+          ...(chat?[{id:'toggle',label:p.enabled?'Отключить':'Подключить'}]:[]),
+          {id:'remove',label:'Удалить',danger:true,separatorBefore:true}];
         const label=wide?'Действия плагина «'+p.title+'»':p.title;
-        return h('li',{key:p.id},
-          wide&&(hasSettings?link(p.title,Icon,()=>setPanel(p.id)):
+        return h('li',{key:p.id,'data-active':String(p.enabled)},
+          wide&&(hasSettings?h(SidebarLink,{title:p.title,Icon,wide,onClick:()=>setPanel(p.id)}):
             h('span',{className:'octo-plugin-link octo-plugin-label'},h(Icon,{size:16}),h('span',null,p.title))),
+          wide&&chat&&h('span',{className:'octo-plugin-state'},state),
           h(Popup,{open:isOpen,portal:true,autoFocus:true,align:'start',side:'bottom',className:'octo-plugin-overflow',
             listClassName:'octo-plugin-menu',items,
             anchor:h('button',{type:'button',className:wide?'octo-plugin-more':'octo-plugin-link octo-plugin-compact',
-              title:label,'aria-label':label,'aria-haspopup':'menu','aria-expanded':isOpen,disabled:busy,
-              onClick:e=>{overflowTrigger.current=e.currentTarget;setActions(isOpen?'':p.id);}},
+              title:wide||!chat?label:label+' · '+state,'aria-label':label,'aria-description':chat?state:undefined,
+              'aria-haspopup':'menu','aria-expanded':isOpen,disabled:busy,onClick:()=>setActions(isOpen?'':p.id)},
               wide?h(IconEllipsisOutlineRegular,{size:16}):h(React.Fragment,null,h(Icon,{size:18}),
-                h('span',{className:'octo-plugin-dots','aria-hidden':true},h(IconEllipsisOutlineRegular,{size:12})))),
+                chat&&h('span',{className:'octo-plugin-indicator','aria-hidden':true}))),
             onClose:()=>setActions(''),onSelect:id=>{
               setActions('');
-              if(id==='disable'){
-                catalogButton.current?.focus({preventScroll:true});
-                toggle(p,false);
-              }else if(id==='open'){
-                overflowTrigger.current?.focus({preventScroll:true});
-                setPanel(p.id);
-              }
+              if(id==='toggle')update(url,{plugin:p.id,enabled:!p.enabled});
+              if(id==='open')setPanel(p.id);
+              if(id==='remove')setRemove(p);
             }}));
       }
       return h('div',{className:'octo-plugin-navigation','data-wide':wide},
-        link(catalogLabel,IconPersonalizationOutlineMedium,()=>openCatalog(chat),catalogButton),
-        err&&!panel&&h('p',{role:'alert'},err),
-        enabled.length>0&&h('nav',{'aria-label':'Подключённые плагины',className:'octo-enabled-plugins'},
-          wide&&h('div',{className:'octo-plugin-list-title'},'Подключённые плагины'),
-          h('ul',null,enabled.map(enabledRow))),
-        plugin&&panels[plugin.provider]&&h(panels[plugin.provider],{key:chat+plugin.id,url:url+'/'+encodeURIComponent(plugin.id),title:plugin.title,provider:plugin.provider,close:()=>setPanel('')}));
+        h(SidebarLink,{wide,title:catalogLabel,Icon:IconPersonalizationOutlineMedium,onClick:openCatalog,buttonRef:catalogButton}),
+        error&&!remove&&h('p',{role:'alert'},error),
+        installed.length>0&&h('nav',{'aria-label':'Установленные плагины',className:'octo-installed-plugins'},
+          wide&&h('div',{className:'octo-plugin-list-title'},'Установленные плагины'),
+          h('ul',null,installed.map(installedRow))),
+        chat&&h(ChatConnections,{chat,wide}),
+        remove&&h(Dialog,{label:'Удалить плагин?',close:()=>{if(!busy)setRemove(null);}},
+          h('p',null,'«'+remove.title+'» будет удалён из установленных плагинов и отключён во всех ваших диалогах.'),
+          error&&h('p',{role:'alert'},error),
+          h('div',{className:'plugin-buttons'},h(Action,{disabled:busy,onClick:()=>setRemove(null)},'Отмена'),
+            h(Action,{disabled:busy,onClick:async()=>{
+              if(await update(accountUrl,{plugin:remove.id,installed:false})){
+                setRemove(null);catalogButton.current?.focus({preventScroll:true});
+              }
+            }},'Удалить'))),
+        plugin&&Object.hasOwn(panels,plugin.provider)&&h(panels[plugin.provider],{key:plugin.id,url:url+'/'+encodeURIComponent(plugin.id),
+          title:plugin.title,provider:plugin.provider,close:()=>setPanel('')}));
     }
     function Sidebar({wide,openCatalog}) {
       const selection=ctx.uiWorkspace.selection;
       const chat=React.useSyncExternalStore(cb=>selection.subscribe(cb),()=>selection.getSnapshot().sessionId);
-      return window.harnessAccount.hasChat(chat)?h(Menu,{key:chat,chat,wide,openCatalog}):null;
+      const selected=window.harnessAccount.hasChat(chat)?chat:null;
+      return h(Menu,{key:selected||'account',chat:selected,wide,openCatalog});
     }
     const productPlugins={Sidebar,Catalog};
     components.set(ctx,productPlugins);

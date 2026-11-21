@@ -78,6 +78,9 @@ def workspace_sidebar(source):
          b'items: [...(onGroupPick ? [{type:"label", id:"group-by",'),
         (b'id: "order-by-separator"\n\t\t\t\t\t},',
          b'id: "order-by-separator"}] : []),'),
+        # Owned chats persist even when the user connects a plugin before the first message.
+        (b'if (session.blank && session.id !== current) return false;',
+         b'if (session.blank && session.id !== current && !window.harnessAccount?.hasChat(session.id)) return false;'),
         # An authenticated empty chat is already stored and can receive plugin attachments.
         (b'const showStatus = primaryStatus.state !== "idle";\n\t\t\tconst renamable',
          b'const showStatus = primaryStatus.state !== "idle";'

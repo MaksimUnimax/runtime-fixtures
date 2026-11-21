@@ -15,11 +15,11 @@ from starlette.routing import Route
 
 from .. import chat_defaults
 from ..chat_connections import attach, scope_for
-from ..identity import AuthenticationError, _secret_digest
+from ..identity import AuthenticationError, _principal, _secret_digest
 from .store import adapter, now, values, valid_sku, write_value
 from . import illustrations, model
 from ..marketplace_matrix import wb_coefficients as wb
-from .registry import CATALOG, CATEGORIES, WB, OZON, attached, enable, store_row
+from .registry import CATALOG, CATEGORIES, WB, OZON, attached, store_row
 
 JOBS = """CREATE TABLE IF NOT EXISTS user_plugin_jobs(
     id TEXT PRIMARY KEY, chat TEXT NOT NULL REFERENCES chats(chat_id) ON DELETE CASCADE,
@@ -169,25 +169,53 @@ class Service:
 def routes(get_token,body):
     base="/api/chats/{chat_id}/plugins"
     path=base+"/{plugin_id}"
+    def snapshot(db, workspace, chat=None):
+        installed = {row[0] for row in db.execute(
+            "SELECT plugin_id FROM entitlements WHERE workspace_id=?", (workspace,))}
+        enabled = {row[0] for row in db.execute(
+            "SELECT plugin_id FROM chat_plugins WHERE workspace_id=? AND chat_id=?", (workspace, chat))}
+        return {"categories": CATEGORIES, "plugins": [
+            {**asdict(p), "installed": p.id in installed, "enabled": p.id in enabled}
+            for p in CATALOG.values()]}
+
+    def cancel_jobs(db, tasks, workspace, key, chat=None):
+        jobs = db.execute("""UPDATE user_plugin_jobs SET state='failed', message='Плагин отключён.'
+            WHERE plugin=? AND state='running' AND chat IN
+            (SELECT chat_id FROM chats WHERE workspace_id=? AND (? IS NULL OR chat_id=?))
+            RETURNING id""", (key, workspace, chat, chat)).fetchall()
+        for (jid,) in jobs:
+            if jid in tasks:
+                tasks[jid].cancel()
+
     async def catalog(req):
-        token=get_token(req,allow_cookie=True)
-        data=await body(req,"plugin","enabled") if req.method=="POST" else None
-        with req.app.state.identity._write() as db:
-            scope=scope_for(db,token,req.path_params["chat_id"])
+        token = get_token(req, allow_cookie=True)
+        chat = req.path_params.get("chat_id")
+        field = "enabled" if chat else "installed"
+        data = await body(req, "plugin", field) if req.method == "POST" else None
+        identity = req.app.state.identity
+        with (identity._write() if data is not None else identity._lock):
+            db = identity._db
+            workspace = scope_for(db, token, chat).workspace_id if chat else _principal(db, token)[1]
             if data is not None:
-                key=data["plugin"]
-                if not isinstance(key,str) or key not in CATALOG or type(data["enabled"])!=bool:
-                    raise HTTPException(400,"Выберите плагин из каталога.")
-                if data["enabled"]:
-                    enable(db,scope,CATALOG[key])
+                key = data["plugin"]
+                if not isinstance(key, str) or key not in CATALOG or type(data[field]) is not bool:
+                    raise HTTPException(400, "Выберите плагин из каталога.")
+                if chat:
+                    if data[field]:
+                        if not db.execute("SELECT 1 FROM entitlements WHERE workspace_id=? AND plugin_id=?",
+                                          (workspace, key)).fetchone():
+                            raise HTTPException(409, "Сначала установите плагин в каталоге.")
+                        db.execute("INSERT OR IGNORE INTO chat_plugins VALUES(?,?,?)", (workspace, chat, key))
+                    else:
+                        db.execute("DELETE FROM chat_plugins WHERE workspace_id=? AND chat_id=? AND plugin_id=?",
+                                   (workspace, chat, key))
+                elif data[field]:
+                    db.execute("INSERT OR IGNORE INTO entitlements VALUES(?,?)", (workspace, key))
                 else:
-                    db.execute("DELETE FROM chat_plugins WHERE workspace_id=? AND chat_id=? AND plugin_id=?",
-                               (scope.workspace_id,scope.chat_id,key))
-                    db.execute("UPDATE user_plugin_jobs SET state='failed',message='Плагин отключён.' WHERE chat=? AND plugin=? AND state='running'",(scope.chat_id,key))
-                    for (jid,) in db.execute("SELECT id FROM user_plugin_jobs WHERE chat=? AND plugin=? AND state='failed'",(scope.chat_id,key)):
-                        if jid in req.app.state.plugins.tasks:
-                            req.app.state.plugins.tasks[jid].cancel()
-            return JSONResponse({"categories":CATEGORIES,"plugins":[{**asdict(p),"enabled":bool(attached(db,scope,p.id))} for p in CATALOG.values()]})
+                    db.execute("DELETE FROM entitlements WHERE workspace_id=? AND plugin_id=?", (workspace, key))
+                if not data[field]:
+                    cancel_jobs(db, req.app.state.plugins.tasks, workspace, key, chat)
+            return JSONResponse(snapshot(db, workspace, chat))
 
     async def settings(req):
         plugin=CATALOG.get(req.path_params["plugin_id"])
@@ -304,4 +332,4 @@ def routes(get_token,body):
                     WHERE n=1""",(chat,plugin.id,cid,sku))
                 result["jobs"]=[dict(zip(("id","metric","state","message"),row)) for row in latest]
             return JSONResponse(result)
-    return [Route(base,catalog,methods=["GET","POST"]),Route(path,settings),Route(path+"/{action}",settings,methods=["POST"])]
+    return [Route("/api/plugins",catalog,methods=["GET","POST"]),Route(base,catalog,methods=["GET","POST"]),Route(path,settings),Route(path+"/{action}",settings,methods=["POST"])]
