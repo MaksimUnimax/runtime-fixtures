@@ -114,7 +114,10 @@ window.__ModuleLoader__.load({
           const before=rows;
           setBusy(true);setError('');
           setRows(before.map(item=>item.id===row.id?{...item,attached:!item.attached}:item));
-          try {setRows((await post(url,{connectionId:row.id,enabled})).connections);}
+          try {
+            setRows((await post(url,{connectionId:row.id,enabled})).connections);
+            window.dispatchEvent(new Event('harness:grants'));
+          }
           catch(e){setRows(before);setError(e.message);}finally{setBusy(false);}
         }
         return h('div',{className:'chat-access'},
