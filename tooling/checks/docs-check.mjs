@@ -2,9 +2,10 @@ import { readdirSync, readFileSync } from "node:fs";
 import { resolve, relative, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-function checkDocumentation(files) {
+function checkDocumentation(files, repositoryFiles) {
   const errors = [];
   const paths = Object.keys(files).sort();
+  const targetPaths = [...repositoryFiles];
   const required = [
     "README.md", "AGENTS.md", "docs/README.md", "docs/STATUS.md", "docs/ROADMAP.md",
     "docs/product/SPEC.md", "docs/product/UX.md", "docs/product/BETA_ADMISSION.md",
@@ -32,7 +33,7 @@ function checkDocumentation(files) {
       }
       const target = parts.join("/");
       checkedLinks++;
-      if (!(target in files) && !paths.some(x => x.startsWith(target + "/"))) {
+      if (!repositoryFiles.has(target) && !targetPaths.some(x => x.startsWith(target + "/"))) {
         errors.push("Broken relative link: " + p + " -> " + href);
       }
     }
@@ -66,6 +67,7 @@ function checkDocumentation(files) {
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const ignored = new Set([".git", "node_modules", ".pnpm-store", "dist", "build", ".next", "coverage", "test-results", "playwright-report"]);
 const files = {};
+const repositoryFiles = new Set();
 function visit(dir) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (ignored.has(entry.name) || entry.isSymbolicLink()) continue;
@@ -73,12 +75,13 @@ function visit(dir) {
     if (entry.isDirectory()) visit(absolute);
     else {
       const path = relative(root, absolute).replaceAll("\\", "/");
+      repositoryFiles.add(path);
       if (/\.(md|mjs|json|tsv|ya?ml)$/.test(path) || [".gitignore", ".editorconfig"].includes(path)) files[path] = readFileSync(absolute, "utf8");
     }
   }
 }
 visit(root);
-const result = checkDocumentation(files);
+const result = checkDocumentation(files, repositoryFiles);
 if (result.errors.length) {
   for (const error of result.errors) console.error(error);
   process.exitCode = 1;
