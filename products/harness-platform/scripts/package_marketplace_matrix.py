@@ -115,6 +115,180 @@ def bind_dataset_contracts(portable, planner_proofs, files):
                 break
 
 
+def bind_wb_advertising_coverage(files, portable):
+    """Keep strict row IDs and document omissions from a successful WB fullstats request."""
+    sources = json.loads(files["dataset_sources.json"])
+    queries = json.loads(files["dataset_queries.json"])
+    previous_source = digest(sources)
+    previous_query = digest({"queries": queries, "sources": sources})
+    check = sources["sources"]["ds_wb_adstats"]["response"]["root_asserts"][0]
+    expected = ["eq", {"$fn": ["len", {"$path": ["records"]}]},
+                {"$fn": ["len", {"$path": ["params", "campaigns"]}]}]
+    if check != {"test": {"$fn": expected}, "code": "DATASET_CAMPAIGN_COVERAGE"}:
+        raise ValueError("Review the source coverage condition before packaging")
+    # Missing rows are visible in the chat. Membership, unique IDs, date bounds
+    # and daily-to-period validation still run on every returned campaign.
+    check["test"]["$fn"][0] = "le"
+    for key in ("wb_active_ads", "wb_active_ads_totals", "wb_supported_ads"):
+        queries["queries"][key]["notes"][1] = (
+            "Если Wildberries не прислал строки по части кампаний, сводка охватывает только полученные строки. "
+            "Отсутствие строк не означает нулевой расход, показы или заказы."
+        )
+    files["dataset_sources.json"] = json.dumps(sources, ensure_ascii=False, indent=2).encode() + b"\n"
+    files["dataset_queries.json"] = json.dumps(queries, ensure_ascii=False, indent=2).encode() + b"\n"
+    for name, proof in portable.items():
+        if name not in sources["sources"] or proof.get("dataset_source_hash") != previous_source:
+            continue
+        proof["dataset_source_hash"] = digest(sources)
+        if proof.get("dataset_query_hash") == previous_query:
+            proof["dataset_query_hash"] = digest({"queries": queries, "sources": sources})
+
+
+def patch_runtime(files, filename, old, new):
+    source = files[filename].decode()
+    if source.count(old) != 1:
+        raise ValueError(f"Review the chat integration point in {filename}")
+    files[filename] = source.replace(old, new).encode()
+
+
+def bind_report_previews(files):
+    filename = "parameter_report_runtime.py"
+    patch_runtime(files, filename,
+        "def _bind(worker,row,root,fragment):\n",
+        "def _bind(worker,row,root,fragment):\n"
+        " binder=_api(worker)\n"
+        " if getattr(binder,'preview_only',False):return binder.bind(worker,row,root,fragment)\n")
+    patch_runtime(files, filename,
+        " local_root={**root,'parameter_admission':descriptor}\n",
+        " local_root={**root,'parameter_admission':descriptor}\n"
+        " if getattr(_api(worker),'preview_only',False):\n"
+        "  local_root=root;draft['parameter_mode']='preview'\n")
+    patch_runtime(files, filename,
+        "   need(result.get('saved')is True,'PARAMETER_WRITE_NOT_CONFIRMED')\n",
+        "   binder=_api(worker)\n"
+        "   if getattr(binder,'preview_only',False):binder.accept_result(state['reference'],state['producer'],result)\n"
+        "   else:need(result.get('saved')is True,'PARAMETER_WRITE_NOT_CONFIRMED')\n")
+    patch_runtime(files, filename,
+        "  need(reply.get('saved')is True,'PARAMETER_WRITE_NOT_CONFIRMED')\n",
+        "  binder=_api(worker)\n"
+        "  if getattr(binder,'preview_only',False):binder.accept_result(state['reference'],state['fragment'],reply)\n"
+        "  else:need(reply.get('saved')is True,'PARAMETER_WRITE_NOT_CONFIRMED')\n")
+    patch_runtime(files, filename,
+        "'calendar_date':today,'timezone':'Europe/Moscow','parameter_periods':value['parameter_periods']}\n",
+        "'calendar_date':today,'timezone':'Europe/Moscow','parameter_periods':value['parameter_periods'],"
+        "'owner_inputs':value.get('owner_inputs',{})}\n")
+    filename = "economics_report_runtime.py"
+    patch_runtime(files, filename,
+        "_input({'period':draft['period'],'parameter_periods':draft['parameter_periods']},root['calendar_date'])",
+        "_input({'period':draft['period'],'parameter_periods':draft['parameter_periods'],"
+        "'owner_inputs':draft.get('owner_inputs',{})},root['calendar_date'])")
+    filename = "parameter_support/parameter_report_contract.py"
+    patch_runtime(files, filename, "'group_by','parameter_periods'},'PARAMETER_REPORT_INPUT')",
+        "'group_by','parameter_periods','owner_inputs'},'PARAMETER_REPORT_INPUT')")
+    patch_runtime(files, filename,
+        " return {'period':deepcopy(value['period']),'parameter_periods':deepcopy(periods)}",
+        " from platform_core.marketplace_matrix.forecast_preview import normalise_owner_inputs\n"
+        " owner=normalise_owner_inputs(value.get('owner_inputs',{}))\n"
+        " return {'period':deepcopy(value['period']),'parameter_periods':deepcopy(periods),"
+        "**({'owner_inputs':owner}if owner else{})}")
+
+
+def bind_ozon_posting_money(files):
+    filename = "parameter_support/economics_orders.py"
+    patch_runtime(files, filename,
+        "            price=_number(product[fields['seller_price']]);quantity=_number(product[fields['quantity']])\n",
+        "            price=product[fields['seller_price']]\n"
+        "            if type(price)is dict:\n"
+        "                need(set(price)=={'amount','currency'},'ORDERS_NUMBER')\n"
+        "                need(price['currency']=='RUB','ORDERS_CURRENCY')\n"
+        "                price=price['amount']\n"
+        "            price=_number(price);quantity=_number(product[fields['quantity']])\n")
+
+
+def bind_coefficient_guidance(files):
+    catalog = json.loads(files["template_catalog.json"])
+    templates = catalog["templates"]
+    previews = (
+        "По умолчанию используй последние 12 месяцев по московскому календарю. "
+        "Для явно указанного интервала передай его без подмены. "
+        "Покажи фактический период расчёта и дату получения данных. "
+        "Расчёт в чате не сохраняет коэффициент."
+    )
+    basis = (
+        "Период прогноза относится к заказам. Периоды расчёта коэффициентов указывай отдельно. "
+        "Покажи коэффициенты, их периоды и источник значений. "
+        "Используй результаты матрицы, округляй только для отображения."
+    )
+    templates["parameter.loss_rate.v1"]["notes"] = [
+        "Раздели число уникальных потерянных физических единиц на исходное число заказанных единиц FBO и FBS. "
+        "К потерям относятся отмены, невыкупы и возвраты по этим исходным заказам. "
+        "Один экземпляр учитывается один раз, даже если он есть и в отменах, и в возвратах. "
+        "Незавершённые единицы входят в знаменатель, показываются отдельно и не считаются выкупами. "
+        "Долю можно показать в процентах. При нулевом знаменателе доля не определена.",
+        previews,
+    ]
+    templates["parameter.delivery_mean.v1"]["notes"] = [
+        "Сложи подтверждённые расходы Ozon на прямую доставку и последнюю доставку за период "
+        "по дате начисления с учётом корректировок. Раздели на все исходно заказанные физические единицы FBO и FBS "
+        "по дате принятия в обработку за тот же интервал. Результат в рублях на заказанную единицу. "
+        "Обратная логистика и обработка FBS учитываются отдельно. Доля потерь знаменатель не меняет. "
+        "Сумму общего финансового отчёта нельзя распределять по SKU без детализации. "
+        "При нулевом знаменателе среднее не определено.",
+        previews,
+    ]
+    templates["economics.delivery_projection.v1"]["notes"] = [
+        "Покажи ожидаемые потери N × k, ожидаемые оставшиеся единицы N × (1 − k) "
+        "и прогноз прямой плюс последней доставки N × d. Здесь N — исходно заказанные единицы, "
+        "k — доля потерь, d — средняя объединённая доставка в рублях. "
+        "Сумма доставки считается на всё исходное количество. Это прогноз.",
+        basis,
+    ]
+    unit_notes = templates["economics.unit_forecast.v1"]["notes"]
+    unit_notes[:] = [note for note in unit_notes if "текущие коэффициенты" not in note]
+    unit_notes.append(basis + " Покажи основу себестоимости. При неизвестном налоге или собственных расходах "
+                             "укажи, до каких расходов рассчитан остаток.")
+    files["template_catalog.json"] = json.dumps(catalog, ensure_ascii=False, indent=2).encode() + b"\n"
+
+    report_path = "parameter_support/parameter_report_catalog.json"
+    reports = json.loads(files[report_path])
+    outputs = reports["reports"]["economics.delivery_projection.v1"]["outputs"]
+    for field, label in {
+        "estimated_retained_units": "Ожидаемые единицы, оставшиеся у покупателей",
+        "estimated_failed_units": "Ожидаемые потери",
+        "estimated_forward_last_delivery": "Ожидаемая прямая и последняя доставка",
+    }.items():
+        outputs[field]["label"] = label
+    files[report_path] = json.dumps(reports, ensure_ascii=False, indent=2).encode() + b"\n"
+    patch_runtime(files, "direct_response.py",
+        "    if 'estimates' in context:\n",
+        "    from platform_core.marketplace_matrix.forecast_preview import coefficient_lines, unit_cost_lines\n"
+        "    if 'estimates' in context:\n")
+    patch_runtime(files, "direct_response.py",
+        """            value = str(item['value']).replace('.', ',')
+            unit = item.get('unit', '')
+            suffix = {'RUB': ' ₽', 'rub': ' ₽', 'units': ' шт.', 'ratio': ' (доля)'}.get(unit, ' ' + unit)
+            lines.append(f'{label}: {value}{suffix}.')
+""",
+        """            with localcontext() as arithmetic:
+                arithmetic.prec = 80
+                value = str(Decimal(item['value']).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)).replace('.', ',')
+            unit = item.get('unit', '')
+            suffix = {'RUB': ' ₽', 'rub': ' ₽', 'units': ' шт.', 'estimated_item': ' шт.',
+                      'ratio': ' (доля)'}.get(unit, ' ' + unit)
+            lines.append(f'{label} {value}{suffix}.')
+        lines.extend(coefficient_lines(context.get('parameters_used', ())))
+""")
+    patch_runtime(files, "direct_response.py",
+        "        lines.append('Расходы периода распределены",
+        "        lines.extend(coefficient_lines(value.get('parameters_used', ())))\n"
+        "        lines.extend(unit_cost_lines(value.get('unit_cost_basis', ())))\n"
+        "        lines.append('Расходы периода распределены")
+    patch_runtime(files, "chat_response.py",
+        "    if isinstance(period, dict) and period.get('from') and period.get('to'):\n",
+        "    period = period or plan.get('parameter_report', {}).get('input', {}).get('period')\n"
+        "    if isinstance(period, dict) and period.get('from') and period.get('to'):\n")
+
+
 def collect(core, renderer, config):
     files = {}
     sources = {p.stem: p for p in core.glob("*.py")}
@@ -151,9 +325,13 @@ def collect(core, renderer, config):
         portable[operation]["evidence_ref"] = "reviewed-source/" + operation
     bind_table_contracts(portable, config.get("table_capabilities", {}), files)
     bind_dataset_contracts(portable, config.get("dataset_capabilities", {}), files)
+    bind_wb_advertising_coverage(files, portable)
     group_table_requests(files)
     bind_node_runtime(files)
     bind_provider_retry(files)
+    bind_report_previews(files)
+    bind_ozon_posting_money(files)
+    bind_coefficient_guidance(files)
     files["source_qualifications.json"] = json.dumps(portable, sort_keys=True).encode()
     # Both discovery and selection compilation call the same catalogue hook.
     target = b"def _availability(engine,t,store):\n"

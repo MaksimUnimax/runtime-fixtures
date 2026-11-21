@@ -137,7 +137,7 @@ class ChatWorker:
         def progress(data):
             nonlocal turn_deadline
             deadline = data.get("deadline")
-            if (turn_deadline is not None and data.get("stage") == "marketplace_wait"
+            if (turn_deadline is not None and data.get("stage") in {"marketplace_wait", "tool"}
                     and type(deadline) is int and deadline > turn_deadline and not budget.expired()):
                 turn_deadline = deadline
                 budget.reschedule(loop.time() + max(0, deadline / 1000 - time.time()) + 15)

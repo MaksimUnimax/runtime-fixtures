@@ -99,7 +99,7 @@ def profile_currency(authority, store):
             due = now + RATE_LIMIT_RETRY_SECONDS
             due = max(due, retry_time(error.headers, now, store.platform == "wb") or 0)
             if authority.resume_rate_limits:
-                authority.wait_for_rate_limit(due)
+                authority.wait_for_provider(due)
             elif due >= authority.deadline:
                 raise ProfileError(wait_result(due, "HTTP_429")) from None
             else:
@@ -150,6 +150,14 @@ def resolve(authority, calls, stores, fields):
                                for metric in step.get("bind", {}).get("metrics", ()))
                 if strict or monetary:
                     required[cid] = strict or required.get(cid, False)
+    for call in calls:
+        cid = call["store_id"]
+        for tid in dependencies(call["template_id"]):
+            template = TEMPLATES[tid]
+            if any(step.get("operation") == "ds_wb_adstats" for step in template["steps"]):
+                required[cid] = True
+            if template.get("parameter_report") == "economics.unit_forecast.v1":
+                required[cid] = True
     for cid, strict in required.items():
         try:
             authority.currencies[cid] = profile_currency(authority, stores[cid])

@@ -184,7 +184,15 @@ class MarketplaceMatrix(unittest.TestCase):
     def test_parameter_preview_uses_only_attached_ozon_seller_reads(self):
         from urllib.error import HTTPError
         from semantics import Rejected
+        from template_catalog import TEMPLATES
         cid = self.ids["ozon"]
+        loss = " ".join(TEMPLATES["parameter.loss_rate.v1"]["notes"])
+        delivery = " ".join(TEMPLATES["parameter.delivery_mean.v1"]["notes"])
+        projection = " ".join(TEMPLATES["economics.delivery_projection.v1"]["notes"])
+        self.assertIn("Один экземпляр учитывается один раз", loss)
+        self.assertIn("Доля потерь знаменатель не меняет", delivery)
+        self.assertIn("N × d", projection)
+        self.assertIn("Расчёт в чате не сохраняет коэффициент", loss)
         self.packet.update(connections=[cid], selections=[{"templateId": "parameter.loss_rate.v1",
                            "connectionId": cid, "input": {"period": {"from": "2026-11-01", "to": "2026-11-07"}}}])
         denied_fields = ["performance_client_id", "performance_client_secret"]
@@ -401,6 +409,73 @@ class MarketplaceMatrix(unittest.TestCase):
             public = worker.seller_result({"ok": False, "code": code, "trace": {}, "answer": "INTERNAL"})
             self.assertEqual(set(public), {"ok", "reason"})
             self.assertNotIn(code, public["reason"])
+
+    def test_wb_advertising_keeps_stats_for_returned_campaigns_and_marks_omissions(self):
+        import base64
+
+        token = self.identity.login("matrix-seller", "fixture-password")
+        claims = base64.urlsafe_b64encode(b'{"acc":3,"for":"self","t":false}').decode().rstrip("=")
+        credential = "fixture." + claims + ".signature"
+        cid = IntegrationStore(self.identity).save(token, "wb", "Реклама WB", {"token": credential},
+                                                     chatId=self.scope.chat_id)["id"]
+        self.packet.update(connections=[cid], selections=[{
+            "templateId": "wb_active_ads_totals", "connectionId": cid,
+            "input": {"period": {"from": "2026-11-19", "to": "2026-11-19"}}}])
+
+        def read(req, **options):
+            options["on_dispatch"]()
+            self.assertEqual(req.get_header("Authorization"), credential)
+            if req.host == "finance-api.wildberries.ru":
+                return b'{"currency":"RUB"}', 200
+            if "/promotion/count" in req.full_url:
+                return b'{"all":2,"adverts":[{"status":9,"count":2,"advert_list":[{"advertId":10},{"advertId":20}]}]}', 200
+            self.assertIn("ids=10%2C20", req.full_url)
+            return b'[{"advertId":10,"views":100,"clicks":4,"orders":2,"shks":2,"sum_price":500,"sum":80}]', 200
+
+        with patch("http_transport.read_response", side_effect=read):
+            result = worker.execute(self.packet, self.root)
+        self.assertTrue(result["ok"], result)
+        self.assertIn("по 1 из 2", result["answer"])
+        self.assertIn("Полная сумма", result["answer"])
+        self.assertIn("80", result["answer"])
+
+    def test_forecast_requires_valid_owner_input_and_the_right_shop_credentials(self):
+        from platform_core.marketplace_matrix.forecast_preview import normalise_owner_inputs, unit_cost_lines
+        from parameter_support.parameter_contract import ParameterError
+
+        cid = self.ids["ozon"]
+        names = {"seller_api_key", "seller_client_id"}
+        rows = {item["id"] for item in worker.catalogue([(cid, "ozon", names)])}
+        self.assertIn("economics.delivery_projection.v1", rows)
+        self.assertNotIn("economics.unit_forecast.v1", rows)
+        names |= {"performance_client_id", "performance_client_secret"}
+        rows = {item["id"] for item in worker.catalogue([(cid, "ozon", names)])}
+        self.assertIn("economics.unit_forecast.v1", rows)
+        self.assertEqual(normalise_owner_inputs({"unit_cost": 250.50}), {"unit_cost": "250.5"})
+        self.assertEqual(normalise_owner_inputs({"unit_cost_by_sku": {"101": 250, "102": "270.10"}}),
+                         {"unit_cost_by_sku": {"101": "250", "102": "270.1"}})
+        self.assertIn("250 ₽ за единицу для всех товаров",
+                      unit_cost_lines([{"value": "250", "origin": "chat_input"}])[0])
+        self.assertIn("SKU 102 — 270,1 ₽",
+                      unit_cost_lines([{"sku": "102", "value": "270.1", "origin": "chat_input"}])[0])
+        for invalid in ({"unit_cost": -1}, {"tax_amount": False}, {"ingredient": 5}):
+            with self.assertRaises(ParameterError):
+                normalise_owner_inputs(invalid)
+
+    def test_long_report_extends_only_live_operation_window(self):
+        from platform_core.marketplace_matrix.authority import ChatAuthority
+        from platform_core.operation_grants import revoke_grant
+        from semantics import Rejected
+
+        self.turn.update(deadline=int((time.time() + 30) * 1000), resumeRateLimits=True)
+        authority = ChatAuthority(self.packet)
+        deadline = authority.deadline
+        authority.report_progress()
+        self.assertGreater(authority.deadline, deadline + 80)
+        self.assertEqual(ChatAuthority(self.packet).deadline, authority.deadline)
+        revoke_grant(self.turn["databasePath"], self.turn["token"])
+        with self.assertRaises(Rejected):
+            authority.check()
 
     def test_another_chat_cannot_reuse_operation(self):
         from semantics import Rejected
