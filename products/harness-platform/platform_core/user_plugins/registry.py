@@ -18,7 +18,9 @@ WB = Plugin("wildberries", "analytics", "Вайлдберис",
 OZON = Plugin("ozon", "analytics", "Озон",
               "Отчёты Ozon, доля потерь и стоимость прямой и последней доставки для магазинов и товаров.", "ozon")
 ILLUSTRATIONS = Plugin("illustrations","graphics","Иллюстрации","Создаёт изображения по описанию и прикрепляет их к сообщению.","images")
-CATALOG = {plugin.id: plugin for plugin in (WB, OZON, ILLUSTRATIONS)}
+TELEGRAM = Plugin("telegram-reports", "documents", "Отчёты в Telegram",
+                  "Личная доставка готовых отчётов этого чата в ваш Telegram.", "telegram")
+CATALOG = {plugin.id: plugin for plugin in (WB, OZON, ILLUSTRATIONS, TELEGRAM)}
 CATEGORIES = (
     {"id": "analytics", "title": "Аналитика", "parent": None},
     {"id": "advertising", "title": "Реклама", "parent": None},

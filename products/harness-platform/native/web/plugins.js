@@ -173,7 +173,43 @@
           h('option',{value:''},'Выберите модель'),modelGroups(rows))),
         h(Action,{disabled:busy,onClick:save},'Сохранить модель'),h('p',{role:'status'},msg));
     }
-    const panels={wb:Marketplace,ozon:Marketplace,images:Illustrations};
+    function TelegramReports({url,title,close}) {
+      const [data,setData]=React.useState(null),[busy,setBusy]=React.useState(false),[error,setError]=React.useState('');
+      React.useEffect(()=>{
+        const controller=new AbortController();
+        api(url,{signal:controller.signal}).then(setData).catch(e=>{if(!controller.signal.aborted)setError(e.message);});
+        return ()=>controller.abort();
+      },[url]);
+      async function act(action) {
+        setBusy(true);setError('');
+        try {
+          const reply=await send(url+'/'+action,{});
+          if(action==='connect'){location.assign(reply.url);return;}
+          setData(await api(url));
+        } catch(e){setError(e.message);} finally {setBusy(false);}
+      }
+      const messages={
+        limited:'Telegram попросил подождать. Доставка продолжится автоматически.',
+        unknown:'Telegram не подтвердил отправку. Проверьте личный чат с ботом.',
+        rejected:'Telegram отклонил отправку. Проверьте подключение.',
+        sending:'Отчёт отправляется.'
+      };
+      return h(Dialog,{label:title,close,className:'octo-plugin-settings'},
+        error&&h('p',{role:'alert'},error),
+        !data&&!error&&h('p',{role:'status'},'Загружаем настройки…'),
+        data&&h(React.Fragment,null,
+          h('p',null,'Бот присылает в личные сообщения готовые отчёты по данным маркетплейсов из этого диалога.'),
+          h('p',{role:'status'},!data.configured?'Администратору нужно настроить бота Октопорта.':
+            data.subscribed?'Отчёты этого чата включены.':data.linked?'Telegram подключён к аккаунту.':'Подтвердите свой Telegram и разрешите боту писать.'),
+          messages[data.status]&&h('p',{role:'status'},messages[data.status]),
+          data.lastSent&&h('p',null,'Последняя отправка: '+new Date(data.lastSent*1000).toLocaleString('ru-RU')),
+          !data.linked&&data.configured&&h(Action,{disabled:busy,onClick:()=>act('connect')},'Подключить Telegram для отчётов этого чата'),
+          data.linked&&!data.subscribed&&h(Action,{disabled:busy,onClick:()=>act('enable')},'Получать новые отчёты этого чата'),
+          ['unknown','rejected'].includes(data.status)&&h(Action,{disabled:busy,onClick:()=>act('resume')},'Продолжить со следующего отчёта'),
+          data.subscribed&&h(Action,{disabled:busy,onClick:()=>act('pause')},'Остановить доставку из этого чата'),
+          data.hasBinding&&h(Action,{disabled:busy,onClick:()=>act('disconnect')},'Отключить Telegram во всех чатах')));
+    }
+    const panels={wb:Marketplace,ozon:Marketplace,images:Illustrations,telegram:TelegramReports};
     function useCatalog(url) {
       const [data,setData]=React.useState(null),[error,setError]=React.useState(''),[busy,setBusy]=React.useState(false);
       React.useEffect(()=>{
