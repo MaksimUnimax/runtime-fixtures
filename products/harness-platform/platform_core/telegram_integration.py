@@ -83,15 +83,19 @@ class TelegramIntegration:
             for sql in SCHEMA:
                 db.execute(sql)
 
+    @property
+    def configured(self):
+        return self.config is not None
+
     def status(self, db, workspace):
         row = db.execute("SELECT bot FROM telegram_recipients WHERE workspace=?", (workspace,)).fetchone()
-        return {"configured": self.config is not None, "linked": bool(row and self.config and row[0] == self.config.bot),
+        return {"configured": self.configured, "linked": bool(row and self.config and row[0] == self.config.bot),
                 "hasBinding": bool(row)}
 
     async def send(self, workspace, text):
         """Deliver only to the confirmed recipient of this trusted workspace."""
         with self.identity._lock:
-            row = self.identity._db.execute("SELECT recipient FROM telegram_recipients WHERE workspace=? AND bot=?",
+            row = self.identity._db.execute("SELECT recipient,rowid FROM telegram_recipients WHERE workspace=? AND bot=?",
                 (workspace, self.config.bot)).fetchone() if self.config else None
         if not row:
             raise tg.DeliveryError("disconnected")
@@ -100,8 +104,8 @@ class TelegramIntegration:
         except tg.DeliveryError as error:
             if error.status == "blocked":
                 with self.identity._write() as db:
-                    db.execute("DELETE FROM telegram_recipients WHERE workspace=? AND bot=? AND recipient=?",
-                               (workspace, self.config.bot, row[0]))
+                    db.execute("DELETE FROM telegram_recipients WHERE workspace=? AND bot=? AND rowid=?",
+                               (workspace, self.config.bot, row[1]))
             raise
 
 
@@ -233,8 +237,9 @@ data-size="large" data-lang="ru" data-request-access="write" data-auth-url="{tar
                 if not db.execute("DELETE FROM telegram_integration_consents WHERE session=? AND state=? AND expires>unixepoch()",
                                   (sid,reservation)).rowcount:
                     raise HTTPException(409,"Подключение отменено. Начните заново.")
-                db.execute("""INSERT INTO telegram_recipients VALUES(?,?,?)
-                              ON CONFLICT(workspace) DO NOTHING""", (ws,cfg.bot,uid))
+                # A late 403 from a previous binding must not revoke a fresh consent, even for the same user.
+                db.execute("""INSERT INTO telegram_recipients(rowid,workspace,bot,recipient) VALUES(?,?,?,?)
+                              ON CONFLICT(workspace) DO NOTHING""", (secrets.randbits(63),ws,cfg.bot,uid))
                 if db.execute("SELECT bot,recipient FROM telegram_recipients WHERE workspace=?",
                               (ws,)).fetchone() != (cfg.bot,uid):
                     raise HTTPException(409,"Получатель изменился. Начните заново.")

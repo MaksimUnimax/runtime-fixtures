@@ -223,6 +223,28 @@ class TelegramReports(TestCase):
                 self.client.portal.call(integration.send,self.scope.workspace_id,"После отключения")
             self.assertEqual(send.await_count,1)
 
+    def test_old_blocked_send_cannot_remove_fresh_consent_for_same_user(self):
+        from threading import Event
+        from concurrent.futures import ThreadPoolExecutor
+        self.bind()
+        started, release = Event(), Event()
+        async def slow_rejection(*args):
+            started.set()
+            await asyncio.to_thread(release.wait, 8)
+            raise tg.DeliveryError("blocked")
+        integration = self.client.app.state.telegram
+        with ThreadPoolExecutor(max_workers=1) as pool, patch.object(tg,"send",slow_rejection):
+            future=pool.submit(self.client.portal.call,integration.send,self.scope.workspace_id,"Первый отчёт")
+            try:
+                self.assertTrue(started.wait(4))
+                self.post("/api/integrations/telegram/disconnect").raise_for_status()
+                self.bind()
+            finally:
+                release.set()
+            with self.assertRaises(tg.DeliveryError):
+                future.result(timeout=5)
+        self.assertTrue(self.client.get("/api/integrations").json()["telegram"]["linked"])
+
     def test_upgrade_keeps_existing_recipient_and_report_cursor(self):
         from platform_core.telegram_integration import TelegramIntegration
         self.bind()
@@ -282,7 +304,7 @@ class TelegramReports(TestCase):
                 db.execute("INSERT INTO native_batches VALUES(?,?,'turn',?)",(digest,revision,json.dumps(items)))
         def drive():
             with sqlite3.connect(self.path) as db:
-                row=db.execute("""SELECT ?,workspace,chat,cursor,generation,884 FROM telegram_subscriptions""",(scope.actor_id,)).fetchone()
+                row=db.execute("""SELECT ?,workspace,chat,cursor,generation FROM telegram_subscriptions""",(scope.actor_id,)).fetchone()
             self.client.portal.call(self.client.app.state.telegram_reports.process,row)
         append(1,events("failure",False)); append(2,events("Отчёт 2")); append(3,events("Отчёт 3"))
         sender=AsyncMock(side_effect=[tg.DeliveryError("limited",60),5,tg.DeliveryError("unknown")])
