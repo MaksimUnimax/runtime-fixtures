@@ -205,6 +205,24 @@ def bind_ozon_posting_money(files):
         "            price=_number(price);quantity=_number(product[fields['quantity']])\n")
 
 
+def bind_read_builder_cache(files):
+    filename = "read_surface.py"
+    patch_runtime(files, filename, "from pathlib import Path\n",
+        "from pathlib import Path\nfrom functools import lru_cache\n")
+    patch_runtime(files, filename,
+        "    try:\n        proc=subprocess.run(['node',str(DATA/'contract_bridge.mjs')],input=payload,capture_output=True,text=True,timeout=5)\n"
+        "        response=json.loads(proc.stdout)\n",
+        "    return json.loads(_checked_wire_request(payload,platform))\n\n\n"
+        "@lru_cache(maxsize=256)\n"
+        "def _checked_wire_request(payload,platform):\n"
+        "    # Each verified report replays earlier receipts. Reuse the pure builder\n"
+        "    # result for identical arguments in this worker, not data or access decisions.\n"
+        "    try:\n        proc=subprocess.run(['node',str(DATA/'contract_bridge.mjs')],input=payload,capture_output=True,text=True,timeout=5)\n"
+        "        response=json.loads(proc.stdout)\n")
+    patch_runtime(files, filename, "    return request\n\n\ndef quota(",
+        "    return canonical_json(request)\n\n\ndef quota(")
+
+
 def bind_coefficient_guidance(files):
     catalog = json.loads(files["template_catalog.json"])
     templates = catalog["templates"]
@@ -331,6 +349,7 @@ def collect(core, renderer, config):
     bind_provider_retry(files)
     bind_report_previews(files)
     bind_ozon_posting_money(files)
+    bind_read_builder_cache(files)
     bind_coefficient_guidance(files)
     files["source_qualifications.json"] = json.dumps(portable, sort_keys=True).encode()
     # Both discovery and selection compilation call the same catalogue hook.
