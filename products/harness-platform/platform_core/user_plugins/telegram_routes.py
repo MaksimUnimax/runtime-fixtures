@@ -1,11 +1,13 @@
 """Account linking and per-chat Telegram report settings."""
 import asyncio
 import hashlib
+import html
 import logging
 import secrets
 import sqlite3
 import time
 from contextlib import AsyncExitStack, asynccontextmanager
+from urllib.parse import urlencode
 
 import httpx
 from starlette.exceptions import HTTPException
@@ -28,20 +30,34 @@ RETURN_JS = """(async () => {
   const query = new URLSearchParams(location.search);
   history.replaceState(null, '', '/telegram/return');
   const label = document.querySelector('[role=status]');
-  if (!query.get('state') || !query.get('code') || query.get('error')) {
+  const state = query.get('state');
+  if (!state || query.getAll('state').length !== 1 || query.has('error')) {
     label.textContent = 'Подключение отменено. Вы можете вернуться в Октопорт.'; return;
   }
   try {
+    const payload = {state};
+    if (query.has('hash')) {
+      query.delete('state');
+      payload.user = Object.fromEntries(query);
+    } else if (query.get('code')) {
+      payload.code = query.get('code');
+    } else {
+      throw Error('Подключение отменено. Вы можете вернуться в Октопорт.');
+    }
     const response = await fetch('/api/telegram/complete', {method:'POST', credentials:'same-origin',
-      headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:query.get('code'),state:query.get('state')})});
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
     const result = await response.json();
     if (!response.ok) throw Error(response.status === 401 ? 'Войдите в Октопорт и начните подключение заново.' : result.error);
     label.textContent = 'Telegram подключён. Новые отчёты этого чата будут приходить в личные сообщения.';
     const link=document.querySelector('a'); link.href='/app/chats/'+encodeURIComponent(result.chat); link.textContent='Вернуться в чат';
   } catch (e) { label.textContent = e.message || 'Не удалось подтвердить подключение.'; }
 })();"""
-PRIVATE = {"Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff",
+PRIVATE = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff",
            "Content-Security-Policy": "default-src 'none'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"}
+WIDGET_HEADERS = {**PRIVATE, "Content-Security-Policy":
+    "default-src 'none'; script-src https://telegram.org/js/telegram-widget.js; "
+    "frame-src https://oauth.telegram.org; style-src 'unsafe-inline'; "
+    "base-uri 'none'; frame-ancestors 'none'; form-action 'none'"}
 
 
 @asynccontextmanager
@@ -95,6 +111,27 @@ def routes(body):
     async def returning(req):
         if req.url.path.endswith(".js"):
             return Response(RETURN_JS, media_type="text/javascript", headers=PRIVATE)
+        if req.query_params.get("widget") == "1":
+            state = req.app.state
+            cfg = require_config(state)
+            challenge = req.query_params.get("state", "")
+            # Telegram can navigate back here without the Strict session cookie.
+            # Only the same-origin completion POST may bind a recipient.
+            with state.identity._lock:
+                db = state.identity._db
+                row = db.execute("""SELECT 1 FROM telegram_consents WHERE state=? AND
+                    bot=? AND verifier='' AND expires>unixepoch()""",
+                    (digest(challenge), cfg.bot)).fetchone()
+                if not row or not cfg.username:
+                    raise HTTPException(409, "Подключение истекло. Начните его заново в своём чате.")
+            target = html.escape("/telegram/return?" + urlencode({"state": challenge}), quote=True)
+            return HTMLResponse(f"""<!doctype html><html lang="ru"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Подключить Telegram · Октопорт</title>
+<main><h1>Подключить Telegram</h1><p>Выберите аккаунт Telegram и разрешите боту присылать отчёты.</p>
+<script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="{html.escape(cfg.username)}"
+data-size="large" data-lang="ru" data-request-access="write" data-auth-url="{target}"></script>
+<p><a href="/app/">Вернуться в Октопорт</a></p></main></html>""",
+                                headers=WIDGET_HEADERS)
         return HTMLResponse(RETURN_PAGE, headers=PRIVATE)
 
     async def settings(req):
@@ -140,7 +177,10 @@ def routes(body):
             state.telegram.wake.set()
             return JSONResponse({"ok": True})
         if action == "connect":
-            challenge, verifier, nonce = (secrets.token_urlsafe(32) for _ in range(3))
+            challenge = secrets.token_urlsafe(32)
+            verifier = nonce = ""
+            if cfg.secret is not None:
+                verifier, nonce = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
             with state.identity._write() as db:
                 require_chat(db, token, chat)
                 db.execute("DELETE FROM telegram_consents WHERE session=? OR expires<=unixepoch()", (_secret_digest(token),))
@@ -160,21 +200,33 @@ def routes(body):
         token = browser_token(req)
         state = req.app.state
         cfg = require_config(state)
-        fields = await body(req, "state", "code")
-        if any(not isinstance(v, str) or not 1 <= len(v) <= 2048 for v in fields.values()):
+        widget = cfg.secret is None
+        fields = await body(req, "state", "user" if widget else "code")
+        strings = [fields["state"]] if widget else fields.values()
+        if any(not isinstance(v, str) or not 1 <= len(v) <= 2048 for v in strings):
             raise HTTPException(400, "Некорректный ответ Telegram.")
         sid = _secret_digest(token)
         with state.identity._write() as db:
-            row = db.execute("""SELECT chat,verifier,nonce FROM telegram_consents WHERE state=? AND
+            row = db.execute("""SELECT chat,verifier,nonce,expires FROM telegram_consents WHERE state=? AND
                 session=? AND bot=? AND expires>unixepoch()""", (digest(fields["state"]),sid,cfg.bot)).fetchone()
             if not row:
                 raise HTTPException(409,"Ссылка истекла или уже использована. Начните подключение заново.")
-            chat, verifier, nonce = row
+            chat, verifier, nonce, expires = row
+            if widget != (verifier == ""):
+                raise HTTPException(409, "Способ входа изменился. Начните подключение заново.")
             scope = require_chat(db, token, chat)
+            if widget:
+                uid, signature, until = tg.widget_identity(cfg, fields["user"], expires - 600)
+                db.execute("DELETE FROM telegram_widget_receipts WHERE expires<=unixepoch()")
+                inserted = db.execute("INSERT OR IGNORE INTO telegram_widget_receipts VALUES(?,?)",
+                                      (signature, until)).rowcount
+                if not inserted:
+                    raise HTTPException(409, "Это подтверждение уже использовано. Войдите в Telegram заново.")
             # Reserve this response exactly once but leave the row revocable during network I/O.
             reservation = secrets.token_hex(32)
             db.execute("UPDATE telegram_consents SET state=? WHERE session=?", (reservation,sid))
-        uid = await tg.verified_user(state.telegram_http, cfg, fields["code"], verifier, nonce)
+        if not widget:
+            uid = await tg.verified_user(state.telegram_http, cfg, fields["code"], verifier, nonce)
         with state.identity._lock:
             db = state.identity._db
             require_chat(db,token,chat)

@@ -48,10 +48,8 @@ def main():
     if previous and str(previous.get("client_id")) != bot_id:
         if input("Меняется бот. Для замены введите его @имя: ").strip() != "@" + username:
             sys.exit("Запись отменена.")
-    secret = getpass.getpass("Client Secret этого бота из Login Widget (скрытый ввод): ").strip()
-    if not secret or secret == token or any(ch.isspace() for ch in secret):
-        sys.exit("Проверьте Client Secret.")
-    config = dict(client_id=bot_id, client_secret=secret, bot_token=token, connect_proxy_port=port)
+    config = dict(auth_mode="widget", client_id=bot_id, bot_username=username,
+                  bot_token=token, connect_proxy_port=port)
     tmp = None
     try:
         with tempfile.NamedTemporaryFile("w", dir=CREDENTIAL.parent, delete=False) as stream:
