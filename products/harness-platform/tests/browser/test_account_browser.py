@@ -289,8 +289,12 @@ class BrowserIsolation(ProductBrowser):
         await expect(connected).to_have_count(0)
         await page.goto(original)
         await expect(shortcut).to_be_visible()
+        await shortcut.hover()
+        await connected.get_by_role("button",name="Действия плагина «"+title+"»").click()
+        await page.get_by_role("menuitem",name="Отключить плагин",exact=True).click()
+        await expect(shortcut).to_have_count(0)
+        await page.reload()
         await catalog.click()
-        await switch.click()
         await expect(switch).not_to_be_checked()
         await expect(switch).to_be_enabled()
         await page.keyboard.press("Escape")
@@ -309,12 +313,13 @@ class BrowserIsolation(ProductBrowser):
         await page.locator("[data-sidebar-toggle]:visible").click()
         await expect(page.locator('.octo-plugin-navigation[data-wide="false"]')).to_be_visible()
         shortcuts=page.get_by_role("navigation",name="Подключённые плагины")
-        await shortcuts.get_by_role("button",name="Озон").click()
+        await shortcuts.get_by_role("button",name="Озон",exact=True).click()
+        await page.get_by_role("menuitem",name="Открыть плагин",exact=True).click()
         await expect(page.get_by_role("dialog",name="Озон")).to_be_visible()
         await page.keyboard.press("Escape")
-        await shortcuts.get_by_role("button",name="Вайлдберис").click()
-        await expect(page.get_by_role("dialog",name="Вайлдберис")).to_be_visible()
-        await page.keyboard.press("Escape")
+        await shortcuts.get_by_role("button",name="Вайлдберис",exact=True).click()
+        await page.get_by_role("menuitem",name="Отключить плагин",exact=True).click()
+        await expect(shortcuts.get_by_role("button",name="Вайлдберис",exact=True)).to_have_count(0)
         await page.locator("[data-sidebar-toggle]:visible").click()
         await account_action(page, "Настройки")
         await page.get_by_role("button",name="Тёмная",exact=True).click()
@@ -322,7 +327,7 @@ class BrowserIsolation(ProductBrowser):
         await page.set_viewport_size({"width":390,"height":700})
         await page.locator("[data-sidebar-opener]:visible").click()
         await catalog.click()
-        await expect(dialog.get_by_role("switch",name="Подключить Вайлдберис")).to_be_checked()
+        await expect(dialog.get_by_role("switch",name="Подключить Вайлдберис")).not_to_be_checked()
         await expect(dialog.get_by_role("switch",name="Подключить Озон")).to_be_checked()
         await expect(page.locator("body[data-ds-dark-theme]")).to_have_count(1)
         close=dialog.get_by_role("button",name="Закрыть")
@@ -341,14 +346,14 @@ class BrowserIsolation(ProductBrowser):
             await page.reload()
             await page.get_by_role("button",name="Подключения",exact=True).click()
             dialog=page.get_by_role("dialog",name="Подключения этого чата")
-            shortcut=page.get_by_role("navigation",name="Подключённые плагины").get_by_role("button",name="Вайлдберис")
+            shortcut=page.get_by_role("navigation",name="Подключённые плагины").get_by_role("button",name="Вайлдберис",exact=True)
             await expect(shortcut).to_have_count(0)
             with patch.object(httpx.AsyncClient,"post",return_value=httpx.Response(200,json={"cards":[],"cursor":{"total":0}})):
                 await dialog.get_by_role("switch",name="Магазин WB · Wildberries").click()
                 await dialog.get_by_role("button",name="Закрыть").click()
                 await expect(shortcut).to_be_visible()
                 await shortcut.click()
-                settings=page.get_by_role("dialog",name="Вайлдберис")
+                settings=page.get_by_role("dialog",name="Вайлдберис",exact=True)
                 await expect(settings.get_by_role("button",name="Магазин WB",exact=True)).to_have_attribute("aria-pressed","true")
                 await settings.get_by_role("button",name="Отключить магазин от чата").click()
                 await expect(settings.get_by_role("button",name="Подключить в этом чате · Магазин WB")).to_be_visible()
@@ -371,6 +376,8 @@ class BrowserIsolation(ProductBrowser):
         page = await self.open_chat("first-browser")
         marker = "Проверка открытия переписки"
         history = page.locator('[data-slot="conversation.view"]')
+        await expect(page.get_by_role("button",name="Выберите рабочее пространство")).to_have_count(0)
+        await expect(page.get_by_text("Мои чаты",exact=True)).to_have_count(0)
         await self.send_turn(page, marker)
         await expect(history).to_contain_text(f"Тестовая модель (ход 1): {marker}", timeout=45_000)
         scripts, events = asyncio.Event(), asyncio.Event()
@@ -443,12 +450,29 @@ class BrowserIsolation(ProductBrowser):
         await expect(menu).to_be_in_viewport()
         menu_box, trigger_box = await menu.bounding_box(), await trigger.bounding_box()
         self.assertLess(abs(trigger_box["y"] - menu_box["y"] - menu_box["height"]), 16)
+        await expect(menu.get_by_role("menuitem", name="Пополнить баланс")).to_have_count(0)
         await menu.get_by_role("menuitem", name="Баланс", exact=True).click()
         await expect(page.get_by_role("dialog", name="Баланс").get_by_role(
             "link", name="Пополнить баланс", exact=True)).to_have_attribute("href", "/payment")
         await page.keyboard.press("Escape")
         await account_action(page, "Профиль")
         profile = page.get_by_role("dialog", name="Профиль")
+        for width,height in ((320,560),(740,320),(1280,800)):
+            await page.set_viewport_size({"width":width,"height":height})
+            await expect(profile.get_by_role("button",name="Закрыть")).to_be_in_viewport()
+            geometry=await profile.evaluate("""el=>{
+                const p=el.getBoundingClientRect(), x=el.querySelector('button[aria-label="Закрыть"]').getBoundingClientRect();
+                const fields=[...el.querySelectorAll('input[type=password]')].map(input=>input.getBoundingClientRect());
+                return {fits:p.left>=-1 && p.right<=innerWidth+1 && p.top>=-1 && p.bottom<=innerHeight+1,
+                    closeOnRight:x.left>p.left+p.width*.7,
+                    fieldsFit:fields.every(f=>f.left>=p.left && f.right<=p.right && Math.abs(f.width-fields[0].width)<1)};
+            }""")
+            self.assertTrue(all(geometry.values()),(width,height,geometry))
+            save=profile.get_by_role("button",name="Изменить пароль")
+            await save.scroll_into_view_if_needed()
+            await expect(save).to_be_in_viewport()
+            await profile.get_by_role("button",name="Закрыть").scroll_into_view_if_needed()
+        await page.set_viewport_size({"width":390,"height":740})
         await profile.get_by_label("Текущий пароль", exact=True).fill("Wrong password for acceptance")
         new_password = "New browser password for acceptance"
         for label in ("Новый пароль", "Повторите новый пароль"):
@@ -461,7 +485,10 @@ class BrowserIsolation(ProductBrowser):
         self.assertTrue((await (await page.request.get("/api/session/status")).json())["authenticated"])
         self.assertFalse((await (await other_session.request.get("/api/session/status")).json())["authenticated"])
         await page.keyboard.press("Escape")
-        await account_action(page, "Пополнить баланс")
+        if not await trigger.is_visible():
+            await page.locator("[data-sidebar-opener]:visible").click()
+        await account_action(page, "Баланс")
+        await page.get_by_role("dialog",name="Баланс").get_by_role("link",name="Пополнить баланс").click()
         await expect(page).to_have_url(self.base_url + "/payment")
         await expect(page.get_by_role("heading", name="Пополнение баланса")).to_be_visible()
 
@@ -557,6 +584,9 @@ class BrowserIsolation(ProductBrowser):
         await dialog.get_by_role("button", name="Закрыть", exact=True).click()
         row = page.locator(f'[data-row-key="session:{chat_id}"]')
         await row.hover()
+        # Wait past the pinned client's 800 ms hover delay. The row actions still work.
+        await page.wait_for_timeout(1000)
+        await expect(page.locator('[class$="_hoverContent"]:visible')).to_have_count(0)
         await row.locator("[data-context-menu-trigger]").click()
         await page.get_by_text("Удалить чат", exact=True).click()
         confirm = page.get_by_role("dialog", name="Удалить чат?")

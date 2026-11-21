@@ -6,7 +6,7 @@ window.__ModuleLoader__.load({
       const a=window.harnessAccount;
       const ui=require('@deepseek-ai/dsh-client-ui-primitives');
       const PluginMenu=window.octoPluginMenu(React,ctx,a.api,ui);
-      const {Menu,Modal,IconUserOutlineMedium,IconSettingsOutlineMedium,IconChevronRightOutlineRegular,
+      const {Menu,Modal,Button,IconUserOutlineMedium,IconSettingsOutlineMedium,IconChevronRightOutlineRegular,
         IconEllipsisOutlineMedium}=ui;
       const subscribers=new Set();
       let panel=a.panel;
@@ -55,19 +55,22 @@ window.__ModuleLoader__.load({
       }
       const coinAmount=new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2});
       function Coin() {
-        return h('span',{className:'octo-coin','aria-hidden':true});
+        return h('svg',{className:'octo-coin',width:18,height:18,viewBox:'0 0 24 24',
+          fill:'none',stroke:'currentColor',strokeWidth:1.7,strokeLinecap:'round',strokeLinejoin:'round','aria-hidden':true},
+          h('ellipse',{cx:12,cy:8,rx:8,ry:4}),
+          h('path',{d:'M4 8v4c0 2.2 3.6 4 8 4s8-1.8 8-4V8M4 12v4c0 2.2 3.6 4 8 4s8-1.8 8-4v-4'}));
       }
       function AccountLauncher({wide,openSettings,settingsShortcut}) {
         const available=useAvailableCoins();
         const [open,setOpen]=React.useState(false);
         const trigger=React.useRef(null), logout=React.useRef(null);
         const login=a.login || 'Аккаунт';
+        const name=login.includes('@') ? login.slice(0,login.lastIndexOf('@')) || login : login;
         const balance=available==null?'—':coinAmount.format(available)+' монет';
         const items=[
           ...(!a.guest ? [
             {id:'profile',label:'Профиль',icon:h(IconUserOutlineMedium,{size:16})},
-            {id:'wallet',label:'Баланс',icon:h(Coin)},
-            {id:'payment',label:'Пополнить баланс'}
+            {id:'wallet',label:'Баланс',icon:h(Coin)}
           ] : wide ? [] : [
             {id:'login',label:'Войти'},
             {id:'register',label:'Создать аккаунт'}
@@ -78,7 +81,7 @@ window.__ModuleLoader__.load({
           ...(!a.guest ? [{id:'divider',type:'separator'},{id:'logout',label:'Выйти'}] : [])
         ];
         const commands={
-          profile:()=>select('profile'),wallet:()=>select('wallet'),payment:()=>location.assign('/payment'),
+          profile:()=>select('profile'),wallet:()=>select('wallet'),
           login:()=>select('login'),register:()=>location.assign('/register'),settings:openSettings,
           about:()=>location.assign('/about/'),admin:()=>location.assign('/admin'),logout:()=>logout.current.requestSubmit()
         };
@@ -93,9 +96,8 @@ window.__ModuleLoader__.load({
             anchor:h('button',{ref:trigger,type:'button',className:'octo-account-trigger',
               'aria-label':a.guest?'Меню':'Меню аккаунта','aria-haspopup':'menu','aria-expanded':open,
               title:a.guest?'Меню':login,onClick:()=>setOpen(value=>!value)},
-              a.guest?h(IconEllipsisOutlineMedium,{size:18}):h('span',{className:'octo-account-avatar','aria-hidden':true},
-                Array.from(login)[0].toLocaleUpperCase('ru-RU')),
-              wide && h('span',{className:'octo-account-name'},a.guest?'Меню':login),
+              h(a.guest?IconEllipsisOutlineMedium:IconUserOutlineMedium,{size:18}),
+              wide && h('span',{className:'octo-account-name'},a.guest?'Меню':name),
               wide && h(IconChevronRightOutlineRegular,{size:14})),
             onClose:()=>setOpen(false),onSelect:id=>{
               setOpen(false);
@@ -133,13 +135,13 @@ window.__ModuleLoader__.load({
         }
         const password={type:'password',maxLength:256};
         return h(React.Fragment,null,
-          h('p',{className:'octo-profile-login'},a.login),
-          h('form',{method:'post',action:'/api/profile/password',onSubmit:submit},
+          h('div',{className:'octo-profile-identity'},h(IconUserOutlineMedium,{size:18}),h('span',null,a.login)),
+          h('form',{className:'octo-password-form',method:'post',action:'/api/profile/password',onSubmit:submit},
             h('input',{type:'text',name:'username',autoComplete:'username',value:a.login||'',readOnly:true,hidden:true}),
             Field('current','Текущий пароль',{...password,autoComplete:'current-password',disabled:busy}),
             Field('password','Новый пароль',{...password,autoComplete:'new-password',disabled:busy}),
             Field('confirmation','Повторите новый пароль',{...password,autoComplete:'new-password',disabled:busy}),
-            h('button',{type:'submit',className:'account-primary',disabled:busy},busy?'Сохраняем…':'Изменить пароль')),
+            h(Button,{type:'submit',variant:'primary',disabled:busy},busy?'Сохраняем…':'Изменить пароль')),
           message && h('p',{role:message.error?'alert':'status'},message.text));
       }
       function Wallet() {
@@ -160,10 +162,10 @@ window.__ModuleLoader__.load({
         if (!wallet) return h('p',{role:error?'alert':'status'},error || 'Загружаем баланс…');
         return h(React.Fragment,null,
           h('p',{className:'wallet-amount'},h('span',null,'Доступно'),coinAmount.format(wallet.available),h('small',null,' монет')),
-          h('a',{className:'account-primary',href:'/payment'},'Пополнить баланс'),
+          h('a',{className:'octo-wallet-topup',href:'/payment'},'Пополнить баланс'),
           wallet.reserved!=='0' && h('p',null,'Ожидает расчёта · '+coinAmount.format(wallet.reserved)),
           wallet.charges.length>0 && h('div',{className:'wallet-charges'},
-            h('button',{type:'button','aria-expanded':showCharges,'aria-controls':historyId,
+            h(Button,{type:'button',variant:'outline','aria-expanded':showCharges,'aria-controls':historyId,
               onClick:()=>setShowCharges(open=>!open)},showCharges?'Скрыть списания':'Показать списания'),
             h('ul',{className:'wallet-history',id:historyId,hidden:!showCharges,'aria-label':'История списаний',
               tabIndex:wallet.charges.length>5?0:undefined},wallet.charges.map(c=>
@@ -220,8 +222,8 @@ window.__ModuleLoader__.load({
         const closeButton=h('button',{className:'account-close',type:'button','aria-label':'Закрыть',onClick:close},'×');
         if(mode==='wallet' || mode==='profile') {
           const wallet=mode==='wallet', title=wallet?'Баланс':'Профиль';
-          return h(Modal,{open:true,title,onClose:close,className:'account-dialog',headless:true},
-            closeButton,h('h2',null,title),wallet?h(Wallet):h(Profile));
+          return h(Modal,{open:true,title,onClose:close,className:'octo-account-panel',closeLabel:'Закрыть'},
+            h('div',{className:wallet?'octo-wallet-body':'octo-profile-body'},wallet?h(Wallet):h(Profile)));
         }
         const signup=mode==='register';
         return h('dialog',{className:'account-dialog',ref,'aria-labelledby':'dialog-title',onCancel:close},
