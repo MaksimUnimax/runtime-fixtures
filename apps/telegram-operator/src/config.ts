@@ -31,9 +31,9 @@ export function parseTelegramOperatorConfig(
     throw new Error("TELEGRAM_OPERATOR_IDENTITY_INVALID");
   }
 
-  const notificationChatIds = csvValues(
-    environment.TELEGRAM_NOTIFICATION_CHAT_IDS,
-  );
+  const notificationChatIds = [
+    ...new Set(csvValues(environment.TELEGRAM_NOTIFICATION_CHAT_IDS)),
+  ];
   if (notificationChatIds.length === 0) {
     throw new Error("TELEGRAM_NOTIFICATION_DESTINATION_INVALID");
   }
