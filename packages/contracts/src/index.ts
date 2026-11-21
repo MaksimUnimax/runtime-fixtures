@@ -25,6 +25,11 @@ export const ApiErrorCodeV1Schema = z.enum([
   "BETA_CLOSED",
   "BETA_CAPACITY_REACHED",
   "AUTH_REFRESH_INVALID",
+  "CONNECTION_CODE_CLOSED",
+  "CONNECTION_CODE_CONFLICT",
+  "CONNECTION_REAUTH_REQUIRED",
+  "CONNECTION_CODE_RATE_LIMITED",
+  "CONNECTION_TRANSFER_APPROVAL_REQUIRED",
   "DEVICE_AUTH_RATE_LIMITED",
   "DEVICE_AUTH_INVALID",
   "DEVICE_AUTH_FORBIDDEN",
@@ -2593,3 +2598,5 @@ export * from "./signed-ai-profile.js";
 export * from "./monitor-profile-repair.js";
 
 export * from "./ai-prompt-tree.js";
+
+export * from "./connection-code.js";

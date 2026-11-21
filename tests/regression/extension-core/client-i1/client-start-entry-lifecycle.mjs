@@ -135,7 +135,7 @@ function admissionFixture() {
   vm.runInContext(fs.readFileSync(path.join(repo, "packages/bridge-core/src/work/session-model.js"), "utf8"), ctx);
   ctx.OzonWorkSessionModel = ctx.SellerAgentsWorkSessionModel;
   for (const name of ["saAdmissionKey","saBeginAdmission","saCancelAdmission","saAdmissionCurrent",
-                      "saAdmissionError","saReleaseAdmission","saAdmitWork","saWorkStart","saInvalidateAuthority"]) {
+                      "saAdmissionError","saReleaseAdmission","saAdmitWork","saAssertExplicitStartReconciliation","saWorkStart","saInvalidateAuthority"]) {
     vm.runInContext(realFunction(name),ctx);
   }
   return {ctx,observed,page,entered,snapshot};
@@ -199,7 +199,7 @@ for (const transition of ["resolved-ai","denied","different-account","different-
 
 // Resolving an AI grant retains the common generation in R3. A grant must never
 // upgrade the generation captured by a command that is already preparing.
-for (const transition of ["own-resolution","finish","account","session","wrong-ai","generation-change","generation-gap","denied"]) {
+for (const transition of ["own-resolution","finish","account","session","wrong-ai","generation-change","generation-gap","denied","reconciliation-denied"]) {
   await check("first-scoped-bootstrap-"+transition,async()=>{
     const f=admissionFixture();
     let promptReads=0;
@@ -222,7 +222,9 @@ for (const transition of ["own-resolution","finish","account","session","wrong-a
       f.observed.authority.workAllowed && f.observed.authority.requestedAi===identity.ai_id;
     f.ctx.saCatalog={get:async()=>({id:"store"})};
     f.ctx.tabIdentity=async()=>({ai_id:"provider_future",conversation_id:null});
-    f.ctx.saAssertReconciliationAction=async()=>{};
+    f.ctx.saAssertReconciliationAction=async()=>{
+      if(transition==="reconciliation-denied")throw Object.assign(new Error("SYNC_RECONCILIATION_REQUIRED"),{code:"SYNC_RECONCILIATION_REQUIRED"});
+    };
     f.ctx.saPromptTreeForExchange=async(identity)=>{
       assert.equal(identity.ai_id,"provider_future");promptReads++;
       return {id:"entry-fixture-tree"};
@@ -237,6 +239,7 @@ for (const transition of ["own-resolution","finish","account","session","wrong-a
     await f.entered.promise;
     f.page.resolve({ai_id:"provider_future",conversation_id:null});
     const expected=transition==="own-resolution"?"ENTRY_PASSED":
+      transition==="reconciliation-denied"?"SYNC_RECONCILIATION_REQUIRED":
       ["wrong-ai","denied"].includes(transition)?"WORK_POLICY_BLOCKED":
       transition.startsWith("generation-")?"WORK_ADMISSION_CONTEXT_CHANGED":"WORK_ADMISSION_CANCELLED";
     assert.equal((await outcome).code,expected);

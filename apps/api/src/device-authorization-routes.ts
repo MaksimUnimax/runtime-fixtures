@@ -1,3 +1,4 @@
+import { rateLimitClientIp } from "./rate-limit-client-ip.js";
 import type {
   FastifyInstance,
   RawReplyDefaultExpression,
@@ -94,7 +95,7 @@ export function registerDeviceAuthorizationRoutes(
       const result = await service.start(
         startInput,
         key,
-        request.ip,
+        rateLimitClientIp(request),
         request.id,
       );
       if (!result.ok) throw error(result.code);
@@ -159,7 +160,7 @@ export function registerDeviceAuthorizationRoutes(
         body.accountId,
         body.userCode,
         active.userId,
-        request.ip,
+        rateLimitClientIp(request),
         request.id,
       );
       if (!result.ok) throw error(result.code);
@@ -196,7 +197,7 @@ export function registerDeviceAuthorizationRoutes(
         id,
         body.userCode,
         active.userId,
-        request.ip,
+        rateLimitClientIp(request),
         request.id,
       );
       if (!result.ok) throw error(result.code);

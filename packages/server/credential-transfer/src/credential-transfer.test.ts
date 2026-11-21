@@ -915,7 +915,7 @@ describe("D3S2-2A control-plane foundation", () => {
     ).toMatchObject({ state: "COMPLETED" });
   });
 
-  it("allows resubmission after process loss of a delivered but unacknowledged packet", async () => {
+  it("does not reopen a delivered request after process loss before ACK", async () => {
     const repository = createMemoryTransferRepository();
     const now = () => new Date("2026-09-18T10:00:00.000Z");
     const first = new CredentialTransferService(
@@ -928,6 +928,8 @@ describe("D3S2-2A control-plane foundation", () => {
     await expect(first.receive(recipient, id)).resolves.toMatchObject({
       packetId: idFor(7),
     });
+    const delivered = await first.read(recipient, id);
+    first.stop();
     const restarted = new CredentialTransferService(
       repository,
       new EphemeralTransferRelay(),
@@ -936,19 +938,26 @@ describe("D3S2-2A control-plane foundation", () => {
     await expect(restarted.receive(recipient, id)).rejects.toMatchObject({
       code: "SOURCE_OFFLINE",
     });
-    await restarted.sourceSeen(source, id);
-    await restarted.submit(source, packet(id, "recovered", idFor(8)));
-    await expect(restarted.receive(recipient, id)).resolves.toMatchObject({
-      packetId: idFor(8),
-      envelope: "recovered",
+    await expect(restarted.sourceSeen(source, id)).rejects.toMatchObject({
+      code: "TRANSFER_CONFLICT",
     });
-    expect(
-      await restarted.acknowledge(recipient, {
+    await expect(
+      restarted.submit(source, packet(id, "replacement", idFor(8))),
+    ).rejects.toMatchObject({ code: "TRANSFER_CONFLICT" });
+    expect(await restarted.read(recipient, id)).toEqual(delivered);
+    expect(restarted.relayForTests().statsForTests()).toMatchObject({
+      packets: 0,
+      reserved: 0,
+    });
+    await expect(
+      restarted.acknowledge(recipient, {
         requestId: id,
-        packetId: idFor(8),
+        packetId: idFor(7),
         importDecision: "IMPORTED",
       }),
-    ).toMatchObject({ state: "COMPLETED" });
+    ).rejects.toMatchObject({ code: "TRANSFER_REPLAY" });
+    expect(await restarted.read(recipient, id)).toEqual(delivered);
+    restarted.stop();
   });
 
   it("expires a delivered but unacknowledged packet without retaining relay memory", async () => {

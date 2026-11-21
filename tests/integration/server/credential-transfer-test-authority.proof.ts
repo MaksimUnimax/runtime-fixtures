@@ -11,7 +11,7 @@ import {
   waitForProofEntry,
 } from "./helpers/credential-transfer-proof-lifecycle.js";
 
-/** Actual migrated50 C/CI database, no live input and no trigger disablement. */
+/** Actual migrated52 C/CI database, no live input and no trigger disablement. */
 export async function proveCredentialTransferTestAuthority(
   connectionString: string,
   expectedDatabase:
@@ -94,7 +94,7 @@ export async function proveCredentialTransferTestAuthority(
     const baseline = await db.query<{ n: string }>(
       "SELECT count(*)::text AS n FROM drizzle.__drizzle_migrations",
     );
-    check("migrated_50_required", baseline.rows[0]?.n === "50");
+    check("migrated_52_required", baseline.rows[0]?.n === "52");
     const due = await db.query<{ n: string }>(
       "SELECT count(*)::text AS n FROM public.credential_transfer_requests WHERE expires_at<=$1 AND state NOT IN ('COMPLETED','CANCELLED','EXPIRED')",
       [new Date(now.getTime() + 301_000)],
@@ -407,7 +407,7 @@ export async function proveCredentialTransferTestAuthority(
           const end = await db.query<{ n: string }>(
             "SELECT count(*)::text AS n FROM drizzle.__drizzle_migrations",
           );
-          cleanup.journalStill50 = end.rows[0]?.n === "50";
+          cleanup.journalStill52 = end.rows[0]?.n === "52";
         },
         () => db.close(),
       ])),

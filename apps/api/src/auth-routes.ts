@@ -1,3 +1,4 @@
+import { rateLimitClientIp } from "./rate-limit-client-ip.js";
 import type {
   FastifyInstance,
   RawReplyDefaultExpression,
@@ -72,7 +73,11 @@ export function registerAuthRoutes(
       const body = OtpRequestBodyV1Schema.parse(request.body);
       if (!normalizeEmail(body.email))
         throw new ControlledError("INVALID_REQUEST", "Invalid request", 400);
-      const result = await auth.requestOtp(body.email, request.ip, request.id);
+      const result = await auth.requestOtp(
+        body.email,
+        rateLimitClientIp(request),
+        request.id,
+      );
       if (!result.ok) throw error(result.code);
       reply.header("cache-control", "no-store");
       return reply.status(202).send({
@@ -108,7 +113,7 @@ export function registerAuthRoutes(
       const result = await auth.verifyOtp(
         body.challengeId,
         body.code,
-        request.ip,
+        rateLimitClientIp(request),
         request.id,
         typeof idempotencyKey === "string" ? idempotencyKey : undefined,
       );

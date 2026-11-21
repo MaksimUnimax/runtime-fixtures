@@ -23,11 +23,11 @@
     const provider = globalThis.BB2ConversationIdentity.providerForOrigin(origin);
     if (!adapter || adapter.id !== provider) return { origin, provider: null };
     const pathname = location.pathname + (location.search || "") + (location.hash || "");
-    // A retained empty Qwen frame may finish only the observed guest route
+    // A retained empty Qwen frame may finish only an observed first-send route
     // promotion. A different route ends that observation before any matching
     // historical text could be considered an owned-message witness.
     if (pending?.qwenRemountGap && (provider !== "qwen" ||
-        !["/c/new-chat", "/c/guest"].includes(pathname))) {
+        !(pathname === "/c/new-chat" || core.qwenStartFinalPath(pathname)))) {
       tracker.endStart(pending.intentId);
       pending = null;
     }
@@ -75,7 +75,32 @@
       observedMessages.length === 0 &&
       ((allMainRoots.length === 0 && !composer) || qwenPartialGap) ? qwenRoots[0] : null;
     if (qwenGapRoot) pending.qwenRemountGap = true;
-    const root = aliceNoMainRoot ? document.body : qwenRoot || qwenGapRoot || (
+    // In the observed Standard UI the workspace row survives the first-send
+    // remount, while both the nested role=main and outer main are replaced.
+    // Qualify one active page/main and every visible message before using it.
+    // This is only a DOM anchor; exact owned-prompt/navigation proofs remain.
+    const standardShells = provider === "chatgpt" && composer?.surfaceKind === "observed_standard"
+      ? [...document.querySelectorAll('[data-app-shell-workspace-row="true"]')] : [];
+    const standardShellMode = standardShells.length > 0;
+    const shellVisible = node => node?.isConnected && node.getClientRects().length > 0 &&
+      !node.closest('[aria-hidden="true"], [hidden]');
+    const standardShell = standardShells.length === 1 && shellVisible(standardShells[0]) ? standardShells[0] : null;
+    const standardPages = standardShell
+      ? [...standardShell.querySelectorAll('[data-app-shell-active-page="true"]')].filter(node =>
+          node.isConnected && !node.closest('[aria-hidden="true"], [hidden]')) : [];
+    const standardMains = allMainRoots.filter(node => node.tagName === "MAIN" &&
+      node.getAttribute("data-app-shell-main-surface") === "browser" && shellVisible(node));
+    const standardMain = standardMains.length === 1 ? standardMains[0] : null;
+    const standardRoot = standardShell && standardPages.length === 1 && standardMain &&
+      standardPages[0].contains(standardMain) && standardMain.contains(composer.composer) &&
+      allMainRoots.every(node => node === standardMain || standardMain.contains(node)) &&
+      messages.every(node => standardMain.contains(node)) && roots.size <= 1 ? standardShell : null;
+    const hasObservedRoot = ["claude", "deepseek"].includes(provider);
+    const observedRoot = hasObservedRoot ? adapter.conversationRoot?.() || null : null;
+    const observedRootValid = Boolean(observedRoot?.isConnected && composer?.composer?.isConnected &&
+      observedRoot.contains(composer.composer) && messages.every(node => observedRoot.contains(node)));
+    const root = standardShellMode ? standardRoot : hasObservedRoot ? (observedRootValid ? observedRoot : null) :
+      aliceNoMainRoot ? document.body : qwenRoot || qwenGapRoot || (
       roots.size === 1 ? [...roots][0] :
       mainRoots.length === 1 ? mainRoots[0] : composerRoot);
 
@@ -109,12 +134,12 @@
           startWitnessMessageId = id;
           break;
         }
-        // Primary guest trace: the same owned node receives its server UUID
-        // 571 ms after /c/guest. Never infer this continuity from text alone.
+        // Both guest and authenticated primary traces retain this exact owned
+        // node when assigning its server ID. Text or route alone is insufficient.
         if (provider === "qwen" && pending.emptySurface && pending.initialPath === "/" &&
             pending.baseline.size === 0 && !pending.renameUnavailable &&
             node === pending.witnessNode && root === pending.witnessRoot && root === qwenRoot &&
-            pathname === "/c/guest" && pathname === pending.witnessPath &&
+            core.qwenStartFinalPath(pathname) && pathname === pending.witnessPath &&
             explicitIds.length === 0 && messageIds.filter(value => value === id).length === 1) {
           renamePreviousId = pending.witnessId;
           startWitness = pending.intentId; startWitnessMessageId = id;

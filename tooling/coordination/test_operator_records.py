@@ -118,6 +118,33 @@ class CandidateRecordsTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "RELEASE_ACCEPTANCE_"):
                     self.ready()
 
+    def test_connection_code_requires_its_own_installed_proof_and_preserves_legacy(self):
+        proof = self._acceptance()
+        auth = proof["checks"]["installed_authentication"]
+        auth.update(method="ACCOUNT_CONNECTION_CODE", code_exchange_outcome="CONFIRMED",
+                    signed_account_binding="MATCH", exact_installed_artifact=True)
+        for field, invalid in [("code_exchange_outcome", "UNKNOWN"),
+                               ("signed_account_binding", "MISMATCH"),
+                               ("exact_installed_artifact", False)]:
+            checks = copy.deepcopy(proof["checks"])
+            checks["installed_authentication"][field] = invalid
+            self._acceptance(checks=checks)
+            with self.assertRaisesRegex(ValueError, "RELEASE_ACCEPTANCE_CONNECTION_CODE_PROOF_REQUIRED"):
+                self.ready()
+        self._acceptance(checks=proof["checks"])
+        accepted = self.ready()
+        self.assertEqual(accepted["readiness"], "READY_FOR_OPERATOR")
+
+    def test_connection_code_does_not_admit_injected_or_mock_authentication(self):
+        proof = self._acceptance()
+        auth = proof["checks"]["installed_authentication"]
+        auth.update(method="ACCOUNT_CONNECTION_CODE", code_exchange_outcome="CONFIRMED",
+                    signed_account_binding="MATCH", exact_installed_artifact=True,
+                    control_plane="MOCK")
+        self._acceptance(checks=proof["checks"])
+        with self.assertRaisesRegex(ValueError, "RELEASE_ACCEPTANCE_REAL_AUTH_REQUIRED"):
+            self.ready()
+
     def test_acceptance_and_underlying_evidence_must_be_reviewed(self):
         for omit in ["release-acceptance.json", "target-runtime-result.json"]:
             review = self.review()

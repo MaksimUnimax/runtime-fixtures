@@ -18,3 +18,6 @@ export * from "./beta";
 export * from "./sync";
 export * from "./credential-transfer";
 export * from "./feedback";
+
+export * from "./connection-codes";
+export * from "./connection-exchanges";

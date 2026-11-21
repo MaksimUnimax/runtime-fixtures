@@ -502,5 +502,582 @@ class BootstrapObserverTest(unittest.TestCase):
 
 
 
+
+class BootstrapResponseLifecycleTest(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.path = Path(self.temp.name) / "lifecycle.json"
+        self.run_id = "a" * 32
+
+    def row(self, ordinal, finished=True):
+        events = [{"phase": "RECEIVED", "elapsed_ms": 0, "status": None, "writable_finished": None}]
+        if finished:
+            events.append({"phase": "FINISH", "elapsed_ms": 1, "status": 200, "writable_finished": True})
+        events.append({"phase": "CLOSE", "elapsed_ms": 2, "status": 200, "writable_finished": finished})
+        return {"ordinal": ordinal, "events": events}
+
+    def save(self, rows, **extra):
+        import json
+        self.path.write_text(json.dumps({"schema_version": 1, "run_id": self.run_id, "complete": True, "records": rows, **extra}))
+
+    def response(self, ordinal, run_id=None, failure=None):
+        response = FakeResponse(request=FakeRequest(failure=failure))
+        response.headers = {module._BOOTSTRAP_ORDINAL_HEADER: (run_id or self.run_id) + ":" + str(ordinal)}
+        def unavailable_raw_headers(name):
+            response.calls.append("raw_headers")
+            raise AssertionError("diagnostics must not request raw headers without a deadline")
+        response.header_value = unavailable_raw_headers
+        return response
+
+    def test_exact_selected_header_survives_different_arrival_order(self):
+        self.save([self.row(1), self.row(2, False), self.row(3)])
+        one, two, three = [self.response(i) for i in (1, 2, 3)]
+        result = module.safe_bootstrap_response_lifecycle(two, [three, one, two], self.path)
+        self.assertEqual(result["correlation"], "EXACT_RESPONSE_HEADER")
+        self.assertEqual(result["selected_server_ordinal"], 2)
+        self.assertFalse(result["server_finished"])
+        self.assertFalse(result["server_close_writable_finished"])
+        self.assertEqual(result["browser_code_family"], "NONE")
+
+    def test_unrelated_success_cannot_replace_selected_premature_response(self):
+        self.save([self.row(1, False), self.row(2)])
+        selected, other = self.response(1, failure="net::ERR_ABORTED"), self.response(2)
+        result = module.safe_bootstrap_response_lifecycle(selected, [other, selected], self.path)
+        self.assertEqual(result["browser_code_family"], "NET_ERR_ABORTED")
+        self.assertFalse(result["server_finished"])
+
+    def test_duplicate_missing_foreign_or_restarted_server_identity_is_unconfirmed(self):
+        self.save([self.row(1), self.row(2)])
+        selected = self.response(1)
+        for responses in ([selected, self.response(1)], [selected, self.response(2, "b" * 32)], [self.response(1)], [selected, selected]):
+            self.assertEqual(module.safe_bootstrap_response_lifecycle(selected, responses, self.path)["correlation"], "UNCONFIRMED")
+        selected.headers = {module._BOOTSTRAP_ORDINAL_HEADER: "SECRET"}
+        self.assertEqual(module.safe_bootstrap_response_lifecycle(selected, [selected], self.path)["correlation"], "UNCONFIRMED")
+
+    def test_malformed_overflow_extra_fields_and_incomplete_evidence_fail_closed(self):
+        import json
+        response = self.response(1)
+        variants = [
+            {"complete": False},
+            {"secret": "SECRET"},
+            {"records": [self.row(1), self.row(1)]},
+            {"records": [{"ordinal": 1, "events": [{**self.row(1)["events"][0], "body": "SECRET"}]}]},
+            {"records": [self.row(i) for i in range(1, 66)]},
+            {"records": [{"ordinal": True, "events": self.row(1)["events"]}]},
+        ]
+        for extra in variants:
+            self.save([self.row(1)], **extra)
+            result = module.safe_bootstrap_response_lifecycle(response, [response], self.path)
+            self.assertEqual(result["correlation"], "UNCONFIRMED")
+            self.assertNotIn("SECRET", json.dumps(result))
+        self.path.write_text("{" + " " * 65536)
+        self.assertEqual(module.safe_bootstrap_response_lifecycle(response, [response], self.path)["correlation"], "UNCONFIRMED")
+
+    def test_code_family_is_fixed_and_does_not_change_old_class(self):
+        for raw, expected in [("net::ERR_ABORTED", "NET_ERR_ABORTED"), ("NS_BINDING_ABORTED", "NS_BINDING_ABORTED"), ("SECRET_URL_TOKEN", "OTHER"), (None, "NONE")]:
+            request = FakeRequest(failure=raw)
+            self.assertEqual(module.safe_bootstrap_failure_code_family(request), expected)
+        self.assertEqual(module.safe_bootstrap_failure_class(FakeRequest(failure="net::ERR_ABORTED")), "ABORTED")
+
+    def test_failed_selected_or_unselected_response_uses_cached_headers_without_rpc(self):
+        for failed_ordinal in (1, 2):
+            with self.subTest(failed_ordinal=failed_ordinal):
+                self.save([self.row(1, False), self.row(2)])
+                selected = self.response(1, failure="net::ERR_ABORTED" if failed_ordinal == 1 else None)
+                other = self.response(2, failure="net::ERR_ABORTED" if failed_ordinal == 2 else None)
+                result = module.safe_bootstrap_response_lifecycle(selected, [other, selected], self.path)
+                self.assertEqual(result["correlation"], "EXACT_RESPONSE_HEADER")
+                self.assertEqual(result["selected_server_ordinal"], 1)
+                self.assertFalse(result["server_finished"])
+                self.assertEqual(selected.calls, [])
+                self.assertEqual(other.calls, [])
+
+    def test_missing_or_ambiguous_cached_headers_are_unconfirmed_without_rpc(self):
+        import json
+        for selected_missing in (True, False):
+            for headers in (None, {}, {module._BOOTSTRAP_ORDINAL_HEADER: None},
+                            {module._BOOTSTRAP_ORDINAL_HEADER: "SECRET"},
+                            {module._BOOTSTRAP_ORDINAL_HEADER: self.run_id + ":1\n" + self.run_id + ":1"}):
+                with self.subTest(selected_missing=selected_missing, headers_type=type(headers).__name__):
+                    self.save([self.row(1), self.row(2)])
+                    selected, other = self.response(1), self.response(2)
+                    (selected if selected_missing else other).headers = headers
+                    result = module.safe_bootstrap_response_lifecycle(selected, [other, selected], self.path)
+                    self.assertEqual(result, {"schema_version": 1, "correlation": "UNCONFIRMED"})
+                    self.assertNotIn("SECRET", json.dumps(result))
+                    self.assertEqual(selected.calls, [])
+                    self.assertEqual(other.calls, [])
+
+    def test_only_fixed_cached_header_is_read_and_unrelated_secrets_are_not_exported(self):
+        import json
+        class ObservedHeaders(dict):
+            def __init__(self, values):
+                super().__init__(values)
+                self.lookups = []
+            def get(self, name, default=None):
+                self.lookups.append(name)
+                return super().get(name, default)
+        self.save([self.row(1)])
+        selected = self.response(1)
+        selected.headers = ObservedHeaders({
+            module._BOOTSTRAP_ORDINAL_HEADER: self.run_id + ":1",
+            "set-cookie": "SECRET_COOKIE",
+            "authorization": "SECRET_AUTH",
+        })
+        result = module.safe_bootstrap_response_lifecycle(selected, [selected], self.path)
+        self.assertEqual(result["correlation"], "EXACT_RESPONSE_HEADER")
+        self.assertEqual(selected.headers.lookups, [module._BOOTSTRAP_ORDINAL_HEADER])
+        self.assertNotIn("SECRET", json.dumps(result))
+        self.assertEqual(selected.calls, [])
+
+    def test_node_response_lifecycle_and_real_loopback_controls(self):
+        import subprocess
+        result = subprocess.run(
+            ["node", "--test", str(Path(__file__).with_name("bootstrap-response-lifecycle.test.mjs"))],
+            capture_output=True, text=True, timeout=15,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+
+class FailureCleanupDiagnosticTest(unittest.TestCase):
+    def exercise_failure_handler(self, *, envelope=None, profile=None, worker_error=False):
+        import ast
+        import contextlib
+        import copy
+        import io
+        import json
+        import tempfile
+        from types import SimpleNamespace
+
+        # Execute the real run() exception handler and its cleanup, without
+        # starting a browser or replacing them with a mirrored implementation.
+        tree = ast.parse(Path(module.__file__).read_text())
+        matches = [node for node in ast.walk(tree) if isinstance(node, ast.Try)
+                   and any(isinstance(item, ast.Constant)
+                           and item.value == "I1_SAFE_BOOTSTRAP_EVENTS "
+                           for handler in node.handlers for item in ast.walk(handler))]
+        self.assertEqual(len(matches), 1)
+        observed = copy.deepcopy(matches[0])
+        observed.body = [ast.Raise(exc=ast.Name(id="original_failure", ctx=ast.Load()))]
+        observed.orelse = []
+        executable = ast.fix_missing_locations(ast.Module(body=[observed], type_ignores=[]))
+        original = RuntimeError("ORIGINAL_INSTALLED_FAILURE")
+        calls, closed, stages = [], [], []
+
+        def evaluate(*args):
+            calls.append("worker_evaluate")
+            if worker_error:
+                raise RuntimeError("PRIVATE_WORKER_FAILURE")
+            return {}
+
+        def inspect_profile(*args):
+            calls.append("profile_evaluate")
+            raise RuntimeError("PRIVATE_PROFILE_FAILURE")
+
+        namespace = dict(vars(module))
+        with tempfile.TemporaryDirectory() as directory:
+            namespace.update(
+                original_failure=original, result={}, stage="work_start_bootstrap_body_begin",
+                started=0, bootstrap_http_responses=[], completed_bootstrap_requests=[],
+                failed_bootstrap_requests=[], observed_bootstrap_request_windows=[],
+                second_activation_header_count=None, work_start_header_count=None,
+                failed_bootstrap_times=[], work_start_started_at=None,
+                bootstrap_envelope=envelope, output=Path(directory),
+                worker=SimpleNamespace(evaluate=evaluate),
+                inspect_signed_profile=inspect_profile,
+                context=SimpleNamespace(close=lambda: closed.append(True)),
+                _mark_stage=lambda output, name, started: stages.append(name),
+            )
+            if profile is not None:
+                namespace["signed_profile"] = profile
+            with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                with self.assertRaises(RuntimeError) as raised:
+                    exec(compile(executable, module.__file__, "exec"), namespace)
+            self.assertIs(raised.exception, original)
+        self.assertEqual(closed, [True])
+        self.assertEqual(stages, ["browser_context_close"])
+        self.assertEqual(calls, [], "failure diagnostics must not start worker RPCs")
+        result = namespace["result"]
+        self.assertEqual(result["bootstrap_response_lifecycle"]["correlation"], "UNCONFIRMED")
+        self.assertNotIn("PRIVATE", json.dumps(result) + stdout.getvalue())
+        self.assertNotIn("status", result)  # The outer handler retains FAIL authority.
+        return result
+
+    def test_unavailable_worker_does_not_delay_failure_cleanup(self):
+        result = self.exercise_failure_handler(worker_error=True)
+        self.assertEqual(result["failure_diagnostic"]["worker_state"], "UNCONFIRMED")
+        self.assertEqual(result["failure_profile_diagnostic"], {"source": "UNCONFIRMED"})
+
+    def test_parsed_envelope_does_not_trigger_another_profile_rpc(self):
+        result = self.exercise_failure_handler(envelope={"payload": "PRIVATE_ENVELOPE"})
+        self.assertTrue(result["failure_observation"]["bootstrap_body_parsed"])
+        self.assertEqual(result["failure_profile_diagnostic"], {"source": "UNCONFIRMED"})
+
+    def test_completed_profile_checks_are_cached_and_explicitly_pre_failure(self):
+        result = self.exercise_failure_handler(
+            envelope={"payload": "PRIVATE_ENVELOPE"},
+            profile={"verified": True, "accountMatches": False, "materialShapeValid": True,
+                     "materialValid": False, "raw": "PRIVATE_PROFILE"},
+        )
+        self.assertEqual(result["failure_profile_diagnostic"], {
+            "source": "PRE_FAILURE_EVALUATION",
+            "checks": {"verified": True, "accountMatches": False,
+                       "materialShapeValid": True, "materialValid": False},
+        })
+
+    def test_unreadable_cached_checks_cannot_become_positive_evidence(self):
+        for profile in ("PRIVATE_VALUE", {"verified": "PRIVATE_VALUE", "accountMatches": 1}):
+            with self.subTest(kind=type(profile).__name__):
+                result = self.exercise_failure_handler(profile=profile)
+                diagnostic = result["failure_profile_diagnostic"]
+                if type(profile) is dict:
+                    self.assertTrue(all(value is None for value in diagnostic["checks"].values()))
+                else:
+                    self.assertEqual(diagnostic, {"source": "UNCONFIRMED"})
+
+
+
+class BootstrapTraceObserverTest(unittest.TestCase):
+    @staticmethod
+    def parameters():
+        return {
+            "runId": "a" * 32, "prefix": module._BOOTSTRAP_TRACE_PREFIX,
+            "events": sorted(module._BOOTSTRAP_TRACE_EVENTS),
+            "codes": sorted(module._BOOTSTRAP_TRACE_CODES),
+            "numberKeys": sorted(module._BOOTSTRAP_TRACE_NUMBERS),
+            "flagKeys": sorted(module._BOOTSTRAP_TRACE_FLAGS),
+        }
+
+    def observer(self):
+        from types import SimpleNamespace
+        callbacks = {}
+        observer = module.BootstrapTraceObserver(
+            SimpleNamespace(on=lambda event, fn: callbacks.__setitem__(event, fn)))
+        worker = SimpleNamespace(evaluate=lambda *_: self.fail("snapshot must not call RPC"))
+        observer.worker, observer.run_id, observer.installed = worker, "a" * 32, True
+        return observer, worker, callbacks
+
+    def emit(self, observer, row, worker=None):
+        import json
+        from types import SimpleNamespace
+        observer.observe_console(SimpleNamespace(
+            worker=worker or observer.worker,
+            text=module._BOOTSTRAP_TRACE_PREFIX + json.dumps(row)))
+
+    def response(self, worker, ordinal=3, run_id=None):
+        response = FakeResponse()
+        response.request.service_worker = worker
+        response.headers = {module._BOOTSTRAP_ORDINAL_HEADER: (run_id or "a" * 32) + ":" + str(ordinal)}
+        response.header_value = lambda *_: self.fail("raw-header RPC forbidden")
+        return response
+
+    def sequence(self, observer, extra=None):
+        rows = [
+            {"seq": 1, "elapsed_ms": 0, "event": "INSTALL"},
+            {"seq": 2, "elapsed_ms": 1, "event": "FETCH_DISPATCH", "fetch_ordinal": 2,
+             "acquisition_ordinal": 1, "caller_signal_ordinal": 1, "wrapper_signal_ordinal": 2},
+            {"seq": 3, "elapsed_ms": 2, "event": "RESPONSE_HEADERS", "fetch_ordinal": 2, "server_ordinal": 3},
+        ]
+        rows.extend(extra or [])
+        for row in rows:
+            self.emit(observer, row)
+
+    def test_exact_response_join_is_not_list_order_or_nearest_time(self):
+        observer, worker, _ = self.observer()
+        self.sequence(observer, [
+            {"seq": 4, "elapsed_ms": 3, "event": "RETIRE_BEGIN", "acquisition_ordinal": 1,
+             "caller_signal_ordinal": 1, "retire_code": "BOOTSTRAP_CONTEXT_CHANGED"},
+            {"seq": 5, "elapsed_ms": 4, "event": "WRAPPER_ABORT_CALLER", "fetch_ordinal": 2},
+        ])
+        selected, other = self.response(worker), self.response(worker, 1)
+        result = observer.snapshot(selected, [selected, other])
+        self.assertEqual(result["correlation"], "EXACT_RESPONSE_HEADER_AND_WORKER")
+        self.assertEqual(result["selected_fetch_ordinal"], 2)
+        self.assertEqual(result["lease_retire_codes"], ["BOOTSTRAP_CONTEXT_CHANGED"])
+        self.assertEqual(result["observed_local_paths"], ["CALLER_ABORT_PATH"])
+        self.assertEqual(result["abort_initiator"], "NOT_ESTABLISHED")
+
+    def test_missing_duplicate_foreign_or_other_worker_is_unconfirmed(self):
+        observer, worker, _ = self.observer()
+        self.sequence(observer)
+        selected = self.response(worker)
+        for response, rows in [
+            (selected, [selected, self.response(worker)]),
+            (self.response(worker, 4), []),
+            (selected, [selected, self.response(worker, 1, "b" * 32)]),
+        ]:
+            self.assertEqual(observer.snapshot(response, rows)["correlation"], "UNCONFIRMED")
+        selected.request.service_worker = object()
+        self.assertEqual(observer.snapshot(selected, [selected])["correlation"], "UNCONFIRMED")
+        selected.request.service_worker = worker
+        self.emit(observer, {"seq": 4, "elapsed_ms": 3, "event": "RESPONSE_HEADERS",
+                             "fetch_ordinal": 9, "server_ordinal": 3})
+        self.assertEqual(observer.snapshot(selected, [selected])["correlation"], "UNCONFIRMED")
+
+    def test_lost_event_overflow_and_private_fields_never_create_positive_evidence(self):
+        import json
+        for bad in [
+            {"seq": 9, "elapsed_ms": 4, "event": "BODY_DONE"},
+            {"seq": 4, "elapsed_ms": 4, "event": "BODY_DONE", "token": "PRIVATE"},
+            {"seq": 4, "elapsed_ms": 4, "event": "BODY_DONE", "total_bytes": True},
+            {"seq": 4, "elapsed_ms": 4, "event": "GAP"},
+        ]:
+            observer, worker, _ = self.observer()
+            self.sequence(observer)
+            self.emit(observer, bad)
+            selected = self.response(worker)
+            result = observer.snapshot(selected, [selected])
+            self.assertEqual(result["correlation"], "UNCONFIRMED")
+            self.assertNotIn("PRIVATE", json.dumps(result))
+
+    def test_cached_console_and_close_events_survive_dead_worker(self):
+        observer, worker, callbacks = self.observer()
+        self.sequence(observer)
+        class CachedMessage:
+            worker = observer.worker
+            text = "unrelated private console must not be retained"
+            @property
+            def args(self):
+                raise AssertionError("args RPC forbidden")
+        observer.observe_console(CachedMessage())
+        observer._close_worker()
+        callbacks["close"]()
+        selected = self.response(worker)
+        result = observer.snapshot(selected, [selected])
+        self.assertTrue(result["worker_closed"])
+        self.assertTrue(result["context_closed"])
+        self.assertEqual(len(result["events"]), 3)
+
+    def test_terminal_headers_survive_timeout_caller_abort_and_late_body(self):
+        import subprocess
+        program = r"""
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+const source = fs.readFileSync(process.argv[1]+'/packages/control-client/src/client.js','utf8');
+const requestSource = source.slice(source.indexOf('  function parseRetryAfter('), source.indexOf('  async function scheduleMetadataForget('));
+function fixture(status, late, rejectBody) {
+  const timers = new Map(), observations = [];
+  let releaseHeaders, releaseBody, entered, fetches = 0, serial = 0;
+  const reading = new Promise(r => entered = r);
+  const realm = { AbortController, Headers, URL, TextDecoder, Uint8Array,
+    consentApi:null, state:{}, now:()=>0, url:p=>'http://127.0.0.1:43100'+p,
+    error:code=>Object.assign(new Error(code),{code}),
+    transportProvenance:new WeakMap(), httpErrorProvenance:new WeakMap(),
+    CONTROL_REQUEST_DEADLINE_MS:30000, i1BootstrapRequestDiagnostic:()=>{},
+    quarantineBootstrap:e=>{throw e;},
+    setTimeout:(fn,ms)=>{const id=++serial;timers.set(id,{fn,ms});return id;},
+    clearTimeout:id=>timers.delete(id),
+    fetch:(_url, {signal})=>{
+      fetches++;
+      const response = {ok:false,status,headers:new Headers(),body:{getReader:()=>({
+        read:()=>new Promise((resolve,reject)=>{
+          releaseBody=()=>resolve({done:true}); entered();
+          if(rejectBody) signal.addEventListener('abort',()=>reject(new Error('PRIVATE_BODY_FAILURE')),{once:true});
+        }), cancel:async()=>{},
+      })}};
+      return late ? new Promise(resolve=>{
+        releaseHeaders=()=>resolve(response);
+        if(late==='abort') signal.addEventListener('abort',releaseHeaders,{once:true});
+      }) : Promise.resolve(response);
+    },
+  };
+  vm.createContext(realm); vm.runInContext(requestSource,realm);
+  const caller = new AbortController();
+  const outcome = realm.request('/v1/bootstrap', {signal:caller.signal,
+    observeSettlement:value=>observations.push(value)}).then(value=>({value}),error=>({error}));
+  return {realm,timers,observations,caller,outcome,reading,
+    headers:()=>releaseHeaders(),body:()=>releaseBody(),get fetches(){return fetches;}};
+}
+let cases=0;
+for (const status of [401,403]) for (const interrupt of ['timeout','caller']) {
+  for (const rejects of [true,false]) {
+    const f=fixture(status,false,rejects); await f.reading;
+    if(interrupt==='timeout') [...f.timers.values()].find(t=>t.ms===30000).fn();
+    else f.caller.abort();
+    const {error}=await f.outcome;
+    assert.equal(error.status,status);assert.equal(error.code,'CONTROL_HTTP_'+status);
+    assert.equal(f.realm.httpErrorProvenance.get(error),'http://127.0.0.1:43100/v1/bootstrap');
+    assert.equal(f.realm.transportProvenance.has(error),false);
+    assert.equal(f.fetches,1);assert.equal(f.timers.size,0);
+    f.body(); cases++;
+  }
+  const f=fixture(status,true,false);
+  if(interrupt==='timeout') [...f.timers.values()].find(t=>t.ms===30000).fn();
+  else f.caller.abort();
+  const {error}=await f.outcome;
+  assert.equal(error.code,interrupt==='timeout'?'CONTROL_REQUEST_TIMEOUT':'CONTROL_REQUEST_ABORTED');
+  assert.equal(f.observations.length,0);
+  f.headers(); await f.reading;
+  const denial=f.observations.find(v=>v.error?.status===status);
+  assert(denial,'late headers must reach observer before body settles');
+  assert.equal(denial.late,true);
+  assert.equal(f.realm.httpErrorProvenance.get(denial.error),'http://127.0.0.1:43100/v1/bootstrap');
+  assert.equal(f.realm.transportProvenance.has(denial.error),false);
+  assert.equal(f.fetches,1);assert.equal(f.timers.size,0);f.body();cases++;
+  const race=fixture(status,'abort',false);
+  if(interrupt==='timeout') [...race.timers.values()].find(t=>t.ms===30000).fn();
+  else race.caller.abort();
+  const raced=await race.outcome;
+  // Cross-realm promise delivery may precede or follow request's return. The
+  // former returns HTTP; the latter must publish the late denial immediately.
+  if(raced.error.status===status) assert.equal(race.realm.transportProvenance.has(raced.error),false);
+  else {
+    assert.equal(raced.error.code,interrupt==='timeout'?'CONTROL_REQUEST_TIMEOUT':'CONTROL_REQUEST_ABORTED');
+    assert(race.observations.some(v=>v.late===true && v.error?.status===status));
+  }
+  assert.equal(race.fetches,1);assert.equal(race.timers.size,0);race.body();cases++;
+}
+// Nonterminal status still prevents transport fallback on either interruption,
+// but must not manufacture a 401/403 status. Policy tests separately verify
+// that these observations do not revoke existing authentication.
+for (const status of [429,500,502,503,504]) for (const interrupt of ['timeout','caller']) {
+  for (const rejects of [true,false]) {
+    const f=fixture(status,false,rejects); await f.reading;
+    assert.equal(f.observations.length,1,'known HTTP is observable before body settlement');
+    assert.equal(f.observations[0].error.status,status);
+    assert.equal(f.observations[0].late,false);
+    if(interrupt==='timeout') [...f.timers.values()].find(t=>t.ms===30000).fn();
+    else f.caller.abort();
+    const {error}=await f.outcome;
+    assert.equal(error.status,status);assert.equal(error.code,'CONTROL_HTTP_'+status);
+    assert.equal(f.realm.httpErrorProvenance.get(error),'http://127.0.0.1:43100/v1/bootstrap');
+    assert.equal(f.realm.transportProvenance.has(error),false);
+    assert.equal(f.fetches,1);assert.equal(f.timers.size,0);
+    f.body(); cases++;
+  }
+}
+console.log(JSON.stringify({status:'PASS',actualRequestCases:cases}));
+"""
+        completed = subprocess.run(
+            [module.NODE, "--input-type=module", "-e", program, str(module.ROOT)],
+            text=True, capture_output=True, timeout=20,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+
+    def test_real_request_and_scheduler_hooks_with_bounded_sink(self):
+        import json, subprocess
+        program = r"""
+import fs from "node:fs";
+import vm from "node:vm";
+import assert from "node:assert/strict";
+const input = JSON.parse(fs.readFileSync(0, "utf8")), root = process.argv[1];
+const client = fs.readFileSync(root+"/packages/control-client/src/client.js","utf8");
+const schedulerSource = fs.readFileSync(root+"/packages/control-client/src/parallel-authority.js","utf8");
+const hooks = client.slice(client.indexOf("  function i1BootstrapDiagnostic("),client.indexOf("  const config ="));
+const requestSource = client.slice(client.indexOf("  function parseRetryAfter("),client.indexOf("  async function scheduleMetadataForget("));
+function fixture(kind, diagnostic = "on") {
+  const lines = [], timers = new Map();
+  let serial = 0, cancelCount = 0, readerCount = 0, physicalSignal, readEntered;
+  const reading = new Promise(r => readEntered=r);
+  const realm = {
+    AbortController, Headers, TextDecoder, Uint8Array, URL,
+    SellerAgentsControlConfig:{environment:diagnostic==="production"?"PRODUCTION":"LOCAL DEVELOPMENT"},
+    console:{debug:line=>lines.push(line)}, performance:{now:()=>10},
+    crypto:{randomUUID:()=>String(++serial)}, queueMicrotask,
+    url:p=>"http://127.0.0.1:43100"+p,
+    consentApi:null, state:{}, now:()=>0,
+    error:code=>Object.assign(new Error(code),{code}),
+    transportProvenance:new WeakMap(), httpErrorProvenance:new WeakMap(),
+    CONTROL_REQUEST_DEADLINE_MS:30000,
+    setTimeout:(fn,ms)=>{const id=++serial;timers.set(id,{fn,ms});return id;},
+    clearTimeout:id=>timers.delete(id),
+    fetch:async (_endpoint, options)=>{
+      physicalSignal=options.signal;
+      const reader = {
+        async read() {
+          readerCount++; readEntered();
+          if(kind==="pending") return new Promise((_, reject)=>{
+            options.signal.addEventListener("abort",()=>reject(new Error("PRIVATE_ABORT_DETAIL")),{once:true});
+          });
+          if(kind==="read_failure") throw new Error("PRIVATE_READ_DETAIL");
+          if(readerCount>1) return {done:true};
+          return {done:false,value:kind==="limit"?new Uint8Array(1024*1024+1):new TextEncoder().encode('{"ok":true}')};
+        },
+        async cancel(){cancelCount++;},
+      };
+      return {ok:true,status:200,body:{getReader:()=>reader},
+        headers:new Headers({"x-oct-i1-bootstrap-ordinal":"a".repeat(32)+":3"})};
+    },
+  };
+  vm.createContext(realm);
+  if(diagnostic==="on") assert.equal(vm.runInContext("("+input.probe+")",realm)(input.parameters),true);
+  if(diagnostic==="throw" || diagnostic==="production")
+    realm.__OCTOPORT_I1_BOOTSTRAP_DIAGNOSTIC_V1__={record(){throw Error("PRIVATE");},beginFetch(){throw Error("PRIVATE");},gap(){throw Error("PRIVATE");}};
+  vm.runInContext(hooks+requestSource+";globalThis.call=(signal)=>request('/v1/bootstrap',{signal},i1BootstrapDiagnosticContext({acquisitionId:'PRIVATE_ACQUISITION',signal}));",realm);
+  vm.runInContext(schedulerSource,realm);
+  return {realm,lines,timers,reading,get signal(){return physicalSignal;},get cancels(){return cancelCount;},
+    rows:()=>lines.map(x=>JSON.parse(x.slice(input.parameters.prefix.length)))};
+}
+for (const mode of ["on","off","throw","production"]) {
+  const f=fixture("ok",mode), value=await f.realm.call(new AbortController().signal);
+  assert.equal(value.body.ok,true);assert.equal(f.cancels,0);assert.equal(f.signal.aborted,false);
+  if(mode==="on") {assert(f.rows().some(x=>x.event==="BODY_DONE"&&x.total_bytes===11));assert(f.rows().some(x=>x.server_ordinal===3));}
+  else assert.equal(f.lines.length,0);
+}
+{
+  const f=fixture("limit");
+  await assert.rejects(f.realm.call(),e=>e.code==="CONTROL_RESPONSE_TOO_LARGE");
+  assert.equal(f.cancels,1);assert(f.rows().some(x=>x.event==="BODY_LIMIT_CANCEL"&&x.total_bytes>1048576));
+}
+{
+  const f=fixture("read_failure");
+  await assert.rejects(f.realm.call(),e=>e.code==="CONTROL_TRANSPORT_UNAVAILABLE" &&
+    e.status===200 && e.responseOk===true &&
+    f.realm.transportProvenance.get(e)==="http://127.0.0.1:43100/v1/bootstrap" &&
+    !String(e).includes("PRIVATE_READ_DETAIL"));
+  assert.equal(f.cancels,0);
+  assert.equal(f.timers.size,0);assert.equal(f.signal.aborted,false);
+  assert(f.rows().some(x=>x.event==="BODY_READ_REJECTED"));
+}
+{
+  const f=fixture("pending"), outcome=f.realm.call().then(v=>({v}),e=>({e}));
+  await f.reading;
+  const timer=[...f.timers.values()].find(x=>x.ms===30000);assert(timer);timer.fn();
+  assert.equal((await outcome).e.code,"CONTROL_REQUEST_TIMEOUT");
+  assert.equal(f.signal.aborted,true);assert(f.rows().some(x=>x.event==="WRAPPER_ABORT_TIMER"));
+}
+{
+  const f=fixture("pending"), scheduler=f.realm.SellerAgentsParallelAuthority.createBootstrapScheduler({
+    isFenceCurrent:()=>true,observeLateOutcome:()=>{},quarantine:()=>{},now:()=>0,
+    setTimer:f.realm.setTimeout,clearTimer:f.realm.clearTimeout,makeId:()=>"PRIVATE_LEASE",
+  });
+  const fence={principalEpoch:1,accessEpoch:1,grantEpoch:1,environmentKey:"env",scopeKey:"scope"};
+  const done=scheduler.request({fence,requestKey:"request",run:lease=>{
+    return f.realm.request("/v1/bootstrap",{signal:lease.signal},
+      f.realm.i1BootstrapDiagnosticContext(lease));
+  }}).then(v=>({v}),e=>({e}));
+  await f.reading;scheduler.invalidate("scope");
+  assert.equal((await done).e.code,"BOOTSTRAP_CONTEXT_CHANGED");
+  await Promise.resolve();
+  const rows=f.rows(), retire=rows.find(x=>x.event==="RETIRE_BEGIN"),
+    dispatch=rows.find(x=>x.event==="FETCH_DISPATCH"),
+    caller=rows.find(x=>x.event==="CALLER_SIGNAL_ABORT"),
+    abort=rows.find(x=>x.event==="WRAPPER_ABORT_CALLER");
+  assert(retire&&dispatch&&caller&&abort);
+  assert.equal(retire.caller_signal_ordinal,dispatch.caller_signal_ordinal);
+  assert.equal(retire.acquisition_ordinal,dispatch.acquisition_ordinal);
+  assert(retire.seq<caller.seq&&caller.seq<abort.seq);
+  assert.equal(f.signal.aborted,true);
+}
+{
+  const f=fixture("ok"), port=f.realm.__OCTOPORT_I1_BOOTSTRAP_DIAGNOSTIC_V1__;
+  for(let i=0;i<400;i++)port.record("LOCAL_RESET",{url:"PRIVATE_URL",headers:"PRIVATE_HEADERS"});
+  assert(f.lines.length<=256);assert.equal(f.rows().at(-1).event,"GAP");
+  assert(!f.lines.join("").includes("PRIVATE"));
+}
+console.log("PASS real request/scheduler: EOF, reader reject, limit cancel, caller lease abort, timeout, disabled/throwing sink, production, bounded projection");
+"""
+        completed = subprocess.run([module.NODE, "--input-type=module", "-e", program, str(module.ROOT)],
+                                   input=json.dumps({"probe": module._BOOTSTRAP_TRACE_JS, "parameters": self.parameters()}),
+                                   text=True, capture_output=True, timeout=15)
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertIn("PASS real request/scheduler", completed.stdout)
+
+
+
+
 if __name__ == "__main__":
     unittest.main()

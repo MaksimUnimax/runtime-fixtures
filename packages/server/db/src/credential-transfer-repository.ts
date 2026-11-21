@@ -122,6 +122,13 @@ export function createCredentialTransferRepository(
             request.recipientDeviceId,
           ),
         );
+        const approval = await tx.query<{ required: boolean }>(
+          "SELECT connection_credential_id IS NOT NULL AND credential_transfer_approved_at IS NULL AS required " +
+            "FROM devices WHERE id=$1 AND account_id=$2",
+          [principal.deviceId, principal.accountId],
+        );
+        if (approval.rows[0]?.required)
+          fail("CONNECTION_TRANSFER_APPROVAL_REQUIRED");
         const existing = await load(tx, request.requestId, now);
         if (existing) {
           if (
@@ -210,12 +217,7 @@ export function createCredentialTransferRepository(
         principal,
         now,
         "source",
-        [
-          "REQUESTED",
-          "SOURCE_SEEN",
-          "PACKET_AVAILABLE_EPHEMERAL",
-          "DELIVERED_TO_RECIPIENT",
-        ],
+        ["REQUESTED", "SOURCE_SEEN", "PACKET_AVAILABLE_EPHEMERAL"],
         async (tx, row) => {
           if (!row.source_device_id)
             await tx.query(
@@ -237,7 +239,7 @@ export function createCredentialTransferRepository(
         principal,
         now,
         "source",
-        ["SOURCE_SEEN", "PACKET_AVAILABLE_EPHEMERAL", "DELIVERED_TO_RECIPIENT"],
+        ["SOURCE_SEEN", "PACKET_AVAILABLE_EPHEMERAL"],
         async (tx) => {
           await tx.query(
             `UPDATE credential_transfer_requests SET state='PACKET_AVAILABLE_EPHEMERAL',revision=revision+1 WHERE request_id=$1`,

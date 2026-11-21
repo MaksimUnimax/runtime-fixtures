@@ -38,7 +38,7 @@
     "@product/remote-config": "workspace:*",
     "@product/shared": "workspace:*",
     "@product/sync": "workspace:*",
-    "fastify": "5.8.5",
+    "fastify": "5.12.6",
     "fastify-type-provider-zod": "6.1.0",
     "pino": "9.9.4",
     "tsx": "4.20.5",

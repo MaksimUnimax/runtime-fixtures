@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import vm from "node:vm";
 import { makeWorker, signFixtureBootstrap } from "../worker-harness.mjs";
 
 const runtime = path.resolve(process.argv[2]);
@@ -21,10 +22,68 @@ assert.match(
   popupJs,
   /WORK_START_ALREADY_PENDING: "Запуск уже выполняется\. Повторная инструкция не отправлена"/,
 );
-assert.match(
-  popupJs,
-  /const run = async confirm_change => \{ const started = await requestStart\(/,
-);
+// Exercise the actual packaged entry rather than requiring adjacent statements:
+// Start now creates an intent before awaiting the accepted worker response.
+const requestStartBegin = popupJs.indexOf("async function requestStart(");
+const requestStartEnd = popupJs.indexOf("\nfunction ", requestStartBegin + 1);
+const startBegin = popupJs.indexOf('$("start").onclick =');
+const startEnd = popupJs.indexOf('$("confirm").onclick =', startBegin);
+assert.ok(requestStartBegin >= 0 && requestStartEnd > requestStartBegin);
+assert.ok(startBegin >= 0 && startEnd > startBegin);
+const startEntry = popupJs.slice(requestStartBegin, requestStartEnd)
+  + popupJs.slice(startBegin, startEnd);
+for (const changeStore of [false, true]) {
+  for (const accepted of [false, true]) {
+    const calls = [], start = {};
+    let resolveResponse, confirmation, result, settled = false, sequence = 0;
+    const response = new Promise(resolve => { resolveResponse = resolve; });
+    const context = vm.createContext({
+      $: id => { assert.equal(id, "start"); return start; },
+      selectedId: "selected-store",
+      state: { context: { store_id: changeStore ? "previous-store" : null } },
+      texts: {},
+      crypto: { randomUUID: () => `start-intent-${++sequence}` },
+      request: async (type, fields) => {
+        calls.push({ type, ...fields });
+        return response;
+      },
+      action: fn => { result = fn(); },
+      confirm: (_message, fn) => { confirmation = fn; },
+    });
+    vm.runInContext(startEntry, context, { filename: "packaged-popup-start-entry.js" });
+    start.onclick();
+    if (changeStore) {
+      assert.equal(calls.length, 0, "changing store requires explicit confirmation");
+      assert.equal(result, undefined);
+      assert.equal(typeof confirmation, "function");
+      context.selectedId = "later-selection";
+      result = confirmation();
+    } else assert.equal(confirmation, undefined);
+    assert.deepEqual(JSON.parse(JSON.stringify(calls)), [{
+      type: "SA_WORK_START", store_id: "selected-store", confirm_change: changeStore,
+      start_intent_id: "start-intent-1",
+    }]);
+    const observed = result.then(
+      value => { settled = true; return { value }; },
+      error => { settled = true; return { error }; },
+    );
+    for (let turn = 0; turn < 8; turn++) await Promise.resolve();
+    assert.equal(settled, false, "popup must await the worker response before reporting acceptance");
+    resolveResponse({ accepted, prompt_tree_available: true, prompt_tree_warning: null });
+    const outcome = await observed;
+    if (accepted) {
+      assert.equal(outcome.error, undefined);
+      assert.deepEqual(JSON.parse(JSON.stringify(outcome.value)), {
+        popupAction: "WORK_START_ACCEPTED", startIntentId: "start-intent-1",
+        storeId: "selected-store", promptTreeAvailable: true, promptTreeWarning: null,
+      });
+    } else {
+      assert.match(outcome.error?.message ?? "", /Запуск не подтверждён/);
+      assert.equal(outcome.value, undefined);
+    }
+    assert.equal(calls.length, 1, "response handling must not resend Start");
+  }
+}
 const worker = await makeWorker(runtime, {
   userAgent: "Mozilla/5.0 Chrome/147.0.7727.116 Safari/537.36",
 });

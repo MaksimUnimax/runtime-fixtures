@@ -40,6 +40,26 @@
       capabilityId: "ai.qwen.web.adapter",
       entitlementKey: "ai.qwen",
     },
+    {
+      capabilityId: "ai.kimi.web.adapter",
+      entitlementKey: "ai.kimi",
+    },
+    {
+      capabilityId: "ai.grok.web.adapter",
+      entitlementKey: "ai.grok",
+    },
+    {
+      capabilityId: "ai.gemini.web.adapter",
+      entitlementKey: "ai.gemini",
+    },
+    {
+      capabilityId: "ai.claude.web.adapter",
+      entitlementKey: "ai.claude",
+    },
+    {
+      capabilityId: "ai.deepseek.web.adapter",
+      entitlementKey: "ai.deepseek",
+    },
   ];
 
   function deepFreeze(value) {

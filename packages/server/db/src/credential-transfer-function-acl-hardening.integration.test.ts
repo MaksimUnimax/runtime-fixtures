@@ -66,8 +66,8 @@ describe.sequential("credential-transfer function ACL hardening", () => {
     await runMigrations({ connectionString: url });
 
     const tail = (await journalTail()).rows[0];
-    expect(tail?.count).toBe("50");
-    expect(tail?.created_at).toBe("1791907801000");
+    expect(tail?.count).toBe("52");
+    expect(tail?.created_at).toBe("1793114658111");
 
     const acl = await functionAcl();
     expect(acl.rows).toHaveLength(4);
