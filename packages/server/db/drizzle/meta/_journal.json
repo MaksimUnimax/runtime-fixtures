@@ -351,6 +351,13 @@
       "when": 1791907801000,
       "tag": "0061_credential_transfer_function_acl_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1793029560000,
+      "tag": "0062_api_watch_retry_provenance_fence",
+      "breakpoints": true
     }
   ]
 }
