@@ -1,21 +1,42 @@
 import { LiveTurns } from './live-turn.js';
 import { privatePrompt, protectPaste } from './private-input.js';
 // The native client talks to the product's cookie-bound routes. No Host RPC is published.
+async function turnResult(body) {
+  const reader = body.pipeThrough(new TextDecoderStream()).getReader();
+  let remainder = '';
+  try {
+    while (true) {
+      const {value, done} = await reader.read();
+      if (done) throw new Error('Связь с чатом прервалась');
+      const lines = (remainder + value).split('\n');
+      remainder = lines.pop();
+      for (const line of lines) {
+        if (!line) continue;
+        const message = JSON.parse(line);
+        if (!message.pending) return message;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
 async function api(path, options) {
   const res = await fetch(path, {credentials:'same-origin', cache:'no-store', ...options});
-  if (!res.ok) {
-    if (res.status === 401 && !document.body.dataset.panel) location.replace('/login');
-    const detail = await res.json().catch(() => ({}));
+  const payload = res.ok && res.headers.get('Content-Type')?.startsWith('application/x-ndjson')
+    ? await turnResult(res.body) : {status:res.status, body:await (res.ok ? res.json() : res.json().catch(() => ({})))};
+  if (payload.status < 200 || payload.status >= 300) {
+    const {status, body:detail} = payload;
+    if (status === 401 && !document.body.dataset.panel) location.replace('/login');
     const reason = {
       400: 'Проверьте введённые данные', 401: 'Требуется вход', 402: 'Недостаточно монет',
       403: 'Доступ запрещён', 404: detail.error === 'unavailable' ? 'Действие недоступно' : 'Чат недоступен',
       409: detail.error === 'chat_busy' ? 'Дождитесь завершения запроса в этом чате.' : 'Запрос требует сверки', 413: 'Сообщение слишком длинное',
     };
-    const error = new Error((path.startsWith('/api/integrations') && /[А-Яа-я]/.test(detail.error||'') ? detail.error : null) ?? reason[res.status] ?? 'Запрос не выполнен (' + res.status + ')');
-    error.status = res.status;
+    const error = new Error((path.startsWith('/api/integrations') && /[А-Яа-я]/.test(detail.error||'') ? detail.error : null) ?? reason[status] ?? 'Запрос не выполнен (' + status + ')');
+    error.status = status;
     throw error;
   }
-  return res.json();
+  return payload.body;
 }
 const workspace = 'personal';
 const label = id => 'Чат · ' + id.slice(-8);
@@ -251,7 +272,7 @@ export async function createTransport(data) {
             try {
               await api(url,guest ? {method:'POST',signal,headers:{Accept:'application/json'},
                   body:new URLSearchParams({text,request_id:turn.requestId})} :
-                {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:turn.requestId,text})});
+                {method:'POST',headers:{'Content-Type':'application/json',Accept:'application/x-ndjson'},body:JSON.stringify({requestId:turn.requestId,text})});
               nonempty.add(id);
               if(!guest){
                 const view=live.views.get(id);

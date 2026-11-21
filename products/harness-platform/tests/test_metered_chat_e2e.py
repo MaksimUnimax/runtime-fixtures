@@ -70,6 +70,30 @@ class MeteredChatAcceptance(unittest.TestCase):
             scope = store.resolve_chat(token, chat)
         return headers, chat, scope
 
+    def test_marketplace_chat_stream_commits_once_and_keeps_json_api(self):
+        with tempfile.TemporaryDirectory() as directory:
+            key = Path(directory) / "integrations.key"
+            key.write_bytes(os.urandom(32))
+            with patch.dict(os.environ, {"HARNESS_INTEGRATIONS_KEY_FILE": str(key)}), self.client() as client:
+                headers, chat, _ = self.actor(client, "owner-a")
+                integration = client.post("/api/integrations", headers=headers, json={
+                    "provider": "ozon", "name": "Магазин Тест", "chatId": chat,
+                    "fields": {"client_id": "fixture-id", "api_key": "fixture-secret"}})
+                self.assertEqual(integration.status_code, 200, integration.text)
+                url = f"/api/chats/{chat}/turns"
+                payload = {"text": "browser fixture", "requestId": "marketplace-stream"}
+                response = client.post(url, headers={**headers, "Accept": "application/x-ndjson"},
+                                       json=payload)
+                self.assertTrue(response.headers["Content-Type"].startswith("application/x-ndjson"))
+                frames = [json.loads(line) for line in response.iter_lines()]
+                self.assertEqual(frames[0], {"pending": True})
+                self.assertEqual(frames[-1]["status"], 200, frames[-1])
+                self.assertEqual(frames[-1]["body"]["text"], "answer to browser fixture")
+                self.assertEqual(client.post(url, headers=headers, json=payload).json(), frames[-1]["body"])
+                with sqlite3.connect(self.db) as conn:
+                    attempts = conn.execute("SELECT count(*) FROM coin_attempts").fetchone()[0]
+                self.assertEqual(attempts, 1)
+
     def report(self):
         folder = PRODUCT / "usage-reconciliation"
         run = subprocess.run([sys.executable, "reconcile.py", str(self.journal), "--tariffs", "tariffs.json",

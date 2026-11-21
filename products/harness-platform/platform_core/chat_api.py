@@ -23,7 +23,7 @@ from .admin_costs import AdminCosts, present_chat
 from .browser_session import browser_routes, browser_token
 from .chat_worker import ChatWorker, WorkerError
 from . import integrations, provider_keys, chat_connections, chat_defaults, turn_progress
-from .identity import AuthenticationError, ChatUnavailable
+from .identity import AuthenticationError, ChatUnavailable, _secret_digest
 from .operation_grants import DIRECT_DEFAULT_SCHEMA
 from .guest_registration import RegistrationStore
 from .guest_web import guest_routes
@@ -115,6 +115,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                     try:
                         yield
                     finally:
+                        await app.state.progress.close()
                         await app.state.worker.close()
 
     async def login(req):
@@ -144,11 +145,6 @@ def create_app(database_path, chat_directory, *, composition_module=None):
             raise HTTPException(404, "Account unavailable") from None
         result["modelChoice"] = req.app.state.model_router is not None and req.app.state.model_router.available()
         return JSONResponse(result)
-
-    async def wallet_balance(req):
-        token = _token(req, allow_cookie=True)
-        balance = await run_in_threadpool(req.app.state.identity.wallet, token, balance_only=True)
-        return JSONResponse(balance)
 
     async def pricing(req):
         token = _token(req, allow_cookie=True)
@@ -231,6 +227,8 @@ def create_app(database_path, chat_directory, *, composition_module=None):
             data["availableServices"]=[{"provider":r["provider"], "access":r["access"]}
                                        for r in rows if not r["attached"]]
             if action == "turn":
+                if any(row["provider"] in ("ozon", "wb") for row in data["connections"]):
+                    data["session_digest"] = _secret_digest(token)
                 saved_access = {kind for row in rows for kind in row["access"]}
                 data["connectionGuides"] = {
                     kind: steps for kind, steps in integrations.KEY_GUIDES.items()
@@ -242,21 +240,31 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         if action=="turn":
             turn,owner=req.app.state.progress.begin(scope,data["requestId"])
             if owner: data["on_progress"]=turn.set
-        try:
-            result = await req.app.state.worker.request(scope, action, **data)
-        except WorkerError as exc:
-            if exc.code != "turn_unconfirmed" or exc.operation_id is None:
-                raise
-            error = {"error": exc.code, "operationId": exc.operation_id}
-            result = await run_in_threadpool(present_chat, req.app.state.identity, req.app.state.admin_costs,
-                                             token, scope, "turn", error)
-            return JSONResponse(result, status_code=409)
-        finally:
-            if owner: req.app.state.progress.finish(scope,data["requestId"],turn)
-        if action in {"turn", "history", "events"}:
-            result = await run_in_threadpool(present_chat, req.app.state.identity, req.app.state.admin_costs,
-                                             token, scope, action, result)
-        return JSONResponse(result)
+        async def work():
+            try:
+                result = await req.app.state.worker.request(scope, action, **data)
+            except WorkerError as exc:
+                if exc.code != "turn_unconfirmed" or exc.operation_id is None:
+                    raise
+                error = {"error": exc.code, "operationId": exc.operation_id}
+                result = await run_in_threadpool(present_chat, req.app.state.identity, req.app.state.admin_costs,
+                                                 token, scope, "turn", error)
+                return JSONResponse(result, status_code=409)
+            finally:
+                if owner: req.app.state.progress.finish(scope,data["requestId"],turn)
+            if action in {"turn", "history", "events"}:
+                result = await run_in_threadpool(present_chat, req.app.state.identity, req.app.state.admin_costs,
+                                                 token, scope, action, result)
+            return JSONResponse(result)
+
+        if action == "turn" and data.get("session_digest") and req.headers.get("accept") == "application/x-ndjson":
+            async def stream_work():
+                try:
+                    return await work()
+                except (AuthenticationError, ChatUnavailable, WorkerError, HTTPException, ValueError) as error:
+                    return error_response(req, error)
+            return turn_progress.stream_response(req.app.state.progress.run(stream_work()))
+        return await work()
 
     def error_response(_req, exc):
         if isinstance(exc, AuthenticationError):
@@ -285,7 +293,6 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         *chat_defaults.routes(_token, _body),
         *(router_plugin.routes(_token, _body) if router_plugin else [Route("/api/model-settings",disabled_models,methods=["GET","POST"])]),
         Route("/api/wallet", wallet),
-        Route("/api/wallet/balance", wallet_balance),
         Route("/api/admin/accounts/{login}/wallet", wallet),
         Route("/api/admin/coin-pricing", pricing, methods=["GET", "POST"]),
         Route("/api/admin/coin-grants", credit, methods=["POST"]),

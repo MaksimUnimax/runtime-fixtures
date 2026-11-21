@@ -226,9 +226,13 @@ def execute(packet, directory):
             break
         delay = row["due"] - time.time()
         if delay > 0:
-            if time.time() + delay >= authority.deadline:
-                return pending_result(repo, row)
-            time.sleep(delay)
+            pending = pending_result(repo, row)
+            if pending["code"] == "HTTP_429" and authority.resume_rate_limits:
+                authority.wait_for_rate_limit(row["due"])
+            elif row["due"] >= authority.deadline:
+                return pending
+            else:
+                time.sleep(delay)
         worker.step()
     else:
         raise Rejected("DEADLINE_EXCEEDED")

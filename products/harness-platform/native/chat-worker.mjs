@@ -93,6 +93,8 @@ export async function openWorker(env) {
   platform?.exec('PRAGMA busy_timeout=5000');
   const budget = platform?.prepare(`SELECT budget_hit, EXISTS(SELECT 1 FROM coin_attempts a
       WHERE a.operation_id=o.operation_id) AS used FROM coin_orders o WHERE operation_id=?`);
+  const retryWindow = platform?.prepare(
+    'SELECT deadline_ms, retry_at_ms FROM marketplace_retry_windows WHERE token_hash=?');
   const firstBatches = db.prepare(`SELECT request_id, action, input FROM native_batches
     WHERE scope_key=? ORDER BY revision LIMIT ?`);
   const byRequest = db.prepare('SELECT * FROM native_batches WHERE scope_key=? AND request_id=?');
@@ -267,6 +269,8 @@ export async function openWorker(env) {
     const ctx = new Context();
     let reserved = false;
     let transportStarted = false;
+    let timer;
+    let deadline = req.deadline;
     try {
       if (req.action !== 'append') {
         await mount(ctx, 'dsh-system-prompt');
@@ -278,7 +282,7 @@ export async function openWorker(env) {
           compositionModule: env.HARNESS_PLATFORM_COMPOSITION || undefined, scope: req.scope,
           marketplaceTurn: metered && req.grant ? {
             question: req.text, requestId: req.requestId, deadline: req.deadline,
-            token: req.grant.token,
+            token: req.grant.token, resumeRateLimits: attached.some(connection => ['ozon', 'wb'].includes(connection.provider)),
           } : undefined,
         });
         registerConnectionContext(ctx,attached,available,req.connectionGuides);
@@ -329,12 +333,45 @@ export async function openWorker(env) {
         if (metered) {
           const runGatewayTurn = req.grant.model ? (await import('./openrouter-turn.mjs')).runRouterTurn
             : (await import('./gateway-turn.mjs')).runGatewayTurn;
+          const controller = new AbortController();
+          const followsMarketplace = req.connections?.some(connection => ['ozon', 'wb'].includes(connection.provider));
+          const grantHash = createHash('sha256').update(req.grant.token).digest('hex');
+          let waitUntil = 0;
+          let dispatchLease = deadline;
+          const watchDeadline = () => {
+            const now = Date.now();
+            try {
+              const retry = followsMarketplace && retryWindow.get(grantHash);
+              if (retry && retry.deadline_ms > deadline) {
+                deadline = retry.deadline_ms;
+                waitUntil = retry.retry_at_ms;
+                req.progress?.({ stage: 'marketplace_wait', deadline, retryAt: waitUntil });
+              }
+              if (deadline > dispatchLease && now >= dispatchLease - 60_000) {
+                const lease = Math.min(deadline, now + 120_000);
+                dispatch.extend(key, req.requestId, lease);
+                dispatchLease = lease;
+              }
+            } catch (error) {
+              if (error.errcode !== 5) {
+                controller.abort(error);
+                return;
+              }
+            }
+            if (waitUntil && now >= waitUntil) {
+              waitUntil = 0;
+              req.progress?.({ stage: 'tool' });
+            }
+            if (now >= deadline) controller.abort();
+            else timer = setTimeout(watchDeadline, Math.min(deadline - now, followsMarketplace ? 500 : 120_000));
+          };
+          watchDeadline();
           turn = await runGatewayTurn({ ...input, grant: req.grant,
             onTransport: () => { transportStarted = true; },
             gatewayUrl: req.grant.model ? env.HARNESS_ROUTER_LOCAL : env.HARNESS_MODEL_GATEWAY_URL,
             model: req.grant.model || req.grant.directModel || env.HARNESS_CHAT_MODEL,
             reasoningEffort: req.grant.model ? undefined : req.grant.effort,
-            signal: AbortSignal.timeout(Math.max(1, req.deadline - Date.now())) });
+            signal: controller.signal });
         } else {
           const { runOfflineTurn } = await import('./offline-turn.mjs');
           turn = await runOfflineTurn({ ...input, toolUnavailable: () => fail('unavailable') });
@@ -350,7 +387,7 @@ export async function openWorker(env) {
         if (deleted.get(key)) fail('unavailable');
         const cached = previous(key, req);
         if (cached) return cached;
-        if (metered && req.deadline <= Date.now()) fail('turn_unconfirmed');
+        if (metered && deadline <= Date.now()) fail('turn_unconfirmed');
         if (!metered) dispatch.check(key, req);
         try {
           insert.run(key, rows.length, req.requestId, req.action, req.text, createdAt, JSON.stringify(events));
@@ -375,6 +412,7 @@ export async function openWorker(env) {
       }
       throw error;
     } finally {
+      clearTimeout(timer);
       try {
         if (reserved) {
           if (transportStarted) dispatch.release(key, req.requestId);

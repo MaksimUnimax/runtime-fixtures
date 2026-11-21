@@ -98,9 +98,12 @@ def profile_currency(authority, store):
             now = time.time()
             due = now + RATE_LIMIT_RETRY_SECONDS
             due = max(due, retry_time(error.headers, now, store.platform == "wb") or 0)
-            if due >= authority.deadline:
+            if authority.resume_rate_limits:
+                authority.wait_for_rate_limit(due)
+            elif due >= authority.deadline:
                 raise ProfileError(wait_result(due, "HTTP_429")) from None
-            time.sleep(max(0, due - time.time()))
+            else:
+                time.sleep(max(0, due - time.time()))
             continue
         except OSError:
             raise ProfileError({"ok": False, "code": prefix + "UNAVAILABLE",

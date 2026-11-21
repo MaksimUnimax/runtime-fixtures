@@ -1,16 +1,19 @@
 """Offer the connected chat agent the applicable catalogue and run its selections."""
 from functools import lru_cache
+from hashlib import sha256
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from threading import Lock
 import time
 
 from ..catalog import Capability
 
 ROOT = Path(__file__).resolve().parents[2]
+REPORT_LOCK = Lock()
 PROFILE_FIELDS = {"Ozon Seller": ("seller_api_key", "seller_client_id"),
                   "Ozon Performance": ("performance_client_id", "performance_client_secret"),
                   "Wildberries API": ("seller_token",)}
@@ -78,23 +81,35 @@ def capability(stores):
         "Используй только пары шаблона и магазина из одной группы каталога. Если части отчёта нет, получи остальные для запрошенной площадки. Даты from/to включительно, "
         "для текущего состояния period=null. Обычная группировка marketplace. "
         "Для составляющих формул используй исходные суммы из sourceValues. Округлённый процент не позволяет восстановить точный оборот. "
-        "HTTP 429 — временный лимит. Матрица ждёт и повторяет тот же запрос с учётом Retry-After. "
-        "Дождись результата и продолжи выполнение остальных выбранных шаблонов без вопроса пользователю. "
-        "При исчерпании времени передай продавцу причину из результата и время следующей попытки в его часовом поясе. Само наличие времени повтора не означает лимит.\n" + menu, schema, run)
+        "При ограничении частоты матрица ждёт разрешённого времени и автоматически продолжает тот же запрос. "
+        "Дождись результата и продолжи выполнение остальных частей без повторной команды продавца. "
+        "Если площадка вернула другую ошибку, передай причину из инструмента понятным языком.\n" + menu, schema, run)
 
 
 def run(scope, arguments):
+    # The native MCP process belongs to one turn. Parallel model calls share its
+    # grant and working budget, so only one report can change its wait window.
+    with REPORT_LOCK:
+        return run_report(scope, arguments)
+
+
+def run_report(scope, arguments):
     raw = os.environ.get("HARNESS_MATRIX_TURN")
     if not raw:
         return {"ok": False, "reason": "Для отчёта нужен авторизованный чат."}
     turn = json.loads(raw)
-    remaining = turn["deadline"] / 1000 - time.time()
+    deadline = turn["deadline"]
+    if turn.get("resumeRateLimits") is True:
+        from ..operation_grants import marketplace_deadline
+        deadline = marketplace_deadline(Path(turn["databasePath"]).as_uri() + "?mode=ro",
+                                       sha256(turn["token"].encode()).hexdigest(), deadline)
+    remaining = deadline / 1000 - time.time()
     if remaining <= 0:
         return {"ok": False, "reason": "Время выполнения запроса истекло."}
     items = arguments["selections"]
     packet = {"actor": scope.actor_id, "workspace": scope.workspace_id, "chat": scope.chat_id,
               "connections": sorted({item["connectionId"] for item in items}), "selections": items, "turn": turn}
     try:
-        return invoke(packet, remaining)
+        return invoke(packet, None if turn.get("resumeRateLimits") is True else remaining)
     except subprocess.TimeoutExpired:
         return {"ok": False, "reason": "Время выполнения отчёта истекло. Данные не подтверждены."}

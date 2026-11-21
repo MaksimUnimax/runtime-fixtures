@@ -100,6 +100,67 @@ class MarketplaceMatrix(unittest.TestCase):
         self.assertGreater(result["retryAt"], time.time() + 275)
         self.assertEqual(send.call_count, 1)
 
+    def test_429_crosses_original_deadline_and_reuses_grant_and_request(self):
+        import sqlite3
+        from hashlib import sha256
+        from urllib.error import HTTPError
+
+        db = Path(self.turn["databasePath"])
+        grant = issue_grant(db, self.scope, source="chat.turn", run_key="matrix-case", ttl_seconds=3)
+        original_deadline = int((time.time() + 2.8) * 1000)
+        self.turn.update(token=grant.token, deadline=original_deadline, resumeRateLimits=True)
+        self.packet["connections"] = [self.ids["ozon"]]
+        self.packet["selections"] = [self.packet["selections"][1]]
+        requests = []
+        def read(req, **options):
+            options["on_dispatch"]()
+            requests.append((req.full_url, req.data))
+            if len(requests) <= 2:
+                raise HTTPError(req.full_url, 429, "rate limited", {"Retry-After": "4"}, None)
+            return b'{"result":{"totals":[29],"data":[{"dimensions":[{"id":"2026-11"}],"metrics":[29]}]}}', 200
+
+        from dataclasses import replace
+        from request_recovery import retry_due
+        from repository import Repository
+        reserve = Repository.reserve
+        def fixture_due(repo, row, request, error, safe):
+            return retry_due(repo, row, replace(request, interval=0), error, safe)
+        def fixture_reserve(repo, jid, owner, source, interval, limit):
+            return reserve(repo, jid, owner, source, 0, limit)
+        with patch("http_transport.read_response", side_effect=read), \
+             patch("request_recovery.RATE_LIMIT_RETRY_SECONDS", 0), \
+             patch("request_recovery.retry_due", fixture_due), patch.object(Repository, "reserve", fixture_reserve):
+            result = worker.execute(self.packet, self.root)
+        self.assertTrue(result["ok"], result)
+        self.assertGreater(int(time.time() * 1000), original_deadline)
+        self.assertEqual(requests, requests[:1] * 3)
+        with sqlite3.connect(db) as conn:
+            row = conn.execute("""SELECT deadline_ms, expires_at FROM marketplace_retry_windows
+                                JOIN usage_grants USING(token_hash) WHERE token_hash=?""",
+                               (sha256(grant.token.encode()).hexdigest(),)).fetchone()
+            self.assertGreater(row[0], original_deadline + 7000)
+            self.assertGreater(row[1], time.time())
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM usage_operations").fetchone()[0], 1)
+
+    def test_currency_profile_429_wait_rechecks_access_before_resending(self):
+        from urllib.error import HTTPError
+        from semantics import Rejected
+
+        self.turn.update(deadline=int((time.time() + 5) * 1000), resumeRateLimits=True)
+        cid = self.ids["ozon"]
+        self.packet.update(connections=[cid], selections=[{
+            "connectionId": cid, "templateId": "B05.accrual_sale_amount",
+            "input": {"period": {"from": "2026-11-19", "to": "2026-11-19"}}}])
+        def disconnect(_delay):
+            with self.identity._write() as db:
+                attach(db, self.scope, cid, False)
+        with patch("http_transport.read_response", side_effect=HTTPError(
+                "https://api-seller.ozon.ru/v1/seller/info", 429, "rate limited", {"Retry-After": "20"}, None)) as send, \
+             patch("platform_core.marketplace_matrix.authority.time.sleep", side_effect=disconnect):
+            with self.assertRaisesRegex(Rejected, "PERMISSION_DENIED"):
+                worker.execute(self.packet, self.root)
+        self.assertEqual(send.call_count, 1)
+
     def test_server_error_preserves_its_cause_after_retry(self):
         from urllib.error import HTTPError
         self.packet["connections"] = [self.ids["ozon"]]

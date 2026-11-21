@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from .operation_grants import PaidAccessRequired, initialize_grants, issue_grant, revoke_grant
+from .operation_grants import CHAT_GRANT_TTL_SECONDS, PaidAccessRequired, initialize_grants, issue_grant, revoke_grant
 from .storage import Scope
 
 
@@ -91,6 +91,7 @@ class ChatWorker:
             await process.wait()
 
     async def request(self, scope: Scope, action, **fields):
+        session_digest = fields.pop("session_digest", None)
         if action == "turn" and self.gateway:
             if self.router and self.router.available() and self.router.uses_router(scope.workspace_id):
                 await self.router.models()
@@ -98,7 +99,8 @@ class ChatWorker:
                 issue_grant, self.database_path, scope, source="chat.turn",
                 bind_model=self.router.bind if self.router else None,
                 direct_fallback=self.env["HARNESS_CHAT_MODEL"],
-                run_key=fields["requestId"], ttl_seconds=150, coin_limit=fields.pop("maxCoins", None),
+                run_key=fields["requestId"], ttl_seconds=CHAT_GRANT_TTL_SECONDS, coin_limit=fields.pop("maxCoins", None),
+                session_digest=session_digest,
             ))
             try:
                 grant = await asyncio.shield(issue)
@@ -127,7 +129,21 @@ class ChatWorker:
 
     async def _request(self, scope, action, fields, *, timeout):
         packet_id = uuid.uuid4().hex
-        callback=fields.pop("on_progress",None)
+        callback = fields.pop("on_progress", None)
+        loop = asyncio.get_running_loop()
+        budget = asyncio.timeout(timeout)
+        turn_deadline = fields.get("deadline")
+
+        def progress(data):
+            nonlocal turn_deadline
+            deadline = data.get("deadline")
+            if (turn_deadline is not None and data.get("stage") == "marketplace_wait"
+                    and type(deadline) is int and deadline > turn_deadline and not budget.expired()):
+                turn_deadline = deadline
+                budget.reschedule(loop.time() + max(0, deadline / 1000 - time.time()) + 15)
+            if callback:
+                callback(data)
+
         packet = {"id": packet_id, "action": action, "scope": {
             "actorId": scope.actor_id, "workspaceId": scope.workspace_id, "chatId": scope.chat_id,
         }, **fields}
@@ -147,13 +163,14 @@ class ChatWorker:
             pending = self.pending
             if len(pending) >= 64:
                 raise WorkerError("busy")
-            future = asyncio.get_running_loop().create_future()
+            future = loop.create_future()
             pending[packet_id] = future
-            if callback: self.progress_callbacks[packet_id]=callback
             process = self.process
         try:
-            process.stdin.write(data)
-            async with asyncio.timeout(timeout):
+            async with budget:
+                if callback or turn_deadline is not None:
+                    self.progress_callbacks[packet_id] = progress
+                process.stdin.write(data)
                 await process.stdin.drain()
                 return await future
         except (BrokenPipeError, ConnectionResetError, TimeoutError) as exc:
