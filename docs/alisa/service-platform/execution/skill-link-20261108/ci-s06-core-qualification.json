@@ -1,0 +1,12 @@
+{
+  "scope": "S06_DISPOSABLE_POSTGRES_BACKEND_NOT_INSTALLED",
+  "status": "PASS",
+  "cases": [],
+  "tests": 24,
+  "skipped": 0,
+  "failures": 0,
+  "errors": 0,
+  "migrations_and_model_consistency": "PASS",
+  "schema_rollback_policy": "Disable ALICE_LINK capability and retain additive grant schema and private keyring. Never restore or migrate down over revoked grants.",
+  "owned_database_and_role_cleanup": true
+}

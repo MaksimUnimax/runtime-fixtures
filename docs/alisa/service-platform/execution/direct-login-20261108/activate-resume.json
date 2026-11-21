@@ -1,0 +1,68 @@
+{
+  "status": "PASS",
+  "scope": "IDENTITY_DIRECT_CUSTOMER_LOGIN_ONLY",
+  "cases": [
+    {
+      "case": "fresh_resume_receipt",
+      "passed": true
+    },
+    {
+      "case": "only_native_core_and_checker_restart_since_preparation",
+      "passed": true
+    },
+    {
+      "case": "identity_overlay_and_manifest_still_exact",
+      "passed": true
+    },
+    {
+      "case": "all_four_services_ready_before_resume",
+      "passed": true
+    },
+    {
+      "case": "fresh_snapshot_history",
+      "passed": true
+    },
+    {
+      "case": "prepared_components_and_bytes_still_current",
+      "passed": true
+    },
+    {
+      "case": "activation_reserve",
+      "passed": true
+    },
+    {
+      "case": "fresh_owned_pointer_temp",
+      "passed": true
+    },
+    {
+      "case": "actual_identity_process_uses_overlay",
+      "passed": true
+    },
+    {
+      "case": "all_other_components_and_private_configuration_preserved",
+      "passed": true
+    },
+    {
+      "case": "mandatory_free_reserve",
+      "passed": true
+    }
+  ],
+  "other_actor_restarted_units_preserved": [
+    "alice-market.service",
+    "alisa-store-check.service"
+  ],
+  "phase": "INSTALLED",
+  "source_sha": "3a1d3885250d8aa1a51f6e7df3f9d1c3db50b281",
+  "identity_release": "alisa-direct-login-3a1d3885250d8aa1",
+  "readiness": {
+    "18100": "READY",
+    "18101": "READY",
+    "18102": "READY",
+    "18103": "READY"
+  },
+  "database_migrations": 0,
+  "customer_database_mutations": 0,
+  "marketplace_configuration_changes": 0,
+  "owner_browser_flow": "NOT_RUN",
+  "free_bytes": 3221876736
+}

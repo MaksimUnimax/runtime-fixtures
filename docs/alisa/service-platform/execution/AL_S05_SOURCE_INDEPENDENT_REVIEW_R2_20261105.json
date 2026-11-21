@@ -1,0 +1,35 @@
+{
+  "record_type": "AL_S05_SOURCE_INDEPENDENT_REVIEW_R2",
+  "reviewer": "s03_independent_review",
+  "source_sha": "c6217b80758495d18a834b8d89c771ad9263b12e",
+  "tree_sha": "2f9d7acd5e8b33be244be62eb3e1103e851a4eaa",
+  "reviewed_local_checkpoint": "36c2246f1482ad2270f3cb8f3a8ff0024ca23993",
+  "verdict": "ACCEPTED_FOR_DECLARED_SOURCE_SCOPE",
+  "scope": "AL-S05 stores source only; no installed/live provider acceptance",
+  "r1_findings": [
+    {
+      "severity": "P1",
+      "finding": "StoreCommand.action max length did not fit revoke_credential.",
+      "resolution_reviewed": "Model and initial migration now use max_length=24; PostgreSQL qualification adds Performance-only revocation and verifies the active Seller remains and Performance ciphertext is erased."
+    },
+    {
+      "severity": "P2",
+      "finding": "Stored idempotency digest was unkeyed SHA-256 over a request containing credentials.",
+      "resolution_reviewed": "Fingerprint now uses Django salted_hmac with dedicated domain salt and an environment/product/tenant/customer/command envelope. Added test rejects plaintext SHA-256 equality and cross-tenant fingerprint equality."
+    }
+  ],
+  "additional_review": [
+    "Validation claim remains durable before IPC; no DB transaction spans IPC; finalization compares current customer security revision, store revision/status, and credential revision status.",
+    "check_started audit is now recorded in the same transaction as the RUNNING command claim.",
+    "Foreign-store browser case now reauthenticates the second test customer and asserts a valid distinct tenant before requiring exact 404 isolation response."
+  ],
+  "remaining_gates": [
+    "CI rerun for this exact source candidate was pending during review.",
+    "RT-CHECK remains proposed/client-only; no runtime-side socket/provider implementation is included or accepted.",
+    "Full S05 acceptance still requires separately authorized real Ozon, WB, and Performance provider checks."
+  ],
+  "review_limits": [
+    "Read-only source inspection; reviewer ran no tests and performed no host actions.",
+    "No secrets or provider credentials were read or included."
+  ]
+}

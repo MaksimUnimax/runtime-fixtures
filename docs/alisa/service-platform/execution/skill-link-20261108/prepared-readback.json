@@ -1,0 +1,27 @@
+{
+  "status": "PREPARED_NOT_ACTIVATED_AFTER_RESOURCE_RECOVERY",
+  "source": "d3cb053be14264c6bb2332708abb32d4b0c005ae",
+  "target": "/opt/alisa-platform/stage/releases/alisa-d3cb053be14264c6",
+  "qualified_selected_files": 2239,
+  "qualified_selected_links": 21,
+  "qualified_subset_sha256": "09661e74e77e9c1b1b7ff8679386edc9274a74efafdace4659650a19f51301e8",
+  "standard_release_verifier": "PASS",
+  "active_baseline_unchanged": true,
+  "preserved_staff_files": {
+    "views.py": "c5e8ccc53d7641969db6b51947c2b0883b1cc35042a7889bb9fa06c62cb1f7be",
+    "policy.py": "0412338f34441ded37b0cfc3fedab8ae9338926fde70d60f69b24a780dc1841b"
+  },
+  "free_bytes": 3228811264,
+  "required_floor_bytes": 3221225472,
+  "readiness": {
+    "18100": 200,
+    "18102": 200,
+    "18103": 200
+  },
+  "services_switched": false,
+  "migrations_applied": false,
+  "configs_or_pointers_changed": false,
+  "original_prepare_unit_exit": 1,
+  "original_failure": "Post-write disk floor guard; directory/manifest overhead plus concurrent disk growth exceeded initial estimate.",
+  "resource_recovered_before_readback": true
+}

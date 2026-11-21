@@ -1,0 +1,89 @@
+# INITIAL HTTP ONLY: remove this block when installing the final HTTP+HTTPS pair.
+server {
+    listen 80;
+    server_name alisa.octoport.ru;
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/alisa-platform-acme;
+        try_files $uri =404;
+    }
+    location / {
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        add_header Retry-After "3600" always;
+        return 503 "Alisa platform is being prepared.\n";
+    }
+}
+
+# INITIAL HTTP ONLY: remove this block when installing the final HTTP+HTTPS pair.
+server {
+    listen 80;
+    server_name alisa-admin.octoport.ru;
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/alisa-platform-acme;
+        try_files $uri =404;
+    }
+    location / {
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        add_header Retry-After "3600" always;
+        return 503 "Alisa platform is being prepared.\n";
+    }
+}
+
+# INITIAL HTTP ONLY: remove this block when installing the final HTTP+HTTPS pair.
+server {
+    listen 80;
+    server_name id.octoport.ru;
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/alisa-platform-acme;
+        try_files $uri =404;
+    }
+    location / {
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        add_header Retry-After "3600" always;
+        return 503 "Alisa platform is being prepared.\n";
+    }
+}
+
+# INITIAL HTTP ONLY: remove this block when installing the final HTTP+HTTPS pair.
+server {
+    listen 80;
+    server_name alisa-stage.octoport.ru;
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/alisa-platform-acme;
+        try_files $uri =404;
+    }
+    location / {
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        add_header Retry-After "3600" always;
+        return 503 "Alisa platform is being prepared.\n";
+    }
+}
+
+# INITIAL HTTP ONLY: remove this block when installing the final HTTP+HTTPS pair.
+server {
+    listen 80;
+    server_name alisa-admin-stage.octoport.ru;
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/alisa-platform-acme;
+        try_files $uri =404;
+    }
+    location / {
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        add_header Retry-After "3600" always;
+        return 503 "Alisa platform is being prepared.\n";
+    }
+}
+
+# INITIAL HTTP ONLY: remove this block when installing the final HTTP+HTTPS pair.
+server {
+    listen 80;
+    server_name id-stage.octoport.ru;
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/alisa-platform-acme;
+        try_files $uri =404;
+    }
+    location / {
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        add_header Retry-After "3600" always;
+        return 503 "Alisa platform is being prepared.\n";
+    }
+}

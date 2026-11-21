@@ -1,0 +1,33 @@
+{
+  "review": "AL_S05_NATIVE_OWNER_PAIR_SOURCE_REVIEW_R2",
+  "date": "2026-11-08",
+  "verdict": "PASS_SOURCE_DELTA_FOR_FUTURE_INSTALL_REVIEW",
+  "scope": "Read-only review of the PID-pinned read-only-alias delta. No live host/provider/DB/browser calls, tests, private credential reads, or code edits.",
+  "reviewed_module": "products/alisa/runtime/native_store_binding.py",
+  "module_sha256": "30664db61e047927c9dafd2b16fd70d3d1ba662ee3ea59ce539d4e1e32045347",
+  "prior_source_review_sha256": "99b11b4dd99c41d99335f987568a6e666e10857c14baac308f0a4c6f2767bf25",
+  "delta_findings": {
+    "systemd_mask_respect": {
+      "result": "PASS",
+      "detail": "The resolver now names only narrow `/run/alisa-native-binding/{bindings,source,credentials}` aliases. It does not remove, relax, or read through existing InaccessiblePaths masks for `/etc/alice-market` or `/run/credentials`; root_json still enforces root-owned, non-writable directory chains and no-follow bounded regular-file opens. The selected credential file must be on a read-only mount. The alias/service configuration remains a separate install-review gate."
+    },
+    "native_generation_pin": {
+      "result": "PASS",
+      "detail": "The scope projection's HMAC binds native PID, `/proc/<pid>/stat` start ticks, real UID, and boot ID. Every resolve checks this tuple against current proc metadata and requires the pinned UID equal the checker process effective UID. Any restart/PID reuse/reboot/UID change fails closed before source or candidate pair matching."
+    },
+    "binding_semantics": {
+      "result": "UNCHANGED_AND_APPROVED",
+      "detail": "Generation is included in the source HMAC; current aliased native config and read-only credential are still re-read on every check. The exact Performance candidate pair must match the native credential after a strict successful token response. The result remains NATIVE_OWNER_CONFIGURED_PAIR provenance, with the same existing Seller identity equality and revision/tenant/duplicate guards."
+    }
+  },
+  "remaining_gate": "Source delta is acceptable for packaging only. Review the exact mount/alias and checker service profile before installation; never relax the existing service masks or expose additional credentials. Exact CI/package qualification and separately authorized live checks remain open.",
+  "reviewer_actions": {
+    "tests_run": false,
+    "host_calls": false,
+    "provider_calls": false,
+    "db_calls": false,
+    "browser_calls": false,
+    "credentials_read": false,
+    "code_modified": false
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "observed_at": "2026-11-04T08:10:15Z",
+  "authoritative_check_at": "2026-11-04T08:13:37Z",
+  "read_only": true,
+  "dns_changes": false,
+  "services_changed": false,
+  "device": "Alisa",
+  "device_id": "89049fc7-4160-4636-9ad7-89c31f9bcb32",
+  "interface_ipv4": "185.244.51.141",
+  "alice_lab_A": "185.244.51.141",
+  "octoport_A": "78.17.68.165",
+  "nameservers": [
+    "ns1.adminvps.ru",
+    "ns2.adminvps.net",
+    "ns3.adminvps.ru",
+    "ns4.adminvps.net"
+  ],
+  "queried_authority": "ns1.adminvps.ru",
+  "new_names": {
+    "alisa.octoport.ru": "NXDOMAIN (authoritative response)",
+    "alisa-admin.octoport.ru": "NXDOMAIN (authoritative response)",
+    "id.octoport.ru": "NXDOMAIN (authoritative response)",
+    "alisa-stage.octoport.ru": "NXDOMAIN (authoritative response)",
+    "alisa-admin-stage.octoport.ru": "NXDOMAIN (authoritative response)",
+    "id-stage.octoport.ru": "NXDOMAIN (authoritative response)"
+  },
+  "caa_root_answer": [],
+  "alice_lab_AAAA_answer": [],
+  "cpu_count": 1,
+  "memory_total_kB": 984740,
+  "memory_available_kB": 386576,
+  "nginx": "active",
+  "alice_market": "active",
+  "alice_lab_web": "active",
+  "limits": [
+    "No account access to DNS management panel",
+    "Current ingress IP is not proof of capacity for entire production platform",
+    "New domain DNS/TLS/app have not been created or tested"
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "schema_version": "alisa_s05_dual_ozon_package_review_v1",
+  "scope": "INDEPENDENT_EXACT_PACKAGE_AND_INACTIVE_COPY_READBACK_NO_ACTIVATION",
+  "verdict": "PASS_PACKAGE_AND_INACTIVE_COPY_READBACK_WITH_ACCOUNTING_NOTE",
+  "source_binding": {
+    "source_sha": "9b716ba6ffe18a459c476332daf22160fe069b96",
+    "source_tree": "773ef16417f62b5449d07c26d5243652743d8ad2",
+    "local_git_tree_match": true,
+    "ci_runs_in_binding": {
+      "platform": 42167619286,
+      "documentation": 42167619221,
+      "conclusion": "success"
+    },
+    "ci_verification_boundary": "Run IDs and success conclusion match the package-binding and the task inputs; reviewer did not query CI separately."
+  },
+  "artifact": {
+    "local_zip": "/workspace/scratch/6c2f0ed5dac0/s05-dual-artifacts/13480291439.zip",
+    "zip_size": 51729491,
+    "zip_sha256": "3a5c881c7aff8bd1e4d6688fb99d33bf05dc140a5c3a767f4e4e0e77c0a66dac",
+    "tar_size": 51802333,
+    "tar_sha256": "41aab44df63e10ec6bcfb421074756b287c2bec11c0f12c86559460f63232394",
+    "manifest_sha256": "0759f04404ea15a926e14c2f213a9c0a126abfbad8910c37d9d41dc6f9698e1d",
+    "manifest_files_verified": 4451,
+    "manifest_links_verified": 42,
+    "package_binding_matches_archive": true,
+    "unique_bounded_archive_paths_and_link_targets": true,
+    "env_or_private_input_or_private_key_filename_candidates_in_manifest": 0,
+    "filename_scan_boundary": "Manifest path names only; archive bytes were verified against the pinned CI manifest, not searched for secret values.",
+    "reviewed_selected_component": {
+      "web_ui_logical_bytes": 49799775,
+      "launcher_path": "infra/launch.py",
+      "launcher_bytes": 2479,
+      "installer_selected_bytes_including_launcher": 49802254
+    }
+  },
+  "accounting_note": {
+    "severity": "NONBLOCKING",
+    "detail": "package-binding.web_logical_bytes matches ui/web payload bytes. The installer additionally selects infra/launch.py, so its independently computed component size is 2,479 bytes larger. The installer uses that archive-derived total for its 15% plus 16 MiB reserve check; this does not understate its own preflight requirement."
+  },
+  "resource_receipt": {
+    "path_on_device": "/var/lib/alisa-platform/stage/rollout-backups/s05-stores-20261106/dual-ozon-9b716ba6/inactive-new-dependencies.json",
+    "sha256": "9bf720151dde6e381dc67546bc96bd009787175ef29d4c5672863abc69cc9d36",
+    "status": "PASS",
+    "scope": "OWN_INACTIVE_C866_DEPENDENCIES_NO_ACTIVE_INODES",
+    "applied_links": 255,
+    "free_before": 3262750720,
+    "planned_gain": 71229440,
+    "free_after": 3333971968,
+    "observed_free_gain": 71221248,
+    "paths_removed": 0,
+    "active_inodes_touched": 0,
+    "all_dependency_bytes_and_full_manifest_preserved": true,
+    "root_private_metadata": {
+      "directory_uid_gid_mode": "0:0 0700",
+      "resource_receipt_uid_gid_mode": "0:0 0600",
+      "metadata_archive_uid_gid_mode": "0:0 0600"
+    },
+    "known_boundary": "The resource receipt documents the process-start race after the final process inventory and before a link operation; paths and bytes are identical and immutable."
+  },
+  "inactive_install_receipt": {
+    "path_on_device": "/var/lib/alisa-platform/stage/rollout-backups/s05-stores-20261106/dual-ozon-9b716ba6/install-web.json",
+    "sha256": "7a98a660961628ee11a9f7b9e5d11b4582185cb29a0b9673946d858125e4be8c",
+    "status": "PASS",
+    "scope": "EXACT_CI_WEB_COMPONENT_ONLY_NO_ACTIVATION_NO_ENV_DB_CORE_CHANGES",
+    "source_sha": "9b716ba6ffe18a459c476332daf22160fe069b96",
+    "manifest_sha256": "0759f04404ea15a926e14c2f213a9c0a126abfbad8910c37d9d41dc6f9698e1d",
+    "selected_files": 2175,
+    "selected_links": 21,
+    "free_before_component_install": 3333861376,
+    "projected_component_growth": 74049809,
+    "free_after_component_install": 3274719232,
+    "floor_bytes": 3221225472,
+    "post_install_floor_margin": 53493760,
+    "receipt_uid_gid_mode": "0:0 0600",
+    "pointer_snapshot": {
+      "web-current": "alisa-d9918bcb3695b432",
+      "site-current": "alisa-6098b31384ae23a4",
+      "admin-current": "alisa-73180172646b7012",
+      "identity-current": "alisa-73180172646b7012",
+      "current": "alisa-482ed11832b666af"
+    }
+  },
+  "independent_postcopy_readback": {
+    "target": "/opt/alisa-platform/stage/releases/alisa-9b716ba6ffe18a45",
+    "manifest_sha256": "0759f04404ea15a926e14c2f213a9c0a126abfbad8910c37d9d41dc6f9698e1d",
+    "selected_file_hashes_match_manifest": 2175,
+    "selected_link_targets_match_manifest": 21,
+    "root_owned_no_group_or_world_write_payload": true,
+    "uid_995_gid_987_clear_groups_can_read_all_selected_files": 2175,
+    "stdlib_launcher_venv_has_no_pip": true,
+    "admin_and_service_components_absent": true
+  },
+  "current_live_pointer_readback": {
+    "web-current": "alisa-d9918bcb3695b432",
+    "site-current": "alisa-6098b31384ae23a4",
+    "admin-current": "alisa-73180172646b7012",
+    "identity-current": "alisa-73180172646b7012",
+    "current": "alisa-482ed11832b666af",
+    "web_unit_active": true,
+    "web_unit_working_directory": "/opt/alisa-platform/stage/web-current",
+    "web_process_cwd": "/opt/alisa-platform/stage/releases/alisa-d9918bcb3695b432/ui/web/apps/web",
+    "candidate_is_web_pointer_or_web_process_cwd": false
+  },
+  "not_performed": [
+    "tests or CI reruns",
+    "activation, service restart, or other mutation",
+    "authenticated customer actions or store creation",
+    "provider calls",
+    "credential, session, environment-value, or database access"
+  ],
+  "reviewer_boundary": "Independent local package hash/manifest verification, read-only receipt inspection, and read-only inactive payload/pointer metadata readback only. Candidate remains inactive as of this observation."
+}

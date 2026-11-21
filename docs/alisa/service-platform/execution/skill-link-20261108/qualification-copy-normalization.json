@@ -1,0 +1,37 @@
+{
+  "scope": "documentation copies only; product/package bytes unchanged",
+  "original_exact_copies_retained_in_commit": "6b118048a9479ce6feebbd985b2327a94c401ccc",
+  "reason": "repository documentation checker requires final newline",
+  "items": [
+    {
+      "path": "ci-runtime-qualification.json",
+      "before_sha256": "f94d5977e8b6f9081d48f54d7e9588fdd7dbc130b11889f4d93cd7a5e5548d80",
+      "after_sha256": "11db37546a71eabbfef47a65c19077faa2b5f9e5584335f9b3b9736956dc0cc2",
+      "only_change": "one final newline appended; parsed JSON unchanged"
+    },
+    {
+      "path": "ci-s02-open-registration-qualification.json",
+      "before_sha256": "006e710475345f7516acf8b6b77f374afcc6eb1151bf9ae7aff3d401f1a5d57a",
+      "after_sha256": "c4150fe5a551cc9bd89d1c8c879347b8bc248e1c474895017d9c7da0d10d4207",
+      "only_change": "one final newline appended; parsed JSON unchanged"
+    },
+    {
+      "path": "ci-s02-qualification.json",
+      "before_sha256": "13cd5a87ac210e6ac35c61177934398fa30f40658a27f20a555a4ea9b54ae36b",
+      "after_sha256": "b66bbe92ada3af82e1a133fa590a1c6477335b9dd13a6fcfb3635f4ef3240357",
+      "only_change": "one final newline appended; parsed JSON unchanged"
+    },
+    {
+      "path": "ci-s06-core-fa06.json",
+      "before_sha256": "77ef007f1958dd80244dfa867d36585480fb0daf5f4b8d88d0f73f95de293ae0",
+      "after_sha256": "5dd7aaaf459e62cee88f4f691dd9b12471f374b62016b977302d247654fd4d9b",
+      "only_change": "one final newline appended; parsed JSON unchanged"
+    },
+    {
+      "path": "ci-s06-core-qualification.json",
+      "before_sha256": "77ef007f1958dd80244dfa867d36585480fb0daf5f4b8d88d0f73f95de293ae0",
+      "after_sha256": "5dd7aaaf459e62cee88f4f691dd9b12471f374b62016b977302d247654fd4d9b",
+      "only_change": "one final newline appended; parsed JSON unchanged"
+    }
+  ]
+}

@@ -1,0 +1,355 @@
+{
+  "record_type": "AL_S03_STAGE_READ_ONLY_PREFLIGHT",
+  "recorded_at_utc": "2026-11-05T08:48:01.752Z",
+  "earlier_details": [
+    {
+      "config": "web",
+      "mode": "0o600",
+      "uid": 0,
+      "sha256": "d289a51d08f78eeed47e8769a3a564b2f11aacf6278685eef186dafbbcf38548",
+      "safe_settings": {
+        "ALISA_ENV": "stage",
+        "ALISA_RELEASE": "alisa-6ae348354b3db0d3",
+        "FOUNDATION_PROBE_ENABLED": "0",
+        "ALISA_LANDING_MODE": "CLOSED",
+        "ALISA_ACCOUNTS_ENABLED": "1",
+        "ALISA_IDENTITY_ISSUER": "https://id-stage.octoport.ru",
+        "ALISA_WEB_OIDC_CLIENT_ID": "alisa_market_stage"
+      },
+      "staff_secret_names_present": []
+    },
+    {
+      "config": "admin",
+      "mode": "0o600",
+      "uid": 0,
+      "sha256": "17839efecd3cb8c20dbbf1ff6798b3002be0e381faaec0ca8f99d600f023cdf2",
+      "safe_settings": {
+        "ALISA_ENV": "stage",
+        "ALISA_RELEASE": "alisa-3e763ad761fac377"
+      },
+      "staff_secret_names_present": []
+    },
+    {
+      "config": "platform",
+      "mode": "0o600",
+      "uid": 0,
+      "sha256": "89bf67d41feb14d010faf63098edae69ef1d91def9903f8872fa91632d5212a2",
+      "safe_settings": {
+        "ALISA_ENV": "stage",
+        "ALISA_RELEASE": "alisa-6ae348354b3db0d3",
+        "FOUNDATION_PROBE_ENABLED": "0",
+        "ALISA_LANDING_MODE": "CLOSED",
+        "ALISA_SMTP_HOST": "127.0.0.1",
+        "ALISA_SMTP_PORT": "18225",
+        "ALISA_ACCOUNTS_ENABLED": "1",
+        "ALISA_IDENTITY_ISSUER": "https://id-stage.octoport.ru",
+        "ALISA_WEB_OIDC_CLIENT_ID": "alisa_market_stage"
+      },
+      "staff_secret_names_present": []
+    },
+    {
+      "database_component": "platform",
+      "read_only": true,
+      "migration_heads": [
+        [
+          "accounts",
+          "0001_initial"
+        ],
+        [
+          "foundation",
+          "0001_initial"
+        ],
+        [
+          "foundation",
+          "0002_pending_job_index"
+        ],
+        [
+          "funnel",
+          "0001_initial"
+        ],
+        [
+          "leads",
+          "0001_initial"
+        ],
+        [
+          "leads",
+          "0002_submission_created_at"
+        ]
+      ],
+      "staff_tables": [
+        null,
+        null
+      ]
+    },
+    {
+      "config": "identity",
+      "mode": "0o600",
+      "uid": 0,
+      "sha256": "9477199dd6b1ddc960748b4190746167046b025c4d9d6d87e4a74e795ccd36ef",
+      "safe_settings": {
+        "ALISA_ENV": "stage",
+        "ALISA_RELEASE": "alisa-6ae348354b3db0d3",
+        "FOUNDATION_PROBE_ENABLED": "0",
+        "ALISA_IDENTITY_ENABLED": "1",
+        "ALISA_IDENTITY_ISSUER": "https://id-stage.octoport.ru",
+        "ALISA_SMTP_HOST": "127.0.0.1",
+        "ALISA_SMTP_PORT": "18225"
+      },
+      "staff_secret_names_present": []
+    },
+    {
+      "database_component": "identity",
+      "read_only": true,
+      "migration_heads": [
+        [
+          "account",
+          "0001_initial"
+        ],
+        [
+          "account",
+          "0002_email_max_length"
+        ],
+        [
+          "account",
+          "0003_alter_emailaddress_create_unique_verified_email"
+        ],
+        [
+          "account",
+          "0004_alter_emailaddress_drop_unique_email"
+        ],
+        [
+          "account",
+          "0005_emailaddress_idx_upper_email"
+        ],
+        [
+          "account",
+          "0006_emailaddress_lower"
+        ],
+        [
+          "account",
+          "0007_emailaddress_idx_email"
+        ],
+        [
+          "account",
+          "0008_emailaddress_unique_primary_email_fixup"
+        ],
+        [
+          "account",
+          "0009_emailaddress_unique_primary_email"
+        ],
+        [
+          "accounts",
+          "0001_initial"
+        ],
+        [
+          "accounts",
+          "0002_identitymail_protocolcache_identityconsent_subject"
+        ],
+        [
+          "allauth_idp_oidc",
+          "0001_initial"
+        ],
+        [
+          "allauth_idp_oidc",
+          "0002_client_default_scopes"
+        ],
+        [
+          "allauth_idp_oidc",
+          "0003_client_allow_uri_wildcards"
+        ],
+        [
+          "auth",
+          "0001_initial"
+        ],
+        [
+          "auth",
+          "0002_alter_permission_name_max_length"
+        ],
+        [
+          "auth",
+          "0003_alter_user_email_max_length"
+        ],
+        [
+          "auth",
+          "0004_alter_user_username_opts"
+        ],
+        [
+          "auth",
+          "0005_alter_user_last_login_null"
+        ],
+        [
+          "auth",
+          "0006_require_contenttypes_0002"
+        ],
+        [
+          "auth",
+          "0007_alter_validators_add_error_messages"
+        ],
+        [
+          "auth",
+          "0008_alter_user_username_max_length"
+        ],
+        [
+          "auth",
+          "0009_alter_user_last_name_max_length"
+        ],
+        [
+          "auth",
+          "0010_alter_group_name_max_length"
+        ],
+        [
+          "auth",
+          "0011_update_proxy_permissions"
+        ],
+        [
+          "auth",
+          "0012_alter_user_first_name_max_length"
+        ],
+        [
+          "contenttypes",
+          "0001_initial"
+        ],
+        [
+          "contenttypes",
+          "0002_remove_content_type_name"
+        ],
+        [
+          "mfa",
+          "0001_initial"
+        ],
+        [
+          "mfa",
+          "0002_authenticator_timestamps"
+        ],
+        [
+          "mfa",
+          "0003_authenticator_type_uniq"
+        ],
+        [
+          "sessions",
+          "0001_initial"
+        ]
+      ],
+      "staff_tables": [
+        null,
+        null
+      ]
+    },
+    {
+      "registered_own_clients": [
+        {
+          "id": "alisa_compatibility_stage",
+          "type": "confidential",
+          "redirect": "https://alisa-stage.octoport.ru/oidc-probe/callback"
+        },
+        {
+          "id": "alisa_market_stage",
+          "type": "confidential",
+          "redirect": "https://alisa-stage.octoport.ru/auth/callback"
+        }
+      ]
+    },
+    {
+      "config": "platform-migration",
+      "mode": "0o600",
+      "uid": 0,
+      "sha256": "4ab39631c5e59a4faa9704b8b72e339ee3a517e81aa60436682805e3408d3ca8",
+      "safe_settings": {
+        "ALISA_ENV": "stage",
+        "ALISA_RELEASE": "alisa-6ae348354b3db0d3",
+        "FOUNDATION_PROBE_ENABLED": "0",
+        "ALISA_ACCOUNTS_ENABLED": "1",
+        "ALISA_IDENTITY_ISSUER": "https://id-stage.octoport.ru",
+        "ALISA_WEB_OIDC_CLIENT_ID": "alisa_market_stage"
+      },
+      "staff_secret_names_present": []
+    },
+    {
+      "config": "identity-migration",
+      "mode": "0o600",
+      "uid": 0,
+      "sha256": "53f633d51954a571a5b3b4596cf7a4da5460b591e09b227faab5ab30b12cb19c",
+      "safe_settings": {
+        "ALISA_ENV": "stage",
+        "ALISA_RELEASE": "alisa-6ae348354b3db0d3",
+        "FOUNDATION_PROBE_ENABLED": "0",
+        "ALISA_IDENTITY_ENABLED": "1",
+        "ALISA_IDENTITY_ISSUER": "https://id-stage.octoport.ru",
+        "ALISA_SMTP_HOST": "127.0.0.1",
+        "ALISA_SMTP_PORT": "18225"
+      },
+      "staff_secret_names_present": []
+    },
+    {
+      "own_nginx_file": "/etc/nginx/sites-enabled/alisa-platform-stage.conf",
+      "target": "/etc/nginx/sites-available/alisa-platform-stage.conf",
+      "sha256": "6e901c9a805ce0d2fa06cfcc3d3fea7750b58939708a99e76e17538c4e78766c"
+    },
+    {
+      "own_nginx_file": "/etc/nginx/sites-enabled/alisa-platform-setup.conf",
+      "target": "/etc/nginx/sites-available/alisa-platform-setup.conf",
+      "sha256": "595d561a6f4e26055e9191e3ae011878553d17d36fad1aa08b1fce00551d5ae0"
+    }
+  ],
+  "latest": {
+    "observed_at_utc": "2026-11-05T08:43:57.825273+00:00",
+    "pointers": {
+      "current": "/opt/alisa-platform/stage/releases/alisa-77d0f8ee2643ef65",
+      "web-current": "/opt/alisa-platform/stage/releases/alisa-e82003211bdcd687",
+      "site-current": "/opt/alisa-platform/stage/releases/alisa-6ae348354b3db0d3",
+      "identity-current": "/opt/alisa-platform/stage/releases/alisa-e82003211bdcd687",
+      "admin-current": "/opt/alisa-platform/stage/releases/alisa-e82003211bdcd687"
+    },
+    "health": {
+      "web": {
+        "http_status": 200,
+        "component": "web",
+        "environment": "stage",
+        "release": "alisa-e82003211bdcd687",
+        "status": "READY"
+      },
+      "admin": {
+        "http_status": 200,
+        "component": "admin",
+        "environment": "stage",
+        "release": "alisa-e82003211bdcd687",
+        "status": "READY"
+      },
+      "identity": {
+        "http_status": 200,
+        "component": "identity",
+        "environment": "stage",
+        "release": "alisa-e82003211bdcd687",
+        "status": "READY",
+        "authentication": "OIDC_CODE_PKCE"
+      },
+      "platform": {
+        "http_status": 200,
+        "component": "platform",
+        "status": "READY",
+        "runtime": "RUNTIME_NOT_CONNECTED",
+        "environment": "stage",
+        "release": "alisa-6ae348354b3db0d3"
+      }
+    },
+    "config_hashes": {
+      "web": "d289a51d08f78eeed47e8769a3a564b2f11aacf6278685eef186dafbbcf38548",
+      "admin": "17839efecd3cb8c20dbbf1ff6798b3002be0e381faaec0ca8f99d600f023cdf2",
+      "platform": "89bf67d41feb14d010faf63098edae69ef1d91def9903f8872fa91632d5212a2",
+      "identity": "9477199dd6b1ddc960748b4190746167046b025c4d9d6d87e4a74e795ccd36ef",
+      "platform-migration": "4ab39631c5e59a4faa9704b8b72e339ee3a517e81aa60436682805e3408d3ca8",
+      "identity-migration": "53f633d51954a571a5b3b4596cf7a4da5460b591e09b227faab5ab30b12cb19c"
+    },
+    "disk_free_mib": 3989,
+    "memory_available_mib": 6291,
+    "own_active_locks": []
+  },
+  "finding": "Parallel design release moved web/identity/admin from earlier baseline to e820; the old S03 rollout baseline is obsolete. No S03 stage changes made; new integrated source/package required.",
+  "excluded_mutations": [
+    "runtime config",
+    "stage DB/schema",
+    "nginx",
+    "units/pointers",
+    "credentials"
+  ]
+}

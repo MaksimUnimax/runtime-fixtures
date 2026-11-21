@@ -1,0 +1,91 @@
+{
+  "schema_version": "alisa_installed_web_readback_review_v1",
+  "reviewed_at": "2026-11-06",
+  "scope": "BOUNDED_READ_ONLY_FINAL_INSTALLED_READBACK",
+  "source_binding": {
+    "source_commit": "d9918bcb3695b432f1dcc6108f91a64824e7588c",
+    "source_tree": "bdd5d54375b54480fa2de200c34739d33d6179b6",
+    "installer_sha256": "45c8919a3e9c27f09b470ed131fccc74e241d8a4af8eeddb8b04a0d62e0eb24a",
+    "activator_sha256": "babb7c734acb229183c386c425746e454110da163386ef595cca6484e58f0534",
+    "manifest_sha256": "b3fc7bb7882d6004221ca3f87b617e963d003aae4c30d8363bde08582271eb4d",
+    "activation_receipt": "PASS",
+    "activation_profile_sha256_from_receipt": "1f8cbc1a812253532e44a8fe0b970cf49eff6589050aaf8a61f0efd850de300f"
+  },
+  "verdict": "INSTALLED_WEB_POINTER_AND_ANONYMOUS_READBACK_MATCH_EXPECTED_SCOPE",
+  "live_process_readback": {
+    "web_unit": "alisa-web@stage.service",
+    "unit_active_state": "active/running",
+    "pid": 149747,
+    "uid": 995,
+    "working_directory": "/opt/alisa-platform/stage/releases/alisa-d9918bcb3695b432/ui/web/apps/web",
+    "executable": "/usr/local/bin/node",
+    "cgroup_contains_web_unit": true,
+    "service_execstart_uses_web_current_launcher": true
+  },
+  "pointer_readback": {
+    "web-current": "alisa-d9918bcb3695b432",
+    "site-current": "alisa-6098b31384ae23a4",
+    "admin-current": "alisa-73180172646b7012",
+    "identity-current": "alisa-73180172646b7012",
+    "current": "alisa-482ed11832b666af"
+  },
+  "public_read_only_requests": {
+    "https_health": {
+      "status": 200,
+      "release": "alisa-d9918bcb3695b432"
+    },
+    "anonymous_get_account_stores": {
+      "status": 401,
+      "code": "AUTHENTICATION_REQUIRED",
+      "request_sent_cookie": false
+    },
+    "anonymous_get_private_stores_page": {
+      "status": 307,
+      "location": "/login",
+      "request_sent_cookie": false
+    },
+    "anonymous_post_account_stores": {
+      "status": 401,
+      "code": "AUTHENTICATION_REQUIRED",
+      "source": "successful activation receipt case; reviewer did not repeat POST"
+    }
+  },
+  "preserved_runtime_readback": {
+    "platform_health": "READY",
+    "platform_release": "alisa-6098b31384ae23a4",
+    "alice-market.service": "active",
+    "alisa-store-check.service": "active"
+  },
+  "finite_activation_runner": {
+    "invocation_id": "1b29a5f1eb4d4dc08eb04da9d0fe2a01",
+    "configured_at_start": {
+      "RuntimeMaxUSec": "3min",
+      "MemoryMax": "536870912",
+      "MemorySwapMax": "0",
+      "TasksMax": "128",
+      "TimeoutStopUSec": "5s",
+      "KillMode": "control-group",
+      "OOMPolicy": "stop"
+    },
+    "readback_after_completion": {
+      "LoadState": "not-found",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "ControlGroup": "",
+      "cgroup_path_exists": false
+    },
+    "runner_exit_status": "not independently re-read after transient unit removal; activation receipt is PASS"
+  },
+  "limits": {
+    "reviewer_host_calls": "read-only metadata, process and public GET requests",
+    "reviewer_mutations": false,
+    "tests_or_provider_calls": false,
+    "database_or_environment_value_reads": false,
+    "credentials_or_session_values_read": false,
+    "anonymous_post_repeated": false,
+    "owner_authenticated_negative_canary": "not established by this review",
+    "seller_binding": "false",
+    "performance_identity": "unverified"
+  },
+  "conclusion": "The web component is active on the intended release, with the platform/site and admin/identity/shared pointers preserved. Anonymous GET checks return the expected login-required outcomes. The POST outcome is accepted from the successful activation receipt and was not repeated. No live provider or authenticated customer acceptance is asserted."
+}

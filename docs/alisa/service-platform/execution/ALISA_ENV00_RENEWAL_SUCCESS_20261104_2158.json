@@ -1,0 +1,49 @@
+{
+  "scope": "ONE_OWN_SIX_DOMAIN_RENEWAL_DRY_RUN",
+  "observed_at_utc": "2026-11-04T21:59:29.727076+00:00",
+  "source_sha": "77d0f8ee2643ef655a6e1e3dc5b2d4379f7e589b",
+  "artifact_sha256": "2b72165cc7f3f5e8ebd580820db944fdf7f06b73e80de1024f76040c9e8a2acc",
+  "installed_release": "/opt/alisa-platform/stage/releases/alisa-77d0f8ee2643ef65",
+  "unit": "alisa-stage-cert-renewal-check-20261104-2200.service",
+  "one_attempt_only": true,
+  "attempt_started_utc": "2026-11-04T21:58:30Z",
+  "attempt_finished_utc": "2026-11-04T21:58:43Z",
+  "previous_attempt_utc": "2026-11-04T14:34:24Z",
+  "previous_retry_after_seconds": 14,
+  "ca_status_at_start": "Planned Maintenance, last update06:26Z; ACME staging directory HTTP200",
+  "eligibility": "Announced maintenance window ended 58min earlier; previous attempt 7h24min earlier; Retry-After14s expired; staging directory200; no active Certbot or held Certbot locks. One finite attempt, not a repeat loop.",
+  "directory_hooks_disabled_for_this_invocation": true,
+  "explicit_deploy_hook": "/etc/letsencrypt/renewal-hooks/deploy/alisa-platform-nginx-reload",
+  "foreign_hook_executed": false,
+  "renewal_config_and_certificate_unchanged": true,
+  "hashes_before": {
+    "/etc/letsencrypt/renewal/alisa-platform-bootstrap.conf": "8b2d59fac5563d2649459efceac9b86129add7d4005f8743d28b08bc4d4a6593",
+    "/etc/letsencrypt/live/alisa-platform-bootstrap/fullchain.pem": "e6d4d324b6912fd3e3880944131333072aa9bf70c838d69e2cb6999ac688a5be",
+    "/etc/letsencrypt/renewal-hooks/deploy/alisa-platform-nginx-reload": "d6fb92f05a18d3a5b83d894e89f6470b017dd6e5f997aa4cf4bbf9aee390038a",
+    "/etc/letsencrypt/renewal-hooks/deploy/10-alice-lab-reload-nginx": "3e8af9191a861f06ee81b48fe21192c978ba27c98fb258c3c48660c7907fca44",
+    "/etc/nginx/sites-available/alice-lab.conf": "143620f49afca554582c5770ddec26950d098d40075f2c8d93fce33ac0d94c2e",
+    "/etc/nginx/sites-available/default": "ce0901350a021608139b5639cf4ccd7717bef8c3a9e4f79031eb46386b67b03f"
+  },
+  "hashes_after": {
+    "/etc/letsencrypt/renewal/alisa-platform-bootstrap.conf": "8b2d59fac5563d2649459efceac9b86129add7d4005f8743d28b08bc4d4a6593",
+    "/etc/letsencrypt/live/alisa-platform-bootstrap/fullchain.pem": "e6d4d324b6912fd3e3880944131333072aa9bf70c838d69e2cb6999ac688a5be",
+    "/etc/letsencrypt/renewal-hooks/deploy/alisa-platform-nginx-reload": "d6fb92f05a18d3a5b83d894e89f6470b017dd6e5f997aa4cf4bbf9aee390038a",
+    "/etc/letsencrypt/renewal-hooks/deploy/10-alice-lab-reload-nginx": "3e8af9191a861f06ee81b48fe21192c978ba27c98fb258c3c48660c7907fca44",
+    "/etc/nginx/sites-available/alice-lab.conf": "143620f49afca554582c5770ddec26950d098d40075f2c8d93fce33ac0d94c2e",
+    "/etc/nginx/sites-available/default": "ce0901350a021608139b5639cf4ccd7717bef8c3a9e4f79031eb46386b67b03f"
+  },
+  "current_certificate": "sha256 Fingerprint=FC:8E:E9:82:3A:4C:56:51:A2:31:60:B8:7A:FA:83:18:4F:1D:02:36:57:C7:A2:62:26:D0:DB:E8:DF:8A:35:07\nnotAfter=Feb  2 08:55:20 2027 GMT\nX509v3 Subject Alternative Name: \n    DNS:alisa-admin-stage.octoport.ru, DNS:alisa-admin.octoport.ru, DNS:alisa-stage.octoport.ru, DNS:alisa.octoport.ru, DNS:id-stage.octoport.ru, DNS:id.octoport.ru",
+  "systemd_status_after_gc": {
+    "Result": "success",
+    "ExecMainStatus": "0",
+    "ActiveState": "inactive",
+    "SubState": "dead"
+  },
+  "certbot_journal": "2026-11-04T21:58:30.649555+00:00 Alisa systemd[1]: Started alisa-stage-cert-renewal-check-20261104-2200.service - /usr/bin/flock -n /run/lock/alisa-platform-renewal-check.lock /usr/bin/certbot renew --cert-name alisa-platform-bootstrap --dry-run --run-deploy-hooks --no-directory-hooks --deploy-hook /etc/letsencrypt/renewal-hooks/deploy/alisa-platform-nginx-reload --no-random-sleep-on-renew --non-interactive.\n2026-11-04T21:58:30.961313+00:00 Alisa flock[35577]: Saving debug log to /var/log/letsencrypt/letsencrypt.log\n2026-11-04T21:58:30.961937+00:00 Alisa flock[35577]: - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n2026-11-04T21:58:30.961937+00:00 Alisa flock[35577]: Processing /etc/letsencrypt/renewal/alisa-platform-bootstrap.conf\n2026-11-04T21:58:30.961937+00:00 Alisa flock[35577]: - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n2026-11-04T21:58:31.601350+00:00 Alisa flock[35577]: Simulating renewal of an existing certificate for alisa.octoport.ru and 5 more domains\n2026-11-04T21:58:43.497604+00:00 Alisa flock[35577]: Hook 'deploy-hook' ran with error output:\n2026-11-04T21:58:43.497604+00:00 Alisa flock[35577]:  nginx: the configuration file /etc/nginx/nginx.conf syntax is ok\n2026-11-04T21:58:43.497604+00:00 Alisa flock[35577]:  nginx: configuration file /etc/nginx/nginx.conf test is successful\n2026-11-04T21:58:43.500494+00:00 Alisa flock[35577]: - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n2026-11-04T21:58:43.500612+00:00 Alisa flock[35577]: Congratulations, all simulated renewals succeeded:\n2026-11-04T21:58:43.500612+00:00 Alisa flock[35577]:   /etc/letsencrypt/live/alisa-platform-bootstrap/fullchain.pem (success)\n2026-11-04T21:58:43.500612+00:00 Alisa flock[35577]: - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n2026-11-04T21:58:43.587173+00:00 Alisa systemd[1]: alisa-stage-cert-renewal-check-20261104-2200.service: Deactivated successfully.",
+  "nginx_journal": "2026-11-04T21:58:43.469439+00:00 Alisa systemd[1]: Reloading nginx.service - A high performance web server and a reverse proxy server...\n2026-11-04T21:58:43.492052+00:00 Alisa nginx[35584]: 2026/11/04 21:58:43 [notice] 35584#35584: signal process started\n2026-11-04T21:58:43.493728+00:00 Alisa systemd[1]: Reloaded nginx.service - A high performance web server and a reverse proxy server.",
+  "renewal_proven": true,
+  "deploy_hook_proven": true,
+  "status": "PASS",
+  "foundation_ready": false,
+  "next_step": "Independent final AL-S00 verdict for this exact source/package; AL-S01 only after accepted verdict."
+}

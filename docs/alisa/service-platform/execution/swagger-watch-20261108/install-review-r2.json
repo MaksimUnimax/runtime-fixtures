@@ -1,0 +1,42 @@
+{
+  "review": "ALISA_SWAGGER_WATCH_INSTALL_PROCEDURE_REVIEW_R2",
+  "date": "2026-11-08",
+  "verdict": "PASS_DELTA",
+  "scope": "Read-only review limited to installer delta from prior install-review.json. Script was not executed; no host state, private configuration contents, provider credentials, tests, provider endpoints, DB, or browser were accessed.",
+  "source_pin": "7cbe3059a83677aeb42a086898a48067918f16a2",
+  "installer_sha256": "3d7f3e69dadeeb25e669e290211c852062fea72034e639f7cc050239c5588051",
+  "prior_review_sha256": "556bd2723140847d8c5c15952b14392ef5b529edb21545a575250d426743f9f6",
+  "delta_findings": {
+    "dangling_path_preflight": {
+      "result": "FIXED",
+      "detail": "The new present(path) helper checks exists() or is_symlink(). Fresh namespace and inactive current-pointer guards now reject dangling symlinks before creating/replacing owned state. This closes the prior preflight ambiguity; exclusive mkdir/open behavior remains unchanged."
+    },
+    "systemd_enable_link_recovery": {
+      "result": "BOUNDED_AND_SAFE",
+      "detail": "Recovery checks only the two expected enable locations for the new timer and status unit. It unlinks a path only if it is a symlink and its resolved target exactly equals the corresponding owned /etc/systemd/system/<unit> file. It retains all other links, release/source/state/history, then queues stop for the three owned units and Nginx reload. No pre-existing product unit or symlink target is eligible for removal."
+    },
+    "unchanged_procedure": "All other source remains as previously reviewed: exact source/package/owner-document pins, fresh isolated namespace and dedicated UID, exact owner digest import/review, own read-only loopback status, single canonical Nginx location, existing-product snapshot and readiness checks, and 3 GiB disk reserve."
+  },
+  "ci_gate": {
+    "reported_exact_source": "7cbe3059a83677aeb42a086898a48067918f16a2",
+    "reported_status": "SUCCESS",
+    "jobs": ["Swagger 42451828165", "documentation 42451828188", "full platform 42451828162"],
+    "independent_ci_verification": false
+  },
+  "retained_caveats": [
+    "A failed activation deliberately retains partial files in the new owned namespace for readback and may require a separately reviewed continuation/cleanup before retry; existing product state is not overwritten.",
+    "The watcher starts asynchronously after public routing is checked. Activation PASS establishes install and status routing, not successful document retrieval; status can remain DEGRADED for operator-required sources.",
+    "Owner-supplied reviewed content does not establish automatic TLS provenance, freshness, or Performance/Seller identity binding."
+  ],
+  "deployment_gate": "No new blocker in the reviewed delta. Prior procedure verdict remains applicable with the dangling-path preflight issue resolved. Use exact artifact/package checks and host preconditions before execution, and preserve failure receipts for readback.",
+  "reviewer_actions": {
+    "script_executed": false,
+    "tests_run": false,
+    "host_calls": false,
+    "provider_calls": false,
+    "db_calls": false,
+    "browser_calls": false,
+    "private_config_contents_read": false,
+    "provider_credentials_read": false
+  }
+}

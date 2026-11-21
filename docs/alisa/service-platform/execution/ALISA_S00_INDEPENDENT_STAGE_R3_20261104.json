@@ -1,0 +1,192 @@
+{
+  "report": "ALISA_S00_INDEPENDENT_STAGE_R3",
+  "date_utc": "2026-11-04",
+  "overall": "PARTIAL_NOT_ACCEPTED",
+  "foundation_ready": false,
+  "environment_scope": "Alisa stage only; production was queried only for approved unauthenticated GET 404 checks",
+  "release": {
+    "artifact_id": "alisa-61007bf870cf4f65",
+    "source_sha": "61007bf870cf4f65afb30b801603eef4eeb422d3",
+    "artifact_path": "/var/lib/alisa-platform/stage/artifacts/alisa-61007bf870cf4f65.tar.gz",
+    "artifact_sha256": "4f7351657e99b5babb7e3130e306fc042e3e31fe5d8ea9c964154bd76a412e6b",
+    "installed_path": "/opt/alisa-platform/stage/releases/alisa-61007bf870cf4f65",
+    "activation": "PASS via r3 CLI; all four HTTP readiness components reported stage/r3 READY",
+    "prior_release": {
+      "artifact_id": "alisa-29c99f6d9d00f19e",
+      "source_sha": "29c99f6d9d00f19e14087a85d488a6cf5264ff1b"
+    }
+  },
+  "ci": [
+    {"run_id": 41831933091, "job_id": 126581022691, "trigger": "push", "conclusion": "success", "checks": "32 Python, 11 Node, 40 PostgreSQL/browser cases; qualified package uploaded"},
+    {"run_id": 41831940984, "trigger": "pull_request", "conclusion": "success", "source_job": "success"}
+  ],
+  "migration": {
+    "r3_plan": "No planned migration operations in platform or identity",
+    "r3_apply": "No migrations to apply in platform or identity",
+    "repeat_plan": "No planned migration operations in platform or identity",
+    "platform_migrations": ["foundation:0001_initial", "foundation:0002_pending_job_index"],
+    "identity_migrations": ["accounts:0001_initial", "auth:0012_alter_user_first_name_max_length", "contenttypes:0002_remove_content_type_name"],
+    "pending_job_index_present": true,
+    "pending_job_index_partial_predicate": true
+  },
+  "independent_r3_facts": {
+    "browser_roundtrip": {
+      "status": "PASS",
+      "probe_id": "8ae20eec-4a79-40fa-b967-219bd483ea63",
+      "correlation_id": "08632517-f1f0-425c-89e0-5d33e3c82f3d",
+      "ui_api_db_state": "PROCESSED",
+      "effect_count": 1,
+      "accepted_and_processed_release": "alisa-61007bf870cf4f65",
+      "logs": {"web_bff_accepted": true, "platform_probe_accepted": true, "worker_probe_processed": true}
+    },
+    "r3_r2_r3": {
+      "status": "PASS",
+      "same_probe_id": "8ae20eec-4a79-40fa-b967-219bd483ea63",
+      "same_correlation_id": "08632517-f1f0-425c-89e0-5d33e3c82f3d",
+      "r2_release_readback": "alisa-29c99f6d9d00f19e",
+      "r3_release_readback": "alisa-61007bf870cf4f65",
+      "readiness_each_side": [200, 200, 200, 200],
+      "effect_count_throughout": 1,
+      "database_restored_from_backup": false
+    },
+    "host_routing": {
+      "status": "PASS",
+      "stage_hosts": {
+        "alisa-stage.octoport.ru": {"status": 200, "component": "web", "environment": "stage", "release": "alisa-61007bf870cf4f65"},
+        "alisa-admin-stage.octoport.ru": {"status": 200, "component": "admin", "environment": "stage", "release": "alisa-61007bf870cf4f65"},
+        "id-stage.octoport.ru": {"status": 200, "component": "identity", "environment": "stage", "release": "alisa-61007bf870cf4f65"}
+      },
+      "direct_bff_wrong_host": {"method": "POST", "path": "/api/engineering/probes", "destination": "127.0.0.1:18100", "host": "wrong.invalid", "configured_authorization_and_origin_present": true, "status": 403, "probe_id": "e3243140-6fd3-479c-b4bf-2bd6bb1101d4", "database_rows": 0},
+      "external_nginx_wrong_host_observation": "404; not counted as the direct BFF Host-guard proof"
+    },
+    "production_setup_only": {
+      "status": "PASS_GET_SCOPE",
+      "hosts": {
+        "alisa.octoport.ru": {"/__engineering": 404, "/api/engineering/probes": 404},
+        "alisa-admin.octoport.ru": {"/__engineering": 404, "/api/engineering/probes": 404},
+        "id.octoport.ru": {"/__engineering": 404, "/api/engineering/probes": 404}
+      },
+      "authorization_headers_sent": false,
+      "writes_sent": 0,
+      "production_app_or_database_created": false
+    },
+    "ttl_cleanup": {
+      "status": "PASS",
+      "probe_id": "5a1e1cba-58c9-430a-961e-b9373e4e657c",
+      "correlation_id": "cdcc3035-c66b-4ec5-8932-1cd2d5784a6d",
+      "pre_delete_receipt_saved_outside_database": true,
+      "only_this_probe_expired": true,
+      "cleanup_service_deleted_row": true,
+      "receipt_remains": true,
+      "cleanup_timer_active": true
+    },
+    "resource_smoke": {
+      "status": "PASS_SMOKE_ONLY",
+      "samples": 30,
+      "duration_seconds": 16.047,
+      "synthetic_posts": 10,
+      "processed_results": 10,
+      "database_rows": 10,
+      "effect_count_each": 1,
+      "peak_simultaneous_cgroup_bytes": 331128832,
+      "mem_available_min_bytes": 6925316096,
+      "disk_free_bytes_start_end": [6922612736, 6922596352],
+      "inodes_free_start_end": [737901, 737901],
+      "oom_kill_delta_all_measured_units": 0,
+      "no_service_restart_during_capture": true,
+      "limitations": "Short smoke, not capacity or saturation test; RSS upper bounds may count shared pages."
+    },
+    "secret_boundary": {
+      "status": "PASS",
+      "missing_ALISA_DB_PASSWORD_child_check_exit": 1,
+      "child_bytecode_disabled": true,
+      "real_config_edited_for_missing_secret_check": false,
+      "exact_secret_hits_in_r3_installed_payload": 0,
+      "exact_secret_hits_in_recent_stage_unit_logs": 0
+    },
+    "final_probe_shutdown": {
+      "status": "PASS",
+      "flags": {"web": 0, "platform": 0},
+      "config_modes": {"web": "0600", "platform": "0600"},
+      "config_owners": {"web": "root:root", "platform": "root:root"},
+      "config_sha256_without_values": {
+        "web_before": "b388f097c8837a1a1f77983c58096e5e42d46b68c5067548e66d8a72177a513a",
+        "web_after": "58c6d7b7a8bc26e4e4b61f72065c810a22f5b14642ce9187c5f8866362ead9b5",
+        "platform_before": "8ce34c83be4fc3796e2a303dc58b356e5b49814efb63b0e93fe9383784c49cd7",
+        "platform_after": "a6acdec8c1723d2d778b15ce0134590dd05b87782fd10132e1fb6b83169648a7"
+      },
+      "authenticated_stage_post": 404,
+      "authenticated_engineering_page": 404,
+      "post_test_database_rows": 0,
+      "readiness": {"web": 200, "admin": 200, "platform": 200, "identity": 200},
+      "worker": {"active_state": "inactive", "enabled_state": "disabled"},
+      "cleanup_timer": "active"
+    }
+  },
+  "cases": [
+    {"id": "AL-T00-01", "status": "PASS_WITH_LIMIT", "fact": "Exact r3 package SHA matched, r3 deployed from the retained package, push and PR clean-runner jobs succeeded. No byte-reproducibility claim."},
+    {"id": "AL-T00-02", "status": "PASS_SOURCE_GATE", "fact": "Root's temporary forbidden-import mutation was rejected; source boundary CI passed. No protected matrix-path change was reported."},
+    {"id": "AL-T00-03", "status": "PASS_STAGE_SCOPE", "fact": "Three stage hosts mapped to the correct component/env/release; direct BFF POST with a foreign Host returned 403. External wrong-Host 404 is recorded separately as ingress evidence."},
+    {"id": "AL-T00-04", "status": "PASS", "fact": "Fresh r3 browser UUID matched API, PostgreSQL and web/platform/worker correlation events with one effect."},
+    {"id": "AL-T00-05", "status": "PARTIAL_R3_STAGE", "fact": "r2 independent stage run verified concurrent duplicate/conflict behavior; r3 CI covers packaged qualification. This r3 stage run used ten distinct concurrent UUIDs, not duplicate concurrent delivery."},
+    {"id": "AL-T00-06", "status": "PARTIAL_R3_STAGE", "fact": "r2 independent stage run verified a pending job across worker restart; r3 independently preserved an already-processed row through r3→r2→r3 and restarted services. No pending-job restart was staged on r3."},
+    {"id": "AL-T00-07", "status": "AUTHOR_R2_STAGE_EVIDENCE", "fact": "Controlled runtime-role NOLOGIN liveness/readiness/recovery passed in prior r2 independent run; no second outage was created on r3."},
+    {"id": "AL-T00-08", "status": "AUTHOR_R2_STAGE_EVIDENCE", "fact": "Stage runtime superuser, DDL and cross-database denials passed in prior independent run. No production credential attempt was made."},
+    {"id": "AL-T00-09", "status": "PASS_WITH_AUTHOR_R1_COMPATIBILITY_EVIDENCE", "fact": "Exact r3 plan/apply/repeat were no-op; both migration heads and pending index/predicate read back; r3→r2→r3 preserved the same record. Root separately reports r1 compatibility."},
+    {"id": "AL-T00-10", "status": "PASS_R3_SCOPE", "fact": "Missing DB password child check failed safely with bytecode disabled; exact configured secrets were absent from installed r3 payload and recent logs; config modes/owners preserved."},
+    {"id": "AL-T00-11", "status": "PARTIAL_AUTHOR_R1_EVIDENCE", "fact": "Root reports r1→r2→r1 data preservation; this independent r3 handoff tested r3→r2→r3, not r3→r1."},
+    {"id": "AL-T00-12", "status": "PASS_SOURCE_GATES_WITH_LIMIT", "fact": "Root demonstrated syntax/typecheck and contract-drift mutations fail and packaging refuses dirty source; r3 push/PR CI passed. No deliberately red GitHub workflow run was triggered."},
+    {"id": "AL-T00-13", "status": "PARTIAL_R2_STAGE_EVIDENCE", "fact": "Forged session/tenant routes returned 404 in prior r2 independent run; no separate forged-cookie replay was performed on r3."},
+    {"id": "AL-T00-14", "status": "PASS_EXPECTED_DENY_SCOPE", "fact": "Direct BFF wrong Host 403; final flag-off authenticated stage POST/page 404 with no row; unauthenticated production setup-only GETs returned 404. No production write or DB was used."},
+    {"id": "AL-T00-15", "status": "AUTHOR_R2_EGRESS_EVIDENCE", "fact": "Prior stage-only nft test denied old loopback port 8765 and showed unchanged deny counter through browser roundtrip. No second firewall mutation was made for r3."},
+    {"id": "AL-T00-16", "status": "PASS_R3_SCOPE", "fact": "Exact BFF allowlisted event linked browser UUID/correlation to platform acceptance and worker processing; one synthetic probe expired and was deleted while external receipt remained."},
+    {"id": "AL-T00-17", "status": "PASS_SMOKE_NOT_CAPACITY", "fact": "Author r2 60-sample/20-post capture was PASS; independent r3 30-sample/10-post cgroup/RSS/CPU/disk smoke passed without service restart or OOM. This is not a saturation/capacity test."},
+    {"id": "AL-T00-18", "status": "PARTIAL_NOT_ACCEPTED", "fact": "Exact r3 package deploy, migration, browser probe, rollback r3→r2→r3, TTL, host checks, resource smoke and final shutdown were independently evidenced; cases 05–08, 11, 13 and 15 remain partial/author-evidence scope. Full reviewed acceptance receipt and external ACME renewal evidence remain outstanding."}
+  ],
+  "observed_harness_failures_and_recovery": [
+    "Initial browser attempt omitted PLAYWRIGHT_BROWSERS_PATH and failed before submitting a probe; repeated with the configured observer browser path and passed.",
+    "The first r3 resource wrapper did not persist a result; rerun with captured output completed 30 samples and passed. No stage service restart occurred during the successful measurement.",
+    "Two probe-shutdown harness attempts rolled back to flags=1, worker enabled/active, and services active: one treated transient connection-refused during restart as fatal; the next treated systemctl's expected inactive-worker exit code 3 as fatal. A bounded readiness poll and non-checking status read produced the final passing shutdown. These were harness failures, not observed product failures.",
+    "The initial external wrong-Host request returned nginx 404 and did not prove the BFF guard. A direct loopback BFF POST with valid stage authorization/origin and Host=wrong.invalid returned 403 with no database row."
+  ],
+  "final_decision": "NOT_ACCEPTED; FOUNDATION_READY=false",
+  "remaining_for_FOUNDATION_READY": [
+    "Complete the partial AL-T00 cases with evidence tied to the exact r3 package, especially concurrent duplicate delivery, pending-job restart, controlled DB readiness outage, default-deny replay, and egress isolation scope.",
+    "Complete and review the authoritative 18-case execution receipt; the product evidence CLI intentionally remains NOT_ACCEPTED.",
+    "ACME renewal remains an external open gate after the earlier service-busy/rate-limited dry run; no retry was made."
+  ],
+  "final_state_readback": {
+    "scope": "Recorded final read-only state check; no subsequent server mutation",
+    "web_probe_flag": 0,
+    "platform_probe_flag": 0,
+    "http_readiness": {
+      "web": 200,
+      "admin": 200,
+      "platform": 200,
+      "identity": 200
+    },
+    "worker_systemctl_is_active": {
+      "stdout": "inactive",
+      "return_code": 3,
+      "expected": true
+    },
+    "worker_systemctl_is_enabled": {
+      "stdout": "disabled",
+      "return_code": 1,
+      "expected": true
+    },
+    "cleanup_timer_active": true,
+    "platform_runtime_role_login": true,
+    "temporary_nft_table_inet_alisa_s00_isolation_absent": true
+  },
+  "safety_state": {
+    "current_release": "alisa-61007bf870cf4f65",
+    "stage_probe_flags_disabled": true,
+    "web_admin_platform_identity_active": true,
+    "worker_disabled_and_inactive": true,
+    "cleanup_timer_active": true,
+    "runtime_role_login_restored": true,
+    "temporary_nft_table_absent": true,
+    "production_or_marketplace_writes": 0
+  }
+}

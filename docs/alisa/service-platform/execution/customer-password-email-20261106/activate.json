@@ -1,0 +1,119 @@
+{
+  "status": "PASS",
+  "scope": "CUSTOMER_PASSWORD_EMAIL_WEB_IDENTITY_ONLY",
+  "cases": [
+    {
+      "case": "private_package-binding.json",
+      "passed": true
+    },
+    {
+      "case": "qualified_exact_source",
+      "passed": true
+    },
+    {
+      "case": "private_prepare.json",
+      "passed": true
+    },
+    {
+      "case": "exact_prepared_component",
+      "passed": true
+    },
+    {
+      "case": "manifest_binding",
+      "passed": true
+    },
+    {
+      "case": "exact_selected_component_files",
+      "passed": true
+    },
+    {
+      "case": "exact_selected_component_links",
+      "passed": true
+    },
+    {
+      "case": "materialized_links_stay_in_component",
+      "passed": true
+    },
+    {
+      "case": "baseline_still_exact",
+      "passed": true
+    },
+    {
+      "case": "before_readiness",
+      "passed": true
+    },
+    {
+      "case": "new_readiness",
+      "passed": true
+    },
+    {
+      "case": "protected_services_unchanged",
+      "passed": true
+    },
+    {
+      "case": "configs_profiles_unchanged",
+      "passed": true
+    },
+    {
+      "case": "only_two_pointers_changed",
+      "passed": true
+    },
+    {
+      "case": "public_form_14",
+      "passed": true
+    },
+    {
+      "case": "public_form_15",
+      "passed": true
+    },
+    {
+      "case": "public_form_16",
+      "passed": true
+    },
+    {
+      "case": "stores_still_private",
+      "passed": true
+    },
+    {
+      "case": "disk_reserve_after_activation",
+      "passed": true
+    }
+  ],
+  "config_sha256_before": {
+    "web": "629d414b86d80e7883bae60c503292cf4671f377e411bcda2d2ecd55ca17863f",
+    "identity": "9083c1b1cb174edaed693e06aa659447a203cee0d63573d00f6b66a9a92680ac",
+    "admin": "b7c10562f2b7fa266e1fe29eaf6038270014bf19dfa3c5732066c33f97cb5c58",
+    "platform": "700d5eb40ce3ac1a251a4ebb5d566df7b8f527de9084145a92841e2dbdbf80a9",
+    "identity-migration": "53f633d51954a571a5b3b4596cf7a4da5460b591e09b227faab5ab30b12cb19c",
+    "platform-migration": "4ab39631c5e59a4faa9704b8b72e339ee3a517e81aa60436682805e3408d3ca8"
+  },
+  "profile_sha256_before": {
+    "alisa-web@stage.service": "bc9b1bdb46517a10cd82410d05a02686c4958edad280db0b4213d374eb7a7004",
+    "alisa-identity@stage.service": "c6a458ba6cc525d966c687461a4d87095cc0574fcb1453026c895bb9f64cb4d6"
+  },
+  "config_sha256_after": {
+    "web": "629d414b86d80e7883bae60c503292cf4671f377e411bcda2d2ecd55ca17863f",
+    "identity": "9083c1b1cb174edaed693e06aa659447a203cee0d63573d00f6b66a9a92680ac",
+    "admin": "b7c10562f2b7fa266e1fe29eaf6038270014bf19dfa3c5732066c33f97cb5c58",
+    "platform": "700d5eb40ce3ac1a251a4ebb5d566df7b8f527de9084145a92841e2dbdbf80a9",
+    "identity-migration": "53f633d51954a571a5b3b4596cf7a4da5460b591e09b227faab5ab30b12cb19c",
+    "platform-migration": "4ab39631c5e59a4faa9704b8b72e339ee3a517e81aa60436682805e3408d3ca8"
+  },
+  "profile_sha256_after": {
+    "alisa-web@stage.service": "bc9b1bdb46517a10cd82410d05a02686c4958edad280db0b4213d374eb7a7004",
+    "alisa-identity@stage.service": "c6a458ba6cc525d966c687461a4d87095cc0574fcb1453026c895bb9f64cb4d6"
+  },
+  "phase": "ACTIVATED",
+  "source_sha": "7afaf646b9b35a588051c744f876f6dc1ef7d176",
+  "pointers": {
+    "web-current": "alisa-7afaf646b9b35a58",
+    "identity-current": "alisa-7afaf646b9b35a58",
+    "site-current": "alisa-6098b31384ae23a4",
+    "admin-current": "alisa-73180172646b7012",
+    "current": "alisa-482ed11832b666af"
+  },
+  "protected_services_preserved": true,
+  "configs_preserved": true,
+  "migrations_applied": [],
+  "live_owner_login": "NOT_RUN"
+}

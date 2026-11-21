@@ -1,0 +1,39 @@
+[Unit]
+Description=Alisa private store credential checks
+After=network-online.target alice-market.service
+Wants=network-online.target
+BindsTo=alice-market.service
+PartOf=alice-market.service
+
+[Service]
+Type=simple
+User=alice-market
+Group=alisa-store-check
+WorkingDirectory=/opt/alice-market/releases/20261106-store-check-6098-r1
+ExecStartPre=+/usr/bin/python3 -B /opt/alice-market/releases/20261106-store-check-6098-r1/store-check-permissions.py
+ExecStart=/usr/bin/python3 -B /opt/alice-market/releases/20261106-store-check-6098-r1/store_check_ipc.py --socket /run/alice-market/store-check.sock --allowed-uid 993 --environment stage --enable-kind WB --enable-kind SELLER --enable-kind PERFORMANCE
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=5
+KillMode=control-group
+SendSIGKILL=yes
+OOMPolicy=stop
+MemoryAccounting=yes
+MemoryMax=192M
+MemorySwapMax=0
+TasksMax=32
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/run/alice-market
+InaccessiblePaths=/etc/alice-lab /var/lib/alice-lab /etc/alice-market /var/lib/alice-market /etc/alisa-platform /var/lib/alisa-platform /run/credentials
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictSUIDSGID=yes
+LockPersonality=yes
+StandardOutput=null
+StandardError=journal
+
+[Install]
+WantedBy=alice-market.service

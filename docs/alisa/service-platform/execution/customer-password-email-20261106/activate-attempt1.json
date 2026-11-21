@@ -1,0 +1,61 @@
+{
+  "status": "FAILED",
+  "scope": "CUSTOMER_PASSWORD_EMAIL_WEB_IDENTITY_ONLY",
+  "cases": [
+    {
+      "case": "private_package-binding.json",
+      "passed": true
+    },
+    {
+      "case": "qualified_exact_source",
+      "passed": true
+    },
+    {
+      "case": "private_prepare.json",
+      "passed": true
+    },
+    {
+      "case": "exact_prepared_component",
+      "passed": true
+    },
+    {
+      "case": "manifest_binding",
+      "passed": true
+    },
+    {
+      "case": "exact_selected_component_files",
+      "passed": true
+    },
+    {
+      "case": "exact_selected_component_links",
+      "passed": true
+    },
+    {
+      "case": "materialized_links_stay_in_component",
+      "passed": true
+    },
+    {
+      "case": "baseline_still_exact",
+      "passed": true
+    },
+    {
+      "case": "before_readiness",
+      "passed": true
+    },
+    {
+      "case": "new_readiness",
+      "passed": true
+    },
+    {
+      "case": "protected_services_unchanged",
+      "passed": true
+    },
+    {
+      "case": "configs_profiles_unchanged",
+      "passed": false
+    }
+  ],
+  "rollback_ready": true,
+  "recovery": "OWN_WEB_IDENTITY_POINTERS_RESTORED_OTHER_STATE_PRESERVED",
+  "error_type": "RuntimeError"
+}

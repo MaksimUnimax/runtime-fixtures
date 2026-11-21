@@ -1,0 +1,41 @@
+{
+  "schema_version": "alisa_core_activation_review_v1",
+  "scope": "READ_ONLY_REVIEW_ACTIVATE_CORE_AND_PRIVATE_CHECKER_SCRIPT_NO_HOST_CALLS_NO_EXECUTION",
+  "file": "docs/alisa/service-platform/execution/s05-installed-20261106/activate-core.py",
+  "sha256": "2331cdc1418d3b139eab1511fa1a7cf735d37824d7c757d5988822fa9e9eb579",
+  "verdict": "HOLD_FOR_FRESH_EFFECTIVE_UNIT_AND_DROPIN_PARENT_PREFLIGHT",
+  "findings": [
+    {
+      "severity": "HIGH",
+      "lines": "7, 23",
+      "finding": "The script replaces alice-market.service ExecStart with a hard-coded `/usr/bin/python3 ... runtime.py --config /etc/alice-market/market-runtime.json`, but preflight checks only WorkingDirectory. It does not prove that this matches the current effective ExecStart/interpreter/arguments or that required Environment, LoadCredential and service identity settings remain valid. The drop-in preserves other settings, but replacing ExecStart can change active runtime startup semantics.",
+      "recommendation": "Before any write, read and pin the current effective ExecStart, User, Group, EnvironmentFiles, LoadCredential/Credentials and drop-in set; require the expected config path and preserve all existing credential/environment directives. Abort on any difference."
+    },
+    {
+      "severity": "MEDIUM",
+      "lines": "6, 28, 38-40",
+      "finding": "The script verifies that the new unit/drop-in files do not exist, but it does not verify that both drop-in parent directories exist, are root-owned and non-writable by group/world. It creates the group before discovering a missing parent directory, and a write failure can leave partial files not yet present in `made`, complicating rollback.",
+      "recommendation": "Preflight the exact parent directories for alice-market.service.d and alisa-platform@stage.service.d before group creation; require trusted ownership/mode. Create/record each new file atomically and enroll its path in recovery before writing bytes."
+    }
+  ],
+  "reviewed_controls": {
+    "new_core_manifest_and_1035_private_network_qualification_pins": "PASS_SOURCE",
+    "uid_and_platform_pointer_pins": "PASS_SOURCE",
+    "rollout_lock_set_and_job_quiescence_checks": "PASS_SOURCE",
+    "unit_acl_helper_hash_and_service_source_hash_pinned": "PASS_SOURCE",
+    "checker_group_created_only_if_absent_and_retained_on_rollback": "PASS_SOURCE",
+    "checker_service_uid_gid_memory_task_and_kill_bounds": "PASS_SOURCE",
+    "platform_supplementary_group_dropin_only_no_platform_restart": "PASS_SOURCE",
+    "rollback_limited_to_recorded_new_files_and_old_working_directory": "PASS_SOURCE_WITH_PARENT_PREFLIGHT_GAP"
+  },
+  "boundary": {
+    "db_migration_or_platform_configuration_changed": false,
+    "identity_or_platform_pointers_switched": false,
+    "seller_binding_enabled": false,
+    "performance_identity_promoted": false,
+    "tests_run_by_reviewer": 0,
+    "host_calls": 0,
+    "script_executed": false,
+    "live_credentials_used": false
+  }
+}

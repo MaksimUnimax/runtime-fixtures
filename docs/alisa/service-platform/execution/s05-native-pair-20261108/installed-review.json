@@ -1,0 +1,34 @@
+{
+  "review": "INDEPENDENT_INSTALLED_RESULT_REVIEW",
+  "result": "PASS_WITH_BOUNDED_SCOPE",
+  "scope": "Read-only receipt/report coherence review. No host, provider, database, browser, or credential operation was performed.",
+  "bound_reports": {
+    "AL_S05_NATIVE_PAIR_20261108.md": "68ab710c5887ddc106c9c29eaa36bc7a473124c5c83d94d922b6fa4b57b5238a",
+    "AL_S05_PERFORMANCE_BINDING_20261108.md": "6257351317f4d5be88b593d7c719c3da61367ce67b7c49c332e6acb8a47ee54e"
+  },
+  "bound_receipts": {
+    "prepare.json": "1299dd8e9f67da4cb20941983bb94f9d91b99dedadcf3c4161546388ba0728d6",
+    "activate.json": "40e9ccefc2b9eca34bb9cc844fb0f4eb108063c4d6960f7bb867e3f5085b1ad0",
+    "activate-r4.json": "077c12f5945ef983d2475f28c6d305d02b2a3e70b1d2cec8cc3350551f17ab1c",
+    "activate-r5.json": "08ba5ce786730f5a98b578982410240c8c1695032a2dc1ebfcfe1ad207caff31",
+    "installed-verification.json": "136c73fc6a4a65208662f10d81a9c6722cd64243c0c04edf3b3d683fd8c12907",
+    "refresh-install.json": "082e8b304e5bdfb8e6ae42740d6d42660e322d8ef4eab767aca6410e586f4ebf",
+    "refresh-diagnostic.json": "627dd8cafb652354e7898a5c40737bf8e63a3b3a678d2491989e7a8ec32faf70",
+    "refresh-diagnostic-r2.json": "74d296566b53a064c1c450c4e207c7a5c5cbe3183037eb62e2f71f0c17ee512d",
+    "refresh-install-r2.json": "daee4e0b44a156e6eae4c006e65004784df0516b31e59e3b202a0250b7f8abf2",
+    "readback.json": "1e99faa8907ed8db1ef85a5a132beef0a0561df73a9e1fe1df0e529f832dc4f5"
+  },
+  "coherence_findings": [
+    "The first activation's group failure and own rollback are recorded; R4's snapshot failure is pre-mutation; R5 is the successful activation and is the only activation claimed as installed.",
+    "Seller and Performance setup checks are distinguished from browser/customer-card mutation. The adapter reports Seller CONNECTED and Performance CONNECTED with NATIVE_OWNER_CONFIGURED_PAIR; namespace tests record wrong-secret, other-tenant, other-store, and wrong-kind rejection.",
+    "The first refresh-hook installation failed because systemd hid another unit's credential; the diagnostic records this. The R2 installation uses an explicit single-file read-only Ozon bind and passes both proof-current-generation and real Performance IPC checks.",
+    "Readback records current generation match, current code hashes, public homepage/login behavior, free disk and inode reserve, and protected service/pointer state. It correctly identifies alice-lab-worker as inactive and says this work did not restart the native core.",
+    "Both reports now state that owner browser/card transition, DB promotion, provider reports, financial data, and voice flow were not performed; AL-S05 remains open. Manual owner steps are presented as the next action, not as completed validation."
+  ],
+  "blockers": [],
+  "limits": [
+    "This review verifies consistency of the supplied receipts and reports, not the live host independently.",
+    "Performance identity is qualified through the existing owner-configured native pair, not a provider-issued crosswalk for arbitrary credentials.",
+    "The card remains at its prior stored state until the owner performs the listed UI refresh/check action; no customer browser flow or database mutation is claimed."
+  ]
+}

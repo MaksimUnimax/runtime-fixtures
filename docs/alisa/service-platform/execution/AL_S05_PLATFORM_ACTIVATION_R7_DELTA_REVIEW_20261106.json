@@ -1,0 +1,23 @@
+{
+  "schema_version": "alisa_s05_activation_retry_review_v1",
+  "scope": "READ_ONLY_SOURCE_DELTA_REVIEW_NO_HOST_CALLS_NO_EXECUTION",
+  "file": {
+    "path": "docs/alisa/service-platform/execution/s05-installed-20261106/activate-platform-r7.py",
+    "sha256": "ea78332dc4222205f2ce79bbe513517d0ec2b7ba7374a7299072f0d9941d03cb"
+  },
+  "parent_source": {
+    "path": "docs/alisa/service-platform/execution/s05-installed-20261106/activate-platform-r6.py",
+    "sha256": "b81f01c31d231cbe7c989d04676130917a327310b61722dbe57ca80362f56448"
+  },
+  "verdict": "PASS_SOURCE_DELTA",
+  "delta": "Exactly two expected-cwd literals changed from ui/web to ui/web/apps/web, in the pre-activation and post-activation actual-process cwd checks for the web service. The change matches the observed standalone Next.js server cwd and tightens the process check. No other source differences are present.",
+  "boundary": {
+    "source_read_only": true,
+    "tests_run_by_reviewer": 0,
+    "host_calls": 0,
+    "scripts_executed": false,
+    "live_credentials_used": false,
+    "platform_activation_performed": false,
+    "provider_calls_performed": false
+  }
+}

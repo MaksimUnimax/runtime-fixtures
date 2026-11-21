@@ -1,0 +1,35 @@
+[Unit]
+Description=Alisa official Swagger acquisition and drift monitoring
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=alisa-swagger-watch
+Group=alisa-swagger-watch
+WorkingDirectory=/opt/alisa-swagger-watch/current
+StateDirectory=alisa-swagger-watch
+StateDirectoryMode=0755
+UMask=0077
+ExecStart=/opt/alisa-swagger-watch/current/entry.sh run
+RuntimeMaxSec=420
+TimeoutStartSec=420
+TimeoutStopSec=5
+KillMode=control-group
+MemoryMax=512M
+MemorySwapMax=0
+TasksMax=64
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+ReadWritePaths=/var/lib/alisa-swagger-watch
+StandardOutput=null
+StandardError=journal
+

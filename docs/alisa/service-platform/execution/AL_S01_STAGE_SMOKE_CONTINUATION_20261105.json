@@ -1,0 +1,37 @@
+{
+  "record_type": "AL_S01_RECONCILED_SMOKE_CONTINUATION",
+  "source_commit": "8d680f775c8ccdf2a9520fa93c4909dd0aaaa986",
+  "artifact_sha256": "fd28f38960c50f5375fe4ff74ca0a29fd01aaf168673fe31213e3e662f094642",
+  "release": "alisa-8d680f775c8ccdf2",
+  "started_at_utc": "2026-11-05T01:04:00.263387+00:00",
+  "previous_result": "AL_S01_STAGE_SMOKE_20261105.json",
+  "previous_passed_cases": 49,
+  "cause": "Test manually started five mail batches inside10seconds; native StartLimitBurst5/10seconds blocked the sixth. Scheduled timer subsequently delivered the pending message; no protection was relaxed.",
+  "status": "FAILED",
+  "cases": [
+    {
+      "case": "failed_batch_outcome_reconciled_without_duplicate_delivery",
+      "passed": true
+    },
+    {
+      "case": "five_failures_lock_challenge",
+      "passed": true
+    },
+    {
+      "case": "analytics_is_optional",
+      "passed": true
+    },
+    {
+      "case": "client_event_deduplicated",
+      "passed": true
+    },
+    {
+      "case": "client_cannot_forge_confirmation",
+      "passed": true
+    }
+  ],
+  "error_type": "Error",
+  "finished_at_utc": "2026-11-05T01:04:01.593832+00:00",
+  "case_count": 5,
+  "passed_count": 5
+}

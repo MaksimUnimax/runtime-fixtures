@@ -1,0 +1,16 @@
+{
+  "schema_version": "execution_step_receipt_v1",
+  "step_id": "AL-S99",
+  "artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "source_commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "environment": "synthetic-schema-fixture-not-run",
+  "test_ids": [
+    "AL-T00-01",
+    "AL-V04-01"
+  ],
+  "verdict": "BLOCKED",
+  "accepted_inputs": [],
+  "remaining_external_scope": [
+    "Schema test only. Product NOT_RUN."
+  ]
+}

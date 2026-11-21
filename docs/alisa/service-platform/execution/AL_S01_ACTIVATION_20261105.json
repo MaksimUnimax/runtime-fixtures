@@ -1,0 +1,74 @@
+{
+  "record_type": "AL_S01_TARGETED_STAGE_ACTIVATION",
+  "source_commit": "8d680f775c8ccdf2a9520fa93c4909dd0aaaa986",
+  "artifact_sha256": "fd28f38960c50f5375fe4ff74ca0a29fd01aaf168673fe31213e3e662f094642",
+  "started_at_utc": "2026-11-05T00:55:40.792742+00:00",
+  "status": "INSTALLED_AWAITING_INDEPENDENT_ACCEPTANCE",
+  "steps": [
+    {
+      "step": "migration_plan_verified",
+      "at_utc": "2026-11-05T00:55:41.823173+00:00",
+      "plan": [
+        [
+          "funnel",
+          "0001_initial",
+          false
+        ],
+        [
+          "leads",
+          "0001_initial",
+          false
+        ]
+      ],
+      "new_tables": [
+        "funnel_funnelevent",
+        "leads_lead",
+        "leads_mailoutbox",
+        "leads_ratebucket",
+        "leads_submission"
+      ]
+    },
+    {
+      "step": "platform_migrations_applied",
+      "at_utc": "2026-11-05T00:55:42.500719+00:00",
+      "output": "Operations to perform:\n  Apply all migrations: foundation, funnel, leads\nRunning migrations:\n  Applying funnel.0001_initial... OK\n  Applying leads.0001_initial... OK"
+    },
+    {
+      "step": "five_additive_tables_verified",
+      "at_utc": "2026-11-05T00:55:42.961574+00:00",
+      "created": [
+        "funnel_funnelevent",
+        "leads_lead",
+        "leads_mailoutbox",
+        "leads_ratebucket",
+        "leads_submission"
+      ]
+    },
+    {
+      "step": "targeted_activation_ready",
+      "at_utc": "2026-11-05T00:55:45.475416+00:00",
+      "web": {
+        "component": "web",
+        "environment": "stage",
+        "release": "alisa-8d680f775c8ccdf2",
+        "status": "READY"
+      },
+      "platform": {
+        "component": "platform",
+        "status": "READY",
+        "runtime": "RUNTIME_NOT_CONNECTED",
+        "environment": "stage",
+        "release": "alisa-8d680f775c8ccdf2"
+      },
+      "selected_pointer": "/opt/alisa-platform/stage/releases/alisa-8d680f775c8ccdf2",
+      "excluded_pointer": "/opt/alisa-platform/stage/releases/alisa-77d0f8ee2643ef65"
+    },
+    {
+      "step": "excluded_identity_admin_lab_and_configs_unchanged",
+      "at_utc": "2026-11-05T00:55:45.520527+00:00",
+      "checks": 9
+    }
+  ],
+  "scope": "web/platform only; excluded shared current pointer remains S00",
+  "finished_at_utc": "2026-11-05T00:55:45.521019+00:00"
+}

@@ -1,0 +1,18 @@
+{
+  "source_sha": "d3cb053be14264c6bb2332708abb32d4b0c005ae",
+  "tree_sha": "075cb627d25e0a0eac04ae3799ea7f5e822291db",
+  "run_id": 42477897100,
+  "run_status": "SUCCESS",
+  "zip_artifact_id": 13616487167,
+  "zip_bytes": 52098823,
+  "zip_sha256": "71b40a05f999c823bf8c7cfd581cbddedcc55e54746396aefe5cef7ad9bf8524",
+  "tar_sha256": "86a684263b85791ac5bdaa010bc85208e460ba5841a9c83100eb35a52e2ee4eb",
+  "qualification_artifact_id": 13616531941,
+  "qualification_zip_sha256": "4084b565172b1f6ac558164f86b0a4c051170da2a89810d7071ac82333b38136",
+  "retained_exact_package": "Easyscript:/var/lib/octoport-monitor/alisa-s06-preparation-20261108/platform-d3cb053be14264c6.zip",
+  "source_acceptance_only": true,
+  "real_yandex_console": "NOT_RUN",
+  "live_installation": "PREPARED_NOT_ACTIVATED",
+  "prepared_release": "/opt/alisa-platform/stage/releases/alisa-d3cb053be14264c6",
+  "prepared_readback": "prepared-readback.json"
+}

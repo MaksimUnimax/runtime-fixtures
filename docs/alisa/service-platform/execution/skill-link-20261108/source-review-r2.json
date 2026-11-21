@@ -1,0 +1,20 @@
+{
+  "status": "ACCEPTED_FOR_DECLARED_SOURCE_REVIEW_SCOPE",
+  "local_source_sha": "4d7b9a5a069e7e467028b4a921e0b84318ec3ec3",
+  "public_source_sha": "fa06b7aa025b7f54911394168ea646013a159dcc",
+  "tree_sha": "54baa80cadf9c710f8782471fbd7f80462b2c519",
+  "reviewer": "s03_independent_review",
+  "scope": [
+    "OAuthlib adapter",
+    "WebSession-bound consent and logout row lock",
+    "tenant/customer/security revisions",
+    "additive migration",
+    "cleanup with feature disabled",
+    "BFF Origin and cookies"
+  ],
+  "not_claimed": [
+    "reviewer-executed tests",
+    "installed service acceptance",
+    "real Yandex Dialogs console"
+  ]
+}

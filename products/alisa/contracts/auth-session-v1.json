@@ -1,0 +1,12 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "type":"object","additionalProperties":false,
+  "required":["flow_id","issuer","client_id","subject","email","email_verified","session_hash","encrypted_payload"],
+  "properties":{
+    "flow_id":{"type":"string","format":"uuid"},"issuer":{"type":"string","format":"uri"},
+    "client_id":{"type":"string","minLength":1,"maxLength":100},"subject":{"type":"string","minLength":1,"maxLength":256},
+    "email":{"type":"string","format":"email","maxLength":254},"email_verified":{"const":true},
+    "session_hash":{"type":"string","pattern":"^[0-9a-f]{64}$"},
+    "encrypted_payload":{"type":"string","minLength":40,"maxLength":16000}
+  }
+}

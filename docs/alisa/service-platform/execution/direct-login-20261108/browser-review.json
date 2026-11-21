@@ -1,0 +1,26 @@
+{
+  "record_type": "AL_S02_DIRECT_LOGIN_POSTINSTALL_BROWSER_REVIEW",
+  "reviewer": "s03_independent_review",
+  "script_path": "docs/alisa/service-platform/execution/direct-login-20261108/owned-browser.py",
+  "script_sha256": "29a1292da64c45d5fc75b6fdafed436f829e350c85dae9590a8ae788a20cbec2",
+  "verdict": "REWORK_BEFORE_EXECUTION",
+  "findings": [
+    {
+      "severity": "P1",
+      "finding": "Unexpected main-frame origins are silently omitted from navigation evidence, and the fixture password/code are entered without pinning the current origin at each authentication step.",
+      "evidence": "The navigation callback appends only when netloc is one of alisa.octoport.ru/id.octoport.ru and has no failure path for other origins. authenticate() fills password and code fields without checking the current URL origin after each transition.",
+      "risk": "An unexpected redirect could be hidden from the receipt; the script must not enter the existing fixture password into an unapproved page.",
+      "minimal_fix": "Fail closed on every out-of-scope main-frame navigation and verify the exact approved app/Identity origin immediately before each password or code entry; alternatively block all other navigation origins in the browser context."
+    }
+  ],
+  "reviewed_safe_boundaries": [
+    "Uses a fresh browser context rather than restoring prior session state.",
+    "Clears only the product session cookie during the reentry scenario and checks native Identity session continuity.",
+    "Uses delivered mailbox code, checks an invalid code cannot open the cabinet, and compares same customer/tenant after valid reentry.",
+    "Stores browser state under a private tmpfs path and does not print credentials or cookies."
+  ],
+  "review_limits": [
+    "Static review only; script was not executed and the fixture file was not read.",
+    "No host calls, production DB access, or account mutation performed."
+  ]
+}

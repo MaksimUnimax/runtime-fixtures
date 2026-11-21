@@ -1,0 +1,16 @@
+{
+  "scope": "ONE_PUBLIC_LOCKED_DEPENDENCY_DOWNLOAD_CACHE_ONLY",
+  "package": "@img/sharp-libvips-linux-x64@1.3.4",
+  "source_cache": "/root/.npm/_cacache/content-v2/sha512/18/9f/ff4925db9f04837acd36ba60779c324b15c433c3c6b5f15f1fca1aabead579d79b4e10c7489a38f18f502869f311cf9e85dcf1e07ed9e3d5010a494d7393",
+  "retained_host": "Easyscript",
+  "retained_path": "/var/lib/octoport-monitor/alisa-auth-cache-retained-20261108/sharp-libvips-linux-x64-1.3.4.tgz",
+  "sha512": "189fff4925db9f04837acd36ba60779c324b15c433c3c6b5f15f1fca1aabead579d79b4e10c7489a38f18f502869f311cf9e85dcf1e07ed9e3d5010a494d7393",
+  "retained_hash_readback_verified": true,
+  "active_package_build_or_install": false,
+  "existing_terminal_bridge_preserved": true,
+  "active_consumers_of_cache_blob": false,
+  "installed_files_or_unique_artifacts_removed": 0,
+  "free_before": 3222089728,
+  "free_after": 3230310400,
+  "first_inventory_guard": "STOPPED_NO_MUTATION_ON_LONG_RUNNING_NPM_EXEC_BRIDGE_THEN_CLASSIFIED_EXACT_TERMINAL_TOOL"
+}

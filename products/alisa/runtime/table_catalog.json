@@ -1,0 +1,70 @@
+{
+  "schema": "alice-table-catalog/v1",
+  "version": "20261104-matrix-refactor-r1",
+  "operators": [
+    "filter",
+    "group_sum",
+    "rank",
+    "series",
+    "compare"
+  ],
+  "max_rows": 20000,
+  "max_bytes": 6000000,
+  "max_top": 20,
+  "routes": [
+    {
+      "family": "orders",
+      "platform": "ozon",
+      "views": [
+        "items",
+        "totals",
+        "days",
+        "weeks"
+      ],
+      "source": "ozon_table_orders"
+    },
+    {
+      "family": "orders",
+      "platform": "wb",
+      "views": [
+        "items",
+        "totals"
+      ],
+      "source": "wb_table_orders"
+    },
+    {
+      "family": "orders",
+      "platform": "wb",
+      "views": [
+        "days",
+        "weeks"
+      ],
+      "source": "wb_table_history"
+    },
+    {
+      "family": "events",
+      "platform": "wb",
+      "views": [
+        "items",
+        "totals",
+        "days",
+        "weeks"
+      ],
+      "source": "wb_event_sales"
+    },
+    {
+      "family": "events",
+      "platform": "ozon",
+      "views": [
+        "items",
+        "totals",
+        "days",
+        "weeks"
+      ],
+      "unavailable": {
+        "code": "OZON_EVENT_SOURCE_UNAVAILABLE",
+        "message": "Для фактических выкупов Ozon дневной источник недоступен: проверенный кабинет получил требование Premium Plus. Месячный отчёт не содержит дату выкупа. WB подключён отдельно; запросите выкупы на WB. Платную подписку без вас не включаю."
+      }
+    }
+  ]
+}

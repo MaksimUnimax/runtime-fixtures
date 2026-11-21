@@ -1,0 +1,55 @@
+{
+  "review": "ALISA_SWAGGER_WATCH_INDEPENDENT_SOURCE_REVIEW_R2",
+  "date": "2026-11-08",
+  "verdict": "PASS_WITH_OPERATOR_BOUNDARY_CAVEAT",
+  "scope": "Read-only source/delta review against preserved R1 HOLD. No tests, host/provider/DB/browser calls, private upload reads, or source edits.",
+  "reviewed_tree": "ed7a679cb55d391d6aaef92e096eef25e8a64e12",
+  "sha256": {
+    "entry.sh": "024c135e396f3ef462079ea78dfa1c6db6d03c5767c37ccf71204ccf692ea7a4",
+    "cli.mjs": "5241ba7eed26c89fd20061d0cce20f80be311acbb7929133888f44b8e95093c6",
+    "watch.mjs": "5d5260375035425dcea0ea46f8dc3e08dcba00789e48ad7c65b69c313e2a2c5a",
+    "watch.test.mjs": "924c5451b40fc9e56f2db2c6b9db4dc946dc3d139ff71dbd589a6268182b6d83",
+    "build.mjs": "54581901d678be8cb260e53b81e6a0c381d489b04c69a4ad7f1b734227d98dab",
+    "README.md": "f4cbba25e4d12fb9e15c3e9dd8b895eefa2095fbe9c4deec77ca4406804f8bb2",
+    "watch.service": "87e666a415c62deba39ad641e83b514f59ef4967568e31aeb5c1077a36c455cf",
+    "status.service": "477581bf52c69b41fb0c8d0f7d5fafdadc96fc5eb2df47aa453da33be6160ba",
+    "timer": "16df6a86c8b05fce5b8e5a641d39aa47889f63353b7f6f53989b63e1d4bbd6e4",
+    "workflow": "5c3c98d729837be10b4b21d7a0160681b85086cc9217b86c3cc8c3fce34c66fe",
+    "prior_r1_hold_receipt": "a8dc88a472cc3b5d190c8d023efb1621cea792bce04f6a6d0b18be111f8221ca"
+  },
+  "r1_blocker_resolution": {
+    "id": "SWAGGER_WATCH_SHARED_STATE_MUTATION_RACE",
+    "result": "RESOLVED_FOR_DOCUMENTED_SERVICE_AND_ADMIN_ENTRYPOINTS",
+    "evidence": [
+      "entry.sh routes run, import, and accept-reviewed through one nonblocking /var/lib/alisa-swagger-watch/.run.lock flock and returns 75 on contention.",
+      "Both mutating watcher and read-only status systemd units invoke the pinned entry.sh; status and serve do not acquire the mutator lock.",
+      "CLI rejects mutating commands without ALISA_SWAGGER_MUTATION_LOCKED before importing watch code or accessing state.",
+      "Regression source creates a held native lock, verifies all three launcher mutation commands fail with 75, verifies status remains available and a mutation command succeeds after release; it also checks direct CLI invocation without marker is rejected."
+    ]
+  },
+  "residual_caveat": {
+    "severity": "NON_BLOCKING_OPERATOR_BOUNDARY",
+    "detail": "The marker is an ordinary environment variable and is forgeable by the same administrative UID. A caller able to invoke node cli.mjs directly can set ALISA_SWAGGER_MUTATION_LOCKED=1 and bypass the flock. README accurately states the marker is not authentication and that the launcher is the sole administrative entrypoint. This is acceptable only while that UID is trusted to follow the documented entrypoint; it is not an OS-enforced all-process serialization guarantee.",
+    "recommendation": "Before broadening who can run the package, move lock acquisition into a non-bypassable mutator boundary (for example, a small native helper that owns the lock and execs the fixed CLI, with direct CLI writes unavailable), or enforce the administrative entrypoint via permissions/service interface. Do not describe the marker itself as evidence of lock ownership."
+  },
+  "inventory_context_delta": {
+    "result": "CONSISTENT_WITH_SHARED_INVENTORY_SHAPE",
+    "detail": "The shared OperationInventory root contains sourceFamily and snapshotSha256; documentKey is attached to each operation item. The revised previousInventory check validates root family/snapshot and validates each operation's documentKey/family/snapshot. It no longer assumes a root documentKey field that the shared type does not provide. Acquisition, parsed document validation, semantic diff, byte/hash checks, state update, and budget handling retain their documented order."
+  },
+  "boundary_review": {
+    "launcher_packaging": "build.mjs copies entry.sh and all three unit files into dist; production units reference the same current/entry.sh path. The entry script accepts only the five enumerated commands and hardcodes lock, node, CLI paths.",
+    "state_and_network": "No R2 changes expand provider scope, credential use, upload/approval surface, snapshot retention, state budget, runtime/catalog writes, or LLM/Telegram/DB dependencies.",
+    "read_only_status": "status/serve remain unlocked and status routes remain read-only; this allows status to respond while acquisition holds the mutator lock.",
+    "testing_evidence": "Regression source is meaningful for the launcher lock lifecycle and direct CLI without marker. No tests were run as part of this independent review; native qualification/CI outcome remains an external gate. The tests do not establish that a forged marker is rejected."
+  },
+  "deployment_gate": "Source review is acceptable for the documented single trusted administrative UID and launcher-only operations, subject to qualification/CI and package review. Keep the marker caveat explicit; do not treat this as a hard process-level lock against deliberate direct CLI invocation.",
+  "reviewer_actions": {
+    "tests_run": false,
+    "host_calls": false,
+    "provider_calls": false,
+    "db_calls": false,
+    "browser_calls": false,
+    "uploaded_markdown_read": false,
+    "product_code_modified": false
+  }
+}

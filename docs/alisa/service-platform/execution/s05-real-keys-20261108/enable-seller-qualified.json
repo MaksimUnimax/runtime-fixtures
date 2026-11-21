@@ -1,0 +1,129 @@
+{
+  "scope": "EXISTING_SELLER_QUALIFICATION_FLAG_ONLY_NO_DB_SOURCE_OR_OTHER_SERVICE_CHANGES",
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "private_root_namespace",
+      "passed": true
+    },
+    {
+      "case": "positive_and_both_negative_live_owner_canaries",
+      "passed": true
+    },
+    {
+      "case": "exact_unchanged_checker_and_shared_transport",
+      "passed": true
+    },
+    {
+      "case": "no_existing_dropin",
+      "passed": true
+    },
+    {
+      "case": "exact_existing_launch",
+      "passed": true
+    },
+    {
+      "case": "pinned_root_permissions_launch",
+      "passed": true
+    },
+    {
+      "case": "resource_reserve",
+      "passed": true
+    },
+    {
+      "case": "root_owned_dropin_directory",
+      "passed": true
+    },
+    {
+      "case": "checker_active",
+      "passed": true
+    },
+    {
+      "case": "qualified_launch",
+      "passed": true
+    },
+    {
+      "case": "pinned_root_permissions_launch",
+      "passed": true
+    },
+    {
+      "case": "sandbox_and_source_preserved",
+      "passed": true
+    },
+    {
+      "case": "seller_actual_child_completed",
+      "passed": true
+    },
+    {
+      "case": "seller_actual_through_installed_adapter_and_socket",
+      "passed": true
+    },
+    {
+      "case": "seller_wrong_client_child_completed",
+      "passed": true
+    },
+    {
+      "case": "seller_wrong_client_through_installed_adapter_and_socket",
+      "passed": true
+    },
+    {
+      "case": "seller_wrong_key_child_completed",
+      "passed": true
+    },
+    {
+      "case": "seller_wrong_key_through_installed_adapter_and_socket",
+      "passed": true
+    },
+    {
+      "case": "performance_preserved_child_completed",
+      "passed": true
+    },
+    {
+      "case": "performance_preserved_through_installed_adapter_and_socket",
+      "passed": true
+    },
+    {
+      "case": "wb_preserved_child_completed",
+      "passed": true
+    },
+    {
+      "case": "wb_preserved_through_installed_adapter_and_socket",
+      "passed": true
+    },
+    {
+      "case": "other_services_pointers_configs_preserved",
+      "passed": true
+    },
+    {
+      "case": "disk_reserve_retained",
+      "passed": true
+    }
+  ],
+  "real_installed_ipc": [
+    {
+      "case": "seller_actual",
+      "code": "CONNECTED",
+      "identity_matches": true
+    },
+    {
+      "case": "seller_wrong_client",
+      "code": "AUTH_DENIED"
+    },
+    {
+      "case": "seller_wrong_key",
+      "code": "AUTH_DENIED"
+    },
+    {
+      "case": "performance_preserved",
+      "code": "IDENTITY_NOT_VERIFIED"
+    },
+    {
+      "case": "wb_preserved",
+      "code": "CONNECTED",
+      "identity_matches": true
+    }
+  ],
+  "new_flag": "--seller-binding-qualified",
+  "production_customer_store_changed": false
+}
+

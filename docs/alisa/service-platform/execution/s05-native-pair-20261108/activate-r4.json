@@ -1,0 +1,19 @@
+{
+  "scope": "EXISTING_NATIVE_PAIR_CHECKER_AND_TWO_API_FILES_ONLY",
+  "status": "FAILED",
+  "cases": [
+    {
+      "case": "allowed_phase",
+      "passed": true
+    },
+    {
+      "case": "new_receipt",
+      "passed": true
+    },
+    {
+      "case": "prior_owned_activation_rolled_back",
+      "passed": false
+    }
+  ],
+  "error_type": "RuntimeError"
+}

@@ -1,0 +1,11 @@
+{
+  "status": "RESOURCE_HOLD_BEFORE_WRITES",
+  "source": "d3cb053be14264c6bb2332708abb32d4b0c005ae",
+  "free_bytes": 3225944064,
+  "estimated_write_bytes": 5373952,
+  "required_free_floor_bytes": 3221225472,
+  "unit_exit": 3,
+  "runtime_seconds": 19.395,
+  "new_release_written": false,
+  "migration_or_restart": false
+}

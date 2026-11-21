@@ -1,0 +1,241 @@
+{
+  "scope": "STORES_ADDITIVE_SCHEMA_VAULT_AND_WEB_PLATFORM_ACTIVATION_NOT_LIVE_PROVIDER",
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "exact_inactive_platform_installed",
+      "passed": true
+    },
+    {
+      "case": "full_installed_payload_unchanged",
+      "passed": true
+    },
+    {
+      "case": "qualified_core_and_checker_active",
+      "passed": true
+    },
+    {
+      "case": "exact_active_core_units_and_profile",
+      "passed": true
+    },
+    {
+      "case": "alice-market.service_actual_process",
+      "passed": true
+    },
+    {
+      "case": "private_checker_socket",
+      "passed": true
+    },
+    {
+      "case": "disk_and_inode_reserve",
+      "passed": true
+    },
+    {
+      "case": "fresh_own_pointers_foreign_versions_snapshotted",
+      "passed": true
+    },
+    {
+      "case": "current_identity_auth_contracts_compatible",
+      "passed": true
+    },
+    {
+      "case": "web_effective_own_pointer",
+      "passed": true
+    },
+    {
+      "case": "web_effective_identity_and_environment",
+      "passed": true
+    },
+    {
+      "case": "alisa-web@stage.service_actual_process",
+      "passed": true
+    },
+    {
+      "case": "platform_effective_own_pointer",
+      "passed": true
+    },
+    {
+      "case": "platform_effective_identity_and_environment",
+      "passed": true
+    },
+    {
+      "case": "alisa-platform@stage.service_actual_process",
+      "passed": true
+    },
+    {
+      "case": "private_backup_parent",
+      "passed": true
+    },
+    {
+      "case": "web_private_root_config",
+      "passed": true
+    },
+    {
+      "case": "platform_private_root_config",
+      "passed": true
+    },
+    {
+      "case": "admin_private_root_config",
+      "passed": true
+    },
+    {
+      "case": "identity_private_root_config",
+      "passed": true
+    },
+    {
+      "case": "platform-migration_private_root_config",
+      "passed": true
+    },
+    {
+      "case": "identity-migration_private_root_config",
+      "passed": true
+    },
+    {
+      "case": "own_platform_roles",
+      "passed": true
+    },
+    {
+      "case": "new_store_configuration_only",
+      "passed": true
+    },
+    {
+      "case": "canonical_identity_unchanged",
+      "passed": true
+    },
+    {
+      "case": "stores_schema_not_applied",
+      "passed": true
+    },
+    {
+      "case": "exact_stores_only_migration_plan",
+      "passed": true
+    },
+    {
+      "case": "exact_additive_ledger_delta",
+      "passed": true
+    },
+    {
+      "case": "audit_update_denied",
+      "passed": true
+    },
+    {
+      "case": "audit_delete_denied",
+      "passed": true
+    },
+    {
+      "case": "audit_truncate_denied",
+      "passed": true
+    },
+    {
+      "case": "all_original_config_and_pointers_unchanged",
+      "passed": true
+    },
+    {
+      "case": "web_inherited_service_properties_preserved",
+      "passed": true
+    },
+    {
+      "case": "alisa-web@stage.service_actual_process",
+      "passed": true
+    },
+    {
+      "case": "platform_inherited_service_properties_preserved",
+      "passed": true
+    },
+    {
+      "case": "alisa-platform@stage.service_actual_process",
+      "passed": true
+    },
+    {
+      "case": "staff_authority_unchanged",
+      "passed": true
+    },
+    {
+      "case": "identity_admin_shared_pointers_preserved",
+      "passed": true
+    },
+    {
+      "case": "all_nonstore_config_bytes_preserved",
+      "passed": true
+    },
+    {
+      "case": "platform_effective_private_socket_group",
+      "passed": true
+    },
+    {
+      "case": "disk_reserve_after_activation",
+      "passed": true
+    }
+  ],
+  "before_pointers": {
+    "web-current": "alisa-c8666516683e7b2b",
+    "site-current": "alisa-c8666516683e7b2b",
+    "admin-current": "alisa-73180172646b7012",
+    "identity-current": "alisa-73180172646b7012",
+    "current": "alisa-482ed11832b666af"
+  },
+  "health_before": {
+    "web": {
+      "component": "web",
+      "environment": "stage",
+      "release": "alisa-c8666516683e7b2b",
+      "status": "READY"
+    },
+    "platform": {
+      "component": "platform",
+      "status": "READY",
+      "runtime": "RUNTIME_NOT_CONNECTED",
+      "environment": "stage",
+      "release": "alisa-c8666516683e7b2b"
+    },
+    "admin": {
+      "component": "admin",
+      "environment": "stage",
+      "release": "alisa-73180172646b7012",
+      "status": "READY"
+    },
+    "identity": {
+      "component": "identity",
+      "environment": "stage",
+      "release": "alisa-73180172646b7012",
+      "status": "READY",
+      "authentication": "OIDC_CODE_PKCE"
+    }
+  },
+  "authority_fingerprint_before": "3a5b10972dba875d25310c4b020a598a0445a41e53d7975de2cad22959cf0a4c",
+  "health": {
+    "web": {
+      "component": "web",
+      "environment": "stage",
+      "release": "alisa-6098b31384ae23a4",
+      "status": "READY"
+    },
+    "platform": {
+      "component": "platform",
+      "status": "READY",
+      "runtime": "RUNTIME_NOT_CONNECTED",
+      "environment": "stage",
+      "release": "alisa-6098b31384ae23a4"
+    },
+    "admin": {
+      "component": "admin",
+      "environment": "stage",
+      "release": "alisa-73180172646b7012",
+      "status": "READY"
+    },
+    "identity": {
+      "component": "identity",
+      "environment": "stage",
+      "release": "alisa-73180172646b7012",
+      "status": "READY",
+      "authentication": "OIDC_CODE_PKCE"
+    }
+  },
+  "active_pointers": {
+    "web-current": "alisa-6098b31384ae23a4",
+    "site-current": "alisa-6098b31384ae23a4",
+    "admin-current": "alisa-73180172646b7012",
+    "identity-current": "alisa-73180172646b7012",
+    "current": "alisa-482ed11832b666af"
+  }
+}

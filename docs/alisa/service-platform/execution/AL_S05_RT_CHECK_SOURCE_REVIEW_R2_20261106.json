@@ -1,0 +1,43 @@
+{
+  "schema_version": "alisa_independent_source_review_v1",
+  "scope": "READ_ONLY_DELTA_SOURCE_REVIEW_RT_CHECK_R02_NO_TESTS_NO_HOST_CALLS_NO_LIVE_CREDENTIALS",
+  "candidate_commit": "e71d3d81d7fa3bc81feec6fc679ba89effdc94bc",
+  "candidate_tree": "025f95b434034645756df0d87520f155cbf97e06",
+  "observed_local_head": "6af1d5ff0d3af2ad080a5b6da877909b2e577d76",
+  "observed_local_tree": "025f95b434034645756df0d87520f155cbf97e06",
+  "overall": "CONDITIONAL_SOURCE_REVIEW",
+  "delta_from_r1": {
+    "wb_403": "FIXED: bare 403 now returns CHECK_UNAVAILABLE; tests cover status-only and misleading messages.",
+    "socket_parent_permissions": "FIXED: runtime and platform both reject group/world writable parent dirs; source fixture checks no bind and platform fixture checks no provider fixture call.",
+    "seller_schema_description": "FIXED: docs explicitly describe minimum response-shape guard, not full schema validation. Promotion still requires separately qualified binding flag, default false."
+  },
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "file": "docs/alisa/runtime/v0.11/rt_check_r01/store_checker.py",
+      "lines": "83-90",
+      "finding": "HTTP 402 maps to PROVIDER_PLAN_REQUIRED for every provider kind. The official WB seller-info docs identify 402 as Payment required, but this implementation also applies that diagnostic to Ozon Seller and Performance endpoints without a provider-specific documented 402 contract. This may mislabel unrelated upstream responses as a plan/payment restriction.",
+      "recommendation": "Restrict PROVIDER_PLAN_REQUIRED to provider/method combinations with documented 402 semantics (at minimum WB seller-info); map unqualified Ozon 402 responses to CHECK_UNAVAILABLE. Keep payment or plan remediation entirely outside this check."
+    }
+  ],
+  "reviewed_controls": {
+    "fixed_provider_urls_and_methods": "PASS_SOURCE",
+    "wb_identity_from_authenticated_sid_only": "PASS_SOURCE",
+    "seller_identity_disabled_by_default_and_company_identity_not_used": "PASS_SOURCE",
+    "performance_never_promotes_from_token_or_jwt": "PASS_SOURCE",
+    "credentials_in_child_stdin_and_environment_stripped": "PASS_SOURCE",
+    "peer_uid_check_before_request_body_read": "PASS_SOURCE",
+    "two_concurrent_child_slots_and_child_timeout_kill_reap": "PASS_SOURCE",
+    "https_tls_verification_proxy_disabled_redirects_disabled": "PASS_SOURCE",
+    "upstream_error_text_not_returned": "PASS_SOURCE",
+    "socket_path_parent_rejects_group_and_world_write_on_both_sides": "PASS_SOURCE",
+    "no_live_provider_or_runtime_host_actions_performed": "PASS_SOURCE_SCOPE_ONLY"
+  },
+  "verification": {
+    "tests_run_by_reviewer": 0,
+    "live_credentials_used": false,
+    "runtime_server_touched": false,
+    "working_engine_sqlite_or_report_gateway_modified": false,
+    "candidate_matches_local_head_tree": true
+  }
+}

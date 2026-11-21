@@ -1,0 +1,237 @@
+{
+  "scope": "POST_WINDOW_INSTALLED_READ_ONLY_AND_OWN_LOCK_RELEASE",
+  "status": "PASS",
+  "started_utc": "2026-11-05T14:23:10.561947+00:00",
+  "cases": [
+    {
+      "case": "own_bounded_window_no_longer_active",
+      "passed": true
+    },
+    {
+      "case": "window_had_clean_exit",
+      "passed": true
+    },
+    {
+      "case": "exact_installed_manifest",
+      "passed": true
+    },
+    {
+      "case": "all_4433_files_42_links_match",
+      "passed": true
+    },
+    {
+      "case": "current_tuple_c866_and_preserved_identity_482",
+      "passed": true
+    },
+    {
+      "case": "private_config_modes",
+      "passed": true
+    },
+    {
+      "case": "other_config_bytes_preserved",
+      "passed": true
+    },
+    {
+      "case": "only_platform_capability_flag_added",
+      "passed": true
+    },
+    {
+      "case": "ingress_and_dropins_preserved",
+      "passed": true
+    },
+    {
+      "case": "web_ready",
+      "passed": true
+    },
+    {
+      "case": "admin_ready",
+      "passed": true
+    },
+    {
+      "case": "platform_ready",
+      "passed": true
+    },
+    {
+      "case": "identity_ready",
+      "passed": true
+    },
+    {
+      "case": "web_canonical_tls_ready",
+      "passed": true
+    },
+    {
+      "case": "admin_canonical_tls_ready",
+      "passed": true
+    },
+    {
+      "case": "identity_canonical_tls_ready",
+      "passed": true
+    },
+    {
+      "case": "single_entitlements_migration_present",
+      "passed": true
+    },
+    {
+      "case": "accessgrant_update_denied",
+      "passed": true
+    },
+    {
+      "case": "accessgrant_delete_denied",
+      "passed": true
+    },
+    {
+      "case": "accessgrant_truncate_denied",
+      "passed": true
+    },
+    {
+      "case": "accessadjustment_update_denied",
+      "passed": true
+    },
+    {
+      "case": "accessadjustment_delete_denied",
+      "passed": true
+    },
+    {
+      "case": "accessadjustment_truncate_denied",
+      "passed": true
+    },
+    {
+      "case": "accesspreview_update_denied",
+      "passed": true
+    },
+    {
+      "case": "accesspreview_delete_denied",
+      "passed": true
+    },
+    {
+      "case": "accesspreview_truncate_denied",
+      "passed": true
+    },
+    {
+      "case": "staff_authority_still_matches_activation",
+      "passed": true
+    },
+    {
+      "case": "AL_S04_PACKAGE_INSTALL_20261105.json_passed",
+      "passed": true
+    },
+    {
+      "case": "AL_S04_ACTIVATION_20261105.json_passed",
+      "passed": true
+    },
+    {
+      "case": "AL_S04_CUSTOMER_READBACK_20261105.json_passed",
+      "passed": true
+    },
+    {
+      "case": "resource_reserve_preserved",
+      "passed": true
+    },
+    {
+      "case": "all_own_previous_bounded_units_closed",
+      "passed": true
+    }
+  ],
+  "window_invocation": "0a0794815ed04aefadb673510b37498b",
+  "functional_owner_grant_test": "NOT_RUN_AUTHORITY_HANDED_OVER",
+  "window_before_release": [
+    "Result=success",
+    "ExecMainStatus=0",
+    "ActiveState=inactive",
+    "SubState=dead"
+  ],
+  "release_action": "ALREADY_EXPIRED_NO_STOP_NEEDED",
+  "window_after_release": [
+    "Result=success",
+    "ExecMainStatus=0",
+    "ActiveState=inactive",
+    "SubState=dead"
+  ],
+  "pointers": {
+    "web-current": "alisa-c8666516683e7b2b",
+    "site-current": "alisa-c8666516683e7b2b",
+    "admin-current": "alisa-c8666516683e7b2b",
+    "identity-current": "alisa-482ed11832b666af",
+    "current": "alisa-482ed11832b666af"
+  },
+  "health": {
+    "web": {
+      "status": "READY",
+      "release": "alisa-c8666516683e7b2b"
+    },
+    "admin": {
+      "status": "READY",
+      "release": "alisa-c8666516683e7b2b"
+    },
+    "platform": {
+      "status": "READY",
+      "release": "alisa-c8666516683e7b2b"
+    },
+    "identity": {
+      "status": "READY",
+      "release": "alisa-482ed11832b666af"
+    }
+  },
+  "public_health": {
+    "web": {
+      "status": "READY",
+      "release": "alisa-c8666516683e7b2b"
+    },
+    "admin": {
+      "status": "READY",
+      "release": "alisa-c8666516683e7b2b"
+    },
+    "identity": {
+      "status": "READY",
+      "release": "alisa-482ed11832b666af"
+    }
+  },
+  "current_grant_count": 0,
+  "staff_authority_fingerprint": "3a5b10972dba875d25310c4b020a598a0445a41e53d7975de2cad22959cf0a4c",
+  "procedure_sha256": {
+    "install-package.py": "2193cc37ecc7369540cd39c1ea744f99a2f41da0c7c0a28d55851fed97ece648",
+    "activate.py": "d0a38cd52ff54864aff5bd1b0f1d0daca1170c4717312def5e242e2c952acae2",
+    "customer-readback.py": "6fb886d7c1756ba9e22535ea4cdb6beeb8e05dba4d4c47fdf18f643b32f3a43f",
+    "inactive-runtime-dedup.py": "172f0b596c8551f0173520c696f63159693031edc02f98d596ebd1b233cd372e",
+    "inactive-vendor-dedup.py": "4be06371b9b661593d7c7f76b3ff0e5f136209ed8f2c2d31eecc473bb4fccb81",
+    "ci-binding.json": "253fee65c06f005e71e9acc76ecc374a251915009e7c50302f96263745353823"
+  },
+  "resources": {
+    "disk_free_mib": 3682,
+    "free_inodes": 583097,
+    "mem_available_mib": 5806
+  },
+  "bounded_units": {
+    "alisa-s04-install-20261105g001.service": [
+      "Result=success",
+      "ExecMainStatus=0",
+      "ActiveState=inactive",
+      "SubState=dead"
+    ],
+    "alisa-s04-activate-20261105g001.service": [
+      "Result=success",
+      "ExecMainStatus=0",
+      "ActiveState=inactive",
+      "SubState=dead"
+    ],
+    "alisa-s04-customer-20261105g001.service": [
+      "Result=success",
+      "ExecMainStatus=0",
+      "ActiveState=inactive",
+      "SubState=dead"
+    ],
+    "alisa-s04-runtime-reserve-20261105g001.service": [
+      "Result=success",
+      "ExecMainStatus=0",
+      "ActiveState=inactive",
+      "SubState=dead"
+    ],
+    "alisa-s04-reserve-20261105g001.service": [
+      "Result=success",
+      "ExecMainStatus=0",
+      "ActiveState=inactive",
+      "SubState=dead"
+    ]
+  },
+  "finished_utc": "2026-11-05T14:23:13.392475+00:00"
+}

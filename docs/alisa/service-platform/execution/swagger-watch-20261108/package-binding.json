@@ -1,0 +1,26 @@
+{
+  "source_sha": "7cbe3059a83677aeb42a086898a48067918f16a2",
+  "zip_size": 395896,
+  "zip_sha256": "47aa17a90b336c102bf4c4d1e82cbdb665db9af40654a61b78614ec80bc5b489",
+  "manifest_sha256": "18c57a25d2542e22fc659183493fa7d3ebb174aa1b860c750ceaeffb7f8a20ee",
+  "files": {
+    "bundle-inputs.json": "9024f28a60d8c4f0951cb7e713cdfe9e3c72c9b9daa0c9613cd8e672265fbb19",
+    "alisa-swagger-watch.timer": "16df6a86c8b05fce5b8e5a641d39aa47889f63353b7f6f53989b63e1d4bbd6e4",
+    "alisa-swagger-watch.service": "87e666a415c62deba39ad641e83b514f59ef4967568e31aeb5c1077a36c455cf",
+    "entry.sh": "024c135e396f3ef462079ea78dfa1c6db6d03c5767c37ccf71204ccf692ea7a4",
+    "status.mjs": "a128ac5b4742f8e8f9ae699381e984b2081c35dea469d09684ea074bd7fd010f",
+    "watch.mjs": "efc601c43588be0e435869b7d136e052b668fee6f1126ee1fb27564fa90e8280",
+    "alisa-swagger-status.service": "477581bf52c69b41fb0c8bf0d7f5fafdadc96fc5eb2df47aa453da33be6160ba",
+    "cli.mjs": "5a3cdd7f7d62d8df42e1a01cf1ab480b2959da4a503d356a3d7ce2295605374a"
+  },
+  "source_tree": "6fbdac73f3f191df9eb2fb29289a0d5880bd7c08",
+  "source_review": "PASS",
+  "swagger_ci_status": "success",
+  "swagger_ci_run": 42451828165,
+  "platform_ci_status": "success",
+  "platform_ci_run": 42451828162,
+  "documentation_ci_status": "success",
+  "documentation_ci_run": 42451828188,
+  "artifact_id": 13605578772,
+  "scope": "ISOLATED_SWAGGER_ONLY_NO_LLM_NO_MARKETPLACE_KEYS_NO_CUSTOMER_DB"
+}

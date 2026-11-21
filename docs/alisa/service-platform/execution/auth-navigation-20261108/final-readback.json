@@ -1,0 +1,45 @@
+{
+  "status": "PASS",
+  "utc": "2026-11-08T04:28:09Z",
+  "scope": "READ_ONLY_POST_BROWSER_INSTALLED_STATE",
+  "checks": {
+    "installed_pointers_match_activation": true,
+    "readiness": true,
+    "configs_preserved": true,
+    "web_identity_profiles_preserved": true,
+    "disk_floor_3gib": true,
+    "inodes_reserve": true,
+    "temporary_runtime_directories_cleaned": true
+  },
+  "pointers": {
+    "web-current": "alisa-da73a089d3125429",
+    "identity-current": "alisa-da73a089d3125429",
+    "site-current": "alisa-06f3c053e7719290",
+    "admin-current": "alisa-06f3c053e7719290",
+    "current": "alisa-482ed11832b666af"
+  },
+  "readiness": {
+    "web-current": true,
+    "identity-current": true,
+    "site-current": true,
+    "admin-current": true
+  },
+  "free_bytes": 3272835072,
+  "free_inodes": 498832,
+  "runtime_directory_cleaned": {
+    "alisa-auth-navigation-browser-r2": true,
+    "alisa-auth-navigation-browser-reentry": true
+  },
+  "active_services": {
+    "alice-market.service": "MainPID=281405\nActiveState=active\nInvocationID=57bf08085fb54d1d994c3bdf3592c3af",
+    "alice-lab-web.service": "MainPID=737\nActiveState=active\nInvocationID=a14db7529e594201b6053cabcf33c125",
+    "alice-lab-worker.service": "MainPID=739\nActiveState=active\nInvocationID=27f0ec86774b45ff92f2c53c0ff0b4d5",
+    "alice-lab-llm.service": "MainPID=738\nActiveState=active\nInvocationID=c8c335a313ad4738b3d8fdbb47dcf020",
+    "alisa-platform@stage.service": "MainPID=281240\nActiveState=active\nInvocationID=ca03bf7b09a848c69555dccea508abf2",
+    "alisa-admin@stage.service": "MainPID=281249\nActiveState=active\nInvocationID=ebce073d6876480881eb00c51a56e919",
+    "alisa-store-check.service": "MainPID=281409\nActiveState=active\nInvocationID=cf0980509db244618840b55348d7fc58"
+  },
+  "migrations_applied": [],
+  "provider_calls": 0,
+  "owner_login": "NOT_RUN"
+}

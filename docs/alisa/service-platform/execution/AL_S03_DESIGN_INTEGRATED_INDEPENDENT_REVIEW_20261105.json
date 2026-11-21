@@ -1,0 +1,90 @@
+{
+  "record_type": "AL_S03_DESIGN_INTEGRATED_INDEPENDENT_SOURCE_PACKAGE_AND_PLAN_REVIEW",
+  "recorded_at_utc": "2026-11-05T09:07:27.581803+00:00",
+  "reviewer": {
+    "task": "/root/s03_independent_review",
+    "model": "gpt-6-luna",
+    "mode": "READ_ONLY_SOURCE_PACKAGE_PLAN_EVIDENCE_NO_WRITES_TESTS_CI_OR_PUBLICATION"
+  },
+  "binding": {
+    "source_sha": "3e91b1aa5d405d0e8160c4dbe3dcad56eb606dae",
+    "tree_sha": "c89ea16dd4773855d83335d0ed151680725d69d9",
+    "artifact": "alisa-3e91b1aa5d405d0e.tar.gz",
+    "artifact_sha256": "b9eb8f011482d3921c9bb32f98c2c4751aaf3bacf7fdcb101d2fc9ba9f6a8b21"
+  },
+  "source_package_verdict": "ACCEPTED_FOR_DECLARED_SOURCE_PACKAGE_SCOPE",
+  "blocking_source_package_findings": [],
+  "binding_verified_by_reviewer": [
+    "local HEAD",
+    "git tree",
+    "package SHA256"
+  ],
+  "evidence_seen": {
+    "author_manifest_files": 4406,
+    "author_manifest_links": 42,
+    "native_core": 44,
+    "https_browser": 139,
+    "regression": 96,
+    "provider": 37,
+    "provider_merge_tree_matches_candidate": true
+  },
+  "design_delta_review": {
+    "verdict": "NO_DESIGN_OR_SECURITY_REGRESSION_FOUND",
+    "web_matches_installed_e820": true,
+    "admin_keeps_referrer_same_origin_and_noindex": true,
+    "identity_theme_errors_fonts_present": true,
+    "native_mfa_bff_platform_implementation_unchanged": true,
+    "adapter_change": "error wording only",
+    "forms_change": "test email placeholders",
+    "ci_uploads": "both S02/identity screenshots and S03 receipts retained"
+  },
+  "plan_verdict": "SUITABLE_TO_REQUEST_EXPLICIT_BOUNDED_STAGE_APPROVAL_NOT_AUTHORIZATION",
+  "plan_file": "AL_S03_STAGE_ROLLOUT_20261105.md",
+  "plan_final_sha256": "7efbcf47e2ea5f8c0ec1245a9108037c482b506fbae11975841f28615344572d",
+  "plan_review_history": [
+    {
+      "finding": "Bootstrap command requires subject/name while plan prohibited values in argv/log",
+      "resolution": "Final plan uses existing native Django call_command with keyword args inside static manage.py shell code; root-owned0600 verified owner JSON enters via stdin; output StringIO; only fixed status is printed. Native signed identity/MFA/Subject verification must precede input creation.",
+      "status": "RESOLVED_IN_PLAN_NO_PRODUCT_RUNTIME_CHANGE"
+    },
+    {
+      "clarification": "A request might have read old enabled Client fields before identity suspension",
+      "resolution": "After SQL2 restart/drain identity with flags0, prove admin code/token denial, re-run SQL2/postconditions; wait authorization-code TTL measured from confirmed drain.",
+      "status": "RESOLVED_IN_PLAN"
+    }
+  ],
+  "sql_hashes_confirmed": {
+    "platform": "d084c24e10df3448431fb55bf9c40a018fe7b91ae2e6374375439b7ecb5efe96",
+    "identity": "cc059d09e8deecef1652844b8aa4523d473340e6d870380fb7ac97a96e7c1558"
+  },
+  "stage_scope": [
+    "own Alisa stage platform/identity/admin",
+    "one additive staff migration in own platform DB",
+    "new dedicated admin OIDC client/key/service authority",
+    "own component pointers/config/admin drop-in/admin vhost",
+    "CLOSED example.invalid/private SMTP synthetic smoke/restart/rollback/reentry"
+  ],
+  "preserved": [
+    "web-current e820 design",
+    "shared current",
+    "Person/Subject/customer/tenant/profile/consent/staff/receipt data",
+    "identity/client encryption and signing keys",
+    "previous web/probe clients",
+    "unrelated products/services/vhosts"
+  ],
+  "stop_conditions": [
+    "unresolved active foreign rollout or baseline drift",
+    "unexpected migration plan",
+    "resource reserve deficit",
+    "mismatched package/config/client data",
+    "failed postconditions; staff remains closed until outcome resolved"
+  ],
+  "installed_verdict": "OPEN_NOT_RUN_NOT_ACCEPTED",
+  "not_authorized": [
+    "stage execution by review itself",
+    "main merge",
+    "production",
+    "real recipient mail"
+  ],
+  "next_step": "Publish exact plan and ask owner for its specific stage allowance. After allowance execute actual installed smoke/restart/rollback and request independent installed verdict."
+}

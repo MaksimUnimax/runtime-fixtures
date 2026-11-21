@@ -1,0 +1,48 @@
+{
+  "review": "ALISA_SWAGGER_WATCH_INSTALL_PROCEDURE_REVIEW_R3",
+  "date": "2026-11-08",
+  "verdict": "PASS_WITH_MINOR_FAIL_CLOSED_READBACK_NIT",
+  "scope": "Read-only review of exact permission fix and activate-resume branch. Script was not executed; no host/provider/DB/browser calls, tests, private configuration contents, or provider credentials were accessed.",
+  "source_pin": "7cbe3059a83677aeb42a086898a48067918f16a2",
+  "installer_sha256": "9f723982f61a6067cb2b1b16b351d31cf17540a62f7adc24886a59d9e2decd7e",
+  "prior_review_sha256": "d5bc2def41302c053065a07e4860c5e1be3f6d2d9407e1becdd4a954d50fd9d5",
+  "reviewed_delta": {
+    "root_release_modes": {
+      "result": "PASS",
+      "detail": "prepare explicitly chmods the three newly-created release directory levels to 0755 despite umask 0077. Resume checks each with lstat as a real root-owned directory without group/world write before changing only that directory's mode to 0755. It rejects symlink/non-directory/foreign-owner cases before chmod."
+    },
+    "resume_admission": {
+      "result": "PASS_FAIL_CLOSED",
+      "detail": "The new activate-resume phase requires the original activate receipt to be FAILED with the expected CalledProcessError and exact recovery marker; source/prepared receipt and full package hashes remain pinned; baseline snapshot must still match; current must be the expected symlink to the exact release; the service account UID/GID/home/shell and sole group are exact; state contains only the expected incoming document with exact reviewed digest; all three owned unit files match the package and report inactive; and the public include is absent. It creates a separate resume receipt and does not overwrite the failed receipt."
+    },
+    "resume_mutation_boundary": {
+      "result": "PASS",
+      "detail": "Before continuing the previously reviewed import/accept/status/Nginx path, resume changes only the three checked release-directory modes and then runs Node syntax check under the service UID. The existing-component baseline and Nginx guards are still checked before activation steps. Recovery retains owned release/state/history and only detaches the exact include, removes only exact resolving enable links, and queues stops/reload."
+    }
+  },
+  "minor_readback_nit": {
+    "severity": "NON_BLOCKING_FAIL_CLOSED",
+    "detail": "The partial incoming document guard uses filehash(owner), which follows symlinks and does not itself verify regular-file type/owner/mode. The later launcher import uses the package's bounded O_NOFOLLOW read path, so a substituted symlink fails closed before accepting the source; the digest also binds the actual bytes. An explicit lstat regular-file and expected UID/mode guard would make the resume precondition more precise and avoid a predictable late failure."
+  },
+  "retained_caveats": [
+    "Resume is tied to the exact prior CalledProcessError/recovery receipt and fixed UID/GID; any drift should stop and require fresh readback rather than widening the recovery path.",
+    "Activation PASS remains install/routing status, not successful automatic source retrieval. Owner-supplied reviewed documentation does not establish TLS freshness or account identity."
+  ],
+  "ci_gate": {
+    "exact_source": "7cbe3059a83677aeb42a086898a48067918f16a2",
+    "reported_status": "SUCCESS",
+    "jobs": ["Swagger 42451828165", "documentation 42451828188", "full platform 42451828162"],
+    "independent_ci_verification": false
+  },
+  "deployment_gate": "No blocking issue found in the reviewed resume delta. The symlink/file metadata nit is fail-closed because subsequent O_NOFOLLOW import rejects it; optionally add the lstat guard before execution. Do not run resume without independently reading the expected prior failure receipt and exact partial-state evidence.",
+  "reviewer_actions": {
+    "script_executed": false,
+    "tests_run": false,
+    "host_calls": false,
+    "provider_calls": false,
+    "db_calls": false,
+    "browser_calls": false,
+    "private_config_contents_read": false,
+    "provider_credentials_read": false
+  }
+}

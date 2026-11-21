@@ -1,0 +1,24 @@
+{
+  "schema_version": "alisa_s05_activation_retry_review_v1",
+  "scope": "READ_ONLY_SOURCE_DELTA_REVIEW_NO_HOST_CALLS_NO_EXECUTION",
+  "file": {
+    "path": "docs/alisa/service-platform/execution/s05-installed-20261106/activate-platform-r4.py",
+    "sha256": "fa70261d2aa1c87f5eb17d46d5876460d155cca79bd193c308936f31761fce58"
+  },
+  "parent_source": {
+    "path": "docs/alisa/service-platform/execution/s05-installed-20261106/activate-platform-r3.py",
+    "sha256": "59ef640ad2d7a29f714c240731fb0f1246a13e50ff0ee94887fbe9c3941efe59"
+  },
+  "verdict": "PASS_SOURCE_DELTA",
+  "delta": "The current Identity contract compatibility guard now requires both manifest declaration equality and a direct digest of each current Identity contract file matching the new platform manifest hash, for auth-flow-v1.json and auth-session-v1.json. No other source changes are present.",
+  "scope_effect": "The prior R3 HOLD finding is resolved at source level. Core consumer remains the R3 receipt; this change only strengthens the platform preflight before DB or pointer mutation.",
+  "boundary": {
+    "source_read_only": true,
+    "tests_run_by_reviewer": 0,
+    "host_calls": 0,
+    "scripts_executed": false,
+    "live_credentials_used": false,
+    "platform_activation_performed": false,
+    "provider_calls_performed": false
+  }
+}

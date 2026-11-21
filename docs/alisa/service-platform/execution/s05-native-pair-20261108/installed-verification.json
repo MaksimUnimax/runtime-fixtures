@@ -1,0 +1,19 @@
+{
+  "status": "PASS",
+  "scope": "INSTALLED_READONLY_PEER_AND_NAMESPACE",
+  "seller_live_ipc": {
+    "code": "CONNECTED",
+    "identity_matches": true,
+    "native_provenance": false
+  },
+  "native_binding_guard_checks": {
+    "same_namespace_and_uid_positive": true,
+    "wrong_secret_rejected": true,
+    "other_tenant_rejected": true,
+    "other_store_rejected": true,
+    "seller_kind_rejected": true
+  },
+  "provider_report_calls": 0,
+  "customer_database_mutations": 0,
+  "owner_browser_flow": "NOT_RUN"
+}

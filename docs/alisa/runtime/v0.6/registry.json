@@ -1,0 +1,68 @@
+{
+  "version": "orders-matrix-0.6.0-lab-canary",
+  "status": "READ_ONLY_OWNER_LAB_CANARY_NOT_PRODUCTION_VERIFIED",
+  "metric_definitions": {
+    "ordered_units": {
+      "meaning": "Количество заказанных товаров, не число заказов и не выкупы",
+      "unit": "item",
+      "aggregation": "sum"
+    },
+    "ordered_revenue": {
+      "meaning": "Сумма заказанных товаров; не фактические выплаты или прибыль",
+      "unit": "source_currency",
+      "aggregation": "sum_only_matching_confirmed_currency"
+    }
+  },
+  "recipes": {
+    "ozon": {
+      "id": "ozon.orders.v1",
+      "operation": "ozon_orders",
+      "method": "POST",
+      "url": "https://api-seller.ozon.ru/v1/analytics/data",
+      "min_interval": 61,
+      "daily_limit": 50,
+      "qualification": "CANDIDATE_DECODER",
+      "decoder": "ozon_month_rows_and_totals_v1",
+      "period_mode": "one_full_interval",
+      "metrics": {
+        "ordered_units": "ordered_units",
+        "ordered_revenue": "revenue"
+      }
+    },
+    "wb": {
+      "id": "wb.orders.v3",
+      "operation": "wb_orders",
+      "method": "POST",
+      "url": "https://seller-analytics-api.wildberries.ru/api/analytics/v3/sales-funnel/products",
+      "min_interval": 21,
+      "daily_limit": 48,
+      "qualification": "CANDIDATE_DECODER",
+      "decoder": "wb_selected_period_offset_v1",
+      "period_mode": "one_full_interval_per_page",
+      "metrics": {
+        "ordered_units": "orderCount",
+        "ordered_revenue": "orderSum"
+      },
+      "token_class": "PERSONAL_VERIFIED_OWNER_INTAKE_2026_11_03"
+    }
+  },
+  "cache_policy": "exact_ready_complete_authorized_nonexpired_only",
+  "default_timezone": "Europe/Moscow",
+  "llm_role": "semantic_metric_selection_only",
+  "disabled_metrics": [
+    "drr",
+    "ad_spend",
+    "buyouts",
+    "profit",
+    "stock",
+    "returns"
+  ],
+  "disabled_operations": [
+    "sku_filters",
+    "brand_filters",
+    "warehouse_filters",
+    "comparisons",
+    "currency_conversion",
+    "mutations"
+  ]
+}

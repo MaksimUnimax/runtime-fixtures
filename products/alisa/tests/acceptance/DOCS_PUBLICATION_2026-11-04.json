@@ -1,0 +1,10 @@
+{
+  "status": "PUSHED_AND_VERIFIED",
+  "commit": "8af2de0818380979b5698e4ae6317b0b45e9a814",
+  "target": "docs/alisa/service-platform/v0.5",
+  "verified_files": 100,
+  "manifest_sha256": "92fa5c0d0b5d70238d69a49854ed7220ae2eff9b190b8a3b72be299b4158dc59",
+  "url": "https://github.com/MaksimUnimax/runtime-fixtures/tree/8af2de0818380979b5698e4ae6317b0b45e9a814/docs/alisa/service-platform/v0.5",
+  "authority": "Owner explicitly authorized publication in this conversation on 2026-11-04",
+  "qualification": "DOCUMENTATION_BYTES_ONLY_NOT_PLATFORM_ACCEPTANCE"
+}

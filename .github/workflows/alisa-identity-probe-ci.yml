@@ -1,0 +1,33 @@
+name: Alisa identity candidate probe
+on:
+  pull_request:
+    paths:
+      - 'products/alisa/tests/identity_probe/**'
+      - 'products/alisa/services/identity/**'
+      - '.github/workflows/alisa-identity-probe-ci.yml'
+permissions:
+  contents: read
+jobs:
+  provider-core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Compare baseline and hardened provider on isolated PostgreSQL
+        run: |
+          probe_python="$(command -v python)"
+          sudo --preserve-env=GITHUB_ACTIONS,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_SHA \
+            "$probe_python" products/alisa/tests/identity_probe/run_ci.py
+      - name: Save safe provider qualification reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: alisa-s02-provider-core-${{ github.sha }}
+          path: products/alisa/dist/identity-probe/*.json
+          if-no-files-found: error
+          retention-days: 14

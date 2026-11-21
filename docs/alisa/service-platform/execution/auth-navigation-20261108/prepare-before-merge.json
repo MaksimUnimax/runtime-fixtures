@@ -1,0 +1,64 @@
+{
+  "status": "FAILED",
+  "scope": "CUSTOMER_SESSION_NAVIGATION_AND_STALE_NOTICES_WEB_IDENTITY_ONLY",
+  "cases": [
+    {
+      "case": "private_package-binding.json",
+      "passed": true
+    },
+    {
+      "case": "qualified_exact_source",
+      "passed": true
+    },
+    {
+      "case": "fresh_inactive_target",
+      "passed": true
+    },
+    {
+      "case": "private_artifact-input.private.json",
+      "passed": true
+    },
+    {
+      "case": "fixed_https_artifact_transport",
+      "passed": true
+    },
+    {
+      "case": "bounded_artifact",
+      "passed": true
+    },
+    {
+      "case": "reserve_before_install",
+      "passed": true
+    },
+    {
+      "case": "memory_reserve",
+      "passed": true
+    },
+    {
+      "case": "exact_ci_zip",
+      "passed": true
+    },
+    {
+      "case": "exact_zip_members",
+      "passed": true
+    },
+    {
+      "case": "bounded_zip_expansion",
+      "passed": true
+    },
+    {
+      "case": "checksum_sidecar",
+      "passed": true
+    },
+    {
+      "case": "exact_ci_tar",
+      "passed": true
+    },
+    {
+      "case": "expected_baseline",
+      "passed": false
+    }
+  ],
+  "error_type": "RuntimeError"
+}
+

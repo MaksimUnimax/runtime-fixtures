@@ -1,0 +1,10 @@
+[Unit]
+Description=Alisa synthetic confirmation mail outbox (%i)
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+Unit=alisa-lead-mail@%i.service
+
+[Install]
+WantedBy=timers.target

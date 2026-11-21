@@ -1,0 +1,80 @@
+{
+  "status": "PASS",
+  "scope": "IDENTITY_DIRECT_CUSTOMER_LOGIN_ONLY",
+  "cases": [
+    {
+      "case": "allowed_phase",
+      "passed": true
+    },
+    {
+      "case": "fresh_receipt",
+      "passed": true
+    },
+    {
+      "case": "all_four_components_ready",
+      "passed": true
+    },
+    {
+      "case": "identity_uses_current_pointer",
+      "passed": true
+    },
+    {
+      "case": "exact_three_installed_preimages",
+      "passed": true
+    },
+    {
+      "case": "bounded_payload",
+      "passed": true
+    },
+    {
+      "case": "exact_qualified_source",
+      "passed": true
+    },
+    {
+      "case": "exact_three_ci_file_hashes",
+      "passed": true
+    },
+    {
+      "case": "unchanged_dependencies_and_schema",
+      "passed": true
+    },
+    {
+      "case": "unchanged_identity_and_other_contracts",
+      "passed": true
+    },
+    {
+      "case": "actual_current_identity_materialization",
+      "passed": true
+    },
+    {
+      "case": "only_three_identity_changes",
+      "passed": true
+    },
+    {
+      "case": "physical_reserve_and_inode_budget",
+      "passed": true
+    },
+    {
+      "case": "fresh_owned_release",
+      "passed": true
+    },
+    {
+      "case": "prepared_overlay_matches_qualified_identity",
+      "passed": true
+    },
+    {
+      "case": "running_components_unchanged",
+      "passed": true
+    },
+    {
+      "case": "reserve_after_prepare",
+      "passed": true
+    }
+  ],
+  "phase": "PREPARED_NOT_ACTIVATED",
+  "source_sha": "3a1d3885250d8aa1a51f6e7df3f9d1c3db50b281",
+  "identity_files": 49,
+  "changed_product_files": 3,
+  "physical_budget": 323584,
+  "free_bytes": 3222409216
+}

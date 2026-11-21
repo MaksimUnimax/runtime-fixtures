@@ -1,0 +1,121 @@
+{
+  "scope": "ISOLATED_SWAGGER_ONLY_NO_EXISTING_PRODUCT_RESTART_OR_DB_MUTATION",
+  "status": "FAILED",
+  "cases": [
+    {
+      "case": "allowed_phase",
+      "passed": true
+    },
+    {
+      "case": "fresh_receipt",
+      "passed": true
+    },
+    {
+      "case": "private_package-binding.json",
+      "passed": true
+    },
+    {
+      "case": "qualified_exact_candidate",
+      "passed": true
+    },
+    {
+      "case": "private_prepare.json",
+      "passed": true
+    },
+    {
+      "case": "private_baseline.json",
+      "passed": true
+    },
+    {
+      "case": "prepared_exact_source",
+      "passed": true
+    },
+    {
+      "case": "baseline_unchanged",
+      "passed": true
+    },
+    {
+      "case": "private_package",
+      "passed": true
+    },
+    {
+      "case": "exact_ci_zip",
+      "passed": true
+    },
+    {
+      "case": "bounded_exact_zip_members",
+      "passed": true
+    },
+    {
+      "case": "manifest_binding",
+      "passed": true
+    },
+    {
+      "case": "all_payload_hashes",
+      "passed": true
+    },
+    {
+      "case": "inactive_payload_exact",
+      "passed": true
+    },
+    {
+      "case": "private_owner-document-review.json",
+      "passed": true
+    },
+    {
+      "case": "independently_reviewed_owner_document",
+      "passed": true
+    },
+    {
+      "case": "private_activate.json",
+      "passed": true
+    },
+    {
+      "case": "known_partial_activation",
+      "passed": true
+    },
+    {
+      "case": "partial_service_identity_exact",
+      "passed": true
+    },
+    {
+      "case": "partial_state_exact",
+      "passed": true
+    },
+    {
+      "case": "partial_units_exact_and_inactive",
+      "passed": true
+    },
+    {
+      "case": "owned_release_directory_alisa-swagger-watch",
+      "passed": true
+    },
+    {
+      "case": "owned_release_directory_releases",
+      "passed": true
+    },
+    {
+      "case": "owned_release_directory_7cbe3059a83677ae",
+      "passed": true
+    },
+    {
+      "case": "actual_service_uid_can_load_candidate",
+      "passed": true
+    },
+    {
+      "case": "reviewed_document_without_false_freshness",
+      "passed": true
+    },
+    {
+      "case": "read_only_status_running",
+      "passed": true
+    },
+    {
+      "case": "nginx_still_exact",
+      "passed": true
+    }
+  ],
+  "recovery": "OWN_INCLUDE_DETACHED_OWN_SERVICES_STOP_QUEUED_VERIFY_REQUIRED",
+  "error_type": "JSONDecodeError",
+  "failed_case": null
+}

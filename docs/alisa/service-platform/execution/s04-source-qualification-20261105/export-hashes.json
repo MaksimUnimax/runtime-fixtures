@@ -1,0 +1,22 @@
+{
+  "s04-4467-receipts.json": {
+    "input_export_sha256": "b67c7cb8cba3194b4d163f9e04741ddc1b43aca3135ed1c61b8dd34c129aca3b",
+    "saved_export_sha256": "330636e21b9a7b739bdbb82ed9d2286ba86f5382613310f4a4c74ce98e82287a",
+    "json_values_unchanged": true
+  },
+  "s04-c866-receipts.json": {
+    "input_export_sha256": "b85ea7ed400302dcb26849e74b6a22945191bb3838b6b53325cf70f7509bcd12",
+    "saved_export_sha256": "b85ea7ed400302dcb26849e74b6a22945191bb3838b6b53325cf70f7509bcd12",
+    "json_values_unchanged": true
+  },
+  "s04-a008-receipts.json": {
+    "input_export_sha256": "73c7635f9770153ef96521b0fd39937c4a5ba9969745c089ffd5f0546c042274",
+    "saved_export_sha256": "000e9d53e41511dea839caea18ba8d6e14bfdb0b21fa8f375be9e1bb7d48425e",
+    "json_values_unchanged": true
+  },
+  "s04-b9b3-failed-receipts.json": {
+    "input_export_sha256": "71388c5bfabac8ea1ff9cfe001764b4095f8a5d343b3dcf14c851c60d62d5d1e",
+    "saved_export_sha256": "4c786fd24a18c02b5aa00ed058deae9f84e70fb40a84ff3e430531bce55e3ba6",
+    "json_values_unchanged": true
+  }
+}

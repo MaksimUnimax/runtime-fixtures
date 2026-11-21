@@ -1,0 +1,213 @@
+{
+  "record_type": "AL_S02_PROVIDER_CANDIDATE_PROBE",
+  "candidate": "django-allauth==65.21.1",
+  "django": "5.2.19",
+  "database": "Private disposable PostgreSQL cluster; unix socket only; no stage/live database",
+  "email": "Django in-memory backend, example.invalid only; not SMTP/real delivery acceptance",
+  "started_at_utc": "2026-11-05T02:07:41.936897+00:00",
+  "finished_at_utc": "2026-11-05T02:07:43.951976+00:00",
+  "status": "PROBE_PASSED",
+  "mode": "hardened_candidate",
+  "observations": [
+    {
+      "check": "existing_uuid_person_and_allauth_migrations",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "email_login_code_generated_without_external_mail",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "email_code_bound_to_issuing_browser",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "wrong_email_code_denied",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "library_email_code_creates_identity_session",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "host_only_secure_httponly_lax_identity_cookie",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "used_email_code_denied_after_logout",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "fresh_login_preserves_same_person",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "expired_email_code_denied",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "five_wrong_email_codes_exhaust_stage",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "discovery_uses_expected_issuer",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "discovery_advertises_s256",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "noncanonical_host_cannot_change_issuer",
+      "passed": true,
+      "kind": "required_policy"
+    },
+    {
+      "check": "library_authorization_code_and_state_echo",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "s256_code_exchange",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "signed_issuer_audience_expiry_subject_nonce",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "authorization_code_one_use",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "authorization_code_atomic_across_workers",
+      "passed": true,
+      "kind": "required_policy"
+    },
+    {
+      "check": "wrong_pkce_verifier_denied",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "public_client_requires_pkce",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "plain_pkce_method_denied",
+      "passed": true,
+      "kind": "required_policy"
+    },
+    {
+      "check": "confidential_client_requires_pkce",
+      "passed": true,
+      "kind": "required_policy"
+    },
+    {
+      "check": "authorization_post_cannot_bypass_s256",
+      "passed": true,
+      "kind": "required_policy"
+    },
+    {
+      "check": "legitimate_signed_consent_still_works",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "second_client_has_own_audience",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "second_client_token_rejected_by_first_client",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "wrong_issuer_denied_by_jwt_library",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "tampered_signature_denied",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "expired_token_denied",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "unregistered_callback_not_followed",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "rotation_publishes_both_keys",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "rotation_changes_active_signing_key",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "old_and_new_tokens_validate_during_rotation",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "library_totp_factor_validates",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "library_totp_factor_replay_denied",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "identity_logout_clears_session",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "no_product_tables_created",
+      "passed": true,
+      "kind": "capability"
+    }
+  ],
+  "required_policy_gaps": [],
+  "capability_failures": [],
+  "error_type": null,
+  "error_module": null,
+  "error_location": null,
+  "not_proven": [
+    "Real browser and TLS",
+    "BFF callback state/nonce storage/consumption and product session",
+    "Separate-process networked IdP deployment and service restart",
+    "Registration/tenant idempotency and second-client product data denial",
+    "Browser MFA enrollment/login and RP-initiated logout policy",
+    "Real controlled email delivery"
+  ],
+  "runtime_changed": false,
+  "live_services_or_databases_changed": false
+}

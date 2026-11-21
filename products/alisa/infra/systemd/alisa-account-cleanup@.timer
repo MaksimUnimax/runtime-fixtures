@@ -1,0 +1,9 @@
+[Unit]
+Description=Alisa expired account cleanup timer (%i)
+[Timer]
+OnBootSec=60s
+OnUnitActiveSec=60s
+AccuracySec=5s
+Unit=alisa-account-cleanup@%i.service
+[Install]
+WantedBy=timers.target

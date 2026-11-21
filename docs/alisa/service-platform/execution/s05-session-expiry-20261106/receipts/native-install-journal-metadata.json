@@ -1,0 +1,40 @@
+{
+  "scope": "JOURNAL_RUN_METADATA_AFTER_TRANSIENT_UNIT_GARBAGE_COLLECTION",
+  "post_run_systemctl_properties_are_unloaded_defaults_not_executed_limits": true,
+  "configured_limits_from_author_start_command": {
+    "RuntimeMaxSec": 180,
+    "MemoryMax": 536870912,
+    "MemorySwapMax": 0,
+    "TasksMax": 128,
+    "KillMode": "control-group"
+  },
+  "journal": [
+    {
+      "__REALTIME_TIMESTAMP": "1793940871665194",
+      "INVOCATION_ID": "449571db6dac4628a826badb43c18e7d",
+      "MESSAGE_ID": "7d4958e842da4a758f6c1cdc7b36dcc5",
+      "UNIT": "alisa-s05-session-install-d9918bcb-20261106.service"
+    },
+    {
+      "__REALTIME_TIMESTAMP": "1793940871672015",
+      "INVOCATION_ID": "449571db6dac4628a826badb43c18e7d",
+      "MESSAGE_ID": "39f53479d3a045ac8e11786248231fbf",
+      "UNIT": "alisa-s05-session-install-d9918bcb-20261106.service"
+    },
+    {
+      "__REALTIME_TIMESTAMP": "1793940885714271",
+      "INVOCATION_ID": "449571db6dac4628a826badb43c18e7d",
+      "MESSAGE_ID": "7ad2d189f7e94e70a38c781354912448",
+      "UNIT": "alisa-s05-session-install-d9918bcb-20261106.service"
+    },
+    {
+      "__REALTIME_TIMESTAMP": "1793940885714826",
+      "INVOCATION_ID": "449571db6dac4628a826badb43c18e7d",
+      "MESSAGE_ID": "ae8f7b866b0347b9af31fe1c80b127c0",
+      "UNIT": "alisa-s05-session-install-d9918bcb-20261106.service",
+      "CPU_USAGE_NSEC": "5773578000",
+      "MEMORY_PEAK": "2457600",
+      "MEMORY_SWAP_PEAK": "0"
+    }
+  ]
+}

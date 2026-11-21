@@ -1,0 +1,44 @@
+{
+  "status": "FAILED",
+  "scope": "UNCHANGED_NATIVE_PAIR_RESTART_HOOK",
+  "cases": [
+    {
+      "case": "new_receipt",
+      "passed": true
+    },
+    {
+      "case": "exact_installed_overlay",
+      "passed": true
+    },
+    {
+      "case": "resource_reserve",
+      "passed": true
+    },
+    {
+      "case": "only_reviewed_sources",
+      "passed": true
+    },
+    {
+      "case": "exact_source_hashes",
+      "passed": true
+    },
+    {
+      "case": "fresh_owned_paths",
+      "passed": true
+    },
+    {
+      "case": "checker_active",
+      "passed": true
+    },
+    {
+      "case": "refresh_one_shot_succeeded",
+      "passed": true
+    },
+    {
+      "case": "proof_matches_current_native_generation",
+      "passed": false
+    }
+  ],
+  "recovery": "OWN_HOOK_FILES_REMOVED_PRIOR_CHECKER_RESTARTED_VALID_SAME_PAIR_PROOF_RETAINED",
+  "error_type": "ValueError"
+}

@@ -1,0 +1,104 @@
+{
+  "scope": "RT_CHECK_SOURCE_REAL_LOOPBACK_TLS_UNIX_NOT_LIVE_PROVIDER_NOT_INSTALLED",
+  "status": "FAILED",
+  "cases": [
+    {
+      "case": "test_store_check.HTTPSChecks.test_invalid_payload_cannot_choose_endpoint_or_inject_headers",
+      "passed": true
+    },
+    {
+      "case": "test_store_check.HTTPSChecks.test_no_enabled_kinds_means_no_network",
+      "passed": true
+    },
+    {
+      "case": "test_store_check.HTTPSChecks.test_performance_token_never_proves_link_to_seller",
+      "passed": true
+    },
+    {
+      "case": "test_store_check.HTTPSChecks.test_redirect_is_not_followed_and_secret_is_not_forwarded",
+      "passed": true
+    },
+    {
+      "case": "test_store_check.HTTPSChecks.test_response_limit_and_duplicate_json_fail_closed",
+      "passed": true
+    },
+    {
+      "case": "test_store_check.HTTPSChecks.test_seller_403_is_not_always_auth_or_role",
+      "passed": true
+    },
+    {
+      "case": "test_store_check.HTTPSChecks.test_seller_identity_does_not_promote_without_binding_qualification",
+      "passed": true
+    },
+    {
+      "case": "test_store_check.HTTPSChecks.test_seller_info_is_single_read_only_post_with_pair_headers",
+      "passed": true
+    },
+    {
+      "case": "test_store_check.HTTPSChecks.test_seller_legal_details_alone_are_not_cabinet_identity",
+      "passed": true
+    },
+    {
+      "case": "test_store_check.HTTPSChecks.test_statuses_are_distinct_and_no_upstream_text_is_returned",
+      "passed": true
+    },
+    {
+      "case": "test_store_check.HTTPSChecks.test_tls_verification_is_not_disabled",
+      "passed": true
+    },
+    {
+      "case": "test_store_check.HTTPSChecks.test_wb_identity_is_authenticated_response_sid",
+      "passed": true
+    },
+    {
+      "case": "test_store_check.HTTPSChecks.test_wb_malformed_or_missing_sid_never_uses_jwt_name_or_tin",
+      "passed": true
+    },
+    {
+      "case": "test_store_check.IPCChecks.test_actual_peer_bound_ipc_and_isolated_child_no_external_call",
+      "passed": false,
+      "kind": "ERROR"
+    },
+    {
+      "case": "test_store_check.IPCChecks.test_child_credentials_are_stdin_not_argv_or_environment",
+      "passed": true
+    },
+    {
+      "case": "test_store_check.IPCChecks.test_cross_environment_or_product_cannot_dispatch",
+      "passed": false,
+      "kind": "ERROR"
+    },
+    {
+      "case": "test_store_check.IPCChecks.test_existing_socket_is_preserved_and_not_unlinked",
+      "passed": true
+    },
+    {
+      "case": "test_store_check.IPCChecks.test_malformed_connected_worker_result_cannot_cross_ipc",
+      "passed": false,
+      "kind": "ERROR"
+    },
+    {
+      "case": "test_store_check.IPCChecks.test_newline_limit_and_malformed_json_do_not_reflect_payload",
+      "passed": false,
+      "kind": "ERROR"
+    },
+    {
+      "case": "test_store_check.IPCChecks.test_timed_out_child_is_killed_and_reaped",
+      "passed": true
+    },
+    {
+      "case": "test_store_check.IPCChecks.test_untrusted_uid_is_closed_before_read_or_child",
+      "passed": false,
+      "kind": "ERROR"
+    }
+  ],
+  "tests_run": 21,
+  "skipped": 0,
+  "external_provider_calls": 0,
+  "limits": [
+    "Seller promotion requires separately qualified header-pair binding.",
+    "Performance token issuance never establishes Seller cabinet identity.",
+    "No working server, real key, matrix job or report was used."
+  ],
+  "local_platform_limit": "AF_UNIX socket creation denied by execution environment: PermissionError EPERM. 16 passed, 5 errors; no PASS inferred for Unix."
+}

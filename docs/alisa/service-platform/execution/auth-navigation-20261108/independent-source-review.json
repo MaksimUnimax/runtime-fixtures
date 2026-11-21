@@ -1,0 +1,40 @@
+{
+  "review": "AUTH_NAVIGATION_INDEPENDENT_SOURCE_AND_ROLLOUT_REVIEW",
+  "date": "2026-11-08",
+  "verdict": "SOURCE_REVIEW_APPROVED_CI_AND_PACKAGE_GATE_PENDING",
+  "scope": "Read-only source and rollout design review; no host actions, secret fixture reads, tests, install, or activation.",
+  "candidate": {
+    "source_sha": "85b88ebe532affe08ce93a4bd5cb3f53c833ba68",
+    "source_tree": "17dd9e77f7afb3c6ca0134d47ddfb18c014c1e9b",
+    "ci_platform_run": 42444538075,
+    "ci_status": "PENDING_AT_REVIEW",
+    "rollout_script_sha256": "8e416d0812beb82bcb4fb4a7e47f5bfa006ca6d08c1cc6e154c6ef5658defff1",
+    "exact_source_gate_required": true
+  },
+  "review_findings": {
+    "navigation_fix": "Valid BFF profile routes login/start to /app; server validates session through platform, preserves existing origin/query/body/consent guards, and fails closed on lookup outage.",
+    "session_cache": "React cache memoizes getProfile within a render request; no process-wide or TTL session cache. Route handler path performs fresh lookup.",
+    "identity_messages": "Only Django SUCCESS messages are filtered on a valid authenticated customer reauthentication target. Warning/error levels and non-customer/staff reauthentication context remain unchanged.",
+    "reauth_security": "Explicit CSRF-protected POST logout remains. Callback state/nonce/PKCE, single-use flow, customer password plus email OTP ACR/AMR proof, and staff MFA paths are unchanged by reviewed product delta.",
+    "test_fixture_fix": "Accepted: explicitly verify signed-in cabinet, use normal BFF logout, confirm /login, then continue fresh password/email-code test. This corrects the fixture assumption without weakening authentication.",
+    "rollout_boundary": "Web and Identity component payload only; source gate preserves contracts, locks, migrations, admin/platform/core pointers and configs. Recovery restores only owned pointers, queues nonblocking restarts, and records RESTART_QUEUED_VERIFY_REQUIRED; subsequent read-only health verification is mandatory."
+  },
+  "author_supplied_qualification_context": {
+    "owned_registration_baseline": "PASS, 6 assertions; valid BFF session showed misleading sign-in header and login form.",
+    "identity_reentry": "Two stale SUCCESS messages observed on fresh customer challenge; native reentry state was cloned and only the BFF cookie removed.",
+    "previous_ci": "Earlier defb/a275 candidate failed at a stale fresh-login test fixture assumption; it was not installed. The current fixture correction is included in the new candidate."
+  },
+  "execution_gate": [
+    "Wait for CI run 42444538075 to complete successfully.",
+    "Refresh and verify package binding, archive digests, manifest, and selected component hashes against the exact source SHA/tree/run.",
+    "Do not install or activate before those checks pass; do not report forced PASS.",
+    "After interrupted activation, verify service readiness read-only before declaring rollback complete."
+  ],
+  "reviewer_actions": {
+    "host_calls": false,
+    "secret_reads": false,
+    "tests_run": false,
+    "install_run": false,
+    "activation_run": false
+  }
+}

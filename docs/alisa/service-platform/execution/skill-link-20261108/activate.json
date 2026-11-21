@@ -1,0 +1,196 @@
+{
+  "status": "PASS",
+  "scope": "WEB_PLATFORM_ACCOUNT_CLEANUP_ONLY",
+  "cases": [
+    {
+      "case": "allowed_finite_phase",
+      "passed": true
+    },
+    {
+      "case": "fresh_public_receipt",
+      "passed": true
+    },
+    {
+      "case": "disk_floor_and_bounded_install_budget",
+      "passed": true
+    },
+    {
+      "case": "inode_reserve",
+      "passed": true
+    },
+    {
+      "case": "memory_reserve",
+      "passed": true
+    },
+    {
+      "case": "independently_recorded_prepared_manifest",
+      "passed": true
+    },
+    {
+      "case": "qualified_product_source",
+      "passed": true
+    },
+    {
+      "case": "independent_exact_ci_selected_map",
+      "passed": true
+    },
+    {
+      "case": "prepared_manifest_file_hashes",
+      "passed": true
+    },
+    {
+      "case": "qualified_verifier_hash",
+      "passed": true
+    },
+    {
+      "case": "exact_prepared_file_and_link_sets",
+      "passed": true
+    },
+    {
+      "case": "effective_web_baseline",
+      "passed": true
+    },
+    {
+      "case": "web_baseline_manifest",
+      "passed": true
+    },
+    {
+      "case": "effective_platform_baseline",
+      "passed": true
+    },
+    {
+      "case": "platform_baseline_manifest",
+      "passed": true
+    },
+    {
+      "case": "all_preserved_platform_source",
+      "passed": true
+    },
+    {
+      "case": "preserved_launcher",
+      "passed": true
+    },
+    {
+      "case": "current_staff_changes_preserved",
+      "passed": true
+    },
+    {
+      "case": "existing_native_client_unchanged",
+      "passed": true
+    },
+    {
+      "case": "fresh_configuration_and_service_snapshot",
+      "passed": true
+    },
+    {
+      "case": "fresh_own_config_and_dropins",
+      "passed": true
+    },
+    {
+      "case": "cleanup_not_running_at_cutover",
+      "passed": true
+    },
+    {
+      "case": "same_authorized_platform_database",
+      "passed": true
+    },
+    {
+      "case": "separate_migration_role",
+      "passed": true
+    },
+    {
+      "case": "disk_floor_and_bounded_install_budget",
+      "passed": true
+    },
+    {
+      "case": "inode_reserve",
+      "passed": true
+    },
+    {
+      "case": "memory_reserve",
+      "passed": true
+    },
+    {
+      "case": "scoped_snapshot_still_current_after_migration",
+      "passed": true
+    },
+    {
+      "case": "fresh_pointer_temporary_alice-link-r1",
+      "passed": true
+    },
+    {
+      "case": "effective_web_cutover_profile",
+      "passed": true
+    },
+    {
+      "case": "effective_platform_cutover_profile",
+      "passed": true
+    },
+    {
+      "case": "effective_account-cleanup_cutover_profile",
+      "passed": true
+    },
+    {
+      "case": "actual_new_process_alisa-web@stage.service",
+      "passed": true
+    },
+    {
+      "case": "actual_new_process_alisa-platform@stage.service",
+      "passed": true
+    },
+    {
+      "case": "all_original_environment_files_preserved",
+      "passed": true
+    },
+    {
+      "case": "protected_admin_and_identity_preserved",
+      "passed": true
+    },
+    {
+      "case": "only_web_pointer_changed",
+      "passed": true
+    },
+    {
+      "case": "disk_floor_and_bounded_install_budget",
+      "passed": true
+    },
+    {
+      "case": "inode_reserve",
+      "passed": true
+    },
+    {
+      "case": "memory_reserve",
+      "passed": true
+    }
+  ],
+  "migration": {
+    "mode": "apply",
+    "migration_plan": [
+      [
+        "alice_link",
+        "0001_initial",
+        false
+      ]
+    ],
+    "customers": 9,
+    "tenants": 9,
+    "alice_tables": [
+      "alice_link_alicelink",
+      "alice_link_authorizationrequest",
+      "alice_link_authorizationcode",
+      "alice_link_tokenfamily"
+    ]
+  },
+  "phase": "INSTALLED",
+  "source_sha": "d3cb053be14264c6bb2332708abb32d4b0c005ae",
+  "readiness": {
+    "18100": "READY",
+    "18101": "READY",
+    "18102": "READY",
+    "18103": "READY"
+  },
+  "legacy_routes_changed": false,
+  "native_restart_requested": false,
+  "real_yandex_broker": "NOT_RUN",
+  "free_bytes": 3252015104
+}

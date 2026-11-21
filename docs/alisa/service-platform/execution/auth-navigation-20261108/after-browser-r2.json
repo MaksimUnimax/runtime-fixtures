@@ -1,0 +1,88 @@
+{
+  "scope": "INSTALLED_PUBLIC_BROWSER_OWN_EXAMPLE_INVALID_REGISTRATION_AND_SESSION_NAVIGATION",
+  "phase": "after",
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "private_tmpfs_xdg_paths",
+      "passed": true
+    },
+    {
+      "case": "temporary_storage_capacity",
+      "passed": true
+    },
+    {
+      "case": "disk_and_memory_reserve",
+      "passed": true
+    },
+    {
+      "case": "own_reserved_contact",
+      "passed": true
+    },
+    {
+      "case": "own_cabinet_session_valid",
+      "passed": true
+    },
+    {
+      "case": "verified_session_header_routes_to_cabinet",
+      "passed": true
+    },
+    {
+      "case": "verified_session_login_route_reuses_cabinet",
+      "passed": true
+    },
+    {
+      "case": "verified_session_post_start_reuses_same_session",
+      "passed": true
+    },
+    {
+      "case": "ordinary_logout_removes_cabinet_authorization",
+      "passed": true
+    },
+    {
+      "case": "fresh_reentry_does_not_show_old_success",
+      "passed": true
+    },
+    {
+      "case": "wrong_delivered_email_code_does_not_authorize",
+      "passed": true
+    },
+    {
+      "case": "native_repeat_password_and_delivered_email_keep_same_account",
+      "passed": true
+    },
+    {
+      "case": "repeat_login_mints_a_new_native_session",
+      "passed": true
+    },
+    {
+      "case": "bounded_private_browser_state",
+      "passed": true
+    },
+    {
+      "case": "root_disk_reserve_after_private_state",
+      "passed": true
+    }
+  ],
+  "navigation": [
+    "alisa.octoport.ru/app",
+    "alisa.octoport.ru/app",
+    "alisa.octoport.ru/app",
+    "alisa.octoport.ru/app",
+    "alisa.octoport.ru/login",
+    "alisa.octoport.ru/login",
+    "id.octoport.ru/accounts/reauthenticate/",
+    "id.octoport.ru/accounts/login/",
+    "id.octoport.ru/accounts/login/code/confirm/",
+    "id.octoport.ru/accounts/login/code/confirm/",
+    "alisa.octoport.ru/app",
+    "alisa.octoport.ru/app"
+  ],
+  "provider_calls": 0,
+  "temporary_storage": "PRIVATE_TMPFS",
+  "observed": {
+    "valid_session_header_shows_login": false,
+    "valid_session_login_page_shows_new_auth_form": false,
+    "login_destination": "/app"
+  }
+}

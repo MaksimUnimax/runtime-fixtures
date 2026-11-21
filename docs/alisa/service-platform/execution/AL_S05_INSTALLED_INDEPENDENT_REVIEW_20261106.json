@@ -1,0 +1,231 @@
+{
+  "schema_version": "alisa_s05_installed_review_v1",
+  "scope": "LIMITED_READ_ONLY_INSTALLED_STATE_REVIEW_NO_PROVIDER_CALLS_NO_BROWSER_NO_DATABASE_READS",
+  "date_utc": "2026-11-06",
+  "verdict": "PASS_INSTALLED_READONLY_LIMITED_SCOPE_CUSTOMER_AUTHENTICATED_SMOKE_NOT_RUN",
+  "device": "Alisa",
+  "native_receipts": {
+    "core": {
+      "path": "/var/lib/alisa-platform/stage/rollout-backups/s05-stores-20261106/core-activation-r5.json",
+      "status": "PASS",
+      "passed_cases": 25,
+      "failed_cases": 0,
+      "active_core": "/opt/alice-market/releases/20261106-store-check-6098-r1"
+    },
+    "platform": {
+      "path": "/var/lib/alisa-platform/stage/rollout-backups/s05-stores-20261106/platform-activation-r8.json",
+      "status": "PASS",
+      "passed_cases": 41,
+      "failed_cases": 0,
+      "active_pointers": {
+        "web-current": "alisa-6098b31384ae23a4",
+        "site-current": "alisa-6098b31384ae23a4",
+        "admin-current": "alisa-73180172646b7012",
+        "identity-current": "alisa-73180172646b7012",
+        "current": "alisa-482ed11832b666af"
+      },
+      "local_health": {
+        "web": "READY:alisa-6098b31384ae23a4",
+        "platform": "READY:alisa-6098b31384ae23a4",
+        "admin": "READY:alisa-73180172646b7012",
+        "identity": "READY:alisa-73180172646b7012"
+      }
+    },
+    "inactive_platform_install": {
+      "status": "PASS",
+      "cases": 15
+    },
+    "core_integrated_qualification": {
+      "status": "PASS",
+      "tests_run": 1035,
+      "private_network": true,
+      "external_api_calls": 0
+    },
+    "installed_ipc_probe": {
+      "status": "PASS",
+      "scope": "ACTUAL_PRIVATE_IPC_NO_ACCOUNT_OR_PROVIDER_CALL",
+      "platform_uid_993_cases_passed": 4,
+      "root_peer_cases_passed": 2,
+      "external_provider_calls": 0,
+      "checks": [
+        "actual_runtime_server_identity",
+        "trusted_platform_receives_bounded_protocol_error",
+        "old_report_gateway_access_denied",
+        "runtime_parent_is_traverse_only",
+        "untrusted_root_peer_closed_before_body_processing"
+      ]
+    }
+  },
+  "installed_payloads": {
+    "platform": {
+      "release": "alisa-6098b31384ae23a4",
+      "manifest_sha256": "a181fef7c03637badef896f9a2a675f40d533a4ad767dbc9b23426769378578c",
+      "manifest_file_count": 4451,
+      "manifest_link_count": 42,
+      "file_hash_mismatches": 0,
+      "link_mismatches": 0,
+      "unsafe_paths": 0,
+      "nonroot_files": 0,
+      "group_or_world_writable_files": 0,
+      "verified": true
+    },
+    "runtime_core": {
+      "release": "/opt/alice-market/releases/20261106-store-check-6098-r1",
+      "integration_manifest_sha256": "170fc0c331b588615451c7073862f4a93b2a55729808a2d1dca642936a8af439",
+      "manifest_file_count": 74,
+      "manifest_link_count": 0,
+      "file_hash_mismatches": 0,
+      "link_mismatches": 0,
+      "unsafe_paths": 0,
+      "nonroot_files": 0,
+      "group_or_world_writable_files": 0,
+      "verified": true
+    },
+    "release_directory_metadata": {
+      "runtime_core": "root:root 0755",
+      "platform": "root:root 0755"
+    }
+  },
+  "pointers": {
+    "web-current": "alisa-6098b31384ae23a4",
+    "site-current": "alisa-6098b31384ae23a4",
+    "admin-current": "alisa-73180172646b7012",
+    "identity-current": "alisa-73180172646b7012",
+    "current": "alisa-482ed11832b666af",
+    "all_are_release_symlinks": true
+  },
+  "services_and_processes": {
+    "all_six_units_active_running_and_in_expected_cgroups": true,
+    "alice-market.service": {
+      "uid_gid": "996:988 (alice-market:alice-lab)",
+      "cwd": "/opt/alice-market/releases/20261106-store-check-6098-r1",
+      "read_write_paths": "/var/lib/alice-market /run/alice-market",
+      "selected_profile_hash_matches_core_receipt": true,
+      "systemd_loadcredential_pair_count": 3,
+      "credential_names_paths_and_values_read": false
+    },
+    "alisa-store-check.service": {
+      "uid_gid": "996:982 (alice-market:alisa-store-check)",
+      "cwd": "/opt/alice-market/releases/20261106-store-check-6098-r1",
+      "active": true,
+      "systemd_loadcredential_pair_count": 0,
+      "read_write_paths": "/run/alice-market",
+      "inaccessible_paths_present": [
+        "/etc/alice-lab",
+        "/var/lib/alice-lab",
+        "/etc/alice-market",
+        "/var/lib/alice-market",
+        "/etc/alisa-platform",
+        "/var/lib/alisa-platform",
+        "/run/credentials"
+      ],
+      "no_new_privileges": true,
+      "protect_system": "strict",
+      "memory_max": 201326592,
+      "tasks_max": 32
+    },
+    "alisa-web@stage.service": {
+      "uid_gid": "995:987",
+      "cwd": "/opt/alisa-platform/stage/releases/alisa-6098b31384ae23a4/ui/web/apps/web",
+      "systemd_loadcredential_pair_count": 0
+    },
+    "alisa-platform@stage.service": {
+      "uid_gid": "993:985",
+      "supplementary_gids": [982],
+      "cwd": "/opt/alisa-platform/stage/releases/alisa-6098b31384ae23a4",
+      "working_directory": "/opt/alisa-platform/stage/site-current",
+      "systemd_loadcredential_pair_count": 0
+    },
+    "alisa-admin@stage.service": {
+      "uid_gid": "994:986",
+      "cwd": "/opt/alisa-platform/stage/releases/alisa-73180172646b7012/ui/admin/apps/admin",
+      "systemd_loadcredential_pair_count": 0
+    },
+    "alisa-identity@stage.service": {
+      "uid_gid": "990:984",
+      "cwd": "/opt/alisa-platform/stage/releases/alisa-73180172646b7012",
+      "systemd_loadcredential_pair_count": 0
+    },
+    "checker_group": {
+      "name": "alisa-store-check",
+      "gid": 982,
+      "supplementary_members": 0
+    },
+    "unit_file_metadata": "All three checker/core/platform drop-in files are root:root 0644; hashes match the core receipt."
+  },
+  "sockets_and_acl": {
+    "store_check_socket": {
+      "path": "/run/alice-market/store-check.sock",
+      "type": "socket",
+      "owner_group_mode": "996:982 0660",
+      "group::rw-": true,
+      "other::---": true
+    },
+    "gateway_socket": {
+      "path": "/run/alice-market/gateway.sock",
+      "type": "socket",
+      "owner_group_mode": "996:988 0660",
+      "stage_uid_has_named_socket_acl": false
+    },
+    "runtime_directory": {
+      "path": "/run/alice-market",
+      "owner_group_mode": "996:988 0750",
+      "stage_uid_993_acl": "--x",
+      "acl_mask": "r-x",
+      "stage_can_traverse": true,
+      "stage_can_list": false
+    },
+    "platform_group_access": "Platform process has supplementary GID 982 and reaches only the private checker socket; native IPC probe confirms old gateway denied."
+  },
+  "configuration": {
+    "files": {
+      "web.env": {"sha256": "629d414b86d80e7883bae60c503292cf4671f377e411bcda2d2ecd55ca17863f", "owner_mode": "root:root 0600", "canonical_identity_enabled": "1", "identity_issuer": "https://id.octoport.ru"},
+      "platform.env": {"sha256": "700d5eb40ce3ac1a251a4ebb5d566df7b8f527de9084145a92841e2dbdbf80a9", "owner_mode": "root:root 0600", "stores_enabled": "1", "entitlements_enabled": "1", "store_check_socket": "/run/alice-market/store-check.sock", "store_check_uid": "996", "canonical_identity_enabled": "1", "identity_issuer": "https://id.octoport.ru", "matches_private_planned_bytes": true, "preserves_original_config_prefix": true, "vault_key_value_read_or_output": false},
+      "admin.env": {"sha256": "b7c10562f2b7fa266e1fe29eaf6038270014bf19dfa3c5732066c33f97cb5c58", "owner_mode": "root:root 0600", "canonical_identity_enabled": "1", "identity_issuer": "https://id.octoport.ru", "unchanged_from_before": true},
+      "identity.env": {"sha256": "9083c1b1cb174edaed693e06aa659447a203cee0d63573d00f6b66a9a92680ac", "owner_mode": "root:root 0600", "canonical_identity_enabled": "1", "identity_issuer": "https://id.octoport.ru", "unchanged_from_before": true},
+      "platform-migration.env": {"sha256": "4ab39631c5e59a4faa9704b8b72e339ee3a517e81aa60436682805e3408d3ca8", "owner_mode": "root:root 0600", "unchanged_from_before": true},
+      "identity-migration.env": {"sha256": "53f633d51954a571a5b3b4596cf7a4da5460b591e09b227faab5ab30b12cb19c", "owner_mode": "root:root 0600", "unchanged_from_before": true}
+    },
+    "secret_values_read_or_output": false
+  },
+  "provider_identity_boundary": {
+    "installed_checker_source_sha256": "d5434f76b9f29b7354b246f93371fee794976cea2c84f380857e0e85a1e8ffd0",
+    "checker_source_matches_core_manifest": true,
+    "enabled_kinds": ["WB", "SELLER", "PERFORMANCE"],
+    "seller_binding_qualified_flag_configured": false,
+    "seller_identity_promotion": "DISABLED_UNTIL_ROOT_QUALIFICATION",
+    "performance_identity": "IDENTITY_NOT_VERIFIED_UNTIL_SEPARATE_SAME_SELLER_PROOF",
+    "provider_credentials_read_or_tested": false,
+    "external_provider_calls": 0
+  },
+  "public_https_readback": {
+    "https://alisa.octoport.ru/health/ready": {"status_code": 200, "status": "READY", "release": "alisa-6098b31384ae23a4"},
+    "https://alisa-admin.octoport.ru/health/ready": {"status_code": 200, "status": "READY", "release": "alisa-73180172646b7012"},
+    "https://id.octoport.ru/health/ready": {"status_code": 200, "status": "READY", "release": "alisa-73180172646b7012"},
+    "https://alisa.octoport.ru/app/stores": {"status_code": 307, "location_path": "/login", "authenticated_customer_ui_verified": false},
+    "https://alisa.octoport.ru/api/account/stores" : {"method": "GET", "no_cookie": true, "status_code": 422, "code": "INVALID_PAYLOAD", "data_returned": false},
+    "internal_backend_route_probe": {"path": "/api/v1/account/stores", "status_code": 404, "interpreted_as_acceptance": false}
+  },
+  "owned_customer_smoke_source_review": {
+    "path": "docs/alisa/service-platform/execution/s05-installed-20261106/owned-customer-smoke.py",
+    "sha256": "ac8ca7b3564f744c7df2471a6da8b6f6f2d353805a220813fe479ac77b1eb250",
+    "source_review": "BOUNDED_TO_OWN_CUSTOMER_AND_SYNTHETIC_PENDING_CREDENTIAL",
+    "uses_native_browser_automation": false,
+    "submits_email_otp_or_password": false,
+    "external_provider_calls": 0,
+    "actions": ["create synthetic pending store", "rename", "SSR secret nonreflection", "origin and tenant-fork denials", "disable", "delete own UUID"],
+    "stops_if_native_customer_authentication_required": true,
+    "execution_status": "NOT_RUN",
+    "reason_not_run": "The independent reviewer's assigned scope is read-only, so the reviewer did not execute the smoke. The project author has separate authorization to run it in the own synthetic tenant, with native login stopping at any credential challenge."
+  },
+  "review_boundary": {
+    "read_only_host_metadata_and_public_anonymous_requests_only": true,
+    "database_rows_read_by_reviewer": false,
+    "marketplace_credentials_or_vault_key_values_read_or_output": false,
+    "provider_api_calls": 0,
+    "browser_or_live_owner_session_used": false,
+    "scripts_tests_or_activation_runs_by_reviewer": false,
+    "auth_roles_changed": false,
+    "site_writes_by_reviewer": false
+  }
+}

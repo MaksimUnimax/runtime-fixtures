@@ -1,0 +1,1089 @@
+{
+  "record_type": "AL_S03_ROLLBACK_SQL_AUTHOR_DISPOSABLE_QUALIFICATION",
+  "recorded_at_utc": "2026-11-05T08:48:01.752Z",
+  "scope": "OWN_PRIVATE_NETWORK_NAMESPACE_FRESH_POSTGRES_NOT_INSTALLED_STAGE",
+  "base_source": "d5e338acfec27fd691b68f158dd93e82cbd9a4fe",
+  "final_attempt": "s03-rollback-20261105c004",
+  "final_result": "65/65 PASS",
+  "final_sql": {
+    "platform": "d084c24e10df3448431fb55bf9c40a018fe7b91ae2e6374375439b7ecb5efe96",
+    "identity": "cc059d09e8deecef1652844b8aa4523d473340e6d870380fb7ac97a96e7c1558"
+  },
+  "boundaries": {
+    "test_network": "systemd PrivateNetwork=yes, no host stage DB/ports",
+    "resources": "RuntimeMaxSec180,MemoryMax768M,MemorySwapMax0,KillMode control-group,TimeoutStopSec5,TasksMax256",
+    "databases": "fresh private cluster; alisa_s03_core_platform/identity and matching runtime roles only",
+    "credentials": "synthetic disposable only; existing venv read-only",
+    "cleanup": "All four clusters stopped and disposable data/owned databases/roles removed; cgroups completed",
+    "reproducibility": "Qualified core projection plus appended fixture checks; no product runtime changes. Archive SHA and exact wrappers retained per attempt. Read-only review did not independently execute these runs."
+  },
+  "attempts": {
+    "s03-rollback-20261105c001": {
+      "environment-result.json": {
+        "scope": "OWN_PRIVATE_NETWORK_NAMESPACE_DISPOSABLE_POSTGRES_CORE",
+        "status": "PASS",
+        "started_utc": "2026-11-05T08:20:06.570180+00:00",
+        "private_network_distinct_from_host": true,
+        "source_archive_sha256": "0e08b823c5c97df12a855e1ccd5004ceac2ef6f2ca9d05f083f7f4b4222cabe6",
+        "test_exit_code": 0,
+        "cluster_stopped": true,
+        "disposable_data_removed": true,
+        "finished_utc": "2026-11-05T08:20:20.907555+00:00"
+      },
+      "core-result.json": {
+        "scope": "S03_NATIVE_MFA_AND_PLATFORM_CORE_NOT_BROWSER_NOT_STAGE",
+        "status": "PASS",
+        "cases": [
+          {
+            "case": "s03_stale_passwordless_session_cannot_enroll_first_factor",
+            "passed": true
+          },
+          {
+            "case": "s03_real_native_email_code_allows_first_factor_enrollment",
+            "passed": true
+          },
+          {
+            "case": "s03_existing_identity_and_enrolled_factor_do_not_issue_admin_code",
+            "passed": true
+          },
+          {
+            "case": "s03_native_factor_form_rejects_missing_csrf",
+            "passed": true
+          },
+          {
+            "case": "s03_wrong_native_factor_has_no_attestation",
+            "passed": true
+          },
+          {
+            "case": "s03_native_totp_creates_pending_request_bound_evidence",
+            "passed": true
+          },
+          {
+            "case": "s03_native_totp_issues_one_library_authorization_code",
+            "passed": true
+          },
+          {
+            "case": "s03_wrong_client_secret_cannot_exchange_bound_code",
+            "passed": true
+          },
+          {
+            "case": "s03_native_mfa_bound_code_exchanges_via_library",
+            "passed": true
+          },
+          {
+            "case": "s03_signed_mfa_evidence_has_fixed_issuer_client_subject_nonce",
+            "passed": true
+          },
+          {
+            "case": "s03_admin_authorization_code_replay_denied",
+            "passed": true
+          },
+          {
+            "case": "s03_persisted_authentication_records_do_not_attest_a_new_request",
+            "passed": true
+          },
+          {
+            "case": "s03_native_totp_replay_does_not_attest_new_flow",
+            "passed": true
+          },
+          {
+            "case": "s03_native_recovery_consumption_creates_attestation",
+            "passed": true
+          },
+          {
+            "case": "s03_native_proof_cannot_move_to_another_authorization_request",
+            "passed": true
+          },
+          {
+            "case": "s03_used_recovery_code_cannot_attest_another_flow",
+            "passed": true
+          },
+          {
+            "case": "s03_stale_native_factor_requires_step_up",
+            "passed": true
+          },
+          {
+            "case": "s03_recovery_proof_is_signed_for_the_actual_code",
+            "passed": true
+          },
+          {
+            "case": "s03_factor_secret_is_encrypted_in_postgresql",
+            "passed": true
+          },
+          {
+            "case": "s03_client_registration_uses_confidential_dedicated_admin",
+            "passed": true
+          },
+          {
+            "case": "s03_closed_bootstrap_and_explicit_staff_session",
+            "passed": true
+          },
+          {
+            "case": "s03_session_creation_identical_retry_recovers_receipt",
+            "passed": true
+          },
+          {
+            "case": "s03_session_flow_cannot_bind_another_session_token",
+            "passed": true
+          },
+          {
+            "case": "s03_web_service_token_cannot_call_staff_api",
+            "passed": true
+          },
+          {
+            "case": "s03_browser_role_labels_do_not_authorize",
+            "passed": true
+          },
+          {
+            "case": "s03_closed_bootstrap_cannot_replace_or_append_owner",
+            "passed": true
+          },
+          {
+            "case": "s03_local_block_and_idempotent_receipt",
+            "passed": true
+          },
+          {
+            "case": "s03_local_block_revokes_only_product_customer_sessions",
+            "passed": true
+          },
+          {
+            "case": "s03_command_uuid_cannot_apply_changed_payload",
+            "passed": true
+          },
+          {
+            "case": "s03_concurrent_identical_commands_have_one_revision_effect",
+            "passed": true
+          },
+          {
+            "case": "s03_limited_staff_can_read_real_customer",
+            "passed": true
+          },
+          {
+            "case": "s03_reader_block_denied_by_backend_and_audited",
+            "passed": true
+          },
+          {
+            "case": "s03_staff_revocation_invalidates_both_sessions",
+            "passed": true
+          },
+          {
+            "case": "s03_last_owner_is_transactionally_protected",
+            "passed": true
+          },
+          {
+            "case": "s03_other_product_staff_has_no_alisa_session",
+            "passed": true
+          },
+          {
+            "case": "s03_stale_mfa_denies_current_backend_reads",
+            "passed": true
+          },
+          {
+            "case": "s03_runtime_audit_update_denied_by_postgresql",
+            "passed": true
+          },
+          {
+            "case": "s03_runtime_audit_delete_denied_by_postgresql",
+            "passed": true
+          },
+          {
+            "case": "s03_runtime_audit_truncate_denied_by_postgresql",
+            "passed": true
+          },
+          {
+            "case": "s03_safe_audit_excludes_contacts_and_session_tokens",
+            "passed": true
+          },
+          {
+            "case": "s03_logout_revokes_current_staff_session",
+            "passed": true
+          },
+          {
+            "case": "s03_cleanup_erases_owned_expired_and_revoked_staff_payloads",
+            "passed": true
+          },
+          {
+            "case": "s03_cleanup_preserves_foreign_product_staff_payload",
+            "passed": true
+          },
+          {
+            "case": "s03_staff_enabled_readiness_checks_own_schema",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_fixture_has_active_staff_session",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_wrong_database_guard_fixture_denied_before_mutation",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_closed_ingress_denies_new_flows",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_closes_all_owned_staff_sessions_and_payloads",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_closes_all_owned_flows_and_payloads",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_repeat_preserves_first_revocation",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_preserves_foreign_staff_data",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_preserves_customer_and_user_session",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_appends_safe_audit_twice",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_old_staff_token_denied_after_reenable",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_old_flow_denied_after_reenable",
+            "passed": true
+          }
+        ],
+        "platform_migrations_applied": true,
+        "identity_migrations_applied": true,
+        "owned_database_and_role_cleanup": true
+      },
+      "wrapper_sha256": "f9fcdc10d697522b1ce2cd645ee87d8dd07ec234b9a50dba207e04b732540bf8"
+    },
+    "s03-rollback-20261105c002": {
+      "environment-result.json": {
+        "scope": "OWN_PRIVATE_NETWORK_NAMESPACE_DISPOSABLE_POSTGRES_CORE",
+        "status": "PASS",
+        "started_utc": "2026-11-05T08:23:19.730179+00:00",
+        "private_network_distinct_from_host": true,
+        "source_archive_sha256": "5f29210d3e98608573aa24f1c5a397fbd2cfca23ecd662f74343ba0e16a260ef",
+        "test_exit_code": 0,
+        "cluster_stopped": true,
+        "disposable_data_removed": true,
+        "finished_utc": "2026-11-05T08:23:33.799780+00:00"
+      },
+      "core-result.json": {
+        "scope": "S03_NATIVE_MFA_AND_PLATFORM_CORE_NOT_BROWSER_NOT_STAGE",
+        "status": "PASS",
+        "cases": [
+          {
+            "case": "s03_stale_passwordless_session_cannot_enroll_first_factor",
+            "passed": true
+          },
+          {
+            "case": "s03_real_native_email_code_allows_first_factor_enrollment",
+            "passed": true
+          },
+          {
+            "case": "s03_existing_identity_and_enrolled_factor_do_not_issue_admin_code",
+            "passed": true
+          },
+          {
+            "case": "s03_native_factor_form_rejects_missing_csrf",
+            "passed": true
+          },
+          {
+            "case": "s03_wrong_native_factor_has_no_attestation",
+            "passed": true
+          },
+          {
+            "case": "s03_native_totp_creates_pending_request_bound_evidence",
+            "passed": true
+          },
+          {
+            "case": "s03_native_totp_issues_one_library_authorization_code",
+            "passed": true
+          },
+          {
+            "case": "s03_wrong_client_secret_cannot_exchange_bound_code",
+            "passed": true
+          },
+          {
+            "case": "s03_native_mfa_bound_code_exchanges_via_library",
+            "passed": true
+          },
+          {
+            "case": "s03_signed_mfa_evidence_has_fixed_issuer_client_subject_nonce",
+            "passed": true
+          },
+          {
+            "case": "s03_admin_authorization_code_replay_denied",
+            "passed": true
+          },
+          {
+            "case": "s03_persisted_authentication_records_do_not_attest_a_new_request",
+            "passed": true
+          },
+          {
+            "case": "s03_native_totp_replay_does_not_attest_new_flow",
+            "passed": true
+          },
+          {
+            "case": "s03_native_recovery_consumption_creates_attestation",
+            "passed": true
+          },
+          {
+            "case": "s03_native_proof_cannot_move_to_another_authorization_request",
+            "passed": true
+          },
+          {
+            "case": "s03_used_recovery_code_cannot_attest_another_flow",
+            "passed": true
+          },
+          {
+            "case": "s03_stale_native_factor_requires_step_up",
+            "passed": true
+          },
+          {
+            "case": "s03_recovery_proof_is_signed_for_the_actual_code",
+            "passed": true
+          },
+          {
+            "case": "s03_factor_secret_is_encrypted_in_postgresql",
+            "passed": true
+          },
+          {
+            "case": "s03_client_registration_uses_confidential_dedicated_admin",
+            "passed": true
+          },
+          {
+            "case": "s03_closed_bootstrap_and_explicit_staff_session",
+            "passed": true
+          },
+          {
+            "case": "s03_session_creation_identical_retry_recovers_receipt",
+            "passed": true
+          },
+          {
+            "case": "s03_session_flow_cannot_bind_another_session_token",
+            "passed": true
+          },
+          {
+            "case": "s03_web_service_token_cannot_call_staff_api",
+            "passed": true
+          },
+          {
+            "case": "s03_browser_role_labels_do_not_authorize",
+            "passed": true
+          },
+          {
+            "case": "s03_closed_bootstrap_cannot_replace_or_append_owner",
+            "passed": true
+          },
+          {
+            "case": "s03_local_block_and_idempotent_receipt",
+            "passed": true
+          },
+          {
+            "case": "s03_local_block_revokes_only_product_customer_sessions",
+            "passed": true
+          },
+          {
+            "case": "s03_command_uuid_cannot_apply_changed_payload",
+            "passed": true
+          },
+          {
+            "case": "s03_concurrent_identical_commands_have_one_revision_effect",
+            "passed": true
+          },
+          {
+            "case": "s03_limited_staff_can_read_real_customer",
+            "passed": true
+          },
+          {
+            "case": "s03_reader_block_denied_by_backend_and_audited",
+            "passed": true
+          },
+          {
+            "case": "s03_staff_revocation_invalidates_both_sessions",
+            "passed": true
+          },
+          {
+            "case": "s03_last_owner_is_transactionally_protected",
+            "passed": true
+          },
+          {
+            "case": "s03_other_product_staff_has_no_alisa_session",
+            "passed": true
+          },
+          {
+            "case": "s03_stale_mfa_denies_current_backend_reads",
+            "passed": true
+          },
+          {
+            "case": "s03_runtime_audit_update_denied_by_postgresql",
+            "passed": true
+          },
+          {
+            "case": "s03_runtime_audit_delete_denied_by_postgresql",
+            "passed": true
+          },
+          {
+            "case": "s03_runtime_audit_truncate_denied_by_postgresql",
+            "passed": true
+          },
+          {
+            "case": "s03_safe_audit_excludes_contacts_and_session_tokens",
+            "passed": true
+          },
+          {
+            "case": "s03_logout_revokes_current_staff_session",
+            "passed": true
+          },
+          {
+            "case": "s03_cleanup_erases_owned_expired_and_revoked_staff_payloads",
+            "passed": true
+          },
+          {
+            "case": "s03_cleanup_preserves_foreign_product_staff_payload",
+            "passed": true
+          },
+          {
+            "case": "s03_staff_enabled_readiness_checks_own_schema",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_fixture_has_active_staff_session",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_wrong_database_guard_fixture_denied_before_mutation",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_closed_ingress_denies_new_flows",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_closes_all_owned_staff_sessions_and_payloads",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_closes_all_owned_flows_and_payloads",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_repeat_preserves_first_revocation",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_preserves_foreign_staff_data",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_preserves_customer_and_user_session",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_appends_safe_audit_twice",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_old_staff_token_denied_after_reenable",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_old_flow_denied_after_reenable",
+            "passed": true
+          }
+        ],
+        "platform_migrations_applied": true,
+        "identity_migrations_applied": true,
+        "owned_database_and_role_cleanup": true
+      },
+      "wrapper_sha256": "9e9ca9032b662fb64784721e55dafd8aa28acd893095cea11d9aae567bd76124"
+    },
+    "s03-rollback-20261105c003": {
+      "environment-result.json": {
+        "scope": "OWN_PRIVATE_NETWORK_NAMESPACE_DISPOSABLE_POSTGRES_CORE",
+        "status": "PASS",
+        "started_utc": "2026-11-05T08:34:51.122731+00:00",
+        "private_network_distinct_from_host": true,
+        "source_archive_sha256": "6cdd5f9f0b9c8e48fb8a2eba28570a00b61f164ac69eb89193cc8886b3935c1a",
+        "test_exit_code": 0,
+        "cluster_stopped": true,
+        "disposable_data_removed": true,
+        "finished_utc": "2026-11-05T08:35:06.952720+00:00"
+      },
+      "core-result.json": {
+        "scope": "S03_NATIVE_MFA_AND_PLATFORM_CORE_NOT_BROWSER_NOT_STAGE",
+        "status": "PASS",
+        "cases": [
+          {
+            "case": "s03_stale_passwordless_session_cannot_enroll_first_factor",
+            "passed": true
+          },
+          {
+            "case": "s03_real_native_email_code_allows_first_factor_enrollment",
+            "passed": true
+          },
+          {
+            "case": "s03_existing_identity_and_enrolled_factor_do_not_issue_admin_code",
+            "passed": true
+          },
+          {
+            "case": "s03_native_factor_form_rejects_missing_csrf",
+            "passed": true
+          },
+          {
+            "case": "s03_wrong_native_factor_has_no_attestation",
+            "passed": true
+          },
+          {
+            "case": "s03_native_totp_creates_pending_request_bound_evidence",
+            "passed": true
+          },
+          {
+            "case": "s03_native_totp_issues_one_library_authorization_code",
+            "passed": true
+          },
+          {
+            "case": "s03_wrong_client_secret_cannot_exchange_bound_code",
+            "passed": true
+          },
+          {
+            "case": "s03_native_mfa_bound_code_exchanges_via_library",
+            "passed": true
+          },
+          {
+            "case": "s03_signed_mfa_evidence_has_fixed_issuer_client_subject_nonce",
+            "passed": true
+          },
+          {
+            "case": "s03_admin_authorization_code_replay_denied",
+            "passed": true
+          },
+          {
+            "case": "s03_persisted_authentication_records_do_not_attest_a_new_request",
+            "passed": true
+          },
+          {
+            "case": "s03_native_totp_replay_does_not_attest_new_flow",
+            "passed": true
+          },
+          {
+            "case": "s03_native_recovery_consumption_creates_attestation",
+            "passed": true
+          },
+          {
+            "case": "s03_native_proof_cannot_move_to_another_authorization_request",
+            "passed": true
+          },
+          {
+            "case": "s03_used_recovery_code_cannot_attest_another_flow",
+            "passed": true
+          },
+          {
+            "case": "s03_stale_native_factor_requires_step_up",
+            "passed": true
+          },
+          {
+            "case": "s03_recovery_proof_is_signed_for_the_actual_code",
+            "passed": true
+          },
+          {
+            "case": "s03_factor_secret_is_encrypted_in_postgresql",
+            "passed": true
+          },
+          {
+            "case": "s03_client_registration_uses_confidential_dedicated_admin",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_identity_fixture_has_staff_tokens",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_identity_fixture_web_token_is_usable",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_staff_token_valid_before_suspension",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_admin_client_grants_and_tokens_suspended",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_prior_admin_token_is_revoked",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_web_client_and_usable_token_preserved",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_identity_subject_secret_and_redirect_preserved",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_admin_client_suspension_repeat_safe",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_admin_client_can_restore_only_capability_fields",
+            "passed": true
+          },
+          {
+            "case": "s03_closed_bootstrap_and_explicit_staff_session",
+            "passed": true
+          },
+          {
+            "case": "s03_session_creation_identical_retry_recovers_receipt",
+            "passed": true
+          },
+          {
+            "case": "s03_session_flow_cannot_bind_another_session_token",
+            "passed": true
+          },
+          {
+            "case": "s03_web_service_token_cannot_call_staff_api",
+            "passed": true
+          },
+          {
+            "case": "s03_browser_role_labels_do_not_authorize",
+            "passed": true
+          },
+          {
+            "case": "s03_closed_bootstrap_cannot_replace_or_append_owner",
+            "passed": true
+          },
+          {
+            "case": "s03_local_block_and_idempotent_receipt",
+            "passed": true
+          },
+          {
+            "case": "s03_local_block_revokes_only_product_customer_sessions",
+            "passed": true
+          },
+          {
+            "case": "s03_command_uuid_cannot_apply_changed_payload",
+            "passed": true
+          },
+          {
+            "case": "s03_concurrent_identical_commands_have_one_revision_effect",
+            "passed": true
+          },
+          {
+            "case": "s03_limited_staff_can_read_real_customer",
+            "passed": true
+          },
+          {
+            "case": "s03_reader_block_denied_by_backend_and_audited",
+            "passed": true
+          },
+          {
+            "case": "s03_staff_revocation_invalidates_both_sessions",
+            "passed": true
+          },
+          {
+            "case": "s03_last_owner_is_transactionally_protected",
+            "passed": true
+          },
+          {
+            "case": "s03_other_product_staff_has_no_alisa_session",
+            "passed": true
+          },
+          {
+            "case": "s03_stale_mfa_denies_current_backend_reads",
+            "passed": true
+          },
+          {
+            "case": "s03_runtime_audit_update_denied_by_postgresql",
+            "passed": true
+          },
+          {
+            "case": "s03_runtime_audit_delete_denied_by_postgresql",
+            "passed": true
+          },
+          {
+            "case": "s03_runtime_audit_truncate_denied_by_postgresql",
+            "passed": true
+          },
+          {
+            "case": "s03_safe_audit_excludes_contacts_and_session_tokens",
+            "passed": true
+          },
+          {
+            "case": "s03_logout_revokes_current_staff_session",
+            "passed": true
+          },
+          {
+            "case": "s03_cleanup_erases_owned_expired_and_revoked_staff_payloads",
+            "passed": true
+          },
+          {
+            "case": "s03_cleanup_preserves_foreign_product_staff_payload",
+            "passed": true
+          },
+          {
+            "case": "s03_staff_enabled_readiness_checks_own_schema",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_fixture_has_active_staff_session",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_wrong_database_guard_fixture_denied_before_mutation",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_closed_ingress_denies_new_flows",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_closes_all_owned_staff_sessions_and_payloads",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_closes_all_owned_flows_and_payloads",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_repeat_preserves_first_revocation",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_preserves_foreign_staff_data",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_preserves_customer_and_user_session",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_appends_safe_audit_twice",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_old_staff_token_denied_after_reenable",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_old_flow_denied_after_reenable",
+            "passed": true
+          }
+        ],
+        "platform_migrations_applied": true,
+        "identity_migrations_applied": true,
+        "owned_database_and_role_cleanup": true
+      },
+      "wrapper_sha256": "7c3ade04b1804185e5284f61e47cb0620d44e3c8ec8e9cc08c4a6ddcc63d1a67"
+    },
+    "s03-rollback-20261105c004": {
+      "environment-result.json": {
+        "scope": "OWN_PRIVATE_NETWORK_NAMESPACE_DISPOSABLE_POSTGRES_CORE",
+        "status": "PASS",
+        "started_utc": "2026-11-05T08:40:49.259890+00:00",
+        "private_network_distinct_from_host": true,
+        "source_archive_sha256": "b900f61f8e8f7c6a62c05fe748034316ca3de2d468f878d7c78158649030f579",
+        "test_exit_code": 0,
+        "cluster_stopped": true,
+        "disposable_data_removed": true,
+        "finished_utc": "2026-11-05T08:41:05.697045+00:00"
+      },
+      "core-result.json": {
+        "scope": "S03_NATIVE_MFA_AND_PLATFORM_CORE_NOT_BROWSER_NOT_STAGE",
+        "status": "PASS",
+        "cases": [
+          {
+            "case": "s03_stale_passwordless_session_cannot_enroll_first_factor",
+            "passed": true
+          },
+          {
+            "case": "s03_real_native_email_code_allows_first_factor_enrollment",
+            "passed": true
+          },
+          {
+            "case": "s03_existing_identity_and_enrolled_factor_do_not_issue_admin_code",
+            "passed": true
+          },
+          {
+            "case": "s03_native_factor_form_rejects_missing_csrf",
+            "passed": true
+          },
+          {
+            "case": "s03_wrong_native_factor_has_no_attestation",
+            "passed": true
+          },
+          {
+            "case": "s03_native_totp_creates_pending_request_bound_evidence",
+            "passed": true
+          },
+          {
+            "case": "s03_native_totp_issues_one_library_authorization_code",
+            "passed": true
+          },
+          {
+            "case": "s03_wrong_client_secret_cannot_exchange_bound_code",
+            "passed": true
+          },
+          {
+            "case": "s03_native_mfa_bound_code_exchanges_via_library",
+            "passed": true
+          },
+          {
+            "case": "s03_signed_mfa_evidence_has_fixed_issuer_client_subject_nonce",
+            "passed": true
+          },
+          {
+            "case": "s03_admin_authorization_code_replay_denied",
+            "passed": true
+          },
+          {
+            "case": "s03_persisted_authentication_records_do_not_attest_a_new_request",
+            "passed": true
+          },
+          {
+            "case": "s03_native_totp_replay_does_not_attest_new_flow",
+            "passed": true
+          },
+          {
+            "case": "s03_native_recovery_consumption_creates_attestation",
+            "passed": true
+          },
+          {
+            "case": "s03_native_proof_cannot_move_to_another_authorization_request",
+            "passed": true
+          },
+          {
+            "case": "s03_used_recovery_code_cannot_attest_another_flow",
+            "passed": true
+          },
+          {
+            "case": "s03_stale_native_factor_requires_step_up",
+            "passed": true
+          },
+          {
+            "case": "s03_recovery_proof_is_signed_for_the_actual_code",
+            "passed": true
+          },
+          {
+            "case": "s03_factor_secret_is_encrypted_in_postgresql",
+            "passed": true
+          },
+          {
+            "case": "s03_client_registration_uses_confidential_dedicated_admin",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_identity_fixture_has_staff_tokens",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_identity_fixture_web_token_is_usable",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_staff_token_valid_before_suspension",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_missing_admin_client_stops_before_commit",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_admin_client_grants_and_tokens_suspended",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_prior_admin_token_is_revoked",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_web_client_and_usable_token_preserved",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_identity_subject_secret_and_redirect_preserved",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_admin_client_suspension_repeat_safe",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_admin_client_can_restore_only_capability_fields",
+            "passed": true
+          },
+          {
+            "case": "s03_closed_bootstrap_and_explicit_staff_session",
+            "passed": true
+          },
+          {
+            "case": "s03_session_creation_identical_retry_recovers_receipt",
+            "passed": true
+          },
+          {
+            "case": "s03_session_flow_cannot_bind_another_session_token",
+            "passed": true
+          },
+          {
+            "case": "s03_web_service_token_cannot_call_staff_api",
+            "passed": true
+          },
+          {
+            "case": "s03_browser_role_labels_do_not_authorize",
+            "passed": true
+          },
+          {
+            "case": "s03_closed_bootstrap_cannot_replace_or_append_owner",
+            "passed": true
+          },
+          {
+            "case": "s03_local_block_and_idempotent_receipt",
+            "passed": true
+          },
+          {
+            "case": "s03_local_block_revokes_only_product_customer_sessions",
+            "passed": true
+          },
+          {
+            "case": "s03_command_uuid_cannot_apply_changed_payload",
+            "passed": true
+          },
+          {
+            "case": "s03_concurrent_identical_commands_have_one_revision_effect",
+            "passed": true
+          },
+          {
+            "case": "s03_limited_staff_can_read_real_customer",
+            "passed": true
+          },
+          {
+            "case": "s03_reader_block_denied_by_backend_and_audited",
+            "passed": true
+          },
+          {
+            "case": "s03_staff_revocation_invalidates_both_sessions",
+            "passed": true
+          },
+          {
+            "case": "s03_last_owner_is_transactionally_protected",
+            "passed": true
+          },
+          {
+            "case": "s03_other_product_staff_has_no_alisa_session",
+            "passed": true
+          },
+          {
+            "case": "s03_stale_mfa_denies_current_backend_reads",
+            "passed": true
+          },
+          {
+            "case": "s03_runtime_audit_update_denied_by_postgresql",
+            "passed": true
+          },
+          {
+            "case": "s03_runtime_audit_delete_denied_by_postgresql",
+            "passed": true
+          },
+          {
+            "case": "s03_runtime_audit_truncate_denied_by_postgresql",
+            "passed": true
+          },
+          {
+            "case": "s03_safe_audit_excludes_contacts_and_session_tokens",
+            "passed": true
+          },
+          {
+            "case": "s03_logout_revokes_current_staff_session",
+            "passed": true
+          },
+          {
+            "case": "s03_cleanup_erases_owned_expired_and_revoked_staff_payloads",
+            "passed": true
+          },
+          {
+            "case": "s03_cleanup_preserves_foreign_product_staff_payload",
+            "passed": true
+          },
+          {
+            "case": "s03_staff_enabled_readiness_checks_own_schema",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_fixture_has_active_staff_session",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_wrong_database_guard_fixture_denied_before_mutation",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_closed_ingress_denies_new_flows",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_closes_all_owned_staff_sessions_and_payloads",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_closes_all_owned_flows_and_payloads",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_repeat_preserves_first_revocation",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_preserves_foreign_staff_data",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_preserves_customer_and_user_session",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_sql_appends_safe_audit_twice",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_old_staff_token_denied_after_reenable",
+            "passed": true
+          },
+          {
+            "case": "s03_rollback_old_flow_denied_after_reenable",
+            "passed": true
+          }
+        ],
+        "platform_migrations_applied": true,
+        "identity_migrations_applied": true,
+        "owned_database_and_role_cleanup": true
+      },
+      "wrapper_sha256": "786f0d7598f19ae6b576be5d3d137bdb2a62150d71c459dd1402038546fd513b"
+    }
+  },
+  "changes_between_attempts": [
+    {
+      "to": "c002",
+      "change": "platform SQL gains enforced zero-postcondition before COMMIT"
+    },
+    {
+      "to": "c003",
+      "change": "add dedicated identity client suspension + native admin/web bearer preservation checks"
+    },
+    {
+      "to": "c004",
+      "change": "enforce exactly1 admin client row and test missing-client rejection before COMMIT"
+    }
+  ],
+  "not_proven": [
+    "actual stage rollout/restart",
+    "reverse switch with installed processes and production host ingress",
+    "new design-integrated package"
+  ]
+}

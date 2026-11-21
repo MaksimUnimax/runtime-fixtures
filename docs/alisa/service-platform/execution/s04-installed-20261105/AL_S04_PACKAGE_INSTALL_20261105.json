@@ -1,0 +1,115 @@
+{
+  "scope": "S04_EXACT_PACKAGE_COPY_NO_ACTIVATION",
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "exact_reviewed_binding_file",
+      "passed": true
+    },
+    {
+      "case": "input_binding_matches_reviewed_source",
+      "passed": true
+    },
+    {
+      "case": "qualified_window_active",
+      "passed": true
+    },
+    {
+      "case": "new_release_absent",
+      "passed": true
+    },
+    {
+      "case": "memory_and_inode_reserve",
+      "passed": true
+    },
+    {
+      "case": "physical_reserve_archive_payload_runtime_and_growth",
+      "passed": true
+    },
+    {
+      "case": "new_private_download_namespace",
+      "passed": true
+    },
+    {
+      "case": "admitted_artifact_https",
+      "passed": true
+    },
+    {
+      "case": "zip_bytes_and_sha",
+      "passed": true
+    },
+    {
+      "case": "exact_zip_file_set",
+      "passed": true
+    },
+    {
+      "case": "tar_checksum_file",
+      "passed": true
+    },
+    {
+      "case": "tar_bytes_and_sha",
+      "passed": true
+    },
+    {
+      "case": "only_expected_tar_root",
+      "passed": true
+    },
+    {
+      "case": "exact_ci_manifest",
+      "passed": true
+    },
+    {
+      "case": "existing_installer_matches_qualified_code",
+      "passed": true
+    },
+    {
+      "case": "runtime_requirements_unchanged",
+      "passed": true
+    },
+    {
+      "case": "pointers_unchanged_before_install",
+      "passed": true
+    },
+    {
+      "case": "exhaustive_installed_payload_matches_ci",
+      "passed": true
+    },
+    {
+      "case": "all_current_pointers_preserved",
+      "passed": true
+    },
+    {
+      "case": "reserve_and_browser_growth_retained",
+      "passed": true
+    }
+  ],
+  "started_utc": "2026-11-05T13:59:22.019538+00:00",
+  "old_payload_or_runtime_files_modified": 0,
+  "archives_or_version_paths_removed": 0,
+  "binding": {
+    "source_sha": "c8666516683e7b2bedc2c1a7d939e9e3c4489d38",
+    "tree_sha": "786126cc26dc094911b891f8600bf94a95353d1f",
+    "release": "alisa-c8666516683e7b2b",
+    "zip_sha256": "68f91fba8e7cec6eeb2d9ac81c1ba95a4ec554255a469ae95c6dd1f825abae6d",
+    "tar_sha256": "81c2bd21d8d9eec6e1a0094f8ecb384b394b1061cb3b7650497b9607ee51345e",
+    "manifest_sha256": "3287fa567545e9598a04e4ba57f7a484814e45195f6cd724bb0532c24b6606f5",
+    "files": 4433,
+    "links": 42,
+    "zip_bytes": 51686060,
+    "tar_bytes": 51763039,
+    "payload_allocated_bytes": 139657216,
+    "package_artifact": 13419830937,
+    "platform_ci": 42037466701
+  },
+  "before_pointers": {
+    "admin-current": "alisa-482ed11832b666af",
+    "web-current": "alisa-482ed11832b666af",
+    "site-current": "alisa-482ed11832b666af",
+    "identity-current": "alisa-482ed11832b666af",
+    "current": "alisa-482ed11832b666af"
+  },
+  "required_growth_mib": 498,
+  "disk_before_mib": 4046,
+  "disk_after_mib": 3685,
+  "finished_utc": "2026-11-05T14:00:06.211309+00:00"
+}

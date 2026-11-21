@@ -1,0 +1,28 @@
+{
+  "scope": "EXISTING_NATIVE_PAIR_CHECKER_AND_TWO_API_FILES_ONLY",
+  "status": "FAILED",
+  "cases": [
+    {
+      "case": "allowed_phase",
+      "passed": true
+    },
+    {
+      "case": "new_receipt",
+      "passed": true
+    },
+    {
+      "case": "prepared_snapshot_still_current",
+      "passed": true
+    },
+    {
+      "case": "activation_reserve",
+      "passed": true
+    },
+    {
+      "case": "expected_current_catalog_launch",
+      "passed": true
+    }
+  ],
+  "recovery": "OWN_POINTER_AND_DROPIN_ROLLBACK_ATTEMPTED_OLD_RELEASES_RETAINED",
+  "error_type": "CalledProcessError"
+}

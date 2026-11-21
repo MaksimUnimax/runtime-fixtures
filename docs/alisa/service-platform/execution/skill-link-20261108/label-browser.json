@@ -1,0 +1,11 @@
+{
+  "scope": "OWNED_EMPTY_BROWSER_DOM_REPRODUCTION_NOT_LIVE_OWNER",
+  "old_exact_label_matches": 0,
+  "new_exact_label_matches": 1,
+  "default_private": true,
+  "external_network_allowed": false,
+  "unit_exit": 0,
+  "service_runtime_seconds": 3.855,
+  "runtime_directory": "private tmpfs, removed by systemd",
+  "website_services_changed": false
+}

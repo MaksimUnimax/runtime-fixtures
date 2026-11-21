@@ -1,0 +1,212 @@
+{
+  "scope": "S04_ADDITIVE_SCHEMA_AND_CURRENT_SITE_ACTIVATION",
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "exact_reviewed_binding_file",
+      "passed": true
+    },
+    {
+      "case": "exact_package_installed",
+      "passed": true
+    },
+    {
+      "case": "qualified_window_active",
+      "passed": true
+    },
+    {
+      "case": "web_effective_launch_uses_switched_pointer",
+      "passed": true
+    },
+    {
+      "case": "web_effective_working_directory_own_release",
+      "passed": true
+    },
+    {
+      "case": "platform_effective_launch_uses_switched_pointer",
+      "passed": true
+    },
+    {
+      "case": "platform_effective_working_directory_own_release",
+      "passed": true
+    },
+    {
+      "case": "admin_effective_launch_uses_switched_pointer",
+      "passed": true
+    },
+    {
+      "case": "admin_effective_working_directory_own_release",
+      "passed": true
+    },
+    {
+      "case": "all_five_pointers_in_exact_current_namespace",
+      "passed": true
+    },
+    {
+      "case": "canonical_site_and_current_admin_origin_preserved",
+      "passed": true
+    },
+    {
+      "case": "canonical_auth_flags_and_issuers_preserved",
+      "passed": true
+    },
+    {
+      "case": "web_private_root_config",
+      "passed": true
+    },
+    {
+      "case": "platform_private_root_config",
+      "passed": true
+    },
+    {
+      "case": "admin_private_root_config",
+      "passed": true
+    },
+    {
+      "case": "identity_private_root_config",
+      "passed": true
+    },
+    {
+      "case": "platform-migration_private_root_config",
+      "passed": true
+    },
+    {
+      "case": "identity-migration_private_root_config",
+      "passed": true
+    },
+    {
+      "case": "s04_capability_not_previously_enabled",
+      "passed": true
+    },
+    {
+      "case": "only_own_platform_database_roles",
+      "passed": true
+    },
+    {
+      "case": "s04_schema_not_previously_applied",
+      "passed": true
+    },
+    {
+      "case": "plan_exactly_new_access_migration",
+      "passed": true
+    },
+    {
+      "case": "only_access_migration_applied",
+      "passed": true
+    },
+    {
+      "case": "exactly_one_additive_migration_ledger_delta",
+      "passed": true
+    },
+    {
+      "case": "accessgrant_runtime_update_denied",
+      "passed": true
+    },
+    {
+      "case": "accessgrant_runtime_delete_denied",
+      "passed": true
+    },
+    {
+      "case": "accessgrant_runtime_truncate_denied",
+      "passed": true
+    },
+    {
+      "case": "accessadjustment_runtime_update_denied",
+      "passed": true
+    },
+    {
+      "case": "accessadjustment_runtime_delete_denied",
+      "passed": true
+    },
+    {
+      "case": "accessadjustment_runtime_truncate_denied",
+      "passed": true
+    },
+    {
+      "case": "accesspreview_runtime_update_denied",
+      "passed": true
+    },
+    {
+      "case": "accesspreview_runtime_delete_denied",
+      "passed": true
+    },
+    {
+      "case": "accesspreview_runtime_truncate_denied",
+      "passed": true
+    },
+    {
+      "case": "migration_did_not_issue_customer_access",
+      "passed": true
+    },
+    {
+      "case": "physical_reserve_before_activation",
+      "passed": true
+    },
+    {
+      "case": "no_config_or_pointer_drift",
+      "passed": true
+    },
+    {
+      "case": "all_staff_authority_unchanged",
+      "passed": true
+    },
+    {
+      "case": "identity_and_shared_pointers_preserved",
+      "passed": true
+    },
+    {
+      "case": "all_ingress_and_dropins_unchanged",
+      "passed": true
+    },
+    {
+      "case": "all_noncapability_config_bytes_preserved",
+      "passed": true
+    },
+    {
+      "case": "canonical_fresh_public_ready",
+      "passed": true
+    },
+    {
+      "case": "admin_fresh_public_ready",
+      "passed": true
+    }
+  ],
+  "started_utc": "2026-11-05T14:13:16.792320+00:00",
+  "old_pointers": {
+    "admin-current": "alisa-482ed11832b666af",
+    "web-current": "alisa-482ed11832b666af",
+    "site-current": "alisa-482ed11832b666af",
+    "identity-current": "alisa-482ed11832b666af",
+    "current": "alisa-482ed11832b666af"
+  },
+  "staff_authority_before_fingerprint": "3a5b10972dba875d25310c4b020a598a0445a41e53d7975de2cad22959cf0a4c",
+  "health": {
+    "web": {
+      "component": "web",
+      "environment": "stage",
+      "release": "alisa-c8666516683e7b2b",
+      "status": "READY"
+    },
+    "admin": {
+      "component": "admin",
+      "environment": "stage",
+      "release": "alisa-c8666516683e7b2b",
+      "status": "READY"
+    },
+    "platform": {
+      "component": "platform",
+      "status": "READY",
+      "runtime": "RUNTIME_NOT_CONNECTED",
+      "environment": "stage",
+      "release": "alisa-c8666516683e7b2b"
+    },
+    "identity": {
+      "component": "identity",
+      "environment": "stage",
+      "release": "alisa-482ed11832b666af",
+      "status": "READY",
+      "authentication": "OIDC_CODE_PKCE"
+    }
+  },
+  "finished_utc": "2026-11-05T14:13:23.056526+00:00"
+}

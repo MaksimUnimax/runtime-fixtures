@@ -1,0 +1,804 @@
+{
+  "version": "20261105-ad-scope-r1",
+  "status": "READ_ONLY_OWNER_LAB_CANARY_NOT_PRODUCTION_VERIFIED",
+  "metric_definitions": {
+    "ordered_units": {
+      "label": "заказано товаров",
+      "unit": "item",
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "source": "orders",
+      "aggregation": "sum",
+      "meaning": "Количество заказанных товаров, не число отдельных заказов и не выкупы"
+    },
+    "ordered_revenue": {
+      "label": "сумма заказов",
+      "unit": "currency",
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "source": "orders",
+      "aggregation": "sum",
+      "meaning": "Сумма заказанных товаров, не выплата и не прибыль"
+    },
+    "ad_spend": {
+      "label": "расход на рекламу по отчёту",
+      "unit": "currency",
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "source": "ads",
+      "aggregation": "sum",
+      "meaning": "Ozon moneySpent; WB сумма updSum. Не пополнения рекламного счёта. Бонусы Ozon не прибавляются к moneySpent повторно"
+    },
+    "ad_bonus_spend": {
+      "label": "расход рекламных бонусов",
+      "unit": "currency",
+      "platforms": [
+        "ozon"
+      ],
+      "source": "ads",
+      "aggregation": "sum",
+      "meaning": "расход рекламных бонусов"
+    },
+    "ad_prepayment_spend": {
+      "label": "расход с абонентского рекламного счёта",
+      "unit": "currency",
+      "platforms": [
+        "ozon"
+      ],
+      "source": "ads",
+      "aggregation": "sum",
+      "meaning": "расход с абонентского рекламного счёта"
+    },
+    "buyout_units_cohort": {
+      "label": "выкуплено товаров из заказов периода",
+      "unit": "item",
+      "platforms": [
+        "wb"
+      ],
+      "source": "orders",
+      "aggregation": "sum",
+      "meaning": "выкуплено товаров из заказов периода"
+    },
+    "buyout_revenue_cohort": {
+      "label": "сумма выкупов по заказам периода",
+      "unit": "currency",
+      "platforms": [
+        "wb"
+      ],
+      "source": "orders",
+      "aggregation": "sum",
+      "meaning": "сумма выкупов по заказам периода"
+    },
+    "cancelled_units_cohort": {
+      "label": "отменено товаров из заказов периода",
+      "unit": "item",
+      "platforms": [
+        "wb"
+      ],
+      "source": "orders",
+      "aggregation": "sum",
+      "meaning": "отменено товаров из заказов периода"
+    },
+    "cancelled_revenue_cohort": {
+      "label": "сумма отмен по заказам периода",
+      "unit": "currency",
+      "platforms": [
+        "wb"
+      ],
+      "source": "orders",
+      "aggregation": "sum",
+      "meaning": "сумма отмен по заказам периода"
+    },
+    "card_views": {
+      "label": "переходов в карточки",
+      "unit": "count",
+      "platforms": [
+        "wb"
+      ],
+      "source": "orders",
+      "aggregation": "sum",
+      "meaning": "переходов в карточки"
+    },
+    "cart_additions": {
+      "label": "добавлений в корзину",
+      "unit": "count",
+      "platforms": [
+        "wb"
+      ],
+      "source": "orders",
+      "aggregation": "sum",
+      "meaning": "добавлений в корзину"
+    },
+    "drr_ordered": {
+      "label": "ДРР от суммы заказов",
+      "unit": "percent",
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "dependencies": [
+        "ad_spend",
+        "ordered_revenue"
+      ],
+      "formula": "ratio_percent",
+      "aggregation": "recompute_from_summed_operands"
+    },
+    "average_ordered_item_price": {
+      "label": "средняя стоимость заказанного товара",
+      "unit": "currency_per_item",
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "dependencies": [
+        "ordered_revenue",
+        "ordered_units"
+      ],
+      "formula": "ratio",
+      "aggregation": "recompute_from_summed_operands"
+    },
+    "orders_per_day": {
+      "label": "заказанных товаров в среднем за день",
+      "unit": "items_per_day",
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "dependencies": [
+        "ordered_units"
+      ],
+      "formula": "per_calendar_day",
+      "aggregation": "recompute_from_summed_operands"
+    },
+    "cart_to_order_rate": {
+      "label": "конверсия корзины в заказ",
+      "unit": "percent",
+      "platforms": [
+        "wb"
+      ],
+      "dependencies": [
+        "ordered_units",
+        "cart_additions"
+      ],
+      "formula": "ratio_percent",
+      "aggregation": "recompute_from_summed_operands"
+    },
+    "view_to_cart_rate": {
+      "label": "конверсия переходов в корзину",
+      "unit": "percent",
+      "platforms": [
+        "wb"
+      ],
+      "dependencies": [
+        "cart_additions",
+        "card_views"
+      ],
+      "formula": "ratio_percent",
+      "aggregation": "recompute_from_summed_operands"
+    },
+    "buyout_share": {
+      "label": "доля выкупленных товаров в заказанных",
+      "unit": "percent",
+      "platforms": [
+        "wb"
+      ],
+      "dependencies": [
+        "buyout_units_cohort",
+        "ordered_units"
+      ],
+      "formula": "ratio_percent",
+      "aggregation": "recompute_from_summed_operands"
+    },
+    "finance_sales": {
+      "label": "продажи по финансовому источнику",
+      "meaning": "продажи по финансовому источнику",
+      "source": "finance",
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "unit": "currency",
+      "signed": true,
+      "temporal": "financial_period",
+      "aggregation": "source_defined_sum"
+    },
+    "finance_storage_cost": {
+      "label": "хранение: сумма расходов по финансовому источнику",
+      "meaning": "хранение: сумма расходов по финансовому источнику",
+      "source": "finance",
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "unit": "currency",
+      "signed": true,
+      "temporal": "financial_period",
+      "aggregation": "source_defined_sum"
+    },
+    "finance_logistics_cost": {
+      "label": "логистика: сумма расходов по финансовому источнику",
+      "meaning": "логистика: сумма расходов по финансовому источнику",
+      "source": "finance",
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "unit": "currency",
+      "signed": true,
+      "temporal": "financial_period",
+      "aggregation": "source_defined_sum"
+    },
+    "finance_commission_cost": {
+      "label": "комиссия с учётом сторно возвратов",
+      "meaning": "комиссия с учётом сторно возвратов",
+      "source": "finance",
+      "platforms": [
+        "ozon"
+      ],
+      "unit": "currency",
+      "signed": true,
+      "temporal": "financial_period",
+      "aggregation": "source_defined_sum"
+    },
+    "finance_acquiring_cost": {
+      "label": "эквайринг по финансовому балансу",
+      "meaning": "эквайринг по финансовому балансу",
+      "source": "finance",
+      "platforms": [
+        "ozon"
+      ],
+      "unit": "currency",
+      "signed": true,
+      "temporal": "financial_period",
+      "aggregation": "source_defined_sum"
+    },
+    "finance_return_amount": {
+      "label": "возвраты по финансовому балансу, знак сохранён",
+      "meaning": "возвраты по финансовому балансу, знак сохранён",
+      "source": "finance",
+      "platforms": [
+        "ozon"
+      ],
+      "unit": "currency",
+      "signed": true,
+      "temporal": "financial_period",
+      "aggregation": "source_defined_sum"
+    },
+    "finance_accrued": {
+      "label": "итого начислено по финансовому балансу",
+      "meaning": "итого начислено по финансовому балансу",
+      "source": "finance",
+      "platforms": [
+        "ozon"
+      ],
+      "unit": "currency",
+      "signed": true,
+      "temporal": "financial_period",
+      "aggregation": "source_defined_sum"
+    },
+    "finance_payments": {
+      "label": "выплаты по финансовому балансу",
+      "meaning": "выплаты по финансовому балансу",
+      "source": "finance",
+      "platforms": [
+        "ozon"
+      ],
+      "unit": "currency",
+      "signed": true,
+      "temporal": "financial_period",
+      "aggregation": "source_defined_sum"
+    },
+    "finance_services_cost": {
+      "label": "все услуги по финансовому балансу",
+      "meaning": "все услуги по финансовому балансу",
+      "source": "finance",
+      "platforms": [
+        "ozon"
+      ],
+      "unit": "currency",
+      "signed": true,
+      "temporal": "financial_period",
+      "aggregation": "source_defined_sum"
+    },
+    "finance_opening_balance": {
+      "label": "начальный баланс периода",
+      "meaning": "начальный баланс периода",
+      "source": "finance",
+      "platforms": [
+        "ozon"
+      ],
+      "unit": "currency",
+      "signed": true,
+      "temporal": "financial_period",
+      "aggregation": "source_defined_sum"
+    },
+    "finance_closing_balance": {
+      "label": "конечный баланс периода",
+      "meaning": "конечный баланс периода",
+      "source": "finance",
+      "platforms": [
+        "ozon"
+      ],
+      "unit": "currency",
+      "signed": true,
+      "temporal": "financial_period",
+      "aggregation": "source_defined_sum"
+    },
+    "finance_for_pay": {
+      "label": "к перечислению за товар до прочих удержаний",
+      "meaning": "к перечислению за товар до прочих удержаний",
+      "source": "finance",
+      "platforms": [
+        "wb"
+      ],
+      "unit": "currency",
+      "signed": true,
+      "temporal": "financial_period",
+      "aggregation": "source_defined_sum"
+    },
+    "finance_acceptance_cost": {
+      "label": "платная приёмка по финансовым отчётам",
+      "meaning": "платная приёмка по финансовым отчётам",
+      "source": "finance",
+      "platforms": [
+        "wb"
+      ],
+      "unit": "currency",
+      "signed": true,
+      "temporal": "financial_period",
+      "aggregation": "source_defined_sum"
+    },
+    "finance_deductions": {
+      "label": "удержания по финансовым отчётам",
+      "meaning": "удержания по финансовым отчётам",
+      "source": "finance",
+      "platforms": [
+        "wb"
+      ],
+      "unit": "currency",
+      "signed": true,
+      "temporal": "financial_period",
+      "aggregation": "source_defined_sum"
+    },
+    "finance_penalties": {
+      "label": "штрафы по финансовым отчётам",
+      "meaning": "штрафы по финансовым отчётам",
+      "source": "finance",
+      "platforms": [
+        "wb"
+      ],
+      "unit": "currency",
+      "signed": true,
+      "temporal": "financial_period",
+      "aggregation": "source_defined_sum"
+    },
+    "finance_additional_payments": {
+      "label": "доплаты по финансовым отчётам",
+      "meaning": "доплаты по финансовым отчётам",
+      "source": "finance",
+      "platforms": [
+        "wb"
+      ],
+      "unit": "currency",
+      "signed": true,
+      "temporal": "financial_period",
+      "aggregation": "source_defined_sum"
+    },
+    "finance_bank_scheduled": {
+      "label": "сумма к выплате по финансовым отчётам",
+      "meaning": "сумма к выплате по финансовым отчётам",
+      "source": "finance",
+      "platforms": [
+        "wb"
+      ],
+      "unit": "currency",
+      "signed": true,
+      "temporal": "financial_period",
+      "aggregation": "source_defined_sum"
+    },
+    "current_balance": {
+      "label": "текущий баланс кабинета",
+      "meaning": "текущий баланс кабинета",
+      "source": "balance",
+      "platforms": [
+        "wb"
+      ],
+      "unit": "currency",
+      "signed": true,
+      "temporal": "snapshot",
+      "aggregation": "source_defined_sum"
+    },
+    "available_withdrawal": {
+      "label": "доступно к выводу сейчас",
+      "meaning": "доступно к выводу сейчас",
+      "source": "balance",
+      "platforms": [
+        "wb"
+      ],
+      "unit": "currency",
+      "signed": true,
+      "temporal": "snapshot",
+      "aggregation": "source_defined_sum"
+    },
+    "stock_fbo_units": {
+      "label": "остатки на складах площадки",
+      "meaning": "остатки на складах площадки",
+      "source": "stocks",
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "unit": "item",
+      "signed": false,
+      "temporal": "snapshot",
+      "aggregation": "source_defined_sum"
+    },
+    "stock_fbs_units": {
+      "label": "остатки на складах продавца Ozon",
+      "meaning": "остатки на складах продавца Ozon",
+      "source": "stocks",
+      "platforms": [
+        "ozon"
+      ],
+      "unit": "item",
+      "signed": false,
+      "temporal": "snapshot",
+      "aggregation": "source_defined_sum"
+    },
+    "stock_fbo_reserved": {
+      "label": "зарезервировано на складах Ozon",
+      "meaning": "зарезервировано на складах Ozon",
+      "source": "stocks",
+      "platforms": [
+        "ozon"
+      ],
+      "unit": "item",
+      "signed": false,
+      "temporal": "snapshot",
+      "aggregation": "source_defined_sum"
+    },
+    "stock_fbs_reserved": {
+      "label": "зарезервировано на складах продавца Ozon",
+      "meaning": "зарезервировано на складах продавца Ozon",
+      "source": "stocks",
+      "platforms": [
+        "ozon"
+      ],
+      "unit": "item",
+      "signed": false,
+      "temporal": "snapshot",
+      "aggregation": "source_defined_sum"
+    },
+    "stock_to_customer": {
+      "label": "в пути до покупателей WB",
+      "meaning": "в пути до покупателей WB",
+      "source": "stocks",
+      "platforms": [
+        "wb"
+      ],
+      "unit": "item",
+      "signed": false,
+      "temporal": "snapshot",
+      "aggregation": "source_defined_sum"
+    },
+    "stock_return_transit": {
+      "label": "возвраты в пути на склады WB",
+      "meaning": "возвраты в пути на склады WB",
+      "source": "stocks",
+      "platforms": [
+        "wb"
+      ],
+      "unit": "item",
+      "signed": false,
+      "temporal": "snapshot",
+      "aggregation": "source_defined_sum"
+    },
+    "accrual_sale_units": {
+      "label": "товаров в положительных начислениях",
+      "unit": "item",
+      "platforms": [
+        "ozon"
+      ],
+      "source": "accrual",
+      "temporal": "accrual_date",
+      "signed": false,
+      "notes": [
+        "Основание — дата начисления, не дата заказа и не фактического выкупа. Обратные начисления показаны отдельно и не доказывают физический возврат в этот день.",
+        "Покупательская сумма здесь — сумма товарных строк источника, не банковская выплата и не кассовый чек. Среднее на товар считается как сумма строк, делённая на количество."
+      ]
+    },
+    "accrual_sale_amount": {
+      "label": "покупательская сумма товарных строк начислений",
+      "unit": "currency",
+      "platforms": [
+        "ozon"
+      ],
+      "source": "accrual",
+      "temporal": "accrual_date",
+      "signed": false,
+      "notes": [
+        "Основание — дата начисления, не дата заказа и не фактического выкупа. Обратные начисления показаны отдельно и не доказывают физический возврат в этот день.",
+        "Покупательская сумма здесь — сумма товарных строк источника, не банковская выплата и не кассовый чек. Среднее на товар считается как сумма строк, делённая на количество."
+      ]
+    },
+    "accrual_reversal_units": {
+      "label": "товаров в обратных начислениях",
+      "unit": "item",
+      "platforms": [
+        "ozon"
+      ],
+      "source": "accrual",
+      "temporal": "accrual_date",
+      "signed": false,
+      "notes": [
+        "Основание — дата начисления, не дата заказа и не фактического выкупа. Обратные начисления показаны отдельно и не доказывают физический возврат в этот день.",
+        "Покупательская сумма здесь — сумма товарных строк источника, не банковская выплата и не кассовый чек. Среднее на товар считается как сумма строк, делённая на количество."
+      ]
+    },
+    "accrual_reversal_amount": {
+      "label": "модуль покупательской суммы обратных начислений",
+      "unit": "currency",
+      "platforms": [
+        "ozon"
+      ],
+      "source": "accrual",
+      "temporal": "accrual_date",
+      "signed": false,
+      "notes": [
+        "Основание — дата начисления, не дата заказа и не фактического выкупа. Обратные начисления показаны отдельно и не доказывают физический возврат в этот день.",
+        "Покупательская сумма здесь — сумма товарных строк источника, не банковская выплата и не кассовый чек. Среднее на товар считается как сумма строк, делённая на количество."
+      ]
+    },
+    "accrual_seller_amount": {
+      "label": "сумма положительных товарных начислений в цене продавца",
+      "unit": "currency",
+      "platforms": [
+        "ozon"
+      ],
+      "source": "accrual",
+      "temporal": "accrual_date",
+      "signed": false,
+      "notes": [
+        "Основание — дата начисления, не дата заказа и не фактического выкупа. Обратные начисления показаны отдельно и не доказывают физический возврат в этот день.",
+        "Покупательская сумма здесь — сумма товарных строк источника, не банковская выплата и не кассовый чек. Среднее на товар считается как сумма строк, делённая на количество."
+      ]
+    },
+    "accrual_reversal_seller_amount": {
+      "label": "модуль обратных товарных начислений в цене продавца",
+      "unit": "currency",
+      "platforms": [
+        "ozon"
+      ],
+      "source": "accrual",
+      "temporal": "accrual_date",
+      "signed": false,
+      "notes": [
+        "Основание — дата начисления, не дата заказа и не фактического выкупа. Обратные начисления показаны отдельно и не доказывают физический возврат в этот день.",
+        "Покупательская сумма здесь — сумма товарных строк источника, не банковская выплата и не кассовый чек. Среднее на товар считается как сумма строк, делённая на количество."
+      ]
+    }
+  },
+  "recipes": {
+    "ozon": {
+      "id": "ozon.orders.v1",
+      "operation": "ozon_orders",
+      "method": "POST",
+      "url": "https://api-seller.ozon.ru/v1/analytics/data",
+      "min_interval": 61,
+      "daily_limit": 50,
+      "qualification": "CANDIDATE_DECODER",
+      "decoder": "ozon_month_rows_and_totals_v1",
+      "period_mode": "one_full_interval",
+      "metrics": {
+        "ordered_units": "ordered_units",
+        "ordered_revenue": "revenue"
+      }
+    },
+    "wb": {
+      "id": "wb.orders.v3",
+      "operation": "wb_orders",
+      "method": "POST",
+      "url": "https://seller-analytics-api.wildberries.ru/api/analytics/v3/sales-funnel/products",
+      "min_interval": 21,
+      "daily_limit": 48,
+      "qualification": "CANDIDATE_DECODER",
+      "decoder": "wb_selected_period_offset_v1",
+      "period_mode": "one_full_interval_per_page",
+      "metrics": {
+        "ordered_units": "orderCount",
+        "ordered_revenue": "orderSum",
+        "buyout_units_cohort": "buyoutCount",
+        "buyout_revenue_cohort": "buyoutSum",
+        "cancelled_units_cohort": "cancelCount",
+        "cancelled_revenue_cohort": "cancelSum",
+        "card_views": "openCount",
+        "cart_additions": "cartCount"
+      },
+      "token_class": "PERSONAL_VERIFIED_OWNER_INTAKE_2026_11_03"
+    },
+    "ozon_ads": {
+      "id": "ozon_expense.v1",
+      "operation": "ozon_expense",
+      "method": "GET",
+      "url": "https://api-performance.ozon.ru/api/client/statistics/expense/json",
+      "min_interval": 2,
+      "daily_limit": 100,
+      "qualification": "CANDIDATE_DECODER",
+      "decoder": "ozon_expense_period_complete_v1",
+      "period_mode": "maximum_allowed_contiguous_chunks",
+      "max_days": 62,
+      "metrics": {
+        "ad_bonus_spend": "bonusSpent",
+        "ad_prepayment_spend": "prepaymentSpent"
+      }
+    },
+    "wb_ads": {
+      "id": "wb_expense.v1",
+      "operation": "wb_expense",
+      "method": "GET",
+      "url": "https://advert-api.wildberries.ru/adv/v1/upd",
+      "min_interval": 2,
+      "daily_limit": 100,
+      "qualification": "CANDIDATE_DECODER",
+      "decoder": "wb_expense_period_complete_v1",
+      "period_mode": "maximum_allowed_contiguous_chunks",
+      "max_days": 31,
+      "metrics": {
+        "ad_spend": "updSum"
+      }
+    },
+    "ozon_finance": {
+      "id": "ozon.balance.v1",
+      "operation": "ozon_finance",
+      "method": "POST",
+      "url": "https://api-seller.ozon.ru/v1/finance/balance",
+      "min_interval": 61,
+      "daily_limit": 50,
+      "qualification": "CANDIDATE_DECODER",
+      "decoder": "ozon_balance_signed_v1",
+      "metrics": {
+        "finance_sales": "finance_sales",
+        "finance_storage_cost": "finance_storage_cost",
+        "finance_logistics_cost": "finance_logistics_cost",
+        "finance_commission_cost": "finance_commission_cost",
+        "finance_acquiring_cost": "finance_acquiring_cost",
+        "finance_return_amount": "finance_return_amount",
+        "finance_accrued": "finance_accrued",
+        "finance_payments": "finance_payments",
+        "finance_services_cost": "finance_services_cost",
+        "finance_opening_balance": "finance_opening_balance",
+        "finance_closing_balance": "finance_closing_balance"
+      }
+    },
+    "wb_finance": {
+      "id": "wb.finance.list.v1",
+      "operation": "wb_finance",
+      "method": "POST",
+      "url": "https://finance-api.wildberries.ru/api/finance/v1/sales-reports/list",
+      "min_interval": 61,
+      "daily_limit": 50,
+      "qualification": "CANDIDATE_DECODER",
+      "decoder": "wb_daily_reports_full_coverage_v1",
+      "metrics": {
+        "finance_sales": "finance_sales",
+        "finance_storage_cost": "finance_storage_cost",
+        "finance_logistics_cost": "finance_logistics_cost",
+        "finance_for_pay": "finance_for_pay",
+        "finance_acceptance_cost": "finance_acceptance_cost",
+        "finance_deductions": "finance_deductions",
+        "finance_penalties": "finance_penalties",
+        "finance_additional_payments": "finance_additional_payments",
+        "finance_bank_scheduled": "finance_bank_scheduled"
+      }
+    },
+    "ozon_stocks": {
+      "id": "ozon.stocks.v4",
+      "operation": "ozon_stocks",
+      "method": "POST",
+      "url": "https://api-seller.ozon.ru/v4/product/info/stocks",
+      "min_interval": 2,
+      "daily_limit": 100,
+      "qualification": "CANDIDATE_DECODER",
+      "decoder": "ozon_stock_cursor_totals_v1",
+      "metrics": {
+        "stock_fbo_units": "stock_fbo_units",
+        "stock_fbs_units": "stock_fbs_units",
+        "stock_fbo_reserved": "stock_fbo_reserved",
+        "stock_fbs_reserved": "stock_fbs_reserved"
+      }
+    },
+    "wb_stocks": {
+      "id": "wb.remains.v1",
+      "operation": "wb_stocks_create",
+      "method": "GET",
+      "url": "https://seller-analytics-api.wildberries.ru/api/v1/warehouse_remains",
+      "min_interval": 61,
+      "daily_limit": 30,
+      "qualification": "CANDIDATE_DECODER",
+      "decoder": "wb_durable_remains_task_v1",
+      "metrics": {
+        "stock_fbo_units": "stock_fbo_units",
+        "stock_to_customer": "stock_to_customer",
+        "stock_return_transit": "stock_return_transit"
+      }
+    },
+    "wb_balance": {
+      "id": "wb.balance.v1",
+      "operation": "wb_balance",
+      "method": "GET",
+      "url": "https://finance-api.wildberries.ru/api/v1/account/balance",
+      "min_interval": 61,
+      "daily_limit": 50,
+      "qualification": "CANDIDATE_DECODER",
+      "decoder": "wb_balance_currency_v1",
+      "metrics": {
+        "current_balance": "current",
+        "available_withdrawal": "for_withdraw"
+      }
+    },
+    "ozon_accruals": {
+      "operation": "ozon_accrual_by_day",
+      "url": "https://api-seller.ozon.ru/v1/finance/accrual/by-day",
+      "method": "POST",
+      "min_interval": 2,
+      "daily_limit": 100,
+      "max_days": 1,
+      "metrics": {
+        "accrual_sale_units": "gross_units",
+        "accrual_sale_amount": "gross_buyer_amount",
+        "accrual_reversal_units": "reversal_units",
+        "accrual_reversal_amount": "reversal_buyer_amount",
+        "accrual_seller_amount": "gross_seller_amount",
+        "accrual_reversal_seller_amount": "reversal_seller_amount"
+      }
+    },
+    "ozon_ads_daily": {
+      "id": "ozon_ads_daily.v1",
+      "operation": "ozon_ads_daily",
+      "method": "GET",
+      "url": "https://api-performance.ozon.ru/api/client/statistics/daily/json",
+      "min_interval": 2,
+      "daily_limit": 100,
+      "qualification": "CANDIDATE_EXACT_SCOPE",
+      "decoder": "matrix_daily_expense_v1",
+      "period_mode": "maximum_allowed_contiguous_chunks",
+      "max_days": 62,
+      "metrics": {
+        "ad_spend": "moneySpent"
+      }
+    }
+  },
+  "cache_policy": "exact_ready_complete_authorized_nonexpired_only",
+  "default_timezone": "Europe/Moscow",
+  "llm_role": "semantic_metric_selection_only",
+  "disabled_metrics": [
+    "profit_without_cost_basis",
+    "buyouts_by_event_date",
+    "returns_by_event_date",
+    "historical_stock"
+  ],
+  "disabled_operations": [
+    "ozon_sku_filters",
+    "warehouse_filters",
+    "currency_conversion",
+    "mutations",
+    "advertising_product_attribution",
+    "cross_marketplace_financial_totals",
+    "financial_product_filters",
+    "snapshot_period_comparison"
+  ],
+  "allowed_operations": [
+    "wb_nm_id_filter",
+    "wb_nm_id_exclusion",
+    "wb_brand_filter",
+    "period_comparison",
+    "combined_metrics",
+    "ratios_from_operands"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "status": "PASS",
+  "scope": "IDENTITY_DIRECT_FORM_OVERLAY_READBACK",
+  "source_sha": "3a1d3885250d8aa1a51f6e7df3f9d1c3db50b281",
+  "identity_release": "alisa-direct-login-3a1d3885250d8aa1",
+  "other_pointers": {
+    "site-current": "alisa-native-pair-8e1a695d71f1004b",
+    "web-current": "alisa-917600ca66cd6afa",
+    "admin-current": "alisa-06f3c053e7719290"
+  },
+  "native_ozon_binding_matches_restarted_core": true,
+  "identity_file_hashes": {
+    "services/identity/src/octoport_identity/protocol/customer.py": "5c7d54847a592ede33118ecb661e1350a3415a56c3bbf8ca58eb125ba74d2f9e",
+    "services/identity/src/octoport_identity/protocol/views.py": "ac2f32b2f8bec82cac092ddfe5f891f038f8cb80bc4c0dcb0173468f4c2d0f13",
+    "services/identity/src/octoport_identity/accounts/templates/account/login.html": "13dc4bd5402feca93e697d59e0fea9ee729c9b6466a93589f74c2ad66904f150"
+  },
+  "free_bytes": 3229745152,
+  "available_inodes": 482409,
+  "owner_keys_confirmed": "OWNER_REPORTED_IN_CHAT",
+  "owner_browser_used_by_test": false
+}

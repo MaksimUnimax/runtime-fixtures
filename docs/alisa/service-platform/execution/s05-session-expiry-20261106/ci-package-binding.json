@@ -1,0 +1,18 @@
+{
+  "source_sha": "d9918bcb3695b432f1dcc6108f91a64824e7588c",
+  "source_tree": "bdd5d54375b54480fa2de200c34739d33d6179b6",
+  "ci": {
+    "platform": 42163427391,
+    "documentation": 42163427383,
+    "conclusion": "success"
+  },
+  "zip_size": 51723355,
+  "zip_sha256": "a6287d66e7a545629b9e94a40c16234c3cdfcbbf8d5d9e85789e72d614f2f7e4",
+  "tar_size": 51800489,
+  "tar_sha256": "db71bb686185cc9d02545befad959ed1d7ab9b43a1f7e37cd10579511a4e9bb0",
+  "manifest_sha256": "b3fc7bb7882d6004221ca3f87b617e963d003aae4c30d8363bde08582271eb4d",
+  "files": 4451,
+  "links": 42,
+  "web_logical_bytes": 49795809,
+  "complete_archive_payload_verified": true
+}

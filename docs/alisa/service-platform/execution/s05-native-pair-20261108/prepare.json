@@ -1,0 +1,76 @@
+{
+  "scope": "EXISTING_NATIVE_PAIR_CHECKER_AND_TWO_API_FILES_ONLY",
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "allowed_phase",
+      "passed": true
+    },
+    {
+      "case": "new_receipt",
+      "passed": true
+    },
+    {
+      "case": "existing_services_ready",
+      "passed": true
+    },
+    {
+      "case": "api_launch_follows_site_pointer",
+      "passed": true
+    },
+    {
+      "case": "expected_unmodified_sources",
+      "passed": true
+    },
+    {
+      "case": "bounded_compressed_source_payload",
+      "passed": true
+    },
+    {
+      "case": "exact_successful_ci",
+      "passed": true
+    },
+    {
+      "case": "all_four_ci_file_hashes",
+      "passed": true
+    },
+    {
+      "case": "exact_materialized_platform",
+      "passed": true
+    },
+    {
+      "case": "physical_overlay_budget",
+      "passed": true
+    },
+    {
+      "case": "fresh_owned_namespaces",
+      "passed": true
+    },
+    {
+      "case": "single_declared_adapter_patch",
+      "passed": true
+    },
+    {
+      "case": "foreign_catalog_preserved",
+      "passed": true
+    },
+    {
+      "case": "bounded_private_child",
+      "passed": true
+    },
+    {
+      "case": "prepare_preserves_running_components",
+      "passed": true
+    },
+    {
+      "case": "post_prepare_reserve",
+      "passed": true
+    }
+  ],
+  "phase": "PREPARED_NOT_ACTIVATED",
+  "api_files": 86,
+  "api_changed_files": 3,
+  "api_referenced_bytes": 262531,
+  "physical_budget": 360448,
+  "free_bytes": 3224551424
+}

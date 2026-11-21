@@ -1,0 +1,53 @@
+{
+  "version": "0.9-build5",
+  "scope": "private-owner-read-only-canary",
+  "release": "/opt/alice-market/releases/20261103-v09-composable-r5",
+  "deployed_utc": "2026-11-03T11:20:02.660552Z",
+  "final_server_check_utc": "2026-11-03T11:24:15.771254Z",
+  "runtime_sha256": {
+    "registry.json": "aa2fc24d1d08c205472839b17ebcab6c08c58ff2a82531e8fd5548a95ae6b51f",
+    "registry.py": "b7226c4b72e7bce1d97f84addf9c878102724669ff57bf42a7bb5bf6640fa2ba",
+    "semantics.py": "59ed6aad6c0a0dd48dc9babc6b5aafe529409fabf68fa8b42f924c1a89a7c5dc",
+    "providers.py": "6c616aae4e2d9d5ebfd3709d55d37f9861c0c79ae7e608e857c8e867c3983c35",
+    "finance_stock.py": "cc3675575b23e40ad486cce29bf6ee5d1bd788ed837b4630ad74b9b1535e9030",
+    "engine.py": "90476a86bca438f8d60cbbf284a71569ddd10329440d3020a85d6e4869155fe3",
+    "http_transport.py": "6a8374447aadcb20079580695f3cecfeb9c96776279d0b190f315f6abaa51c10",
+    "runtime.py": "fc006f97ea670726e41f17add6defabf06a6453ead28657ec8a1c5035fe6b237",
+    "repository.py": "67d67b1a0319891162da8eb772d308abe965f1dd9a3c5e3b1fbaeff26ff4bac3",
+    "alice_bridge.py": "c12d93b5ad6c9fa447250a9f662c63d69964d9608081df797c4352ac6210bed4",
+    "local_gateway.py": "431f26757c8d86602bb3e838f8d8c022378d4bb3bc0b786c032c2a8e8bc1a6a0",
+    "semantic_catalog.py": "960f26d6857734ba9a004f97d0f981ba787cea2b8eb4bb1e976a94062dd45afe",
+    "query_program.py": "6cf28bf3389abe3a98357ecb6a2963c06a64f0dc147cd7748023e2e434cd24e5",
+    "program_providers.py": "cee1c75b7b66828f73844c745268559333fd89658ccc9d6405caef10126be8d7",
+    "expression_catalog.json": "7c9db11e100daaa8b6c9ca22232a3a8c39fd0205572b12ba55dd548362b78c31",
+    "speech_catalog.json": "e47aee07c7bd580f0c34841d654883c6bd469e94e32c098d4f32527fc915b563",
+    "catalog_check.py": "056caaa03d3dff002a9b96a8a586478d9c6315b1cd91c689af69461467cc2201",
+    "resource_limits.json": "353a0fc46d46ce8dc643f11cd76f4b2e3c2d521cb64226650163a6bf586837ca"
+  },
+  "language": "alice-scalar-dag/v1",
+  "projection": "composed-voice-v2",
+  "source_registry_hash": "60d36ae41205ec39c993870de7aadef78f9610b66bfab1bdb713bc72a6f5e981",
+  "formula_catalog_hash": "6d9de6920a5bcf1afa3fc04191596805704d7ca480851a51bb934bf02d1de42d",
+  "speech_catalog_hash": "6ac84d5dc8779a3cf76c01df9c9ba3883d9addb1a870cf57c2918486071cae59",
+  "source_registry_and_credentials_changed": false,
+  "model_resource_policy_changed": {"old_rolling_24h_calls": 10, "new_rolling_24h_calls": 20, "min_interval_seconds": 2},
+  "offline_tests": {"tests_run": 461, "failures": 0, "errors": 0, "skipped": 0, "external_api_calls": 0, "forbidden_network_attempts": 0},
+  "full_attachment": {
+    "filename": "ALISA_MATRIX_v0.9_COMPOSABLE_2026-11-03.zip",
+    "bytes": 189056,
+    "files": 47,
+    "sha256": "0999f4b66912dbc16223ff600170de5241a3ab2e2608417ca23e505ffa97d6d1",
+    "manifest_hashes": "PASS",
+    "clean_extraction_tests": 461,
+    "patch_from_v08": "fuzz=0; all 18 runtime hashes match"
+  },
+  "server_source_snapshot": {
+    "path": "/root/alice-lab-evidence/composable-v09-r5-deploy-20261103/runtime-source-snapshot.zip",
+    "bytes": 58004,
+    "files": 19,
+    "sha256": "1b267080f2535e7248feb574f8557986385b18dd338f2da5687272df4eed2fda",
+    "credentials_or_private_reports": false
+  },
+  "user_console_v09_observed": false,
+  "publication_boundary": "Full sources/tests in attached ZIP and pinned server snapshot. Documents in this Git directory do not imply all Python files have been uploaded loose here."
+}

@@ -1,0 +1,14 @@
+{
+  "status": "PASS_FOR_CUMULATIVE_DECLARED_PRODUCT_SOURCE_SCOPE",
+  "local_source_sha": "be37b44bfb05b1919b80a36ea85e2b3dab206318",
+  "public_source_sha": "d3cb053be14264c6bb2332708abb32d4b0c005ae",
+  "tree_sha": "075cb627d25e0a0eac04ae3799ea7f5e822291db",
+  "reviewer": "s05_transport_review",
+  "final_delta": "Explicit accessible label for the voice privacy select; exact browser assertions unchanged.",
+  "backend_review": "source-review-r2.json",
+  "not_claimed": [
+    "reviewer-executed tests",
+    "installed service acceptance",
+    "real Yandex Dialogs console"
+  ]
+}

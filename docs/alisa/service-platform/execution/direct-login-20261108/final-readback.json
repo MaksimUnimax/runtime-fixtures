@@ -1,0 +1,28 @@
+{
+  "scope": "FINAL_INSTALLED_IDENTITY_AND_RESOURCE_READBACK",
+  "status": "PASS",
+  "readiness": {
+    "18100": {
+      "status": "READY",
+      "release": "alisa-917600ca66cd6afa"
+    },
+    "18101": {
+      "status": "READY",
+      "release": "alisa-06f3c053e7719290"
+    },
+    "18102": {
+      "status": "READY",
+      "release": "alisa-native-pair-8e1a695d71f1004b"
+    },
+    "18103": {
+      "status": "READY",
+      "release": "alisa-direct-login-3a1d3885250d8aa1"
+    }
+  },
+  "free_bytes": 3227893760,
+  "available_inodes": 482325,
+  "own_browser_runtime_removed": true,
+  "own_browser_cgroup_removed": true,
+  "browser_receipt_pass": true,
+  "identity_release": "alisa-direct-login-3a1d3885250d8aa1"
+}

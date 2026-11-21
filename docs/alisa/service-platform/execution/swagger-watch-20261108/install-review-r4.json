@@ -1,0 +1,44 @@
+{
+  "review": "ALISA_SWAGGER_WATCH_INSTALL_PROCEDURE_REVIEW_R4",
+  "date": "2026-11-08",
+  "verdict": "PASS_DELTA",
+  "scope": "Read-only review limited to public-readiness polling and activate-finalize path. No procedure execution, host/provider/DB/browser calls, tests, private configuration reads, or credential access.",
+  "source_pin": "7cbe3059a83677aeb42a086898a48067918f16a2",
+  "installer_sha256": "ec80bd5fdc0b6e6b0cdfd375c770ce01d0c5f5300bdeb76546113a84a7b80fbe",
+  "prior_review_sha256": "b6dc83eae777ce53ee7e5c71714b68d9ba51cefb32f50c410b9c47dc3ccc6d5d",
+  "delta_findings": {
+    "public_readiness_poll": {
+      "result": "PASS_BOUNDED_TRANSIENT_HANDLING",
+      "detail": "After the exact Nginx reload, only the public read-only /health/swagger route is polled for a fixed 12-second deadline; each request has a 2-second timeout, Connection: close, and Cache-Control: no-cache. Expected transient old-worker 404/HTML, malformed JSON, and 502/503 responses are retried. Success requires the public-only scope and expected product id; final assertion also requires llm_monitoring=false. A 503 carrying a valid DEGRADED document-status JSON can be accepted, which correctly distinguishes service installation from source freshness."
+    },
+    "activate_finalize_admission": {
+      "result": "PASS_NARROW_RECOVERY",
+      "detail": "The finalizer requires the exact prior activate-resume FAILED receipt, JSONDecodeError failure type and expected recovery marker, exact prepared/source/package pins, unchanged baseline, expected own current symlink and unit bytes, fixed UID/GID/group, exact reviewed owner file as a regular private file owned by the service UID, exact own include content, expected state-directory names, and a bounded private state index whose only document is the exact OWNER_SUPPLIED_REVIEWED Performance SHA with no candidate or automatic-success timestamp. It also requires the saved original Nginx config to match exactly."
+    },
+    "no_duplicate_acceptance": {
+      "result": "PASS",
+      "detail": "In finalize mode, import and accept-reviewed are skipped. The launcher performs read-only status, then the already-reviewed state is checked before starting the status route and reattaching the exact saved include. The existing owner file is not reimported and the product bundle is unchanged."
+    },
+    "recovery_behavior": {
+      "result": "PASS",
+      "detail": "Failure after the finalizer begins detaches only the exact include, removes only its own enable symlinks resolving to its own unit files, and queues its own unit stops plus Nginx reload. Existing product pointers/configs remain guarded; prior failed receipts are retained."
+    },
+    "prior_r3_readback_nit": "RESOLVED: owner input is now lstat-checked for regular-file type, expected service UID, and mode 0600 before digest validation/use."
+  },
+  "remaining_boundaries": [
+    "The fixed poll is intentionally read-only and does not authenticate a customer or create provider checks.",
+    "Activation success means the public status service is installed and routed. It does not mean official documentation was automatically retrieved; DEGRADED is allowed and truthful when Ozon requires operator-supplied source.",
+    "Owner-supplied reviewed content remains distinct from automatic TLS provenance, freshness, and Seller/Performance account identity."
+  ],
+  "deployment_gate": "No blocker found in R4. The narrow finalizer is appropriate for the recorded exact JSONDecodeError/readback failure only; any other failure shape should stop for new readback/review rather than widening its acceptance conditions.",
+  "reviewer_actions": {
+    "script_executed": false,
+    "tests_run": false,
+    "host_calls": false,
+    "provider_calls": false,
+    "db_calls": false,
+    "browser_calls": false,
+    "private_config_contents_read": false,
+    "provider_credentials_read": false
+  }
+}

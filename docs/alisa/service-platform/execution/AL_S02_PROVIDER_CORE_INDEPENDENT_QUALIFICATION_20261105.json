@@ -1,0 +1,235 @@
+{
+  "record_type": "AL_S02_PROVIDER_CORE_INDEPENDENT_QUALIFICATION",
+  "reviewed_at_utc": "2026-11-05T02:16:36Z",
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "pull_request": {
+    "number": 385,
+    "state": "open",
+    "draft": true,
+    "merged": false,
+    "head_branch": "feat/alisa-identity-cabinet-v05",
+    "source_commit": "d83e5cae071735bbca6df7b98c80df7ed7b5be26",
+    "source_tree": "5644b61bb707798ba1945ddb1a02647564ef22b6",
+    "synthetic_merge_commit": "cad39441454519d04778d7283ccb18ec9f0f79c1",
+    "note": "GitHub PR metadata distinguishes the feature head from its synthetic merge commit. The environment report source_sha is the synthetic merge commit; it is not the feature head."
+  },
+  "verdict": "ACCEPTED_FOR_DECLARED_PROVIDER_CORE_SPIKE_SCOPE",
+  "scope": "Independent read-only review of the actual GitHub Actions baseline/hardened provider-core CI artifact for the candidate spike. This is not AL-S02 product acceptance, identity deployment, or live-stage acceptance.",
+  "ci": {
+    "workflow_run_id": 41953062483,
+    "job_id": 127001309727,
+    "job_conclusion": "success",
+    "steps": [
+      "checkout",
+      "setup-python",
+      "compare baseline/hardened",
+      "upload safe JSON reports"
+    ],
+    "all_steps_success": true,
+    "related_ci": {
+      "source_checks_run_id": 41953062430,
+      "source_checks": "success",
+      "documentation_run_id": 41953062409,
+      "documentation": "success"
+    }
+  },
+  "artifact": {
+    "id": 13381976082,
+    "name": "alisa-s02-provider-core-cad39441454519d04778d7283ccb18ec9f0f79c1",
+    "sha256": "f739a45512b937efd120040a5b43165ab4edce8e0c7d391ccb9cfa5e6f85cdaf",
+    "github_api_digest": "sha256:f739a45512b937efd120040a5b43165ab4edce8e0c7d391ccb9cfa5e6f85cdaf",
+    "github_digest_matches_local_zip": true,
+    "members": [
+      "baseline.json",
+      "environment.json",
+      "hardened.json"
+    ],
+    "exactly_expected_members": true,
+    "local_extracted_json_matches_zip_members": true
+  },
+  "source_integrity": {
+    "local_candidate_tree": "5644b61bb707798ba1945ddb1a02647564ef22b6",
+    "environment_source_sha": "cad39441454519d04778d7283ccb18ec9f0f79c1",
+    "environment_source_sha_is_synthetic_merge": true,
+    "source_file_count": 14,
+    "all_environment_source_hashes_match_local_candidate": true,
+    "files": [
+      {
+        "path": "tests/identity_probe/__init__.py",
+        "sha256": "52ec7ce389268fead8f1f19c87568dae94de82f34be0f133e40b9cbeca66d915",
+        "matches_environment_manifest": true
+      },
+      {
+        "path": "tests/identity_probe/run_ci.py",
+        "sha256": "1b879f6bd1c5feff038a50e494f5e6088329f5362146ef9e34245d3b6212c1ae",
+        "matches_environment_manifest": true
+      },
+      {
+        "path": "tests/identity_probe/run_isolated.py",
+        "sha256": "b2d3e9cf7187e4cd7b51ad044d355804fcc648cf3e09a38c3b241d1aa56beb11",
+        "matches_environment_manifest": true
+      },
+      {
+        "path": "tests/identity_probe/policy.py",
+        "sha256": "554e6babe2211eb95112cd95ed5172fcef4c0e9ddf49394307cbf9ab050f366d",
+        "matches_environment_manifest": true
+      },
+      {
+        "path": "tests/identity_probe/run_probe.py",
+        "sha256": "0b20c9a6ee7139582fef0d45ddca89c9f17d0e296f96335b831ba31218c01985",
+        "matches_environment_manifest": true
+      },
+      {
+        "path": "tests/identity_probe/urls.py",
+        "sha256": "ee83a1de4951993b47035a04bd97f906ea1408ac5de7bc4bee64515d2764f608",
+        "matches_environment_manifest": true
+      },
+      {
+        "path": "tests/identity_probe/settings.py",
+        "sha256": "175f8936ca5697a148d3d3e9a9d4d2fa17ada2706dc4ef6ea19cf0df84faf060",
+        "matches_environment_manifest": true
+      },
+      {
+        "path": "tests/identity_probe/requirements.in",
+        "sha256": "ab88c6530d1c3fedb33dc0ed80cec8893972e35d94cef7135786055ffcc57068",
+        "matches_environment_manifest": true
+      },
+      {
+        "path": "tests/identity_probe/requirements.lock",
+        "sha256": "220a9c63706ff9511d0acd00f7d40203a180a2f385d719e16bca8842527d5f88",
+        "matches_environment_manifest": true
+      },
+      {
+        "path": "services/identity/src/octoport_identity/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches_environment_manifest": true
+      },
+      {
+        "path": "services/identity/src/octoport_identity/accounts/models.py",
+        "sha256": "9aa44ad8e481f4cd29392389e810ef72a5114f13edb863ad2035143a079d61cd",
+        "matches_environment_manifest": true
+      },
+      {
+        "path": "services/identity/src/octoport_identity/accounts/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches_environment_manifest": true
+      },
+      {
+        "path": "services/identity/src/octoport_identity/accounts/migrations/0001_initial.py",
+        "sha256": "73d2b8459c27a7693474f1c65d8eab241f52c8b0024a459fb9bbdbb48f811446",
+        "matches_environment_manifest": true
+      },
+      {
+        "path": "services/identity/src/octoport_identity/accounts/migrations/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches_environment_manifest": true
+      }
+    ]
+  },
+  "environment_result": {
+    "status": "PROVIDER_CORE_QUALIFIED_NOT_S02_ACCEPTANCE",
+    "phase": "hardened",
+    "baseline_exit_code": 0,
+    "hardened_exit_code": 0,
+    "live_database_or_credentials_access": false,
+    "postgres_image": "postgres:16.15@sha256:5db6dac2ef5dcff512f4f00a009c3c332b9f2f28f24277175bf3e4a3d02ef83a",
+    "postgres_image_digests": [
+      "postgres@sha256:5db6dac2ef5dcff512f4f00a009c3c332b9f2f28f24277175bf3e4a3d02ef83a"
+    ],
+    "expected_digest_present": true,
+    "declared_network": "none",
+    "actual_container_network": "none",
+    "actual_host_port_bindings": {},
+    "container_removed": true
+  },
+  "baseline": {
+    "record_type": "AL_S02_PROVIDER_CANDIDATE_PROBE",
+    "mode": "unmodified_candidate",
+    "candidate": "django-allauth==65.21.1",
+    "django": "5.2.19",
+    "status": "REQUIRES_POLICY_ADAPTERS",
+    "observation_count": 38,
+    "passed_count": 33,
+    "failed_observations": [
+      {
+        "check": "noncanonical_host_cannot_change_issuer",
+        "kind": "required_policy"
+      },
+      {
+        "check": "authorization_code_atomic_across_workers",
+        "kind": "required_policy"
+      },
+      {
+        "check": "plain_pkce_method_denied",
+        "kind": "required_policy"
+      },
+      {
+        "check": "confidential_client_requires_pkce",
+        "kind": "required_policy"
+      },
+      {
+        "check": "authorization_post_cannot_bypass_s256",
+        "kind": "required_policy"
+      }
+    ],
+    "required_policy_gaps": [
+      "noncanonical_host_cannot_change_issuer",
+      "authorization_code_atomic_across_workers",
+      "plain_pkce_method_denied",
+      "confidential_client_requires_pkce",
+      "authorization_post_cannot_bypass_s256"
+    ],
+    "capability_failures": [],
+    "error_type": null,
+    "error_location": null,
+    "not_proven": [
+      "Real browser and TLS",
+      "BFF callback state/nonce storage/consumption and product session",
+      "Separate-process networked IdP deployment and service restart",
+      "Registration/tenant idempotency and second-client product data denial",
+      "Browser MFA enrollment/login and RP-initiated logout policy",
+      "Real controlled email delivery"
+    ]
+  },
+  "hardened": {
+    "record_type": "AL_S02_PROVIDER_CANDIDATE_PROBE",
+    "mode": "hardened_candidate",
+    "candidate": "django-allauth==65.21.1",
+    "django": "5.2.19",
+    "status": "PROBE_PASSED",
+    "observation_count": 37,
+    "passed_count": 37,
+    "failed_observations": [],
+    "required_policy_gaps": [],
+    "capability_failures": [],
+    "error_type": null,
+    "error_location": null,
+    "not_proven": [
+      "Real browser and TLS",
+      "BFF callback state/nonce storage/consumption and product session",
+      "Separate-process networked IdP deployment and service restart",
+      "Registration/tenant idempotency and second-client product data denial",
+      "Browser MFA enrollment/login and RP-initiated logout policy",
+      "Real controlled email delivery"
+    ]
+  },
+  "race_observation_limit": {
+    "baseline": "The authorization_code_atomic_across_workers assertion did not meet sorted(statuses)==[200,400]. The artifact contains only the boolean, not raw child status codes; do not infer that both requests returned 200 or that two tokens were issued.",
+    "hardened": "The assertion passed; under the source predicate this means sorted statuses were [200,400] for the two worker redemption attempts."
+  },
+  "declared_limits": [
+    "Real browser and public TLS flow",
+    "BFF callback state and nonce storage/consumption, and integration with the product session",
+    "Networked IdP deployment and service restart behavior",
+    "Registration/tenant idempotency and second-client product-data isolation",
+    "Browser MFA enrollment/login and RP-initiated logout policy",
+    "Real controlled email delivery; the test uses Django in-memory email and example.invalid"
+  ],
+  "reviewer_actions": {
+    "tests_or_ci_run_by_reviewer": false,
+    "server_or_RDC_access": false,
+    "source_changes": false,
+    "external_writes": false
+  },
+  "acceptance_boundary": "The evidence supports the isolated provider-core spike for the exact reported source and package versions only. It does not establish product readiness, S02 completion/acceptance, a live service deployment, or SSO/cabinet integration."
+}

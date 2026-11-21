@@ -1,0 +1,46 @@
+{
+  "review": "ALISA_SWAGGER_WATCH_INDEPENDENT_SOURCE_REVIEW",
+  "date": "2026-11-08",
+  "verdict": "HOLD_MUTATING_CLI_LOCK_REQUIRED",
+  "scope": "Read-only source review only. No tests, host/provider/DB/browser calls, or private uploaded document reads.",
+  "files_sha256": {
+    "watch.mjs": "ace004f2d048084d6a25035e0303912a6bcb224fc82e06426f181931240defe1",
+    "cli.mjs": "0fcf84d5cc2c47140a398a28bfab24c7e726891cf06fa9be14f4010068b28db",
+    "status.mjs": "9b84bb277e91bca5cf605236c05995cc396fc5ff79746eb3fc3eb01724b5b692",
+    "build.mjs": "e0e6a8dbb18d1539dbbb43b966336a85c5d05c2a59edca1d77994f02ca71cf5c",
+    "watch.test.mjs": "f691315e0bbd2a3fc515e1003bd1110b5305f5fa33eac0d96b78f3a81d29c760",
+    "workflow": "0b415b656ad9b5943d3fc71e52252aa2c2153fb2057df94fcfc6ea0505cd75c7",
+    "watch.service": "cc8e847bc576b2cc4fd978f1f7246d88f6ceb4f6a57503a8cc90c28f1a52503e",
+    "status.service": "27b595653cb977170b34added5d5d3cde57dbc2d5c3ec51586db26321d45567d",
+    "timer": "16df6a86c8b05fce5b8e5a641d39aa47889f63353b7f6f53989b63e1d4bbd6e4",
+    "README": "63fb053e82e48b813eafe02d63d5e9363e954488ec6960458339f08d4ff2d261"
+  },
+  "blocking_finding": {
+    "id": "SWAGGER_WATCH_SHARED_STATE_MUTATION_RACE",
+    "detail": "runWatch is serialized by the watch unit flock, but cli.mjs import and accept-reviewed call importCandidate/acceptReviewed without acquiring the same flock. Concurrent CLI mutation and scheduled run can read the same old state.json and atomically overwrite each other, losing a candidate, review decision, or successful status transition.",
+    "required_resolution": "Acquire the shared .run.lock in every mutating CLI path (run/import/accept-reviewed), or provide and pin an administrative wrapper that is the mandatory invocation path. Keep status read-only/unlocked. Add a concurrency regression proving serialization."
+  },
+  "reviewed_properties": {
+    "provider_scope": "15 registered documents: 2 Ozon and 13 WB; no provider credentials. Shared acquisition is HTTPS-only with public-address pinning, accepted host checks, TLS, redirect cap 3, 20-second timeout and 25MiB artifact cap.",
+    "identity_validation": "Common Ozon requiredServerIdentity string check is bypassed only for acquisition due :443 normalization; watch immediately validates canonical HTTPS origin/path, no credentials/query/hash and every advertised OAS3 server, then title/parser/inventory. This ordering is fail-closed.",
+    "storage": "SHA256-addressed bounded blobs/inventories/diffs; 40MiB state budget; 3GiB disk floor; old snapshots are retained. Quota/fetch/validation failures preserve prior current and report degraded.",
+    "freshness": "Fresh requires recent automatic success, never owner-supplied acceptance. Stale or partial source coverage returns DEGRADED; status recomputes state on GET/HEAD rather than serving a static green.",
+    "runtime_boundary": "No code/catalog/API adapter mutations. Owner-supplied files become candidates; only exact-digest administrative acceptance can mark OWNER_SUPPLIED_REVIEWED, and that does not fabricate automatic freshness.",
+    "service_isolation": "Dedicated systemd user; separate six-hour oneshot watch and loopback GET/HEAD status service. No LLM/Telegram/DB/provider credentials in application bundle."
+  },
+  "additional_risks": [
+    "accept-reviewed is digest-specific and outside HTTP, but the state has reviewer origin/time, not an explicit reviewer identity or ticket field; deployment should rely on a tightly controlled operator account and audit invocation.",
+    "No snapshot garbage collection is implemented. This preserves the stated no-deletion invariant but eventually causes a bounded-state-budget degraded condition after enough distinct updates."
+  ],
+  "test_review": "The synthetic tests cover registry cardinality, Ozon :443 normalization and wrong origins, scheduled updates/diffs, blocked-source backoff with last-good preservation, WB completeness, freshness, exact-digest review, invalid identity, corrupt snapshots, quota exhaustion, symlinks, and read-only status routing. They do not cover CLI/watch concurrency; add this when fixing the blocker.",
+  "deployment_gate": "Do not deploy mutating CLI operations until shared locking is implemented or the mandatory external flock wrapper is pinned and documented. Synthetic CI must pass; no production egress or upload is implied by this source review.",
+  "reviewer_actions": {
+    "tests_run": false,
+    "host_calls": false,
+    "provider_calls": false,
+    "db_calls": false,
+    "browser_calls": false,
+    "uploaded_markdown_read": false,
+    "product_code_modified": false
+  }
+}

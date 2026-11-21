@@ -1,0 +1,43 @@
+{
+  "schema_version": "alisa_s05_activation_source_review_v1",
+  "scope": "READ_ONLY_EXACT_SOURCE_REVIEW_NO_HOST_CALLS_NO_EXECUTION",
+  "files": {
+    "core": {
+      "path": "docs/alisa/service-platform/execution/s05-installed-20261106/activate-core.py",
+      "sha256": "8a9928864af584c7f393190cf3ab0d120e176b12360736f5e32828e978db9ff9"
+    },
+    "platform": {
+      "path": "docs/alisa/service-platform/execution/s05-installed-20261106/activate-platform.py",
+      "sha256": "4c7b57f27df3471656b20f77b2674b2e1c9b1e57fe063c1e54487809fa269cf6"
+    }
+  },
+  "verdict": "PASS_SOURCE_WITH_OPERATIONAL_PREFLIGHT_REQUIRED",
+  "findings": [],
+  "reviewed_controls": {
+    "core_old_argv_user_group_pid_cwd_and_cgroup_pinned": "PASS_SOURCE",
+    "core_selected_effective_profile_preserved": "PASS_SOURCE",
+    "systemd_parent_owner_and_write_modes_checked": "PASS_SOURCE",
+    "unit_and_dropins_created_atomically_and_tracked_for_recovery": "PASS_SOURCE",
+    "core_qualification_manifest_and_checker_unit_hashes_pinned": "PASS_SOURCE",
+    "platform_rechecks_active_core_path_manifest_unit_hashes_and_socket": "PASS_SOURCE",
+    "web_platform_effective_identity_envfiles_argv_and_process_pinned": "PASS_SOURCE",
+    "platform_backup_parent_private_and_root_owned": "PASS_SOURCE",
+    "stores_only_migration_plan_and_additive_ledger_delta": "PASS_SOURCE",
+    "runtime_and_migration_database_roles_separated": "PASS_SOURCE",
+    "staff_authority_advisory_lock_and_fingerprint": "PASS_SOURCE",
+    "only_web_and_site_pointers_switched_admin_identity_and_shared_current_preserved": "PASS_SOURCE",
+    "rollback_restores_only_confirmed_owned_config_and_pointer_bytes_schema_remains_additive": "PASS_SOURCE"
+  },
+  "boundary": {
+    "source_read_only": true,
+    "tests_run_by_reviewer": 0,
+    "host_calls": 0,
+    "scripts_executed": false,
+    "live_credentials_used": false,
+    "activation_or_migration_performed": false,
+    "provider_calls_performed": false,
+    "seller_binding_enabled": false,
+    "performance_identity_promoted": false,
+    "operational_preflight_remains_required": true
+  }
+}

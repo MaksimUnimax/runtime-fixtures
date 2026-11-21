@@ -1,0 +1,65 @@
+{
+  "note": "Only document/schema examples; no service authorization or product acceptance. Valid runtime example deliberately has an invalid auth ticket.",
+  "checks": [
+    {
+      "file": "gap_valid.json",
+      "schema": "query_gap_v1.schema.json",
+      "expected_valid": true
+    },
+    {
+      "file": "gap_invalid_extra_raw.json",
+      "schema": "query_gap_v1.schema.json",
+      "expected_valid": false
+    },
+    {
+      "file": "gap_metadata_only_valid.json",
+      "schema": "query_gap_v1.schema.json",
+      "expected_valid": true
+    },
+    {
+      "file": "runtime_shape_valid_but_unauthorized.json",
+      "schema": "runtime_task_v1.schema.json",
+      "expected_valid": true
+    },
+    {
+      "file": "runtime_invalid_secret.json",
+      "schema": "runtime_task_v1.schema.json",
+      "expected_valid": false
+    },
+    {
+      "file": "catalog_release_valid_shape.json",
+      "schema": "catalog_release_v1.schema.json",
+      "expected_valid": true
+    },
+    {
+      "file": "identity_link_valid.json",
+      "schema": "product_identity_link_v1.schema.json",
+      "expected_valid": true
+    },
+    {
+      "file": "identity_link_invalid_environment.json",
+      "schema": "product_identity_link_v1.schema.json",
+      "expected_valid": false
+    },
+    {
+      "file": "funnel_valid.json",
+      "schema": "funnel_client_event_v1.schema.json",
+      "expected_valid": true
+    },
+    {
+      "file": "funnel_invalid_private_text.json",
+      "schema": "funnel_client_event_v1.schema.json",
+      "expected_valid": false
+    },
+    {
+      "file": "step_receipt_valid.json",
+      "schema": "execution_step_receipt_v1.schema.json",
+      "expected_valid": true
+    },
+    {
+      "file": "step_receipt_invalid.json",
+      "schema": "execution_step_receipt_v1.schema.json",
+      "expected_valid": false
+    }
+  ]
+}

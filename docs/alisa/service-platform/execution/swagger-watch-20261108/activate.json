@@ -1,0 +1,73 @@
+{
+  "scope": "ISOLATED_SWAGGER_ONLY_NO_EXISTING_PRODUCT_RESTART_OR_DB_MUTATION",
+  "status": "FAILED",
+  "cases": [
+    {
+      "case": "allowed_phase",
+      "passed": true
+    },
+    {
+      "case": "fresh_receipt",
+      "passed": true
+    },
+    {
+      "case": "private_package-binding.json",
+      "passed": true
+    },
+    {
+      "case": "qualified_exact_candidate",
+      "passed": true
+    },
+    {
+      "case": "private_prepare.json",
+      "passed": true
+    },
+    {
+      "case": "private_baseline.json",
+      "passed": true
+    },
+    {
+      "case": "prepared_exact_source",
+      "passed": true
+    },
+    {
+      "case": "baseline_unchanged",
+      "passed": true
+    },
+    {
+      "case": "private_package",
+      "passed": true
+    },
+    {
+      "case": "exact_ci_zip",
+      "passed": true
+    },
+    {
+      "case": "bounded_exact_zip_members",
+      "passed": true
+    },
+    {
+      "case": "manifest_binding",
+      "passed": true
+    },
+    {
+      "case": "all_payload_hashes",
+      "passed": true
+    },
+    {
+      "case": "inactive_payload_exact",
+      "passed": true
+    },
+    {
+      "case": "private_owner-document-review.json",
+      "passed": true
+    },
+    {
+      "case": "independently_reviewed_owner_document",
+      "passed": true
+    }
+  ],
+  "recovery": "OWN_INCLUDE_DETACHED_OWN_SERVICES_STOP_QUEUED_VERIFY_REQUIRED",
+  "error_type": "CalledProcessError",
+  "failed_case": null
+}

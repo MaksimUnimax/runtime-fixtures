@@ -1,0 +1,185 @@
+# INSTALL ONLY AFTER CERTIFICATE FILES EXIST; replaces this host's initial HTTP block.
+server {
+    listen 80;
+    server_name alisa.octoport.ru;
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/alisa-platform-acme;
+        try_files $uri =404;
+    }
+    location / { return 308 https://alisa.octoport.ru$request_uri; }
+}
+server {
+    listen 443 ssl;
+    server_name alisa.octoport.ru;
+    ssl_certificate /etc/letsencrypt/live/alisa.octoport.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/alisa.octoport.ru/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+    # Do not reuse an access format logging $request, $args, Cookie or Authorization.
+    access_log off;
+    location = /__setup/ready {
+        default_type application/json;
+        return 200 '{"marker":"ALISA_PLATFORM_PREFLIGHT_V04","host":"alisa.octoport.ru","environment":"prod","application_ready":false}';
+    }
+    location / {
+        default_type text/plain;
+        return 503 "Alisa platform is being prepared.\n";
+    }
+}
+
+# INSTALL ONLY AFTER CERTIFICATE FILES EXIST; replaces this host's initial HTTP block.
+server {
+    listen 80;
+    server_name alisa-admin.octoport.ru;
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/alisa-platform-acme;
+        try_files $uri =404;
+    }
+    location / { return 308 https://alisa-admin.octoport.ru$request_uri; }
+}
+server {
+    listen 443 ssl;
+    server_name alisa-admin.octoport.ru;
+    ssl_certificate /etc/letsencrypt/live/alisa-admin.octoport.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/alisa-admin.octoport.ru/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+    # Do not reuse an access format logging $request, $args, Cookie or Authorization.
+    access_log off;
+    location = /__setup/ready {
+        default_type application/json;
+        return 200 '{"marker":"ALISA_PLATFORM_PREFLIGHT_V04","host":"alisa-admin.octoport.ru","environment":"prod","application_ready":false}';
+    }
+    location / {
+        default_type text/plain;
+        return 503 "Alisa platform is being prepared.\n";
+    }
+}
+
+# INSTALL ONLY AFTER CERTIFICATE FILES EXIST; replaces this host's initial HTTP block.
+server {
+    listen 80;
+    server_name id.octoport.ru;
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/alisa-platform-acme;
+        try_files $uri =404;
+    }
+    location / { return 308 https://id.octoport.ru$request_uri; }
+}
+server {
+    listen 443 ssl;
+    server_name id.octoport.ru;
+    ssl_certificate /etc/letsencrypt/live/id.octoport.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/id.octoport.ru/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+    # Do not reuse an access format logging $request, $args, Cookie or Authorization.
+    access_log off;
+    location = /__setup/ready {
+        default_type application/json;
+        return 200 '{"marker":"ALISA_PLATFORM_PREFLIGHT_V04","host":"id.octoport.ru","environment":"prod","application_ready":false}';
+    }
+    location / {
+        default_type text/plain;
+        return 503 "Alisa platform is being prepared.\n";
+    }
+}
+
+# INSTALL ONLY AFTER CERTIFICATE FILES EXIST; replaces this host's initial HTTP block.
+server {
+    listen 80;
+    server_name alisa-stage.octoport.ru;
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/alisa-platform-acme;
+        try_files $uri =404;
+    }
+    location / { return 308 https://alisa-stage.octoport.ru$request_uri; }
+}
+server {
+    listen 443 ssl;
+    server_name alisa-stage.octoport.ru;
+    ssl_certificate /etc/letsencrypt/live/alisa-stage.octoport.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/alisa-stage.octoport.ru/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+    # Do not reuse an access format logging $request, $args, Cookie or Authorization.
+    access_log off;
+    location = /__setup/ready {
+        default_type application/json;
+        return 200 '{"marker":"ALISA_PLATFORM_PREFLIGHT_V04","host":"alisa-stage.octoport.ru","environment":"stage","application_ready":false}';
+    }
+    location / {
+        default_type text/plain;
+        return 503 "Alisa platform is being prepared.\n";
+    }
+}
+
+# INSTALL ONLY AFTER CERTIFICATE FILES EXIST; replaces this host's initial HTTP block.
+server {
+    listen 80;
+    server_name alisa-admin-stage.octoport.ru;
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/alisa-platform-acme;
+        try_files $uri =404;
+    }
+    location / { return 308 https://alisa-admin-stage.octoport.ru$request_uri; }
+}
+server {
+    listen 443 ssl;
+    server_name alisa-admin-stage.octoport.ru;
+    ssl_certificate /etc/letsencrypt/live/alisa-admin-stage.octoport.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/alisa-admin-stage.octoport.ru/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+    # Do not reuse an access format logging $request, $args, Cookie or Authorization.
+    access_log off;
+    location = /__setup/ready {
+        default_type application/json;
+        return 200 '{"marker":"ALISA_PLATFORM_PREFLIGHT_V04","host":"alisa-admin-stage.octoport.ru","environment":"stage","application_ready":false}';
+    }
+    location / {
+        default_type text/plain;
+        return 503 "Alisa platform is being prepared.\n";
+    }
+}
+
+# INSTALL ONLY AFTER CERTIFICATE FILES EXIST; replaces this host's initial HTTP block.
+server {
+    listen 80;
+    server_name id-stage.octoport.ru;
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/alisa-platform-acme;
+        try_files $uri =404;
+    }
+    location / { return 308 https://id-stage.octoport.ru$request_uri; }
+}
+server {
+    listen 443 ssl;
+    server_name id-stage.octoport.ru;
+    ssl_certificate /etc/letsencrypt/live/id-stage.octoport.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/id-stage.octoport.ru/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+    # Do not reuse an access format logging $request, $args, Cookie or Authorization.
+    access_log off;
+    location = /__setup/ready {
+        default_type application/json;
+        return 200 '{"marker":"ALISA_PLATFORM_PREFLIGHT_V04","host":"id-stage.octoport.ru","environment":"stage","application_ready":false}';
+    }
+    location / {
+        default_type text/plain;
+        return 503 "Alisa platform is being prepared.\n";
+    }
+}

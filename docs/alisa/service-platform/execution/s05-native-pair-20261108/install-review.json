@@ -1,0 +1,26 @@
+{
+  "review": "INDEPENDENT_INSTALL_SOURCE_REVIEW",
+  "source": "docs/alisa/service-platform/execution/s05-native-pair-20261108/install.py",
+  "source_sha256": "3544bfbd944d3b573b359cc051fc32ad24710fb2f2670dddfffaf1ff49d84571",
+  "result": "PASS_WITH_BOUNDED_SCOPE",
+  "scope": "Static review only. No script, test, host, provider, database, browser, or credential operation was performed.",
+  "reviewed_design": {
+    "ci_payload": "The four selected source files are pinned by SHA-256 in the script and must match the supplied successful CI source/run metadata. The API overlay materializes only the two patched API files and launch.py; unchanged platform files and the venv are references to the current release. The checker clone copies the current Python modules and replaces only store_checker.py and native_store_binding.py.",
+    "foreign_changes": "Preflight pins the current foreign catalog adapter and store service hashes; the adapter edit is a single exact-match patch and checks the catalog marker remains. Activation preserves the existing checker argv and adds only the checker working directory, checker supplementary group, and three read-only aliases. The old API pointer and unrelated service pointers/config hashes are checked before and after.",
+    "native_pair": "Projection construction performs a read-only Django transaction, requires exactly one active native Ozon store and exactly one current active Seller plus pending Performance pair matching the native owner credential, and stores no provider API keys in the projection. The projection is scoped to environment/product/tenant/store and HMAC-bound to native config, provider material, qualification evidence, and current native-core generation. The new checker revalidates these inputs on each check and returns the explicit NATIVE_OWNER_CONFIGURED_PAIR provenance only after the real Performance token succeeds.",
+    "activation_order": "The checker is restarted and the actual platform adapter/private IPC path is probed before site-current changes. The probe requires CONNECTED, expected canonical Seller identity, and exact native provenance. Only then does the script atomically replace site-current and restart the API; readiness and preservation checks are bounded. Failure recovery restores only the candidate pointer/drop-in when they still contain the exact owned values and retains candidate releases.",
+    "resources": "Preparation checks computed sparse allocation plus margin against the 3 GiB floor; activation checks reserve before mutation and the floor after. No cleanup or hardlinking of active inodes is performed by this script."
+  },
+  "blockers": [],
+  "limitations_and_follow_up": [
+    "This review accepts the bounded install procedure, not a claim that the customer card has transitioned or that browser/UI behavior is verified. The procedure explicitly does not run an owner browser flow or write the application database.",
+    "The real candidate probe occurs after the checker drop-in restart. If projection, alias mounts, supplementary-group access, native-core generation, or token qualification is wrong, the probe fails before the API pointer switch; preserve the failure receipt and do not bypass it.",
+    "Rollback is best-effort under process/OS failures. On an unsuccessful operation, verify the exact pointer, drop-in, unit state, and protected-component snapshots from the receipt before any retry; do not remove retained candidate releases.",
+    "The installed checker can read the selected Ozon credential and the native config directory by design. The exact credential alias is limited to the single ozon file, and the prior systemd masks remain in force."
+  ],
+  "not_reviewed": [
+    "Server execution or resulting live service state",
+    "Actual credentials, private configuration values, database contents, or provider responses",
+    "Separate inactive-dependency/resource-repair helper, which remains HOLD/NOT_APPLIED"
+  ]
+}

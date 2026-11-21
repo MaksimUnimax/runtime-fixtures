@@ -1,0 +1,237 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "query_gap_v1"
+    },
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "producer": {
+      "const": "analytics_runtime"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "trace_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "logical_query_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "episode_revision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "tenant_pseudonym": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "pseudonym_key_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "platform": {
+      "type": "string",
+      "enum": [
+        "ozon",
+        "wb",
+        "both",
+        "unspecified"
+      ]
+    },
+    "p1_status": {
+      "type": "string",
+      "enum": [
+        "MATCH",
+        "MISS",
+        "NOT_ATTEMPTED"
+      ]
+    },
+    "p2_status": {
+      "type": "string",
+      "enum": [
+        "NOT_ATTEMPTED",
+        "PENDING",
+        "SUCCESS",
+        "FAILED"
+      ]
+    },
+    "reason_code": {
+      "type": "string",
+      "enum": [
+        "P1_MISS_P2_SUCCESS",
+        "SEMANTIC_UNSUPPORTED",
+        "OPERATOR_UNSUPPORTED",
+        "NEEDS_CLARIFICATION",
+        "AMBIGUOUS_STORE_OR_PERIOD",
+        "DATA_UNAVAILABLE",
+        "PROVIDER_PLAN_REQUIRED",
+        "AUTH_OR_SCOPE",
+        "SERVICE_ACCESS_REQUIRED",
+        "RATE_LIMIT_OR_PROVIDER_ERROR",
+        "PARSER_OR_RUNTIME_BUG",
+        "SECURITY_OR_ABUSE",
+        "WRONG_SEMANTICS"
+      ]
+    },
+    "final_outcome": {
+      "type": "string",
+      "enum": [
+        "IN_PROGRESS",
+        "NEEDS_CLARIFICATION",
+        "READY",
+        "UNSUPPORTED",
+        "FAILED",
+        "CANCELED",
+        "REVOKED"
+      ]
+    },
+    "semantic_axis": {
+      "type": "string",
+      "enum": [
+        "order_date",
+        "event_date",
+        "accrual_date",
+        "snapshot",
+        "unspecified"
+      ]
+    },
+    "safe_utterance": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "redaction_state": {
+      "type": "string",
+      "enum": [
+        "TEXT_SAFE",
+        "METADATA_ONLY"
+      ]
+    },
+    "slot_types": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "period",
+          "store",
+          "product",
+          "brand",
+          "grouping",
+          "exclusion",
+          "comparison",
+          "top_n",
+          "amount_placeholder"
+        ]
+      },
+      "minItems": 0,
+      "maxItems": 20
+    },
+    "normalizer_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "redactor_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "catalog_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "runtime_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "access_basis_at_event": {
+      "type": "string",
+      "enum": [
+        "PAYMENT",
+        "GIFT",
+        "COMPENSATION",
+        "NONE"
+      ]
+    },
+    "internal_test": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema_version",
+    "event_id",
+    "producer",
+    "occurred_at",
+    "trace_id",
+    "logical_query_id",
+    "episode_revision",
+    "tenant_pseudonym",
+    "pseudonym_key_version",
+    "platform",
+    "p1_status",
+    "p2_status",
+    "final_outcome",
+    "semantic_axis",
+    "redaction_state",
+    "slot_types",
+    "normalizer_version",
+    "redactor_version",
+    "catalog_version",
+    "runtime_version",
+    "access_basis_at_event",
+    "internal_test"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "redaction_state": {
+            "const": "TEXT_SAFE"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "safe_utterance"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "safe_utterance"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "final_outcome": {
+            "not": {
+              "const": "IN_PROGRESS"
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "reason_code"
+        ]
+      }
+    }
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:alisa:query_gap:v1",
+  "title": "Проект query_gap_v1; форма не доказывает безопасную очистку"
+}

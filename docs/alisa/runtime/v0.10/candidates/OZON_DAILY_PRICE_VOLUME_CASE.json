@@ -1,0 +1,106 @@
+{
+  "schema": "alice-query-program-candidate/v1",
+  "id": "ozon_daily_customer_price_and_volume",
+  "status": "INPUTS_AND_ALGEBRA_QUALIFIED_NOT_INSTALLED_IN_SKILL",
+  "canonical_utterance": "Покажи по дням количество реализаций и среднюю цену покупателя за октябрь 2026 на Озоне",
+  "parameters": {
+    "platform": "ozon",
+    "period": {
+      "from": "YYYY-MM-DD",
+      "to": "YYYY-MM-DD"
+    },
+    "group_by": [
+      "accrual_date"
+    ],
+    "optional_group_by": [
+      "sku",
+      "accrual_date"
+    ],
+    "currency": "RUB"
+  },
+  "time_axis": "accrual_date",
+  "source": {
+    "operation": "ozon_accrual_by_day",
+    "method": "POST",
+    "url": "https://api-seller.ozon.ru/v1/finance/accrual/by-day",
+    "one_call_date_parameter": "date",
+    "pagination": "last_id until empty",
+    "plan": "Enumerate requested days and all source pages once; same source rows feed both measures."
+  },
+  "leaves": {
+    "realization_units": "SUM(posting.products.quantity) over qualified positive commission rows",
+    "customer_realization_amount": "SUM(posting.products.commission.sale_price.amount); already a line amount"
+  },
+  "expressions": {
+    "average_customer_price": "customer_realization_amount / realization_units; undefined when units=0",
+    "monthly_average": "SUM(customer_realization_amount) / SUM(realization_units), not average of daily averages"
+  },
+  "line_contract": {
+    "seller_price": "per unit",
+    "sale_amount": "seller line amount",
+    "sale_price": "customer line amount",
+    "identities": [
+      "seller_price * quantity = sale_amount",
+      "sale_price + bonus + coinvestment = sale_amount"
+    ],
+    "multi_unit_projection": "sale_price / quantity is the line average; individual receipt prices inside that line are not separately observed"
+  },
+  "optional_relationship": {
+    "pearson": "deterministic code",
+    "comparisons": [
+      "daily pooled",
+      "after linear calendar-date detrending",
+      "within-SKU centered active-sale-day observations"
+    ],
+    "limits": [
+      "Only prices of realized units are observed.",
+      "Does not establish demand causality.",
+      "Acquisition date is not proven order or receipt date."
+    ]
+  },
+  "cache_identity": [
+    "tenant",
+    "store scope revision",
+    "period",
+    "time_axis",
+    "currency",
+    "source and decoder version",
+    "grouping",
+    "filters",
+    "metric definitions"
+  ],
+  "logical_reports": 1,
+  "qualified_period": {
+    "from": "2026-10-01",
+    "to": "2026-10-31",
+    "dates": 31,
+    "http_calls": 31,
+    "http_errors": 0,
+    "all_cursors_exhausted": true,
+    "source_records": 2154,
+    "posting_controls_equal": 774,
+    "sale_rows": 575,
+    "units": 577,
+    "sku_count": 64,
+    "multi_unit_rows": 2,
+    "live_quantities": [
+      1,
+      2
+    ],
+    "offline_regressions": 14,
+    "model_calls": 0
+  },
+  "architecture": "One shared source adapter, row grouping, additive measures and a division expression. No separate fixed phrase or API script per calendar month. DeepSeek may select a bounded plan; it must not do money arithmetic.",
+  "requires_before_runtime_enable": [
+    "Integrate reviewed source into the shared queue, transport allowlist, source quota ledger and exact cache",
+    "Register the definitions and speech aliases with an explicit accrual-date meaning",
+    "Retain context when clarifying order vs accrual vs receipt date",
+    "Regression suite and cloud Alice acceptance",
+    "Implement returns separately rather than silently subtracting unrelated fees"
+  ],
+  "candidate_files": [
+    "price_volume.py",
+    "test_price_volume.py"
+  ],
+  "runtime_template_installed": false
+}

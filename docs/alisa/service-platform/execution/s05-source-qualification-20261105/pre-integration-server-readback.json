@@ -1,0 +1,38 @@
+{
+  "scope": "READ_ONLY_CURRENT_SERVER_NOT_S05_DEPLOYMENT",
+  "recorded_utc": "2026-11-05T15:38:47.663463+00:00",
+  "s05_deployed_by_this_flow": false,
+  "pointers": {
+    "web-current": "alisa-c8666516683e7b2b",
+    "site-current": "alisa-c8666516683e7b2b",
+    "admin-current": "alisa-c8666516683e7b2b",
+    "identity-current": "alisa-482ed11832b666af",
+    "current": "alisa-482ed11832b666af"
+  },
+  "health": {
+    "web": {
+      "status": "READY",
+      "release": "alisa-c8666516683e7b2b"
+    },
+    "admin": {
+      "status": "READY",
+      "release": "alisa-c8666516683e7b2b"
+    },
+    "platform": {
+      "status": "READY",
+      "release": "alisa-c8666516683e7b2b"
+    },
+    "identity": {
+      "status": "READY",
+      "release": "alisa-482ed11832b666af"
+    }
+  },
+  "stores_capability_enabled": false,
+  "store_vault_keyring_configured": false,
+  "runtime_store_check_socket_exists": false,
+  "stores_migration_rows": 0,
+  "resources": {
+    "disk_free_mib": 3680,
+    "free_inodes": 583092
+  }
+}

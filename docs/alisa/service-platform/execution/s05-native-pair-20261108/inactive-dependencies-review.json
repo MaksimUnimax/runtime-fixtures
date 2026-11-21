@@ -1,0 +1,30 @@
+{
+  "review": "AL_S05_NATIVE_PAIR_INACTIVE_DEPENDENCY_REPAIR_REVIEW",
+  "date": "2026-11-08",
+  "verdict": "HOLD_PRECONDITION_CANNOT_PASS_AT_REPORTED_FREE_SPACE",
+  "scope": "Read-only static review of the inactive dependency hardlink helper. No execution, host/provider/DB/browser calls, tests, or source edits.",
+  "script": "docs/alisa/service-platform/execution/s05-native-pair-20261108/inactive-dependencies.py",
+  "script_sha256": "5219ad5ad51039f31e73537d9c8896971827dcb3126b8c5aa3f0b839e41d175a",
+  "reported_free_bytes": 3219726336,
+  "required_floor_bytes": 3221225472,
+  "blocking_finding": {
+    "id": "RESOURCE_REPAIR_REQUIRES_SPACE_ABOVE_FLOOR_BEFORE_REPAIR",
+    "detail": "The first `fresh_receipt_and_reserve` guard requires free bytes >= 3 GiB + 1 MiB before branching into plan or apply. Reported current free space is already below 3 GiB by 1,499,136 bytes, so neither plan nor apply can reach candidate enumeration. The repair therefore cannot restore the stated floor under the reported starting condition.",
+    "required_resolution": "Keep the post-apply 3 GiB floor and strict bounded scope, but make the apply admission depend on the exact selected hardlink plan and sufficient expected gain to cover the current deficit plus a safety margin. Keep plan read-only. Recheck free space after each apply batch and stop immediately if the conservative floor cannot be maintained."
+  },
+  "reviewed_scope_if_precondition_fixed": {
+    "target": "/opt/alisa-platform/stage/releases/alisa-5dff6e8883e25ac4",
+    "eligible_sources": "Only exact byte/metadata-identical dependency files from the named owner-owned inactive release whitelist.",
+    "exclusions": "The target and every detected active release/process inode are excluded; no archives, customer data, active paths or package payload bytes are deleted. Five existing rollout locks, no-follow source checks, full process reference inventory, per-link rechecks and 64 MiB maximum gain are retained.",
+    "mutations": "Adds hardlinks for identical dependency files into the one inactive target, records pre-mutation metadata privately, preserves all paths and bytes, and reports nlink/ctime/target-mtime changes."
+  },
+  "reviewer_actions": {
+    "script_executed": false,
+    "tests_run": false,
+    "host_calls": false,
+    "provider_calls": false,
+    "db_calls": false,
+    "browser_calls": false,
+    "code_modified": false
+  }
+}

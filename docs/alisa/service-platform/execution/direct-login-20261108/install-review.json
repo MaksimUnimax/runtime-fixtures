@@ -1,0 +1,23 @@
+{
+  "record_type": "AL_S02_DIRECT_LOGIN_INSTALLER_INDEPENDENT_REVIEW",
+  "reviewer": "s03_independent_review",
+  "installer_path": "docs/alisa/service-platform/execution/direct-login-20261108/install.py",
+  "installer_sha256": "68d4d0d634b4a0904dd10c3067c70b9fef8c5b504a594107326f3ead35a891a0",
+  "source_sha": "3a1d3885250d8aa1a51f6e7df3f9d1c3db50b281",
+  "source_tree": "0db793d11bc1d9820eee10fd9bfd5e06d0d1f53e",
+  "verdict": "PASS_FOR_DECLARED_IDENTITY_OVERLAY_INSTALL_SCOPE",
+  "reviewed_boundaries": [
+    "Pins the source, selected CI/documentation/provider-probe runs, exactly three changed Identity product files, base-file preimages, and selected-file hashes before preparing the overlay.",
+    "Compares current release manifest dependencies, migrations, schema compatibility, and all contracts except the separately installed/unconsumed S05 store-check contract; verifies all current Identity files and requires only the three approved Identity file changes.",
+    "Creates a new release overlay with only the selected product files copied; unchanged material is referenced from the old release. The existing venv is referenced, with no migration or dependency installation.",
+    "Prepare checks all four readiness endpoints, current pointer/process binding, protected service invocations, environment-file hashes, root-owned paths, disk reserve, inode floor, and a fresh target/receipt before activation.",
+    "Activation rechecks the prepared manifest and snapshot, changes only identity-current, restarts only alisa-identity@stage.service, verifies the live process cwd and release readiness, and checks other pointers, service invocations, profile, and config hashes remain unchanged.",
+    "Recovery is armed before pointer replacement and restores only the prior identity-current target before restarting Identity; previous releases are retained. Existing finite rollout locks are acquired non-blocking."
+  ],
+  "operational_note": "A hard kill during prepare can leave an incomplete inactive target. The script refuses to overwrite an existing target; inspect the private receipt and target before any reviewed recovery, and do not blindly rerun.",
+  "findings": [],
+  "review_limits": [
+    "Static read-only review only; installer was not executed and no host calls were made.",
+    "This approval covers the declared Identity overlay procedure only; post-install browser confirmation and CI completion remain separate gates."
+  ]
+}

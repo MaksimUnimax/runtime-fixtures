@@ -1,0 +1,68 @@
+{
+  "schema": "alice-statistical-operation-candidate/v1",
+  "id": "realization_price_bands_and_thresholds",
+  "status": "EXPLORATORY_OFFLINE_NOT_INSTALLED",
+  "upstream": "OZON_DAILY_PRICE_VOLUME_CASE.json",
+  "time_axis": "accrual_date",
+  "grain": {
+    "input": "one SKU and one day",
+    "price": "buyer_line_amount / realization_units within each SKU-day",
+    "output": "price band by SKU",
+    "empty_day": "unobserved sale price, not zero price"
+  },
+  "operations": [
+    {
+      "op": "bucket_daily_price",
+      "interval_rub": 50,
+      "bounds": "lower inclusive, upper exclusive; a maximum exactly on a bin boundary must open the next bin"
+    },
+    {
+      "op": "summarize_volume_by_band",
+      "measures": [
+        "observed_days",
+        "mean_daily_units",
+        "median_daily_units",
+        "min_daily_units",
+        "max_daily_units"
+      ]
+    },
+    {
+      "op": "scan_single_step",
+      "candidate_boundaries": "midpoints of observed daily prices",
+      "minimum_days_per_side": 7
+    },
+    {
+      "op": "validate_leave_one_day_out",
+      "rule": "Select the boundary again using only training days, then predict the omitted day",
+      "comparators": [
+        "constant mean",
+        "linear price",
+        "linear calendar date",
+        "date and price",
+        "price step",
+        "date, price and step"
+      ]
+    }
+  ],
+  "scope": {
+    "month": "2026-10",
+    "calendar_days": 31,
+    "sku_days_with_realization": 377,
+    "sku_count": 64,
+    "skus_with_at_least_10_active_days": 12,
+    "skus_eligible_for_cross_validated_split": 4
+  },
+  "interpretation": "An apparent threshold in store-average prices is not a common SKU price boundary. Candidate cut positions and in-sample differences must not be presented as confirmed price effects.",
+  "requirements": [
+    "Show observation counts and daily variation for each price band",
+    "Keep per-SKU results separate from pooled store summaries",
+    "Do not equate similar sample means with proof of equivalent sales",
+    "Do not extrapolate beyond observed realized prices",
+    "Keep exploratory thresholds distinct from causal claims or recommended prices",
+    "Use deterministic statistical code; DeepSeek only selects a supported plan",
+    "Integrate as a reviewed statistical operation with dependencies before enabling a speech alias"
+  ],
+  "new_marketplace_api_calls": 0,
+  "new_deepseek_calls": 0,
+  "uses_existing_monthly_projection": true
+}

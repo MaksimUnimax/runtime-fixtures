@@ -1,0 +1,79 @@
+{
+  "record_type": "AL_S00_FINAL_INDEPENDENT_ACCEPTANCE",
+  "observed_at_utc": "2026-11-04T22:05:00Z",
+  "review_mode": "independent_read_only_final_review",
+  "verdict": "ACCEPTED_FOR_DECLARED_SCOPE",
+  "foundation_ready": true,
+  "scope": "AL-S00 technical foundation for the exact installed stage source/package below. This is not product production acceptance, public-launch approval, AL-S01 acceptance, or blanket acceptance of arbitrary future release pairs.",
+  "candidate_identity": {
+    "repository": "MaksimUnimax/runtime-fixtures",
+    "branch": "alisa",
+    "review_head": "21b141a7d99587633401da38574b1fddebfeba98",
+    "pull_request": 383,
+    "merged_tree_checkout": "/workspace/scratch/6c2f0ed5dac0/alisa-canonical-candidate-20261104",
+    "checkout_head": "04ed093cd156f8834c124d40fe9a1c5c8f5c26ab",
+    "products_alisa_tree": "7fbb0e2efb4a20a5c85165b32f2c01576367f5de"
+  },
+  "exact_stage_release": {
+    "device_id": "89049fc7-4160-4636-9ad7-89c31f9bcb32",
+    "host": "185.244.51.141",
+    "source_commit": "77d0f8ee2643ef655a6e1e3dc5b2d4379f7e589b",
+    "release_id": "alisa-77d0f8ee2643ef65",
+    "installed_release_path": "/opt/alisa-platform/stage/releases/alisa-77d0f8ee2643ef65",
+    "package_path": "/var/lib/alisa-platform/stage/artifacts/alisa-77d0f8ee2643ef65.tar.gz",
+    "package_sha256": "2b72165cc7f3f5e8ebd580820db944fdf7f06b73e80de1024f76040c9e8a2acc",
+    "live_readback": "Resolved current release path and package SHA-256 independently over RDC; exact values matched the supplied identity and receipt."
+  },
+  "closed_gates": {
+    "source_package_and_ci": {
+      "status": "PASS",
+      "platform_workflow_run": 41850020411,
+      "platform_job": 126643512511,
+      "platform_job_conclusion": "success",
+      "documentation_workflow_run": 41850020412,
+      "documentation_job": 126643512270,
+      "documentation_job_conclusion": "success",
+      "qualified_checks": "32 Python, 11 Node, 54 real PostgreSQL/browser checks, and 6 documentation-checker regressions; workflow source and documentation jobs completed successfully.",
+      "qualification_scope": "CI/package qualification; not live-stage acceptance by itself."
+    },
+    "scoped_r3_evidence_reuse": {
+      "status": "ACCEPTED_FOR_UNCHANGED_RUNTIME_COMPONENTS",
+      "basis": "Independent R4 installed-manifest comparison found identical 31 service files, 3 contracts, all three dependency lockfiles, bin/alisa, infra/launch.py, and infra/release.py between R3 and R4. The only relevant changed runtime source was infra/db/provision.py and it was separately qualified. Thus prior R3 evidence for unchanged runtime behavior is reusable within those file boundaries; no passed scenario was rerun."
+    },
+    "database_isolation": {
+      "status": "PASS",
+      "evidence": "Independent catalog/readback plus real connection-denial evidence confirms all 8 stage-role-to-production-database CONNECT attempts denied across both production DBs, own-DB controls succeeded, production DBs remained empty with zero public tables, and roles are not superuser/createdb/createrole."
+    },
+    "live_stage_and_safe_final_state": {
+      "status": "PASS",
+      "https_readiness": {
+        "alisa-stage.octoport.ru": {"status": 200, "tls_verify_result": 0},
+        "alisa-admin-stage.octoport.ru": {"status": 200, "tls_verify_result": 0},
+        "id-stage.octoport.ru": {"status": 200, "tls_verify_result": 0}
+      },
+      "production_engineering_endpoints": "All three public production hosts returned HTTPS 404 for the engineering readiness path; no writes were issued.",
+      "probe": "FOUNDATION_PROBE_ENABLED=0 in both protected stage env files; files 0600 root:root.",
+      "worker": "alisa-worker@stage.service is disabled; no active worker instance was present.",
+      "cleanup_timer": "alisa-probe-cleanup@stage.timer active/waiting.",
+      "legacy_services": "Prior independent R4 readback confirms the existing Alice Lab services remained active; no application or database mutations were made in this review."
+    },
+    "environment_certificate_renewal": {
+      "status": "PASS",
+      "author_evidence_path": "/var/lib/alisa-platform/stage/evidence/ALISA_ENV00_RENEWAL_SUCCESS_20261104_2158.json",
+      "independent_readback": "Read the complete on-server 49-line evidence file. One own-lineage six-name Certbot dry run succeeded at 2026-11-04T21:58:30Z–21:58:43Z; all simulated renewals succeeded and the explicit existing Alisa nginx deploy hook reloaded successfully.",
+      "safety": "Directory hooks were disabled for this invocation, the foreign Alice Lab hook did not run, renewal config/certificate/hook/protected nginx hashes were unchanged, the finite systemd unit exited success, and the currently served certificate covers all six names and expires 2027-02-02."
+    }
+  },
+  "acceptance_limits": [
+    "Evidence reuse is limited to runtime components whose installed hashes are identical; the separately changed DB provisioning path was independently qualified.",
+    "Rollback and compatibility are established for the tested release pairs only, not arbitrary future releases.",
+    "Resource evidence is a bounded smoke test, not a capacity or saturation guarantee.",
+    "This verdict accepts the AL-S00 engineering foundation on the stated stage artifact and scope only. It makes no claim that product workflows, production applications, or public launch are accepted."
+  ],
+  "not_run_or_mutated": [
+    "No passed browser/business scenarios were rerun.",
+    "No probe or worker was reopened.",
+    "No database, role, config, service, source, package, or production application was mutated."
+  ],
+  "next_step": "AL-S01 may start under its own scope and gates."
+}

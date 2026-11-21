@@ -1,0 +1,144 @@
+{
+  "status": "PASS",
+  "scope": "CUSTOMER_PASSWORD_EMAIL_WEB_IDENTITY_ONLY",
+  "cases": [
+    {
+      "case": "private_package-binding.json",
+      "passed": true
+    },
+    {
+      "case": "qualified_exact_source",
+      "passed": true
+    },
+    {
+      "case": "fresh_inactive_target",
+      "passed": true
+    },
+    {
+      "case": "private_artifact-input.private.json",
+      "passed": true
+    },
+    {
+      "case": "fixed_https_artifact_transport",
+      "passed": true
+    },
+    {
+      "case": "bounded_artifact",
+      "passed": true
+    },
+    {
+      "case": "reserve_before_install",
+      "passed": true
+    },
+    {
+      "case": "memory_reserve",
+      "passed": true
+    },
+    {
+      "case": "exact_ci_zip",
+      "passed": true
+    },
+    {
+      "case": "exact_zip_members",
+      "passed": true
+    },
+    {
+      "case": "bounded_zip_expansion",
+      "passed": true
+    },
+    {
+      "case": "checksum_sidecar",
+      "passed": true
+    },
+    {
+      "case": "exact_ci_tar",
+      "passed": true
+    },
+    {
+      "case": "expected_baseline",
+      "passed": true
+    },
+    {
+      "case": "bounded_safe_unique_paths",
+      "passed": true
+    },
+    {
+      "case": "exact_manifest",
+      "passed": true
+    },
+    {
+      "case": "unchanged_contracts_schema_dependencies",
+      "passed": true
+    },
+    {
+      "case": "installed_admin_identity_fixes_preserved",
+      "passed": true
+    },
+    {
+      "case": "complete_package_before_selection",
+      "passed": true
+    },
+    {
+      "case": "no_archive_symlink_ancestors",
+      "passed": true
+    },
+    {
+      "case": "archive_link_graph_stays_internal",
+      "passed": true
+    },
+    {
+      "case": "physical_payload_reserve",
+      "passed": true
+    },
+    {
+      "case": "no_external_dependency_links",
+      "passed": true
+    },
+    {
+      "case": "exact_selected_component_files",
+      "passed": true
+    },
+    {
+      "case": "exact_selected_component_links",
+      "passed": true
+    },
+    {
+      "case": "materialized_links_stay_in_component",
+      "passed": true
+    },
+    {
+      "case": "new_interpreter_admitted_dependencies",
+      "passed": true
+    },
+    {
+      "case": "private_config_identity",
+      "passed": true
+    },
+    {
+      "case": "private_config_web",
+      "passed": true
+    },
+    {
+      "case": "installed_readonly_customer_client_and_native_route_preflight",
+      "passed": true
+    },
+    {
+      "case": "no_other_payload",
+      "passed": true
+    },
+    {
+      "case": "no_activation_during_prepare",
+      "passed": true
+    },
+    {
+      "case": "fixed_reserve_retained",
+      "passed": true
+    }
+  ],
+  "phase": "PREPARED_NOT_ACTIVATED",
+  "source_sha": "7afaf646b9b35a588051c744f876f6dc1ef7d176",
+  "manifest_sha256": "84c8c9b3aba553f785d4d697bd34af74a2e02ac8200777dea572704f3be49c5e",
+  "linked_payload_files": 2187,
+  "new_payload_bytes": 257916,
+  "free_bytes": 3322470400
+}

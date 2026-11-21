@@ -1,0 +1,29 @@
+{
+  "status": "ACCEPTED_FOR_BOUNDED_PREPARATION_ONLY",
+  "helper_sha256": "bea7c584cd210c51fc183854ba59d53ac19b152e8763335c0867052e670e04bc",
+  "reviewer": "s03_independent_review",
+  "scope": [
+    "exact source/ZIP/tar authority pins",
+    "private exclusive output",
+    "root-contained shared-source materialization",
+    "exact inherited manifest plus two independently pinned existing staff changes",
+    "hardlink write safety",
+    "resource ceilings",
+    "standard prepared payload verifier"
+  ],
+  "not_approved": [
+    "migration",
+    "config changes",
+    "activation",
+    "service restart",
+    "runtime/provider acceptance"
+  ],
+  "reviewer_ran_tests": false,
+  "runtime_result": "POST_WRITE_RESOURCE_GUARD_FAILED_NOT_ACTIVATED",
+  "historical_helper": "prepare-bea7c584.py",
+  "corrected_helper": "prepare.py",
+  "corrected_helper_sha256": "de5ab57e69b83d561823efbf5a74b1279026f2411cef183ce2a16141a2ac53fc",
+  "corrected_helper_executed": false,
+  "final_readback": "prepared-readback.json",
+  "budget_review": "prepare-budget-review.json"
+}

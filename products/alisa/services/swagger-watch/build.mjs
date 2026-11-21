@@ -1,0 +1,17 @@
+import {createRequire} from 'node:module';
+import {fileURLToPath} from 'node:url';
+import {join,resolve} from 'node:path';
+import {mkdir,writeFile,copyFile,readdir} from 'node:fs/promises';
+const here=fileURLToPath(new URL('.',import.meta.url)),root=resolve(here,'../../../..');
+const require=createRequire(join(root,'tooling/api-watch/package.json'));
+const rootRequire=createRequire(join(root,'package.json'));
+const tsxRequire=createRequire(rootRequire.resolve('tsx/package.json'));
+const {build}=tsxRequire('esbuild');
+const out=join(here,'dist');await mkdir(out,{recursive:true});
+const result=await build({entryPoints:[join(here,'cli.mjs'),join(here,'watch.mjs'),join(here,'status.mjs')],outdir:out,bundle:true,platform:'node',target:'node24',format:'esm',banner:{js:"import {createRequire as __nodeCreateRequire} from 'node:module';const require=__nodeCreateRequire(import.meta.url);"},outExtension:{'.js':'.mjs'},metafile:true,treeShaking:true,logLevel:'warning'});
+const forbidden=Object.keys(result.metafile.inputs).filter(p=>/health-runner|llm-health|telegram-operator|apps\/worker|packages\/server\/db/.test(p));
+if(forbidden.length)throw Error('UNEXPECTED_RUNTIME_DEPENDENCY');
+await writeFile(join(out,'bundle-inputs.json'),JSON.stringify({scope:'ALISA_SWAGGER_ONLY',inputs:Object.keys(result.metafile.inputs).sort(),outputs:result.metafile.outputs},null,2)+'\n');
+await copyFile(join(here,'entry.sh'),join(out,'entry.sh'));
+for(const name of await readdir(join(here,'units')))await copyFile(join(here,'units',name),join(out,name));
+console.log(JSON.stringify({status:'BUILT',entry_points:3,inputs:Object.keys(result.metafile.inputs).length,llm_dependencies:0}));

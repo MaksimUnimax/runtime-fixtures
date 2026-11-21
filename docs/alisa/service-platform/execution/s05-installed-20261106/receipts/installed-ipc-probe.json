@@ -1,0 +1,54 @@
+{
+  "scope": "ACTUAL_PRIVATE_IPC_NO_ACCOUNT_OR_PROVIDER_CALL",
+  "status": "PASS",
+  "runs": [
+    {
+      "actor": "platform",
+      "exit": 0,
+      "record": {
+        "scope": "INSTALLED_UNIX_PEER_NEGATIVE_PROBE_NO_PROVIDER_CALL",
+        "uid": 993,
+        "cases": [
+          {
+            "case": "actual_runtime_server_identity",
+            "passed": true
+          },
+          {
+            "case": "trusted_platform_receives_bounded_protocol_error",
+            "passed": true
+          },
+          {
+            "case": "old_report_gateway_access_denied",
+            "passed": true
+          },
+          {
+            "case": "runtime_parent_is_traverse_only",
+            "passed": true
+          }
+        ],
+        "external_provider_calls": 0,
+        "status": "PASS"
+      }
+    },
+    {
+      "actor": "root",
+      "exit": 0,
+      "record": {
+        "scope": "INSTALLED_UNIX_PEER_NEGATIVE_PROBE_NO_PROVIDER_CALL",
+        "uid": 0,
+        "cases": [
+          {
+            "case": "actual_runtime_server_identity",
+            "passed": true
+          },
+          {
+            "case": "untrusted_root_peer_closed_before_body_processing",
+            "passed": true
+          }
+        ],
+        "external_provider_calls": 0,
+        "status": "PASS"
+      }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "reviewer": "s03_independent_review",
+  "scope": "FINITE_WEB_PLATFORM_ACCOUNT_CLEANUP_ACTIVATION",
+  "status": "PASS",
+  "script_sha256": "b37c6b9f6efd60e6f8c2ac90575477e9ead5339f9248501082a179177b09915e",
+  "previous_review": {
+    "script_sha256": "e359baaf0f2bfb9526ea8950b33d76f57f3eeb2dff8377aa974adfe43ec7d2e6",
+    "status": "REWORK",
+    "findings": [
+      "Signal between pointer replacement and flag assignment could omit pointer rollback.",
+      "Signal or I/O failure during final drop-in write could leave an untracked partial file."
+    ]
+  },
+  "verified_corrections": [
+    "Atomic temporary-file + fsync + no-replace hard-link publication; rollback ledger populated before publication.",
+    "Recovery reads actual web-current independently of the pointed flag; preserves foreign concurrent pointers/bytes.",
+    "Exact prepared manifest and independently derived CI selected map pinned; one additive migration, scoped grants, existing private configuration retained."
+  ],
+  "fault_injection": {
+    "executed_by": "root",
+    "cases": 2,
+    "passed": 2,
+    "reviewer_execution": false
+  },
+  "live_yandex_acceptance": "NOT_RUN"
+}

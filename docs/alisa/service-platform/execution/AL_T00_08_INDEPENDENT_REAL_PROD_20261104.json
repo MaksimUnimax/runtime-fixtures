@@ -1,0 +1,85 @@
+{
+  "assessment": "AL_T00_08_INDEPENDENT_REAL_PROD_READONLY_VERIFICATION",
+  "observed_at_utc": "2026-11-04T14:07:30.648804+00:00",
+  "scope": "Independent read-only verification of the two newly created empty production database namespaces, stage boundary evidence, and final Alisa stage state. No DB, role, configuration, service, or production-application changes were made.",
+  "tools": {
+    "source_sha": "9ebd2096838b4630730dfb3037f0d10106f237bf",
+    "provision_tool_sha256": "14672962fa793bdd34d6b293271560fe3ad1e26f46d101bceac103fe4be2531f",
+    "stage_release": "alisa-61007bf870cf4f65"
+  },
+  "author_evidence_report": {
+    "path": "/var/lib/alisa-platform/stage/evidence/AL_T00_08_REAL_PROD_BOUNDARY_20261104.json",
+    "sha256": "27e6fe3ffe0a8e1b02d4bdffe0108db02585adf00cea4a9c14f0314a49c97376",
+    "status": "PASS",
+    "foundation_ready": false,
+    "recorded_stage_to_production_attempts": 8,
+    "recorded_denial_rows": 8,
+    "all_recorded_denials_had_acl_false_and_connection_denied": true,
+    "recorded_own_database_positive_controls": 8,
+    "all_eight_role_passwords_distinct": true,
+    "production_applications_activated": false,
+    "production_business_tables": {
+      "alisa_prod_platform": 0,
+      "alisa_prod_identity": 0
+    }
+  },
+  "independent_database_catalog": {
+    "databases": [
+      {"name": "alisa_prod_identity", "owner": "alisa_prod_identity_migration", "allow_connections": true},
+      {"name": "alisa_prod_platform", "owner": "alisa_prod_platform_migration", "allow_connections": true},
+      {"name": "alisa_stage_identity", "owner": "alisa_stage_identity_migration", "allow_connections": true},
+      {"name": "alisa_stage_platform", "owner": "alisa_stage_platform_migration", "allow_connections": true}
+    ],
+    "roles": {
+      "count": 8,
+      "all_can_login": true,
+      "all_nosuperuser": true,
+      "all_nocreatedb": true,
+      "all_nocreaterole": true
+    },
+    "stage_to_production_connect_acl": [
+      {"role": "alisa_stage_identity_migration", "database": "alisa_prod_identity", "connect": false},
+      {"role": "alisa_stage_identity_migration", "database": "alisa_prod_platform", "connect": false},
+      {"role": "alisa_stage_identity_runtime", "database": "alisa_prod_identity", "connect": false},
+      {"role": "alisa_stage_identity_runtime", "database": "alisa_prod_platform", "connect": false},
+      {"role": "alisa_stage_platform_migration", "database": "alisa_prod_identity", "connect": false},
+      {"role": "alisa_stage_platform_migration", "database": "alisa_prod_platform", "connect": false},
+      {"role": "alisa_stage_platform_runtime", "database": "alisa_prod_identity", "connect": false},
+      {"role": "alisa_stage_platform_runtime", "database": "alisa_prod_platform", "connect": false}
+    ],
+    "all_eight_own_database_connect_controls": true,
+    "production_public_schemas": {
+      "alisa_prod_identity": {"base_tables": 0, "django_migrations_table": false},
+      "alisa_prod_platform": {"base_tables": 0, "django_migrations_table": false}
+    }
+  },
+  "independent_tcp_control": {
+    "stage_runtime_role": "alisa_stage_platform_runtime",
+    "stage_own_database_select_1": true,
+    "production_target": "alisa_prod_platform",
+    "connection_denied": true,
+    "permission_denied_database_diagnostic": true,
+    "sqlstate": null,
+    "credential_values_printed": false
+  },
+  "final_stage_state": {
+    "http_readiness": {
+      "web": {"status": 200, "environment": "stage", "release": "alisa-61007bf870cf4f65"},
+      "admin": {"status": 200, "environment": "stage", "release": "alisa-61007bf870cf4f65"},
+      "platform": {"status": 200, "environment": "stage", "release": "alisa-61007bf870cf4f65"},
+      "identity": {"status": 200, "environment": "stage", "release": "alisa-61007bf870cf4f65"}
+    },
+    "probe_config": {
+      "web": {"flag": 0, "mode": "0600", "owner": "root:root", "sha256": "58c6d7b7a8bc26e4e4b61f72065c810a22f5b14642ce9187c5f8866362ead9b5"},
+      "platform": {"flag": 0, "mode": "0600", "owner": "root:root", "sha256": "a6acdec8c1723d2d778b15ce0134590dd05b87782fd10132e1fb6b83169648a7"}
+    },
+    "worker": {"active_state": "inactive", "is_active_return_code": 3, "enabled_state": "disabled", "is_enabled_return_code": 1},
+    "cleanup_timer": {"active": true, "enabled": true},
+    "legacy_alice_lab_active_services": [
+      "alice-lab-llm.service",
+      "alice-lab-web.service",
+      "alice-lab-worker.service"
+    ]
+  },
+  "verdict": "AL-T00-08 stage-to-production credential denial is now demonstrated for the two new empty production databases. FOUNDATION_READY remains false; this supplemental result does not override any other open gate."
+}

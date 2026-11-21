@@ -1,0 +1,1392 @@
+[
+  {
+    "id": "AL-R001",
+    "text": "Независимые продуктовые аккаунты/БД/секреты/релизы Алисы; новый переносимый identity обслуживает сначала только её, нынешний Октопорт не подключён.",
+    "source_user_requirements": [
+      "U01"
+    ],
+    "source_blueprint_section": "3",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F01",
+      "AL-F02",
+      "AL-F21"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S01",
+      "AL-S02",
+      "AL-S03",
+      "AL-S13",
+      "AL-S17",
+      "AL-S23"
+    ],
+    "revision_note": "v0.4 уточняет независимость: будущая общая идентичность не является общей нынешней продуктовой БД."
+  },
+  {
+    "id": "AL-R002",
+    "text": "Вход по email-коду через самостоятельный OIDC authority; TTL/лимиты и повтор в тот же локальный tenant без дублей.",
+    "source_user_requirements": [
+      "U02"
+    ],
+    "source_blueprint_section": "4.2",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F01"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S01",
+      "AL-S02"
+    ]
+  },
+  {
+    "id": "AL-R003",
+    "text": "Именная админка, MFA, раздельные staff-права, защищённый OWNER.",
+    "source_user_requirements": [
+      "U02",
+      "U06"
+    ],
+    "source_blueprint_section": "5",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F02"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S03",
+      "AL-S13"
+    ]
+  },
+  {
+    "id": "AL-R004",
+    "text": "Любое чтение/изменение клиентского объекта проверяет tenant.",
+    "source_user_requirements": [
+      "U01",
+      "U02"
+    ],
+    "source_blueprint_section": "15.2",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F01",
+      "AL-F03",
+      "AL-F06",
+      "AL-F19"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S01",
+      "AL-S02",
+      "AL-S05",
+      "AL-S07",
+      "AL-S09",
+      "AL-S15",
+      "AL-S16",
+      "AL-S17",
+      "AL-S20",
+      "AL-S22"
+    ]
+  },
+  {
+    "id": "AL-R005",
+    "text": "Много магазинов без тарифного лимита; Seller/Performance раздельны.",
+    "source_user_requirements": [
+      "U09"
+    ],
+    "source_blueprint_section": "4.4",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F03",
+      "AL-F07"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S05",
+      "AL-S09",
+      "AL-S17"
+    ]
+  },
+  {
+    "id": "AL-R006",
+    "text": "Замена ключа не меняет кабинет под прежним store ID; secrets не раскрываются.",
+    "source_user_requirements": [
+      "U09"
+    ],
+    "source_blueprint_section": "4.4",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F03"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S05",
+      "AL-S09",
+      "AL-S17"
+    ]
+  },
+  {
+    "id": "AL-R007",
+    "text": "Одна связь с Яндексом на tenant первой версии, OAuth refresh/unlink без потери доступа.",
+    "source_user_requirements": [
+      "U02"
+    ],
+    "source_blueprint_section": "4.3",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F05"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S06",
+      "AL-S07"
+    ]
+  },
+  {
+    "id": "AL-R008",
+    "text": "USER/ADMIN отделены от PAYMENT/GIFT/COMPENSATION и блокировки.",
+    "source_user_requirements": [
+      "U06",
+      "U07"
+    ],
+    "source_blueprint_section": "5",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F02",
+      "AL-F04",
+      "AL-F06"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S03",
+      "AL-S04",
+      "AL-S07",
+      "AL-S10",
+      "AL-S13",
+      "AL-S20",
+      "AL-S22",
+      "AL-S23"
+    ]
+  },
+  {
+    "id": "AL-R009",
+    "text": "Неоплаченный пользователь может настроить, оплатить, удалить данные и обратиться в поддержку.",
+    "source_user_requirements": [
+      "U06"
+    ],
+    "source_blueprint_section": "5.2",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F01",
+      "AL-F03",
+      "AL-F06",
+      "AL-F19"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S01",
+      "AL-S02",
+      "AL-S05",
+      "AL-S07",
+      "AL-S09",
+      "AL-S15",
+      "AL-S16",
+      "AL-S17",
+      "AL-S20",
+      "AL-S22"
+    ]
+  },
+  {
+    "id": "AL-R010",
+    "text": "Бесплатные периоды идемпотентны, имеют причину/автора и не являются выручкой.",
+    "source_user_requirements": [
+      "U07"
+    ],
+    "source_blueprint_section": "7.3",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F04",
+      "AL-F18"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S04",
+      "AL-S10",
+      "AL-S14",
+      "AL-S22",
+      "AL-S23"
+    ]
+  },
+  {
+    "id": "AL-R011",
+    "text": "Массовая выдача имеет snapshot, preview, ограничения и восстановление без дублей.",
+    "source_user_requirements": [
+      "U07"
+    ],
+    "source_blueprint_section": "7.3",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F04"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S04",
+      "AL-S10",
+      "AL-S22",
+      "AL-S23"
+    ]
+  },
+  {
+    "id": "AL-R012",
+    "text": "Один тариф и одинаковые функции для всех длительностей.",
+    "source_user_requirements": [
+      "U08"
+    ],
+    "source_blueprint_section": "7.1",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F09",
+      "AL-F13"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S11",
+      "AL-S13",
+      "AL-S20"
+    ]
+  },
+  {
+    "id": "AL-R013",
+    "text": "Order фиксирует серверную цену/валюту/срок/terms; quote не меняется задним числом.",
+    "source_user_requirements": [
+      "U08"
+    ],
+    "source_blueprint_section": "8.2",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F13"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S20"
+    ]
+  },
+  {
+    "id": "AL-R014",
+    "text": "Подтверждение платежа через provider readback; redirect/webhook сами по себе не дают доступ.",
+    "source_user_requirements": [
+      "U03",
+      "U08"
+    ],
+    "source_blueprint_section": "8.2",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F14"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S20"
+    ]
+  },
+  {
+    "id": "AL-R015",
+    "text": "Повторные и поздние payment events дают один fulfillment; test не выдаёт prod-доступ.",
+    "source_user_requirements": [
+      "U03",
+      "U08"
+    ],
+    "source_blueprint_section": "8.3",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F14"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S20"
+    ]
+  },
+  {
+    "id": "AL-R016",
+    "text": "Неопределённое создание/возврат не повторяется вслепую после timeout/окна идемпотентности.",
+    "source_user_requirements": [
+      "U03",
+      "U08"
+    ],
+    "source_blueprint_section": "8.3",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F13",
+      "AL-F14",
+      "AL-F16"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S20",
+      "AL-S22",
+      "AL-S23"
+    ]
+  },
+  {
+    "id": "AL-R017",
+    "text": "Календарные месяцы сохраняют anchor; GIFT дни — 24h; конкуренция сериализована.",
+    "source_user_requirements": [
+      "U07",
+      "U08"
+    ],
+    "source_blueprint_section": "7.2",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F04",
+      "AL-F15"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S04",
+      "AL-S10",
+      "AL-S21",
+      "AL-S22",
+      "AL-S23"
+    ]
+  },
+  {
+    "id": "AL-R018",
+    "text": "Возврат и access_effect раздельны; сумма ограничена; чужие grants не теряются.",
+    "source_user_requirements": [
+      "U03",
+      "U08"
+    ],
+    "source_blueprint_section": "8.4",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F16"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S22",
+      "AL-S23"
+    ]
+  },
+  {
+    "id": "AL-R019",
+    "text": "Чек имеет отдельный статус; fiscal/legal gate до живых продаж.",
+    "source_user_requirements": [
+      "U03",
+      "U08"
+    ],
+    "source_blueprint_section": "8.5",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F16",
+      "AL-F24"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S22",
+      "AL-S23",
+      "AL-S24"
+    ]
+  },
+  {
+    "id": "AL-R020",
+    "text": "Существующее ядро вызывается через adapter, не переписывается платформой.",
+    "source_user_requirements": [
+      "U10"
+    ],
+    "source_blueprint_section": "17",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F06",
+      "AL-F21"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S07",
+      "AL-S17",
+      "AL-S20",
+      "AL-S23"
+    ]
+  },
+  {
+    "id": "AL-R021",
+    "text": "Ticket и pinned store/credential/catalog scope проверяются перед фактическим действием.",
+    "source_user_requirements": [
+      "U06",
+      "U10"
+    ],
+    "source_blueprint_section": "16.2",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F06",
+      "AL-F07",
+      "AL-F08"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S07",
+      "AL-S09",
+      "AL-S10",
+      "AL-S20"
+    ]
+  },
+  {
+    "id": "AL-R022",
+    "text": "Уточнение сохраняет период/магазины/исключения и ось; несовместимые данные не складываются.",
+    "source_user_requirements": [
+      "U10"
+    ],
+    "source_blueprint_section": "17",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F07"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S09"
+    ]
+  },
+  {
+    "id": "AL-R023",
+    "text": "Долгое задание имеет durable state, cancel, UNKNOWN и no-replay; доставка не пересчитывает.",
+    "source_user_requirements": [
+      "U10"
+    ],
+    "source_blueprint_section": "18.3",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F08"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S10"
+    ]
+  },
+  {
+    "id": "AL-R024",
+    "text": "TTL ядра и активная очистка сохраняются для всех путей выдачи.",
+    "source_user_requirements": [
+      "U10"
+    ],
+    "source_blueprint_section": "19.1",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F08",
+      "AL-F19",
+      "AL-F20"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S10",
+      "AL-S15",
+      "AL-S16",
+      "AL-S17",
+      "AL-S22",
+      "AL-S23"
+    ]
+  },
+  {
+    "id": "AL-R025",
+    "text": "Публичный каталог выводится только из published версии и показывает ограничения клиента.",
+    "source_user_requirements": [
+      "U05"
+    ],
+    "source_blueprint_section": "12.1",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F09"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S11",
+      "AL-S13"
+    ]
+  },
+  {
+    "id": "AL-R026",
+    "text": "P1 miss учитывается и при P2 success; final failure хранится отдельно.",
+    "source_user_requirements": [
+      "U04"
+    ],
+    "source_blueprint_section": "11.1",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F10"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S08",
+      "AL-S09"
+    ]
+  },
+  {
+    "id": "AL-R027",
+    "text": "Причины gap разделяют семантику, operator, права, оплату, provider и bug.",
+    "source_user_requirements": [
+      "U04"
+    ],
+    "source_blueprint_section": "11.2",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F10",
+      "AL-F11"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S08",
+      "AL-S09",
+      "AL-S12"
+    ]
+  },
+  {
+    "id": "AL-R028",
+    "text": "Логический эпизод, уточнение и result polling не раздувают спрос.",
+    "source_user_requirements": [
+      "U04"
+    ],
+    "source_blueprint_section": "11.1",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F10",
+      "AL-F11"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S08",
+      "AL-S09",
+      "AL-S12"
+    ]
+  },
+  {
+    "id": "AL-R029",
+    "text": "Gap-событие очищается до долговременной записи; чувствительный текст не идёт в LLM/Git.",
+    "source_user_requirements": [
+      "U04"
+    ],
+    "source_blueprint_section": "11.3",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F10",
+      "AL-F19"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S08",
+      "AL-S09",
+      "AL-S15",
+      "AL-S16",
+      "AL-S17",
+      "AL-S22"
+    ]
+  },
+  {
+    "id": "AL-R030",
+    "text": "Доставка gap через durable outbox/inbox; при потерях полнота явно неизвестна.",
+    "source_user_requirements": [
+      "U04"
+    ],
+    "source_blueprint_section": "11.4",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F10",
+      "AL-F20"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S08",
+      "AL-S09",
+      "AL-S16",
+      "AL-S23"
+    ]
+  },
+  {
+    "id": "AL-R031",
+    "text": "Кластеры сохраняют ось/исключения; merge/split имеют provenance и пересчёт.",
+    "source_user_requirements": [
+      "U04"
+    ],
+    "source_blueprint_section": "11.5",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F11"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S12"
+    ]
+  },
+  {
+    "id": "AL-R032",
+    "text": "Порог считает capped tenant/day и distinct tenants; создаёт один candidate, а не publish.",
+    "source_user_requirements": [
+      "U04"
+    ],
+    "source_blueprint_section": "11.5",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F11"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S12"
+    ]
+  },
+  {
+    "id": "AL-R033",
+    "text": "Денежные/security дефекты не ждут порога; ручной приоритет имеет причину.",
+    "source_user_requirements": [
+      "U04"
+    ],
+    "source_blueprint_section": "11.5",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F11",
+      "AL-F18"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S12",
+      "AL-S14",
+      "AL-S23"
+    ]
+  },
+  {
+    "id": "AL-R034",
+    "text": "Каталог связывает намерение, фразу, источник и вычисления, а не копирует скрипт на фразу.",
+    "source_user_requirements": [
+      "U05",
+      "U10"
+    ],
+    "source_blueprint_section": "12.1",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F09",
+      "AL-F12"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S11",
+      "AL-S13"
+    ]
+  },
+  {
+    "id": "AL-R035",
+    "text": "Draft/qualification/approval/publish разделены; пакет immutable и закреплён в job.",
+    "source_user_requirements": [
+      "U05"
+    ],
+    "source_blueprint_section": "12.3",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F12"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S13"
+    ]
+  },
+  {
+    "id": "AL-R036",
+    "text": "Canary/rollback не повторяют API; критический источник отключается адресно.",
+    "source_user_requirements": [
+      "U05"
+    ],
+    "source_blueprint_section": "12.3",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F12"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S13"
+    ]
+  },
+  {
+    "id": "AL-R037",
+    "text": "Статистика разделяет cash, refunds, fees, normalized month и бесплатный срок.",
+    "source_user_requirements": [
+      "U03"
+    ],
+    "source_blueprint_section": "10",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F17"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S16",
+      "AL-S23"
+    ]
+  },
+  {
+    "id": "AL-R038",
+    "text": "Показатели качества имеют знаменатель, версии, timezone и признак completeness.",
+    "source_user_requirements": [
+      "U03",
+      "U04"
+    ],
+    "source_blueprint_section": "10.3",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F17",
+      "AL-F20"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S16",
+      "AL-S23"
+    ]
+  },
+  {
+    "id": "AL-R039",
+    "text": "Поддержка без скрытого impersonation; WRONG_SEMANTICS видна даже при READY.",
+    "source_user_requirements": [
+      "U02",
+      "U04"
+    ],
+    "source_blueprint_section": "13",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F18"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S14",
+      "AL-S23"
+    ]
+  },
+  {
+    "id": "AL-R040",
+    "text": "Уведомления идемпотентны; устаревшие reminders отменяются; маркетинг отдельный.",
+    "source_user_requirements": [
+      "U02"
+    ],
+    "source_blueprint_section": "13",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F14",
+      "AL-F15",
+      "AL-F18"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S14",
+      "AL-S20",
+      "AL-S21",
+      "AL-S23"
+    ]
+  },
+  {
+    "id": "AL-R041",
+    "text": "Клиент управляет сессиями/email/удалением; restore применяет tombstones до ingress.",
+    "source_user_requirements": [
+      "U02"
+    ],
+    "source_blueprint_section": "19.2",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F19",
+      "AL-F21"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S15",
+      "AL-S16",
+      "AL-S17",
+      "AL-S22",
+      "AL-S23"
+    ]
+  },
+  {
+    "id": "AL-R042",
+    "text": "Очередь справедлива, HTTP/LLM бюджет измеряется; admin/payment не блокируют голосовой пул.",
+    "source_user_requirements": [
+      "U10"
+    ],
+    "source_blueprint_section": "18",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F20"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S16",
+      "AL-S23"
+    ]
+  },
+  {
+    "id": "AL-R043",
+    "text": "Recovery и миграция подтверждаются восстановлением, не только наличием backup.",
+    "source_user_requirements": [
+      "U01",
+      "U10"
+    ],
+    "source_blueprint_section": "20",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F21"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S17",
+      "AL-S23"
+    ]
+  },
+  {
+    "id": "AL-R044",
+    "text": "Console и физическая Станция — разные уровни; автоозвучка не заявляется готовой.",
+    "source_user_requirements": [
+      "U02"
+    ],
+    "source_blueprint_section": "13,21",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F22"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S18"
+    ]
+  },
+  {
+    "id": "AL-R045",
+    "text": "Бесплатный пилот отделён от коммерческого включения и имеет защитные gates.",
+    "source_user_requirements": [
+      "U02",
+      "U07"
+    ],
+    "source_blueprint_section": "22",
+    "origin": "SOURCE_DERIVED",
+    "features": [
+      "AL-F23",
+      "AL-F24"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S19",
+      "AL-S24"
+    ]
+  },
+  {
+    "id": "AL-R046",
+    "text": "Каждая поставка даёт законченный проверяемый результат: AL-S00 — исполняемый каркас, 01–24 — предметные функции; папки/таблицы/формы отдельно не считаются завершением.",
+    "source_user_requirements": [
+      "U11"
+    ],
+    "source_blueprint_section": "поручение 04.11.2026",
+    "origin": "DIRECT_USER",
+    "features": [
+      "AL-F00",
+      "AL-F01",
+      "AL-F02",
+      "AL-F03",
+      "AL-F04",
+      "AL-F05",
+      "AL-F06",
+      "AL-F07",
+      "AL-F08",
+      "AL-F09",
+      "AL-F10",
+      "AL-F11",
+      "AL-F12",
+      "AL-F13",
+      "AL-F14",
+      "AL-F15",
+      "AL-F16",
+      "AL-F17",
+      "AL-F18",
+      "AL-F19",
+      "AL-F20",
+      "AL-F21",
+      "AL-F22",
+      "AL-F23",
+      "AL-F24"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S00",
+      "AL-S01",
+      "AL-S02",
+      "AL-S03",
+      "AL-S04",
+      "AL-S05",
+      "AL-S06",
+      "AL-S07",
+      "AL-S08",
+      "AL-S09",
+      "AL-S10",
+      "AL-S11",
+      "AL-S12",
+      "AL-S13",
+      "AL-S14",
+      "AL-S15",
+      "AL-S16",
+      "AL-S17",
+      "AL-S18",
+      "AL-S19",
+      "AL-S20",
+      "AL-S21",
+      "AL-S22",
+      "AL-S23",
+      "AL-S24"
+    ],
+    "revision_note": "v0.5 выделяет AL-S00 как реальный технический результат; запрет сдавать отдельные папки/таблицы вместо функций сохранён."
+  },
+  {
+    "id": "AL-R047",
+    "text": "Собственная главная, контент, конверсионный путь и SEO Алисы сохраняются до отдельного согласованного объединения.",
+    "source_user_requirements": [
+      "U12",
+      "U13",
+      "U14"
+    ],
+    "source_blueprint_section": "Новое поручение и исследование 04.11.2026",
+    "origin": "V0.4_OWNER_CHANGE",
+    "features": [
+      "AL-F01",
+      "AL-F23",
+      "AL-F24"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S01",
+      "AL-S19",
+      "AL-S24"
+    ]
+  },
+  {
+    "id": "AL-R048",
+    "text": "Режимы CLOSED/PILOT/PAID включают только существующий путь; нет оплаты/регистрации/безлимитного trial до их фактической готовности.",
+    "source_user_requirements": [
+      "U12",
+      "U13",
+      "U14"
+    ],
+    "source_blueprint_section": "Новое поручение и исследование 04.11.2026",
+    "origin": "V0.4_OWNER_CHANGE",
+    "features": [
+      "AL-F01",
+      "AL-F13",
+      "AL-F23"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S01",
+      "AL-S02",
+      "AL-S19",
+      "AL-S20",
+      "AL-S24"
+    ]
+  },
+  {
+    "id": "AL-R049",
+    "text": "Новый identity имеет стабильный issuer, OIDC Code+PKCE и постоянные идентификаторы; второй тестовый клиент не получает продуктовых прав.",
+    "source_user_requirements": [
+      "U12",
+      "U13",
+      "U14"
+    ],
+    "source_blueprint_section": "Новое поручение и исследование 04.11.2026",
+    "origin": "V0.4_OWNER_CHANGE",
+    "features": [
+      "AL-F01",
+      "AL-F02",
+      "AL-F21"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S02",
+      "AL-S03",
+      "AL-S17"
+    ]
+  },
+  {
+    "id": "AL-R050",
+    "text": "Связывание по одному email запрещено; person, локальный user, tenant, Яндекс grant и product entitlement различны.",
+    "source_user_requirements": [
+      "U12",
+      "U13",
+      "U14"
+    ],
+    "source_blueprint_section": "Новое поручение и исследование 04.11.2026",
+    "origin": "V0.4_OWNER_CHANGE",
+    "features": [
+      "AL-F01",
+      "AL-F05",
+      "AL-F19"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S02",
+      "AL-S06",
+      "AL-S15"
+    ]
+  },
+  {
+    "id": "AL-R051",
+    "text": "Permissions, grants, деньги, audit и события включают alisa_market; общий вход не предоставляет другой продукт.",
+    "source_user_requirements": [
+      "U12",
+      "U13",
+      "U14"
+    ],
+    "source_blueprint_section": "Новое поручение и исследование 04.11.2026",
+    "origin": "V0.4_OWNER_CHANGE",
+    "features": [
+      "AL-F02",
+      "AL-F04",
+      "AL-F14",
+      "AL-F17"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S03",
+      "AL-S04",
+      "AL-S20",
+      "AL-S23"
+    ]
+  },
+  {
+    "id": "AL-R052",
+    "text": "Next.js UI/BFF Алисы выпускаются отдельно; общие компоненты pinned, продуктовые backend/матрица не переписываются ради общего UI.",
+    "source_user_requirements": [
+      "U12",
+      "U13",
+      "U14"
+    ],
+    "source_blueprint_section": "Новое поручение и исследование 04.11.2026",
+    "origin": "V0.4_OWNER_CHANGE",
+    "features": [
+      "AL-F01",
+      "AL-F02",
+      "AL-F21"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S01",
+      "AL-S03",
+      "AL-S17"
+    ]
+  },
+  {
+    "id": "AL-R053",
+    "text": "Шесть явных DNS имён и separate prod/stage issuer/cookies/secrets; wildcard, shared Domain cookie и подмена старых records запрещены.",
+    "source_user_requirements": [
+      "U12",
+      "U13",
+      "U14"
+    ],
+    "source_blueprint_section": "Новое поручение и исследование 04.11.2026",
+    "origin": "V0.4_OWNER_CHANGE",
+    "features": [
+      "AL-F01",
+      "AL-F02"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S01",
+      "AL-S02",
+      "AL-S03"
+    ]
+  },
+  {
+    "id": "AL-R054",
+    "text": "ENV-00 различает DNS_READY, HTTPS_READY и INFRA_READY; приложения/CI/миграции создаёт AL-S00, FOUNDATION_READY открывает шаг 01. Почта проверяется до первого использования.",
+    "source_user_requirements": [
+      "U12",
+      "U13",
+      "U14"
+    ],
+    "source_blueprint_section": "Новое поручение и исследование 04.11.2026",
+    "origin": "V0.4_OWNER_CHANGE",
+    "features": [
+      "AL-F01"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S00",
+      "AL-S01",
+      "AL-S02"
+    ],
+    "revision_note": "v0.5 устраняет круг ENV/приложения и отделяет почту, необходимую только первому потребителю."
+  },
+  {
+    "id": "AL-R055",
+    "text": "Связка Яндекс навыка сохраняется за совместимым facade; OIDC ЛК не заменяет её refresh контракт.",
+    "source_user_requirements": [
+      "U12",
+      "U13",
+      "U14"
+    ],
+    "source_blueprint_section": "Новое поручение и исследование 04.11.2026",
+    "origin": "V0.4_OWNER_CHANGE",
+    "features": [
+      "AL-F05",
+      "AL-F21",
+      "AL-F22"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S06",
+      "AL-S17",
+      "AL-S18"
+    ]
+  },
+  {
+    "id": "AL-R056",
+    "text": "Самостоятельность доказана при отключённых зависимостях старого Октопорта в стенде; объединение не блокирует первый выпуск Алисы.",
+    "source_user_requirements": [
+      "U12",
+      "U13",
+      "U14"
+    ],
+    "source_blueprint_section": "Новое поручение и исследование 04.11.2026",
+    "origin": "V0.4_OWNER_CHANGE",
+    "features": [
+      "AL-F01",
+      "AL-F06",
+      "AL-F23",
+      "AL-F24"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S02",
+      "AL-S07",
+      "AL-S19",
+      "AL-S24"
+    ]
+  },
+  {
+    "id": "AL-R057",
+    "text": "События воронки не содержат запросов/финансов/секретов; атрибуция opaque flow ID не даёт авторизации и не использует shared cookies.",
+    "source_user_requirements": [
+      "U12",
+      "U13",
+      "U14"
+    ],
+    "source_blueprint_section": "Новое поручение и исследование 04.11.2026",
+    "origin": "V0.4_OWNER_CHANGE",
+    "features": [
+      "AL-F01",
+      "AL-F10",
+      "AL-F17"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S01",
+      "AL-S02",
+      "AL-S08",
+      "AL-S16",
+      "AL-S23"
+    ]
+  },
+  {
+    "id": "AL-R058",
+    "text": "Нет автоматического переноса marketplace-ключей расширения в Алису; общее представление не меняет границы их хранения.",
+    "source_user_requirements": [
+      "U12",
+      "U13",
+      "U14"
+    ],
+    "source_blueprint_section": "Новое поручение и исследование 04.11.2026",
+    "origin": "V0.4_OWNER_CHANGE",
+    "features": [
+      "AL-F03",
+      "AL-F21"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S05",
+      "AL-S17"
+    ]
+  },
+  {
+    "id": "AL-R059",
+    "text": "Нулевой AL-S00 принимается по реальному сквозному техническому пути, restart и rollback до сайта.",
+    "source_user_requirements": [
+      "U15"
+    ],
+    "source_blueprint_section": "Текущая правка архитектурного фундамента",
+    "origin": "V0.5_OWNER_FOUNDATION",
+    "features": [
+      "AL-F00"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S00"
+    ]
+  },
+  {
+    "id": "AL-R060",
+    "text": "Отдельный products/alisa содержит явные исходные каталоги, владельцев, запреты импортов и защищённые чужие пути.",
+    "source_user_requirements": [
+      "U15"
+    ],
+    "source_blueprint_section": "Текущая правка архитектурного фундамента",
+    "origin": "V0.5_OWNER_FOUNDATION",
+    "features": [
+      "AL-F00"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S00"
+    ]
+  },
+  {
+    "id": "AL-R061",
+    "text": "Identity, platform и runtime имеют отдельных владельцев БД/миграций/секретов; UUID identity выбирается до начальной auth migration.",
+    "source_user_requirements": [
+      "U15"
+    ],
+    "source_blueprint_section": "Текущая правка архитектурного фундамента",
+    "origin": "V0.5_OWNER_FOUNDATION",
+    "features": [
+      "AL-F00"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S00"
+    ]
+  },
+  {
+    "id": "AL-R062",
+    "text": "Окружения имеют разные данные, процессы, секреты и resource budgets; мощность подтверждается, не предполагается.",
+    "source_user_requirements": [
+      "U15"
+    ],
+    "source_blueprint_section": "Текущая правка архитектурного фундамента",
+    "origin": "V0.5_OWNER_FOUNDATION",
+    "features": [
+      "AL-F00"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S00"
+    ]
+  },
+  {
+    "id": "AL-R063",
+    "text": "Build/release/run разделены; dependencies закреплены locks, артефакт и manifest неизменяемы.",
+    "source_user_requirements": [
+      "U15"
+    ],
+    "source_blueprint_section": "Текущая правка архитектурного фундамента",
+    "origin": "V0.5_OWNER_FOUNDATION",
+    "features": [
+      "AL-F00"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S00"
+    ]
+  },
+  {
+    "id": "AL-R064",
+    "text": "Deploy/rollback касаются только новых сервисов; откат кода не откатывает данные и финансовые effects.",
+    "source_user_requirements": [
+      "U15"
+    ],
+    "source_blueprint_section": "Текущая правка архитектурного фундамента",
+    "origin": "V0.5_OWNER_FOUNDATION",
+    "features": [
+      "AL-F00"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S00"
+    ]
+  },
+  {
+    "id": "AL-R065",
+    "text": "CI проверяет код, contracts и архитектурные границы; fork/PR не имеет production secrets/deploy.",
+    "source_user_requirements": [
+      "U15"
+    ],
+    "source_blueprint_section": "Текущая правка архитектурного фундамента",
+    "origin": "V0.5_OWNER_FOUNDATION",
+    "features": [
+      "AL-F00"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S00"
+    ]
+  },
+  {
+    "id": "AL-R066",
+    "text": "Readiness отражает обязательные зависимости; инженерная write-проба закрыта в production.",
+    "source_user_requirements": [
+      "U15"
+    ],
+    "source_blueprint_section": "Текущая правка архитектурного фундамента",
+    "origin": "V0.5_OWNER_FOUNDATION",
+    "features": [
+      "AL-F00"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S00"
+    ]
+  },
+  {
+    "id": "AL-R067",
+    "text": "ENV-00 проверяет инфраструктуру; AL-S00 создаёт приложения — циклических prerequisites нет.",
+    "source_user_requirements": [
+      "U15"
+    ],
+    "source_blueprint_section": "Текущая правка архитектурного фундамента",
+    "origin": "V0.5_OWNER_FOUNDATION",
+    "features": [
+      "AL-F00"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S00"
+    ]
+  },
+  {
+    "id": "AL-R068",
+    "text": "Каждое требование связано с шагом, модулем, тестом и доказательством; historical sources не являются вторым действующим ТЗ.",
+    "source_user_requirements": [
+      "U15"
+    ],
+    "source_blueprint_section": "Текущая правка архитектурного фундамента",
+    "origin": "V0.5_OWNER_FOUNDATION",
+    "features": [
+      "AL-F00"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S00"
+    ]
+  },
+  {
+    "id": "AL-R069",
+    "text": "Полный handoff содержит manifest и проверку; сохранение локального архива не называется публикацией в GitHub.",
+    "source_user_requirements": [
+      "U15"
+    ],
+    "source_blueprint_section": "Текущая правка архитектурного фундамента",
+    "origin": "V0.5_OWNER_FOUNDATION",
+    "features": [
+      "AL-F00"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S00"
+    ]
+  },
+  {
+    "id": "AL-R070",
+    "text": "Каркас конечен: будущие бизнес-модули строятся по потребителю 01–24, не создаются как пустые якобы готовые функции.",
+    "source_user_requirements": [
+      "U15"
+    ],
+    "source_blueprint_section": "Текущая правка архитектурного фундамента",
+    "origin": "V0.5_OWNER_FOUNDATION",
+    "features": [
+      "AL-F00"
+    ],
+    "status": "NOT_VERIFIED",
+    "execution_steps": [
+      "AL-S00"
+    ]
+  }
+]

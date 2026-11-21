@@ -1,0 +1,28 @@
+{
+  "scope": "INACTIVE_RUNTIME_PACKAGE_COPY_ONLY_NOT_ACTIVATED",
+  "status": "PASS",
+  "source_sha": "6098b31384ae23a43fb869abd3e67f165bc644fa",
+  "target": "/opt/alice-market/store-check-releases/rt-check-6098b31384ae23a4",
+  "tar_sha256": "de61cf3fb8d537179606d5dcb9c9097fa8f83f5e3021c9e7403f952d846e76eb",
+  "manifest_sha256": "59e211dd8c34c94510c897e33e3ca64d60ffddd643fd909ca40dac3ddc763b05",
+  "payload_files_verified": 7,
+  "manifest_files_verified": 1,
+  "new_product_service_created": false,
+  "active_service_restarted": false,
+  "socket_created": false,
+  "config_db_pointers_changed": false,
+  "live_provider_calls": 0,
+  "directory_mode": "0o700",
+  "directory_uid": 0,
+  "directory_gid": 0,
+  "readback_hashes_match": true,
+  "active_http_unchanged": true,
+  "socket_absent": true,
+  "pointers": {
+    "web-current": "alisa-c8666516683e7b2b",
+    "site-current": "alisa-c8666516683e7b2b",
+    "admin-current": "alisa-c8666516683e7b2b",
+    "identity-current": "alisa-482ed11832b666af",
+    "current": "alisa-482ed11832b666af"
+  }
+}

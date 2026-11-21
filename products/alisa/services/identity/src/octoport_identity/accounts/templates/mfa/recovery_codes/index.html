@@ -1,0 +1,24 @@
+{% extends "mfa/recovery_codes/base.html" %}
+{% load i18n allauth %}
+{% block content %}
+<h1>Коды восстановления</h1>
+<p>Приложение подключено. Сохраните резервные коды в безопасном месте: они помогут войти, если телефон будет недоступен.</p>
+<p>Доступны {{ unused_codes|length }} из {{ total_count }} кодов восстановления.</p>
+{% if can_view_codes %}
+<label for="recovery_codes">Неиспользованные коды</label>
+<textarea id="recovery_codes" rows="{{ unused_codes|length }}" readonly>{% for code in unused_codes %}{% if forloop.counter0 %}
+{% endif %}{{ code }}{% endfor %}</textarea>
+{% endif %}
+{% if can_download_codes %}
+<p><a href="{% url 'mfa_download_recovery_codes' %}">Скачать коды</a></p>
+{% endif %}
+{% if can_generate_codes %}
+<p><a href="{% url 'mfa_generate_recovery_codes' %}">Сгенерировать новые коды</a></p>
+{% endif %}
+{% if staff_continuation_context %}
+<form method="post" action="{% url 'identity_staff_continue' %}">
+  {% csrf_token %}
+  <button type="submit">Коды сохранены — перейти в админку</button>
+</form>
+{% endif %}
+{% endblock %}

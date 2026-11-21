@@ -1,0 +1,2769 @@
+{
+  "postgresql-browser-qualification.json": {
+    "scope": "DISPOSABLE_POSTGRESQL_AND_PACKAGED_UI_AUTHOR_QUALIFICATION",
+    "source_sha": "3f3162ac7709f575b3bf965ad0b709e326060cab",
+    "cases": [
+      {
+        "case": "single_artifact_root",
+        "passed": true
+      },
+      {
+        "case": "artifact_integrity",
+        "passed": true,
+        "source_sha": "3f3162ac7709f575b3bf965ad0b709e326060cab"
+      },
+      {
+        "case": "fresh_separate_database_provision",
+        "passed": true
+      },
+      {
+        "case": "fresh_empty_production_namespaces_provisioned",
+        "passed": true
+      },
+      {
+        "case": "existing_production_namespace_refused",
+        "passed": true
+      },
+      {
+        "case": "platform_production_runtime_empty_and_original_password_preserved",
+        "passed": true
+      },
+      {
+        "case": "platform_production_migration_empty_and_original_password_preserved",
+        "passed": true
+      },
+      {
+        "case": "identity_production_runtime_empty_and_original_password_preserved",
+        "passed": true
+      },
+      {
+        "case": "identity_production_migration_empty_and_original_password_preserved",
+        "passed": true
+      },
+      {
+        "case": "alisa_stage_platform_runtime_to_alisa_prod_platform_denied",
+        "passed": true,
+        "sqlstate": null
+      },
+      {
+        "case": "alisa_stage_platform_runtime_to_alisa_prod_identity_denied",
+        "passed": true,
+        "sqlstate": null
+      },
+      {
+        "case": "alisa_stage_platform_migration_to_alisa_prod_platform_denied",
+        "passed": true,
+        "sqlstate": null
+      },
+      {
+        "case": "alisa_stage_platform_migration_to_alisa_prod_identity_denied",
+        "passed": true,
+        "sqlstate": null
+      },
+      {
+        "case": "alisa_stage_identity_runtime_to_alisa_prod_platform_denied",
+        "passed": true,
+        "sqlstate": null
+      },
+      {
+        "case": "alisa_stage_identity_runtime_to_alisa_prod_identity_denied",
+        "passed": true,
+        "sqlstate": null
+      },
+      {
+        "case": "alisa_stage_identity_migration_to_alisa_prod_platform_denied",
+        "passed": true,
+        "sqlstate": null
+      },
+      {
+        "case": "alisa_stage_identity_migration_to_alisa_prod_identity_denied",
+        "passed": true,
+        "sqlstate": null
+      },
+      {
+        "case": "initial_and_repeat_migrations",
+        "passed": true
+      },
+      {
+        "case": "identity_uuid_before_auth",
+        "passed": true
+      },
+      {
+        "case": "platform_least_privilege",
+        "passed": true
+      },
+      {
+        "case": "platform_runtime_ddl_denied",
+        "passed": true
+      },
+      {
+        "case": "platform_cross_database_acl_denied",
+        "passed": true
+      },
+      {
+        "case": "platform_cross_database_denied",
+        "passed": true,
+        "sqlstate": null
+      },
+      {
+        "case": "identity_least_privilege",
+        "passed": true
+      },
+      {
+        "case": "identity_runtime_ddl_denied",
+        "passed": true
+      },
+      {
+        "case": "identity_cross_database_acl_denied",
+        "passed": true
+      },
+      {
+        "case": "identity_cross_database_denied",
+        "passed": true,
+        "sqlstate": null
+      },
+      {
+        "case": "synthetic_stage_to_prod_acl_denied",
+        "passed": true
+      },
+      {
+        "case": "synthetic_stage_to_prod_database_denied",
+        "passed": true,
+        "sqlstate": null
+      },
+      {
+        "case": "real_database_readiness",
+        "passed": true
+      },
+      {
+        "case": "unauthorized_direct_call_denied",
+        "passed": true
+      },
+      {
+        "case": "concurrent_duplicate_posts",
+        "passed": true
+      },
+      {
+        "case": "one_durable_probe_and_job",
+        "passed": true
+      },
+      {
+        "case": "conflicting_kind_rejected",
+        "passed": true
+      },
+      {
+        "case": "accepted_probe_survives_api_restart",
+        "passed": true
+      },
+      {
+        "case": "two_worker_processes_exit",
+        "passed": true
+      },
+      {
+        "case": "one_processed_effect",
+        "passed": true
+      },
+      {
+        "case": "repeat_after_processing_no_second_effect",
+        "passed": true
+      },
+      {
+        "case": "processed_probe_survives_restart",
+        "passed": true
+      },
+      {
+        "case": "real_database_refusal_is_503",
+        "passed": true
+      },
+      {
+        "case": "packaged_web_entrypoint_refuses_missing_secret",
+        "passed": true
+      },
+      {
+        "case": "bff_without_admission_denied",
+        "passed": true
+      },
+      {
+        "case": "bff_wrong_origin_denied",
+        "passed": true
+      },
+      {
+        "case": "bff_allowed_host_routes_to_real_database",
+        "passed": true
+      },
+      {
+        "case": "bff_foreign_host_still_denied",
+        "passed": true
+      },
+      {
+        "case": "separate_packaged_admin_starts_without_database_credentials",
+        "passed": true
+      },
+      {
+        "case": "browser_bff_api_postgresql_worker_roundtrip",
+        "passed": true
+      },
+      {
+        "case": "bff_emits_allowlisted_browser_correlation",
+        "passed": true
+      },
+      {
+        "case": "browser_retry_keeps_one_effect",
+        "passed": true
+      },
+      {
+        "case": "s01_cross_origin_denied",
+        "passed": true
+      },
+      {
+        "case": "s01_no_real_contact_collection",
+        "passed": true
+      },
+      {
+        "case": "s01_consent_required",
+        "passed": true
+      },
+      {
+        "case": "s01_concurrent_duplicate_submission_acknowledged",
+        "passed": true
+      },
+      {
+        "case": "s01_request_id_contact_conflict",
+        "passed": true
+      },
+      {
+        "case": "s01_one_lead_outbox_and_server_effect",
+        "passed": true
+      },
+      {
+        "case": "s01_unknown_attribution_stripped",
+        "passed": true
+      },
+      {
+        "case": "s01_real_smtp_delivery",
+        "passed": true
+      },
+      {
+        "case": "s01_token_in_fragment_not_query",
+        "passed": true
+      },
+      {
+        "case": "s01_repeat_mail_batch_does_not_resend",
+        "passed": true
+      },
+      {
+        "case": "s01_wrong_token_rejected",
+        "passed": true
+      },
+      {
+        "case": "s01_confirm_contact",
+        "passed": true
+      },
+      {
+        "case": "s01_token_one_use",
+        "passed": true
+      },
+      {
+        "case": "s01_one_confirmed_effect_and_outbox_cleared",
+        "passed": true
+      },
+      {
+        "case": "s01_analytics_consent_optional",
+        "passed": true
+      },
+      {
+        "case": "s01_client_cannot_emit_confirmation",
+        "passed": true
+      },
+      {
+        "case": "s01_event_uuid_idempotency",
+        "passed": true
+      },
+      {
+        "case": "s01_expired_link_rejected",
+        "passed": true
+      },
+      {
+        "case": "s01_expired_challenge_reissued_without_new_lead",
+        "passed": true
+      },
+      {
+        "case": "s01_confirmation_attempt_limit",
+        "passed": true
+      },
+      {
+        "case": "s01_mobile_layout",
+        "passed": true
+      },
+      {
+        "case": "s01_desktop_layout",
+        "passed": true
+      },
+      {
+        "case": "s01_page_how-it-works",
+        "passed": true
+      },
+      {
+        "case": "s01_page_examples",
+        "passed": true
+      },
+      {
+        "case": "s01_page_pricing",
+        "passed": true
+      },
+      {
+        "case": "s01_page_faq",
+        "passed": true
+      },
+      {
+        "case": "s01_page_help",
+        "passed": true
+      },
+      {
+        "case": "s01_page_contacts",
+        "passed": true
+      },
+      {
+        "case": "s01_page_privacy",
+        "passed": true
+      },
+      {
+        "case": "s01_page_terms",
+        "passed": true
+      },
+      {
+        "case": "s01_page_consents",
+        "passed": true
+      },
+      {
+        "case": "s01_page_login",
+        "passed": true
+      },
+      {
+        "case": "s01_page_app_private-object",
+        "passed": true
+      },
+      {
+        "case": "s01_ui_rotates_request_uuid_after_ack",
+        "passed": true
+      },
+      {
+        "case": "s01_ui_resend_acknowledged",
+        "passed": true
+      },
+      {
+        "case": "s01_ui_expired_link_resend_reuses_lead",
+        "passed": true
+      },
+      {
+        "case": "s01_browser_smtp_confirmation_and_reload",
+        "passed": true
+      },
+      {
+        "case": "s01_direct_join_visit_is_not_cta",
+        "passed": true
+      },
+      {
+        "case": "s01_actual_cta_click_recorded",
+        "passed": true
+      },
+      {
+        "case": "s01_browser_persistent_confirmed_lead",
+        "passed": true
+      },
+      {
+        "case": "s01_logs_contain_no_contact_or_confirmation_token",
+        "passed": true
+      },
+      {
+        "case": "s01_confirmed_leads_survive_api_restart",
+        "passed": true
+      },
+      {
+        "case": "recovery_probe_accepted_before_database_outage",
+        "passed": true
+      },
+      {
+        "case": "worker_survives_real_database_connection_denial",
+        "passed": true
+      },
+      {
+        "case": "worker_database_recovery_keeps_one_effect",
+        "passed": true
+      },
+      {
+        "case": "ttl_cleanup_with_probe_disabled",
+        "passed": true
+      },
+      {
+        "case": "old_code_reads_compatible_expanded_schema",
+        "passed": true
+      }
+    ],
+    "foundation_ready": false,
+    "not_run": [
+      "real_stage_https_ingress",
+      "systemd_deploy",
+      "r1_r2_r1_release_rollback",
+      "independent_stage_handoff"
+    ]
+  },
+  "s02-qualification.json": {
+    "scope": "S02_FULL_DISPOSABLE_HTTPS_BROWSER_QUALIFICATION_NOT_STAGE_ACCEPTANCE",
+    "status": "FAILED",
+    "cases": [
+      {
+        "case": "s02_immutable_package_hashes",
+        "passed": true
+      },
+      {
+        "case": "s02_offline_identity_dependencies_installed",
+        "passed": true
+      },
+      {
+        "case": "s02_separate_migrations_and_confidential_clients",
+        "passed": true
+      },
+      {
+        "case": "s02_platform_foreign_database_denied",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_foreign_database_denied",
+        "passed": true
+      },
+      {
+        "case": "s02_runtime_nonloopback_egress_denied_by_owned_uid_firewall",
+        "passed": true
+      },
+      {
+        "case": "s02_platform_owned_uid_import",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_owned_uid_import",
+        "passed": true
+      },
+      {
+        "case": "s02_strict_https_web_and_identity_ready",
+        "passed": true
+      },
+      {
+        "case": "s02_fixed_issuer_and_s256_discovery",
+        "passed": true
+      },
+      {
+        "case": "s02_confidential_basic_authentication_reaches_grant_validation",
+        "passed": true
+      },
+      {
+        "case": "s02_basic_encoded_validation",
+        "passed": true
+      },
+      {
+        "case": "s02_basic_wrong_secret_validation",
+        "passed": true
+      },
+      {
+        "case": "s02_disposable_chromium_binary_available",
+        "passed": true
+      },
+      {
+        "case": "s02_private_home_requires_own_session",
+        "passed": true
+      },
+      {
+        "case": "s02_no_service_cookie_or_data_in_anonymous_html",
+        "passed": true
+      },
+      {
+        "case": "s02_start_requires_consents",
+        "passed": true
+      },
+      {
+        "case": "s02_no_script_cannot_put_contact_in_query",
+        "passed": true
+      },
+      {
+        "case": "s02_handoff_lead_submitted_in_browser",
+        "passed": true
+      },
+      {
+        "case": "s02_handoff_contact_confirmed_in_browser",
+        "passed": true
+      },
+      {
+        "case": "s02_bff_start_redirects_to_fixed_authority",
+        "passed": true,
+        "http_status": 303
+      },
+      {
+        "case": "s02_identity_login_theme",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_login_test_mail_notice",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_login_layout_320",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_login_layout_390",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_login_layout_1440",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_signup_theme",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_signup_test_mail_notice",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_signup_layout_320",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_signup_layout_390",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_signup_layout_1440",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_code_theme",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_code_test_mail_notice",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_code_layout_320",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_code_layout_390",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_code_layout_1440",
+        "passed": true
+      },
+      {
+        "case": "s02_totp_qr_readable_surface",
+        "passed": true
+      },
+      {
+        "case": "s02_totp_preview_does_not_activate_factor",
+        "passed": true
+      },
+      {
+        "case": "s02_real_browser_identity_code_bff_postgresql_home",
+        "passed": true
+      },
+      {
+        "case": "s02_lost_api_commit_response_retries_identical_session_payload",
+        "passed": true
+      },
+      {
+        "case": "s02_callback_replay_safe_receipt_no_new_session",
+        "passed": true
+      },
+      {
+        "case": "s02_callback_does_not_retain_code_or_state",
+        "passed": true
+      },
+      {
+        "case": "s02_one_customer_tenant_membership_identity_link",
+        "passed": true,
+        "counts": [
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      {
+        "case": "s02_owner_client_and_no_grants",
+        "passed": true
+      },
+      {
+        "case": "s02_confirmed_lead_linked_only_after_verified_identity",
+        "passed": true
+      },
+      {
+        "case": "s02_durable_product_consents",
+        "passed": true
+      },
+      {
+        "case": "s02_stable_uuid_person_and_identity_consents",
+        "passed": true
+      },
+      {
+        "case": "s02_mail_payload_cleared_after_send",
+        "passed": true
+      },
+      {
+        "case": "s02_host_only_secure_httponly_lax_product_cookie",
+        "passed": true
+      },
+      {
+        "case": "s02_no_bearer_tokens_in_browser_storage",
+        "passed": true
+      },
+      {
+        "case": "s02_private_home_refresh_keeps_real_profile",
+        "passed": true
+      },
+      {
+        "case": "s02_own_profile_persists",
+        "passed": true
+      },
+      {
+        "case": "s02_bff_start_redirects_to_fixed_authority",
+        "passed": true,
+        "http_status": 303
+      },
+      {
+        "case": "s02_foreign_lead_handoff_not_attached",
+        "passed": true
+      },
+      {
+        "case": "s02_tenant_spoof_rejected",
+        "passed": true
+      },
+      {
+        "case": "s02_profile_lookup_cannot_select_other_tenant",
+        "passed": true
+      },
+      {
+        "case": "s02_second_browser_has_distinct_profile",
+        "passed": true
+      },
+      {
+        "case": "s02_foreign_cookie_does_not_authorize",
+        "passed": true
+      },
+      {
+        "case": "s02_second_confidential_rp_state_preserved",
+        "passed": true
+      },
+      {
+        "case": "s02_second_confidential_rp_compatible",
+        "passed": true
+      },
+      {
+        "case": "s02_second_rp_token_has_no_product_access",
+        "passed": true
+      },
+      {
+        "case": "s02_pairwise_subjects_keep_same_person",
+        "passed": true
+      },
+      {
+        "case": "s02_foreign_return_to_rejected",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_reauthentication_external_target_denied",
+        "passed": true
+      },
+      {
+        "case": "s02_bff_start_redirects_to_fixed_authority",
+        "passed": true,
+        "http_status": 303
+      },
+      {
+        "case": "s02_negative_state_fixture_applied",
+        "passed": true
+      },
+      {
+        "case": "s02_bff_rejects_state",
+        "passed": true
+      },
+      {
+        "case": "s02_bff_start_redirects_to_fixed_authority",
+        "passed": true,
+        "http_status": 303
+      },
+      {
+        "case": "s02_negative_issuer_fixture_applied",
+        "passed": true
+      },
+      {
+        "case": "s02_bff_rejects_issuer",
+        "passed": true
+      },
+      {
+        "case": "s02_bff_start_redirects_to_fixed_authority",
+        "passed": true,
+        "http_status": 303
+      },
+      {
+        "case": "s02_negative_audience_fixture_applied",
+        "passed": true
+      },
+      {
+        "case": "s02_bff_rejects_audience",
+        "passed": true
+      },
+      {
+        "case": "s02_bff_start_redirects_to_fixed_authority",
+        "passed": true,
+        "http_status": 303
+      },
+      {
+        "case": "s02_negative_nonce_fixture_applied",
+        "passed": true
+      },
+      {
+        "case": "s02_bff_rejects_nonce",
+        "passed": true
+      },
+      {
+        "case": "s02_bff_start_redirects_to_fixed_authority",
+        "passed": true,
+        "http_status": 303
+      },
+      {
+        "case": "s02_negative_expiry_fixture_applied",
+        "passed": true
+      },
+      {
+        "case": "s02_bff_rejects_expiry",
+        "passed": true
+      },
+      {
+        "case": "s02_bff_start_redirects_to_fixed_authority",
+        "passed": true,
+        "http_status": 303
+      },
+      {
+        "case": "s02_negative_signature_fixture_applied",
+        "passed": true
+      },
+      {
+        "case": "s02_bff_rejects_signature",
+        "passed": true
+      },
+      {
+        "case": "s02_bff_start_redirects_to_fixed_authority",
+        "passed": true,
+        "http_status": 303
+      },
+      {
+        "case": "s02_negative_pkce_fixture_applied",
+        "passed": true
+      },
+      {
+        "case": "s02_bff_rejects_pkce",
+        "passed": true
+      },
+      {
+        "case": "s02_rejected_callbacks_create_no_customer_or_tenant",
+        "passed": true
+      },
+      {
+        "case": "s02_logout_revokes_server_session",
+        "passed": true
+      },
+      {
+        "case": "s02_bff_start_redirects_to_fixed_authority",
+        "passed": true,
+        "http_status": 303
+      },
+      {
+        "case": "s02_identity_reauthentication_theme",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_reauthentication_test_mail_notice",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_reauthentication_layout_320",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_reauthentication_layout_390",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_reauthentication_layout_1440",
+        "passed": true
+      },
+      {
+        "case": "s02_repeat_login_preserves_customer_and_tenant",
+        "passed": true
+      },
+      {
+        "case": "s02_service_restart_preserves_customer_session",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_restart_preserves_authority_session",
+        "passed": true
+      },
+      {
+        "case": "s02_blocked_customer_session_denied",
+        "passed": true
+      },
+      {
+        "case": "s02_expired_product_session_denied",
+        "passed": true
+      },
+      {
+        "case": "s02_own_session_restored_after_owned_fixture_change",
+        "passed": true
+      },
+      {
+        "case": "s02_cleanup_erases_expired_session_and_flow_blobs",
+        "passed": true
+      },
+      {
+        "case": "s02_cleanup_preserves_active_session",
+        "passed": true
+      },
+      {
+        "case": "s02_real_mail_invited_contact_normalized",
+        "passed": true
+      },
+      {
+        "case": "s02_real_mail_uninvited_contact_denied",
+        "passed": true
+      },
+      {
+        "case": "s02_real_mail_off_by_default",
+        "passed": true
+      },
+      {
+        "case": "s02_open_registration_accepts_new_real_contact",
+        "passed": true
+      },
+      {
+        "case": "s02_unknown_delivery_never_automatically_replayed",
+        "passed": true
+      },
+      {
+        "case": "s02_abandoned_submission_fail_closed_without_resend",
+        "passed": true
+      },
+      {
+        "case": "s02_connection_failure_keeps_encrypted_code_and_backoff",
+        "passed": true
+      },
+      {
+        "case": "s02_known_connection_recovery_once_and_private_payload_erased",
+        "passed": true
+      },
+      {
+        "case": "s02_runtime_code_ttl_600_and_five_attempts",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_session_encrypted_in_database",
+        "passed": true
+      },
+      {
+        "case": "s02_expired_email_code_denied",
+        "passed": true
+      },
+      {
+        "case": "s02_five_invalid_codes_exhaust_attempts",
+        "passed": true
+      },
+      {
+        "case": "s02_runtime_email_code_atomic_across_requests",
+        "passed": true
+      },
+      {
+        "case": "s02_verify_retry_safe_receipt_same_identity_session",
+        "passed": true
+      },
+      {
+        "case": "s02_used_code_old_browser_cookie_denied",
+        "passed": true
+      },
+      {
+        "case": "s02_known_unknown_code_request_same_response",
+        "passed": true
+      },
+      {
+        "case": "s02_mfa_secret_encrypted_and_factor_one_use",
+        "passed": true
+      },
+      {
+        "case": "s02_actual_runtime_negative_account_policies",
+        "passed": true
+      },
+      {
+        "case": "s02_smtp_outage_retains_encrypted_pending_mail",
+        "passed": true
+      },
+      {
+        "case": "s02_smtp_recovery_sends_and_erases_code",
+        "passed": true
+      },
+      {
+        "case": "s05_cabinet_opens_actual_stores_route",
+        "passed": true
+      },
+      {
+        "case": "s05_unpaid_customer_can_open_setup",
+        "passed": true
+      },
+      {
+        "case": "s05_form_persists_and_checks_one_actual_store",
+        "passed": true
+      },
+      {
+        "case": "s05_secret_not_returned_or_retained_in_form",
+        "passed": true
+      }
+    ],
+    "not_run": [
+      "live_stage_rollout",
+      "controlled_real_email",
+      "live_release_pair_rollback"
+    ],
+    "source_sha": "3f3162ac7709f575b3bf965ad0b709e326060cab",
+    "artifact_sha256": "da7a467955ed06f1dd78137b44aeed86b554ea1d305f2f11a42bb94ba4a7d0b8",
+    "postgres_version": "16.15 (Debian 16.15-1.pgdg13+2)",
+    "schemas": {
+      "platform": {
+        "migrations": [
+          [
+            "accounts",
+            "0001_initial"
+          ],
+          [
+            "entitlements",
+            "0001_initial"
+          ],
+          [
+            "foundation",
+            "0001_initial"
+          ],
+          [
+            "foundation",
+            "0002_pending_job_index"
+          ],
+          [
+            "funnel",
+            "0001_initial"
+          ],
+          [
+            "leads",
+            "0001_initial"
+          ],
+          [
+            "leads",
+            "0002_submission_created_at"
+          ],
+          [
+            "staff",
+            "0001_initial"
+          ],
+          [
+            "stores",
+            "0001_initial"
+          ]
+        ],
+        "tables": [
+          "accounts_authflow",
+          "accounts_consentrecord",
+          "accounts_customer",
+          "accounts_identitylink",
+          "accounts_leadlink",
+          "accounts_membership",
+          "accounts_tenant",
+          "accounts_websession",
+          "django_migrations",
+          "entitlements_accessadjustment",
+          "entitlements_accessbatch",
+          "entitlements_accessbatchitem",
+          "entitlements_accesscommand",
+          "entitlements_accessgrant",
+          "entitlements_accessledger",
+          "entitlements_accessnotification",
+          "entitlements_accesspreview",
+          "foundation_foundationjob",
+          "foundation_foundationprobe",
+          "funnel_funnelevent",
+          "leads_lead",
+          "leads_mailoutbox",
+          "leads_ratebucket",
+          "leads_submission",
+          "staff_staffauditevent",
+          "staff_staffauthflow",
+          "staff_staffcommandreceipt",
+          "staff_staffmember",
+          "staff_staffsession",
+          "stores_credentialrevision",
+          "stores_store",
+          "stores_storeaudit",
+          "stores_storecommand",
+          "stores_vaultsecret"
+        ]
+      },
+      "identity": {
+        "migrations": [
+          [
+            "account",
+            "0001_initial"
+          ],
+          [
+            "account",
+            "0002_email_max_length"
+          ],
+          [
+            "account",
+            "0003_alter_emailaddress_create_unique_verified_email"
+          ],
+          [
+            "account",
+            "0004_alter_emailaddress_drop_unique_email"
+          ],
+          [
+            "account",
+            "0005_emailaddress_idx_upper_email"
+          ],
+          [
+            "account",
+            "0006_emailaddress_lower"
+          ],
+          [
+            "account",
+            "0007_emailaddress_idx_email"
+          ],
+          [
+            "account",
+            "0008_emailaddress_unique_primary_email_fixup"
+          ],
+          [
+            "account",
+            "0009_emailaddress_unique_primary_email"
+          ],
+          [
+            "accounts",
+            "0001_initial"
+          ],
+          [
+            "accounts",
+            "0002_identitymail_protocolcache_identityconsent_subject"
+          ],
+          [
+            "allauth_idp_oidc",
+            "0001_initial"
+          ],
+          [
+            "allauth_idp_oidc",
+            "0002_client_default_scopes"
+          ],
+          [
+            "allauth_idp_oidc",
+            "0003_client_allow_uri_wildcards"
+          ],
+          [
+            "auth",
+            "0001_initial"
+          ],
+          [
+            "auth",
+            "0002_alter_permission_name_max_length"
+          ],
+          [
+            "auth",
+            "0003_alter_user_email_max_length"
+          ],
+          [
+            "auth",
+            "0004_alter_user_username_opts"
+          ],
+          [
+            "auth",
+            "0005_alter_user_last_login_null"
+          ],
+          [
+            "auth",
+            "0006_require_contenttypes_0002"
+          ],
+          [
+            "auth",
+            "0007_alter_validators_add_error_messages"
+          ],
+          [
+            "auth",
+            "0008_alter_user_username_max_length"
+          ],
+          [
+            "auth",
+            "0009_alter_user_last_name_max_length"
+          ],
+          [
+            "auth",
+            "0010_alter_group_name_max_length"
+          ],
+          [
+            "auth",
+            "0011_update_proxy_permissions"
+          ],
+          [
+            "auth",
+            "0012_alter_user_first_name_max_length"
+          ],
+          [
+            "contenttypes",
+            "0001_initial"
+          ],
+          [
+            "contenttypes",
+            "0002_remove_content_type_name"
+          ],
+          [
+            "mfa",
+            "0001_initial"
+          ],
+          [
+            "mfa",
+            "0002_authenticator_timestamps"
+          ],
+          [
+            "mfa",
+            "0003_authenticator_type_uniq"
+          ],
+          [
+            "sessions",
+            "0001_initial"
+          ]
+        ],
+        "tables": [
+          "account_emailaddress",
+          "account_emailconfirmation",
+          "accounts_identityconsent",
+          "accounts_identitymail",
+          "accounts_person",
+          "accounts_person_groups",
+          "accounts_person_user_permissions",
+          "accounts_subject",
+          "allauth_idp_oidc_client",
+          "allauth_idp_oidc_token",
+          "auth_group",
+          "auth_group_permissions",
+          "auth_permission",
+          "django_content_type",
+          "django_migrations",
+          "django_session",
+          "identity_protocol_cache",
+          "mfa_authenticator"
+        ]
+      }
+    },
+    "safe_client_auth_observations": [
+      {
+        "raw_basic_matches_registered_fixture": true,
+        "decoded_basic_matches_registered_fixture": true,
+        "body_client_id_present": false,
+        "authorization_header_present": true
+      },
+      {
+        "raw_basic_matches_registered_fixture": false,
+        "decoded_basic_matches_registered_fixture": true,
+        "body_client_id_present": false,
+        "authorization_header_present": true
+      },
+      {
+        "raw_basic_matches_registered_fixture": false,
+        "decoded_basic_matches_registered_fixture": false,
+        "body_client_id_present": false,
+        "authorization_header_present": true
+      },
+      {
+        "raw_basic_matches_registered_fixture": false,
+        "decoded_basic_matches_registered_fixture": true,
+        "body_client_id_present": false,
+        "authorization_header_present": true
+      },
+      {
+        "raw_basic_matches_registered_fixture": false,
+        "decoded_basic_matches_registered_fixture": true,
+        "body_client_id_present": false,
+        "authorization_header_present": true
+      },
+      {
+        "raw_basic_matches_registered_fixture": false,
+        "decoded_basic_matches_registered_fixture": false,
+        "body_client_id_present": false,
+        "authorization_header_present": true
+      },
+      {
+        "raw_basic_matches_registered_fixture": false,
+        "decoded_basic_matches_registered_fixture": true,
+        "body_client_id_present": false,
+        "authorization_header_present": true
+      },
+      {
+        "raw_basic_matches_registered_fixture": false,
+        "decoded_basic_matches_registered_fixture": true,
+        "body_client_id_present": false,
+        "authorization_header_present": true
+      },
+      {
+        "raw_basic_matches_registered_fixture": false,
+        "decoded_basic_matches_registered_fixture": true,
+        "body_client_id_present": false,
+        "authorization_header_present": true
+      },
+      {
+        "raw_basic_matches_registered_fixture": false,
+        "decoded_basic_matches_registered_fixture": true,
+        "body_client_id_present": false,
+        "authorization_header_present": true
+      },
+      {
+        "raw_basic_matches_registered_fixture": false,
+        "decoded_basic_matches_registered_fixture": true,
+        "body_client_id_present": false,
+        "authorization_header_present": true
+      },
+      {
+        "raw_basic_matches_registered_fixture": false,
+        "decoded_basic_matches_registered_fixture": true,
+        "body_client_id_present": false,
+        "authorization_header_present": true
+      },
+      {
+        "raw_basic_matches_registered_fixture": false,
+        "decoded_basic_matches_registered_fixture": true,
+        "body_client_id_present": false,
+        "authorization_header_present": true
+      }
+    ],
+    "client_auth_probe": {
+      "http_status": 400,
+      "error": "invalid_grant"
+    },
+    "negative_fixture": {
+      "mode": "pkce",
+      "mutation_applied": true,
+      "landing_path": "/login"
+    },
+    "error_type": "RuntimeError",
+    "last_browser_path": "/app",
+    "qualification_line": 32,
+    "source_error_location": {
+      "file": "qualify_identity.py",
+      "line": 32
+    },
+    "error_location": {
+      "file": "qualify_identity.py",
+      "line": 32
+    },
+    "failed_case": "s05_browser_foreign_store_id_is_denied",
+    "safe_http_trace": [
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/leads",
+        "status": 202,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/leads/confirm",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/flows",
+        "status": 201,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/flows/consume",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/sessions",
+        "status": 503,
+        "origin_kind": "absent",
+        "code": "SYNTHETIC_RESPONSE_LOST_AFTER_COMMIT"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/sessions",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/me",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/flows/consume",
+        "status": 400,
+        "origin_kind": "absent",
+        "code": "INVALID_FLOW"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/me",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/profile",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/me",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/flows",
+        "status": 201,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/flows/consume",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/sessions",
+        "status": 201,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/me",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/flows",
+        "status": 201,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/flows/consume",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/flows",
+        "status": 201,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/flows/consume",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/flows",
+        "status": 201,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/flows/consume",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/flows",
+        "status": 201,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/flows/consume",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/flows",
+        "status": 201,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/flows/consume",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/flows",
+        "status": 201,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/flows/consume",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/flows",
+        "status": 201,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/flows/consume",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/me",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/logout",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/flows",
+        "status": 201,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/flows/consume",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/auth/sessions",
+        "status": 201,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/me",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/me",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/me",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/me",
+        "status": 401,
+        "origin_kind": "absent",
+        "code": "AUTHENTICATION_REQUIRED"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/me",
+        "status": 401,
+        "origin_kind": "absent",
+        "code": "AUTHENTICATION_REQUIRED"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/me",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/me",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/me",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/me",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/stores",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/me",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/stores",
+        "status": 201,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/stores",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/stores",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/stores",
+        "status": 200,
+        "origin_kind": "absent"
+      },
+      {
+        "backend": 18402,
+        "method": "POST",
+        "path": "/api/v1/account/stores",
+        "status": 401,
+        "origin_kind": "absent",
+        "code": "AUTHENTICATION_REQUIRED"
+      }
+    ],
+    "safe_http_trace_by_backend": {
+      "18400": [
+        {
+          "backend": 18400,
+          "method": "GET",
+          "path": "/faq",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18400,
+          "method": "GET",
+          "path": "/pricing",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18400,
+          "method": "GET",
+          "path": "/privacy",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18400,
+          "method": "GET",
+          "path": "/contacts",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18400,
+          "method": "POST",
+          "path": "/api/account/stores",
+          "status": 201,
+          "origin_kind": "loopback"
+        },
+        {
+          "backend": 18400,
+          "method": "GET",
+          "path": "/faq",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18400,
+          "method": "GET",
+          "path": "/pricing",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18400,
+          "method": "GET",
+          "path": "/privacy",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18400,
+          "method": "GET",
+          "path": "/contacts",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18400,
+          "method": "GET",
+          "path": "/terms",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18400,
+          "method": "GET",
+          "path": "/consents",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18400,
+          "method": "POST",
+          "path": "/api/account/stores",
+          "status": 200,
+          "origin_kind": "loopback"
+        },
+        {
+          "backend": 18400,
+          "method": "GET",
+          "path": "/api/account/stores",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18400,
+          "method": "GET",
+          "path": "/api/account/stores",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18400,
+          "method": "POST",
+          "path": "/api/account/stores",
+          "status": 401,
+          "origin_kind": "loopback",
+          "code": "AUTHENTICATION_REQUIRED"
+        }
+      ],
+      "18403": [
+        {
+          "backend": 18403,
+          "method": "POST",
+          "path": "/accounts/logout/",
+          "status": 302,
+          "origin_kind": "loopback"
+        },
+        {
+          "backend": 18403,
+          "method": "GET",
+          "path": "/accounts/login/",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18403,
+          "method": "GET",
+          "path": "/identity/mail-ui.js",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18403,
+          "method": "POST",
+          "path": "/accounts/login/",
+          "status": 302,
+          "origin_kind": "loopback"
+        },
+        {
+          "backend": 18403,
+          "method": "GET",
+          "path": "/accounts/login/code/confirm/",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18403,
+          "method": "GET",
+          "path": "/identity/mail-ui.js",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18403,
+          "method": "GET",
+          "path": "/identity/mail-status",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18403,
+          "method": "POST",
+          "path": "/accounts/login/code/confirm/",
+          "status": 302,
+          "origin_kind": "loopback"
+        },
+        {
+          "backend": 18403,
+          "method": "GET",
+          "path": "/identity/o/authorize",
+          "status": 302,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18403,
+          "method": "POST",
+          "path": "/identity/o/api/token",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18403,
+          "method": "GET",
+          "path": "/identity/o/authorize",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18403,
+          "method": "POST",
+          "path": "/accounts/login/code/confirm/",
+          "status": 302,
+          "origin_kind": "loopback"
+        },
+        {
+          "backend": 18403,
+          "method": "POST",
+          "path": "/accounts/login/code/confirm/",
+          "status": 302,
+          "origin_kind": "loopback"
+        },
+        {
+          "backend": 18403,
+          "method": "POST",
+          "path": "/accounts/login/code/confirm/",
+          "status": 302,
+          "origin_kind": "loopback"
+        },
+        {
+          "backend": 18403,
+          "method": "POST",
+          "path": "/accounts/login/code/confirm/",
+          "status": 302,
+          "origin_kind": "loopback"
+        }
+      ],
+      "18402": [
+        {
+          "backend": 18402,
+          "method": "POST",
+          "path": "/api/v1/account/me",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18402,
+          "method": "POST",
+          "path": "/api/v1/account/me",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18402,
+          "method": "POST",
+          "path": "/api/v1/account/me",
+          "status": 401,
+          "origin_kind": "absent",
+          "code": "AUTHENTICATION_REQUIRED"
+        },
+        {
+          "backend": 18402,
+          "method": "POST",
+          "path": "/api/v1/account/me",
+          "status": 401,
+          "origin_kind": "absent",
+          "code": "AUTHENTICATION_REQUIRED"
+        },
+        {
+          "backend": 18402,
+          "method": "POST",
+          "path": "/api/v1/account/me",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18402,
+          "method": "POST",
+          "path": "/api/v1/account/me",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18402,
+          "method": "POST",
+          "path": "/api/v1/account/me",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18402,
+          "method": "POST",
+          "path": "/api/v1/account/me",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18402,
+          "method": "POST",
+          "path": "/api/v1/account/stores",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18402,
+          "method": "POST",
+          "path": "/api/v1/account/me",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18402,
+          "method": "POST",
+          "path": "/api/v1/account/stores",
+          "status": 201,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18402,
+          "method": "POST",
+          "path": "/api/v1/account/stores",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18402,
+          "method": "POST",
+          "path": "/api/v1/account/stores",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18402,
+          "method": "POST",
+          "path": "/api/v1/account/stores",
+          "status": 200,
+          "origin_kind": "absent"
+        },
+        {
+          "backend": 18402,
+          "method": "POST",
+          "path": "/api/v1/account/stores",
+          "status": 401,
+          "origin_kind": "absent",
+          "code": "AUTHENTICATION_REQUIRED"
+        }
+      ],
+      "18401": []
+    },
+    "safe_auth_diagnostics": [
+      {
+        "event": "alisa.auth.failure",
+        "stage": "protocol",
+        "code": "UNAVAILABLE"
+      },
+      {
+        "event": "alisa.auth.failure",
+        "stage": "protocol",
+        "code": "OAUTH_INVALID_RESPONSE"
+      },
+      {
+        "event": "alisa.auth.failure",
+        "stage": "protocol",
+        "code": "OAUTH_JWT_CLAIM_COMPARISON_FAILED"
+      },
+      {
+        "event": "alisa.auth.failure",
+        "stage": "protocol",
+        "code": "OAUTH_JWT_CLAIM_COMPARISON_FAILED"
+      },
+      {
+        "event": "alisa.auth.failure",
+        "stage": "protocol",
+        "code": "OAUTH_JWT_CLAIM_COMPARISON_FAILED"
+      },
+      {
+        "event": "alisa.auth.failure",
+        "stage": "protocol",
+        "code": "OAUTH_JWT_TIMESTAMP_CHECK_FAILED"
+      },
+      {
+        "event": "alisa.auth.failure",
+        "stage": "protocol",
+        "code": "OAUTH_INVALID_RESPONSE"
+      },
+      {
+        "event": "alisa.auth.failure",
+        "stage": "protocol",
+        "code": "OAUTH_RESPONSE_BODY_ERROR"
+      }
+    ],
+    "safe_process_error_classes": [],
+    "safe_process_exit_codes": [
+      0,
+      0,
+      null,
+      null,
+      null,
+      null
+    ],
+    "safe_failure_categories": [
+      "SOURCE_PERMISSION_DENIED"
+    ],
+    "owned_database_and_process_cleanup": true
+  },
+  "s02-runtime-policies.json": {
+    "scope": "ACTUAL_RUNTIME_POLICIES_DISPOSABLE_ONLY",
+    "cases": [
+      {
+        "case": "s02_real_mail_invited_contact_normalized",
+        "passed": true
+      },
+      {
+        "case": "s02_real_mail_uninvited_contact_denied",
+        "passed": true
+      },
+      {
+        "case": "s02_real_mail_off_by_default",
+        "passed": true
+      },
+      {
+        "case": "s02_open_registration_accepts_new_real_contact",
+        "passed": true
+      },
+      {
+        "case": "s02_unknown_delivery_never_automatically_replayed",
+        "passed": true
+      },
+      {
+        "case": "s02_abandoned_submission_fail_closed_without_resend",
+        "passed": true
+      },
+      {
+        "case": "s02_connection_failure_keeps_encrypted_code_and_backoff",
+        "passed": true
+      },
+      {
+        "case": "s02_known_connection_recovery_once_and_private_payload_erased",
+        "passed": true
+      },
+      {
+        "case": "s02_runtime_code_ttl_600_and_five_attempts",
+        "passed": true
+      },
+      {
+        "case": "s02_identity_session_encrypted_in_database",
+        "passed": true
+      },
+      {
+        "case": "s02_expired_email_code_denied",
+        "passed": true
+      },
+      {
+        "case": "s02_five_invalid_codes_exhaust_attempts",
+        "passed": true
+      },
+      {
+        "case": "s02_runtime_email_code_atomic_across_requests",
+        "passed": true
+      },
+      {
+        "case": "s02_verify_retry_safe_receipt_same_identity_session",
+        "passed": true
+      },
+      {
+        "case": "s02_used_code_old_browser_cookie_denied",
+        "passed": true
+      },
+      {
+        "case": "s02_known_unknown_code_request_same_response",
+        "passed": true
+      },
+      {
+        "case": "s02_mfa_secret_encrypted_and_factor_one_use",
+        "passed": true
+      }
+    ],
+    "status": "PASS"
+  },
+  "s03-core-qualification.json": {
+    "scope": "S03_NATIVE_MFA_AND_PLATFORM_CORE_NOT_BROWSER_NOT_STAGE",
+    "status": "PASS",
+    "cases": [
+      {
+        "case": "s03_stale_passwordless_session_cannot_enroll_first_factor",
+        "passed": true
+      },
+      {
+        "case": "s03_real_native_email_code_allows_first_factor_enrollment",
+        "passed": true
+      },
+      {
+        "case": "s03_closed_prepare_subject_maps_verified_person_to_admin_client",
+        "passed": true
+      },
+      {
+        "case": "s03_closed_prepare_subject_is_idempotent",
+        "passed": true
+      },
+      {
+        "case": "s03_closed_prepare_subject_does_not_create_factor",
+        "passed": true
+      },
+      {
+        "case": "s03_closed_prepare_subject_rejects_unverified_person",
+        "passed": true
+      },
+      {
+        "case": "s03_existing_identity_and_enrolled_factor_do_not_issue_admin_code",
+        "passed": true
+      },
+      {
+        "case": "s03_native_factor_form_rejects_missing_csrf",
+        "passed": true
+      },
+      {
+        "case": "s03_wrong_native_factor_has_no_attestation",
+        "passed": true
+      },
+      {
+        "case": "s03_native_totp_creates_pending_request_bound_evidence",
+        "passed": true
+      },
+      {
+        "case": "s03_native_totp_issues_one_library_authorization_code",
+        "passed": true
+      },
+      {
+        "case": "s03_wrong_client_secret_cannot_exchange_bound_code",
+        "passed": true
+      },
+      {
+        "case": "s03_native_mfa_bound_code_exchanges_via_library",
+        "passed": true
+      },
+      {
+        "case": "s03_signed_mfa_evidence_has_fixed_issuer_client_subject_nonce",
+        "passed": true
+      },
+      {
+        "case": "s03_admin_authorization_code_replay_denied",
+        "passed": true
+      },
+      {
+        "case": "s03_persisted_authentication_records_do_not_attest_a_new_request",
+        "passed": true
+      },
+      {
+        "case": "s03_native_totp_replay_does_not_attest_new_flow",
+        "passed": true
+      },
+      {
+        "case": "s03_native_recovery_consumption_creates_attestation",
+        "passed": true
+      },
+      {
+        "case": "s03_native_proof_cannot_move_to_another_authorization_request",
+        "passed": true
+      },
+      {
+        "case": "s03_used_recovery_code_cannot_attest_another_flow",
+        "passed": true
+      },
+      {
+        "case": "s03_stale_native_factor_requires_step_up",
+        "passed": true
+      },
+      {
+        "case": "s03_recovery_proof_is_signed_for_the_actual_code",
+        "passed": true
+      },
+      {
+        "case": "s03_factor_secret_is_encrypted_in_postgresql",
+        "passed": true
+      },
+      {
+        "case": "s03_client_registration_uses_confidential_dedicated_admin",
+        "passed": true
+      },
+      {
+        "case": "s03_closed_bootstrap_and_explicit_staff_session",
+        "passed": true
+      },
+      {
+        "case": "s03_session_creation_identical_retry_recovers_receipt",
+        "passed": true
+      },
+      {
+        "case": "s03_session_flow_cannot_bind_another_session_token",
+        "passed": true
+      },
+      {
+        "case": "s03_web_service_token_cannot_call_staff_api",
+        "passed": true
+      },
+      {
+        "case": "s03_browser_role_labels_do_not_authorize",
+        "passed": true
+      },
+      {
+        "case": "s03_closed_bootstrap_cannot_replace_or_append_owner",
+        "passed": true
+      },
+      {
+        "case": "s03_local_block_and_idempotent_receipt",
+        "passed": true
+      },
+      {
+        "case": "s03_local_block_revokes_only_product_customer_sessions",
+        "passed": true
+      },
+      {
+        "case": "s03_command_uuid_cannot_apply_changed_payload",
+        "passed": true
+      },
+      {
+        "case": "s03_concurrent_identical_commands_have_one_revision_effect",
+        "passed": true
+      },
+      {
+        "case": "s03_limited_staff_can_read_real_customer",
+        "passed": true
+      },
+      {
+        "case": "s03_reader_block_denied_by_backend_and_audited",
+        "passed": true
+      },
+      {
+        "case": "s03_staff_revocation_invalidates_both_sessions",
+        "passed": true
+      },
+      {
+        "case": "s03_last_owner_is_transactionally_protected",
+        "passed": true
+      },
+      {
+        "case": "s03_other_product_staff_has_no_alisa_session",
+        "passed": true
+      },
+      {
+        "case": "s03_stale_mfa_denies_current_backend_reads",
+        "passed": true
+      },
+      {
+        "case": "s03_runtime_audit_update_denied_by_postgresql",
+        "passed": true
+      },
+      {
+        "case": "s03_runtime_audit_delete_denied_by_postgresql",
+        "passed": true
+      },
+      {
+        "case": "s03_runtime_audit_truncate_denied_by_postgresql",
+        "passed": true
+      },
+      {
+        "case": "s03_safe_audit_excludes_contacts_and_session_tokens",
+        "passed": true
+      },
+      {
+        "case": "s03_logout_revokes_current_staff_session",
+        "passed": true
+      },
+      {
+        "case": "s03_cleanup_erases_owned_expired_and_revoked_staff_payloads",
+        "passed": true
+      },
+      {
+        "case": "s03_cleanup_preserves_foreign_product_staff_payload",
+        "passed": true
+      },
+      {
+        "case": "s03_staff_enabled_readiness_checks_own_schema",
+        "passed": true
+      },
+      {
+        "case": "s03_initial_handover_fixture_has_fresh_owner_session",
+        "passed": true
+      },
+      {
+        "case": "s03_initial_handover_requires_exact_revision",
+        "passed": true
+      },
+      {
+        "case": "s03_initial_handover_rejects_existing_staff_binding",
+        "passed": true
+      },
+      {
+        "case": "s03_initial_handover_rejects_wrong_owner",
+        "passed": true
+      },
+      {
+        "case": "s03_initial_handover_is_not_a_public_staff_command",
+        "passed": true
+      },
+      {
+        "case": "s03_initial_handover_preserves_one_owner_and_member_id",
+        "passed": true
+      },
+      {
+        "case": "s03_initial_handover_revokes_old_owner_without_minting_session",
+        "passed": true
+      },
+      {
+        "case": "s03_initial_handover_identical_retry_is_noop",
+        "passed": true
+      },
+      {
+        "case": "s03_initial_handover_stale_other_target_cannot_apply",
+        "passed": true
+      },
+      {
+        "case": "s03_initial_handover_cannot_rotate_authority_again",
+        "passed": true
+      },
+      {
+        "case": "s03_initial_handover_audits_only_subject_fingerprints",
+        "passed": true
+      },
+      {
+        "case": "canonical_identity_strict_positive",
+        "passed": true
+      },
+      {
+        "case": "canonical_identity_new_issuer_requires_flag",
+        "passed": true
+      },
+      {
+        "case": "canonical_identity_old_issuer_refused_in_canonical_mode",
+        "passed": true
+      },
+      {
+        "case": "canonical_identity_invalid_flag_refused",
+        "passed": true
+      },
+      {
+        "case": "canonical_identity_arbitrary_issuer_refused",
+        "passed": true
+      },
+      {
+        "case": "canonical_identity_prod_closed",
+        "passed": true
+      },
+      {
+        "case": "canonical_identity_dev_not_broadened",
+        "passed": true
+      },
+      {
+        "case": "canonical_identity_mixed_staff_callback_refused",
+        "passed": true
+      },
+      {
+        "case": "canonical_identity_disabled_command_denied",
+        "passed": true
+      },
+      {
+        "case": "canonical_identity_unknown_callback_refuses_without_clearing_tokens",
+        "passed": true
+      },
+      {
+        "case": "canonical_identity_partial_callback_without_marker_denied",
+        "passed": true
+      },
+      {
+        "case": "canonical_identity_same_confidential_client_and_secret",
+        "passed": true
+      },
+      {
+        "case": "canonical_identity_native_codes_tokens_sessions_invalidated",
+        "passed": true
+      },
+      {
+        "case": "canonical_identity_pending_mail_code_erased_without_replay",
+        "passed": true
+      },
+      {
+        "case": "canonical_identity_terminal_unknown_outcome_preserved",
+        "passed": true
+      },
+      {
+        "case": "canonical_identity_people_subjects_factors_preserved",
+        "passed": true
+      },
+      {
+        "case": "canonical_identity_repeat_noop_preserves_new_tokens",
+        "passed": true
+      },
+      {
+        "case": "canonical_platform_strict_positive",
+        "passed": true
+      },
+      {
+        "case": "canonical_platform_new_issuer_requires_flag",
+        "passed": true
+      },
+      {
+        "case": "canonical_platform_old_issuer_refused_in_canonical_mode",
+        "passed": true
+      },
+      {
+        "case": "canonical_platform_invalid_flag_refused",
+        "passed": true
+      },
+      {
+        "case": "canonical_platform_arbitrary_issuer_refused",
+        "passed": true
+      },
+      {
+        "case": "canonical_platform_prod_closed",
+        "passed": true
+      },
+      {
+        "case": "canonical_platform_dev_not_broadened",
+        "passed": true
+      },
+      {
+        "case": "canonical_platform_stale_owner_revision_refused",
+        "passed": true
+      },
+      {
+        "case": "canonical_platform_target_collision_refuses_without_merge",
+        "passed": true
+      },
+      {
+        "case": "canonical_platform_customer_tenant_and_pairwise_subject_preserved",
+        "passed": true
+      },
+      {
+        "case": "canonical_platform_roles_permissions_ids_preserved",
+        "passed": true
+      },
+      {
+        "case": "canonical_platform_foreign_product_untouched",
+        "passed": true
+      },
+      {
+        "case": "canonical_platform_stale_product_flows_sessions_erased",
+        "passed": true
+      },
+      {
+        "case": "canonical_platform_one_owner_and_safe_audit",
+        "passed": true
+      },
+      {
+        "case": "canonical_platform_identical_repeat_noop",
+        "passed": true
+      },
+      {
+        "case": "canonical_platform_changed_composition_cannot_replay",
+        "passed": true
+      }
+    ],
+    "platform_migrations_applied": true,
+    "identity_migrations_applied": true,
+    "owned_database_and_role_cleanup": true
+  },
+  "s04-core-qualification.json": {
+    "scope": "S04_POSTGRES_BACKEND_NOT_NATIVE_OIDC_NOT_INSTALLED",
+    "status": "PASS",
+    "cases": [
+      {
+        "case": "concurrent_same_command_same_response_one_grant",
+        "passed": true
+      },
+      {
+        "case": "seven_days_exact_and_frozen_preview_boundaries",
+        "passed": true
+      },
+      {
+        "case": "gift_is_not_payment",
+        "passed": true
+      },
+      {
+        "case": "notification_atomic_and_not_duplicated",
+        "passed": true
+      },
+      {
+        "case": "same_key_changed_limit_conflict",
+        "passed": true
+      },
+      {
+        "case": "rejected_replay_audit_attributable",
+        "passed": true
+      },
+      {
+        "case": "same_preview_cannot_issue_second_batch",
+        "passed": true
+      },
+      {
+        "case": "current_and_exact_end_expiration",
+        "passed": true
+      },
+      {
+        "case": "compensation_appended_without_overlap",
+        "passed": true
+      },
+      {
+        "case": "future_tail_revoke_idempotent_original_history_intact",
+        "passed": true
+      },
+      {
+        "case": "current_revoke_only_unused_tail",
+        "passed": true
+      },
+      {
+        "case": "other_product_does_not_provision_alisa",
+        "passed": true
+      },
+      {
+        "case": "payment_and_other_product_cannot_be_revoked",
+        "passed": true
+      },
+      {
+        "case": "revision_conflict_not_second_grant",
+        "passed": true
+      },
+      {
+        "case": "partial_crash_commits_only_first_row",
+        "passed": true
+      },
+      {
+        "case": "partial_step_resumes_no_duplicate_and_replays_exactly",
+        "passed": true
+      },
+      {
+        "case": "more_than_five_has_explicit_continuation_contract",
+        "passed": true
+      },
+      {
+        "case": "completed_step_response_never_references_itself_as_unfinished",
+        "passed": true
+      },
+      {
+        "case": "replay_does_not_advance_next_chunk",
+        "passed": true
+      },
+      {
+        "case": "new_explicit_step_finishes_six_recipient_batch",
+        "passed": true
+      },
+      {
+        "case": "ordinary_admin_thirty_day_ceiling",
+        "passed": true
+      },
+      {
+        "case": "owner_can_repreview_other_active_actor_pending_rows",
+        "passed": true
+      },
+      {
+        "case": "revoked_staff_cannot_continue_bulk",
+        "passed": true
+      },
+      {
+        "case": "new_session_after_reassignment_does_not_revive_old_batch",
+        "passed": true
+      },
+      {
+        "case": "owner_sees_blocked_fixed_rows_for_safe_recovery",
+        "passed": true
+      },
+      {
+        "case": "fresh_preview_recovers_only_unapplied_customers",
+        "passed": true
+      },
+      {
+        "case": "untrusted_scope_product_id_rejected",
+        "passed": true
+      },
+      {
+        "case": "untrusted_scope_tenant_id_rejected",
+        "passed": true
+      },
+      {
+        "case": "grant_permission_without_customer_read_cannot_disclose_recipient",
+        "passed": true
+      },
+      {
+        "case": "entitlements_accessgrant_runtime_append_only_acl",
+        "passed": true
+      },
+      {
+        "case": "entitlements_accessadjustment_runtime_append_only_acl",
+        "passed": true
+      },
+      {
+        "case": "entitlements_accesspreview_runtime_append_only_acl",
+        "passed": true
+      },
+      {
+        "case": "customer_sees_own_actual_grant_only",
+        "passed": true
+      },
+      {
+        "case": "customer_cannot_select_another_tenant",
+        "passed": true
+      },
+      {
+        "case": "staff_disable_preserves_customer_access",
+        "passed": true
+      },
+      {
+        "case": "capability_can_close_without_schema_down",
+        "passed": true
+      }
+    ],
+    "migrations_and_model_consistency": "PASS",
+    "schema_rollback_policy": "Retain additive access history; capability can be disabled without migration down.",
+    "owned_database_and_role_cleanup": true
+  },
+  "s05-core-qualification.json": {
+    "scope": "S05_DISPOSABLE_POSTGRES_VAULT_UNIX_NOT_REAL_PROVIDER_NOT_INSTALLED",
+    "status": "PASS",
+    "cases": [
+      {
+        "case": "unpaid_customer_can_persist_pending_store",
+        "passed": true
+      },
+      {
+        "case": "vault_ciphertext_has_no_plaintext_and_context_roundtrips",
+        "passed": true
+      },
+      {
+        "case": "projection_has_no_secret_ciphertext_reference_or_identity",
+        "passed": true
+      },
+      {
+        "case": "same_create_command_replays_one_store_and_secret",
+        "passed": true
+      },
+      {
+        "case": "changed_create_payload_same_uuid_conflicts",
+        "passed": true
+      },
+      {
+        "case": "actual_unix_peer_check_promotes_only_its_revision",
+        "passed": true
+      },
+      {
+        "case": "same_check_command_does_not_dispatch_again",
+        "passed": true
+      },
+      {
+        "case": "concurrent_same_command_has_one_persisted_effect",
+        "passed": true
+      },
+      {
+        "case": "verified_duplicate_is_tenant_local_and_not_promoted",
+        "passed": true
+      },
+      {
+        "case": "same_provider_identity_in_other_tenant_is_allowed_without_disclosure",
+        "passed": true
+      },
+      {
+        "case": "foreign_store_id_returns_not_found",
+        "passed": true
+      },
+      {
+        "case": "forged_browser_tenant_is_rejected",
+        "passed": true
+      },
+      {
+        "case": "replacement_other_account_keeps_original_active_key",
+        "passed": true
+      },
+      {
+        "case": "same_account_replacement_promotes_new_and_erases_retired_secret",
+        "passed": true
+      },
+      {
+        "case": "provider_auth_denied_is_distinct_and_preserves_active",
+        "passed": true
+      },
+      {
+        "case": "provider_scope_missing_is_distinct_and_preserves_active",
+        "passed": true
+      },
+      {
+        "case": "provider_timeout_is_distinct_and_preserves_active",
+        "passed": true
+      },
+      {
+        "case": "provider_rate_limited_is_distinct_and_preserves_active",
+        "passed": true
+      },
+      {
+        "case": "changed_response_tenant_pins_fail_closed",
+        "passed": true
+      },
+      {
+        "case": "wrong_server_peer_never_receives_secret",
+        "passed": true
+      },
+      {
+        "case": "disconnected_runtime_never_claims_connected",
+        "passed": true
+      },
+      {
+        "case": "performance_independent_same_account_capability",
+        "passed": true
+      },
+      {
+        "case": "wildberries_uses_its_own_verified_channel",
+        "passed": true
+      },
+      {
+        "case": "rename_preserves_store_id_and_credential_revisions",
+        "passed": true
+      },
+      {
+        "case": "stale_revision_is_rejected",
+        "passed": true
+      },
+      {
+        "case": "postgresql_rejects_cross_tenant_store_foreign_key",
+        "passed": true
+      },
+      {
+        "case": "audit_runtime_update_denied",
+        "passed": true
+      },
+      {
+        "case": "audit_runtime_delete_denied",
+        "passed": true
+      },
+      {
+        "case": "audit_runtime_truncate_denied",
+        "passed": true
+      },
+      {
+        "case": "vault_ciphertext_cannot_move_between_stores",
+        "passed": true
+      },
+      {
+        "case": "crashed_check_replay_has_no_second_dispatch",
+        "passed": true
+      },
+      {
+        "case": "new_explicit_check_marks_expired_previous_unknown",
+        "passed": true
+      },
+      {
+        "case": "disable_during_ipc_prevents_late_activation_and_erases_all_keys",
+        "passed": true
+      },
+      {
+        "case": "delete_tombstone_disappears_from_list_without_losing_audit",
+        "passed": true
+      },
+      {
+        "case": "customer_cookie_or_web_token_cannot_authorize_service_api",
+        "passed": true
+      },
+      {
+        "case": "safe_durable_command_results_have_no_credentials",
+        "passed": true
+      }
+    ],
+    "migrations_and_model_consistency": "PASS",
+    "schema_rollback_policy": "Retain additive store history and audit; disable stores capability and preserve vault keys. Never migrate down over customer data.",
+    "owned_database_and_role_cleanup": true
+  }
+}

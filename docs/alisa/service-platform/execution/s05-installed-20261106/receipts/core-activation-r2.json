@@ -1,0 +1,50 @@
+{
+  "scope": "CURRENT_CORE_AND_PRIVATE_CHECKER_ACTIVATION_NO_PLATFORM_DB_OR_CONFIG",
+  "status": "FAILED",
+  "cases": [
+    {
+      "case": "inactive_core_prepared",
+      "passed": true
+    },
+    {
+      "case": "new_exact_core_manifest",
+      "passed": true
+    },
+    {
+      "case": "exact_integrated_core_qualified",
+      "passed": true
+    },
+    {
+      "case": "old_exact_core_manifest",
+      "passed": true
+    },
+    {
+      "case": "exact_old_launch_and_identity",
+      "passed": true
+    },
+    {
+      "case": "alice-market.service_actual_pid",
+      "passed": true
+    },
+    {
+      "case": "runtime_platform_uids",
+      "passed": true
+    },
+    {
+      "case": "fresh_free_reserve",
+      "passed": true
+    },
+    {
+      "case": "protected_pointers_expected",
+      "passed": false
+    }
+  ],
+  "before_pointers": {
+    "web-current": "alisa-c8666516683e7b2b",
+    "site-current": "alisa-c8666516683e7b2b",
+    "admin-current": "alisa-73180172646b7012",
+    "identity-current": "alisa-73180172646b7012",
+    "current": "alisa-482ed11832b666af"
+  },
+  "error_type": "RuntimeError"
+}

@@ -1,0 +1,39 @@
+{
+  "review": "ALISA_SWAGGER_WATCH_INDEPENDENT_SOURCE_REVIEW_R3",
+  "date": "2026-11-08",
+  "verdict": "PASS_SOURCE_DELTA",
+  "scope": "Read-only review of the validation-boundary correction and unchanged bundle boundary. No tests, host/provider/DB/browser calls, source edits, or private-upload reads.",
+  "reviewed_commit": "f4a601bd6dbdf5ef60f20359e30b074bfcaee084",
+  "sha256": {
+    "watch.mjs": "aede3316a032a2406725d63e242be259e28419b7b7fad527a605c5cd92d62b7f",
+    "build.mjs": "54581901d678be8cb260e53b81e6a0c381d489b04c69a4ad7f1b734227d98dab",
+    "R2_review": "3efa577b872fc4df60a98ac98a3fa80fa84b446e2f8d3dbc3b30e8688adde9c0",
+    "owner_document_review": "7be99e1eaedafaceb3d66f4f377518522cd1429dae7616ff0b2d656ef70dd0cc"
+  },
+  "finding_resolution": {
+    "id": "DIRECT_SERVER_PACKAGE_IMPORT_ARCHITECTURE_GUARD",
+    "result": "RESOLVED_WITHOUT_VALIDATION_WEAKENING",
+    "detail": "The direct import of validateSwaggerBytes from packages/server/monitoring-control was removed. validateDocument now calls the existing buildCompleteOperationInventory first; this calls the same shared parseSwaggerDocument used by validateSwaggerBytes and then performs API Watch's operation/reference inventory validation. The removed wrapper added only fixed parse/root-result flags around parseSwaggerDocument. After shared validation, the product parses JSON only for the two registry Ozon documents to apply strict server-origin and title checks. The registry declares both Ozon entries as JSON with requiredServerIdentity and titlePattern; WB entries are YAML and declare neither, so WB is never fed to JSON.parse and keeps shared YAML parsing/inventory validation."
+  },
+  "validation_properties": {
+    "input_size_and_text": "Shared parseSwaggerDocument retains the 25 MiB default bound, accepted extension, fatal UTF-8 decoding, control-character rejection, JSON/YAML parser, object root, info, paths, and recognized OpenAPI/Swagger version checks.",
+    "reference_and_operation_checks": "buildCompleteOperationInventory runs after shared parsing and validates the API Watch operation inventory/reference paths before any Ozon-specific identity check or storage. Existing origin and title checks remain unchanged and fail closed.",
+    "WB_version_metadata": "WB version metadata is now null because the implementation intentionally avoids a second YAML parser. Repository consumers do not read this metadata to compute freshness, provenance, family completeness, or status; it does not alter stored origin or acceptance state.",
+    "runtime_bundle_boundary": "The product service imports only the existing tooling/api-watch acquisition, registry, inventory, and diff modules. It no longer directly imports the server monitoring-control package. build.mjs is byte-identical to the prior reviewed source; it still bundles the same three CLI entry points and rejects LLM, Telegram, worker, and server/database inputs. The shared parser remains an implementation dependency behind the already-used tooling API, rather than a new direct product-layer dependency."
+  },
+  "remaining_gates": [
+    "Architecture checker and CI must pass on this exact candidate; author-reported local architecture/check.py PASS is not independently rerun here.",
+    "The older d259 CI result does not cover this changed source. The new exact candidate's complete CI and artifact/package binding remain deployment gates.",
+    "Owner-supplied Ozon Performance content remains OWNER_SUPPLIED_REVIEWED only after separate exact-digest administrative acceptance; this source correction does not establish live TLS provenance, document freshness, or Seller/Performance account identity."
+  ],
+  "reviewer_actions": {
+    "tests_run": false,
+    "architecture_checker_run": false,
+    "host_calls": false,
+    "provider_calls": false,
+    "db_calls": false,
+    "browser_calls": false,
+    "original_markdown_read": false,
+    "product_code_modified": false
+  }
+}

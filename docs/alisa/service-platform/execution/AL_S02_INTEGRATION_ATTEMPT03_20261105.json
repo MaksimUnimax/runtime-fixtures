@@ -1,0 +1,62 @@
+{
+  "scope": "S02_FULL_DISPOSABLE_HTTPS_BROWSER_QUALIFICATION_NOT_STAGE_ACCEPTANCE",
+  "status": "FAILED",
+  "cases": [
+    {
+      "case": "s02_immutable_package_hashes",
+      "passed": true
+    },
+    {
+      "case": "s02_offline_identity_dependencies_installed",
+      "passed": true
+    },
+    {
+      "case": "s02_separate_migrations_and_confidential_clients",
+      "passed": true
+    },
+    {
+      "case": "s02_platform_foreign_database_denied",
+      "passed": true
+    },
+    {
+      "case": "s02_identity_foreign_database_denied",
+      "passed": true
+    },
+    {
+      "case": "s02_strict_https_web_and_identity_ready",
+      "passed": true
+    },
+    {
+      "case": "s02_fixed_issuer_and_s256_discovery",
+      "passed": true
+    },
+    {
+      "case": "s02_private_home_requires_own_session",
+      "passed": true
+    },
+    {
+      "case": "s02_no_service_cookie_or_data_in_anonymous_html",
+      "passed": true
+    },
+    {
+      "case": "s02_start_requires_consents",
+      "passed": true
+    }
+  ],
+  "not_run": [
+    "live_stage_rollout",
+    "controlled_real_email",
+    "live_release_pair_rollback"
+  ],
+  "source_sha": "0114f25ca798fb1762773cd9db053db7fb3b99c7",
+  "artifact_sha256": "9fd3b547baa7b0be06a799e877a30f70bcced0571efa89eb96b35c50af61c652",
+  "error_type": "AssertionError",
+  "last_browser_path": "/join",
+  "qualification_line": 185,
+  "error_location": {
+    "file": "_assertions.py",
+    "line": 60
+  },
+  "safe_auth_diagnostics": [],
+  "owned_database_and_process_cleanup": true
+}

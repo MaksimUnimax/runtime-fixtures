@@ -1,0 +1,59 @@
+{
+  "schema_version": "alisa_independent_package_review_v1",
+  "scope": "CI_PACKAGE_REVIEW_AND_INACTIVE_RUNTIME_COPY_EVALUATION_NO_HOST_CALLS",
+  "source_sha": "6098b31384ae23a43fb869abd3e67f165bc644fa",
+  "artifacts": {
+    "runtime": {
+      "path": "/workspace/scratch/6c2f0ed5dac0/rt-check-6098-artifacts/runtime/rt-check-6098b31384ae23a4.tar.gz",
+      "sha256": "de61cf3fb8d537179606d5dcb9c9097fa8f83f5e3021c9e7403f952d846e76eb",
+      "manifest_sha256": "59e211dd8c34c94510c897e33e3ca64d60ffddd643fd909ca40dac3ddc763b05",
+      "members": 8,
+      "payload_files": 7,
+      "links": 0,
+      "manifest_file_hashes_independently_checked": 7
+    },
+    "platform": {
+      "path": "/workspace/scratch/6c2f0ed5dac0/rt-check-6098-artifacts/platform/alisa-6098b31384ae23a4.tar.gz",
+      "sha256": "dfbc0e8550b25a23266e1b801547c7fb291b7d9b7d49b7728d7d71baf886e2d3",
+      "manifest_sha256": "a181fef7c03637badef896f9a2a675f40d533a4ad767dbc9b23426769378578c",
+      "manifest_payload_files": 4451,
+      "links": 42,
+      "member_paths_safe": true,
+      "all_links_match_manifest_and_stay_within_artifact_root": true,
+      "independently_checked_manifest_hashes": [
+        "services/platform/src/alisa_platform/runtime_adapter/store_check.py",
+        "services/platform/src/alisa_platform/stores/migrations/0001_initial.py",
+        "services/platform/src/alisa_platform/stores/models.py",
+        "contracts/runtime/store-check-v1.md",
+        "ui/web/apps/web/.next/server/app/app/stores/page.js"
+      ]
+    }
+  },
+  "package_findings": {
+    "source_mapping": "PASS: source_sha matches requested commit in both manifests; runtime payload entries match manifest hashes; selected platform client/model/migration/contract/compiled UI files match platform manifest hashes.",
+    "runtime_scope": "PASS: runtime archive contains only seven expected source/docs/patch/binding files plus manifest, all regular files and no links. Manifest says installed=false, live_provider_qualified=false, seller_binding_default=UNQUALIFIED, performance_binding=IDENTITY_NOT_VERIFIED, contains_private_config_or_keys=false.",
+    "platform_scope": "PASS: complete payload file/hash/link readback was also reported by package author; independent archive-level check found 4451 manifest files and 42 relative links, all matching and contained under archive root. No test/fixture/secret/credential paths; the only env-like file is infra/s02.env.example with replacement placeholders.",
+    "migration_and_ui": "PASS: platform archive contains expected stores schema migration/model and runtime client; compiled stores page includes PROVIDER_PLAN_REQUIRED. Platform package acceptance remains NOT_ACCEPTED and runtime_status remains RUNTIME_NOT_CONNECTED.",
+    "qualification_limits": "PASS: receipts state 24 runtime checks and pinned 800-test baseline replay with no external provider calls; author reports isolated current-core 1035 PASS. These do not establish provider live checks, installed acceptance or active service readiness.",
+    "partial_download": "The artifact folder also contains an extra hidden `.ANcpqx` partial platform tar. It is not the named artifact; installation must use the exact fully hash-verified runtime tar path and must not use a wildcard."
+  },
+  "inactive_runtime_copy_evaluation": {
+    "recommendation": "APPROVE_NARROW_REVERSIBLE_COPY_ONLY",
+    "destination": "/opt/alice-market/store-check-releases/rt-check-6098b31384ae23a4",
+    "basis": "Exact runtime tar hash verified; archive has no links or unsafe paths; all seven payload hashes match its manifest. Copy/extract into a new versioned inactive directory does not alter the active WorkingDirectory, service unit, socket, configuration, pointer or database.",
+    "boundaries": [
+      "Use the exact runtime tar filename; do not select the hidden partial artifact or platform tar.",
+      "Verify outer SHA-256 and all manifest file hashes after copy/extract; keep release directory permissions private and owner/group explicit.",
+      "Do not apply the bundled R01 baseline patch to current core; current-core extraction patch remains a separately reviewed preparation.",
+      "Do not create/enable a unit, socket, config, symlink/pointer, database migration or active WorkingDirectory change in this copy step."
+    ]
+  },
+  "verification": {
+    "host_calls": 0,
+    "installation_performed": false,
+    "live_credentials_used": false,
+    "tests_run_by_reviewer": 0,
+    "platform_full_manifest_rehash_by_reviewer": false,
+    "platform_full_manifest_rehash_note": "Author reports full payload/hash/link readback; independent reviewer checked archive and links plus selected critical file hashes."
+  }
+}

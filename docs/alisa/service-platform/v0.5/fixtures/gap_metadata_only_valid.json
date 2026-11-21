@@ -1,0 +1,30 @@
+{
+  "schema_version": "query_gap_v1",
+  "event_id": "00000000-0000-4000-8000-000000000001",
+  "producer": "analytics_runtime",
+  "occurred_at": "2026-11-04T10:00:00Z",
+  "trace_id": "00000000-0000-4000-8000-000000000002",
+  "logical_query_id": "00000000-0000-4000-8000-000000000003",
+  "episode_revision": 2,
+  "tenant_pseudonym": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "pseudonym_key_version": "synthetic-key-v1",
+  "platform": "ozon",
+  "p1_status": "MISS",
+  "p2_status": "SUCCESS",
+  "reason_code": "P1_MISS_P2_SUCCESS",
+  "final_outcome": "READY",
+  "semantic_axis": "accrual_date",
+  "redaction_state": "METADATA_ONLY",
+  "slot_types": [
+    "period",
+    "product",
+    "grouping",
+    "exclusion"
+  ],
+  "normalizer_version": "synthetic-n1",
+  "redactor_version": "synthetic-r1",
+  "catalog_version": "synthetic-c1",
+  "runtime_version": "synthetic-e1",
+  "access_basis_at_event": "GIFT",
+  "internal_test": true
+}

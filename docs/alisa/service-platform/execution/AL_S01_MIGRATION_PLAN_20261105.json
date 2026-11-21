@@ -1,0 +1,6 @@
+{
+  "status": "PLAN_ONLY",
+  "database": "alisa_stage_platform",
+  "source": "8d680f775c8ccdf2a9520fa93c4909dd0aaaa986",
+  "plan": "Planned operations:\nfunnel.0001_initial\n    Create model FunnelEvent\nleads.0001_initial\n    Create model Lead\n    Create model RateBucket\n    Create model MailOutbox\n    Create model Submission"
+}

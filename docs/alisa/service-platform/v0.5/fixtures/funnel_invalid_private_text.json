@@ -1,0 +1,11 @@
+{
+  "schema_version": "funnel_client_event_v1",
+  "event_id": "00000000-0000-4000-8000-000000000003",
+  "environment": "stage",
+  "product_id": "alisa_market",
+  "event_type": "cta.clicked",
+  "occurred_at": "2026-11-04T08:00:00Z",
+  "content_version": "landing-v1",
+  "campaign_id": "synthetic-campaign",
+  "raw_question": "synthetic private text"
+}

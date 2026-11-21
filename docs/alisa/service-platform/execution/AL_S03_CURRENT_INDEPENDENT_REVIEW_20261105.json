@@ -1,0 +1,111 @@
+{
+  "review_scope": "CURRENT_S03_STAFF_BOUNDARY_ONLY",
+  "verdict": "ACCEPTED_FOR_DECLARED_CURRENT_S03_STAFF_SCOPE_ONLY",
+  "review_mode": "independent_read_only",
+  "source_bindings": {
+    "admin": {
+      "commit": "3e91b1aa5d405d0e8160c4dbe3dcad56eb606dae",
+      "release": "alisa-3e91b1aa5d405d0e",
+      "installed_manifest_files": 4406,
+      "installed_manifest_links": 42
+    },
+    "web_platform_identity": {
+      "commit": "07290e7c17f556bfe8e144fd766ee0163c0b88db",
+      "tree": "ed5902ba3a600e3e708106fa3ef84f9377ba5ef0",
+      "release": "alisa-07290e7c17f556bf",
+      "installed_manifest_files": 4408,
+      "installed_manifest_links": 42,
+      "ci_manifest_sha256": "bc4b3945650ec6b867a8ef7aafe53eb9b9958b0908cdf6a3d78bb5dcaf574158"
+    },
+    "shared_current": "alisa-77d0f8ee2643ef65"
+  },
+  "source_delta_review": {
+    "comparison": "dd2b59b99b00b7e4c751f6f32034886245363d49..07290e7c17f556bfe8e144fd766ee0163c0b88db",
+    "staff_critical_blobs_identical": {
+      "products/alisa/services/identity/src/octoport_identity/protocol/middleware.py": "9aeba9b73fa6889138f0c8f5d1e85d51539be548",
+      "products/alisa/services/identity/src/octoport_identity/protocol/storage.py": "c0343b00dd77dce9379ffd26664d343ba78cb16d",
+      "products/alisa/apps/admin/src/server/auth.ts": "a716326b2b5f08c39991ad9dd40e24ade1706975",
+      "products/alisa/services/platform/src/alisa_platform/staff/views.py": "2ac5d4005150977ed95df1232b3009a84d9125a5",
+      "products/alisa/services/platform/src/alisa_platform/staff/models.py": "7a1c3b62ca992ac12c0db6641643d2e3fe2f0f04",
+      "products/alisa/services/platform/src/alisa_platform/staff/migrations/0001_initial.py": "c6a3715945dab88d6fbd13584bad650b43449794"
+    },
+    "reviewed_changes": "The delta adds explicit open real-email registration mode and changes email admission, delivery selection, public copy and registration qualification paths. No staff authorization, native MFA, staff client, staff session, token, command or audit implementation changed in the reviewed delta.",
+    "scope_limit": "The open-registration, real-mail, whole 07290 release and production scope are not accepted by this verdict."
+  },
+  "receipts": {
+    "AL_S03_CURRENT_07290_SMOKE_20261105.json": {
+      "status": "PASS",
+      "cases": 24,
+      "verified": [
+        "exact component pointer and installed manifest bindings",
+        "native signed authorization proof with issuer/client/state/nonce/PKCE and subject checks",
+        "fresh TOTP through admin BFF to platform and PostgreSQL",
+        "actual staff session MFA type is TOTP",
+        "limited reader write denial and revocation in both browser contexts",
+        "synthetic-only contact flow and unchanged non-synthetic mail rows"
+      ]
+    },
+    "AL_S03_CURRENT_07290_ROLLBACK_20261105.json": {
+      "status": "PASS",
+      "cases": 48,
+      "verified": [
+        "staff-only disable, exact close/suspend SQL, zeroed payloads, grants and tokens",
+        "native code TTL elapsed before fallback",
+        "only admin temporarily switched to the closed e820 shell while 07290 remained live",
+        "customer profile remained available during staff fallback",
+        "same admin client restored, followed by fresh TOTP re-entry",
+        "old staff token revoked, pending flow consumed, non-synthetic mail unchanged"
+      ]
+    },
+    "AL_S03_CURRENT_07290_FINAL_CHECKS_20261105.json": {
+      "status": "PASS",
+      "cases": 72,
+      "verified": [
+        "exact installed 4406/42 admin and 4408/42 07290 manifests",
+        "all four components READY on the declared tuple",
+        "current pointers, private config snapshots, service/timer state and shared pointer",
+        "DB privilege boundaries, encrypted native factor, audit privacy and old OIDC clients",
+        "no test fixture values in logs and no non-synthetic mail row changes",
+        "qualification window active and prior test cgroups finished"
+      ]
+    }
+  },
+  "fresh_read_only_host_readback": {
+    "pointer_tuple": {
+      "admin-current": "alisa-3e91b1aa5d405d0e",
+      "web-current": "alisa-07290e7c17f556bf",
+      "site-current": "alisa-07290e7c17f556bf",
+      "identity-current": "alisa-07290e7c17f556bf",
+      "current": "alisa-77d0f8ee2643ef65"
+    },
+    "health": {
+      "web": "READY/alisa-07290e7c17f556bf",
+      "identity": "READY/alisa-07290e7c17f556bf",
+      "platform": "READY/alisa-07290e7c17f556bf",
+      "admin": "READY/alisa-3e91b1aa5d405d0e"
+    },
+    "staff_enabled": {
+      "admin": true,
+      "identity": true,
+      "platform": true
+    },
+    "config_file_owner_uid": 0,
+    "config_file_mode": "0600",
+    "disk_free_mib": 3455,
+    "free_inodes": 580575
+  },
+  "historical_context": {
+    "earlier_dd2_readback_and_manifest_check": "FAILED_OR_DRIFTED; superseded only for the present declared 07290 tuple by the later exact PASS receipts and fresh readback",
+    "nontransferable_scopes": [
+      "07290 public registration and real mail",
+      "entire 07290 product release",
+      "production deployment"
+    ]
+  },
+  "open_gates_for_this_verdict": [],
+  "limitations": [
+    "This is a point-in-time acceptance of the declared mixed S03 staff boundary only.",
+    "Any component pointer, staff capability configuration or runtime drift invalidates this binding and requires renewed review.",
+    "No tests or mutations were performed by the independent reviewer."
+  ]
+}

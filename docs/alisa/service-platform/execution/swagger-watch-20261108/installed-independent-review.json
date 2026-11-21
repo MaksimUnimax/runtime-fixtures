@@ -1,0 +1,131 @@
+{
+  "review": "ALISA_SWAGGER_WATCH_INSTALLED_INDEPENDENT_REVIEW",
+  "date": "2026-11-08",
+  "verdict": "INSTALLED_BOUNDED_SCOPE_DEGRADED_PROVIDER_COVERAGE",
+  "scope": "Independent read-only consistency review of the supplied safe package, activation, first-cycle, installed-verification, and APT receipts. No live host/provider/DB/browser calls, no private configuration/provider credential reads, and no tests.",
+  "bound_artifacts_sha256": {
+    "package-binding.json": "53f619ad357fdc11be948f1e5a55637d1fb2e4d158c52c68073bd836af610156",
+    "prepare.failed-admission.json": "9bb51b05721f1dc096543a9f4d89cda9e04b9b5b2692f39aa249ca30842650f2",
+    "prepare.json": "85687f6f6146e03d3f8c4e27a2381c61eb8b9cfe2fe617e9ddcc2c4ef1ae5829",
+    "activate.json": "92ee8e22f7c295b5b940e5031dae9b1d6f64f19dfadc85a58c39a83b7f16e394",
+    "activate-resume.json": "f3fcb785e265a0497e08718b5b53eb60755b11035d23ec43a5d2912328a39e0e",
+    "activate-finalize.json": "292b6ac0cec4d261bb9f9ff967481f4f79c17f377cd5a453aa2c9f1817d63757",
+    "first-live-cycle.json": "19281820cf376586ba8bc40cb015126caaf253cb5ff3fc3d1bb35fc1aecf71af",
+    "installed-verification.json": "0f909aa05005e0a23a24fde96923f022a5b3cadc3afda6f997d64c673e097963",
+    "apt-cache-maintenance.json": "b4a36b826d83e010c8049859af688644f65a9225fd4016e0a9a073b10600355a",
+    "apt-cache-maintenance-run-observation.json": "751a92c87a2df77967102d236b4423066aae94e20cc39402d8202d5985ad4f5a",
+    "independent-source-review-r3.json": "6f285b8063c7e8d8754e76b0fe52ae85d93fbd6f6e21ded6fb99da813576c42f",
+    "install-review-r4.json": "cd49da5691b6a4c52c72022e86b144c0eaf734ab91d1dde629c7a13ecf5cbcbe",
+    "apt-cache-maintenance-review-r2.json": "bae50d1e764c6695222e0aef58c98a52bd8be18ff4c1dfeccf52bd84d16566ac"
+  },
+  "package_and_activation": {
+    "source_sha": "7cbe3059a83677aeb42a086898a48067918f16a2",
+    "source_tree": "6fbdac73f3f191df9eb2fb29289a0d5880bd7c08",
+    "source_review": "PASS",
+    "ci": {
+      "swagger": {"run": 42451828165, "status": "success"},
+      "full_platform": {"run": 42451828162, "status": "success"},
+      "documentation": {"run": 42451828188, "status": "success"}
+    },
+    "artifact": {
+      "zip_bytes": 395896,
+      "zip_sha256": "47aa17a90b336c102bf4c4d1e82cbdb665db9af40654a61b78614ec80bc5b489",
+      "manifest_sha256": "18c57a25d2542e22fc659183493fa7d3ebb174aa1b860c750ceaeffb7f8a20ee"
+    },
+    "receipt_sequence": {
+      "prepare_failed_admission": "FAILED_DISK_AND_MEMORY_ADMISSION_BEFORE_NAMESPACE_WRITES",
+      "prepare": "PASS_18_OF_18",
+      "activate": "FAILED_RUNUSER_IMPORT",
+      "activate_resume": "FAILED_PUBLIC_READBACK_JSON_DECODE_AFTER_TRANSIENT_OLD_WORKER_RESPONSE",
+      "activate_finalize": "PASS_35_OF_35"
+    },
+    "installed_release": "/opt/alisa-swagger-watch/releases/7cbe3059a83677ae",
+    "payload_hashes_match": true,
+    "unit_hashes_match": true,
+    "dedicated_service_uid_gid": "987:981",
+    "existing_product_preservation": {
+      "pointers": true,
+      "service_invocations": true,
+      "config_hashes": true,
+      "readiness_18100_18103": true,
+      "nginx_only_own_include": true
+    }
+  },
+  "observed_installed_behavior": {
+    "watch_invocation": {
+      "id": "010babd22f0b4b20aa38aff61218942d",
+      "result": "success",
+      "exit_status": 0,
+      "started_utc": "2026-11-08 06:22:18",
+      "finished_utc": "2026-11-08 06:22:24",
+      "timer": "enabled_and_waiting",
+      "status_service": "active"
+    },
+    "coverage": {
+      "wildberries": {
+        "documents": "13/13",
+        "fresh_automatic_official": "13/13",
+        "operation_count": 309
+      },
+      "ozon_seller": {
+        "outcome": "OPERATOR_SOURCE_REQUIRED",
+        "last_http_status": 307,
+        "fresh_automatic_official": false,
+        "automatic_success": false
+      },
+      "ozon_performance": {
+        "outcome": "OPERATOR_SOURCE_REQUIRED",
+        "last_http_status": 307,
+        "last_good_origin": "OWNER_SUPPLIED_REVIEWED",
+        "owner_document_sha256": "c15c0e295a1feefca05a2f3db6c12c11a58bd128206f4e430ab3eea120e60c87",
+        "fresh_automatic_official": false,
+        "automatic_success": false
+      },
+      "ozon_retry_context": "The displayed 307 outcomes are the recorded 06:08 attempts; next_attempt_at is 2026-11-09 06:08 UTC. The 06:22 successful run refreshed WB while respecting Ozon operator-required backoff, so it must not be described as a fresh Ozon retry."
+    },
+    "public_route": {
+      "GET": "503 JSON, status DEGRADED",
+      "HEAD": "503 with empty body",
+      "POST": "403",
+      "scope": "PUBLIC_OPENAPI_DOCUMENTS_ONLY",
+      "llm_monitoring": false,
+      "provider_credentials_used": false,
+      "runtime_catalog_auto_update": false
+    },
+    "resources": {
+      "free_bytes": 3258413056,
+      "free_inodes": 494796,
+      "minimum_free_bytes": 3221225472,
+      "margin_over_3_GiB": 37187584
+    },
+    "customer_or_provider_flow": "NOT_RUN"
+  },
+  "apt_resource_repair": {
+    "receipt_result": "PASS",
+    "actual_invocation_matches_observation": true,
+    "removed_only": ["/var/cache/apt/pkgcache.bin", "/var/cache/apt/srcpkgcache.bin"],
+    "retained_apt_lists": 66,
+    "dpkg_status_hash_unchanged": true,
+    "free_bytes_before": 3143544832,
+    "free_bytes_after_repair": 3261116416,
+    "effective_disable_own_binary_caches_readback": true,
+    "transient_runner_limits_readback": "NOT_AVAILABLE_AFTER_TRANSIENT_UNIT_GC",
+    "limits_claim_boundary": "The receipt/observation supports the actual invocation/result and requested transient profile only. The post-GC systemctl defaults are explicitly not evidence of the one-shot unit's effective limits."
+  },
+  "open_gates": [
+    "Ozon Seller and automatic Ozon Performance source retrieval remain blocked by the recorded operator-required 307 response.",
+    "Performance is owner-supplied reviewed documentation, not proof of current automatic source freshness or Seller-cabinet identity binding.",
+    "Owner login/persistence flow was not run.",
+    "Full AL-S16 and advertising-binding AL-S05 remain open; this is limited Swagger-watch delivery."
+  ],
+  "reviewer_actions": {
+    "safe_receipts_read_only": true,
+    "live_host_calls": false,
+    "provider_calls": false,
+    "db_calls": false,
+    "browser_calls": false,
+    "private_config_or_credentials_read": false,
+    "tests_run": false,
+    "product_code_modified": false
+  }
+}

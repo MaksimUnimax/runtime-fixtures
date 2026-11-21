@@ -1,0 +1,33 @@
+{
+  "schema_version": "alisa_s05_inactive_dependency_review_v1",
+  "scope": "READ_ONLY_EXACT_SOURCE_REVIEW_NO_HOST_CALLS_NO_EXECUTION",
+  "file": {
+    "path": "docs/alisa/service-platform/execution/s05-installed-20261106/inactive-new-dependencies.py",
+    "sha256": "1517cf1f442bb098587a6028a8e7b26575b2d62c0e79e0eb1e8f83e9a56f9105"
+  },
+  "verdict": "PASS_SOURCE_WITH_DOCUMENTED_RESIDUAL_CONCURRENCY_RACE",
+  "findings": [],
+  "reviewed_controls": {
+    "backup_directory_root_owned_mode_0700_not_symlink": "PASS_SOURCE",
+    "metadata_path_absent_and_created_exclusively_without_following_symlinks_mode_0600": "PASS_SOURCE",
+    "candidate_release_must_be_inactive_and_exact_installed_manifest_is_pinned": "PASS_SOURCE",
+    "candidate_paths_limited_to_wheels_python_site_packages_and_ui_node_modules": "PASS_SOURCE",
+    "candidate_and_canonical_source_sha_metadata_owner_mode_xattrs_checked": "PASS_SOURCE",
+    "destination_must_be_single_link_and_source_link_count_must_match_owned_inactive_inventory": "PASS_SOURCE",
+    "process_cwd_exe_cmdline_fd_and_maps_inventory_checks_active_inodes": "PASS_SOURCE",
+    "process_inventory_and_source_target_inactivity_rechecked_before_each_link": "PASS_SOURCE",
+    "space_reserve_and_bounded_gain_are_checked_without_deleting_archives_or_release_paths": "PASS_SOURCE",
+    "complete_installed_package_bytes_and_symlinks_rechecked_after_linking": "PASS_SOURCE"
+  },
+  "known_boundary": "A process may start using a candidate release after the final process inventory and before os.link/os.replace. Five rollout locks and the single-author constraint reduce this race; it is explicitly recorded. The operation changes path-to-inode sharing and ctime/nlink/target mtime, while preserving file bytes, mode, ownership, xattrs, paths, archives, and release directories.",
+  "boundary": {
+    "source_read_only": true,
+    "tests_run_by_reviewer": 0,
+    "host_calls": 0,
+    "script_executed": false,
+    "live_credentials_used": false,
+    "active_release_files_modified_by_reviewer": false,
+    "runtime_or_service_changed": false,
+    "provider_calls_performed": false
+  }
+}

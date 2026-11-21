@@ -1,0 +1,182 @@
+{
+  "scope": "CHECKER_OVERLAY_ONLY_SINGLE_PHYSICAL_HTTP_NO_DB_CONFIG_IMPORT_CORE_RESTART",
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "private_namespace",
+      "passed": true
+    },
+    {
+      "case": "expected_new_platform_and_web_active",
+      "passed": true
+    },
+    {
+      "case": "own_qualified_dropin_exact",
+      "passed": true
+    },
+    {
+      "case": "checker_launch_still_original",
+      "passed": true
+    },
+    {
+      "case": "pinned_root_prestart",
+      "passed": true
+    },
+    {
+      "case": "private_package-binding.json",
+      "passed": true
+    },
+    {
+      "case": "private_runtime-input.private.json",
+      "passed": true
+    },
+    {
+      "case": "fixed_https_artifact_transport",
+      "passed": true
+    },
+    {
+      "case": "bounded_runtime_artifact",
+      "passed": true
+    },
+    {
+      "case": "exact_ci_zip",
+      "passed": true
+    },
+    {
+      "case": "exact_bounded_zip_members",
+      "passed": true
+    },
+    {
+      "case": "exact_sidecar",
+      "passed": true
+    },
+    {
+      "case": "exact_runtime_tar",
+      "passed": true
+    },
+    {
+      "case": "new_overlay_and_resource_reserve",
+      "passed": true
+    },
+    {
+      "case": "bounded_unique_regular_source_paths",
+      "passed": true
+    },
+    {
+      "case": "exact_source_manifest",
+      "passed": true
+    },
+    {
+      "case": "all_payload_hashes",
+      "passed": true
+    },
+    {
+      "case": "physical_core_transport_identical",
+      "passed": true
+    },
+    {
+      "case": "release_parent_traversable",
+      "passed": true
+    },
+    {
+      "case": "overlay_exact_bytes_and_single_physical_transport",
+      "passed": true
+    },
+    {
+      "case": "exact_checker_source_imports_as_actual_uid",
+      "passed": true
+    },
+    {
+      "case": "checker_active",
+      "passed": true
+    },
+    {
+      "case": "new_exact_launch",
+      "passed": true
+    },
+    {
+      "case": "pinned_root_prestart",
+      "passed": true
+    },
+    {
+      "case": "same_service_sandbox_uid_limits",
+      "passed": true
+    },
+    {
+      "case": "seller_actual_child_completed",
+      "passed": true
+    },
+    {
+      "case": "seller_actual_installed_adapter_socket_real_provider",
+      "passed": true
+    },
+    {
+      "case": "seller_wrong_client_child_completed",
+      "passed": true
+    },
+    {
+      "case": "seller_wrong_client_installed_adapter_socket_real_provider",
+      "passed": true
+    },
+    {
+      "case": "seller_wrong_key_child_completed",
+      "passed": true
+    },
+    {
+      "case": "seller_wrong_key_installed_adapter_socket_real_provider",
+      "passed": true
+    },
+    {
+      "case": "performance_actual_child_completed",
+      "passed": true
+    },
+    {
+      "case": "performance_actual_installed_adapter_socket_real_provider",
+      "passed": true
+    },
+    {
+      "case": "wb_actual_child_completed",
+      "passed": true
+    },
+    {
+      "case": "wb_actual_installed_adapter_socket_real_provider",
+      "passed": true
+    },
+    {
+      "case": "core_and_other_services_configs_pointers_preserved",
+      "passed": true
+    },
+    {
+      "case": "disk_reserve_retained",
+      "passed": true
+    }
+  ],
+  "real_installed_ipc": [
+    {
+      "case": "seller_actual",
+      "code": "CONNECTED",
+      "identity_matches": true
+    },
+    {
+      "case": "seller_wrong_client",
+      "code": "AUTH_DENIED"
+    },
+    {
+      "case": "seller_wrong_key",
+      "code": "AUTH_DENIED"
+    },
+    {
+      "case": "performance_actual",
+      "code": "AUTHENTICATED_UNLINKED"
+    },
+    {
+      "case": "wb_actual",
+      "code": "CONNECTED",
+      "identity_matches": true
+    }
+  ],
+  "source_sha": "5dff6e8883e25ac464d6e8c64e4ab5a7280c70f7",
+  "shared_http_single_physical_file": true,
+  "customer_database_changed": false
+}
+

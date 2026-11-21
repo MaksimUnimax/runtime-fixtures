@@ -1,0 +1,18 @@
+{% extends "account/base_reauthenticate.html" %}
+{% load allauth %}
+{% block content %}
+<h1>Подтвердите вход кодом из приложения</h1>
+<p>Откройте приложение-аутентификатор на телефоне и введите текущий код. На этом шаге письмо на почту не отправляется.</p>
+{% url 'mfa_reauthenticate' as action_url %}
+<form method="post" action="{{ action_url }}">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  {{ form.code.errors }}
+  <label for="{{ form.code.id_for_label }}">Код из приложения или резервный код</label>
+  {{ form.code }}
+  {{ redirect_field }}
+  <button type="submit">Продолжить вход</button>
+</form>
+<p>Код в приложении меняется примерно каждые 30 секунд. Уже использованный код повторно не принимается.</p>
+{% if staff_continuation_context %}<p><a href="{{ admin_home_url }}">Открыть админку</a></p>{% endif %}
+{% endblock %}

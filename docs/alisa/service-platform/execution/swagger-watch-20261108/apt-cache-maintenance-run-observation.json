@@ -1,0 +1,18 @@
+{
+  "scope": "POST_COMPLETION_TRANSIENT_UNIT_ALREADY_COLLECTED",
+  "requested_profile": {
+    "Type": "exec",
+    "RuntimeMaxSec": 45,
+    "TimeoutStopSec": 5,
+    "KillMode": "control-group",
+    "MemoryMax": 268435456,
+    "MemorySwapMax": 0,
+    "TasksMax": 64,
+    "OOMPolicy": "stop",
+    "MemoryAccounting": true
+  },
+  "limits_readback": "NOT_AVAILABLE_AFTER_TRANSIENT_UNIT_GC",
+  "post_gc_observation": "TimeoutStopUSec=1min 30s\nRuntimeMaxUSec=infinity\nResult=success\nExecMainStatus=0\nMemoryPeak=[not set]\nMemoryMax=infinity\nMemorySwapMax=infinity\nTasksMax=9431\nKillMode=control-group\nActiveState=inactive\nSubState=dead\nInvocationID=\n",
+  "actual_invocation": "1de52e7274ae4596a449a4cec366eaa3",
+  "actual_result": "PASS"
+}

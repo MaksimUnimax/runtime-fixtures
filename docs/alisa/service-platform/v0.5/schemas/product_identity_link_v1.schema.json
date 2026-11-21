@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Product identity link v0.4",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "environment",
+    "product_id",
+    "issuer",
+    "subject",
+    "client_id",
+    "local_user_id",
+    "local_tenant_id"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "product_identity_link_v1"
+    },
+    "environment": {
+      "enum": [
+        "stage",
+        "prod"
+      ]
+    },
+    "product_id": {
+      "const": "alisa_market"
+    },
+    "issuer": {
+      "type": "string",
+      "enum": [
+        "https://id.octoport.ru",
+        "https://id-stage.octoport.ru"
+      ]
+    },
+    "subject": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "client_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "local_user_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "local_tenant_id": {
+      "type": "string",
+      "format": "uuid"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "environment": {
+            "const": "prod"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "issuer": {
+            "const": "https://id.octoport.ru"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "issuer": {
+            "const": "https://id-stage.octoport.ru"
+          }
+        }
+      }
+    }
+  ]
+}

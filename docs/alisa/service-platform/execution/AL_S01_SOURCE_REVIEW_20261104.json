@@ -1,0 +1,96 @@
+{
+  "record_type": "AL_S01_SOURCE_REVIEW",
+  "reviewed_at_utc": "2026-11-04T22:30:00Z",
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "branch": "feat/alisa-site-funnel-v05",
+  "review_head": "c8f7472cfe2337f3777819a5d586b8d3eb2f573b",
+  "scope": "Read-only source review of AL-S01 leads/funnel backend, public Next.js pages and BFF, consent and attribution handling, finite SMTP outbox command/unit examples, generated contracts, and preservation of AL-S00 boundaries. No stage or production deployment, DB access, or security-setting change was performed.",
+  "verdict": "SOURCE_ACCEPTED_PACKAGE_QUALIFIED",
+  "initial_verdict": "REWORK",
+  "findings": [
+    {
+      "id": "S01-SOURCE-01",
+      "severity": "P1_FUNCTIONAL",
+      "file": "products/alisa/apps/web/src/app/join/ui.tsx:5",
+      "related_file": "products/alisa/services/platform/src/alisa_platform/leads/views.py:66-80",
+      "finding": "The form stores one request UUID in sessionStorage and retains it after a successful 202. The backend returns immediately for a previously seen UUID before checking whether the confirmation token expired and needs reissue. Therefore the UI's expired-link recovery instruction cannot produce a fresh message in the same tab. The same retained UUID also causes a different synthetic address entered in that tab to receive 409 IDEMPOTENCY_CONFLICT.",
+      "recommended_change": "Clear/rotate the stored request UUID after a successful acknowledgement, while retaining it across ambiguous network failures; or otherwise bind the client idempotency key to the contact/retry attempt without losing duplicate-submit protection.",
+      "evidence_gap": "The integration qualification reissues an expired challenge using a newly generated request_id, so it does not exercise the browser's persisted request UUID path."
+    },
+    {
+      "id": "S01-SOURCE-02",
+      "severity": "P2_ANALYTICS_SEMANTICS",
+      "file": "products/alisa/apps/web/src/app/tracking.tsx:6",
+      "finding": "The client emits event_type=cta.clicked whenever the current route is /join. This records direct visits and page loads as CTA clicks, so the event does not represent the named action.",
+      "recommended_change": "Emit cta.clicked from the actual CTA click handler, or rename the route event to a page-view event and add a distinct click event only when a CTA is activated."
+    }
+  ],
+  "reviewed_controls": {
+    "service_bearer_same_origin_host_and_bounded_body": "PASS by source inspection; BFF uses a fixed action-to-upstream allowlist, validates Origin and Host, streams with a 2048-byte limit, restricts upstream to loopback HTTP, sends the service bearer server-side, rejects redirects, and filters response keys.",
+    "closed_synthetic_gate": "PASS by source inspection; intake requires dev/stage, enabled flag, CLOSED mode, and exact example.invalid contact domain; non-loopback SMTP is rejected when enabled.",
+    "request_and_email_idempotency": "Backend protections present; browser request UUID lifecycle has the recovery defect above. Email uniqueness and generic acknowledgements are present.",
+    "confirmation_token": "PASS by source inspection; random token hash only, 15-minute expiry, constant-time comparison, one-use clearing, and maximum five failed checks.",
+    "outbox_and_smtp": "PASS by source inspection for bounded behavior; delivery command processes at most 20 rows, has a finite SMTP timeout, logs no message payload, and clears body after SMTP acceptance or token expiry.",
+    "consent_separation": "PASS by source inspection; service consent is required, marketing consent defaults false and is separately stored, and analytics is optional and off by default.",
+    "attribution_privacy": "PASS by source inspection; server maps only three bounded attribution fields to allowlisted constants or OTHER; no referrer or raw query/contact/token is persisted in funnel attribution; nginx example logs URI without query string.",
+    "account_or_grant_creation": "PASS by source inspection; added models and views create leads/funnel events only and do not create accounts, memberships, or access grants.",
+    "AL_S00_boundary_regressions": "No source change observed to identity, marketplace/matrix/processor, or legacy lab services. Probe flag remains restricted to dev/stage; readiness only adds lead/funnel schema checks when intake is enabled."
+  },
+  "execution": {
+    "tests_run": false,
+    "reason": "Requested read-only source review; long tests were intentionally not run while the author continues integration-harness work and Next build.",
+    "deployment_or_database_mutation": false
+  },
+  "worktree_note": "The worktree contains source changes and ignored .venv/node_modules directories. Keep generated dependencies out of the source commit; no such files were read or edited by this review.",
+  "acceptance_boundary": "This is SOURCE review only. It does not accept live SMTP, stage/production installation, business migrations on live databases, or public contact collection. Those remain subject to the user's separate live/DB/mail authorization.",
+  "follow_up": {
+    "reviewed_at_utc": "2026-11-04T22:40:00Z",
+    "source_files_rechecked": [
+      "products/alisa/apps/web/src/app/join/ui.tsx",
+      "products/alisa/apps/web/src/app/tracking.tsx"
+    ],
+    "status": "BOTH_FINDINGS_RESOLVED_BY_SOURCE_READBACK",
+    "resolutions": [
+      {
+        "finding_id": "S01-SOURCE-01",
+        "status": "RESOLVED",
+        "observed_change": "A successful 202 removes alisa-lead-request from sessionStorage. Ambiguous/network failures leave it in place for safe retry; a later submit gets a new request UUID, allowing the same email's expired challenge to be reissued without creating a second lead."
+      },
+      {
+        "finding_id": "S01-SOURCE-02",
+        "status": "RESOLVED",
+        "observed_change": "Page events are emitted only for landing and demo routes. cta.clicked is emitted by a document click handler for an actual anchor with href=/join, only while analytics consent is enabled; merely mounting /join emits no CTA event."
+      }
+    ],
+    "author_reported_checks_not_independently_run": "36 Python checks, 11 Node checks, TypeScript typecheck, and local Next compile reported passing. Browser regression cases for expired-link resubmission, request UUID storage clearing, direct /join visits, and actual CTA clicks are being added; clean package CI is still pending.",
+    "remaining_scope": "Source review findings are closed. This is not live/stage acceptance; wait for clean package qualification and keep separate live/DB/mail authorization gates."
+  },
+  "final_source_package_follow_up": {
+    "reviewed_at_utc": "2026-11-04T22:45:00Z",
+    "status": "SOURCE_ACCEPTED_PACKAGE_QUALIFIED",
+    "review_checkout": {
+      "branch": "feat/alisa-site-funnel-v05",
+      "head": "6461eecb9a2ba22d15f9ef3f4804d878aaa172e4",
+      "tree": "e3456dd5515daa903368068cccf9512697fca6a7",
+      "worktree_clean": true,
+      "last_local_commit_scope": "One CSS font clamp change to fit the synthetic answer amount on narrow screens; no other changed path in that commit."
+    },
+    "qualified_public_candidate": {
+      "pull_request": 384,
+      "pull_request_state": "open_draft_not_merged",
+      "pull_request_head": "8d680f775c8ccdf2a9520fa93c4909dd0aaaa986",
+      "base": "feat/alisa-platform-foundation-v05",
+      "source_commit": "8d680f775c8ccdf2a9520fa93c4909dd0aaaa986",
+      "package_sha256": "fd28f38960c50f5375fe4ff74ca0a29fd01aaf168673fe31213e3e662f094642",
+      "package_artifact_id": 13368239824,
+      "qualification_artifact_id": 13368349328,
+      "artifact_metadata_head_sha": "8d680f775c8ccdf2a9520fa93c4909dd0aaaa986",
+      "push_workflow": {"run_id": 41925878784, "job_id": 126910025393, "conclusion": "success"},
+      "pull_request_workflow": {"run_id": 41925884741, "job_id": 126910046221, "conclusion": "success"},
+      "documentation_workflow": {"run_id": 41925884840, "job_id": 126910046791, "conclusion": "success"},
+      "qualification_log_readback": "Push job log reports the exact source_sha and package SHA-256 above, successful artifact integrity and packaged qualification steps, and uploaded both immutable package and qualification artifacts for PR head 8d680f775c8ccdf2a9520fa93c4909dd0aaaa986."
+    },
+    "test_scope_reported": "42 AL-S01 cases plus 54 existing regressions (96 total), including synthetic SMTP, one-use/expiry/max-five confirmation, persistent browser resend/idempotency, consented real-click vs direct /join visit, DB persistence, API restart, and privacy log assertions. 36 Python, 11 Node, TypeScript typecheck and Next build also reported passing; GitHub source/package and docs workflows independently completed successfully.",
+    "deployment_boundary": "SOURCE/PACKAGE accepted for the exact qualified candidate only. AL-S01 remains not deployed: stage still runs accepted AL-S00 release 77d0f8ee. This review grants no live/DB/security/mail authorization and no public contact collection. Next step is explicit user approval for the separately scoped private SMTP stage rollout after the rollout plan is ready."
+  }
+}

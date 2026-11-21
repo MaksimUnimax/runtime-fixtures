@@ -1,0 +1,21 @@
+{
+  "review": "INDEPENDENT_NATIVE_PAIR_RESTART_REFRESH_REVIEW_R2",
+  "result": "PASS_WITH_BOUNDED_SCOPE",
+  "scope": "Static review only. No host, provider, database, browser, credential, or test operation was performed.",
+  "artifacts": {
+    "requalify.py": "f0b161807b7ac2114f1a95d3250c80a78ae616444bee598dc3d7236e773e0844",
+    "alisa-native-pair-refresh.service": "caba4467fed690be3fa7d8cd2a0cc862c537fbbe0f19e942ca1ada6239cc9721",
+    "native-pair-refresh.conf": "8d225c86c0103b69ab30d7f78b3f16694acaebc7ef7bc7ebc18f2bf35633c253",
+    "install-refresh.py": "774f156605bb99b176e1d055123c6c72942e4880be034893fccb6710cab0b24f"
+  },
+  "reviewed_controls": [
+    "The R5 installer source hash is enforced by an explicit comparison that raises before dynamic import; Python optimization cannot disable the pin.",
+    "The installer consumes the canonical refresh-payload.json, requires exactly the three allowed filenames, and validates every decoded source against an embedded SHA-256 before any target write. The owner clarified that the previous payload was renamed aside after hash verification and the canonical filename now contains the final exact payload; the stale-candidate concern from the prior review is therefore closed.",
+    "The requalification helper validates the old HMAC against current root-owned config and read-only Ozon credential, then changes only native process generation and the derived HMAC. Pair/config/scope drift fails closed. It re-reads source inputs and process generation before atomic replacement, preserves file ownership/group/mode, fsyncs the file and directory, and emits no private values.",
+    "RuntimeDirectory=alisa-native-pair-refresh with mode 0700 supplies a manager-created writable lock directory under ProtectSystem=strict. The helper lock path matches that directory; the only other write path is the root-owned projection directory.",
+    "The ExecStartPre hook applies only to the checker. The refresh oneshot is bounded and isolated from network access. The installer verifies checker service readiness, current generation, the real performance adapter/IPC result, and preservation of all protected pointers, service identities, environments, and sandbox properties. Failure cleanup is inode-scoped to files created by this installer."
+  ],
+  "blockers": [],
+  "residual_limitation": "A native core restart can race the helper's final generation check and atomic replace. This can leave a stale proof temporarily, but checker resolve validates current process generation on each check and therefore fails closed; the core's PartOf/BindsTo checker restart should invoke the hook again for the new generation. No false Performance identity qualification is enabled by this race.",
+  "test_claims": "The author-reported 21 fixture tests and successful installation receipts were not independently re-run or inspected in this source-only review."
+}

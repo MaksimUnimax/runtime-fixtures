@@ -1,0 +1,57 @@
+{
+  "schema_version": "alisa_s05_owner_key_qualification_review_v1",
+  "scope": "READ_ONLY_ARCHITECTURE_REVIEW_NO_KEYS_EVIDENCE_FILE_SERVER_OR_PROVIDER_ACCESS",
+  "verdict": "SELLER_FLAG_GATE_SATISFIED_CONDITIONALLY; PERFORMANCE_VALID_UNLINKED_STATUS_IS_SAFE_AND_USEFUL",
+  "evidence_basis": {
+    "source": "Owner-reported bounded live results from /var/lib/alisa-platform/stage/rollout-backups/s05-real-keys-20261108/owner-key-probe.json; reviewer did not open the evidence file or read credentials, response values, tokens, server state, or database.",
+    "seller_positive": "Own Seller Client-Id plus Api-Key returned HTTP 200 with strict company response fields.",
+    "seller_wrong_client_canary": "Same Seller key with Client-Id incremented by one returned HTTP 401 AUTH_DENIED.",
+    "seller_wrong_key_canary": "Same Client-Id with unrelated random key returned HTTP 401 AUTH_DENIED.",
+    "performance_positive": "Legacy Performance client_credentials returned HTTP 200 with access_token, Bearer token_type, and positive expires_in.",
+    "performance_wrong_secret": "Returned HTTP 401.",
+    "wb_positive": "WB seller-info returned HTTP 200 with UUIDv4 sid."
+  },
+  "seller_binding_gate": {
+    "decision": "PASS_FOR_ENABLING_THE_EXISTING_SELLER_QUALIFICATION_FLAG",
+    "reason": "The prior gate required an authenticated successful response from the exact submitted Client-Id/key pair with strict company shape, plus negative canaries showing rejection when either header-pair component is invalid. The reported own positive and both wrong-pair 401 results satisfy that gate. The checker only emits CONNECTED and canonical ozon:client:<normalized numeric Client-Id> when the global qualification flag is true and each individual check again has a strict HTTP 200 company response.",
+    "identity_label_limit": "This qualifies the canonical internal Client-Id namespace. It is not proof that Client-Id is literally Ozon seller_id; do not rename the identity or derive it from company name/INN. This remains an inference from Ozon's header/error contract reinforced by pair-specific canaries.",
+    "flag_change_boundary": "Flag-only checker service change is acceptable if exact current checker/module/shared_http bytes, core integration, IPC peer restrictions, UID/GID, filesystem sandbox, and resource limits remain unchanged. Restart only the checker service; confirm socket readiness and do not restart platform/core as part of this flag change."
+  },
+  "performance_result": {
+    "decision": "DO_NOT_PROMOTE_IDENTITY_OR_LINK_TO_SELLER",
+    "proposed_code": "CREDENTIAL_VALID_UNLINKED",
+    "reason": "The token response confirms that Ozon accepted the Performance credential pair at check time. The official sources reviewed do not provide a legacy Performance token introspection/crosswalk to Seller identity. The result must not be CONNECTED, must not set store.verified_identity, and must not imply same-cabinet linkage.",
+    "persistence_effect": "Use a result code that is not CONNECTED so the existing store finish path records check_code without promoting the credential or changing verified_identity. A newly saved credential remains PENDING; store account identity remains the separately qualified Seller identity or null.",
+    "ui_effect": "Add an explicit Russian message such as 'Доступ к Performance принят. Кабинет рекламы не подтверждён как тот же, что кабинет Seller.' Avoid generic 'check completed' and avoid showing the channel as linked/connected.",
+    "required_code_wiring": [
+      "Add the new non-success code to runtime checker result validation, platform runtime adapter allow-list, and relevant fixture/qualification cases.",
+      "Verify it fits existing check_code max_length=40; it does.",
+      "Add explicit UI copy; unknown-code fallback currently says only that the check completed.",
+      "Keep the code outside every path that promotes CredentialRevision.status to ACTIVE or assigns Store.verified_identity.",
+      "Do not send campaigns, reports, financial calls, or mutating Performance methods."
+    ]
+  },
+  "observed_source_contract": {
+    "checker": "Only a strict Seller company response plus seller_binding_qualified enables Seller CONNECTED; Performance token success currently returns IDENTITY_NOT_VERIFIED.",
+    "platform_finish": "Only CONNECTED is eligible for identity promotion; non-CONNECTED codes are stored as check_code. Performance CONNECTED also requires an already verified matching store identity.",
+    "database": "CredentialRevision.check_code is max_length=40; no schema migration is required for CREDENTIAL_VALID_UNLINKED.",
+    "ui": "Unknown check codes use generic fallback text, so an explicit label is required for a truthful unlinked state."
+  },
+  "risks_and_limits": [
+    "The official Ozon Seller error contract states that Api-Key-not-found for seller_id is 404, while actual wrong Client-Id returned 401. The live canaries establish rejection for this tested credential pair but do not turn the documentation into a universal formal Client-Id-to-seller_id specification.",
+    "The Performance code should distinguish token acceptance from identity proof, not present token issuance as durable/reusable authorization; expires_in is positive and the credential can later be revoked or expire.",
+    "Adding a non-success check code requires the checker and platform allow-lists to agree exactly; otherwise the IPC adapter will safely downgrade the unknown result to CHECK_UNAVAILABLE."
+  ],
+  "official_source_urls": [
+    "https://dev.ozon.ru/news/505-Izmenenie-otdavaemykh-oshibok-sviazannykh-c-API-kliuchami-Seller-API/",
+    "https://dev.ozon.ru/news/691-Performance-API-Optimizatsiia-kontrolia-dostupov-cherez-OAuth/",
+    "https://dev.ozon.ru/start/442-FAQ-Magazin-prilozhenii-i-Lichnyi-kabinet-razrabotchika/",
+    "https://dev.ozon.ru/start/450-Protsess-OAuth-avtorizatsii-dlia-dostupa-k-Ozon-Seller-API/"
+  ],
+  "not_performed": [
+    "provider or server calls",
+    "credential, token, session, or raw owner evidence access",
+    "database access",
+    "source or Git metadata changes"
+  ]
+}

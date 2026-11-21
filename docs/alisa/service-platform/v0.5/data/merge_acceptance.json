@@ -1,0 +1,162 @@
+[
+  {
+    "id": "MERGE-01",
+    "step": "AL-M01",
+    "action": "Octoport backend недоступен в стенде",
+    "expected": "Алиса сохраняет самостоятельную работу.",
+    "status": "NOT_RUN",
+    "actual": null
+  },
+  {
+    "id": "MERGE-02",
+    "step": "AL-M02",
+    "action": "Одинаковые email, нет подтверждения обеих сторон",
+    "expected": "Нет auto-link и раскрытия данных.",
+    "status": "NOT_RUN",
+    "actual": null
+  },
+  {
+    "id": "MERGE-03",
+    "step": "AL-M02",
+    "action": "Разные email, подтверждён контроль обоих",
+    "expected": "Связь создана без смены local IDs.",
+    "status": "NOT_RUN",
+    "actual": null
+  },
+  {
+    "id": "MERGE-04",
+    "step": "AL-M02",
+    "action": "Параллельное подтверждение / replay / другая цель",
+    "expected": "Одна корректная связь, конфликт отклонён.",
+    "status": "NOT_RUN",
+    "actual": null
+  },
+  {
+    "id": "MERGE-05",
+    "step": "AL-M02",
+    "action": "Разные организации одного person",
+    "expected": "Общий вход не смешивает tenant данные.",
+    "status": "NOT_RUN",
+    "actual": null
+  },
+  {
+    "id": "MERGE-06",
+    "step": "AL-M03",
+    "action": "40 дней Алисы, нет доступа Octoport",
+    "expected": "Сроки и права неизменны.",
+    "status": "NOT_RUN",
+    "actual": null
+  },
+  {
+    "id": "MERGE-07",
+    "step": "AL-M03",
+    "action": "Оба продукта имеют оплаты и подарки",
+    "expected": "Источники истинные, нет дублей grant/charge.",
+    "status": "NOT_RUN",
+    "actual": null
+  },
+  {
+    "id": "MERGE-08",
+    "step": "AL-M04",
+    "action": "Staff только Алисы",
+    "expected": "Операции Octoport запрещены backend.",
+    "status": "NOT_RUN",
+    "actual": null
+  },
+  {
+    "id": "MERGE-09",
+    "step": "AL-M04",
+    "action": "Блокировка только аккаунта Алисы",
+    "expected": "Другой продукт не отключён автоматически.",
+    "status": "NOT_RUN",
+    "actual": null
+  },
+  {
+    "id": "MERGE-10",
+    "step": "AL-M04",
+    "action": "Глобальный security revoke",
+    "expected": "Соблюдён измеряемый session revocation policy.",
+    "status": "NOT_RUN",
+    "actual": null
+  },
+  {
+    "id": "MERGE-11",
+    "step": "AL-M05",
+    "action": "Привязанная ранее Станция после объединения",
+    "expected": "Тот же tenant, refresh и готовый результат.",
+    "status": "NOT_RUN",
+    "actual": null
+  },
+  {
+    "id": "MERGE-12",
+    "step": "AL-M01",
+    "action": "Старая поддержанная версия расширения",
+    "expected": "Account/device/bootstrap не меняются.",
+    "status": "NOT_RUN",
+    "actual": null
+  },
+  {
+    "id": "MERGE-13",
+    "step": "AL-M03",
+    "action": "Общая карточка магазина",
+    "expected": "Нет переноса ключа расширения на сервер без согласия.",
+    "status": "NOT_RUN",
+    "actual": null
+  },
+  {
+    "id": "MERGE-14",
+    "step": "AL-M03",
+    "action": "Отказ одного backend",
+    "expected": "Второй раздел работает; нет вымышленных нулей.",
+    "status": "NOT_RUN",
+    "actual": null
+  },
+  {
+    "id": "MERGE-15",
+    "step": "AL-M05",
+    "action": "Откат интерфейса после новой оплаты",
+    "expected": "Деньги/связки/отзывы не потеряны и не повторены.",
+    "status": "NOT_RUN",
+    "actual": null
+  },
+  {
+    "id": "MERGE-16",
+    "step": "AL-M01",
+    "action": "Cookie другого origin / поддельный callback",
+    "expected": "State/nonce/aud/PKCE не обходятся.",
+    "status": "NOT_RUN",
+    "actual": null
+  },
+  {
+    "id": "MERGE-17",
+    "step": "AL-M03",
+    "action": "Обновлён общий UI package",
+    "expected": "Второй продукт не обновляется без своего выпуска.",
+    "status": "NOT_RUN",
+    "actual": null
+  },
+  {
+    "id": "MERGE-18",
+    "step": "AL-M04",
+    "action": "Удаление продукта и глобальной личности",
+    "expected": "Разные операции, иной оплаченный продукт не стирается.",
+    "status": "NOT_RUN",
+    "actual": null
+  },
+  {
+    "id": "MERGE-19",
+    "step": "AL-M05",
+    "action": "Старая campaign landing ссылка",
+    "expected": "Правильный продукт и allowlisted атрибуция сохранены; OAuth не SEO-redirect.",
+    "status": "NOT_RUN",
+    "actual": null
+  },
+  {
+    "id": "MERGE-20",
+    "step": "AL-M05",
+    "action": "Общий ЛК включён, общая главная ещё не принята",
+    "expected": "Собственная главная Алисы продолжает работу.",
+    "status": "NOT_RUN",
+    "actual": null
+  }
+]

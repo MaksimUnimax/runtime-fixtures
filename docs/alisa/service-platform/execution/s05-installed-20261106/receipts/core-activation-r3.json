@@ -1,0 +1,96 @@
+{
+  "scope": "CURRENT_CORE_AND_PRIVATE_CHECKER_ACTIVATION_NO_PLATFORM_DB_OR_CONFIG",
+  "status": "FAILED",
+  "cases": [
+    {
+      "case": "inactive_core_prepared",
+      "passed": true
+    },
+    {
+      "case": "new_exact_core_manifest",
+      "passed": true
+    },
+    {
+      "case": "exact_integrated_core_qualified",
+      "passed": true
+    },
+    {
+      "case": "old_exact_core_manifest",
+      "passed": true
+    },
+    {
+      "case": "exact_old_launch_and_identity",
+      "passed": true
+    },
+    {
+      "case": "alice-market.service_actual_pid",
+      "passed": true
+    },
+    {
+      "case": "runtime_platform_uids",
+      "passed": true
+    },
+    {
+      "case": "fresh_free_reserve",
+      "passed": true
+    },
+    {
+      "case": "own_pointers_expected_foreign_versions_snapshotted",
+      "passed": true
+    },
+    {
+      "case": "owned_new_unit_and_overrides_absent",
+      "passed": true
+    },
+    {
+      "case": "owned_systemd_parents_secure",
+      "passed": true
+    },
+    {
+      "case": "new_socket_absent",
+      "passed": true
+    },
+    {
+      "case": "pinned_unit_source",
+      "passed": true
+    },
+    {
+      "case": "pinned_root_helper",
+      "passed": true
+    },
+    {
+      "case": "no_queued_or_running_jobs",
+      "passed": true
+    },
+    {
+      "case": "exact_active_core_directory",
+      "passed": true
+    },
+    {
+      "case": "exact_new_launch_and_inherited_properties",
+      "passed": true
+    },
+    {
+      "case": "alice-market.service_actual_pid",
+      "passed": true
+    },
+    {
+      "case": "checker_unit_active",
+      "passed": true
+    },
+    {
+      "case": "socket_owner_group_mode",
+      "passed": true
+    }
+  ],
+  "before_pointers": {
+    "web-current": "alisa-c8666516683e7b2b",
+    "site-current": "alisa-c8666516683e7b2b",
+    "admin-current": "alisa-73180172646b7012",
+    "identity-current": "alisa-73180172646b7012",
+    "current": "alisa-482ed11832b666af"
+  },
+  "created_group_gid": 982,
+  "error_type": "FileNotFoundError",
+  "recovery": "OWN_NEW_FILES_REMOVED_OLD_CORE_RESTORED_GROUP_RETAINED"
+}

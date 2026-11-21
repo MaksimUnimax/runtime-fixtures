@@ -1,0 +1,21 @@
+{
+  "record_type": "AL_S02_DIRECT_LOGIN_RESUME_ACTIVATION_INDEPENDENT_REVIEW",
+  "reviewer": "s03_independent_review",
+  "script_path": "docs/alisa/service-platform/execution/direct-login-20261108/resume-activate.py",
+  "script_sha256": "d344bc90be26e1097f4d72bd99876f2b68cf8c15800612fcaa0d0227d45fb217",
+  "pinned_installer_sha256": "68d4d0d634b4a0904dd10c3067c70b9fef8c5b504a594107326f3ead35a891a0",
+  "verdict": "PASS_FOR_DECLARED_IDENTITY_ONLY_RESUME_SCOPE",
+  "reviewed_guards": [
+    "Requires the exact previously reviewed installer bytes and root-private backup directory; disables bytecode writes before importing the installer as a module.",
+    "Acquires all five existing rollout locks non-blocking before reading or updating the prepared baseline.",
+    "Accepts only a non-empty subset of the two named native-core/checker protected-unit snapshot changes, requires changed units active, and requires every other snapshot field to remain identical.",
+    "Revalidates the prepared target manifest and file hashes and all four READY endpoints before preserving the original private snapshot and refreshing only the protected-unit baseline.",
+    "Calls the reviewed installer activation function under the held locks; that function switches/restarts only Identity and restores only the prior Identity pointer on failure."
+  ],
+  "findings": [],
+  "operational_note": "The original prepared snapshot is retained before its private working copy is renewed. If interruption occurs during that metadata transition, use the retained snapshot for a separately reviewed recovery; do not blindly rerun.",
+  "review_limits": [
+    "Static read-only review only; script was not executed and no host calls were made.",
+    "No production database, auth configuration, fixture credentials, or other actor's work was modified."
+  ]
+}

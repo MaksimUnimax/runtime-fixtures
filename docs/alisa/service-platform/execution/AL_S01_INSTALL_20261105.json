@@ -1,0 +1,9 @@
+{
+  "scope": "IMMUTABLE_PACKAGE_INSTALL_ONLY_NO_SERVICE_SWITCH",
+  "started_at": "2026-11-05T00:47:27.584215+00:00",
+  "status": "PASS",
+  "source": "8d680f775c8ccdf2a9520fa93c4909dd0aaaa986",
+  "release": "alisa-8d680f775c8ccdf2",
+  "legacy_pointer_unchanged": true,
+  "finished_at": "2026-11-05T00:48:22.969896+00:00"
+}

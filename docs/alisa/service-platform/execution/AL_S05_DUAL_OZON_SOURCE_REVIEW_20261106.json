@@ -1,0 +1,62 @@
+{
+  "review": "AL_S05_DUAL_OZON_SOURCE_REVIEW_20261106",
+  "scope": "read-only source review of the UI-only dual Ozon Seller + Performance create-form change",
+  "commit": "a4bd2b1c6b5fd779ef7be381c2cef02db25564af",
+  "tree": "773ef16417f62b5449d07c26d5243652743d8ad2",
+  "verdict": "ACCEPT_SOURCE_WITH_NONBLOCKING_NOTE",
+  "files": {
+    "products/alisa/apps/web/src/app/app/stores/view.tsx": "076dc6e66176d6084a096379ae34bd5b46fff0851d335f7ca4a8be8f743056bd",
+    "products/alisa/tests/integration/qualify_stores_browser.py": "0e405dd568dae2649f0e4b3cb7f85ab47421dc1c190dd168d6b9d69f1c4f20d4"
+  },
+  "findings": [
+    {
+      "severity": "PASS",
+      "area": "form separation and validation",
+      "detail": "Ozon renders distinct Seller and optional Performance fieldsets with prefixed field names. Blank Performance fields are allowed; a partial pair is rejected before any request. Wildberries does not render the Performance fields."
+    },
+    {
+      "severity": "PASS",
+      "area": "persistence and revision ordering",
+      "detail": "The Seller store-create command runs first. If Performance fields are supplied, the separate Performance credential command targets the returned store UUID and current revision. Both credentials are persisted before either provider check is started. A failed or ambiguous second-save response produces an explicit partial-save message and does not retry create or issue checks."
+    },
+    {
+      "severity": "PASS",
+      "area": "check sequencing and identity status",
+      "detail": "Checks use the store projection/revision returned by the preceding successful operation. A Seller provider AUTH_DENIED is handled as a check result rather than an exception, so the Performance save and check can proceed. Performance is not represented as CONNECTED absent provider proof; the existing server contract keeps it IDENTITY_NOT_VERIFIED when cabinet identity is not established."
+    },
+    {
+      "severity": "PASS",
+      "area": "secret handling",
+      "detail": "Form values are copied to local command material and the form is reset before the first await; credentials are not introduced into React state or returned store projections by this UI change."
+    },
+    {
+      "severity": "NOTE",
+      "area": "asynchronous CHECKING branch",
+      "detail": "The client stops the sequential loop if a check response has state CHECKING, so a saved second channel would not be checked during that invocation. Current inspected platform execution calls finish synchronously and its completed check response contains store plus check_code, while a competing running check is rejected as CHECK_IN_PROGRESS; this branch therefore appears defensive and is not a blocker for the new-store path. If the server contract later returns CHECKING asynchronously, the UI should say explicitly that the remaining saved channel still needs checking and should provide a safe continuation."
+    }
+  ],
+  "test_source_review": {
+    "result": "reviewed, not executed",
+    "covers_in_source": [
+      "both fieldsets and partial-pair no-store validation",
+      "two credentials on one store and separate identity status",
+      "Seller-only creation",
+      "Seller AUTH_DENIED while Performance remains saved and checked",
+      "second-save 503 without duplicate create or checks",
+      "Wildberries hides Performance fields",
+      "existing store, credential, restart, and expired-session regressions"
+    ]
+  },
+  "identity_boundary": {
+    "seller_binding_promoted": false,
+    "performance_same_cabinet_proven": false,
+    "statement": "This UI source change does not establish Seller identity binding or prove that Performance belongs to the same Ozon cabinet."
+  },
+  "not_performed": [
+    "tests or CI execution",
+    "host or server calls",
+    "provider API calls",
+    "credential, session, or database access",
+    "source or Git metadata changes"
+  ]
+}

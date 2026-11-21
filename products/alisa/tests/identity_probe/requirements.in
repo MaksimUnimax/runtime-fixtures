@@ -1,0 +1,6 @@
+# Candidate-only experiment. Does not change the installed identity runtime lock.
+Django==5.2.19
+django-allauth[idp-oidc,mfa]==65.21.1
+psycopg[binary]==3.3.8
+# allauth 65.21.1 imports its CIMD module even with CIMD disabled.
+requests>=2.32.5,<3

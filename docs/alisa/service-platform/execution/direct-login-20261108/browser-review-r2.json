@@ -1,0 +1,29 @@
+{
+  "record_type": "AL_S02_DIRECT_LOGIN_POSTINSTALL_BROWSER_REVIEW_R2",
+  "reviewer": "s03_independent_review",
+  "script_path": "docs/alisa/service-platform/execution/direct-login-20261108/owned-browser.py",
+  "script_sha256": "4ff8f8a90e592148040b66e191e5b9df8e12f4641dce3bf22a4e74e7f876b5b9",
+  "supersedes": "browser-review.json origin-pinning finding; prior HOLD record remains unchanged as historical review",
+  "verdict": "PASS_FOR_DECLARED_BOUNDED_BROWSER_SCOPE",
+  "origin_review": [
+    "Browser context blocks service workers and routes requests only to the exact HTTPS origins https://alisa.octoport.ru and https://id.octoport.ru; other requests are aborted and set a fatal flag.",
+    "Unexpected main-frame navigation sets a fatal flag; every subsequent sensitive step checks the approved exact origin and requires the flags to remain clear.",
+    "Identity origin is required before entering password, before submitting password, before reading/submitting email code, and after an incorrect-code response; Alisa origin is required after cabinet login before profile access.",
+    "Navigation evidence stores only allowed netloc and path, without query parameters or credentials."
+  ],
+  "retained_safe_boundaries": [
+    "Fresh browser context; no prior session copy.",
+    "Reentry clears only the Alisa product cookie and confirms the same native Identity session remains.",
+    "Uses the existing reserved example.invalid fixture and a genuinely delivered mailbox code; the invalid code is checked before valid completion.",
+    "Cookies, password, email code, and identity values are not written to output. Browser state is bounded and stored under the configured private tmpfs path."
+  ],
+  "findings": [],
+  "execution_prerequisites": [
+    "Run only under the separately reviewed finite unit/resource envelope and private tmpfs setup described by the owner.",
+    "Use the existing root-owned mode-0600 fixture without printing or exporting its contents."
+  ],
+  "review_limits": [
+    "Static read-only review only; script was not executed and fixture contents were not read.",
+    "No host calls, production DB access, account mutation, or test execution performed."
+  ]
+}

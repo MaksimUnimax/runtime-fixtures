@@ -1,0 +1,25 @@
+{
+  "review": "INDEPENDENT_INSTALL_SOURCE_DELTA_REVIEW",
+  "source": "docs/alisa/service-platform/execution/s05-native-pair-20261108/install.py",
+  "source_sha256": "3dfb38d847c6d12ee83027759acf6a95ac5439c70d4e735c463a2c4d4d76cd57",
+  "prior_review": "install-review.json",
+  "result": "HOLD_BEFORE_EXECUTION",
+  "scope": "Static exact-source delta review only. No script, test, host, provider, database, browser, or credential operation was performed.",
+  "accepted_delta": [
+    "The platform child identity now comes from systemd User, Group, and SupplementaryGroups; its UID must be present in the retained allowed-UID argument.",
+    "Snapshots include API/checker launch identity, MainPID, and InvocationID, so a concurrent rollout between prepare and activate causes a fail-closed snapshot mismatch.",
+    "The installer checks the API launch follows site-current/infra/launch.py and checks the restarted API process cwd resolves to the new overlay.",
+    "SIGTERM is converted to InterruptedError and enters the existing exception/finally path."
+  ],
+  "blocking_finding": {
+    "summary": "Recovery flags are armed after the filesystem mutations they are meant to recover from.",
+    "locations": [
+      "In activate(), the drop-in is created by fresh(DROP, ...) before changed=True.",
+      "In activate(), site-current is replaced with the candidate symlink before api_changed=True."
+    ],
+    "impact": "A SIGTERM can be delivered after a mutation succeeds but before the following flag assignment. The exception handler then skips the corresponding cleanup/rollback. For site-current, the exact pointer test inside rollback makes it safe to reconcile unconditionally or to arm the flag before os.replace. For the drop-in, an interruption during creation can also leave an owned partial file; cleanup should track the exclusively created inode or use a staged atomic replacement, rather than relying only on a flag assigned after fresh() returns.",
+    "required_before_run": "Make recovery state cover the mutation itself, including interrupted/partial exclusive drop-in creation; preserve exact ownership predicates so unrelated files or pointers are never removed."
+  },
+  "other_blockers": [],
+  "resource_helper": "Not reviewed as part of this delta; prior HOLD/NOT_APPLIED remains unchanged."
+}

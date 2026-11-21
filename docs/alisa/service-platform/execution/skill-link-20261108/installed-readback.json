@@ -1,0 +1,412 @@
+{
+  "status": "PASS",
+  "source_sha": "d3cb053be14264c6bb2332708abb32d4b0c005ae",
+  "release": "alisa-d3cb053be14264c6",
+  "checks": {
+    "original_environments_unchanged": true,
+    "protected_identity_admin_unchanged": true,
+    "only_web_pointer_changed": true,
+    "web_pointer_uses_qualified_release": true,
+    "private_skill_config_root_0600": true,
+    "exact_skill_config_values": true,
+    "exact_migration_installed": true,
+    "customer_and_tenant_counts_preserved": true,
+    "runtime_dml_only_no_other_grants": true,
+    "disk_floor": true,
+    "existing_cleanup_timer_active": true,
+    "own_loaded_dropins": true,
+    "effective_target_alisa-platform@stage.service": true,
+    "effective_target_alisa-account-cleanup@stage.service": true,
+    "expected_constraints": true
+  },
+  "database": {
+    "migrations": [
+      [
+        "alice_link",
+        "0001_initial"
+      ]
+    ],
+    "customers": 9,
+    "tenants": 9,
+    "tables": {
+      "alice_link_alicelink": {
+        "runtime_privileges": {
+          "SELECT": true,
+          "INSERT": true,
+          "UPDATE": true,
+          "DELETE": true,
+          "TRUNCATE": false,
+          "REFERENCES": false,
+          "TRIGGER": false
+        },
+        "acl": [
+          [
+            "OWNER",
+            "DELETE",
+            false
+          ],
+          [
+            "OWNER",
+            "INSERT",
+            false
+          ],
+          [
+            "OWNER",
+            "REFERENCES",
+            false
+          ],
+          [
+            "OWNER",
+            "SELECT",
+            false
+          ],
+          [
+            "OWNER",
+            "TRIGGER",
+            false
+          ],
+          [
+            "OWNER",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "OWNER",
+            "UPDATE",
+            false
+          ],
+          [
+            "RUNTIME",
+            "DELETE",
+            false
+          ],
+          [
+            "RUNTIME",
+            "INSERT",
+            false
+          ],
+          [
+            "RUNTIME",
+            "SELECT",
+            false
+          ],
+          [
+            "RUNTIME",
+            "UPDATE",
+            false
+          ]
+        ],
+        "constraints": [
+          [
+            "alice_customer_client_once",
+            "u"
+          ],
+          [
+            "alice_link_alicelink_customer_id_270a5604_fk_accounts_",
+            "f"
+          ],
+          [
+            "alice_link_alicelink_pkey",
+            "p"
+          ],
+          [
+            "alice_link_alicelink_revision_check",
+            "c"
+          ],
+          [
+            "alice_link_alicelink_security_revision_check",
+            "c"
+          ],
+          [
+            "alice_link_alicelink_tenant_id_21cc05c6_fk_accounts_tenant_id",
+            "f"
+          ]
+        ],
+        "rows": 0
+      },
+      "alice_link_authorizationrequest": {
+        "runtime_privileges": {
+          "SELECT": true,
+          "INSERT": true,
+          "UPDATE": true,
+          "DELETE": true,
+          "TRUNCATE": false,
+          "REFERENCES": false,
+          "TRIGGER": false
+        },
+        "acl": [
+          [
+            "OWNER",
+            "DELETE",
+            false
+          ],
+          [
+            "OWNER",
+            "INSERT",
+            false
+          ],
+          [
+            "OWNER",
+            "REFERENCES",
+            false
+          ],
+          [
+            "OWNER",
+            "SELECT",
+            false
+          ],
+          [
+            "OWNER",
+            "TRIGGER",
+            false
+          ],
+          [
+            "OWNER",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "OWNER",
+            "UPDATE",
+            false
+          ],
+          [
+            "RUNTIME",
+            "DELETE",
+            false
+          ],
+          [
+            "RUNTIME",
+            "INSERT",
+            false
+          ],
+          [
+            "RUNTIME",
+            "SELECT",
+            false
+          ],
+          [
+            "RUNTIME",
+            "UPDATE",
+            false
+          ]
+        ],
+        "constraints": [
+          [
+            "alice_link_authoriza_session_id_bcd5fe5d_fk_accounts_",
+            "f"
+          ],
+          [
+            "alice_link_authorizationrequest_pkey",
+            "p"
+          ],
+          [
+            "alice_link_authorizationrequest_secret_hash_key",
+            "u"
+          ]
+        ],
+        "rows": 0
+      },
+      "alice_link_authorizationcode": {
+        "runtime_privileges": {
+          "SELECT": true,
+          "INSERT": true,
+          "UPDATE": true,
+          "DELETE": true,
+          "TRUNCATE": false,
+          "REFERENCES": false,
+          "TRIGGER": false
+        },
+        "acl": [
+          [
+            "OWNER",
+            "DELETE",
+            false
+          ],
+          [
+            "OWNER",
+            "INSERT",
+            false
+          ],
+          [
+            "OWNER",
+            "REFERENCES",
+            false
+          ],
+          [
+            "OWNER",
+            "SELECT",
+            false
+          ],
+          [
+            "OWNER",
+            "TRIGGER",
+            false
+          ],
+          [
+            "OWNER",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "OWNER",
+            "UPDATE",
+            false
+          ],
+          [
+            "RUNTIME",
+            "DELETE",
+            false
+          ],
+          [
+            "RUNTIME",
+            "INSERT",
+            false
+          ],
+          [
+            "RUNTIME",
+            "SELECT",
+            false
+          ],
+          [
+            "RUNTIME",
+            "UPDATE",
+            false
+          ]
+        ],
+        "constraints": [
+          [
+            "alice_link_authoriza_link_id_3abca17d_fk_alice_lin",
+            "f"
+          ],
+          [
+            "alice_link_authorizationcode_pkey",
+            "p"
+          ],
+          [
+            "alice_link_authorizationcode_revision_check",
+            "c"
+          ]
+        ],
+        "rows": 0
+      },
+      "alice_link_tokenfamily": {
+        "runtime_privileges": {
+          "SELECT": true,
+          "INSERT": true,
+          "UPDATE": true,
+          "DELETE": true,
+          "TRUNCATE": false,
+          "REFERENCES": false,
+          "TRIGGER": false
+        },
+        "acl": [
+          [
+            "OWNER",
+            "DELETE",
+            false
+          ],
+          [
+            "OWNER",
+            "INSERT",
+            false
+          ],
+          [
+            "OWNER",
+            "REFERENCES",
+            false
+          ],
+          [
+            "OWNER",
+            "SELECT",
+            false
+          ],
+          [
+            "OWNER",
+            "TRIGGER",
+            false
+          ],
+          [
+            "OWNER",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "OWNER",
+            "UPDATE",
+            false
+          ],
+          [
+            "RUNTIME",
+            "DELETE",
+            false
+          ],
+          [
+            "RUNTIME",
+            "INSERT",
+            false
+          ],
+          [
+            "RUNTIME",
+            "SELECT",
+            false
+          ],
+          [
+            "RUNTIME",
+            "UPDATE",
+            false
+          ]
+        ],
+        "constraints": [
+          [
+            "alice_link_tokenfami_link_id_39bda105_fk_alice_lin",
+            "f"
+          ],
+          [
+            "alice_link_tokenfamily_access_hash_key",
+            "u"
+          ],
+          [
+            "alice_link_tokenfamily_pkey",
+            "p"
+          ],
+          [
+            "alice_link_tokenfamily_refresh_hash_key",
+            "u"
+          ],
+          [
+            "alice_link_tokenfamily_revision_check",
+            "c"
+          ]
+        ],
+        "rows": 0
+      }
+    }
+  },
+  "cleanup_timer": "Unit=alisa-account-cleanup@stage.service\nTimersMonotonic={ OnUnitActiveUSec=1min ; next_elapse=4d 13h 34min 46.942755s }\nTimersMonotonic={ OnBootUSec=1min ; next_elapse=1min }\nActiveState=active",
+  "effective_profiles": {
+    "alisa-web@stage.service": "ExecStart={ path=/opt/alisa-platform/stage/web-current/.venv/bin/python ; argv[]=/opt/alisa-platform/stage/web-current/.venv/bin/python /opt/alisa-platform/stage/web-current/infra/launch.py web\nEnvironmentFiles=/etc/alisa-platform/stage/web.env (ignore_errors=no)\nWorkingDirectory=/opt/alisa-platform/stage/web-current\nUser=alisa-web-stage\nGroup=alisa-web-stage\nSupplementaryGroups=\nDropInPaths=/etc/systemd/system/alisa-web@stage.service.d/s01-release.conf /etc/systemd/system/alisa-web@stage.service.d/zzzzzzzzzzzzzzzzzzzz-alice-link-r1.conf",
+    "alisa-platform@stage.service": "ExecStart={ path=/opt/alisa-platform/stage/releases/alisa-d3cb053be14264c6/.venv/bin/python ; argv[]=/opt/alisa-platform/stage/releases/alisa-d3cb053be14264c6/.venv/bin/python /opt/alisa-platform/stage/releases/alisa-d3cb053be14264c6/infra/launch.py platform\nEnvironmentFiles=/etc/alisa-platform/stage/platform.env (ignore_errors=no)\nEnvironmentFiles=/etc/alisa-platform/stage/alice-link.env (ignore_errors=no)\nWorkingDirectory=/opt/alisa-platform/stage/releases/alisa-d3cb053be14264c6\nUser=alisa-platform-stage\nGroup=alisa-platform-stage\nSupplementaryGroups=alisa-store-check\nDropInPaths=/etc/systemd/system/alisa-platform@stage.service.d/s01-release.conf /etc/systemd/system/alisa-platform@stage.service.d/s05-store-check.conf /etc/systemd/system/alisa-platform@stage.service.d/zzzzzzzzzzzzzzzzzz-staff-session-r1.conf /etc/systemd/system/alisa-platform@stage.service.d/zzzzzzzzzzzzzzzzzzzz-alice-link-r1.conf",
+    "alisa-account-cleanup@stage.service": "ExecStart={ path=/opt/alisa-platform/stage/releases/alisa-d3cb053be14264c6/.venv/bin/python ; argv[]=/opt/alisa-platform/stage/releases/alisa-d3cb053be14264c6/.venv/bin/python /opt/alisa-platform/stage/releases/alisa-d3cb053be14264c6/infra/launch.py account-cleanup\nEnvironmentFiles=/etc/alisa-platform/stage/platform.env (ignore_errors=no)\nEnvironmentFiles=/etc/alisa-platform/stage/alice-link.env (ignore_errors=no)\nWorkingDirectory=/opt/alisa-platform/stage/releases/alisa-d3cb053be14264c6\nUser=alisa-worker-stage\nGroup=alisa-worker-stage\nSupplementaryGroups=\nDropInPaths=/etc/systemd/system/alisa-account-cleanup@stage.service.d/zzzzzzzzzzzzzzzzzzzz-alice-link-r1.conf"
+  },
+  "native_profiles_changed_by_parallel_work": [
+    "alice-market.service"
+  ],
+  "native_identities_observed_after": {
+    "alice-market.service": "MainPID=439880\nActiveState=active\nInvocationID=84148375a8934592b71588759d659065",
+    "alice-lab-web.service": "MainPID=399292\nActiveState=active\nInvocationID=995381c705db48a3b7c621a0954383bd",
+    "alisa-station.service": "MainPID=399289\nActiveState=active\nInvocationID=3c1838ecee7d40fa9a258dc57c67937a",
+    "alisa-store-check.service": "MainPID=439894\nActiveState=active\nInvocationID=1923120fe4da4d6da0b9a3c12d18ca4f"
+  },
+  "native_restart_requested": false,
+  "claim_limits": {
+    "native_identity_comparison": "PRE_CUTOVER_INVOCATIONS_NOT_CAPTURED; NO_NATIVE_RESTART_IN_EXACT_REVIEWED_ACTIVATION",
+    "timer_cadence_comparison": "CURRENT_CADENCE_OBSERVED; BEFORE_CADENCE_NOT_CAPTURED"
+  },
+  "protected_identities": {
+    "alisa-identity@stage.service": "MainPID=323538\nActiveState=active\nInvocationID=7579110bb8a94cf7a0245c479b39cc90",
+    "alisa-admin@stage.service": "MainPID=336089\nActiveState=active\nInvocationID=33481296081f4f8293e28d77cf5b4728"
+  },
+  "free_bytes": 3250958336,
+  "real_yandex_broker": "NOT_RUN"
+}

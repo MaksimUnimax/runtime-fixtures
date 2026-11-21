@@ -1,0 +1,120 @@
+{
+  "record_type": "AL_S01_INDEPENDENT_INSTALLED_ACCEPTANCE",
+  "observed_at_utc": "2026-11-05T01:20:00Z",
+  "review_mode": "independent_read_only_installed_acceptance",
+  "verdict": "ACCEPTED_FOR_DECLARED_SCOPE",
+  "scope": "Exact AL-S01 stage installation for the website and platform lead/funnel path with private synthetic SMTP. This is not product production acceptance, public contact-collection approval, or proof of an exercised S01 rollback pair.",
+  "release": {
+    "source_commit": "8d680f775c8ccdf2a9520fa93c4909dd0aaaa986",
+    "release_id": "alisa-8d680f775c8ccdf2",
+    "package_sha256": "fd28f38960c50f5375fe4ff74ca0a29fd01aaf168673fe31213e3e662f094642",
+    "installed_manifest_verification": "PASS using the installed release verifier in read-only mode with bytecode generation disabled.",
+    "package_sha256_live_readback": "Matches the installed artifact at /var/lib/alisa-platform/stage/artifacts/alisa-8d680f775c8ccdf2.tar.gz.",
+    "web_platform_pointer": "/opt/alisa-platform/stage/releases/alisa-8d680f775c8ccdf2",
+    "shared_pointer_for_excluded_components": "/opt/alisa-platform/stage/releases/alisa-77d0f8ee2643ef65"
+  },
+  "installation_and_schema": {
+    "package_install": "PASS; install-only receipt confirms legacy shared pointer was unchanged before activation.",
+    "activation_receipt": "/var/lib/alisa-platform/stage/evidence/AL_S01_ACTIVATION_20261105.json",
+    "migration_scope": "Only funnel.0001_initial and leads.0001_initial were applied to alisa_stage_platform.",
+    "created_tables": [
+      "funnel_funnelevent",
+      "leads_lead",
+      "leads_mailoutbox",
+      "leads_ratebucket",
+      "leads_submission"
+    ],
+    "independent_database_readback": "Read-only showmigrations for funnel and leads reports both 0001_initial migrations applied. No other database was accessed."
+  },
+  "live_readbacks": {
+    "internal_readiness": {
+      "web_18100": {"status": "READY", "release": "alisa-8d680f775c8ccdf2"},
+      "platform_18102": {"status": "READY", "release": "alisa-8d680f775c8ccdf2", "runtime": "RUNTIME_NOT_CONNECTED"},
+      "admin_18101": {"status": "READY", "release": "alisa-77d0f8ee2643ef65"},
+      "identity_18103": {"status": "READY", "release": "alisa-77d0f8ee2643ef65"}
+    },
+    "stage_https_get": {
+      "https://alisa-stage.octoport.ru/": {"status": 200, "tls_verify_result": 0},
+      "https://alisa-stage.octoport.ru/join": {"status": 200, "tls_verify_result": 0},
+      "https://alisa-stage.octoport.ru/examples": {"status": 200, "tls_verify_result": 0}
+    },
+    "excluded_processes": {
+      "alisa-identity@stage.service": {"pid": "23574", "active": true, "matches_preflight": true},
+      "alisa-admin@stage.service": {"pid": "23549", "active": true, "matches_preflight": true},
+      "alice-lab-web.service": {"pid": "737", "active": true, "matches_preflight": true},
+      "alice-lab-worker.service": {"pid": "739", "active": true, "matches_preflight": true},
+      "alice-lab-llm.service": {"pid": "738", "active": true, "matches_preflight": true}
+    },
+    "foundation_probe_flags": {
+      "web.env": 0,
+      "platform.env": 0
+    },
+    "cleanup_timer": {"unit": "alisa-probe-cleanup@stage.timer", "active": true, "enabled": true},
+    "rollout_lock_available": true,
+    "protected_configuration_hashes": "All four preflight protected hashes independently matched: Alice Lab vhost, default vhost, identity.env, and admin.env.",
+    "smtp": {
+      "source_path": "/opt/alisa-platform/stage/testing/synthetic_smtp.py",
+      "source_sha256": "77ae3701d5181870ded5867a79b6977e7a3f4af718a2a368cbcde8da8219cdd8",
+      "source_mode_owner": "0444 root:root",
+      "listener": "127.0.0.1:18225",
+      "unit_active": true,
+      "mail_timer_active": true,
+      "inbox_mode_owner": "0700 alisa-worker-stage:alisa-worker-stage",
+      "stored_message_metadata": "Six .eml files observed, all mode 0600 and owned by alisa-worker-stage; message contents were not read."
+    }
+  },
+  "smoke_chronology": {
+    "initial": {
+      "file": "AL_S01_STAGE_SMOKE_20261105.json",
+      "successful_assertions": 49,
+      "receipt_status": "FAILED",
+      "harness_failure": "A manually started sixth mail batch hit native systemd StartLimitBurst=5 within 10 seconds. All 49 recorded assertions passed; the native limit was not relaxed, and the timer later delivered the pending message once."
+    },
+    "continuation": {
+      "file": "AL_S01_STAGE_SMOKE_CONTINUATION_20261105.json",
+      "successful_assertions": 5,
+      "receipt_status": "FAILED",
+      "harness_failure": "Observer browser executable was missing before UI actions; no UI writes occurred."
+    },
+    "browser_preflight": {
+      "file": "AL_S01_BROWSER_PREFLIGHT_20261105.json",
+      "status": "PASS",
+      "browser": "156.0.8078.4",
+      "tls_verification_bypassed": false,
+      "scope": "Existing pinned headless browser assets in the stage test cache; no operating-system dependency change."
+    },
+    "final": {
+      "file": "AL_S01_STAGE_SMOKE_FINAL_20261105.json",
+      "status": "PASS",
+      "successful_assertions": 26,
+      "prior_successful_assertions_preserved": 54,
+      "total_successful_assertions": 80,
+      "coverage": "Real browser/BFF/API/PostgreSQL/SMTP confirmation and reload; API/web restart persistence; actual API 503 with no effect; SMTP outage and recovery; privacy/log and metrics checks; unchanged protected hashes/PIDs and both release pointers; native mail start limit preserved. Six generated unique confirmation tokens were checked for leakage."
+    },
+    "history": "The initial FAILED harness receipts remain preserved; the final continuation records resolved harness limits and the combined 80 successful assertions. No passed scenario was rerun by this reviewer."
+  },
+  "v04_04_dependency_boundary": {
+    "assessment": "SATISFIED_FOR_LEGACY_DEPENDENCY_INDEPENDENCE_AT_SOURCE_AND_CONFIGURATION_LEVEL",
+    "basis": "AL-V04-04 expects the site and lead path to work without the existing Octoport API/database and for the current site/lab to remain unchanged. The source architecture checker rejects legacy product dependencies and selected outbound client/executor imports; a read-only source scan found no requests/httpx/urllib.request/subprocess imports in the platform, web, or identity implementation. The public BFF fixes its upstream to loopback, allows only three own API paths, rejects redirects, and stage settings point only to the own platform API and private loopback SMTP. The actual HTTPS/BFF/API/PostgreSQL/SMTP lead path succeeded, and protected current/lab files and services matched preflight."
+  },
+  "network_layer_egress": {
+    "systemd_properties": {
+      "web": {"IPAddressAllow": "", "IPAddressDeny": "", "PrivateNetwork": false, "NetworkNamespacePath": "", "RestrictAddressFamilies": ["AF_INET", "AF_INET6", "AF_UNIX"]},
+      "platform": {"IPAddressAllow": "", "IPAddressDeny": "", "PrivateNetwork": false, "NetworkNamespacePath": "", "RestrictAddressFamilies": ["AF_INET", "AF_INET6", "AF_UNIX"]},
+      "lead_mail": {"IPAddressAllow": "", "IPAddressDeny": "", "PrivateNetwork": false, "NetworkNamespacePath": ""},
+      "synthetic_smtp": {"IPAddressAllow": "", "IPAddressDeny": "", "PrivateNetwork": false, "NetworkNamespacePath": "", "RestrictAddressFamilies": ["AF_INET", "AF_UNIX"]}
+    },
+    "conclusion": "No systemd IP-address denial or private network namespace is configured for these units. No packet-level or host-firewall denial test was run, and this report does not claim one. The AL-V04-04 dependency-independence outcome is accepted at code/configuration level; network-layer egress blocking remains unproven and was not an explicit tested action in the cited scenario."
+  },
+  "acceptance_limits": [
+    "No S01 release-pair rollback was exercised. The prior S00 rollback evidence does not establish an S01 rollback pair.",
+    "This acceptance is limited to the installed synthetic stage flow and stated boundary. It does not establish public production readiness or authorize real contact collection.",
+    "Separate authorization remains required for any later scope that changes live business data, security configuration, or mail outside the private synthetic sink."
+  ],
+  "review_actions": {
+    "http_methods_used": ["GET"],
+    "database_access": "Read-only migration status for alisa_stage_platform only.",
+    "writes_or_restarts_by_reviewer": false,
+    "secrets_contacts_or_tokens_printed": false
+  }
+}

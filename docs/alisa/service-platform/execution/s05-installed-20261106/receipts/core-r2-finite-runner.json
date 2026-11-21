@@ -1,0 +1,24 @@
+{
+  "scope": "ONE_SHOT_ONLY_NOT_PERSISTENT_SERVICE_CONFIGURATION",
+  "argv": [
+    "systemd-run",
+    "--unit=alisa-s05-core-activate-r2-6098-20261106",
+    "--wait",
+    "--collect",
+    "--property=RuntimeMaxSec=300",
+    "--property=KillMode=control-group",
+    "--property=TimeoutStopSec=5",
+    "--property=SendSIGKILL=yes",
+    "--property=OOMPolicy=stop",
+    "--property=MemoryAccounting=yes",
+    "--property=MemoryMax=512M",
+    "--property=MemorySwapMax=0",
+    "--property=TasksMax=128",
+    "--property=PrivateTmp=yes",
+    "--property=ProtectSystem=strict",
+    "--property=ReadWritePaths=/etc /opt/alisa-platform/stage /run /var/lib/alice-market /var/lib/alisa-platform/stage/rollout-backups/s05-stores-20261106",
+    "/usr/bin/python3",
+    "-B",
+    "/var/lib/alisa-platform/stage/rollout-backups/s05-stores-20261106/activate-core-r2.py"
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": "alisa_rollout_preparation_review_v1",
+  "scope": "READ_ONLY_REVIEW_OF_THREE_PREPARATION_FILES_NO_HOST_CALLS_NO_EXECUTION",
+  "files": [
+    "docs/alisa/service-platform/execution/s05-installed-20261106/install-platform.py",
+    "docs/alisa/service-platform/execution/s05-installed-20261106/store-check-permissions.py",
+    "docs/alisa/service-platform/execution/s05-installed-20261106/alisa-store-check.service"
+  ],
+  "overall": "HOLD_FOR_TWO_PRE_EXECUTION_GAPS",
+  "findings": [
+    {
+      "severity": "HIGH",
+      "file": "install-platform.py",
+      "lines": "21-25",
+      "finding": "The installer accepts a download URL from artifact-input.private.json and passes it to urllib.request.urlopen, which follows redirects by default. The initial hostname suffix check does not constrain redirect destinations or destination ports. The exact ZIP/TAR hashes prevent altered payload installation, but do not prevent a privileged installer from making an unintended redirected network request.",
+      "recommendation": "Use a redirect handler that allows only explicitly approved artifact hosts and HTTPS port 443 at every hop, or use a pre-fetched exact ZIP with a verified hash. Validate the final URL host before consuming bytes."
+    },
+    {
+      "severity": "HIGH",
+      "file": "alisa-store-check.service",
+      "lines": "12-14",
+      "finding": "ExecStartPre references `/opt/alice-market/releases/20261106-store-check-6098-r1/store-check-permissions.py`. The three reviewed files do not install that helper, and the verified seven-file runtime tar does not contain it. Without a separately verified placement at this exact path the service cannot start its ACL preparation.",
+      "recommendation": "Make the core-release preparation explicitly install and hash this helper at the referenced path, or change ExecStartPre to a pinned path that is guaranteed to exist. Verify its owner/mode and hash before installing the unit."
+    }
+  ],
+  "reviewed_controls": {
+    "platform_package_source_and_archive_hash_pins": "PASS_SOURCE",
+    "ZIP_HELD_IN_MEMORY_TAR_ONLY_WRITTEN_TO_DISK": "PASS_SOURCE",
+    "platform_only_locked_venv_no_compile_no_identity_lock": "PASS_SOURCE",
+    "target_is_new_release_and_pointer_values_are_compared": "PASS_SOURCE",
+    "full_manifest_payload_and_link_check_before_venv": "PASS_SOURCE",
+    "ACL_HELPER_ROOT_ONLY_ACCESS_TRAVERSE_ONLY_AND_PRESERVES_EXISTING_ACL": "PASS_SOURCE",
+    "runtime_service_HAS_DEDICATED_GROUP_UID_MEMORY_TASK_AND_KILL_LIMITS": "PASS_SOURCE",
+    "old_credential_paths_inaccessible_no_credential_environment": "PASS_SOURCE",
+    "service_no_socket_or_network_activation_before_unit_start": "PASS_SOURCE"
+  },
+  "resource_budget": {
+    "free_bytes_reported": 3547582464,
+    "growth_guard_bytes": 322890465,
+    "minimum_preserved_reserve_bytes": 3221225472,
+    "required_free_before_bytes": 3544115937,
+    "margin_bytes": 3466527,
+    "assessment": "PASS_NARROW_MARGIN; runtime recheck is mandatory and any reserve shortfall must abort without cleanup/dedup."
+  },
+  "conditional_execution_boundary": {
+    "no_execution_performed": true,
+    "no_host_calls": true,
+    "no_live_credentials_used": true,
+    "before_execution": [
+      "Resolve the two HIGH findings above.",
+      "Re-read all rollout locks, pointers, free blocks/inodes and UID/GID immediately before each dependent write.",
+      "Verify the platform unit uses only site-current as confirmed by fresh systemctl show, and preserve identity-current and shared current.",
+      "Confirm platform-only venv RECORD size against the checked source set and maintain the configured 3072 MiB reserve."
+    ]
+  }
+}

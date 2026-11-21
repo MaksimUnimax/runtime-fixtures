@@ -1,0 +1,17 @@
+{
+  "source": "AUTHOR_OBSERVED_NATIVE_UNIT_RESULT_AND_READ_ONLY_TRACE_CLASS",
+  "unit": "alisa-direct-login-activate-20261108.service",
+  "invocation_id": "e0307263ce67468cb1d5a30fbc95a7c8",
+  "result": "exit-code",
+  "exit_status": 1,
+  "error_class": "BlockingIOError",
+  "installer_line": 128,
+  "scope": "FLOCK_ACQUISITION_BEFORE_ACTIVATION_BODY",
+  "activation_receipt_written": false,
+  "identity_pointer_remained": "alisa-da73a089d3125429",
+  "next_read_only_snapshot_changed_only": [
+    "alice-market.service",
+    "alisa-store-check.service"
+  ],
+  "later_resume": "activate-resume.json"
+}

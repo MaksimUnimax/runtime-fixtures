@@ -1,0 +1,40 @@
+{
+  "schema_version": "alisa_s05_activation_retry_review_v1",
+  "scope": "READ_ONLY_SOURCE_DELTA_REVIEW_NO_HOST_CALLS_NO_EXECUTION",
+  "files": {
+    "core_retry": {
+      "path": "docs/alisa/service-platform/execution/s05-installed-20261106/activate-core-r2.py",
+      "sha256": "13e8df7194bdf8134fe1b724884eb4f9df17f69bf8c7cf2e279d574c55533b82"
+    },
+    "platform_retry": {
+      "path": "docs/alisa/service-platform/execution/s05-installed-20261106/activate-platform-r2.py",
+      "sha256": "8c1b5fd9ced169f3b356be9d7acfa5237d09a8204d7fd70f01cf051f2e75cd64"
+    }
+  },
+  "parent_sources": {
+    "core": "8a9928864af584c7f393190cf3ab0d120e176b12360736f5e32828e978db9ff9",
+    "platform": "4c7b57f27df3471656b20f77b2674b2e1c9b1e57fe063c1e54487809fa269cf6"
+  },
+  "verdict": "PASS_SOURCE_DELTA_WITH_RUNNER_UNIT_REVIEW_REQUIRED",
+  "delta": {
+    "core_changes": [
+      "Writes result to a distinct core-activation-r2.json receipt, preserving the prior failed receipt.",
+      "Writes inherited profile snapshot to a distinct core-effective-before-r2.private.json file."
+    ],
+    "platform_change": "Consumes core-activation-r2.json as the required core activation receipt.",
+    "sqlite_read_only_contract_preserved": true,
+    "sqlite_uri_mode_ro_preserved": true,
+    "pragma_query_only_preserved": true,
+    "queued_running_job_count_query_preserved": true
+  },
+  "operational_gate": "Before resume, review the exact finite runner unit/drop-in and verify ReadWritePaths=/var/lib/alice-market applies only to that bounded one-shot runner for SQLite WAL shared-memory coordination, not to persistent alice-market.service. The SQLite connection remains mode=ro with query_only enabled; no immutable=1 or SQL write was introduced.",
+  "boundary": {
+    "source_read_only": true,
+    "tests_run_by_reviewer": 0,
+    "host_calls": 0,
+    "scripts_executed": false,
+    "live_credentials_used": false,
+    "activation_performed": false,
+    "prior_failed_receipt_overwritten": false
+  }
+}

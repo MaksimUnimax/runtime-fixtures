@@ -1,0 +1,89 @@
+{
+  "source_sha": "da73a089d3125429fe1902e552715ec37c355510",
+  "source_tree": "214b947a67549c1e9efb369a71c77a03af304d13",
+  "ci_status": "success",
+  "ci_platform_run": 42445427293,
+  "ci_documentation_run": 42445427439,
+  "ci_identity_probe_run": 42445427206,
+  "independent_source_review": "APPROVED_SOURCE",
+  "zip_size": 51985736,
+  "zip_sha256": "a5dd7d75beeb57e54f269251ef9d0daca8f71e8e322684dcba04e0a32869a90b",
+  "tar_size": 51819512,
+  "tar_sha256": "aea8c2f05d4d8ee3de179872a8354e5e29cefd22eda5d75298d61a4191018f35",
+  "manifest_sha256": "ac98274ac6592ae04def74b5d21181ff210d490ae18cf8ab04db6a5a031dcb9e",
+  "runtime_tar_size": 243887,
+  "runtime_tar_sha256": "06871836da9dafb027e5457439b1c20065d7d8c114812e2d895cd5ccb5a4b745",
+  "runtime_deployment": "EXCLUDED",
+  "files": 4459,
+  "links": 42,
+  "baseline": {
+    "web-current": "alisa-06f3c053e7719290",
+    "identity-current": "alisa-7afaf646b9b35a58",
+    "site-current": "alisa-06f3c053e7719290",
+    "admin-current": "alisa-06f3c053e7719290",
+    "current": "alisa-482ed11832b666af"
+  },
+  "qualification": {
+    "postgresql-browser-qualification.json": {
+      "status": null,
+      "cases": 96,
+      "source_sha": "da73a089d3125429fe1902e552715ec37c355510",
+      "tests_run": null
+    },
+    "rt-check-baseline-qualification.json": {
+      "status": "PASS",
+      "cases": 0,
+      "source_sha": null,
+      "tests_run": null
+    },
+    "rt-check-qualification.json": {
+      "status": "PASS",
+      "cases": 26,
+      "source_sha": null,
+      "tests_run": 26
+    },
+    "runtime-qualification.json": {
+      "status": "PASS",
+      "cases": 1076,
+      "source_sha": "da73a089d3125429fe1902e552715ec37c355510",
+      "tests_run": 1076
+    },
+    "s02-open-registration-qualification.json": {
+      "status": "SOURCE_FLOW_QUALIFIED_NOT_STAGE_ACCEPTANCE",
+      "cases": 157,
+      "source_sha": "da73a089d3125429fe1902e552715ec37c355510",
+      "tests_run": null
+    },
+    "s02-qualification.json": {
+      "status": "SOURCE_FLOW_QUALIFIED_NOT_STAGE_ACCEPTANCE",
+      "cases": 246,
+      "source_sha": "da73a089d3125429fe1902e552715ec37c355510",
+      "tests_run": null
+    },
+    "s02-runtime-policies.json": {
+      "status": "PASS",
+      "cases": 17,
+      "source_sha": null,
+      "tests_run": null
+    },
+    "s04-core-qualification.json": {
+      "status": "PASS",
+      "cases": 36,
+      "source_sha": null,
+      "tests_run": null
+    },
+    "s03-core-qualification.json": {
+      "status": "PASS",
+      "cases": 142,
+      "source_sha": null,
+      "tests_run": null
+    },
+    "s05-core-qualification.json": {
+      "status": "PASS",
+      "cases": 46,
+      "source_sha": null,
+      "tests_run": null
+    }
+  }
+}
+

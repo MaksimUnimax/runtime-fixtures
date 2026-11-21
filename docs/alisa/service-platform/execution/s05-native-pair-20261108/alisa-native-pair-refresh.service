@@ -1,0 +1,28 @@
+[Unit]
+Description=Requalify unchanged native Ozon pair after process restart
+After=alice-market.service
+ConditionPathExists=/etc/alisa-store-check/native-pair/scope.json
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/bin/python3 -I -B /etc/alisa-store-check/native-pair/requalify.py
+TimeoutStartSec=15
+TimeoutStopSec=5
+KillMode=control-group
+MemoryMax=64M
+MemorySwapMax=0
+TasksMax=16
+OOMPolicy=stop
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+RestrictAddressFamilies=AF_UNIX
+ReadWritePaths=/etc/alisa-store-check/native-pair
+BindReadOnlyPaths=/run/credentials/alice-market.service/ozon:/run/alisa-native-pair-refresh/source/ozon
+RuntimeDirectory=alisa-native-pair-refresh
+RuntimeDirectoryMode=0700
+UMask=0077

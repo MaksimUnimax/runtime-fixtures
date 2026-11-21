@@ -1,0 +1,424 @@
+{
+  "at": "2026-11-08T06:23:30.495145+00:00",
+  "scope": "INSTALLED_SWAGGER_ONLY_READ_ONLY_VERIFICATION",
+  "source_sha": "7cbe3059a83677aeb42a086898a48067918f16a2",
+  "release": "/opt/alisa-swagger-watch/releases/7cbe3059a83677ae",
+  "payload_hashes_match": {
+    "bundle-inputs.json": true,
+    "alisa-swagger-watch.timer": true,
+    "alisa-swagger-watch.service": true,
+    "entry.sh": true,
+    "status.mjs": true,
+    "watch.mjs": true,
+    "alisa-swagger-status.service": true,
+    "cli.mjs": true
+  },
+  "unit_hashes_match": {
+    "alisa-swagger-watch.service": true,
+    "alisa-swagger-watch.timer": true,
+    "alisa-swagger-status.service": true
+  },
+  "protected": {
+    "preserved": {
+      "pointers": true,
+      "services": true,
+      "configs": true
+    },
+    "pointers": {
+      "web-current": "/opt/alisa-platform/stage/releases/alisa-e5a51856a45d8c03",
+      "identity-current": "/opt/alisa-platform/stage/releases/alisa-da73a089d3125429",
+      "site-current": "/opt/alisa-platform/stage/releases/alisa-e5a51856a45d8c03",
+      "admin-current": "/opt/alisa-platform/stage/releases/alisa-06f3c053e7719290",
+      "current": "/opt/alisa-platform/stage/releases/alisa-482ed11832b666af"
+    },
+    "nginx_only_own_include": true,
+    "readiness": {
+      "18100": true,
+      "18101": true,
+      "18102": true,
+      "18103": true
+    }
+  },
+  "requests": {
+    "GET": {
+      "http": 503,
+      "body_bytes": 9356,
+      "content_type": "application/json; charset=utf-8",
+      "cache_control": "no-store"
+    },
+    "HEAD": {
+      "http": 503,
+      "body_bytes": 0,
+      "content_type": "application/json; charset=utf-8",
+      "cache_control": "no-store"
+    },
+    "POST": {
+      "http": 403,
+      "body_bytes": 162,
+      "content_type": "text/html",
+      "cache_control": null
+    }
+  },
+  "public_status": {
+    "schema_version": 1,
+    "product_id": "alisa_market",
+    "scope": "PUBLIC_OPENAPI_DOCUMENTS_ONLY",
+    "generated_at": "2026-11-08T06:23:30.320Z",
+    "status": "DEGRADED",
+    "interval_seconds": 21600,
+    "llm_monitoring": false,
+    "provider_credentials_used": false,
+    "runtime_catalog_auto_update": false,
+    "families": [
+      {
+        "family": "OZON_SELLER",
+        "expected_documents": 1,
+        "available_documents": 0,
+        "fresh_documents": 0,
+        "complete": false
+      },
+      {
+        "family": "OZON_PERFORMANCE",
+        "expected_documents": 1,
+        "available_documents": 1,
+        "fresh_documents": 0,
+        "complete": false
+      },
+      {
+        "family": "WILDBERRIES",
+        "expected_documents": 13,
+        "available_documents": 13,
+        "fresh_documents": 13,
+        "complete": true
+      }
+    ],
+    "documents": [
+      {
+        "key": "OZON_SELLER",
+        "family": "OZON_SELLER",
+        "official_url": "https://docs.ozon.ru/api/seller/swagger.json",
+        "last_attempt_at": "2026-11-08T06:08:18.642Z",
+        "last_automatic_success_at": null,
+        "next_attempt_at": "2026-11-09T06:08:18.642Z",
+        "outcome": "OPERATOR_SOURCE_REQUIRED",
+        "http_status": 307,
+        "fresh": false,
+        "automatic_age_seconds": null,
+        "last_good": null,
+        "candidate_pending": false,
+        "changes": null
+      },
+      {
+        "key": "OZON_PERFORMANCE",
+        "family": "OZON_PERFORMANCE",
+        "official_url": "https://docs.ozon.ru/api/performance/swagger.json",
+        "last_attempt_at": "2026-11-08T06:08:18.774Z",
+        "last_automatic_success_at": null,
+        "next_attempt_at": "2026-11-09T06:08:18.774Z",
+        "outcome": "OPERATOR_SOURCE_REQUIRED",
+        "http_status": 307,
+        "fresh": false,
+        "automatic_age_seconds": null,
+        "last_good": {
+          "sha256": "c15c0e295a1feefca05a2f3db6c12c11a58bd128206f4e430ab3eea120e60c87",
+          "bytes": 308373,
+          "operations": 48,
+          "origin": "OWNER_SUPPLIED_REVIEWED",
+          "accepted_at": "2026-11-08T06:02:50.570Z"
+        },
+        "candidate_pending": false,
+        "changes": null
+      },
+      {
+        "key": "WB_01_GENERAL",
+        "family": "WILDBERRIES",
+        "official_url": "https://dev.wildberries.ru/api/swagger/yaml/ru/01-general.yaml?region=ru",
+        "last_attempt_at": "2026-11-08T06:22:18.516Z",
+        "last_automatic_success_at": "2026-11-08T06:22:18.916Z",
+        "next_attempt_at": "2026-11-08T12:22:18.516Z",
+        "outcome": "INITIAL",
+        "http_status": null,
+        "fresh": true,
+        "automatic_age_seconds": 71,
+        "last_good": {
+          "sha256": "a544b9999870a613f8c5ccba349a00857fd4b6b2496eacd0f95834a4048e9064",
+          "bytes": 129964,
+          "operations": 11,
+          "origin": "AUTOMATIC_OFFICIAL",
+          "accepted_at": "2026-11-08T06:22:18.724Z"
+        },
+        "candidate_pending": false,
+        "changes": null
+      },
+      {
+        "key": "WB_02_ITEMS",
+        "family": "WILDBERRIES",
+        "official_url": "https://dev.wildberries.ru/api/swagger/yaml/ru/02-items.yaml?region=ru",
+        "last_attempt_at": "2026-11-08T06:22:18.932Z",
+        "last_automatic_success_at": "2026-11-08T06:22:19.974Z",
+        "next_attempt_at": "2026-11-08T12:22:18.932Z",
+        "outcome": "INITIAL",
+        "http_status": null,
+        "fresh": true,
+        "automatic_age_seconds": 70,
+        "last_good": {
+          "sha256": "512cce2443d79ee09f40bd1075fce350c0a69c89fba0ae2d084cd86e1921055a",
+          "bytes": 489829,
+          "operations": 55,
+          "origin": "AUTOMATIC_OFFICIAL",
+          "accepted_at": "2026-11-08T06:22:19.354Z"
+        },
+        "candidate_pending": false,
+        "changes": null
+      },
+      {
+        "key": "WB_03_ORDERS_FBS",
+        "family": "WILDBERRIES",
+        "official_url": "https://dev.wildberries.ru/api/swagger/yaml/ru/03-orders-fbs.yaml?region=ru",
+        "last_attempt_at": "2026-11-08T06:22:19.987Z",
+        "last_automatic_success_at": "2026-11-08T06:22:20.656Z",
+        "next_attempt_at": "2026-11-08T12:22:19.987Z",
+        "outcome": "INITIAL",
+        "http_status": null,
+        "fresh": true,
+        "automatic_age_seconds": 69,
+        "last_good": {
+          "sha256": "06a07694c70f0b4ed76246173c95a005f66ce69d454f8b66221a83a2dc4872dc",
+          "bytes": 336123,
+          "operations": 48,
+          "origin": "AUTOMATIC_OFFICIAL",
+          "accepted_at": "2026-11-08T06:22:20.286Z"
+        },
+        "candidate_pending": false,
+        "changes": null
+      },
+      {
+        "key": "WB_04_ORDERS_DBW",
+        "family": "WILDBERRIES",
+        "official_url": "https://dev.wildberries.ru/api/swagger/yaml/ru/04-orders-dbw.yaml?region=ru",
+        "last_attempt_at": "2026-11-08T06:22:20.664Z",
+        "last_automatic_success_at": "2026-11-08T06:22:20.954Z",
+        "next_attempt_at": "2026-11-08T12:22:20.664Z",
+        "outcome": "INITIAL",
+        "http_status": null,
+        "fresh": true,
+        "automatic_age_seconds": 69,
+        "last_good": {
+          "sha256": "9026e34186403deeedf5adcadec8c085bc1e275b709e0d7badcf8fd046ee79cd",
+          "bytes": 121442,
+          "operations": 16,
+          "origin": "AUTOMATIC_OFFICIAL",
+          "accepted_at": "2026-11-08T06:22:20.798Z"
+        },
+        "candidate_pending": false,
+        "changes": null
+      },
+      {
+        "key": "WB_05_DBS",
+        "family": "WILDBERRIES",
+        "official_url": "https://dev.wildberries.ru/api/swagger/yaml/ru/05-dbs.yaml?region=ru",
+        "last_attempt_at": "2026-11-08T06:22:20.961Z",
+        "last_automatic_success_at": "2026-11-08T06:22:21.300Z",
+        "next_attempt_at": "2026-11-08T12:22:20.961Z",
+        "outcome": "INITIAL",
+        "http_status": null,
+        "fresh": true,
+        "automatic_age_seconds": 69,
+        "last_good": {
+          "sha256": "55bd05fb8d8e715fe6d31b76877f3e3911cf055ca20e27be790bdb7cc908f802",
+          "bytes": 158651,
+          "operations": 21,
+          "origin": "AUTOMATIC_OFFICIAL",
+          "accepted_at": "2026-11-08T06:22:21.115Z"
+        },
+        "candidate_pending": false,
+        "changes": null
+      },
+      {
+        "key": "WB_06_IN_STORE_PICKUP",
+        "family": "WILDBERRIES",
+        "official_url": "https://dev.wildberries.ru/api/swagger/yaml/ru/06-in-store-pickup.yaml?region=ru",
+        "last_attempt_at": "2026-11-08T06:22:21.308Z",
+        "last_automatic_success_at": "2026-11-08T06:22:21.580Z",
+        "next_attempt_at": "2026-11-08T12:22:21.308Z",
+        "outcome": "INITIAL",
+        "http_status": null,
+        "fresh": true,
+        "automatic_age_seconds": 68,
+        "last_good": {
+          "sha256": "c7dfc52dccc26ae020911decf3afc38628b9abbccd2388cc18fc54139e82d697",
+          "bytes": 133633,
+          "operations": 18,
+          "origin": "AUTOMATIC_OFFICIAL",
+          "accepted_at": "2026-11-08T06:22:21.440Z"
+        },
+        "candidate_pending": false,
+        "changes": null
+      },
+      {
+        "key": "WB_07_ORDERS_FBW",
+        "family": "WILDBERRIES",
+        "official_url": "https://dev.wildberries.ru/api/swagger/yaml/ru/07-orders-fbw.yaml?region=ru",
+        "last_attempt_at": "2026-11-08T06:22:21.584Z",
+        "last_automatic_success_at": "2026-11-08T06:22:21.905Z",
+        "next_attempt_at": "2026-11-08T12:22:21.584Z",
+        "outcome": "INITIAL",
+        "http_status": null,
+        "fresh": true,
+        "automatic_age_seconds": 68,
+        "last_good": {
+          "sha256": "a3eef5a44525f5609fd19d9cc005a1f242746b941575f02e4a3fbf23ff6d0f3d",
+          "bytes": 94871,
+          "operations": 14,
+          "origin": "AUTOMATIC_OFFICIAL",
+          "accepted_at": "2026-11-08T06:22:21.699Z"
+        },
+        "candidate_pending": false,
+        "changes": null
+      },
+      {
+        "key": "WB_08_PROMOTION",
+        "family": "WILDBERRIES",
+        "official_url": "https://dev.wildberries.ru/api/swagger/yaml/ru/08-promotion.yaml?region=ru",
+        "last_attempt_at": "2026-11-08T06:22:21.917Z",
+        "last_automatic_success_at": "2026-11-08T06:22:22.573Z",
+        "next_attempt_at": "2026-11-08T12:22:21.917Z",
+        "outcome": "INITIAL",
+        "http_status": null,
+        "fresh": true,
+        "automatic_age_seconds": 67,
+        "last_good": {
+          "sha256": "51a7ac90d1e6a29262f24157d351bae6f25971ea743932eca000ffb5bf83866d",
+          "bytes": 303365,
+          "operations": 42,
+          "origin": "AUTOMATIC_OFFICIAL",
+          "accepted_at": "2026-11-08T06:22:22.169Z"
+        },
+        "candidate_pending": false,
+        "changes": null
+      },
+      {
+        "key": "WB_09_COMMUNICATIONS",
+        "family": "WILDBERRIES",
+        "official_url": "https://dev.wildberries.ru/api/swagger/yaml/ru/09-communications.yaml?region=ru",
+        "last_attempt_at": "2026-11-08T06:22:22.589Z",
+        "last_automatic_success_at": "2026-11-08T06:22:23.092Z",
+        "next_attempt_at": "2026-11-08T12:22:22.589Z",
+        "outcome": "INITIAL",
+        "http_status": null,
+        "fresh": true,
+        "automatic_age_seconds": 67,
+        "last_good": {
+          "sha256": "05eb382b27361dcfaf537cfe53acd5cea8a0a9f1f4bc048ae5cc1279f3ae5419",
+          "bytes": 207157,
+          "operations": 25,
+          "origin": "AUTOMATIC_OFFICIAL",
+          "accepted_at": "2026-11-08T06:22:22.833Z"
+        },
+        "candidate_pending": false,
+        "changes": null
+      },
+      {
+        "key": "WB_10_RATES",
+        "family": "WILDBERRIES",
+        "official_url": "https://dev.wildberries.ru/api/swagger/yaml/ru/10-rates.yaml?region=ru",
+        "last_attempt_at": "2026-11-08T06:22:23.105Z",
+        "last_automatic_success_at": "2026-11-08T06:22:23.258Z",
+        "next_attempt_at": "2026-11-08T12:22:23.105Z",
+        "outcome": "INITIAL",
+        "http_status": null,
+        "fresh": true,
+        "automatic_age_seconds": 67,
+        "last_good": {
+          "sha256": "50e55adf0584c81a14620afe8064fbe2b9a954b168f12aca350785a4bbce8d9e",
+          "bytes": 46815,
+          "operations": 5,
+          "origin": "AUTOMATIC_OFFICIAL",
+          "accepted_at": "2026-11-08T06:22:23.197Z"
+        },
+        "candidate_pending": false,
+        "changes": null
+      },
+      {
+        "key": "WB_11_ANALYTICS",
+        "family": "WILDBERRIES",
+        "official_url": "https://dev.wildberries.ru/api/swagger/yaml/ru/11-analytics.yaml?region=ru",
+        "last_attempt_at": "2026-11-08T06:22:23.265Z",
+        "last_automatic_success_at": "2026-11-08T06:22:23.933Z",
+        "next_attempt_at": "2026-11-08T12:22:23.265Z",
+        "outcome": "INITIAL",
+        "http_status": null,
+        "fresh": true,
+        "automatic_age_seconds": 66,
+        "last_good": {
+          "sha256": "18e46b9e629647fc5ab12fbc504383d7ae0d8cd796046fe08aa6cf4f3faecc75",
+          "bytes": 302725,
+          "operations": 20,
+          "origin": "AUTOMATIC_OFFICIAL",
+          "accepted_at": "2026-11-08T06:22:23.525Z"
+        },
+        "candidate_pending": false,
+        "changes": null
+      },
+      {
+        "key": "WB_12_REPORTS",
+        "family": "WILDBERRIES",
+        "official_url": "https://dev.wildberries.ru/api/swagger/yaml/ru/12-reports.yaml?region=ru",
+        "last_attempt_at": "2026-11-08T06:22:23.951Z",
+        "last_automatic_success_at": "2026-11-08T06:22:24.353Z",
+        "next_attempt_at": "2026-11-08T12:22:23.951Z",
+        "outcome": "INITIAL",
+        "http_status": null,
+        "fresh": true,
+        "automatic_age_seconds": 65,
+        "last_good": {
+          "sha256": "f1206c376439a8f80f7543e7f5b2591ce5d8f93b6ebfeb73a4e13f53f0e70cfd",
+          "bytes": 170311,
+          "operations": 23,
+          "origin": "AUTOMATIC_OFFICIAL",
+          "accepted_at": "2026-11-08T06:22:24.106Z"
+        },
+        "candidate_pending": false,
+        "changes": null
+      },
+      {
+        "key": "WB_13_FINANCES",
+        "family": "WILDBERRIES",
+        "official_url": "https://dev.wildberries.ru/api/swagger/yaml/ru/13-finances.yaml?region=ru",
+        "last_attempt_at": "2026-11-08T06:22:24.363Z",
+        "last_automatic_success_at": "2026-11-08T06:22:24.646Z",
+        "next_attempt_at": "2026-11-08T12:22:24.363Z",
+        "outcome": "INITIAL",
+        "http_status": null,
+        "fresh": true,
+        "automatic_age_seconds": 65,
+        "last_good": {
+          "sha256": "6998ea47923bb34d0db36fec9a9a225e85149a03849935092eb5523e9e74d7e2",
+          "bytes": 95767,
+          "operations": 11,
+          "origin": "AUTOMATIC_OFFICIAL",
+          "accepted_at": "2026-11-08T06:22:24.489Z"
+        },
+        "candidate_pending": false,
+        "changes": null
+      }
+    ]
+  },
+  "profiles": {
+    "alisa-swagger-watch.service": "TimeoutStartUSec=7min\nTimeoutStopUSec=5s\nResult=success\nExecMainStatus=0\nMemoryMax=536870912\nMemorySwapMax=0\nTasksMax=64\nKillMode=control-group\nLoadState=loaded\nActiveState=inactive\nSubState=dead\nInvocationID=010babd22f0b4b20aa38aff61218942d\n",
+    "alisa-swagger-watch.timer": "TimersMonotonic={ OnUnitInactiveUSec=6h ; next_elapse=4d 22min 26.491842s }\nTimersMonotonic={ OnBootUSec=5min ; next_elapse=5min }\nNextElapseUSecMonotonic=4d 24min 40.534185s\nLastTriggerUSec=Sun 2026-11-08 06:08:18 UTC\nResult=success\nLoadState=loaded\nActiveState=active\nSubState=waiting\nInvocationID=87673d70ab7145e9984d2fb2c5f43cff\n",
+    "alisa-swagger-status.service": "TimeoutStartUSec=1min 30s\nTimeoutStopUSec=5s\nResult=success\nExecMainStatus=0\nMemoryMax=134217728\nMemorySwapMax=0\nTasksMax=32\nKillMode=control-group\nLoadState=loaded\nActiveState=active\nSubState=running\nInvocationID=bd8e0d6520db4a68b777d391e55c5a53\n"
+  },
+  "timer_enabled": "enabled",
+  "resources": {
+    "free_bytes": 3258413056,
+    "free_inodes": 494796
+  },
+  "apt_repair": {
+    "only_own_config_effective": true,
+    "binary_caches_absent": true
+  },
+  "live_owner_flow": "NOT_RUN",
+  "provider_credentials_used": false,
+  "db_mutations": false
+}

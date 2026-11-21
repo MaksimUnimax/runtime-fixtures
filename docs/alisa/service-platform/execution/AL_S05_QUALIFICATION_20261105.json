@@ -1,0 +1,127 @@
+{
+  "record_type": "AL_S05_QUALIFICATION_HISTORY",
+  "status": "SOURCE_PACKAGE_ACCEPTED_RT_CHECK_REQUIRED",
+  "attempts": [
+    {
+      "source_sha": "3f3162ac7709f575b3bf965ad0b709e326060cab",
+      "tree_sha": "dfa8cbc6e364decdfce4105f967e1801bf41ac47",
+      "platform_ci": 42051572026,
+      "documentation_ci": 42051571823,
+      "status": "FAILED",
+      "s04_regression_core": 36,
+      "native_canonical_core": 92,
+      "s05_postgresql_unix_core": 36,
+      "packaged_browser": 96,
+      "integrated_completed_cases": 125,
+      "failed_case": "s05_browser_foreign_store_id_is_denied",
+      "cause": "The prior S02 cleanup intentionally expired the second customer session; the new foreign-store test received the authentication denial before reaching object isolation.",
+      "resolution": "Fresh native email-code login for the same second customer, assert valid distinct tenant, then retain exact 404 foreign-store assertion.",
+      "qualification_artifact": 13426274324,
+      "qualification_zip_sha256": "649ed59bd16f26a3c8ac06998c55b6672362092d6181d3e64da8e2cd0ff32c7f",
+      "original_receipt_export": "s05-source-qualification-20261105/s05-3f3162-receipts.json",
+      "receipt_export_sha256": "7768e3ab7c5e15c9a381340d0d0cb6f815ad9d0c9222c2bae712b7b0415de42d",
+      "independent_source_review": "AL_S05_SOURCE_INDEPENDENT_REVIEW_R1_20261105.json"
+    },
+    {
+      "source_sha": "c6217b80758495d18a834b8d89c771ad9263b12e",
+      "tree_sha": "2f9d7acd5e8b33be244be62eb3e1103e851a4eaa",
+      "platform_ci": 42053049952,
+      "ci_attempt": 1,
+      "documentation_ci": 42053050180,
+      "status": "FAILED",
+      "s05_postgresql_unix_core": 38,
+      "native_canonical_core": 92,
+      "s04_regression_core": 36,
+      "failed_boundary": "Legacy engineering browser probe did not reach PROCESSED assertion after packaged admin startup.",
+      "public_error_type": "AssertionError",
+      "last_safe_passed_case": "separate_packaged_admin_starts_without_database_credentials",
+      "cause": "UNKNOWN: original qualifier emits no failing-browser details or partial receipt. No S05 store browser ran in this attempt.",
+      "next_action": "One exact-SHA failed-job rerun to distinguish repeatable regression; original failure retained. No assertion weakened.",
+      "qualification_artifact": 13427668876,
+      "qualification_zip_sha256": "aa8319295d1086648bb2bb7599563f3ac9d3fd71c6bfa05822a22df6c9a375cf",
+      "original_receipt_export": "s05-source-qualification-20261105/s05-c6217b-attempt1-receipts.json"
+    },
+    {
+      "source_sha": "c6217b80758495d18a834b8d89c771ad9263b12e",
+      "tree_sha": "2f9d7acd5e8b33be244be62eb3e1103e851a4eaa",
+      "platform_ci": 42053049952,
+      "ci_attempt": 2,
+      "status": "FAILED",
+      "s05_postgresql_unix_core": 38,
+      "native_canonical_core": 92,
+      "s04_regression_core": 36,
+      "packaged_browser": 96,
+      "integrated_completed_cases": 132,
+      "error_type": "TimeoutError",
+      "source_error_location": {
+        "file": "qualify_stores_browser.py",
+        "line": 55
+      },
+      "failed_boundary": "Exact label lookup for marketplace selector before adding WB store.",
+      "cause": "Marketplace label wrapped the select and its option text. Its text was not the exact isolated label expected by the browser test.",
+      "resolution": "Separate explicit label htmlFor from the select; keep exact label selector/assertion and WB scenario.",
+      "engineering_attempt1_note": "The unchanged engineering assertion passed this exact-SHA rerun; original AssertionError remains unexplained, not rewritten to PASS. R3 gates controls on hydration.",
+      "qualification_artifact": 13427894990,
+      "qualification_zip_sha256": "860b76050d378a568c57eba14a9ddf472961db91f1e4e402a0b8f1694771c999",
+      "original_receipt_export": "s05-source-qualification-20261105/s05-c6217b-attempt2-receipts.json"
+    },
+    {
+      "source_sha": "efa6a412ddc6926132cfd6fa648b71d0a155232a",
+      "tree_sha": "a5c7cbff1dcc7c2b0f5c1b40776dc0e75d145eee",
+      "platform_ci": 42055388054,
+      "documentation_ci": 42055388060,
+      "status": "SUCCESS_SOURCE_PACKAGE_ONLY",
+      "binding": {
+        "source_sha": "efa6a412ddc6926132cfd6fa648b71d0a155232a",
+        "tree_sha": "a5c7cbff1dcc7c2b0f5c1b40776dc0e75d145eee",
+        "release": "alisa-efa6a412ddc69261",
+        "zip_sha256": "ab01e364bed3bd0ce2f66c7ab8041db5fc6853c76c20a33acffc3cdf7dc7b32c",
+        "tar_sha256": "f587420cc97755636562c14aa36833841a2d598be30abe0db4ef1dc185681dc7",
+        "manifest_sha256": "d88d308deb445b50f840cfabc43fddf4700683518884e32754eba24e65bf883e",
+        "files": 4451,
+        "links": 42,
+        "platform_ci": 42055388054,
+        "documentation_ci": 42055388060,
+        "package_artifact": 13429087347,
+        "qualification_artifact": 13430191320,
+        "qualification_zip_sha256": "cf8e3a8264fa6382881a8cc7e241f7647d89f50f5140ccb146d046a91b627568",
+        "status": "SOURCE_PACKAGE_ONLY_NOT_INSTALLED_NOT_LIVE_PROVIDER"
+      },
+      "s05_postgresql_unix_core": 38,
+      "s05_named_browser_cases": 15,
+      "integrated_browser_cases": 175,
+      "packaged_browser_cases": 96,
+      "native_canonical_core": 92,
+      "s04_regression_core": 36,
+      "open_registration_regression": 130,
+      "receipt_export": "s05-source-qualification-20261105/s05-efa6a4-receipts.json",
+      "independent_source_review": "AL_S05_SOURCE_INDEPENDENT_REVIEW_R3_20261105.json",
+      "limits": [
+        "Synthetic RT-CHECK Unix peer only, not actual marketplace endpoint.",
+        "No S05 installed/live/real provider acceptance."
+      ]
+    }
+  ],
+  "local_checks": {
+    "unit_tests": 74,
+    "architecture": "PASS",
+    "model_consistency": "PASS_WITH_NO_TEST_DATABASE_CONNECTION",
+    "generated_contracts": "PASS",
+    "documentation_structure": "PASS"
+  },
+  "limits": [
+    "No S05 live DB/config/deploy/real provider calls.",
+    "Missing runtime-side RT-CHECK remains explicit; proposed protocol is not a live function."
+  ],
+  "source_review_addendum": {
+    "source_sha": "c6217b80758495d18a834b8d89c771ad9263b12e",
+    "status": "SOURCE_REWORK_AFTER_R2_REVIEW",
+    "independently_confirmed_by": "s03_independent_review",
+    "finding": "Client-only store forms omitted method/action; native fallback could submit credential fields in a GET query before hydration or with JavaScript disabled.",
+    "resolution": "All store forms now have fixed POST action to the BFF, which rejects form encoding; controls disabled until hydration. Added actual packaged authenticated no-JavaScript case. Existing R2 review retained unchanged as its earlier inspection snapshot.",
+    "legacy_engineering_note": "Its submit control is also gated on hydration. Prior engineering AssertionError cause remains UNKNOWN; no assertion or timeout was relaxed.",
+    "closed_by_source": "efa6a412ddc6926132cfd6fa648b71d0a155232a"
+  },
+  "current_source_review": "AL_S05_SOURCE_INDEPENDENT_REVIEW_R3_20261105.json",
+  "current_package_review": "AL_S05_PACKAGE_INDEPENDENT_REVIEW_20261105.json"
+}

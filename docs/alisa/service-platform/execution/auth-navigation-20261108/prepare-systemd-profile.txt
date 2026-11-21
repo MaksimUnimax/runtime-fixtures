@@ -1,0 +1,10 @@
+RuntimeMaxUSec=3min
+Result=success
+ExecMainStatus=0
+MemoryMax=536870912
+MemorySwapMax=0
+TasksMax=128
+KillMode=control-group
+LoadState=loaded
+ActiveState=active
+InvocationID=da676973613746bc8269a73aad6d6d28

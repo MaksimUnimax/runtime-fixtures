@@ -1,0 +1,83 @@
+schema: alisa_entrypoint_schedule/v1
+status: PROJECT_ROUTES_NOT_IMPLEMENTED
+version: '0.5'
+notes: Contract schedule, not complete OpenAPI or vendor OAuth. Strict schemas/errors
+  are required within each same delivery before acceptance.
+entries:
+- id: EP01
+  route: GET /auth/start
+  hosts:
+  - alisa.octoport.ru
+  - alisa-stage.octoport.ru
+  step: AL-S02
+  contract: Create server-side OIDC transaction; exact allowed callback; redirect
+    to discovery authorization endpoint; no raw campaign/PII
+- id: EP02
+  route: GET /auth/callback
+  hosts:
+  - alisa.octoport.ru
+  - alisa-stage.octoport.ru
+  step: AL-S02
+  contract: Validate callback; code exchange in BFF; product session and idempotent
+    provisioning; no tokens in logs
+- id: EP03
+  route: GET /auth/start
+  hosts:
+  - alisa-admin.octoport.ru
+  - alisa-admin-stage.octoport.ru
+  step: AL-S03
+  contract: Dedicated staff OIDC client and mandatory MFA/step-up; product assignment
+    required
+- id: EP04
+  route: GET /auth/callback
+  hosts:
+  - alisa-admin.octoport.ru
+  - alisa-admin-stage.octoport.ru
+  step: AL-S03
+  contract: Staff session separate; reject insufficient authentication context
+- id: EP05
+  route: POST /api/v1/leads
+  hosts:
+  - alisa.octoport.ru
+  - alisa-stage.octoport.ru
+  step: AL-S01
+  contract: Own public lead form; contact verification; request idempotency; no tenant/grant;
+    generic responses and rate limits
+- id: EP06
+  route: POST /api/v1/leads/confirm
+  hosts:
+  - alisa.octoport.ru
+  - alisa-stage.octoport.ru
+  step: AL-S01
+  contract: Bound short-lived single-use confirmation, no user creation
+- id: EP07
+  route: POST /api/v1/funnel/events
+  hosts:
+  - alisa.octoport.ru
+  - alisa-stage.octoport.ru
+  step: AL-S01
+  contract: Strict allowed non-financial client events, size/rate limits, allowlist
+    tags; payment/account success only server-origin
+- id: EP08
+  route: GET /.well-known/openid-configuration
+  hosts:
+  - id.octoport.ru
+  - id-stage.octoport.ru
+  step: AL-S02
+  contract: Library OIDC metadata, exact environment issuer; token/JWKS paths resolved
+    from tested provider not invented
+- id: EP09
+  route: GET /staff/api/v1/leads
+  hosts:
+  - alisa-admin.octoport.ru
+  - alisa-admin-stage.octoport.ru
+  step: AL-S03
+  contract: Masked lead list separated from customer accounts; product-scoped permission
+- id: EP10
+  route: GET /staff/api/v1/funnel
+  hosts:
+  - alisa-admin.octoport.ru
+  - alisa-admin-stage.octoport.ru
+  step: AL-S16
+  contract: Bounded aggregates, denominator and completeness, no raw questions/PII
+    export

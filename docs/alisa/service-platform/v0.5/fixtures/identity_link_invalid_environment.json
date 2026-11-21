@@ -1,0 +1,10 @@
+{
+  "schema_version": "product_identity_link_v1",
+  "environment": "stage",
+  "product_id": "alisa_market",
+  "issuer": "https://id.octoport.ru",
+  "subject": "synthetic-subject",
+  "client_id": "synthetic-alisa-stage",
+  "local_user_id": "00000000-0000-4000-8000-000000000001",
+  "local_tenant_id": "00000000-0000-4000-8000-000000000002"
+}

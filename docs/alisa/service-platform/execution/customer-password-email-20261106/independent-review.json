@@ -1,0 +1,29 @@
+{
+  "scope": "INDEPENDENT_AUTHENTICATION_AND_ROLLOUT_SOURCE_REVIEW_NOT_INSTALLED_ACCEPTANCE",
+  "reviewer": "customer_auth_review",
+  "authentication_source_sha": "0dea25976633f467164a502235811198023da223",
+  "authentication_source_tree": "15e749dc09479d5ce25fe1345973804303040841",
+  "authentication_verdict": "APPROVED_SOURCE",
+  "rollout_sha256": "4fe591977766b46d7f0f8ef8ed0140bde13fb07aae70e5178be518b72235f7b9",
+  "rollout_verdict": "APPROVED_ROLLOUT_SOURCE",
+  "resolved_findings": [
+    "serialize_customer_authorization_get_before_proof_consumption",
+    "follow_actual_passwordless_staff_enrollment_email_continuation",
+    "test_real_bff_authentication_strength_rejections",
+    "restore_owned_pointers_even_if_unrelated_state_drifts",
+    "resolve_complete_archive_symlink_graph_and_reject_symlink_ancestors",
+    "strict_component_pointer_namespace",
+    "admitted_dependency_import_version_smoke",
+    "launcher_owned_release_in_readonly_preflight",
+    "compare_locks_to_their_installed_component",
+    "exclude_only_volatile_ExecStart_process_metadata_from_stable_profile"
+  ],
+  "execution_gate": "exact_successful_ci_plus_runtime_baseline_and_resource_prechecks",
+  "live_state_access_by_reviewer": false,
+  "archive_safety_checks": 5,
+  "qualified_source_candidate": "7afaf646b9b35a588051c744f876f6dc1ef7d176",
+  "qualified_source_tree": "ba0653cfeda63f7f95d477ad2dd27f1bab2c4a75",
+  "test_followup_verdict": "APPROVED_SOURCE",
+  "test_followup_scope": "Native password reauthentication, post-TOTP customer login and an explicit wait for the security page; no authentication implementation changes after 0dea2597.",
+  "preparation_rollout_sha256": "457a2b25bafbee9dec020a04d0420b266ba83e84a90ff8a887197d2ee978ca3c"
+}

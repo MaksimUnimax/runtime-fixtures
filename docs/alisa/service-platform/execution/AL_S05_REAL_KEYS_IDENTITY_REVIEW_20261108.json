@@ -1,0 +1,79 @@
+{
+  "schema_version": "alisa_s05_provider_identity_architecture_review_v1",
+  "review_date": "2026-11-08",
+  "scope": "OFFICIAL_DOCUMENTATION_AND_ARCHITECTURE_REVIEW_ONLY_NO_PROVIDER_SERVER_OR_CREDENTIAL_ACCESS",
+  "verdict": "LEGACY_PERFORMANCE_SELLER_CROSSWALK_NOT_DOCUMENTED; UNIFIED_SELLER_OAUTH_IS_A_DOCUMENTED_PATH",
+  "official_sources": [
+    {
+      "title": "Performance API: Оптимизация контроля доступов через OAuth",
+      "date": "2026-04-06",
+      "url": "https://dev.ozon.ru/news/691-Performance-API-Optimizatsiia-kontrolia-dostupov-cherez-OAuth/",
+      "evidence": "For Russian sellers, OAuth authorization is being introduced in Performance API; Ozon says a single access token can be used for Seller API and Performance API, and the seller selects required scopes in Seller Center. It does not document a legacy client_credentials-to-seller identity endpoint or response schema."
+    },
+    {
+      "title": "FAQ: Сервисы для бизнеса и Личный кабинет разработчика",
+      "date": "2025-08-12",
+      "url": "https://dev.ozon.ru/start/442-FAQ-Magazin-prilozhenii-i-Lichnyi-kabinet-razrabotchika/",
+      "evidence": "The FAQ describes POST /oauth/me as a bodyless call with only Authorization: access_token, returning information about the currently authorized seller and the app subscription; the Seller OAuth guide's permission example names /v1/oauth/me. This is a Seller OAuth endpoint, not documented as accepting a legacy Performance client_credentials token. The linked Applications API reference is dynamically rendered and exposed no machine-readable response schema in this review."
+    },
+    {
+      "title": "Процесс OAuth-авторизации для доступа к Ozon Seller API",
+      "date": "2025-11-28",
+      "url": "https://dev.ozon.ru/start/450-Protsess-OAuth-avtorizatsii-dlia-dostupa-k-Ozon-Seller-API/",
+      "evidence": "Authorization Code Flow obtains an OAuth token after seller consent. Ozon documents that access_token.sub is Seller ID for authorization_code, while sub is the application's Client ID for client_credentials. Since the task forbids JWT-derived identity, sub is not used as the proposed identity proof; it confirms that client_credentials sub is not a seller crosswalk. The page documents prompt=select_company."
+    },
+    {
+      "title": "Изменение отдаваемых ошибок, связанных с API-ключами Seller API",
+      "date": "2025-02-03",
+      "url": "https://dev.ozon.ru/news/505-Izmenenie-otdavaemykh-oshibok-sviazannykh-c-API-kliuchami-Seller-API/",
+      "evidence": "The documented Seller API 404 error says the API key was not found for the supplied seller_id. This can support the previously proposed authenticated Seller Client-Id/key pair binding only when the provider response is strictly matched to this documented condition and the successful response has strict seller-info schema. It says nothing about linking a Performance client_credentials pair."
+    },
+    {
+      "title": "Performance API: новый домен",
+      "date": "2024-09-27",
+      "url": "https://dev.ozon.ru/news/482-Novyi-domen-Performance-API/",
+      "evidence": "Confirms api-performance.ozon.ru is the current Performance host and the previous performance.ozon.ru host was retired."
+    }
+  ],
+  "identity_conclusions": {
+    "legacy_performance_client_credentials": {
+      "documented_minimal_authentication": "POST https://api-performance.ozon.ru/api/client/token with the legacy client_id/client_secret grant can establish credential/token acceptance if it returns a strict successful token response.",
+      "documented_seller_identity_or_crosswalk": false,
+      "documented_performance_introspection_or_me_endpoint": false,
+      "allowed_identity_conclusion": "Credentials accepted for the Performance API only; seller identity and same-cabinet relationship remain unverified.",
+      "prohibited_inferences": [
+        "JWT sub/aud/claims, decoded or otherwise",
+        "client_id or app name as seller identity",
+        "matching seller/client names, INN, or user-supplied labels",
+        "token hash or credential equality",
+        "campaign/analytics/report contents as a seller crosswalk"
+      ]
+    },
+    "unified_oauth": {
+      "documented_for_performance": "Yes, for Russian sellers per the 2026-04-06 Ozon announcement.",
+      "documented_seller_proof": "Seller-consented Authorization Code Flow plus authenticated POST /oauth/me is the documented route to current authorized seller information. Use a strict provider response field for seller_id only after obtaining and validating the authoritative response schema; do not decode JWT locally as the identity proof.",
+      "same_token_cross_api": "Ozon explicitly says one access token may be used for both Seller and Performance APIs, with scopes selected by the seller. A successful harmless read-only Performance API call using that same seller-authorized token, alongside /oauth/me proof, can establish that the Performance grant is attached to that Seller OAuth authorization.",
+      "qualification": "The announcement is scoped to sellers in Russia. Ozon's linked API docs are dynamically rendered; the precise /oauth/me JSON schema and a minimal no-report Performance read endpoint need direct official schema confirmation before implementing strict extraction."
+    }
+  },
+  "recommended_model": {
+    "near_term": "Keep legacy Performance credentials in IDENTITY_NOT_VERIFIED (or introduce a clearly distinct AUTHENTICATED_UNLINKED status if product wants to report valid credentials). Do not set store.verified_identity or mark same-cabinet CONNECTED from token success alone.",
+    "correct_same_cabinet_route": [
+      "Add a seller-consented Ozon OAuth Authorization Code flow for eligible accounts, with CSRF state and explicit company selection where needed.",
+      "Call POST /oauth/me using the returned access token and strictly parse the officially confirmed seller_id field from the authenticated JSON response.",
+      "Use that same access token against one minimal read-only Performance endpoint whose OAuth support/scope is documented; do not call reports, statistics, financial methods, or mutating campaign methods.",
+      "Promote a shared Ozon seller identity only when both authenticated checks bind to the same seller authorization; otherwise retain channel-specific unlinked states."
+    ],
+    "independent_channel_option": "If product semantics allow a user-created grouping rather than a verified same cabinet, model Seller and Performance as distinct channel connections and label their association as user-selected/unverified. No stable Performance account identity endpoint was found in the official materials reviewed, so do not invent a canonical Performance seller ID."
+  },
+  "blockers_for_implementation": [
+    "The existing legacy Performance client_credentials pair has no official identity/crosswalk contract identified in the reviewed Ozon material.",
+    "Current store schema has a single verified_identity and therefore cannot truthfully mark a legacy Performance key as the same Seller cabinet when the only result is token acceptance.",
+    "The exact /oauth/me JSON response schema and a minimal read-only Performance endpoint using the unified token must be confirmed from official API schema before strict implementation."
+  ],
+  "not_performed": [
+    "provider API calls or credential reads",
+    "server, database, session, or environment access",
+    "source or Git metadata changes"
+  ]
+}

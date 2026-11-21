@@ -1,0 +1,26 @@
+{
+  "record_type": "AL_S02_DISPOSABLE_ENVIRONMENT",
+  "started_at_utc": "2026-11-05T01:37:58.645054+00:00",
+  "status": "PROBE_FAILED",
+  "tcp_listener": false,
+  "live_database_access": false,
+  "source_hashes": {
+    "services/identity/src/octoport_identity/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "services/identity/src/octoport_identity/accounts/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "services/identity/src/octoport_identity/accounts/migrations/0001_initial.py": "73d2b8459c27a7693474f1c65d8eab241f52c8b0024a459fb9bbdbb48f811446",
+    "services/identity/src/octoport_identity/accounts/migrations/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "services/identity/src/octoport_identity/accounts/models.py": "9aa44ad8e481f4cd29392389e810ef72a5114f13edb863ad2035143a079d61cd",
+    "tests/identity_probe/__init__.py": "52ec7ce389268fead8f1f19c87568dae94de82f34be0f133e40b9cbeca66d915",
+    "tests/identity_probe/requirements.in": "1c10cc32cb411f3259058f4bfb1719099d163886b755e588e7396bdda37cb50a",
+    "tests/identity_probe/requirements.lock": "90a684d283a387ce683b86100c34bf7146ec644beb22e3e2c6bbf1c30e3b5bdc",
+    "tests/identity_probe/run_isolated.py": "53accbfbe84c6bed98710e38d20faee6c9fa48ade4493350c3992d27b05566fb",
+    "tests/identity_probe/run_probe.py": "352c7bd2f50661d378d85f9157fa8d62c2a717976e74b86ffd524ee967c621b2",
+    "tests/identity_probe/settings.py": "28ba2d026d0ba4da4bd75132dc7f3427f291ab696761386544b90bc7a6c00766",
+    "tests/identity_probe/urls.py": "ee83a1de4951993b47035a04bd97f906ea1408ac5de7bc4bee64515d2764f608"
+  },
+  "phase": "candidate_probe",
+  "probe_exit_code": 1,
+  "cluster_stopped": true,
+  "disposable_cluster_and_cache_removed": true,
+  "finished_at_utc": "2026-11-05T01:38:19.423274+00:00"
+}

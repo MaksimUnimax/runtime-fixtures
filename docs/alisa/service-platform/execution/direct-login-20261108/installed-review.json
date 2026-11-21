@@ -1,0 +1,46 @@
+{
+  "record_type": "AL_S02_DIRECT_LOGIN_INSTALLED_EVIDENCE_INDEPENDENT_REVIEW",
+  "reviewer": "s03_independent_review",
+  "report_path": "docs/alisa/service-platform/execution/AL_S02_DIRECT_LOGIN_20261108.md",
+  "report_sha256": "8160cb2a8243fc810f666f2285d3c55864c1ea7c14880992f5d6082e458fb7c8",
+  "source_sha": "3a1d3885250d8aa1a51f6e7df3f9d1c3db50b281",
+  "source_tree": "0db793d11bc1d9820eee10fd9bfd5e06d0d1f53e",
+  "verdict": "ACCEPTED_FOR_DECLARED_INSTALLED_DIRECT_LOGIN_SCOPE",
+  "reviewed_receipts": {
+    "prepare.json": "0e516c72dfedccb5caf20e62a0d4660bc35e58e259e39c54817263bf74db3b22",
+    "activation-lock-contention.json": "695bd8f4938ccc4bb5a8d844ea840a9957c6fee8df4a575e3775ac2256093808",
+    "activate-resume.json": "716b4480a1a9892c62ed3a82a1aeb4d0f67d355c93e930bbb65d13edcb41af42",
+    "readback.json": "30fa83088adc8e2133c49ea0ae631b72fb6e02ce96cff90cbd286a45b3790257",
+    "browser.json": "90b7012d65f3e9d46d7ae1dcec3d0b6ae6da83406b165c9af64ff2d446e821f4",
+    "browser-systemd-profile.json": "55bee3cf48ded4fe5cb020daf52df54fa8ea469614fcd05d7592d0c700f7f27c",
+    "cache-relocation.json": "98b16808d68bc302ff0f6f10db6934ab4b8c82268a3a9e3199efad7b80fc495c",
+    "ci-package-binding.json": "63e70a5fde721a1b75f498c5055bfef016a97914a4e9e67f2cb773bbcae01255",
+    "ci-runtime-qualification.json": "e2ad5a4b805e18936536b486b4a0117103653475f373e7581bc1cdffa0849cfc",
+    "ci-s02-qualification.json": "8240ab87fb2c32aed28a620be183b18dacab6a5ca785005b27672a6b11ff667a"
+  },
+  "evidence_review": [
+    "Prepare records 17/17 PASS, the exact source and three changed product files, and an inactive overlay.",
+    "First activation lock contention is recorded before any activation mutation; the Identity pointer remained on the prior release.",
+    "Resume records 11/11 PASS, allows only the two active native-core/checker restart changes, preserves the original snapshot, and reports zero migrations, customer DB mutations, or marketplace configuration changes.",
+    "Readback binds the three installed Identity hashes and release, confirms other pointers unchanged and the native Ozon binding matches the restarted core. Owner keys are explicitly owner-reported; owner browser flow is not claimed.",
+    "Public browser receipt records 33/33 PASS using the existing example.invalid fixture, with two native password plus delivered-code flows, wrong-code denial, same customer/tenant reentry, no direct database writes or marketplace calls, and no out-of-scope navigation/request flags.",
+    "Browser limits are backed by the captured loaded systemd profile. The report explicitly does not claim a final memory peak; the collected-away unit state is not used as proof.",
+    "Cache relocation is limited to one verified public dependency cache blob; installed project/library files and other actor's long-running terminal bridge are recorded as preserved.",
+    "The report keeps owner browser tests, AL-S06, provider-report acceptance, and related scopes open."
+  ],
+  "ci_status": {
+    "platform_run": 42468265071,
+    "platform_conclusion": "success",
+    "documentation_run": 42468265001,
+    "documentation_conclusion": "success",
+    "identity_probe_run": 42468265010,
+    "identity_probe_conclusion": "success",
+    "workflow_runs_independently_read": true
+  },
+  "findings": [],
+  "scope_limits": [
+    "Review is bound to the safe report and receipt hashes; reviewer made no new host readback or host calls.",
+    "This accepts the installed direct-login behavior for the declared fixture/browser scope, not owner login, AL-S06, provider analytics reports, or broader identity acceptance.",
+    "No secrets, fixture contents, private browser state, or customer identifiers were read or included."
+  ]
+}

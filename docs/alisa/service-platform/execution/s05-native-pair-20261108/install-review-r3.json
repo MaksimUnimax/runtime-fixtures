@@ -1,0 +1,24 @@
+{
+  "review": "INDEPENDENT_INSTALL_SOURCE_DELTA_REVIEW",
+  "source": "docs/alisa/service-platform/execution/s05-native-pair-20261108/install.py",
+  "source_sha256": "35123a8b2ddd7512d4ee5b547ca3c67e51dfc783c07e53d9fe56c084c5cd79b0",
+  "prior_review": "install-review-r2.json",
+  "result": "PASS_WITH_BOUNDED_SCOPE",
+  "scope": "Static source review only. No script, test, host, provider, database, browser, or credential operation was performed.",
+  "r2_blocker_resolution": {
+    "exclusive_dropin_creation": "SIGTERM/SIGINT are blocked across O_EXCL|O_NOFOLLOW creation and fstat inode capture. The owned device/inode is recorded before signals are unblocked. The exception path removes the drop-in only when its current lstat device/inode still matches the recorded created inode, including an interrupted or partial write.",
+    "api_pointer_switch": "api_changed is armed before os.replace. Recovery restores the old API target only when site-current still resolves to this exact candidate; it also removes only the exact candidate temporary symlink.",
+    "result": "The post-mutation recovery-flag race identified in R2 is closed in this source."
+  },
+  "additional_delta": {
+    "payload": "The compressed payload is read with a 131073-byte cap and explicitly rejected above 131072 bytes before JSON decoding. The four decoded files remain constrained by their pinned SHA-256 values.",
+    "resource": "After preparation, free space must remain at least the mandatory floor plus 512 KiB; the floor is not reduced."
+  },
+  "other_blockers": [],
+  "execution_condition": "Use a finite runner whose stop grace allows the exception path and bounded rollback subprocesses to finish; SIGKILL cannot be recovered by Python. The source's rollback remains best-effort for OS/service-manager failures.",
+  "preserved_limits": [
+    "The reviewed source and package are pinned to the previously accepted source/CI candidate.",
+    "The resource-repair helper remains abandoned and NOT_APPLIED; this review does not authorize it.",
+    "This is not evidence of a live install, customer-store transition, or browser flow."
+  ]
+}

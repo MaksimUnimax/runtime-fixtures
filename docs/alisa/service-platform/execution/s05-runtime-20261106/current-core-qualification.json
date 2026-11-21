@@ -1,0 +1,54 @@
+{
+  "scope": "CURRENT_CORE_ISOLATED_COPY_HTTP_EXTRACTION_NOT_LIVE_APPLIED",
+  "status": "PASS",
+  "checker_source_sha": "6098b31384ae23a43fb869abd3e67f165bc644fa",
+  "source_path": "/opt/alice-market/releases/20261105-v010-number-reason-r1",
+  "copy_path": "/opt/alice-market/store-check-qualification/6098-current-core",
+  "copied_source_files": 69,
+  "unchanged_original_files_except_http_after_tests": true,
+  "working_http_unchanged": true,
+  "tests_total": 1035,
+  "runs": [
+    {
+      "unit": "alisa-s05-core-qual-6098-20261106.service",
+      "invocation": "402460f3be084ff78fee60138a15185e",
+      "tests_run": 949,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "forbidden_network_attempts": 0,
+      "external_api_calls": 0,
+      "exit": 0,
+      "runtime_sec": 39.625
+    },
+    {
+      "unit": "alisa-s05-core-extra-6098-20261106.service",
+      "invocation": "35e6b1ca1c6c4df98393da24e0d089a1",
+      "tests_run": 86,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "forbidden_network_attempts": 0,
+      "external_api_calls": 0,
+      "exit": 0,
+      "runtime_sec": 7.257
+    }
+  ],
+  "isolation": {
+    "user": "nobody",
+    "private_network": true,
+    "private_tmp": true,
+    "memory_max_mib": 512,
+    "runtime_max_sec": 120,
+    "kill_mode": "control-group",
+    "read_only_source": true,
+    "clean_environment": true,
+    "live_credentials_or_db_read": false
+  },
+  "binding": "current-core-patch-binding.json",
+  "limits": [
+    "Author-run tests, not an independent run",
+    "No service switch, real key, provider identity or live acceptance",
+    "Prepared patch is for the exact current HTTP hash only; active runtime belongs to its existing stream"
+  ]
+}

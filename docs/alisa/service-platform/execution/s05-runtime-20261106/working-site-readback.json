@@ -1,0 +1,38 @@
+{
+  "scope": "READ_ONLY_CURRENT_SITE_NOT_S05_ACTIVATION",
+  "date_utc": "2026-11-06",
+  "origin": "https://alisa.octoport.ru",
+  "health": {
+    "web": {
+      "release": "alisa-c8666516683e7b2b",
+      "status": "READY"
+    },
+    "admin": {
+      "release": "alisa-c8666516683e7b2b",
+      "status": "READY"
+    },
+    "platform": {
+      "release": "alisa-c8666516683e7b2b",
+      "status": "READY",
+      "runtime": "RUNTIME_NOT_CONNECTED"
+    },
+    "identity": {
+      "release": "alisa-482ed11832b666af",
+      "status": "READY",
+      "authentication": "OIDC_CODE_PKCE"
+    }
+  },
+  "pointers": {
+    "web-current": "alisa-c8666516683e7b2b",
+    "site-current": "alisa-c8666516683e7b2b",
+    "admin-current": "alisa-c8666516683e7b2b",
+    "identity-current": "alisa-482ed11832b666af",
+    "current": "alisa-482ed11832b666af"
+  },
+  "runtime_working_directory": "/opt/alice-market/releases/20261105-v010-number-reason-r1",
+  "runtime_http_sha256": "c5bef1600d8f70449c908c8abd974d358d18cb74243df4d5683c7c228000ba2f",
+  "store_check_socket_present": false,
+  "changes_to_active_files_configs_pointers_db": false,
+  "qualification_units": "ALL_THREE_EXIT_0_INACTIVE_EMPTY_CGROUP",
+  "disk_free_bytes": 3825393664
+}

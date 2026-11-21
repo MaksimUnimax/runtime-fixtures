@@ -1,0 +1,18 @@
+{
+  "source": "AUTHOR_READ_ONLY_SERVER_OBSERVATION_AFTER_BROWSER_AND_READBACK",
+  "source_sha": "d3cb053be14264c6bb2332708abb32d4b0c005ae",
+  "readiness": {
+    "18100": {"status": "READY", "http_status": 200, "release": "alisa-d3cb053be14264c6"},
+    "18101": {"status": "READY", "http_status": 200, "release": "alisa-06f3c053e7719290"},
+    "18102": {"status": "READY", "http_status": 200, "release": "alisa-d3cb053be14264c6"},
+    "18103": {"status": "READY", "http_status": 200, "release": "alisa-direct-login-3a1d3885250d8aa1"}
+  },
+  "cleanup": {"working_directory": "/opt/alisa-platform/stage/releases/alisa-d3cb053be14264c6", "last_result": "success", "last_exec_main_status": 0, "observed_state": "activating", "manually_started": false},
+  "browser_cgroup_removed": true,
+  "browser_runtime_directory_removed": true,
+  "readback_unit_result": "success",
+  "readback_exec_main_status": 0,
+  "free_bytes": 3250733056,
+  "required_floor_bytes": 3221225472,
+  "real_yandex_broker": "NOT_RUN"
+}

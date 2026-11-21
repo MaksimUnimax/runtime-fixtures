@@ -1,0 +1,3154 @@
+{
+  "scope": "OWN_INACTIVE_C866_DEPENDENCIES_NO_ACTIVE_INODES",
+  "status": "PASS",
+  "applied_links": 255,
+  "paths_removed": 0,
+  "active_inodes_touched": 0,
+  "cases": [
+    {
+      "case": "fresh_receipt_and_reserve",
+      "passed": true
+    },
+    {
+      "case": "private_root_backup_parent",
+      "passed": true
+    },
+    {
+      "case": "target_inactive",
+      "passed": true
+    },
+    {
+      "case": "exact_owned_inactive_target_manifest",
+      "passed": true
+    },
+    {
+      "case": "alisa-3e763ad761fac377_own_manifest",
+      "passed": true
+    },
+    {
+      "case": "alisa-29c99f6d9d00f19e_own_manifest",
+      "passed": true
+    },
+    {
+      "case": "alisa-61007bf870cf4f65_own_manifest",
+      "passed": true
+    },
+    {
+      "case": "alisa-8d680f775c8ccdf2_own_manifest",
+      "passed": true
+    },
+    {
+      "case": "alisa-6ae348354b3db0d3_own_manifest",
+      "passed": true
+    },
+    {
+      "case": "alisa-140150ba526b6c3d_own_manifest",
+      "passed": true
+    },
+    {
+      "case": "alisa-51d2a57db66647e0_own_manifest",
+      "passed": true
+    },
+    {
+      "case": "alisa-e82003211bdcd687_own_manifest",
+      "passed": true
+    },
+    {
+      "case": "alisa-dd2b59b99b00b7e4_own_manifest",
+      "passed": true
+    },
+    {
+      "case": "alisa-07290e7c17f556bf_own_manifest",
+      "passed": true
+    },
+    {
+      "case": "alisa-3e91b1aa5d405d0e_own_manifest",
+      "passed": true
+    },
+    {
+      "case": "alisa-0f22ffbc3cd17bdb_own_manifest",
+      "passed": true
+    },
+    {
+      "case": "alisa-b8a5d56e2e132ce5_own_manifest",
+      "passed": true
+    },
+    {
+      "case": "enough_identical_inactive_owned_dependencies",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_0",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_0",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_0",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_1",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_1",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_1",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_2",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_2",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_2",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_3",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_3",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_3",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_4",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_4",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_4",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_5",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_5",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_5",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_6",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_6",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_6",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_7",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_7",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_7",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_8",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_8",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_8",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_9",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_9",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_9",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_10",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_10",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_10",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_11",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_11",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_11",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_12",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_12",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_12",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_13",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_13",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_13",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_14",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_14",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_14",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_15",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_15",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_15",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_16",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_16",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_16",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_17",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_17",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_17",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_18",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_18",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_18",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_19",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_19",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_19",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_20",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_20",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_20",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_21",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_21",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_21",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_22",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_22",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_22",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_23",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_23",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_23",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_24",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_24",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_24",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_25",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_25",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_25",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_26",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_26",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_26",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_27",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_27",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_27",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_28",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_28",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_28",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_29",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_29",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_29",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_30",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_30",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_30",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_31",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_31",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_31",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_32",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_32",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_32",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_33",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_33",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_33",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_34",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_34",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_34",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_35",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_35",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_35",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_36",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_36",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_36",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_37",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_37",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_37",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_38",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_38",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_38",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_39",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_39",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_39",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_40",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_40",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_40",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_41",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_41",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_41",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_42",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_42",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_42",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_43",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_43",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_43",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_44",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_44",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_44",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_45",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_45",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_45",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_46",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_46",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_46",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_47",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_47",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_47",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_48",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_48",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_48",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_49",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_49",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_49",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_50",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_50",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_50",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_51",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_51",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_51",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_52",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_52",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_52",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_53",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_53",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_53",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_54",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_54",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_54",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_55",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_55",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_55",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_56",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_56",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_56",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_57",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_57",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_57",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_58",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_58",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_58",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_59",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_59",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_59",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_60",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_60",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_60",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_61",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_61",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_61",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_62",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_62",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_62",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_63",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_63",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_63",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_64",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_64",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_64",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_65",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_65",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_65",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_66",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_66",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_66",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_67",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_67",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_67",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_68",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_68",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_68",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_69",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_69",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_69",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_70",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_70",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_70",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_71",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_71",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_71",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_72",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_72",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_72",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_73",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_73",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_73",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_74",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_74",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_74",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_75",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_75",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_75",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_76",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_76",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_76",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_77",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_77",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_77",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_78",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_78",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_78",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_79",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_79",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_79",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_80",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_80",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_80",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_81",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_81",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_81",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_82",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_82",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_82",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_83",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_83",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_83",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_84",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_84",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_84",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_85",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_85",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_85",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_86",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_86",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_86",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_87",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_87",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_87",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_88",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_88",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_88",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_89",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_89",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_89",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_90",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_90",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_90",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_91",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_91",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_91",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_92",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_92",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_92",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_93",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_93",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_93",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_94",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_94",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_94",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_95",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_95",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_95",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_96",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_96",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_96",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_97",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_97",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_97",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_98",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_98",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_98",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_99",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_99",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_99",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_100",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_100",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_100",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_101",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_101",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_101",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_102",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_102",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_102",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_103",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_103",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_103",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_104",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_104",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_104",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_105",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_105",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_105",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_106",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_106",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_106",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_107",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_107",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_107",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_108",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_108",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_108",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_109",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_109",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_109",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_110",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_110",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_110",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_111",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_111",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_111",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_112",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_112",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_112",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_113",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_113",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_113",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_114",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_114",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_114",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_115",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_115",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_115",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_116",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_116",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_116",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_117",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_117",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_117",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_118",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_118",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_118",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_119",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_119",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_119",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_120",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_120",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_120",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_121",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_121",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_121",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_122",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_122",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_122",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_123",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_123",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_123",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_124",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_124",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_124",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_125",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_125",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_125",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_126",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_126",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_126",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_127",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_127",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_127",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_128",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_128",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_128",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_129",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_129",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_129",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_130",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_130",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_130",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_131",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_131",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_131",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_132",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_132",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_132",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_133",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_133",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_133",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_134",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_134",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_134",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_135",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_135",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_135",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_136",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_136",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_136",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_137",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_137",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_137",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_138",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_138",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_138",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_139",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_139",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_139",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_140",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_140",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_140",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_141",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_141",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_141",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_142",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_142",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_142",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_143",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_143",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_143",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_144",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_144",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_144",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_145",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_145",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_145",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_146",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_146",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_146",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_147",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_147",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_147",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_148",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_148",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_148",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_149",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_149",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_149",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_150",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_150",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_150",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_151",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_151",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_151",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_152",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_152",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_152",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_153",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_153",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_153",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_154",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_154",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_154",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_155",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_155",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_155",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_156",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_156",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_156",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_157",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_157",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_157",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_158",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_158",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_158",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_159",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_159",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_159",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_160",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_160",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_160",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_161",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_161",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_161",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_162",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_162",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_162",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_163",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_163",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_163",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_164",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_164",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_164",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_165",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_165",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_165",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_166",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_166",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_166",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_167",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_167",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_167",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_168",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_168",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_168",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_169",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_169",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_169",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_170",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_170",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_170",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_171",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_171",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_171",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_172",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_172",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_172",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_173",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_173",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_173",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_174",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_174",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_174",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_175",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_175",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_175",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_176",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_176",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_176",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_177",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_177",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_177",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_178",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_178",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_178",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_179",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_179",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_179",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_180",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_180",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_180",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_181",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_181",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_181",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_182",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_182",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_182",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_183",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_183",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_183",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_184",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_184",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_184",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_185",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_185",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_185",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_186",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_186",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_186",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_187",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_187",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_187",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_188",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_188",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_188",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_189",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_189",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_189",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_190",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_190",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_190",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_191",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_191",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_191",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_192",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_192",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_192",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_193",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_193",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_193",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_194",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_194",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_194",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_195",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_195",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_195",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_196",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_196",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_196",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_197",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_197",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_197",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_198",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_198",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_198",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_199",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_199",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_199",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_200",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_200",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_200",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_201",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_201",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_201",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_202",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_202",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_202",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_203",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_203",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_203",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_204",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_204",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_204",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_205",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_205",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_205",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_206",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_206",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_206",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_207",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_207",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_207",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_208",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_208",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_208",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_209",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_209",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_209",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_210",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_210",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_210",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_211",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_211",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_211",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_212",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_212",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_212",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_213",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_213",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_213",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_214",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_214",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_214",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_215",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_215",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_215",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_216",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_216",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_216",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_217",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_217",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_217",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_218",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_218",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_218",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_219",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_219",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_219",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_220",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_220",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_220",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_221",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_221",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_221",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_222",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_222",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_222",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_223",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_223",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_223",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_224",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_224",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_224",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_225",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_225",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_225",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_226",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_226",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_226",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_227",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_227",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_227",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_228",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_228",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_228",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_229",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_229",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_229",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_230",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_230",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_230",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_231",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_231",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_231",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_232",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_232",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_232",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_233",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_233",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_233",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_234",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_234",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_234",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_235",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_235",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_235",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_236",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_236",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_236",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_237",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_237",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_237",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_238",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_238",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_238",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_239",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_239",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_239",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_240",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_240",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_240",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_241",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_241",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_241",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_242",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_242",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_242",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_243",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_243",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_243",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_244",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_244",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_244",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_245",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_245",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_245",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_246",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_246",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_246",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_247",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_247",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_247",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_248",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_248",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_248",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_249",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_249",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_249",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_250",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_250",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_250",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_251",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_251",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_251",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_252",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_252",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_252",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_253",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_253",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_253",
+      "passed": true
+    },
+    {
+      "case": "target_sources_still_inactive_254",
+      "passed": true
+    },
+    {
+      "case": "safe_inodes_254",
+      "passed": true
+    },
+    {
+      "case": "equal_bytes_metadata_254",
+      "passed": true
+    },
+    {
+      "case": "complete_package_files_and_links_preserved",
+      "passed": true
+    },
+    {
+      "case": "all_dependency_bytes_preserved",
+      "passed": true
+    }
+  ],
+  "free_before": 3262750720,
+  "planned_gain": 71229440,
+  "free_after": 3333971968,
+  "metadata_note": "Only identical inactive dependency code was linked. Paths/bytes/mode/owner preserved. New target mtime follows canonical; source and target nlink/ctime change. Original metadata retained privately.",
+  "concurrency_boundary": "Existing five rollout locks and one current author; complete process inventory immediately before each link. A residual process-start race after inspection remains; file bytes are identical and immutable."
+}

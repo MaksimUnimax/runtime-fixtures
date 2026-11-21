@@ -1,0 +1,98 @@
+{
+  "scope": "EXISTING_NATIVE_PAIR_CHECKER_AND_TWO_API_FILES_ONLY",
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "allowed_phase",
+      "passed": true
+    },
+    {
+      "case": "new_receipt",
+      "passed": true
+    },
+    {
+      "case": "api_pid_invocation_and_exact_argv_preserved",
+      "passed": true
+    },
+    {
+      "case": "prior_owned_activation_rolled_back",
+      "passed": true
+    },
+    {
+      "case": "only_owned_checker_restart_changed",
+      "passed": true
+    },
+    {
+      "case": "actual_native_config_read_group",
+      "passed": true
+    },
+    {
+      "case": "prepared_snapshot_still_current",
+      "passed": true
+    },
+    {
+      "case": "activation_reserve",
+      "passed": true
+    },
+    {
+      "case": "expected_current_catalog_launch",
+      "passed": true
+    },
+    {
+      "case": "checker_started",
+      "passed": true
+    },
+    {
+      "case": "old_sandbox_preserved",
+      "passed": true
+    },
+    {
+      "case": "actual_platform_peer_uid_retained",
+      "passed": true
+    },
+    {
+      "case": "bounded_private_child",
+      "passed": true
+    },
+    {
+      "case": "real_owner_key_through_actual_peer_and_namespace",
+      "passed": true
+    },
+    {
+      "case": "actual_api_process_uses_overlay",
+      "passed": true
+    },
+    {
+      "case": "all_other_services_and_configuration_preserved",
+      "passed": true
+    },
+    {
+      "case": "foreign_checker_modules_preserved",
+      "passed": true
+    },
+    {
+      "case": "mandatory_free_reserve",
+      "passed": true
+    }
+  ],
+  "real_owner_performance_ipc": {
+    "code": "CONNECTED",
+    "identity_matches": true,
+    "native_provenance": true
+  },
+  "phase": "INSTALLED",
+  "source_sha": "8e1a695d71f1004b03564570b880a915efdb539e",
+  "api_release": "alisa-native-pair-8e1a695d71f1004b",
+  "checker_release": "native-pair-8e1a695d71f1004b",
+  "readiness": {
+    "18100": true,
+    "18101": true,
+    "18102": true,
+    "18103": true
+  },
+  "customer_database_mutations": 0,
+  "owner_browser_flow": "NOT_RUN",
+  "free_bytes": 3224805376,
+  "checker_loaded_profile": "TimeoutStopUSec=5s\nMainPID=310375\nMemoryMax=201326592\nMemorySwapMax=0\nTasksMax=32\nUser=alice-market\nGroup=alisa-store-check\nSupplementaryGroups=988\nReadWritePaths=/run/alice-market\nInaccessiblePaths=/etc/alice-lab /var/lib/alice-lab /etc/alice-market /var/lib/alice-market /etc/alisa-platform /var/lib/alisa-platform /run/credentials -/run/alisa-native-binding/source/market-runtime.before-enable.json\nProtectHome=yes\nProtectSystem=strict\nNoNewPrivileges=yes\nRestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX\nBindReadOnlyPaths=/etc/alisa-store-check/native-pair:/run/alisa-native-binding/bindings:rbind /etc/alice-market:/run/alisa-native-binding/source:rbind /run/credentials/alice-market.service/ozon:/run/alisa-native-binding/credentials/ozon:rbind\nKillMode=control-group\nInvocationID=b4ab13f225654e8680650e2545a2a1f7",
+  "api_invocation": "MainPID=310398\nActiveState=active\nInvocationID=92fa4bc392e148efbb1e37dfea0aa144"
+}

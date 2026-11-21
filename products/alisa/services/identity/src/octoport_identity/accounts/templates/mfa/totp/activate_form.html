@@ -1,0 +1,27 @@
+{% extends "mfa/totp/base.html" %}
+{% load i18n %}
+{% block head_title %}Подключение приложения для кодов{% endblock %}
+{% block content %}
+<h1>Подключение приложения для кодов</h1>
+<p>При входе в админку нужен дополнительный код с телефона. Это приложение подключается один раз.</p>
+<ol>
+  <li>Откройте приложение-аутентификатор на телефоне и выберите добавление аккаунта.</li>
+  <li>Отсканируйте QR-код ниже. Если добавляете аккаунт вручную, используйте длинный ключ под QR-кодом.</li>
+  <li>В нижнее поле введите шесть цифр, которые покажет приложение.</li>
+</ol>
+{% url 'mfa_activate_totp' as action_url %}
+<form method="post" action="{{ action_url }}">
+  {% csrf_token %}
+  <img src="{{ totp_svg_data_uri }}" alt="QR-код для подключения приложения" />
+  <label for="authenticator_secret">Ключ подключения приложения</label>
+  <input id="authenticator_secret" type="text" value="{{ form.secret }}" readonly autocomplete="off" aria-describedby="secret-help">
+  <p id="secret-help">Нужен только для ручного добавления аккаунта в приложение. Это не проверочный код: в нижнее поле его не вводите.</p>
+  {{ form.non_field_errors }}
+  {{ form.code.errors }}
+  <label for="id_code">Проверочный код из приложения — 6 цифр</label>
+  <input id="id_code" name="code" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="123456" required aria-describedby="code-help">
+  <p id="code-help">Возьмите текущие шесть цифр из приложения на телефоне. Они меняются каждые 30 секунд. Код из письма и длинный ключ сюда не подходят.</p>
+  <button type="submit">Активировать</button>
+</form>
+<p>После активации вернитесь ко входу в админку. Он может запросить новый шестизначный код.</p>
+{% endblock %}

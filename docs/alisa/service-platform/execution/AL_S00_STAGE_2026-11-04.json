@@ -1,0 +1,677 @@
+{
+  "observed_at": "2026-11-04T12:35:00Z",
+  "scope": "AL-S00_REAL_STAGE_AUTHOR_QUALIFICATION_INDEPENDENT_HANDOFF_PENDING",
+  "foundation_ready": false,
+  "source": {
+    "r1": "3e763ad761fac377e391e2181f972d9795b7646a",
+    "r2": "29c99f6d9d00f19e14087a85d488a6cf5264ff1b",
+    "branch": "feat/alisa-platform-foundation-v05",
+    "pr": 383,
+    "product_tree": "bc6546a9a1001d73cc814e88565bb99d79abdc56",
+    "source_readback": "public product subtree matches reviewed local snapshot"
+  },
+  "packages": {
+    "r1_sha256": "9967d4f655632b36489148cfabb99de2235613c97391ba2925be6d3c7bbe601c",
+    "r2_sha256": "f8c042561abc0cfd00007a2f61deaadd7de285583b7fd83f812dc7adb3ee37fc",
+    "r1_artifact": 13319228204,
+    "r2_artifact": 13321196792,
+    "r2_archive_sha256": "efbe2d19bfd3e5df5c07041380a90b6ee0f6814ebdf3c4f03a929dfc6f903ecb"
+  },
+  "environment": {
+    "ip": "185.244.51.141",
+    "cpus": 4,
+    "ram_mib": 7941,
+    "owner_tariff": "4 CPU / 8192 MB RAM / 15 GB NVMe",
+    "postgresql": "16.15 Ubuntu",
+    "users": [
+      "alisa-web-stage",
+      "alisa-admin-stage",
+      "alisa-platform-stage",
+      "alisa-identity-stage",
+      "alisa-worker-stage"
+    ],
+    "databases": [
+      "alisa_stage_platform",
+      "alisa_stage_identity"
+    ],
+    "db_role_policy": "separate migration/runtime roles; no web/admin DB credentials",
+    "private_config": "/etc/alisa-platform/stage",
+    "release_root": "/opt/alisa-platform/stage",
+    "stage_ingress": "TLS; engineering Basic plus only loopback and same-server public IP",
+    "protected_nginx_sha256": {
+      "alice-lab.conf": "143620f49afca554582c5770ddec26950d098d40075f2c8d93fce33ac0d94c2e",
+      "default": "ce0901350a021608139b5639cf4ccd7717bef8c3a9e4f79031eb46386b67b03f"
+    }
+  },
+  "ci": {
+    "push_run": 41828542002,
+    "job": 126569444414,
+    "pr_run": 41828551580,
+    "python_source_tests": 32,
+    "node_boundary_assertions": 6,
+    "postgresql_browser_cases": [
+      {
+        "case": "single_artifact_root",
+        "passed": true
+      },
+      {
+        "case": "artifact_integrity",
+        "passed": true,
+        "source_sha": "29c99f6d9d00f19e14087a85d488a6cf5264ff1b"
+      },
+      {
+        "case": "fresh_separate_database_provision",
+        "passed": true
+      },
+      {
+        "case": "initial_and_repeat_migrations",
+        "passed": true
+      },
+      {
+        "case": "identity_uuid_before_auth",
+        "passed": true
+      },
+      {
+        "case": "platform_least_privilege",
+        "passed": true
+      },
+      {
+        "case": "platform_runtime_ddl_denied",
+        "passed": true
+      },
+      {
+        "case": "platform_cross_database_acl_denied",
+        "passed": true
+      },
+      {
+        "case": "platform_cross_database_denied",
+        "passed": true,
+        "sqlstate": null
+      },
+      {
+        "case": "identity_least_privilege",
+        "passed": true
+      },
+      {
+        "case": "identity_runtime_ddl_denied",
+        "passed": true
+      },
+      {
+        "case": "identity_cross_database_acl_denied",
+        "passed": true
+      },
+      {
+        "case": "identity_cross_database_denied",
+        "passed": true,
+        "sqlstate": null
+      },
+      {
+        "case": "synthetic_stage_to_prod_acl_denied",
+        "passed": true
+      },
+      {
+        "case": "synthetic_stage_to_prod_database_denied",
+        "passed": true,
+        "sqlstate": null
+      },
+      {
+        "case": "real_database_readiness",
+        "passed": true
+      },
+      {
+        "case": "unauthorized_direct_call_denied",
+        "passed": true
+      },
+      {
+        "case": "concurrent_duplicate_posts",
+        "passed": true
+      },
+      {
+        "case": "one_durable_probe_and_job",
+        "passed": true
+      },
+      {
+        "case": "conflicting_kind_rejected",
+        "passed": true
+      },
+      {
+        "case": "accepted_probe_survives_api_restart",
+        "passed": true
+      },
+      {
+        "case": "two_worker_processes_exit",
+        "passed": true
+      },
+      {
+        "case": "one_processed_effect",
+        "passed": true
+      },
+      {
+        "case": "repeat_after_processing_no_second_effect",
+        "passed": true
+      },
+      {
+        "case": "processed_probe_survives_restart",
+        "passed": true
+      },
+      {
+        "case": "real_database_refusal_is_503",
+        "passed": true
+      },
+      {
+        "case": "packaged_web_entrypoint_refuses_missing_secret",
+        "passed": true
+      },
+      {
+        "case": "bff_without_admission_denied",
+        "passed": true
+      },
+      {
+        "case": "bff_wrong_origin_denied",
+        "passed": true
+      },
+      {
+        "case": "bff_allowed_host_routes_to_real_database",
+        "passed": true
+      },
+      {
+        "case": "bff_foreign_host_still_denied",
+        "passed": true
+      },
+      {
+        "case": "separate_packaged_admin_starts_without_database_credentials",
+        "passed": true
+      },
+      {
+        "case": "browser_bff_api_postgresql_worker_roundtrip",
+        "passed": true
+      },
+      {
+        "case": "browser_retry_keeps_one_effect",
+        "passed": true
+      },
+      {
+        "case": "recovery_probe_accepted_before_database_outage",
+        "passed": true
+      },
+      {
+        "case": "worker_survives_real_database_connection_denial",
+        "passed": true
+      },
+      {
+        "case": "worker_database_recovery_keeps_one_effect",
+        "passed": true
+      },
+      {
+        "case": "ttl_cleanup_with_probe_disabled",
+        "passed": true
+      },
+      {
+        "case": "old_code_reads_compatible_expanded_schema",
+        "passed": true
+      }
+    ],
+    "qualification_artifact": 13321776107,
+    "qualified_package_build": "PASS on PostgreSQL16.15",
+    "general_repository_docs_ci": "RED: pre-existing navigation/checker failures; PR remains Draft"
+  },
+  "browser_and_restart": {
+    "scope": "REAL_STAGE_AUTHOR_BROWSER_RESTART_AND_RESOURCE_SMOKE",
+    "foundation_ready": false,
+    "release": "alisa-3e763ad761fac377",
+    "checks": [
+      "browser_https_bff_api_postgresql_worker_processed",
+      "same_browser_probe_survives_all_five_service_restarts_without_duplicate",
+      "stage_bff_wrong_origin_denied",
+      "stage_ingress_invalid_basic_denied",
+      "twenty_synthetic_stage_posts_under_smoke"
+    ],
+    "probe_id": "8c9c1c2a-7e00-4742-acf7-ba24da488830",
+    "correlation_id": "bd62d7d3-fe6b-4b42-974b-32d718f95d40",
+    "status": "FAIL_RESOURCE_MEASUREMENT",
+    "resource_sample_errors": [
+      "FileNotFoundError"
+    ],
+    "resource": {
+      "samples": 44,
+      "duration_s": 11.11,
+      "peak_simultaneous_cgroup_bytes": 334127104,
+      "peak_snapshot": {
+        "alisa-web@stage.service": {
+          "memory_bytes": 60657664,
+          "anon_bytes": 58200064,
+          "cpu_usage_usec": 2475789,
+          "oom_kill": 0
+        },
+        "alisa-admin@stage.service": {
+          "memory_bytes": 54022144,
+          "anon_bytes": 51777536,
+          "cpu_usage_usec": 3537999,
+          "oom_kill": 0
+        },
+        "alisa-platform@stage.service": {
+          "memory_bytes": 49971200,
+          "anon_bytes": 49397760,
+          "cpu_usage_usec": 6479643,
+          "oom_kill": 0
+        },
+        "alisa-identity@stage.service": {
+          "memory_bytes": 50954240,
+          "anon_bytes": 50360320,
+          "cpu_usage_usec": 6685083,
+          "oom_kill": 0
+        },
+        "alisa-worker@stage.service": {
+          "memory_bytes": 37982208,
+          "anon_bytes": 37597184,
+          "cpu_usage_usec": 40280156,
+          "oom_kill": 0
+        },
+        "postgresql@16-main.service": {
+          "memory_bytes": 80539648,
+          "anon_bytes": 5734400,
+          "cpu_usage_usec": 117634237,
+          "oom_kill": 0
+        }
+      },
+      "limitations": "Smoke, not capacity test; includes five new app units and PostgreSQL; excludes nginx/OS/existing services/browser observer; 250ms samples. Restart resets per-unit CPU counters.",
+      "per_unit_max_bytes": {
+        "alisa-web@stage.service": 60657664,
+        "alisa-admin@stage.service": 54022144,
+        "alisa-platform@stage.service": 52727808,
+        "alisa-identity@stage.service": 52928512,
+        "alisa-worker@stage.service": 37982208,
+        "postgresql@16-main.service": 82223104
+      },
+      "disk_free_bytes": 7542419456,
+      "mem_available_kib": 6849876
+    }
+  },
+  "release_rollback": {
+    "scope": "REAL_STAGE_R1_R2_R1_COMPATIBLE_MIGRATION_AUTHOR_QUALIFICATION",
+    "foundation_ready": false,
+    "probe_id": "8c9c1c2a-7e00-4742-acf7-ba24da488830",
+    "sequence": [
+      {
+        "release": "alisa-3e763ad761fac377",
+        "readback": {
+          "probe_id": "8c9c1c2a-7e00-4742-acf7-ba24da488830",
+          "kind": "foundation-v1",
+          "correlation_id": "bd62d7d3-fe6b-4b42-974b-32d718f95d40",
+          "state": "PROCESSED",
+          "effect_count": 1,
+          "accepted_release": "alisa-3e763ad761fac377",
+          "processed_release": "alisa-3e763ad761fac377",
+          "environment": "stage",
+          "release": "alisa-3e763ad761fac377"
+        }
+      },
+      {
+        "release": "alisa-29c99f6d9d00f19e",
+        "readback": {
+          "probe_id": "8c9c1c2a-7e00-4742-acf7-ba24da488830",
+          "kind": "foundation-v1",
+          "correlation_id": "bd62d7d3-fe6b-4b42-974b-32d718f95d40",
+          "state": "PROCESSED",
+          "effect_count": 1,
+          "accepted_release": "alisa-3e763ad761fac377",
+          "processed_release": "alisa-3e763ad761fac377",
+          "environment": "stage",
+          "release": "alisa-29c99f6d9d00f19e"
+        },
+        "components": {
+          "web": {
+            "component": "web",
+            "environment": "stage",
+            "release": "alisa-29c99f6d9d00f19e",
+            "status": "READY"
+          },
+          "admin": {
+            "component": "admin",
+            "environment": "stage",
+            "release": "alisa-29c99f6d9d00f19e",
+            "status": "READY"
+          },
+          "platform": {
+            "component": "platform",
+            "status": "READY",
+            "runtime": "RUNTIME_NOT_CONNECTED",
+            "environment": "stage",
+            "release": "alisa-29c99f6d9d00f19e"
+          },
+          "identity": {
+            "component": "identity",
+            "environment": "stage",
+            "release": "alisa-29c99f6d9d00f19e",
+            "status": "READY",
+            "authentication": "NOT_IMPLEMENTED"
+          }
+        }
+      },
+      {
+        "release": "alisa-3e763ad761fac377",
+        "readback": {
+          "probe_id": "8c9c1c2a-7e00-4742-acf7-ba24da488830",
+          "kind": "foundation-v1",
+          "correlation_id": "bd62d7d3-fe6b-4b42-974b-32d718f95d40",
+          "state": "PROCESSED",
+          "effect_count": 1,
+          "accepted_release": "alisa-3e763ad761fac377",
+          "processed_release": "alisa-3e763ad761fac377",
+          "environment": "stage",
+          "release": "alisa-3e763ad761fac377"
+        },
+        "components": {
+          "web": {
+            "component": "web",
+            "environment": "stage",
+            "release": "alisa-3e763ad761fac377",
+            "status": "READY"
+          },
+          "admin": {
+            "component": "admin",
+            "environment": "stage",
+            "release": "alisa-3e763ad761fac377",
+            "status": "READY"
+          },
+          "platform": {
+            "component": "platform",
+            "status": "READY",
+            "runtime": "RUNTIME_NOT_CONNECTED",
+            "environment": "stage",
+            "release": "alisa-3e763ad761fac377"
+          },
+          "identity": {
+            "component": "identity",
+            "environment": "stage",
+            "release": "alisa-3e763ad761fac377",
+            "status": "READY",
+            "authentication": "NOT_IMPLEMENTED"
+          }
+        }
+      },
+      {
+        "release": "alisa-29c99f6d9d00f19e",
+        "readback": {
+          "probe_id": "8c9c1c2a-7e00-4742-acf7-ba24da488830",
+          "kind": "foundation-v1",
+          "correlation_id": "bd62d7d3-fe6b-4b42-974b-32d718f95d40",
+          "state": "PROCESSED",
+          "effect_count": 1,
+          "accepted_release": "alisa-3e763ad761fac377",
+          "processed_release": "alisa-3e763ad761fac377",
+          "environment": "stage",
+          "release": "alisa-29c99f6d9d00f19e"
+        },
+        "components": {
+          "web": {
+            "component": "web",
+            "environment": "stage",
+            "release": "alisa-29c99f6d9d00f19e",
+            "status": "READY"
+          },
+          "admin": {
+            "component": "admin",
+            "environment": "stage",
+            "release": "alisa-29c99f6d9d00f19e",
+            "status": "READY"
+          },
+          "platform": {
+            "component": "platform",
+            "status": "READY",
+            "runtime": "RUNTIME_NOT_CONNECTED",
+            "environment": "stage",
+            "release": "alisa-29c99f6d9d00f19e"
+          },
+          "identity": {
+            "component": "identity",
+            "environment": "stage",
+            "release": "alisa-29c99f6d9d00f19e",
+            "status": "READY",
+            "authentication": "NOT_IMPLEMENTED"
+          }
+        }
+      }
+    ],
+    "initial": {
+      "probe_id": "8c9c1c2a-7e00-4742-acf7-ba24da488830",
+      "kind": "foundation-v1",
+      "correlation_id": "bd62d7d3-fe6b-4b42-974b-32d718f95d40",
+      "state": "PROCESSED",
+      "effect_count": 1,
+      "accepted_release": "alisa-3e763ad761fac377",
+      "processed_release": "alisa-3e763ad761fac377",
+      "environment": "stage",
+      "release": "alisa-3e763ad761fac377"
+    },
+    "migration_apply_stdout": "Operations to perform:\n  Apply all migrations: foundation\nRunning migrations:\n  Applying foundation.0002_pending_job_index... OK\nOperations to perform:\n  Apply all migrations: accounts, auth, contenttypes\nRunning migrations:\n  No migrations to apply.\n",
+    "migration_repeat_stdout": "Operations to perform:\n  Apply all migrations: foundation\nRunning migrations:\n  No migrations to apply.\nOperations to perform:\n  Apply all migrations: accounts, auth, contenttypes\nRunning migrations:\n  No migrations to apply.\n",
+    "status": "PASS",
+    "database_restore_performed": false,
+    "final_release": "alisa-29c99f6d9d00f19e"
+  },
+  "resource_smoke": {
+    "scope": "REAL_STAGE_R2_SMOKE_RESOURCES_WITHOUT_RESTART",
+    "foundation_ready": false,
+    "status": "PASS",
+    "release": "alisa-29c99f6d9d00f19e",
+    "samples": 60,
+    "duration_s": 16.768,
+    "synthetic_posts": 20,
+    "peak_simultaneous_cgroup_bytes": 319291392,
+    "peak_snapshot": {
+      "elapsed_s": 16.18,
+      "units": {
+        "alisa-web@stage.service": {
+          "memory_bytes": 57466880,
+          "rss_upper_bound_bytes": 111239168,
+          "cpu_usage_usec": 1426239,
+          "oom_kill": 0
+        },
+        "alisa-admin@stage.service": {
+          "memory_bytes": 40857600,
+          "rss_upper_bound_bytes": 94195712,
+          "cpu_usage_usec": 1012988,
+          "oom_kill": 0
+        },
+        "alisa-platform@stage.service": {
+          "memory_bytes": 50020352,
+          "rss_upper_bound_bytes": 82984960,
+          "cpu_usage_usec": 947462,
+          "oom_kill": 0
+        },
+        "alisa-identity@stage.service": {
+          "memory_bytes": 50913280,
+          "rss_upper_bound_bytes": 83632128,
+          "cpu_usage_usec": 558777,
+          "oom_kill": 0
+        },
+        "alisa-worker@stage.service": {
+          "memory_bytes": 37920768,
+          "rss_upper_bound_bytes": 57921536,
+          "cpu_usage_usec": 5872073,
+          "oom_kill": 0
+        },
+        "postgresql@16-main.service": {
+          "memory_bytes": 82112512,
+          "rss_upper_bound_bytes": 126754816,
+          "cpu_usage_usec": 155838627,
+          "oom_kill": 0
+        }
+      }
+    },
+    "per_unit": {
+      "alisa-web@stage.service": {
+        "max_cgroup_bytes": 57503744,
+        "max_rss_upper_bound_bytes": 111276032,
+        "cpu_usage_delta_usec": 301037,
+        "average_one_cpu_percent": 1.8,
+        "new_oom_kills": 0
+      },
+      "alisa-admin@stage.service": {
+        "max_cgroup_bytes": 40857600,
+        "max_rss_upper_bound_bytes": 94195712,
+        "cpu_usage_delta_usec": 571,
+        "average_one_cpu_percent": 0,
+        "new_oom_kills": 0
+      },
+      "alisa-platform@stage.service": {
+        "max_cgroup_bytes": 50032640,
+        "max_rss_upper_bound_bytes": 83001344,
+        "cpu_usage_delta_usec": 359487,
+        "average_one_cpu_percent": 2.14,
+        "new_oom_kills": 0
+      },
+      "alisa-identity@stage.service": {
+        "max_cgroup_bytes": 51175424,
+        "max_rss_upper_bound_bytes": 83632128,
+        "cpu_usage_delta_usec": 3757,
+        "average_one_cpu_percent": 0.02,
+        "new_oom_kills": 0
+      },
+      "alisa-worker@stage.service": {
+        "max_cgroup_bytes": 37924864,
+        "max_rss_upper_bound_bytes": 57921536,
+        "cpu_usage_delta_usec": 963958,
+        "average_one_cpu_percent": 5.75,
+        "new_oom_kills": 0
+      },
+      "postgresql@16-main.service": {
+        "max_cgroup_bytes": 82112512,
+        "max_rss_upper_bound_bytes": 126754816,
+        "cpu_usage_delta_usec": 1278085,
+        "average_one_cpu_percent": 7.62,
+        "new_oom_kills": 0
+      }
+    },
+    "disk_free_bytes": 7233085440,
+    "limitations": "Smoke only, not capacity test. Six unit cgroups include app processes and PostgreSQL; excludes existing services, nginx, OS and test browser. RSS sums can double-count shared pages; cgroup totals are primary. No service restart during this measurement.",
+    "mem_available_kib": 6824524
+  },
+  "external_https": [
+    {
+      "host": "alisa-stage.octoport.ru",
+      "path": "/health/ready",
+      "status": 200,
+      "response": "{\"component\":\"web\",\"environment\":\"stage\",\"release\":\"alisa-3e763ad761fac377\",\"status\":\"READY\"}"
+    },
+    {
+      "host": "alisa-admin-stage.octoport.ru",
+      "path": "/health/ready",
+      "status": 200,
+      "response": "{\"component\":\"admin\",\"environment\":\"stage\",\"release\":\"alisa-3e763ad761fac377\",\"status\":\"READY\"}"
+    },
+    {
+      "host": "id-stage.octoport.ru",
+      "path": "/health/ready",
+      "status": 200,
+      "response": "{\"component\": \"identity\", \"environment\": \"stage\", \"release\": \"alisa-3e763ad761fac377\", \"status\": \"READY\", \"authentication\": \"NOT_IMPLEMENTED\"}"
+    },
+    {
+      "host": "alisa-stage.octoport.ru",
+      "path": "/__engineering",
+      "status": 403
+    },
+    {
+      "host": "alisa-stage.octoport.ru",
+      "path": "/api/engineering/probes",
+      "status": 403
+    },
+    {
+      "host": "alisa.octoport.ru",
+      "path": "/",
+      "status": 200,
+      "response": "{\"service\":\"alisa-platform\",\"host\":\"alisa.octoport.ru\",\"environment\":\"prod\",\"application_ready\":false}"
+    },
+    {
+      "host": "alisa-admin.octoport.ru",
+      "path": "/",
+      "status": 200,
+      "response": "{\"service\":\"alisa-platform\",\"host\":\"alisa-admin.octoport.ru\",\"environment\":\"prod\",\"application_ready\":false}"
+    },
+    {
+      "host": "id.octoport.ru",
+      "path": "/",
+      "status": 200,
+      "response": "{\"service\":\"alisa-platform\",\"host\":\"id.octoport.ru\",\"environment\":\"prod\",\"application_ready\":false}"
+    },
+    {
+      "host": "alice-lab.octoport.ru",
+      "path": "/",
+      "status": 200,
+      "response": "EXISTING_ROOT_OK"
+    },
+    {
+      "host": "octoport.ru",
+      "path": "/",
+      "status": 200,
+      "response": "EXISTING_ROOT_OK"
+    }
+  ],
+  "egress_isolation": {
+    "scope": "REAL_STAGE_TEMPORARY_UID_EGRESS_ISOLATION_AUTHOR_QUALIFICATION",
+    "foundation_ready": false,
+    "owned_uids": [
+      995,
+      994,
+      993,
+      990,
+      988
+    ],
+    "status": "PASS",
+    "old_loopback_tcp_denied": true,
+    "before_roundtrip": {
+      "alisa-owned-upstream": 18,
+      "alisa-owned-response": 0,
+      "alisa-stage-denied": 1
+    },
+    "browser_result": {
+      "probe_id": "185c2b68-c9f7-4753-aa39-d3c4f0fb4716",
+      "kind": "foundation-v1",
+      "correlation_id": "6a781582-499f-4536-b11a-bcbbbd9703d9",
+      "state": "PROCESSED",
+      "effect_count": 1,
+      "accepted_release": "alisa-29c99f6d9d00f19e",
+      "processed_release": "alisa-29c99f6d9d00f19e",
+      "environment": "stage",
+      "release": "alisa-29c99f6d9d00f19e"
+    },
+    "after_roundtrip": {
+      "alisa-owned-upstream": 252,
+      "alisa-owned-response": 62,
+      "alisa-stage-denied": 1
+    },
+    "owned_table_removed": true
+  },
+  "historical_failed_attempts": [
+    {
+      "scope": "first browser-resource sampler",
+      "result": "one FileNotFoundError during intentional service restart; functional browser checks passed; preserved FAIL_RESOURCE_MEASUREMENT; separate stable measurement PASS"
+    },
+    {
+      "scope": "nft preflight",
+      "result": "syntax error caught by nft --check before mutation; corrected bounded test PASS; own table removed"
+    },
+    {
+      "scope": "r1 worker",
+      "result": "transient PostgreSQL connection timeout caused restart; r2 adds bounded backoff and safe events; actual disposable role outage recovery PASS"
+    }
+  ],
+  "renewal": {
+    "current_certificate_expires": "2027-02-02",
+    "lineage": "alisa-platform-bootstrap",
+    "latest_dry_run": "2026-11-04T12:23:54Z",
+    "result": "FAIL_EXTERNAL_RATE_LIMIT",
+    "detail": "ACME staging: urn:ietf:params:acme:error:rateLimited / Service busy; retry later",
+    "production_certificate_unchanged": true,
+    "further_immediate_retries": false
+  },
+  "remaining": [
+    "Independent real stage handoff and18 acceptance case verdicts",
+    "Complete trace/TTL/disabled-probe proof and negative build gate proof",
+    "ACME staged renewal simulation unproven; no further immediate retries",
+    "General repository Documentation CI unresolved outside runtime/matrix ownership"
+  ],
+  "matrix_processor": "EXCLUDED; no marketplace/LLM/payment calls; no old data/config changes",
+  "final_stage_release": "alisa-29c99f6d9d00f19e"
+}

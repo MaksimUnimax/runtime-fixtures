@@ -1,0 +1,94 @@
+{
+  "source_sha": "5dff6e8883e25ac464d6e8c64e4ab5a7280c70f7",
+  "source_tree": "9afeb3e88268606e1d51bdc842093c9be483a7da",
+  "ci": {
+    "platform": 42440668842,
+    "documentation": 42440668853,
+    "identity_candidate": 42440668820,
+    "conclusion": "success"
+  },
+  "packages": {
+    "platform": {
+      "zip_size": 51733627,
+      "zip_sha256": "84de44edb30b19de2cc6669ce9e39662aea2f156e5c29a0647e1cf4bc5f334fb",
+      "tar_size": 51809853,
+      "tar_sha256": "d6c82a021e47b7e7a3cff541df0b77c3862ee2932563507a485c8988f18fa133",
+      "manifest_sha256": "74fc1baa3513550ad463b69984bf5a239e0f58294126cbab9b155cf700afcbc8",
+      "files": 4459,
+      "links": 42
+    },
+    "runtime": {
+      "zip_size": 10112,
+      "zip_sha256": "e5b8ba5283e56dde7a7ac9220015fa71180875ed38f178c25d4d3083acde73df",
+      "tar_size": 9678,
+      "tar_sha256": "da9c60d53033876cc6feba75594024360d084a7270f530def97f6d0447760595",
+      "manifest_sha256": "71db6528ea86cd7a112eeed53546cf1b4524a3fab6367ec5da928b4968e8df10",
+      "files": 7,
+      "links": 0
+    }
+  },
+  "qualification": {
+    "postgresql-browser-qualification.json": {
+      "status": null,
+      "cases": 96,
+      "tests_run": null,
+      "scope": "DISPOSABLE_POSTGRESQL_AND_PACKAGED_UI_AUTHOR_QUALIFICATION"
+    },
+    "rt-check-baseline-qualification.json": {
+      "status": "PASS",
+      "cases": 0,
+      "tests_run": null,
+      "scope": "PINNED_R01_CORE_HTTP_EXTRACTION_OFFLINE_NOT_CURRENT_INSTALLED_CORE"
+    },
+    "rt-check-qualification.json": {
+      "status": "PASS",
+      "cases": 26,
+      "tests_run": 26,
+      "scope": "RT_CHECK_SOURCE_REAL_LOOPBACK_TLS_UNIX_NOT_LIVE_PROVIDER_NOT_INSTALLED"
+    },
+    "s02-open-registration-qualification.json": {
+      "status": "SOURCE_FLOW_QUALIFIED_NOT_STAGE_ACCEPTANCE",
+      "cases": 140,
+      "tests_run": null,
+      "scope": "S02_FULL_DISPOSABLE_HTTPS_BROWSER_QUALIFICATION_NOT_STAGE_ACCEPTANCE"
+    },
+    "s02-qualification.json": {
+      "status": "SOURCE_FLOW_QUALIFIED_NOT_STAGE_ACCEPTANCE",
+      "cases": 222,
+      "tests_run": null,
+      "scope": "S02_FULL_DISPOSABLE_HTTPS_BROWSER_QUALIFICATION_NOT_STAGE_ACCEPTANCE"
+    },
+    "s02-runtime-policies.json": {
+      "status": "PASS",
+      "cases": 17,
+      "tests_run": null,
+      "scope": "ACTUAL_RUNTIME_POLICIES_DISPOSABLE_ONLY"
+    },
+    "s03-core-qualification.json": {
+      "status": "PASS",
+      "cases": 142,
+      "tests_run": null,
+      "scope": "S03_NATIVE_MFA_AND_PLATFORM_CORE_NOT_BROWSER_NOT_STAGE"
+    },
+    "s04-core-qualification.json": {
+      "status": "PASS",
+      "cases": 36,
+      "tests_run": null,
+      "scope": "S04_POSTGRES_BACKEND_NOT_NATIVE_OIDC_NOT_INSTALLED"
+    },
+    "s05-core-qualification.json": {
+      "status": "PASS",
+      "cases": 42,
+      "tests_run": null,
+      "scope": "S05_DISPOSABLE_POSTGRES_VAULT_UNIX_NOT_REAL_PROVIDER_NOT_INSTALLED"
+    }
+  },
+  "zip_size": 51733627,
+  "zip_sha256": "84de44edb30b19de2cc6669ce9e39662aea2f156e5c29a0647e1cf4bc5f334fb",
+  "tar_size": 51809853,
+  "tar_sha256": "d6c82a021e47b7e7a3cff541df0b77c3862ee2932563507a485c8988f18fa133",
+  "manifest_sha256": "74fc1baa3513550ad463b69984bf5a239e0f58294126cbab9b155cf700afcbc8",
+  "files": 4459,
+  "links": 42
+}
+

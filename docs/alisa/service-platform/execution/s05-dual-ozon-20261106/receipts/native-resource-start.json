@@ -1,0 +1,14 @@
+{
+  "TimeoutStopUSec": "5s",
+  "RuntimeMaxUSec": "3min",
+  "MainPID": "150878",
+  "OOMPolicy": "stop",
+  "ControlGroup": "/system.slice/alisa-s05-dual-resource-9b716ba6-20261106.service",
+  "MemoryMax": "536870912",
+  "MemorySwapMax": "0",
+  "TasksMax": "128",
+  "KillMode": "control-group",
+  "LoadState": "loaded",
+  "ActiveState": "active",
+  "InvocationID": "55e8575ff76f4664a45582d2d3632f53"
+}

@@ -1,0 +1,129 @@
+{
+  "schema": "alice-expressions/v1",
+  "version": "20261104-base-batch01",
+  "formulas": {
+    "drr_ordered": {
+      "label": "ДРР от суммы заказов",
+      "expr": {
+        "op": "percent",
+        "args": [
+          {
+            "metric": "ad_spend"
+          },
+          {
+            "metric": "ordered_revenue"
+          }
+        ]
+      }
+    },
+    "average_ordered_item_price": {
+      "label": "средняя стоимость заказанного товара",
+      "expr": {
+        "op": "divide",
+        "args": [
+          {
+            "metric": "ordered_revenue"
+          },
+          {
+            "metric": "ordered_units"
+          }
+        ]
+      }
+    },
+    "orders_per_day": {
+      "label": "заказанных товаров в среднем за день",
+      "expr": {
+        "op": "per_day",
+        "args": [
+          {
+            "metric": "ordered_units"
+          }
+        ]
+      }
+    },
+    "cart_to_order_rate": {
+      "label": "конверсия корзины в заказ",
+      "expr": {
+        "op": "percent",
+        "args": [
+          {
+            "metric": "ordered_units"
+          },
+          {
+            "metric": "cart_additions"
+          }
+        ]
+      }
+    },
+    "view_to_cart_rate": {
+      "label": "конверсия переходов в корзину",
+      "expr": {
+        "op": "percent",
+        "args": [
+          {
+            "metric": "cart_additions"
+          },
+          {
+            "metric": "card_views"
+          }
+        ]
+      }
+    },
+    "buyout_share": {
+      "label": "доля выкупленных товаров в заказанных",
+      "expr": {
+        "op": "percent",
+        "args": [
+          {
+            "metric": "buyout_units_cohort"
+          },
+          {
+            "metric": "ordered_units"
+          }
+        ]
+      }
+    },
+    "finance_storage_logistics": {
+      "label": "сумма хранения и логистики по финансовому отчёту",
+      "expr": {
+        "op": "add",
+        "args": [
+          {
+            "metric": "finance_storage_cost"
+          },
+          {
+            "metric": "finance_logistics_cost"
+          }
+        ]
+      }
+    },
+    "finance_storage_logistics_share": {
+      "label": "доля хранения и логистики в финансовых продажах",
+      "expr": {
+        "op": "percent",
+        "args": [
+          {
+            "template": "finance_storage_logistics"
+          },
+          {
+            "metric": "finance_sales"
+          }
+        ]
+      }
+    },
+    "accrual_average_buyer_price": {
+      "label": "средняя покупательская сумма на реализованный товар по начислениям",
+      "expr": {
+        "op": "divide",
+        "args": [
+          {
+            "metric": "accrual_sale_amount"
+          },
+          {
+            "metric": "accrual_sale_units"
+          }
+        ]
+      }
+    }
+  }
+}

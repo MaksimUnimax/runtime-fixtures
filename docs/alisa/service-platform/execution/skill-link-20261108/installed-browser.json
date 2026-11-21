@@ -1,0 +1,90 @@
+{
+  "status": "PASS",
+  "scope": "OWN_EXISTING_FIXTURE_NO_SKILL_GRANT_OR_PRIVACY_MUTATION",
+  "cases": [
+    {
+      "case": "private_tmpfs_profile",
+      "passed": true
+    },
+    {
+      "case": "root_disk_reserve",
+      "passed": true
+    },
+    {
+      "case": "tmpfs_browser_capacity",
+      "passed": true
+    },
+    {
+      "case": "memory_browser_reserve",
+      "passed": true
+    },
+    {
+      "case": "existing_private_fixture",
+      "passed": true
+    },
+    {
+      "case": "reserved_own_mailbox",
+      "passed": true
+    },
+    {
+      "case": "bounded_mail_sink",
+      "passed": true
+    },
+    {
+      "case": "canonical_homepage",
+      "passed": true
+    },
+    {
+      "case": "anonymous_alice_page_requires_login",
+      "passed": true
+    },
+    {
+      "case": "native_password_form_directly",
+      "passed": true
+    },
+    {
+      "case": "email_code_at_pinned_identity_origin",
+      "passed": true
+    },
+    {
+      "case": "same_own_customer_logged_in",
+      "passed": true
+    },
+    {
+      "case": "privacy_default_on_exact_control",
+      "passed": true
+    },
+    {
+      "case": "new_page_preserves_product_session",
+      "passed": true
+    },
+    {
+      "case": "foreign_origin_cannot_change_privacy",
+      "passed": true
+    },
+    {
+      "case": "invalid_oauth_client_json_without_login_redirect",
+      "passed": true
+    },
+    {
+      "case": "login_keeps_valid_customer_session",
+      "passed": true
+    },
+    {
+      "case": "customer_and_tenant_stable",
+      "passed": true
+    },
+    {
+      "case": "no_external_browser_activity",
+      "passed": true
+    },
+    {
+      "case": "final_disk_floor",
+      "passed": true
+    }
+  ],
+  "skill_grants_created": 0,
+  "privacy_writes": 0,
+  "marketplace_calls": 0,
+  "real_yandex_broker": "NOT_RUN"
+}

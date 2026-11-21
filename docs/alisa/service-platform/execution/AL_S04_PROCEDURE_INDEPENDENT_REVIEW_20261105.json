@@ -1,0 +1,84 @@
+{
+  "record_type": "AL_S04_PROCEDURE_INDEPENDENT_REVIEW",
+  "review_date": "2026-11-05",
+  "status": "REWORK_REQUIRED_FOR_ACTIVATION",
+  "source_package": {
+    "status": "ACCEPTED_FOR_DECLARED_SOURCE_PACKAGE_SCOPE",
+    "source_sha": "c8666516683e7b2bedc2c1a7d939e9e3c4489d38",
+    "tree_sha": "786126cc26dc094911b891f8600bf94a95353d1f",
+    "release": "alisa-c8666516683e7b2b",
+    "ci_binding_sha256": "253fee65c06f005e71e9acc76ecc374a251915009e7c50302f96263745353823",
+    "package_zip_sha256": "68f91fba8e7cec6eeb2d9ac81c1ba95a4ec554255a469ae95c6dd1f825abae6d",
+    "package_tar_sha256": "81c2bd21d8d9eec6e1a0094f8ecb384b394b1061cb3b7650497b9607ee51345e",
+    "manifest_sha256": "3287fa567545e9598a04e4ba57f7a484814e45195f6cd724bb0532c24b6606f5",
+    "manifest_files": 4433,
+    "manifest_links": 42,
+    "independent_package_checks": {
+      "zip_entry_set_and_hash": "PASS",
+      "tar_hash_and_sidecar": "PASS",
+      "streamed_manifest_file_hashes": "4433_OF_4433_MATCH",
+      "streamed_manifest_symlinks": "42_OF_42_MATCH",
+      "unsafe_or_duplicate_archive_members": 0
+    },
+    "qualification": {
+      "s04_postgresql_core": "36_OF_36_PASS",
+      "packaged_browser": "96_OF_96_PASS",
+      "integrated_https_browser": "159_OF_159_PASS",
+      "s04_named_integrated_browser_cases": "12_OF_12_PASS",
+      "canonical_native_core": "92_OF_92_PASS",
+      "scope_note": "Source/package qualification only; no installed S04 behavior is claimed."
+    },
+    "scope_exclusions": [
+      "Do not execute bundled identity issuer or callback canonicalization commands as part of S04.",
+      "Preserve Identity and shared pointers at the reviewed 482 release.",
+      "No real customer grant, payment, or real-mail batch is authorized by this review."
+    ]
+  },
+  "procedure_files": {
+    "package_copy": {
+      "path": "docs/alisa/service-platform/execution/s04-installed-20261105/install-package.py",
+      "sha256": "2193cc37ecc7369540cd39c1ea744f99a2f41da0c7c0a28d55851fed97ece648",
+      "verdict": "ACCEPTED_FOR_BOUNDED_PACKAGE_COPY_ONLY",
+      "basis": "Pins the reviewed binding bytes; checks exact input tuple, ZIP/tar/manifest hashes and counts; authenticates the existing release installer against package bytes; invokes only deploy --env stage; verifies installed payload and unchanged pointers; checks reserve. It does not activate code, migrate the DB, or edit configuration."
+    },
+    "activation": {
+      "path": "docs/alisa/service-platform/execution/s04-installed-20261105/activate.py",
+      "sha256": "95da259f80054073a30f3ea1f9d9642e0f26d42a784274867dde73f6f5a27054",
+      "verdict": "BLOCKED_PENDING_FINDINGS",
+      "findings": [
+        {
+          "severity": "BLOCKER",
+          "location": "activate.py:47-56,86",
+          "finding": "The preflight verifies source ancestry for admin-current, web-current, and identity-current, but omits site-current and current. site-current is overwritten, and current is preserved. An unexpected or external pointer target can therefore be overwritten without baseline validation.",
+          "minimum_fix": "Before any migration, require all five symlinks to resolve inside the owned releases namespace and verify the expected 482 source for each pointer, or explicitly prove the intended per-pointer baseline. Preserve exact old targets for rollback."
+        },
+        {
+          "severity": "BLOCKER",
+          "location": "activate.py:57-60",
+          "finding": "The canonical URL preflight omits ALISA_CANONICAL_AUTH_ENABLED and ALISA_IDENTITY_ISSUER checks. The c866 web/admin/platform code requires canonical-auth mode and the id.octoport.ru issuer for the already-canonical origins; health readiness may not exercise browser login configuration.",
+          "minimum_fix": "Require the exact canonical-auth flag and issuer in the relevant web, admin, platform, and identity configs before migration or pointer changes; keep the checks secret-free."
+        },
+        {
+          "severity": "BLOCKER",
+          "location": "activate.py:72-75; products/alisa/services/platform/src/alisa_platform/entitlements/migrations/0001_initial.py:17-18",
+          "finding": "The activation plan check only requires the entitlements migration substring and excludes two named initial migrations. It does not prove that no additional migration operation will run. The post-migration check confirms the entitlements row but not the full migration-ledger delta.",
+          "minimum_fix": "Require the parsed migration plan to contain exactly entitlements.0001_initial and compare the pre/post migration ledger so the sole added row is that migration."
+        },
+        {
+          "severity": "BLOCKER",
+          "location": "activate.py:76-77; products/alisa/services/platform/src/alisa_platform/entitlements/migrations/0001_initial.py:17-18",
+          "finding": "Activation verifies only runtime UPDATE denial. The migration revokes UPDATE, DELETE, and TRUNCATE on accessgrant, accessadjustment, and accesspreview; actual-stage verification does not currently confirm all nine table/privilege combinations.",
+          "minimum_fix": "Before enabling the capability, verify UPDATE, DELETE, and TRUNCATE are denied for the runtime role on each of the three immutable tables."
+        }
+      ]
+    },
+    "rollout_document": {
+      "path": "docs/alisa/service-platform/execution/AL_S04_ROLLOUT_20261105.md",
+      "verdict": "STALE_AND_CONFLICTING",
+      "finding": "The document still binds a008 and the previous 0f22/3e91/b8a5/77d0 baseline, old admin origin, and the retired inactive-payload hardlink installer. It does not describe the c866/482 canonical baseline or the current normal-copy installer/activation scripts.",
+      "minimum_fix": "Replace the rollout steps and bindings with the exact c866 package tuple, current 482 pointer/origin baseline, reviewed normal-copy procedure, resource budget, rollback behavior, and READY_FOR_OWNER_TEST limit before activation."
+    }
+  },
+  "installed_status": "OPEN",
+  "installed_acceptance": "Not performed by this reviewer. Require fresh read-only host readback and owner-run functional test; no OWNER role creation or handover."
+}

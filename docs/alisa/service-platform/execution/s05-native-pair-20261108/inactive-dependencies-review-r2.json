@@ -1,0 +1,25 @@
+{
+  "review": "AL_S05_NATIVE_PAIR_INACTIVE_DEPENDENCY_REPAIR_REVIEW_R2",
+  "date": "2026-11-08",
+  "verdict": "PASS_DELTA_FOR_READ_ONLY_PLAN_THEN_APPLY_REVIEW",
+  "scope": "Read-only static review of the exact updated inactive dependency helper. No execution, tests, host/provider/DB/browser calls, or source edits.",
+  "script": "docs/alisa/service-platform/execution/s05-native-pair-20261108/inactive-dependencies.py",
+  "script_sha256": "f9ae1af0bdf832bc0a3be2445ac9fb050240b831bcd75a2a0add78a877ce8c7a",
+  "prior_resource_hold_sha256": "50b4d28688579f294eacd3dc58e04c8a5d95f0a859aa224f58edb50a1918879c",
+  "delta_findings": {
+    "bounded_start_reserve": "The initial gate now reserves 1 MiB for bounded repair metadata instead of requiring the already-breached 3 GiB floor before the repair can start.",
+    "plan_mode": "Plan still enumerates only exact identical eligible dependency files, performs no link/unlink or package-byte mutation, reports planned gain and whether it can meet the admission condition, then exits through its plan receipt.",
+    "apply_admission": "Apply requires both at least 8 MiB of exact planned allocated-block gain and `free_before + planned_gain >= 3 GiB + 8 MiB`. This covers the reported ~1.5 MiB deficit plus margin without weakening the reserve.",
+    "postcondition": "After linking, the helper still requires actual free space >= 3 GiB + 8 MiB, exact package file/link manifest integrity, and byte preservation. The 64 MiB maximum and per-inode/per-link/process-reference checks remain."
+  },
+  "deployment_gate": "The R1 resource blocker is resolved. A plan may now be run read-only; do not apply unless the plan receipt proves the minimum gain and a fresh pre-apply state still satisfies the exact admission equation. Preserve the 3 GiB+8 MiB postcondition and all active-inode guards.",
+  "reviewer_actions": {
+    "script_executed": false,
+    "tests_run": false,
+    "host_calls": false,
+    "provider_calls": false,
+    "db_calls": false,
+    "browser_calls": false,
+    "code_modified": false
+  }
+}

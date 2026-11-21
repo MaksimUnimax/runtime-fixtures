@@ -1,0 +1,32 @@
+{
+  "review": "AL_S05_NATIVE_PAIR_INACTIVE_DEPENDENCY_REPAIR_REVIEW_R3",
+  "date": "2026-11-08",
+  "verdict": "HOLD_UNMANIFESTED_TARGET_PATHS_NOT_GUARDED",
+  "scope": "Read-only static review of exact R3 helper. No plan/apply execution, tests, host/provider/DB/browser calls, or source edits.",
+  "script": "docs/alisa/service-platform/execution/s05-native-pair-20261108/inactive-dependencies-r3.py",
+  "script_sha256": "70746074436ce97f2bc6f75b91c67d44670ac180dcc41d11e5d3c2ef75ef3bd0",
+  "reviewed_manifest_sha256": "74fc1baa3513550ad463b69984bf5a239e0f58294126cbab9b155cf700afcbc8",
+  "resolved_r2_resource_gate": "PASS: plan/apply admission is gain-based with at least 8 MiB expected gain, free+gain >= 3 GiB+8 MiB, and an actual post-repair >=3 GiB+8 MiB reserve. The plan branch performs no dependency links or removals.",
+  "blocking_finding": {
+    "id": "TARGET_EXTRA_OR_UNMANIFESTED_PATHS_NOT_IN_PACKAGE_GUARDS",
+    "detail": "The preflight builds `materialized` and `materialized_links` only by iterating manifest-listed entries. It does not inventory the actual target tree and reject unexpected files or symlinks. The later candidate scan iterates all target files and selects by path prefix, so an extra unmanifested dependency path can be linked if a matching inactive source exists. The postcondition checks only manifest-listed files/links and listed absent names, so it also does not prove no extra path was modified. A manifest-listed `files` entry represented by a symlink can pass `is_file()` because pathlib follows symlinks; the script does not explicitly reject that type substitution.",
+    "required_resolution": "Before plan/apply, inventory all actual target regular files and symlinks, reject any path outside the exact manifest file/link set, enforce expected type/hash/link-target for each present entry, and record the exact present/absent sets. Restrict candidate selection to manifest-listed regular files. After applying, compare the actual materialized path set against the recorded set and recheck every listed path's type/content/link target; keep intentionally absent archive paths absent."
+  },
+  "retained_safeguards": [
+    "Exact known target manifest SHA is pinned before source enumeration.",
+    "Eligible sources are still limited to the own inactive-release whitelist and exact byte/mode/owner/xattr matches.",
+    "Active pointers, processes, mapped/open inodes, five rollout locks, per-link rechecks, 64 MiB cap, and private metadata receipt remain.",
+    "The resource floor and gain preconditions are not weakened."
+  ],
+  "deployment_gate": "Do not run plan/apply on this R3 version until actual target paths are exhaustively matched to the pinned partial-package manifest and candidate selection is restricted to that manifest.",
+  "reviewer_actions": {
+    "plan_run": false,
+    "apply_run": false,
+    "tests_run": false,
+    "host_calls": false,
+    "provider_calls": false,
+    "db_calls": false,
+    "browser_calls": false,
+    "code_modified": false
+  }
+}

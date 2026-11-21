@@ -1,0 +1,155 @@
+{
+  "review": "AUTH_NAVIGATION_INSTALLED_INDEPENDENT_REVIEW",
+  "date": "2026-11-08",
+  "verdict": "INSTALLED_RECEIPTS_COHERENT_WITH_OPEN_LIMITS",
+  "scope": "Read-only cross-check of named safe receipts and deployment summary. No host/provider calls, browser run, private-file access, or mutation by reviewer.",
+  "source": {
+    "sha": "da73a089d3125429fe1902e552715ec37c355510",
+    "tree": "214b947a67549c1e9efb369a71c77a03af304d13",
+    "manifest_sha256": "ac98274ac6592ae04def74b5d21181ff210d490ae18cf8ab04db6a5a031dcb9e",
+    "ci_status": "success",
+    "ci_platform": 42445427293,
+    "ci_documentation": 42445427439,
+    "ci_identity_probe": 42445427206,
+    "full_files": 4459,
+    "full_links": 42
+  },
+  "receipt_sha256": {
+    "prepare.json": "c989b4a43f692485229416c6988e013ae3c13faa69c4ab81741e2d4d802d27ca",
+    "activate.json": "ddeca72481f10d0de380d958038a91dc7dcf07c9d28c689e8662e656d3042649",
+    "package-binding.json": "ea283ecd1e91ee51dd33a34cc0d2f21038595549cc93986aed6fff80a05dbc7b",
+    "ci-runtime-qualification.json": "5de66d4c1b2ea08c4c1a0f3efbd6d92c1191217d8e90c1a1303bedf5a8f6044f",
+    "ci-s02-open-registration-qualification.json": "a394f99609270558242b1ff6fa8d91b199b7796367f356ac82ca2cb894e893a1",
+    "ci-s02-qualification.json": "ccd2b04594ce23010e9dc51ec6a51761e7aca92c90aa8d1af16a8f05e187ad4d",
+    "ci-s05-core-qualification.json": "ee910f29267f798c1e6ba5517e3afe95c3e0bc982435d3679f3f05acd0e10cb7",
+    "after-browser-r2.json": "6e0e8b538e7823d515f9a97cb32033c596531e5ffd65e70faa51ca2734b0bc18",
+    "identity-reentry-after.json": "75bbe26d35b4a7b67c9ed56199c52fb0f706cfa5a79c7c87070a203df1183fdc",
+    "final-readback.json": "4254be90695791d9bc5d918660065b2ee572d9c14107c649617615f4fe8197cc"
+  },
+  "install": {
+    "prepare_status": "PASS",
+    "prepare_passed": 35,
+    "prepare_cases": 35,
+    "activation_status": "PASS",
+    "activation_passed": 19,
+    "activation_cases": 19,
+    "manifest_match": true,
+    "activated_pointers": {
+      "web-current": "alisa-da73a089d3125429",
+      "identity-current": "alisa-da73a089d3125429",
+      "site-current": "alisa-06f3c053e7719290",
+      "admin-current": "alisa-06f3c053e7719290",
+      "current": "alisa-482ed11832b666af"
+    },
+    "configs_preserved": true,
+    "protected_services_preserved": true,
+    "migrations_applied": [],
+    "runtime_tar_deployment": "EXCLUDED"
+  },
+  "qualifications": {
+    "runtime_offline": {
+      "status": "PASS",
+      "tests": 1076,
+      "skipped": 0,
+      "forbidden_network_attempts": 0,
+      "live_provider_calls": 0
+    },
+    "browser": {
+      "status": "SOURCE_FLOW_QUALIFIED_NOT_STAGE_ACCEPTANCE",
+      "cases": 246
+    },
+    "open_registration": {
+      "status": "SOURCE_FLOW_QUALIFIED_NOT_STAGE_ACCEPTANCE",
+      "cases": 157
+    },
+    "store_core": {
+      "status": "PASS",
+      "cases": 46
+    }
+  },
+  "installed_browser": {
+    "status": "PASS",
+    "phase": "after",
+    "passed_cases": 15,
+    "cases": 15,
+    "provider_calls": 0,
+    "temporary_storage": "PRIVATE_TMPFS",
+    "navigation": [
+      "alisa.octoport.ru/app",
+      "alisa.octoport.ru/app",
+      "alisa.octoport.ru/app",
+      "alisa.octoport.ru/app",
+      "alisa.octoport.ru/login",
+      "alisa.octoport.ru/login",
+      "id.octoport.ru/accounts/reauthenticate/",
+      "id.octoport.ru/accounts/login/",
+      "id.octoport.ru/accounts/login/code/confirm/",
+      "id.octoport.ru/accounts/login/code/confirm/",
+      "alisa.octoport.ru/app",
+      "alisa.octoport.ru/app"
+    ],
+    "wrong_code_denied": true,
+    "same_account_repeat_login": true,
+    "new_session_minted": true
+  },
+  "identity_reentry": {
+    "status": "PASS",
+    "scope": "OWN_FIXTURE_MISSING_SITE_COOKIE_VALID_IDENTITY_COOKIE_NO_LOGOUT_OR_CREDENTIAL_SUBMISSION",
+    "destination": "/accounts/reauthenticate/",
+    "heading": [
+      "Подтвердите вход в кабинет"
+    ],
+    "stale_success_messages": [],
+    "explicit_continue": true
+  },
+  "final_readback": {
+    "status": "PASS",
+    "checks": {
+      "installed_pointers_match_activation": true,
+      "readiness": true,
+      "configs_preserved": true,
+      "web_identity_profiles_preserved": true,
+      "disk_floor_3gib": true,
+      "inodes_reserve": true,
+      "temporary_runtime_directories_cleaned": true
+    },
+    "pointers": {
+      "web-current": "alisa-da73a089d3125429",
+      "identity-current": "alisa-da73a089d3125429",
+      "site-current": "alisa-06f3c053e7719290",
+      "admin-current": "alisa-06f3c053e7719290",
+      "current": "alisa-482ed11832b666af"
+    },
+    "readiness": {
+      "web-current": true,
+      "identity-current": true,
+      "site-current": true,
+      "admin-current": true
+    },
+    "free_bytes": 3272835072,
+    "three_gib_floor_bytes": 3221225472,
+    "free_above_floor_bytes": 51609600,
+    "free_inodes": 498832,
+    "runtime_directories_cleaned": {
+      "alisa-auth-navigation-browser-r2": true,
+      "alisa-auth-navigation-browser-reentry": true
+    },
+    "migrations_applied": [],
+    "provider_calls": 0,
+    "owner_login": "NOT_RUN"
+  },
+  "open_limits": [
+    "The actual owner login/session and provider verification were not performed; the browser run used an owned example.invalid test account.",
+    "No provider calls, advertising link proof, financial reporting, or voice workflow acceptance is established by this auth-navigation rollout.",
+    "The separate read-only Identity reentry unit profile was collected after the unit stopped and shows defaults; it is explicitly not evidence of loaded resource caps. Its scope did not submit credentials, code, or logout.",
+    "Browser after-r2 loaded profile and bounded tmpfs/disk checks are recorded; reported elapsed/peak-memory numbers are not fields in the JSON receipt reviewed."
+  ],
+  "confidentiality_review": "Only the named safe receipts and public deployment summary were read. Private fixture, cookie, password, email-code, key, and environment files were not read or reproduced.",
+  "reviewer_actions": {
+    "host_calls": false,
+    "provider_calls": false,
+    "browser_run": false,
+    "private_files_read": false,
+    "mutations": false
+  }
+}

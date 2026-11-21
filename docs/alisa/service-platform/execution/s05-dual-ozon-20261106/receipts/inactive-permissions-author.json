@@ -1,0 +1,12 @@
+{
+  "scope": "AUTHOR_INACTIVE_WEB_COMPONENT_OWNERSHIP_AND_WEB_UID_READABILITY",
+  "status": "PASS",
+  "bad_metadata_count": 0,
+  "regular_files_including_venv_manifest": 2181,
+  "directories": 487,
+  "links_including_venv": 25,
+  "readable_selected_files_uid995": 2175,
+  "disk_free_bytes": 3274633216,
+  "free_inodes": 525536,
+  "active_web": "alisa-d9918bcb3695b432"
+}
