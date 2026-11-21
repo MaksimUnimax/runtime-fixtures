@@ -269,6 +269,7 @@ export async function openWorker(env) {
     const ctx = new Context();
     let reserved = false;
     let transportStarted = false;
+    let waitCancelled = false;
     let timer;
     let deadline = req.deadline;
     try {
@@ -344,7 +345,7 @@ export async function openWorker(env) {
         session.append('user/message', message, { surfaceOp: 'append' });
         events = session.snapshotEvents(seed.length);
       } else {
-        const input = { load, ctx, chatId: key, seed, progress:req.grant?.model ? data=>{if(data.stage==='model')req.progress?.(data);} : req.progress, text: req.text, requestId: req.requestId };
+        const input = { load, ctx, chatId: key, seed, progress:req.grant?.model ? undefined : req.progress, text: req.text, requestId: req.requestId };
         let turn;
         if (metered) {
           const runGatewayTurn = req.grant.model ? (await import('./openrouter-turn.mjs')).runRouterTurn
@@ -384,6 +385,7 @@ export async function openWorker(env) {
           watchDeadline();
           turn = await runGatewayTurn({ ...input, grant: req.grant,
             onTransport: () => { transportStarted = true; },
+            onWaitCancelled: () => { waitCancelled = true; },
             gatewayUrl: req.grant.model ? env.HARNESS_ROUTER_LOCAL : env.HARNESS_MODEL_GATEWAY_URL,
             model: req.grant.model || req.grant.directModel || env.HARNESS_CHAT_MODEL,
             reasoningEffort: req.grant.model ? undefined : req.grant.effort,
@@ -417,6 +419,7 @@ export async function openWorker(env) {
       reserved = false;
       return answer;
     } catch (error) {
+      if (waitCancelled) fail('model_wait_cancelled');
       if (transportStarted && !(error instanceof RequestError)) {
         const billing = budget.get(req.grant.operationId);
         if (billing?.budget_hit) {
@@ -431,7 +434,8 @@ export async function openWorker(env) {
       clearTimeout(timer);
       try {
         if (reserved) {
-          if (transportStarted) dispatch.release(key, req.requestId);
+          if (waitCancelled) dispatch.cancel(key, req.requestId);
+          else if (transportStarted) dispatch.release(key, req.requestId);
           else dispatch.discard(key, req.requestId);
         }
       } finally {

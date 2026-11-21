@@ -16,6 +16,7 @@ from starlette.routing import Route
 from .. import coins
 from ..chat_connections import scope_for
 from ..storage import Scope
+from ..operation_grants import active_chat_grant
 from .registry import attached
 
 PLUGIN = "illustrations"
@@ -27,12 +28,13 @@ SCHEMA = """CREATE TABLE IF NOT EXISTS plugin_illustrations(
 
 
 def grant_scope(db,token):
+    digest=hashlib.sha256(token.encode()).hexdigest()
     row=db.execute("""SELECT o.actor_id,o.workspace_id,o.chat_id,o.operation_id,c.cap,r.fx_e4
         FROM usage_grants g JOIN usage_operations o USING(operation_id) JOIN coin_orders c USING(operation_id)
         JOIN coin_ruble_orders r USING(operation_id)
         WHERE g.token_hash=? AND g.expires_at>unixepoch() AND c.closed=0 AND o.source='chat.turn'""",
-        (hashlib.sha256(token.encode()).hexdigest(),)).fetchone()
-    if not row or not attached(db,Scope(*row[:3]),PLUGIN):
+        (digest,)).fetchone()
+    if not row or not active_chat_grant(db,digest) or not attached(db,Scope(*row[:3]),PLUGIN):
         raise HTTPException(403,"Подключите плагин иллюстраций в этом чате.")
     return row
 
@@ -96,16 +98,21 @@ async def create(router,req):
     if not re.fullmatch(r"[A-Za-z0-9_-]{43}",token):
         raise HTTPException(403)
     with router.identity._lock:
-        grant_scope(router.identity._db,token)
+        db=router.identity._db
+        _,_,chat,operation,_,_=grant_scope(db,token)
+        stored=db.execute("SELECT id FROM plugin_illustrations WHERE operation_id=? AND content IS NOT NULL",(operation,)).fetchone()
     fields=await req.json()
     prompt=fields.get("prompt") if isinstance(fields,dict) else None
     if not isinstance(prompt,str) or not 0<len(prompt.strip())<=4000:
         raise HTTPException(400,"Укажите описание иллюстрации.")
-    await router.models()
-    if not router.available():
-        raise HTTPException(503,"Нет связи с OpenRouter.")
+    if stored:
+        return JSONResponse({"url":f"/api/chats/{chat}/illustrations/{stored[0]}"})
+    catalog = await router.models(current_tariff=True)
+    if not catalog:
+        raise HTTPException(503,"Не удалось получить актуальные тарифы OpenRouter. Повторите запрос позже.")
     chat,art,attempt,model=reserve(router,token,prompt)
     if attempt:
+        quote=router.catalog[model]
         try:
             while True:
                 r=await router.http.post("https://openrouter.ai/api/v1/images",headers=router.headers,
@@ -114,6 +121,10 @@ async def create(router,req):
                     break
                 try:
                     await router.wait_limit(token,req,r.headers.get("retry-after"))
+                    catalog=await router.models(current_tariff=True)
+                    current=catalog.get(model,{})
+                    if not current.get("image") or (current["free"],current["imagePrice"]) != (quote["free"],quote["imagePrice"]):
+                        raise HTTPException(409,"Тариф генератора изменился. Проверьте выбор в плагине.")
                     with router.identity._lock:
                         grant_scope(router.identity._db,token)
                 except (HTTPException,asyncio.CancelledError):
@@ -136,7 +147,8 @@ async def create(router,req):
             raise HTTPException(502,"Не удалось подтвердить файл изображения.") from exc
         with router.identity._write() as db:
             db.execute("UPDATE plugin_illustrations SET mime=?,content=? WHERE id=?",(mime,raw,art))
-            grant_scope(db,token)
+        with router.identity._lock:
+            grant_scope(router.identity._db,token)
     return JSONResponse({"url":f"/api/chats/{chat}/illustrations/{art}"})
 
 
@@ -149,5 +161,5 @@ def routes(get_token):
                           (scope.chat_id,req.path_params["id"])).fetchone()
         if not row:
             raise HTTPException(404)
-        return Response(row[1],media_type=row[0],headers={"X-Content-Type-Options":"nosniff"})
+        return Response(row[1],media_type=row[0],headers={"X-Content-Type-Options":"nosniff","Cache-Control":"private, no-store"})
     return [Route("/api/chats/{chat_id}/illustrations/{id}",image)]

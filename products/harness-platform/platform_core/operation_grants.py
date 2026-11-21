@@ -207,6 +207,16 @@ def issue_grant(database_path, scope, *, source, run_key, ttl_seconds=900, coin_
     return OperationGrant(operation_id, workspace, source, token, model, direct_model, effort)
 
 
+def active_chat_grant(db, token_hash):
+    return db.execute("""SELECT 1 FROM usage_grants g JOIN usage_operations o USING(operation_id)
+        JOIN workspaces w ON w.workspace_id=o.workspace_id AND w.owner_id=o.actor_id
+        JOIN chats c ON c.chat_id=o.chat_id AND c.workspace_id=w.workspace_id
+        LEFT JOIN marketplace_retry_windows r ON r.token_hash=g.token_hash
+        LEFT JOIN identity_sessions s ON s.digest=r.session_digest AND s.actor_id=o.actor_id
+        WHERE g.token_hash=? AND g.expires_at>unixepoch() AND o.source='chat.turn'
+          AND (r.session_digest IS NULL OR s.expires_at>unixepoch())""",(token_hash,)).fetchone() is not None
+
+
 def _renew_marketplace_grant(db, token_hash, now):
     return bool(db.execute("""
         UPDATE usage_grants AS g SET expires_at=MAX(expires_at,?)

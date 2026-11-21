@@ -32,8 +32,12 @@ async function api(path, options) {
       403: 'Доступ запрещён', 404: detail.error === 'unavailable' ? 'Действие недоступно' : 'Чат недоступен',
       409: detail.error === 'chat_busy' ? 'Дождитесь завершения запроса в этом чате.' : 'Запрос требует сверки', 413: 'Сообщение слишком длинное',
     };
-    const error = new Error(((path.startsWith('/api/integrations') || path.includes('/plugins')) && /[А-Яа-я]/.test(detail.error||'') ? detail.error : null) ?? reason[status] ?? 'Запрос не выполнен (' + status + ')');
+    const error = new Error(((path.startsWith('/api/integrations') || path.includes('/plugins') || path==='/api/model-settings') && /[А-Яа-я]/.test(detail.error||'') ? detail.error : null) ?? reason[status] ?? 'Запрос не выполнен (' + status + ')');
     error.status = status;
+    if (detail.error === 'model_wait_cancelled') {
+      error.code = 'model_wait_cancelled';
+      error.message = 'Ожидание отменено. Можно отправить новое сообщение.';
+    }
     throw error;
   }
   return payload.body;
@@ -281,7 +285,7 @@ export async function createTransport(data) {
               }
               pending.delete(id);
             } catch(error){
-              if([400,401,402,403,404,413].includes(error.status))pending.delete(id);
+              if([400,401,402,403,404,413].includes(error.status) || error.code==='model_wait_cancelled')pending.delete(id);
               if(!early){live.clear(id,turn.requestId);throw error;}
               live.update(id,{rid:turn.requestId,stage:'failed',text:error.message});
             } finally {

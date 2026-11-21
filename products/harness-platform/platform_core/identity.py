@@ -6,6 +6,7 @@ import hmac
 import re
 import secrets
 from pathlib import Path
+from decimal import Decimal
 from time import time
 from uuid import uuid4
 
@@ -259,13 +260,30 @@ class IdentityStore(Store):
                 else:
                     entry["operationId"] = operation
                 if admin:
-                    attempts = db.execute("""SELECT model,period,usage_json,rate_version FROM coin_attempts
-                        WHERE operation_id=? ORDER BY started_ms,attempt_id""", (operation,))
-                    # Both provider pricing and confirmed adjustments are exact in pico-USD.
-                    provider_usd = coins.display((cost * 10000 // fx if fx else cost * 100 // (conversion * (100 + markup)))) if closed else None
-                    entry["meter"] = {"markupPercent": markup, "rubPerUsd": fx / 10000 if fx else None, "coinsPerUsd": fx / 10000 if fx else conversion, "providerUsd": provider_usd,
-                                      "attempts": [{"model": m, "period": h, "usage": json.loads(u) if u else None,
-                                                    "tariff": v} for m,h,u,v in attempts]}
+                    attempts = []
+                    provider_total = Decimal(0)
+                    cost_complete = True
+                    for model, period, usage, tariff, evidence, bound, charge in db.execute("""
+                        SELECT model,period,usage_json,rate_version,evidence,bound,charge FROM coin_attempts
+                        WHERE operation_id=? ORDER BY started_ms,attempt_id""", (operation,)):
+                        provider_cost = coins.provider_receipt(evidence) if tariff == "openrouter-v1" else None
+                        needs_review = (evidence or "").startswith("openrouter-review-usd:") or (
+                            bound == 0 and bool(provider_cost) and (evidence or "").startswith("openrouter-usd:"))
+                        if provider_cost is not None:
+                            provider_total += provider_cost
+                        elif charge is not None:
+                            usd_units = charge * 10000 // fx if fx else charge * 100 // (conversion * (100 + markup))
+                            provider_total += Decimal(usd_units) / coins.UNIT
+                        else:
+                            cost_complete = False
+                        attempts.append({"model":model,"period":period,"tariff":tariff,
+                                         "usage":json.loads(usage) if usage else None,
+                                         "providerUsd":format(provider_cost,"f") if provider_cost is not None else None,
+                                         "needsReview":needs_review})
+                    entry["meter"] = {"markupPercent":markup,"rubPerUsd":fx / 10000 if fx else None,
+                                      "coinsPerUsd":fx / 10000 if fx else conversion,
+                                      "providerUsd":format(provider_total,"f") if cost_complete and closed else None,
+                                      "attempts":attempts}
                 charges.append(entry)
             meters = {}
             if admin:
@@ -307,16 +325,23 @@ class IdentityStore(Store):
         with self._lock:
             if not self._db.execute("SELECT 1 FROM sqlite_master WHERE name='coin_attempts'").fetchone():
                 return {}
-            rows = self._db.execute(f"""SELECT u.operation_id, o.spent, a.charge, r.fx_e4, a.usage_json, a.rate_version
+            rows = self._db.execute(f"""SELECT u.operation_id, o.spent, a.charge, r.fx_e4, a.usage_json, a.rate_version, a.evidence
                 FROM usage_operations u JOIN coin_order_totals o USING(operation_id)
                 JOIN coin_attempts a USING(operation_id) LEFT JOIN coin_ruble_orders r USING(operation_id)
                 WHERE u.workspace_id=? AND u.actor_id=? AND u.chat_id=? AND u.operation_id IN ({params})""",
                 (scope.workspace_id, scope.actor_id, scope.chat_id, *ids)).fetchall()
         result = {}
-        for operation, spent, charge, fx, raw, tariff in rows:
+        provider_totals = {}
+        for operation, spent, charge, fx, raw, tariff, evidence in rows:
             receipt = result.setdefault(operation, {"coins": coins.display(spent),
                 "rub": coins.display(spent) if fx else None, "pending": False, "tokens": None, "providers": {}})
             receipt["pending"] |= charge is None
+            if fx:
+                usd = coins.provider_receipt(evidence) if tariff == "openrouter-v1" else None
+                if usd is None and charge is not None:
+                    usd = Decimal(charge * 10000 // fx) / coins.UNIT
+                if usd is not None:
+                    provider_totals[operation] = provider_totals.get(operation,Decimal(0)) + usd
             provider = "OpenRouter" if tariff == "openrouter-v1" else "DeepSeek"
             per = receipt["providers"].setdefault(provider, {"input":0,"cache":0,"output":0})
             if raw and (usage := json.loads(raw)):
@@ -328,6 +353,9 @@ class IdentityStore(Store):
                 counts["cache"] += usage.get("cache_read_input_tokens", 0)
                 counts["output"] += usage.get("output_tokens", 0)
                 receipt["tokens"] = counts
+        for op, value in provider_totals.items():
+            if not result[op]["pending"]:
+                result[op]["providerUsd"] = format(value,"f")
         return result
 
     def can_view_costs(self, token: str, scope: Scope) -> bool:

@@ -12,7 +12,9 @@ export function modelDispatchStore(db, fail) {
   const active = db.prepare('SELECT 1 FROM native_model_dispatch WHERE scope_key=? AND active_until>?');
   const insert = db.prepare('INSERT INTO native_model_dispatch VALUES (?,?,?,?,?)');
   const extend = db.prepare('UPDATE native_model_dispatch SET active_until=? WHERE scope_key=? AND request_id=? AND active_until>0');
-  const release = db.prepare('UPDATE native_model_dispatch SET active_until=0 WHERE scope_key=? AND request_id=?');
+  // Positive values are live leases. Zero is closed/uncertain; -1 records an explicit cancellation.
+  const cancelled = -1;
+  const finish = db.prepare('UPDATE native_model_dispatch SET active_until=? WHERE scope_key=? AND request_id=?');
   const discard = db.prepare('DELETE FROM native_model_dispatch WHERE scope_key=? AND request_id=?');
   function atomic(fn) {
     db.exec('BEGIN IMMEDIATE');
@@ -29,6 +31,7 @@ export function modelDispatchStore(db, fail) {
     const row = lookup.get(key, req.requestId);
     if (row && (req.action !== 'turn' || row.input_hash !== digest(req.text))) fail('conflict');
     const now = Date.now();
+    if (row?.active_until === cancelled) fail('model_wait_cancelled');
     if (row) fail(row.active_until > now ? 'busy' : 'turn_unconfirmed');
     if (active.get(key, now)) fail('busy');
   }
@@ -41,7 +44,8 @@ export function modelDispatchStore(db, fail) {
       insert.run(key, req.requestId, digest(req.text), req.grant.operationId, req.deadline);
     },
     extend(key, id, deadline) { extend.run(deadline, key, id); },
-    release(key, id) { release.run(key, id); },
+    release(key, id) { finish.run(0, key, id); },
+    cancel(key, id) { finish.run(cancelled, key, id); },
     discard(key, id) { discard.run(key, id); },
   };
 }

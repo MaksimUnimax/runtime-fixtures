@@ -19,18 +19,21 @@ from platform_core.operation_grants import initialize_grants
 from test_account_browser import running_product
 
 
+from turn_response import observe_turns
+
 PRODUCT = Path(__file__).resolve().parents[2]
 QUESTION = "Как звучал мой первый вопрос в гостевом чате? Процитируй только вопрос."
 
 
-async def send(page, message):
+async def send(page, results, message):
     await page.locator('[data-composer-input][contenteditable=true]').fill(message)
     async with page.expect_response(
         lambda response: response.request.method == "POST" and response.url.endswith("/turns"),
         timeout=140_000,
     ) as sent:
         await page.get_by_role("button", name="Отправить сообщение", exact=True).click()
-    return await sent.value
+    await sent.value
+    return await asyncio.wait_for(results.get(), 140)
 
 
 async def operator(database, command, value, *extra):
@@ -75,6 +78,7 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         browser = await driver.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"))
         self.addAsyncCleanup(browser.close)
         page = await browser.new_page(base_url=base)
+        results = await observe_turns(page)
         await page.goto("/")
         await expect(page.locator('[data-composer-input][contenteditable=true]')).to_be_visible()
         await expect(page).to_have_url(re.compile(r"/app/chats/[a-zA-Z0-9_-]+$"))
@@ -95,7 +99,7 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         history = page.locator('[data-slot="conversation.view"]')
         guest_answers = []
         for question, expected in cases:
-            self.assertEqual((await send(page, question)).status, 200)
+            self.assertEqual((await send(page, results, question))['status'], 200)
             await expect(history.locator('[data-chat-flow-kind="assistant-step"]').last).to_contain_text(expected)
             guest_answers.append(await history.locator('[data-chat-flow-kind="assistant-step"] p').last.inner_text())
         evidence = os.environ.get("HARNESS_FAQ_EVIDENCE")
@@ -119,16 +123,16 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         await page.get_by_role("button",name="Интеграции",exact=True).click()
         await expect(page.get_by_role("heading",name="Интеграции")).to_be_visible()
         await page.get_by_role("dialog").get_by_role("button",name="Закрыть").click()
-        self.assertEqual((await send(page, QUESTION)).status, 402)
+        self.assertEqual((await send(page, results, QUESTION))['status'], 402)
         await expect(page.get_by_text("Недостаточно монет",exact=False).first).to_be_visible()
         self.assertFalse(journal.exists() and journal.stat().st_size)
         with sqlite3.connect(database) as db:
             self.assertEqual(db.execute("SELECT count(*) FROM usage_operations").fetchone()[0], 0)
 
         await operator(database, "grant-coins", "10", "--key", "guest-test", "--reason", "Acceptance")
-        response = await send(page, QUESTION)
-        self.assertEqual(response.status, 200)
-        receipt = await response.json()
+        response = await send(page, results, QUESTION)
+        self.assertEqual(response['status'], 200)
+        receipt = response['body']
         self.assertNotIn("modelCost", receipt)
         self.assertNotIn("operationId", receipt)
         await page.get_by_role("button",name="Баланс",exact=True).click()
@@ -155,7 +159,7 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         await page.reload()
         await expect(page.locator(".model-cost").last).to_contain_text(re.compile(r"\d"), timeout=15_000)
         await operator(database, "set-access", "unpaid")
-        self.assertEqual((await send(page, "Продолжим работу с магазином?")).status, 402)
+        self.assertEqual((await send(page, results, "Продолжим работу с магазином?"))['status'], 402)
         await operator(database, "set-role", "user")
 
         second = await browser.new_page(base_url=base)

@@ -19,7 +19,8 @@ from platform_core.chat_api import create_app
 from platform_core.guest_registration import RegistrationStore
 from platform_core.identity import _secret_digest
 from platform_core.model_router import ModelRouter, egress_client
-from platform_core.operation_grants import issue_grant
+from platform_core.operation_grants import issue_grant, revoke_grant
+from platform_core.coin_review import resolve
 
 
 class RouterOperations(unittest.TestCase):
@@ -71,6 +72,18 @@ class RouterOperations(unittest.TestCase):
         self.seen.append(body)
         if self.reply in ('retry','cancel') and len(self.seen)==1:
             return httpx.Response(429,headers={'Retry-After':'10' if self.reply=='cancel' else '1'})
+        if self.reply=='signed':
+            packets=[
+                {'id':'gen-signed','choices':[{'delta':{'reasoning_details':[{'type':'reasoning.encrypted','data':'fixture-signature','index':0}]}}]},
+                {'id':'gen-signed','choices':[{'delta':{'tool_calls':[{'index':0,'id':'tool-1','function':{'name':'lookup','arguments':'{}'}}]},'finish_reason':'tool_calls'}]},
+            ]
+            return httpx.Response(200,headers={'Content-Type':'text/event-stream'},
+                                  text=''.join('data: '+json.dumps(v)+'\n\n' for v in packets)+'data: [DONE]\n\n')
+        if self.reply=='error-with-id':
+            return httpx.Response(200,headers={'Content-Type':'text/event-stream'},text='data: {"id":"gen-error","error":{"code":502}}\n\n')
+        if self.reply=='price-conflict':
+            return httpx.Response(200,json={'id':'gen-conflict','usage':{'cost':'0.002','prompt_tokens':10,'completion_tokens':2},
+                    'choices':[{'message':{'role':'assistant','content':'ok'},'finish_reason':'stop'}]})
         if self.reply=='lost':
             return httpx.Response(200,headers={'Content-Type':'text/event-stream'},content=b'data: {"id":"gen-fixture","choices":[]}\n\n')
         return httpx.Response(200,json={'id':'gen-fixture','usage':{'cost':0,'prompt_tokens':10,'completion_tokens':2},
@@ -135,6 +148,60 @@ class RouterOperations(unittest.TestCase):
             self.assertEqual(result.result(timeout=4).status_code,409)
         self.assertEqual(len(self.seen),1)
         self.assertEqual(self.attempts()[0][:2],(0,0))
+
+    @unittest.skipUnless(os.environ.get('HARNESS_NODE_MODULES'),'requires pinned native Harness')
+    def test_cancelled_turn_reports_cancellation_on_replay_and_allows_new_message(self):
+        self.reply='cancel'
+        url='/api/chats/'+self.chat
+        def send(rid):
+            return self.client.post(url+'/turns',headers=self.headers,json={'requestId':rid,'text':'Fixture question'})
+        with ThreadPoolExecutor(1) as pool:
+            waiting=pool.submit(send,'cancel-native')
+            deadline=time.monotonic()+12
+            while time.monotonic()<deadline:
+                turn=self.state.progress.turns.get((self.scope,'cancel-native'))
+                if turn and turn.stage=='model_wait':
+                    break
+                time.sleep(.02)
+            self.client.post(url+'/progress/cancel-native/cancel',headers=self.headers).raise_for_status()
+            result=waiting.result(timeout=6)
+        self.assertEqual((result.status_code,result.json()['error']),(409,'model_wait_cancelled'))
+        self.assertEqual(send('cancel-native').json()['error'],'model_wait_cancelled')
+        self.assertEqual(len(self.seen),1)
+        self.assertEqual(send('new-after-cancel').status_code,200)
+        self.assertEqual(len(self.seen),2)
+
+    @unittest.skipUnless(os.environ.get('HARNESS_NODE_MODULES'),'requires pinned native Harness')
+    def test_cancel_after_accepted_tool_preserves_uncertainty_and_does_not_replay(self):
+        url='/api/chats/'+self.chat
+        self.client.post(url+'/plugins',headers=self.headers,json={'plugin':'illustrations','enabled':True}).raise_for_status()
+        self.client.post(url+'/plugins/illustrations/model',headers=self.headers,json={'model':'maker/illustrator','effort':'auto'}).raise_for_status()
+        calls=[]
+        def upstream(req):
+            if not req.url.path.endswith('/chat/completions'):
+                return self.upstream(req)
+            calls.append(req)
+            if len(calls)>1:
+                return httpx.Response(429,headers={'Retry-After':'30'})
+            call={'id':'draw','type':'function','function':{'name':'create_illustration','arguments':'{"prompt":"a circle"}'}}
+            return httpx.Response(200,json={'id':'gen-accepted','usage':{'cost':0,'prompt_tokens':10,'completion_tokens':2},
+                'choices':[{'finish_reason':'tool_calls','message':{'role':'assistant','content':'','tool_calls':[call]}}]})
+        http=httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+        self.addCleanup(self.client.portal.call,http.aclose)
+        def send():
+            return self.client.post(url+'/turns',headers=self.headers,json={'requestId':'cancel-after-tool','text':'Draw a circle'})
+        with patch.object(self.router,'http',http), ThreadPoolExecutor(1) as pool:
+            pending=pool.submit(send)
+            deadline=time.monotonic()+12
+            while time.monotonic()<deadline:
+                live=self.state.progress.turns.get((self.scope,'cancel-after-tool'))
+                if live and live.stage=='model_wait':
+                    break
+                time.sleep(.02)
+            self.client.post(url+'/progress/cancel-after-tool/cancel',headers=self.headers).raise_for_status()
+            self.assertEqual(pending.result(timeout=6).json()['error'],'turn_unconfirmed')
+            self.assertEqual(send().json()['error'],'turn_unconfirmed')
+        self.assertEqual((len(calls),self.image_calls),(2,1))
 
     def test_interrupted_stream_reconciled_once_without_replaying(self):
         self.price='0.000001'
@@ -227,3 +294,145 @@ class RouterOperations(unittest.TestCase):
             finally:
                 release.set()
             self.assertEqual(loading.result(timeout=3).status_code,200)
+
+    def test_positive_receipt_on_free_tariff_waits_for_review_at_zero_user_cost(self):
+        self.reply='price-conflict'
+        self.state.identity.set_admin('owner',True)
+        grant=self.grant()
+        self.assertEqual(self.complete(grant).status_code,200)
+        revoke_grant(self.path,grant.token)
+        wallet=self.client.get('/api/admin/accounts/owner/wallet',headers=self.headers).json()
+        self.assertEqual((wallet['reserved'],wallet['available']),('0','0'))
+        row=wallet['charges'][0]
+        self.assertTrue(row['pending'])
+        self.assertTrue(row['meter']['attempts'][0]['needsReview'])
+        self.assertEqual(row['meter']['attempts'][0]['providerUsd'],'0.002')
+        with self.state.identity._lock:
+            attempt=self.state.identity._db.execute('SELECT attempt_id FROM coin_attempts').fetchone()[0]
+        for _ in range(2):
+            resolve(self.path,attempt,'0.002','provider-statement')
+        row=self.client.get('/api/admin/accounts/owner/wallet',headers=self.headers).json()['charges'][0]
+        self.assertFalse(row['pending'])
+        self.assertFalse(row['meter']['attempts'][0]['needsReview'])
+        self.assertEqual((row['coins'],row['meter']['providerUsd']),('0','0.002'))
+
+    def test_positive_receipt_above_nonzero_reservation_caps_customer_charge(self):
+        self.reply='price-conflict'
+        grant=self.grant()
+        with self.state.identity._write() as db:
+            db.execute("INSERT INTO coin_attempts(attempt_id,operation_id,bound,model,started_ms,rate_version,period) VALUES('paid-cap',?,1000000000,?,0,'openrouter-v1','provider')",(grant.operation_id,self.model))
+        self.router.settle('paid-cap','gen-expensive',{'cost':'0.002','prompt_tokens':10,'completion_tokens':2})
+        self.assertIsNone(self.attempts()[0][1])
+        revoke_grant(self.path,grant.token)
+        for _ in range(2):
+            resolve(self.path,'paid-cap','0.002','provider-statement')
+        with self.state.identity._lock:
+            charge,note=self.state.identity._db.execute("SELECT charge,evidence FROM coin_attempts WHERE attempt_id='paid-cap'").fetchone()
+        self.assertEqual((charge,note),(1000000000,'openrouter-reviewed-usd:0.002:provider-statement'))
+
+    def test_local_capacity_wait_keeps_one_provider_attempt(self):
+        grant=self.grant()
+        self.router.total=32
+        waited=[]
+        async def capacity_released(token,request,delay):
+            waited.append(delay)
+            self.router.total=0
+        with patch.object(self.router,'wait_limit',capacity_released):
+            self.assertEqual(self.complete(grant).status_code,200)
+        self.assertEqual((waited,len(self.seen),len(self.attempts()),self.router.total),([1],1,1,0))
+
+    def test_stream_error_keeps_provider_id_for_reconciliation(self):
+        self.reply='error-with-id'
+        self.assertEqual(self.complete(self.grant()).status_code,502)
+        self.assertEqual(self.attempts()[0][3],'gen-error')
+        self.assertIsNone(self.attempts()[0][1])
+
+    def test_stream_keeps_ordered_reasoning_for_tool_continuation(self):
+        self.reply='signed'
+        response=self.complete(self.grant())
+        self.assertEqual(response.status_code,200)
+        msg=response.json()['message']
+        self.assertEqual(msg['reasoning_details'],[{'type':'reasoning.encrypted','data':'fixture-signature','index':0}])
+        self.assertEqual(msg['content'],'')
+
+    def test_session_expiry_prevents_next_provider_attempt(self):
+        grant=self.grant()
+        self.state.identity.logout(self.token)
+        self.assertEqual(self.complete(grant).status_code,403)
+        self.assertEqual(self.seen,[])
+
+    def test_stored_image_reopens_when_provider_is_unavailable(self):
+        base='/api/chats/'+self.chat+'/plugins'
+        for path,params in [(base,{'plugin':'illustrations','enabled':True}),
+                            (base+'/illustrations/model',{'model':'maker/illustrator','effort':'auto'})]:
+            self.client.post(path,json=params,headers=self.headers).raise_for_status()
+        grant=self.grant()
+        def draw():
+            return httpx.post(self.state.worker.env['HARNESS_ROUTER_LOCAL']+'/illustrate',
+                              json={'prompt':'A circle'},headers={'x-operation':grant.token},trust_env=False)
+        one=draw()
+        one.raise_for_status()
+        with patch.object(self.router,'http',None):
+            two=draw()
+            self.assertEqual(two.status_code,200)
+            self.assertEqual(two.json(),one.json())
+        self.assertEqual(self.image_calls,1)
+
+    def test_failed_image_tariff_refresh_never_uses_old_paid_price(self):
+        saved = self.router.catalog['maker/illustrator']
+        saved.update(free=False, imagePrice=('0.02','0','0','0',0))
+        failed = httpx.AsyncClient(transport=httpx.MockTransport(lambda req: httpx.Response(503)))
+        self.addCleanup(self.client.portal.call, failed.aclose)
+        async def refresh():
+            return await self.router.models(current_tariff=True)
+        with patch.object(self.router, 'http', failed):
+            self.assertEqual(self.client.portal.call(refresh), {})
+        self.assertIn('maker/illustrator', self.router.catalog)
+
+    def test_reconciliation_reaches_attempts_after_fifty_missing_receipts(self):
+        grant=self.grant()
+        with self.state.identity._write() as db:
+            for i in range(51):
+                generation='gen-fixture' if i==50 else 'missing-'+str(i)
+                db.execute("""INSERT INTO coin_attempts(attempt_id,operation_id,bound,model,started_ms,rate_version,period,provider_id)
+                            VALUES(?,?,1000000000,?,0,'openrouter-v1','provider',?)""",
+                           (str(i),grant.operation_id,self.model,generation))
+        for _ in range(2):
+            self.client.portal.call(self.router.reconcile_once)
+        self.assertEqual(self.attempts()[-1][1],960000000)
+
+    @unittest.skipUnless(os.environ.get('HARNESS_NODE_MODULES'),'requires pinned native Harness')
+    def test_native_tool_roundtrip_preserves_signature_and_streams_visible_text_once(self):
+        base='/api/chats/'+self.chat
+        for path,params in [(base+'/plugins',{'plugin':'illustrations','enabled':True}),
+                            (base+'/plugins/illustrations/model',{'model':'maker/illustrator','effort':'auto'})]:
+            self.client.post(path,json=params,headers=self.headers).raise_for_status()
+        signature=[{'type':'reasoning.encrypted','data':'opaque-control','index':0}]
+        calls=[]
+        def handler(req):
+            if not req.url.path.endswith('/chat/completions'):
+                return self.upstream(req)
+            payload=json.loads(req.content)
+            calls.append(payload)
+            if len(calls)==1:
+                delta={'tool_calls':[{'index':0,'type':'function','id':'draw-1','function':{'name':'create_illustration','arguments':'{"prompt":"blue circle"}'}}],
+                       'reasoning_details':signature}
+                reason='tool_calls'
+            else:
+                delta={'content':'Готово'}
+                reason='stop'
+            data={'id':'gen-native-'+str(len(calls)),'choices':[{'delta':delta,'finish_reason':reason}],
+                  'usage':{'cost':0,'prompt_tokens':10,'completion_tokens':2}}
+            return httpx.Response(200,headers={'Content-Type':'text/event-stream'},text='data: '+json.dumps(data)+'\n\ndata: [DONE]\n\n')
+        upstream=httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        self.addCleanup(self.client.portal.call,upstream.aclose)
+        with patch.object(self.router,'http',upstream):
+            result=self.client.post(base+'/turns',headers=self.headers,json={'requestId':'signed-roundtrip','text':'Draw a blue circle.'})
+        self.assertEqual(result.status_code,200,result.text)
+        self.assertEqual(result.json()['text'],'Готово')
+        self.assertEqual(len(calls),2)
+        reply=next(row for row in calls[1]['messages'] if row.get('tool_calls'))
+        self.assertEqual(reply['reasoning_details'],signature)
+        self.assertEqual(self.image_calls,1)
+        self.assertNotIn('opaque-control',self.client.get(base+'/events',headers=self.headers).text)
+        self.assertEqual(self.state.progress.turns[(self.scope,'signed-roundtrip')].text,'Готово')

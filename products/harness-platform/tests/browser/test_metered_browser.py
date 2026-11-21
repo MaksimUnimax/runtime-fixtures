@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 from playwright.async_api import async_playwright, expect
 from test_account_browser import running_product
+from turn_response import observe_turns
 from platform_core.identity import IdentityStore
 from platform_core.operation_grants import initialize_grants
 
@@ -57,6 +58,7 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(browser.close)
         async def send(login, text):
             page = await browser.new_page(base_url=origin)
+            results = await observe_turns(page)
             await page.goto("/login")
             await page.get_by_label("Логин", exact=True).fill(login)
             await page.get_by_label("Пароль", exact=True).fill(password)
@@ -76,7 +78,9 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
             response = await sent.value
             self.assertEqual(response.status, 200)
             await expect(page.locator('[data-slot="conversation.view"]')).to_contain_text("answer to " + text, timeout=30_000)
-            return page, await response.json()
+            terminal = await asyncio.wait_for(results.get(), 30)
+            self.assertEqual(terminal['status'], 200)
+            return page, terminal['body']
 
         (page, receipt), (regular, ordinary) = await asyncio.gather(
             send("browser-fixture", "browser fixture"), send("regular-fixture", "regular fixture"))

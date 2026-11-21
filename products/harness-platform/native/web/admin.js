@@ -12,6 +12,8 @@ function renderCharge(charge) {
       part.textContent = (attempt.tariff==='openrouter-v1'?'OpenRouter':'DeepSeek')+' · '+attempt.model + ' · ' + (u
         ? 'Вход ' + u.input_tokens + ' · Из кэша ' + u.cache_read_input_tokens + ' · Выход ' + u.output_tokens
         : 'Ожидается сверка расхода');
+      if(attempt.needsReview) part.append(' · Требуется сверка тарифа с квитанцией OpenRouter');
+      if(attempt.providerUsd!=null) part.append(' · Сумма по квитанции $'+attempt.providerUsd);
       detail.append(part);
     }
     row.append(detail);
