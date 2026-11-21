@@ -1,3 +1,5 @@
+import hashlib
+import json
 import os
 import re
 import secrets
@@ -6,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Barrier
+from time import monotonic
 from unittest import TestCase, skipUnless
 from unittest.mock import AsyncMock, patch
 
@@ -79,6 +82,36 @@ class GuestRegistrationTests(TestCase):
             self.store.register(guest, "new", PASSWORD, recovery)
         independent = self.store.login("new", PASSWORD + " revised")
         self.assertEqual(self.store.list_chats(independent), [chat])
+
+    def test_locked_worker_journal_keeps_owned_chat_accessible(self):
+        guest, chat = self.store.start_guest()
+        self.store.guest_turn(guest, chat, "draft", "Моя история")
+        token, _ = self.store.register(guest, "owner", PASSWORD, self.store.guest_recovery(guest))
+        other = self.store.login("existing", PASSWORD)
+        foreign = self.store.create_user_chat(other).chat_id
+        scope = self.store.resolve_chat(token, chat)
+        key = hashlib.sha256(json.dumps([scope.actor_id, scope.workspace_id, chat],
+                                        separators=(",", ":")).encode()).hexdigest()
+        self.journals.mkdir()
+        journal = self.journals / "native-chats.sqlite3"
+        fallback = self.store.chat_activity(token, journal)[chat]
+        self.assertIsInstance(fallback, int)
+        latest = fallback + 60000
+        with self.client() as client, sqlite3.connect(journal) as db:
+            client.cookies.set("__Host-harness_session", token)
+            db.execute("CREATE TABLE native_batches(scope_key TEXT, revision INTEGER, events TEXT)")
+            db.execute("INSERT INTO native_batches VALUES(?, 1, ?)", (key, json.dumps([{"time": latest}])))
+            db.commit()
+            db.execute("BEGIN EXCLUSIVE")
+            started = monotonic()
+            self.assertEqual(self.store.chat_activity(token, journal), {chat: fallback})
+            self.assertLess(monotonic() - started, 1)
+            self.assertEqual(client.get(f"/app/chats/{chat}").status_code, 200)
+            self.assertEqual(client.get(f"/app/chats/{foreign}").status_code, 404)
+            with self.assertRaises(AuthenticationError):
+                self.store.chat_activity("invalid", journal)
+            db.rollback()
+            self.assertEqual(self.store.chat_activity(token, journal), {chat: latest})
 
     def test_draft_isolation_pagination_expiry_and_name_collision(self):
         token, chat = self.store.start_guest()
