@@ -35,6 +35,997 @@ describe("B2 feedback/support safety foundation", () => {
   });
 
   it.each([
+    [
+      "bare object",
+      'diagnostic password: { credential: "SYNTHETIC_B06_PRIVATE_OBJECT_01", note: "visible" }',
+      "SYNTHETIC_B06_PRIVATE_OBJECT_01",
+    ],
+    [
+      "bare array",
+      'diagnostic token = [ "SYNTHETIC_B06_PRIVATE_ARRAY_02", "visible" ]',
+      "SYNTHETIC_B06_PRIVATE_ARRAY_02",
+    ],
+    [
+      "nested object",
+      'diagnostic password: { nested: { value: "SYNTHETIC_B06_PRIVATE_NESTED_03" } }',
+      "SYNTHETIC_B06_PRIVATE_NESTED_03",
+    ],
+    [
+      "multiline object",
+      'diagnostic clientSecret: {\n  credential: "SYNTHETIC_B06_PRIVATE_MULTILINE_04"\n}',
+      "SYNTHETIC_B06_PRIVATE_MULTILINE_04",
+    ],
+    [
+      "embedded JSON string",
+      '{"message":"diagnostic password: { credential: \\"SYNTHETIC_B06_PRIVATE_EMBEDDED_05\\" }","requestId":"safe-id-05"}',
+      "SYNTHETIC_B06_PRIVATE_EMBEDDED_05",
+    ],
+  ])(
+    "fails closed on bare object/array credential diagnostics: %s",
+    (_kind, input, canary) => {
+      const redacted = sanitizeFeedbackText(input);
+      expect(redacted).toBe("[REDACTED_SECRET]");
+      expect(redacted).not.toContain(canary);
+    },
+  );
+
+  it("does not discard nonsensitive bare structures or valid quoted JSON siblings", () => {
+    const safe = 'diagnostic labels: { mode: "normal", values: ["one"] }';
+    expect(sanitizeFeedbackText(safe)).toBe(safe);
+    const valid =
+      '{"password":{"credential":"SYNTHETIC_B06_QUOTED_PRIVATE_06"},"requestId":"safe-06"}';
+    expect(JSON.parse(sanitizeFeedbackText(valid))).toEqual({
+      password: "[REDACTED_SECRET]",
+      requestId: "safe-06",
+    });
+  });
+
+  it.each([
+    [
+      "ZWSP after colon",
+      "diagnostic password: \u200B{ credential: 'SYNTH_B06_UNICODE_PRIVATE_01' }",
+      "SYNTH_B06_UNICODE_PRIVATE_01",
+    ],
+    [
+      "word joiner after colon",
+      "diagnostic token: \u2060[ 'SYNTH_B06_UNICODE_PRIVATE_02' ]",
+      "SYNTH_B06_UNICODE_PRIVATE_02",
+    ],
+    [
+      "ZWSP before colon",
+      "diagnostic password\u200B: { credential: 'SYNTH_B06_UNICODE_PRIVATE_03' }",
+      "SYNTH_B06_UNICODE_PRIVATE_03",
+    ],
+    [
+      "word joiner before equals",
+      "diagnostic apiKey\u2060= { credential: 'SYNTH_B06_UNICODE_PRIVATE_04' }",
+      "SYNTH_B06_UNICODE_PRIVATE_04",
+    ],
+    [
+      "ZWNJ after colon",
+      "diagnostic clientSecret: \u200C{ credential: 'SYNTH_B06_UNICODE_PRIVATE_05' }",
+      "SYNTH_B06_UNICODE_PRIVATE_05",
+    ],
+    [
+      "ZWJ before colon",
+      "diagnostic accessToken\u200D: [ 'SYNTH_B06_UNICODE_PRIVATE_06' ]",
+      "SYNTH_B06_UNICODE_PRIVATE_06",
+    ],
+    [
+      "ZWSP inside key",
+      "diagnostic pass\u200Bword: { credential: 'SYNTH_B06_UNICODE_PRIVATE_07' }",
+      "SYNTH_B06_UNICODE_PRIVATE_07",
+    ],
+    [
+      "word joiner inside key",
+      "diagnostic to\u2060ken: [ 'SYNTH_B06_UNICODE_PRIVATE_08' ]",
+      "SYNTH_B06_UNICODE_PRIVATE_08",
+    ],
+    [
+      "hyphenated api-key",
+      "diagnostic api-key: { credential: 'SYNTH_B06_DASH_PRIVATE_01' }",
+      "SYNTH_B06_DASH_PRIVATE_01",
+    ],
+    [
+      "hyphenated api-key with zero-width joiner",
+      "diagnostic api-\u200Bkey: { credential: 'SYNTH_B06_DASH_PRIVATE_02' }",
+      "SYNTH_B06_DASH_PRIVATE_02",
+    ],
+  ])(
+    "fails closed on zero-width credential structure %s",
+    (_kind, text, canary) => {
+      const redacted = sanitizeFeedbackText(text);
+      expect(redacted).toBe("[REDACTED_SECRET]");
+      expect(redacted).not.toContain(canary);
+    },
+  );
+
+  it("preserves Unicode joiners in ordinary noncredential text and valid JSON", () => {
+    const ordinary = "Описание: обычный\u200Cтекст";
+    const noncredential = "diagnostic note: \u200B{ value: 'safe-text' }";
+    expect(sanitizeFeedbackText(ordinary)).toBe(ordinary);
+    expect(sanitizeFeedbackText(noncredential)).toBe(noncredential);
+    const valid =
+      '{"password":{"credential":"SYNTH_B06_UNICODE_PRIVATE_09"},"requestId":"safe-09"}';
+    expect(JSON.parse(sanitizeFeedbackText(valid))).toEqual({
+      password: "[REDACTED_SECRET]",
+      requestId: "safe-09",
+    });
+  });
+
+  it.each([
+    [
+      "quoted JSON password with zero-width space",
+      '{"pass\u200Bword":{"credential":"SYNTH_B06_QUOTED_PRIVATE_01"},"requestId":"safe-01"}',
+      "pass\u200Bword",
+      "SYNTH_B06_QUOTED_PRIVATE_01",
+      "safe-01",
+    ],
+    [
+      "quoted JSON API key with word joiner",
+      '{"api\u2060Key":["SYNTH_B06_QUOTED_PRIVATE_02"],"requestId":"safe-02"}',
+      "api\u2060Key",
+      "SYNTH_B06_QUOTED_PRIVATE_02",
+      "safe-02",
+    ],
+    [
+      "quoted JSON token with zero-width non-joiner",
+      '{"to\u200Cken":{"nested":"SYNTH_B06_QUOTED_PRIVATE_03"},"requestId":"safe-03"}',
+      "to\u200Cken",
+      "SYNTH_B06_QUOTED_PRIVATE_03",
+      "safe-03",
+    ],
+    [
+      "JSON-escaped invisible character in API key",
+      '{"api\\u200BKey":{"value":"SYNTH_B06_QUOTED_PRIVATE_04"},"requestId":"safe-04"}',
+      "api\u200BKey",
+      "SYNTH_B06_QUOTED_PRIVATE_04",
+      "safe-04",
+    ],
+  ])(
+    "redacts invisible characters inside quoted secret keys: %s",
+    (_kind, original, key, canary, requestId) => {
+      const cleaned = sanitizeFeedbackText(original);
+      expect(cleaned).not.toContain(canary);
+      expect(JSON.parse(cleaned)).toEqual({
+        [key]: "[REDACTED_SECRET]",
+        requestId,
+      });
+    },
+  );
+
+  it("redacts a zero-width secret key inside single-quoted pseudo-JSON", () => {
+    const raw =
+      "diagnostic 'pass\u200Bword': { credential: 'SYNTH_B06_QUOTED_PRIVATE_05' }";
+    const cleaned = sanitizeFeedbackText(raw);
+    expect(cleaned).not.toContain("SYNTH_B06_QUOTED_PRIVATE_05");
+    expect(cleaned).toContain("[REDACTED_SECRET]");
+  });
+
+  it.each([
+    ['{"api key":"SYNTH_SPACE_01","requestId":"safe"}', "string"],
+    ['{"api key":{"value":"SYNTH_SPACE_02"},"requestId":"safe"}', "nested"],
+    ['{"api\\u0020key":["SYNTH_SPACE_03"],"requestId":"safe"}', "escaped"],
+  ])("redacts spaced quoted API key (%s)", (raw) => {
+    expect(JSON.parse(sanitizeFeedbackText(raw))).toEqual({
+      "api key": "[REDACTED_SECRET]",
+      requestId: "safe",
+    });
+  });
+
+  it.each([
+    "diagnostic API key: SYNTH_SPACE_04",
+    "diagnostic api key: { value: 'SYNTH_SPACE_05' }",
+    "diagnostic api key: 'SYNTH_SPACE_06\nSYNTH_SPACE_06_TAIL'",
+  ])("fails closed on spaced bare API key", (raw) => {
+    expect(sanitizeFeedbackText(raw)).toBe("[REDACTED_SECRET]");
+  });
+
+  it.each([
+    ["ZWSP between words", "diagnostic api \u200Bkey: SYNTH_SPACED_DI_01"],
+    ["ZWSP after API", "diagnostic api\u200B key: SYNTH_SPACED_DI_02"],
+    ["word joiner", "diagnostic api\u2060 key: SYNTH_SPACED_DI_03"],
+    ["soft hyphen inside key", "diagnostic api k\u00ADey: SYNTH_SPACED_DI_04"],
+    ["no-break space", "diagnostic api\u00A0key: SYNTH_SPACED_DI_05"],
+    ["thin space", "diagnostic api\u2009key: SYNTH_SPACED_DI_06"],
+    ["raw CR", "diagnostic api\rkey: SYNTH_SPACED_DI_07"],
+    ["raw LF", "diagnostic api\nkey: SYNTH_SPACED_DI_08"],
+    ["fullwidth colon", "diagnostic api key： SYNTH_SPACED_DI_09"],
+  ])(
+    "fails closed on Unicode or multiline bare spaced API key: %s",
+    (_case, raw) => {
+      expect(sanitizeFeedbackText(raw)).toBe("[REDACTED_SECRET]");
+    },
+  );
+
+  it("redacts Unicode-spaced API keys at all feedback persistence boundaries", async () => {
+    const captured: string[] = [];
+    const repository = {
+      createCase: async (
+        input: Parameters<FeedbackRepository["createCase"]>[0],
+      ) => {
+        captured.push(input.description, input.body.description);
+        throw new Error("SYNTH_DI_CASE_CAPTURE");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        captured.push(input.body);
+        throw new Error("SYNTH_DI_FOLLOWUP_CAPTURE");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repository);
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const accountId = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+    const raw = "api \u200Bkey: { value: 'SYNTH_DI_REPOSITORY_PRIVATE' }";
+    await expect(
+      service.createCase(userId, {
+        accountId,
+        category: "OTHER",
+        description: raw,
+      }),
+    ).rejects.toThrow("SYNTH_DI_CASE_CAPTURE");
+    await expect(
+      service.addUserFollowup(userId, caseId, { description: raw }),
+    ).rejects.toThrow("SYNTH_DI_FOLLOWUP_CAPTURE");
+    await expect(
+      service.addAdminFollowup("SUPPORT", userId, caseId, { description: raw }),
+    ).rejects.toThrow("SYNTH_DI_FOLLOWUP_CAPTURE");
+    expect(captured).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+    for (const field of captured) {
+      expect(field).not.toContain("SYNTH_DI_REPOSITORY_PRIVATE");
+    }
+  });
+
+  it.each([
+    [
+      "quoted JSON NBSP",
+      '{"api\u00A0key":"SYNTH_B06_QUOTED_UW_01","requestId":"safe"}',
+      "api\u00A0key",
+      "SYNTH_B06_QUOTED_UW_01",
+    ],
+    [
+      "quoted JSON THIN",
+      '{"api\u2009key":"SYNTH_B06_QUOTED_UW_02","requestId":"safe"}',
+      "api\u2009key",
+      "SYNTH_B06_QUOTED_UW_02",
+    ],
+    [
+      "JSON escaped NBSP",
+      '{"api\\u00a0key":"SYNTH_B06_QUOTED_UW_03","requestId":"safe"}',
+      "api\u00A0key",
+      "SYNTH_B06_QUOTED_UW_03",
+    ],
+    [
+      "nested JSON NBSP",
+      '{"api\u00A0key":{"value":"SYNTH_B06_QUOTED_UW_04"},"requestId":"safe"}',
+      "api\u00A0key",
+      "SYNTH_B06_QUOTED_UW_04",
+    ],
+    [
+      "mixed Unicode/DICP/dash",
+      '{"api \u200B-\u2009key":"SYNTH_B06_QUOTED_UW_05","requestId":"safe"}',
+      "api \u200B-\u2009key",
+      "SYNTH_B06_QUOTED_UW_05",
+    ],
+  ])(
+    "redacts quoted spaced API credentials and preserves safe siblings: %s",
+    (_label, input, key, secret) => {
+      const result = sanitizeFeedbackText(input);
+      expect(result).not.toContain(secret);
+      expect(JSON.parse(result)).toEqual({
+        [key]: "[REDACTED_SECRET]",
+        requestId: "safe",
+      });
+    },
+  );
+
+  it("redacts pseudo-JSON spaced NBSP credentials and preserves benign labels", () => {
+    const sensitive = "diagnostic 'api\u00A0key': 'SYNTH_B06_PSEUDO_UW_06'";
+    const output = sanitizeFeedbackText(sensitive);
+    expect(output).toContain("[REDACTED_SECRET]");
+    expect(output).not.toContain("SYNTH_B06_PSEUDO_UW_06");
+    const harmlessJson =
+      '{"api\u2009label":"SYNTH_B06_SAFE_UW_07","requestId":"safe"}';
+    const harmlessPseudo =
+      "diagnostic 'api\u00A0label': 'SYNTH_B06_SAFE_UW_08'";
+    expect(sanitizeFeedbackText(harmlessJson)).toBe(harmlessJson);
+    expect(sanitizeFeedbackText(harmlessPseudo)).toBe(harmlessPseudo);
+  });
+
+  it("never persists Unicode-spaced quoted or pseudo-JSON secrets through the four feedback sinks", async () => {
+    const captured: string[] = [];
+    const repository = {
+      createCase: async (
+        input: Parameters<FeedbackRepository["createCase"]>[0],
+      ) => {
+        captured.push(input.description, input.body.description);
+        throw new Error("SYNTH_UW_CASE_CAPTURE");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        captured.push(input.body);
+        throw new Error("SYNTH_UW_FOLLOWUP_CAPTURE");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repository);
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const accountId = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+    const inputs = [
+      [
+        '{"api\u00A0key":"SYNTH_UW_SINK_01","requestId":"safe"}',
+        "SYNTH_UW_SINK_01",
+      ],
+      [
+        '{"api\u2009key":{"value":"SYNTH_UW_SINK_02"},"requestId":"safe"}',
+        "SYNTH_UW_SINK_02",
+      ],
+      [
+        '{"api\\u00a0key":["SYNTH_UW_SINK_03"],"requestId":"safe"}',
+        "SYNTH_UW_SINK_03",
+      ],
+      ["diagnostic 'api\u00A0key': 'SYNTH_UW_SINK_04'", "SYNTH_UW_SINK_04"],
+      [
+        '{"api \u200B-\u2009key":"SYNTH_UW_SINK_05","requestId":"safe"}',
+        "SYNTH_UW_SINK_05",
+      ],
+    ] as const;
+    for (const [raw, secret] of inputs) {
+      const prior = captured.length;
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_UW_CASE_CAPTURE");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("SYNTH_UW_FOLLOWUP_CAPTURE");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_UW_FOLLOWUP_CAPTURE");
+      const stored = captured.slice(prior);
+      expect(stored).toHaveLength(4);
+      for (const value of stored) {
+        expect(value).not.toContain(secret);
+        expect(value).toContain("[REDACTED_SECRET]");
+        if (raw.startsWith("{")) {
+          expect(JSON.parse(value).requestId).toBe("safe");
+        }
+      }
+    }
+  });
+
+  it.each([
+    [
+      "quoted JSON literal LF inside api key",
+      'diagnostic {"api\nkey":"SYNTH_MALFORMED_QUOTED_01"}',
+      "SYNTH_MALFORMED_QUOTED_01",
+    ],
+    [
+      "quoted JSON literal CR inside api key",
+      'diagnostic {"api\rkey":"SYNTH_MALFORMED_QUOTED_02"}',
+      "SYNTH_MALFORMED_QUOTED_02",
+    ],
+    [
+      "single-quoted pseudo-JSON literal LF",
+      "diagnostic 'api\nkey': 'SYNTH_MALFORMED_QUOTED_03'",
+      "SYNTH_MALFORMED_QUOTED_03",
+    ],
+    [
+      "quoted JSON CRLF and nested value",
+      'diagnostic {"api\r\nkey":{"value":"SYNTH_MALFORMED_QUOTED_04"}}',
+      "SYNTH_MALFORMED_QUOTED_04",
+    ],
+    [
+      "quoted password split by LF",
+      'diagnostic {"pass\nword":"SYNTH_MALFORMED_QUOTED_05"}',
+      "SYNTH_MALFORMED_QUOTED_05",
+    ],
+  ])(
+    "fails closed on malformed multiline quoted credential key: %s",
+    (_kind, raw, marker) => {
+      const clean = sanitizeFeedbackText(raw);
+      expect(clean).toBe("[REDACTED_SECRET]");
+      expect(clean).not.toContain(marker);
+    },
+  );
+
+  it.each([
+    [
+      "harmless quoted JSON key",
+      'diagnostic {"note\nlabel":"SYNTH_SAFE_MALFORMED_01"}',
+    ],
+    [
+      "harmless pseudo-JSON key",
+      "diagnostic 'note\rlabel': 'SYNTH_SAFE_MALFORMED_02'",
+    ],
+    ["harmless quoted value", 'diagnostic {"note":"SYNTH_SAFE\nTEXT"}'],
+  ])("preserves benign raw multiline diagnostics: %s", (_kind, raw) => {
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+
+  it.each([
+    [
+      "backslash immediately before literal LF",
+      'diagnostic {"api\\\nkey":"SYNTH_MALFORMED_ESCAPE_01"}',
+    ],
+    [
+      "backslash immediately before literal CR",
+      'diagnostic {"api\\\rkey":"SYNTH_MALFORMED_ESCAPE_02"}',
+    ],
+    [
+      "two backslashes before literal LF",
+      'diagnostic {"api\\\\\nkey":"SYNTH_MALFORMED_ESCAPE_03"}',
+    ],
+    [
+      "backslash immediately after literal LF",
+      'diagnostic {"api\n\\key":"SYNTH_MALFORMED_ESCAPE_04"}',
+    ],
+    [
+      "pseudo-JSON escaped literal CR",
+      "diagnostic 'api\\\rkey': 'SYNTH_MALFORMED_ESCAPE_05'",
+    ],
+  ])(
+    "rejects quoted credential key with backslash-adjacent raw line break: %s",
+    (_label, raw) => {
+      const clean = sanitizeFeedbackText(raw);
+      expect(clean).toBe("[REDACTED_SECRET]");
+    },
+  );
+
+  it("preserves harmless quoted raw CR/LF and backslashes in nonsecret names", () => {
+    const safe = [
+      'diagnostic {"note\\\nlabel":"SYNTH_ESC_SAFE_01"}',
+      "diagnostic 'note\\\rlabel': 'SYNTH_ESC_SAFE_02'",
+    ];
+    for (const value of safe) expect(sanitizeFeedbackText(value)).toBe(value);
+  });
+
+  it("never stores backslash-adjacent raw line-break secrets in any feedback sink", async () => {
+    const captured: string[] = [];
+    const repository = {
+      createCase: async (
+        input: Parameters<FeedbackRepository["createCase"]>[0],
+      ) => {
+        captured.push(input.description, input.body.description);
+        throw new Error("SYNTH_ESC_CASE_CAPTURE");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        captured.push(input.body);
+        throw new Error("SYNTH_ESC_FOLLOWUP_CAPTURE");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repository);
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const accountId = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+    for (const raw of [
+      'diagnostic {"api\\\nkey":"SYNTH_ESC_SINK_PRIVATE_01"}',
+      'diagnostic {"api\\\rkey":"SYNTH_ESC_SINK_PRIVATE_02"}',
+      "diagnostic 'api\\\rkey': 'SYNTH_ESC_SINK_PRIVATE_03'",
+    ]) {
+      const before = captured.length;
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_ESC_CASE_CAPTURE");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("SYNTH_ESC_FOLLOWUP_CAPTURE");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_ESC_FOLLOWUP_CAPTURE");
+      const values = captured.slice(before);
+      expect(values).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+    }
+  });
+
+  it.each([
+    [
+      "literal LF then escaped key letter",
+      'diagnostic {"api\nk\\ey":"SYNTH_MALFORMED_KEY_C_01"}',
+      "SYNTH_MALFORMED_KEY_C_01",
+    ],
+    [
+      "literal LF then Unicode escaped k",
+      'diagnostic {"api\n\\u006bey":"SYNTH_MALFORMED_KEY_C_02"}',
+      "SYNTH_MALFORMED_KEY_C_02",
+    ],
+    [
+      "literal CR then Unicode escaped e",
+      'diagnostic {"api\rk\\u0065y":"SYNTH_MALFORMED_KEY_C_03"}',
+      "SYNTH_MALFORMED_KEY_C_03",
+    ],
+    [
+      "literal LF then Unicode escaped thin space",
+      'diagnostic {"api\n\\u2009key":"SYNTH_MALFORMED_KEY_C_04"}',
+      "SYNTH_MALFORMED_KEY_C_04",
+    ],
+    [
+      "literal CR then hexadecimal escaped k",
+      'diagnostic {"api\r\\x6bey":"SYNTH_MALFORMED_KEY_C_05"}',
+      "SYNTH_MALFORMED_KEY_C_05",
+    ],
+    [
+      "literal LF with doubled slash before Unicode escape",
+      'diagnostic {"api\n\\\\u006bey":"SYNTH_MALFORMED_KEY_C_06"}',
+      "SYNTH_MALFORMED_KEY_C_06",
+    ],
+    [
+      "pseudo-JSON split password with escape",
+      "diagnostic 'pass\nw\\ord': 'SYNTH_MALFORMED_KEY_C_07'",
+      "SYNTH_MALFORMED_KEY_C_07",
+    ],
+  ])(
+    "fails closed on encoded secret spellings in raw multiline quoted keys: %s",
+    (_kind, raw, secret) => {
+      const redacted = sanitizeFeedbackText(raw);
+      expect(redacted).toBe("[REDACTED_SECRET]");
+      expect(redacted).not.toContain(secret);
+    },
+  );
+
+  it("preserves benign escaped multiline quoted key text and safe metadata", () => {
+    const controls = [
+      'diagnostic {"note\nla\\bel":"SYNTH_B06_BENIGN_ML_01"}',
+      'diagnostic {"note\n\\u006cevel":"SYNTH_B06_BENIGN_ML_02"}',
+      "diagnostic 'note\nlabel': 'SYNTH_B06_BENIGN_ML_03'",
+    ];
+    for (const raw of controls) expect(sanitizeFeedbackText(raw)).toBe(raw);
+    const valid =
+      '{"api\\u2009key":"SYNTH_B06_VALID_ML_04","requestId":"safe"}';
+    expect(JSON.parse(sanitizeFeedbackText(valid))).toEqual({
+      ["api\u2009key"]: "[REDACTED_SECRET]",
+      requestId: "safe",
+    });
+  });
+
+  it("keeps encoded malformed multiline secrets out of every repository sink", async () => {
+    const captured: string[] = [];
+    const repository = {
+      createCase: async (
+        input: Parameters<FeedbackRepository["createCase"]>[0],
+      ) => {
+        captured.push(input.description, input.body.description);
+        throw new Error("SYNTH_ML_KEY_CASE_CAPTURE");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        captured.push(input.body);
+        throw new Error("SYNTH_ML_KEY_FOLLOWUP_CAPTURE");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repository);
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const accountId = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+    const cases = [
+      ['diagnostic {"api\nk\\ey":"SYNTH_ML_SINK_01"}', "SYNTH_ML_SINK_01"],
+      ['diagnostic {"api\n\\u006bey":"SYNTH_ML_SINK_02"}', "SYNTH_ML_SINK_02"],
+      ['diagnostic {"api\rk\\u0065y":"SYNTH_ML_SINK_03"}', "SYNTH_ML_SINK_03"],
+      ['diagnostic {"api\n\\u2009key":"SYNTH_ML_SINK_04"}', "SYNTH_ML_SINK_04"],
+      ['diagnostic {"api\r\\x6bey":"SYNTH_ML_SINK_05"}', "SYNTH_ML_SINK_05"],
+    ] as const;
+    for (const [raw, secret] of cases) {
+      const before = captured.length;
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_ML_KEY_CASE_CAPTURE");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("SYNTH_ML_KEY_FOLLOWUP_CAPTURE");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_ML_KEY_FOLLOWUP_CAPTURE");
+      const persisted = captured.slice(before);
+      expect(persisted).toHaveLength(4);
+      for (const value of persisted) {
+        expect(value).toBe("[REDACTED_SECRET]");
+        expect(value).not.toContain(secret);
+      }
+    }
+  });
+
+  it.each([
+    [
+      "literal LF and escaped tab",
+      'diagnostic {"api\n\\tkey":"SYNTH_EXTRA_ML_PRIVATE_01"}',
+      "SYNTH_EXTRA_ML_PRIVATE_01",
+    ],
+    [
+      "literal LF and escaped newline",
+      'diagnostic {"api\n\\nkey":"SYNTH_EXTRA_ML_PRIVATE_02"}',
+      "SYNTH_EXTRA_ML_PRIVATE_02",
+    ],
+    [
+      "literal LF and braced Unicode key letter",
+      'diagnostic {"api\n\\u{006b}ey":"SYNTH_EXTRA_ML_PRIVATE_03"}',
+      "SYNTH_EXTRA_ML_PRIVATE_03",
+    ],
+    [
+      "literal LF and braced Unicode separator",
+      'diagnostic {"api\n\\u{2009}key":"SYNTH_EXTRA_ML_PRIVATE_04"}',
+      "SYNTH_EXTRA_ML_PRIVATE_04",
+    ],
+    [
+      "literal CR and escaped backspace",
+      'diagnostic {"api\r\\bkey":"SYNTH_EXTRA_ML_PRIVATE_05"}',
+      "SYNTH_EXTRA_ML_PRIVATE_05",
+    ],
+    [
+      "literal LF and invalid Unicode codepoint",
+      'diagnostic {"api\n\\u{110000}key":"SYNTH_EXTRA_ML_PRIVATE_06"}',
+      "SYNTH_EXTRA_ML_PRIVATE_06",
+    ],
+    [
+      "literal LF and unknown escape after credential prefix",
+      'diagnostic {"api\n\\what":"SYNTH_EXTRA_ML_PRIVATE_07"}',
+      "SYNTH_EXTRA_ML_PRIVATE_07",
+    ],
+  ])(
+    "fails closed on ambiguous multiline credential key escapes: %s",
+    (_kind, raw, secret) => {
+      const sanitized = sanitizeFeedbackText(raw);
+      expect(sanitized).toBe("[REDACTED_SECRET]");
+      expect(sanitized).not.toContain(secret);
+    },
+  );
+
+  it("preserves benign multiline quoted notes containing escape syntax", () => {
+    const benign = [
+      'diagnostic {"note\n\\nlabel":"SYNTH_EXTRA_ML_SAFE_01"}',
+      'diagnostic {"note\n\\u006cevel":"SYNTH_EXTRA_ML_SAFE_02"}',
+      'diagnostic {"note\n\\u{006c}abel":"SYNTH_EXTRA_ML_SAFE_03"}',
+    ];
+    for (const raw of benign) expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+
+  it("keeps ambiguous multiline escaped credentials out of four repository sinks", async () => {
+    const captured: string[] = [];
+    const repository = {
+      createCase: async (
+        input: Parameters<FeedbackRepository["createCase"]>[0],
+      ) => {
+        captured.push(input.description, input.body.description);
+        throw new Error("SYNTH_EXTRA_ML_CASE_CAPTURE");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        captured.push(input.body);
+        throw new Error("SYNTH_EXTRA_ML_FOLLOWUP_CAPTURE");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repository);
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const accountId = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+    const inputs = [
+      'diagnostic {"api\n\\tkey":"SYNTH_EXTRA_ML_SINK_01"}',
+      'diagnostic {"api\n\\u{006b}ey":"SYNTH_EXTRA_ML_SINK_02"}',
+      'diagnostic {"api\n\\u{2009}key":"SYNTH_EXTRA_ML_SINK_03"}',
+      'diagnostic {"api\n\\what":"SYNTH_EXTRA_ML_SINK_04"}',
+    ];
+    for (const raw of inputs) {
+      const before = captured.length;
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_EXTRA_ML_CASE_CAPTURE");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("SYNTH_EXTRA_ML_FOLLOWUP_CAPTURE");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_EXTRA_ML_FOLLOWUP_CAPTURE");
+      const values = captured.slice(before);
+      expect(values).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+    }
+  });
+
+  it("retains valid JSON sibling fields and masks escaped multiline API keys", () => {
+    const raw = '{"api\\nkey":"SYNTH_VALID_ESCAPED_LF","requestId":"safe"}';
+    const clean = sanitizeFeedbackText(raw);
+    expect(clean).not.toContain("SYNTH_VALID_ESCAPED_LF");
+    expect(JSON.parse(clean)).toEqual({
+      ["api\nkey"]: "[REDACTED_SECRET]",
+      requestId: "safe",
+    });
+  });
+
+  it("never stores malformed quoted-key secrets through the four feedback repository inputs", async () => {
+    const captured: string[] = [];
+    const repository = {
+      createCase: async (
+        input: Parameters<FeedbackRepository["createCase"]>[0],
+      ) => {
+        captured.push(input.description, input.body.description);
+        throw new Error("SYNTH_MALFORMED_CASE_CAPTURE");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        captured.push(input.body);
+        throw new Error("SYNTH_MALFORMED_FOLLOWUP_CAPTURE");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repository);
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const accountId = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+    const inputs = [
+      [
+        'diagnostic {"api\nkey":"SYNTH_MALFORMED_SINK_01"}',
+        "SYNTH_MALFORMED_SINK_01",
+      ],
+      [
+        'diagnostic {"api\rkey":"SYNTH_MALFORMED_SINK_02"}',
+        "SYNTH_MALFORMED_SINK_02",
+      ],
+      [
+        "diagnostic 'api\nkey': 'SYNTH_MALFORMED_SINK_03'",
+        "SYNTH_MALFORMED_SINK_03",
+      ],
+      [
+        'diagnostic {"api\r\nkey":{"v":"SYNTH_MALFORMED_SINK_04"}}',
+        "SYNTH_MALFORMED_SINK_04",
+      ],
+      [
+        'diagnostic {"pass\nword":"SYNTH_MALFORMED_SINK_05"}',
+        "SYNTH_MALFORMED_SINK_05",
+      ],
+    ] as const;
+    for (const [raw, marker] of inputs) {
+      const prior = captured.length;
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_MALFORMED_CASE_CAPTURE");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("SYNTH_MALFORMED_FOLLOWUP_CAPTURE");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_MALFORMED_FOLLOWUP_CAPTURE");
+      const stored = captured.slice(prior);
+      expect(stored).toHaveLength(4);
+      for (const value of stored) {
+        expect(value).toBe("[REDACTED_SECRET]");
+        expect(value).not.toContain(marker);
+      }
+    }
+  });
+
+  it("preserves ordinary API labels and masks pseudo-JSON spaced keys", () => {
+    const safe = "diagnostic api label: { value: 'SYNTH_SAFE_07' }";
+    expect(sanitizeFeedbackText(safe)).toBe(safe);
+    const raw = "diagnostic 'api key': { value: 'SYNTH_SPACE_08' }";
+    expect(sanitizeFeedbackText(raw)).toContain("[REDACTED_SECRET]");
+    expect(sanitizeFeedbackText(raw)).not.toContain("SYNTH_SPACE_08");
+  });
+
+  it("redacts spaced API keys before case and followup repository writes", async () => {
+    const captured: string[] = [];
+    const repository = {
+      createCase: async (
+        input: Parameters<FeedbackRepository["createCase"]>[0],
+      ) => {
+        captured.push(input.description, input.body.description);
+        throw new Error("SYNTH_SPACED_CASE_CAPTURE");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        captured.push(input.body);
+        throw new Error("SYNTH_SPACED_FOLLOWUP_CAPTURE");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repository);
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const accountId = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+    const raw = "api key: { value: 'SYNTH_SPACED_PERSIST_SECRET' }";
+    await expect(
+      service.createCase(userId, {
+        accountId,
+        category: "OTHER",
+        description: raw,
+      }),
+    ).rejects.toThrow("SYNTH_SPACED_CASE_CAPTURE");
+    await expect(
+      service.addUserFollowup(userId, caseId, { description: raw }),
+    ).rejects.toThrow("SYNTH_SPACED_FOLLOWUP_CAPTURE");
+    await expect(
+      service.addAdminFollowup("SUPPORT", userId, caseId, { description: raw }),
+    ).rejects.toThrow("SYNTH_SPACED_FOLLOWUP_CAPTURE");
+    expect(captured).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+    expect(captured.join("|")).not.toContain("SYNTH_SPACED_PERSIST_SECRET");
+  });
+
+  it.each([
+    [
+      "CGJ bare object",
+      "diagnostic pass\u034Fword: { value: 'SYNTH_DICP_PRIVATE_01' }",
+      "SYNTH_DICP_PRIVATE_01",
+      null,
+    ],
+    [
+      "soft hyphen quoted JSON",
+      '{"pass\u00ADword":{"value":"SYNTH_DICP_PRIVATE_02"},"requestId":"safe"}',
+      "SYNTH_DICP_PRIVATE_02",
+      "pass\u00ADword",
+    ],
+    [
+      "VS16 bare array",
+      "diagnostic to\uFE0Fken: ['SYNTH_DICP_PRIVATE_03']",
+      "SYNTH_DICP_PRIVATE_03",
+      null,
+    ],
+    [
+      "RLO quoted JSON",
+      '{"api\u202EKey":{"value":"SYNTH_DICP_PRIVATE_04"},"requestId":"safe"}',
+      "SYNTH_DICP_PRIVATE_04",
+      "api\u202EKey",
+    ],
+    [
+      "BOM bare object",
+      "diagnostic pass\uFEFFword: { value: 'SYNTH_DICP_PRIVATE_05' }",
+      "SYNTH_DICP_PRIVATE_05",
+      null,
+    ],
+    [
+      "CGJ bare scalar",
+      "diagnostic pass\u034Fword: SYNTH_DICP_PRIVATE_06",
+      "SYNTH_DICP_PRIVATE_06",
+      null,
+    ],
+    [
+      "RLO bare quoted multiline",
+      "diagnostic pass\u202Eword: 'SYNTH_DICP_PRIVATE_HEAD_07\nSYNTH_DICP_PRIVATE_TAIL_07'",
+      "SYNTH_DICP_PRIVATE_TAIL_07",
+      null,
+    ],
+  ])(
+    "redacts default-ignorable secret key %s",
+    (_kind, raw, marker, jsonKey) => {
+      const redacted = sanitizeFeedbackText(raw);
+      expect(redacted).not.toContain(marker);
+      if (jsonKey === null) {
+        expect(redacted).toBe("[REDACTED_SECRET]");
+      } else {
+        expect(JSON.parse(redacted)).toEqual({
+          [jsonKey]: "[REDACTED_SECRET]",
+          requestId: "safe",
+        });
+      }
+    },
+  );
+
+  it("preserves default-ignorable characters in harmless text and JSON", () => {
+    const ordinary =
+      "diagnostic note\u034FKey: { value: 'SYNTH_DICP_SAFE_08' }";
+    const valid =
+      '{"note\u00ADLabel":{"value":"SYNTH_DICP_SAFE_09"},"requestId":"safe"}';
+    expect(sanitizeFeedbackText(ordinary)).toBe(ordinary);
+    expect(sanitizeFeedbackText(valid)).toBe(valid);
+  });
+
+  it("keeps default-ignorable secret values out of all feedback repository sinks", async () => {
+    const captured: string[] = [];
+    const repository = {
+      createCase: async (
+        input: Parameters<FeedbackRepository["createCase"]>[0],
+      ) => {
+        captured.push(input.description, input.body.description);
+        throw new Error("SYNTH_DICP_CASE_CAPTURED");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        captured.push(input.body);
+        throw new Error("SYNTH_DICP_FOLLOWUP_CAPTURED");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repository);
+    const user = "00000000-0000-4000-8000-000000000001";
+    const account = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+    const raw =
+      "diagnostic pass\u034Fword: { value: 'SYNTH_DICP_PERSIST_PRIVATE_10' }";
+    await expect(
+      service.createCase(user, {
+        accountId: account,
+        category: "OTHER",
+        description: raw,
+      }),
+    ).rejects.toThrow("SYNTH_DICP_CASE_CAPTURED");
+    await expect(
+      service.addUserFollowup(user, caseId, { description: raw }),
+    ).rejects.toThrow("SYNTH_DICP_FOLLOWUP_CAPTURED");
+    await expect(
+      service.addAdminFollowup("SUPPORT", user, caseId, { description: raw }),
+    ).rejects.toThrow("SYNTH_DICP_FOLLOWUP_CAPTURED");
+    expect(captured).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+    for (const value of captured)
+      expect(value).not.toContain("SYNTH_DICP_PERSIST_PRIVATE_10");
+  });
+
+  it("preserves ordinary quoted keys with invisible Unicode joiners", () => {
+    const safeJson =
+      '{"note\u200BLabel":{"value":"SYNTH_B06_PUBLIC_SAFE_06"},"requestId":"safe-06"}';
+    const safePseudo =
+      "diagnostic 'note\u200BLabel': { value: 'SYNTH_B06_PUBLIC_SAFE_07' }";
+    expect(sanitizeFeedbackText(safeJson)).toBe(safeJson);
+    expect(sanitizeFeedbackText(safePseudo)).toBe(safePseudo);
+  });
+
+  it("never sends quoted invisible-key secrets through the case or followup repository", async () => {
+    const forwarded: string[] = [];
+    const repository = {
+      createCase: async (input: {
+        description: string;
+        body: { description: string };
+      }) => {
+        forwarded.push(input.description, input.body.description);
+        throw new Error("SYNTH_B06_CASE_CAPTURED");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        forwarded.push(input.body);
+        throw new Error("SYNTH_B06_FOLLOWUP_CAPTURED");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repository);
+    const description =
+      "diagnostic 'pass\u200Bword': { credential: 'SYNTH_B06_BOUNDARY_PRIVATE_08' }";
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const accountId = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+    await expect(
+      service.createCase(userId, {
+        accountId,
+        category: "OTHER",
+        description,
+      }),
+    ).rejects.toThrow("SYNTH_B06_CASE_CAPTURED");
+    await expect(
+      service.addUserFollowup(userId, caseId, { description }),
+    ).rejects.toThrow("SYNTH_B06_FOLLOWUP_CAPTURED");
+    await expect(
+      service.addAdminFollowup("SUPPORT", userId, caseId, { description }),
+    ).rejects.toThrow("SYNTH_B06_FOLLOWUP_CAPTURED");
+    expect(forwarded).toEqual(
+      Array(4).fill("diagnostic 'pass\u200Bword': '[REDACTED_SECRET]'"),
+    );
+    expect(JSON.stringify(forwarded)).not.toContain(
+      "SYNTH_B06_BOUNDARY_PRIVATE_08",
+    );
+  });
+
+  it.each([
     "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature-value",
     "cookie: session=secret-value",
     "-----BEGIN PRIVATE KEY-----secret-----END PRIVATE KEY-----",
@@ -722,6 +1713,36 @@ describe("B2 feedback/support safety foundation", () => {
     expect(sanitized).not.toContain("SYNTHETIC_PREFIX_TAIL_");
   });
 
+  it.each([
+    [
+      "ZWSP before delimiter",
+      'diagnostic password\u200B: "SYNTH_B06_JOINER_LF_HEAD_A\nSYNTH_B06_JOINER_LF_TAIL_A" requestId=safe',
+    ],
+    [
+      "word joiner within key",
+      'diagnostic pass\u2060word: "SYNTH_B06_JOINER_LF_HEAD_B\nSYNTH_B06_JOINER_LF_TAIL_B" requestId=safe',
+    ],
+    [
+      "ZWNJ within hyphenated key",
+      'diagnostic api\u200C-key: "SYNTH_B06_JOINER_LF_HEAD_C\rSYNTH_B06_JOINER_LF_TAIL_C" requestId=safe',
+    ],
+    [
+      "ZWJ before equals",
+      'diagnostic clientSecret\u200D= "SYNTH_B06_JOINER_LF_HEAD_D\nSYNTH_B06_JOINER_LF_TAIL_D" requestId=safe',
+    ],
+  ])("fails closed on invisible bare %s multiline credential", (_kind, raw) => {
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).toBe("[REDACTED_SECRET]");
+    expect(sanitized).not.toContain("SYNTH_B06_JOINER_LF_HEAD_");
+    expect(sanitized).not.toContain("SYNTH_B06_JOINER_LF_TAIL_");
+  });
+
+  it("preserves noncredential joiner text with a multiline quoted value", () => {
+    const safe =
+      'diagnostic note\u200D: "ordinary first\nordinary second" requestId=safe';
+    expect(sanitizeFeedbackText(safe)).toBe(safe);
+  });
+
   it("preserves harmless bare-key multiline text and masks single-line credentials", () => {
     const safe = 'message: "safe first line\nsafe second line"';
     expect(sanitizeFeedbackText(safe)).toBe(safe);
@@ -765,6 +1786,89 @@ describe("B2 feedback/support safety foundation", () => {
       "SYNTHETIC_RAW_BODY_TAIL_712",
     );
   });
+
+  it.each([
+    [
+      "zero-width before the delimiter",
+      "diagnostic password\u200B: { credential: 'SYNTHETIC_B06_SINK_PRIVATE_01' }",
+      "[REDACTED_SECRET]",
+    ],
+    [
+      "word joiner after the delimiter",
+      "diagnostic token: \u2060['SYNTHETIC_B06_SINK_PRIVATE_02']",
+      "[REDACTED_SECRET]",
+    ],
+    [
+      "zero-width within the credential key",
+      "diagnostic pass\u200Bword: { credential: 'SYNTHETIC_B06_SINK_PRIVATE_03' }",
+      "[REDACTED_SECRET]",
+    ],
+    [
+      "word joiner inside multiline bare password before all writes",
+      'diagnostic pass\u2060word: "SYNTHETIC_B06_SINK_PRIVATE_06\nSYNTHETIC_B06_SINK_PRIVATE_07" requestId=safe',
+      "[REDACTED_SECRET]",
+    ],
+    [
+      "harmless noncredential joiner",
+      "diagnostic note: \u200B{ value: 'safe-text' }",
+      "diagnostic note: \u200B{ value: 'safe-text' }",
+    ],
+    [
+      "hyphenated api-key before case and followup writes",
+      "diagnostic api-key: { credential: 'SYNTHETIC_B06_SINK_PRIVATE_04' }",
+      "[REDACTED_SECRET]",
+    ],
+    [
+      "zero-width within hyphenated api-key before case and followup writes",
+      "diagnostic api-\u200Bkey: { credential: 'SYNTHETIC_B06_SINK_PRIVATE_05' }",
+      "[REDACTED_SECRET]",
+    ],
+  ])(
+    "masks %s before all support repository writes",
+    async (_case, raw, expected) => {
+      const forwarded: string[] = [];
+      const repository = {
+        createCase: async (
+          input: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          forwarded.push(input.description, input.body.description);
+          throw new Error("SYNTHETIC_B06_SINK_CASE_CAPTURED");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          input: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          forwarded.push(input.body);
+          throw new Error("SYNTHETIC_B06_SINK_FOLLOWUP_CAPTURED");
+        },
+      } as unknown as FeedbackRepository;
+      const service = new FeedbackSupportService(repository);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTHETIC_B06_SINK_CASE_CAPTURED");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("SYNTHETIC_B06_SINK_FOLLOWUP_CAPTURED");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTHETIC_B06_SINK_FOLLOWUP_CAPTURED");
+      expect(forwarded).toEqual([expected, expected, expected, expected]);
+      if (expected === "[REDACTED_SECRET]") {
+        expect(JSON.stringify(forwarded)).not.toContain(
+          "SYNTHETIC_B06_SINK_PRIVATE_",
+        );
+      }
+    },
+  );
 
   it("never forwards a bare-key multiline credential to feedback case/followup sinks", async () => {
     const writes: string[] = [];
@@ -1066,5 +2170,1149 @@ describe("B2 feedback/support safety foundation", () => {
       }),
     ).toEqual({ ok: true, value: { accepted: true } });
     expect(event).toBe("first_start");
+  });
+});
+
+describe("B06 full cumulative review P1 — quoted malformed credential keys", () => {
+  const examples = [
+    [
+      "ordinary prose apostrophe before a double-quoted LF key",
+      'can\'t parse {"api\nkey":"SYNTH_B06_P1_PROSE_DOUBLE"}',
+      "SYNTH_B06_P1_PROSE_DOUBLE",
+    ],
+    [
+      "ordinary prose apostrophe before a single-quoted LF key",
+      "can't parse {'api\nkey':'SYNTH_B06_P1_PROSE_SINGLE'}",
+      "SYNTH_B06_P1_PROSE_SINGLE",
+    ],
+    [
+      "word joiner after a double-quoted LF credential key",
+      'diagnostic {"api\nkey"\u2060:"SYNTH_B06_P1_DELIMITER_JOINER"}',
+      "SYNTH_B06_P1_DELIMITER_JOINER",
+    ],
+    [
+      "zero-width space after a single-quoted CR credential key",
+      "diagnostic {'api\rkey'\u200B:'SYNTH_B06_P1_DELIMITER_ZWSP'}",
+      "SYNTH_B06_P1_DELIMITER_ZWSP",
+    ],
+    [
+      "apostrophe and a word joiner both surround one credential key",
+      'can\'t parse {"api\r\nkey"\u2060:"SYNTH_B06_P1_COMBINED"}',
+      "SYNTH_B06_P1_COMBINED",
+    ],
+  ] as const;
+  it.each(examples)(
+    "fails closed on %s before sanitizer output",
+    (_kind, raw, secret) => {
+      const masked = sanitizeFeedbackText(raw);
+      expect(masked).toBe("[REDACTED_SECRET]");
+      expect(masked).not.toContain(secret);
+    },
+  );
+  it.each(examples)(
+    "masks %s in all four actual service-to-repository fields",
+    async (_kind, raw, secret) => {
+      const forwarded: string[] = [];
+      const repository = {
+        createCase: async (
+          input: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          forwarded.push(input.description, input.body.description);
+          throw new Error("SYNTH_P1_CASE_CAPTURED");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          input: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          forwarded.push(input.body);
+          throw new Error("SYNTH_P1_FOLLOWUP_CAPTURED");
+        },
+      } as unknown as FeedbackRepository;
+      const service = new FeedbackSupportService(repository);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_P1_CASE_CAPTURED");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("SYNTH_P1_FOLLOWUP_CAPTURED");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_P1_FOLLOWUP_CAPTURED");
+      expect(forwarded).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+      expect(JSON.stringify(forwarded)).not.toContain(secret);
+    },
+  );
+  it.each([
+    'can\'t parse {"safe\nnote":"normal text"}',
+    'diagnostic {"safe\nnote"\u2060:"normal text"}',
+    "diagnostic {'safe\rnote'\u200B:'normal text'}",
+    "support message with don't and normal\nnew line",
+  ])(
+    "preserves benign multiline text without treating it as a credential: %s",
+    (raw) => {
+      expect(sanitizeFeedbackText(raw)).toBe(raw);
+    },
+  );
+});
+
+describe("B06 mixed-quote nesting guard", () => {
+  it.each([
+    [
+      "single-quote envelope hides a double-quoted LF key",
+      'trace \'outer {"api\nkey":"SYNTH_B06_P1_MIXED_DOUBLE"}\' : next',
+      "SYNTH_B06_P1_MIXED_DOUBLE",
+    ],
+    [
+      "double-quote envelope hides a single-quoted LF key",
+      "trace \"outer {'api\nkey':'SYNTH_B06_P1_MIXED_SINGLE'}\" : next",
+      "SYNTH_B06_P1_MIXED_SINGLE",
+    ],
+  ])("blocks %s", (_label, raw, marker) => {
+    expect(sanitizeFeedbackText(raw)).not.toContain(marker);
+  });
+  it.each([
+    'trace \'outer {"safe\nnote":"normal"}\' : next',
+    "trace \"outer {'safe\nnote':'normal'}\" : next",
+  ])("preserves safe nested quote diagnostic: %s", (raw) => {
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+});
+
+describe("B06 nested quote and invisible delimiter defense in all persistence fields", () => {
+  const examples = [
+    [
+      "single quoted prose hides inner double key with U+2060",
+      'trace \'outer {"api\nkey"\u2060:"SYNTH_B06_P1_NESTED_JOINER"}\' : next',
+      "SYNTH_B06_P1_NESTED_JOINER",
+    ],
+    [
+      "double quoted prose hides inner single key with U+200B",
+      "trace \"outer {'api\rkey'\u200B:'SYNTH_B06_P1_NESTED_ZWSP'}\" : next",
+      "SYNTH_B06_P1_NESTED_ZWSP",
+    ],
+  ] as const;
+  it.each(examples)("masks %s at the sanitizer", (_kind, raw, secret) => {
+    expect(sanitizeFeedbackText(raw)).not.toContain(secret);
+  });
+  it.each(examples)(
+    "masks %s at all four repository fields",
+    async (_kind, raw, secret) => {
+      const forwarded: string[] = [];
+      const repo = {
+        createCase: async (
+          input: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          forwarded.push(input.description, input.body.description);
+          throw new Error("SYNTH_NESTED_CASE_CAPTURED");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          input: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          forwarded.push(input.body);
+          throw new Error("SYNTH_NESTED_FOLLOWUP_CAPTURED");
+        },
+      } as unknown as FeedbackRepository;
+      const service = new FeedbackSupportService(repo);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_NESTED_CASE_CAPTURED");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("SYNTH_NESTED_FOLLOWUP_CAPTURED");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_NESTED_FOLLOWUP_CAPTURED");
+      expect(forwarded).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+      expect(JSON.stringify(forwarded)).not.toContain(secret);
+    },
+  );
+});
+
+describe("B06 quoted inline default-ignorable diagnostic delimiters", () => {
+  const risky = [
+    [
+      "word joiner after apiKey",
+      'diagnostic {"apiKey"\u2060:"SYNTH_B06_P1_INLINE_JOINER"}',
+      "SYNTH_B06_P1_INLINE_JOINER",
+    ],
+    [
+      "ZWSP after token with ordinary prose apostrophe",
+      'can\'t parse {"token"\u200B:"SYNTH_B06_P1_INLINE_ZWSP"}',
+      "SYNTH_B06_P1_INLINE_ZWSP",
+    ],
+    [
+      "ZWNJ after single-quoted password",
+      "diagnostic {'password'\u200C:'SYNTH_B06_P1_INLINE_ZWNJ'}",
+      "SYNTH_B06_P1_INLINE_ZWNJ",
+    ],
+    [
+      "ZWJ before equals",
+      'diagnostic {"clientSecret"\u200D = "SYNTH_B06_P1_INLINE_ZWJ"}',
+      "SYNTH_B06_P1_INLINE_ZWJ",
+    ],
+    [
+      "word joiner after invisible credential key",
+      'diagnostic {"api\u200BKey"\u2060:"SYNTH_B06_P1_INLINE_DOUBLE"}',
+      "SYNTH_B06_P1_INLINE_DOUBLE",
+    ],
+  ] as const;
+  it.each(risky)("fails closed on %s", (_variant, raw, secret) => {
+    const masked = sanitizeFeedbackText(raw);
+    expect(masked).toBe("[REDACTED_SECRET]");
+    expect(masked).not.toContain(secret);
+  });
+  it.each(risky)(
+    "protects all four repository fields for %s",
+    async (_variant, raw, secret) => {
+      const received: string[] = [];
+      const repo = {
+        createCase: async (
+          input: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          received.push(input.description, input.body.description);
+          throw new Error("INLINE_CASE_CAPTURE");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          input: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          received.push(input.body);
+          throw new Error("INLINE_FOLLOWUP_CAPTURE");
+        },
+      } as unknown as FeedbackRepository;
+      const service = new FeedbackSupportService(repo);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("INLINE_CASE_CAPTURE");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("INLINE_FOLLOWUP_CAPTURE");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("INLINE_FOLLOWUP_CAPTURE");
+      expect(received).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+      expect(JSON.stringify(received)).not.toContain(secret);
+    },
+  );
+  it.each([
+    'diagnostic {"requestId"\u2060:"safe-id"}',
+    "diagnostic {'note'\u200B:'normal'}",
+    "text with zero-width \u2060 but no credential",
+    'diagnostic {"safe\nnote"\u2060:"normal"}',
+  ])("preserves benign diagnostic text: %s", (raw) => {
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+});
+
+describe("B06 quoted credential Unicode delimiter after colon P1", () => {
+  const risky = [
+    [
+      "bare password with word joiner after colon",
+      'diagnostic password:\u2060"SYNTH_B06_POSTCOLON_BARE_PASSWORD"',
+      "SYNTH_B06_POSTCOLON_BARE_PASSWORD",
+    ],
+    [
+      "bare apiKey with ZWSP after equals",
+      "diagnostic apiKey=\u200B'SYNTH_B06_POSTCOLON_BARE_APIKEY'",
+      "SYNTH_B06_POSTCOLON_BARE_APIKEY",
+    ],
+    [
+      "bare token scalar with ZWJ after colon",
+      "diagnostic token:\u200D SYNTH_B06_POSTCOLON_BARE_SCALAR",
+      "SYNTH_B06_POSTCOLON_BARE_SCALAR",
+    ],
+    [
+      "bare secret key with invisible embedded and post-colon joiner",
+      'diagnostic cli\u200BentSecret:\u2060"SYNTH_B06_POSTCOLON_BARE_JOINED"',
+      "SYNTH_B06_POSTCOLON_BARE_JOINED",
+    ],
+    [
+      "word joiner after colon before double-quoted api key",
+      'diagnostic {"apiKey":\u2060"SYNTH_B06_POSTCOLON_JOINER"}',
+      "SYNTH_B06_POSTCOLON_JOINER",
+    ],
+    [
+      "zero-width space after whitespace following token colon",
+      'diagnostic {"token" : \u200B "SYNTH_B06_POSTCOLON_ZWSP"}',
+      "SYNTH_B06_POSTCOLON_ZWSP",
+    ],
+    [
+      "ZWNJ after equal sign on single quoted key",
+      "diagnostic {'password'=\u200C'SYNTH_B06_POSTCOLON_ZWNJ'}",
+      "SYNTH_B06_POSTCOLON_ZWNJ",
+    ],
+    [
+      "apostrophe in ordinary prose with ZWJ after colon",
+      "can't parse {'clientSecret':\u200D\"SYNTH_B06_POSTCOLON_ZWJ\"}",
+      "SYNTH_B06_POSTCOLON_ZWJ",
+    ],
+    [
+      "combining grapheme joiner after colon",
+      'diagnostic {"access_token":\u034F"SYNTH_B06_POSTCOLON_CGJ"}',
+      "SYNTH_B06_POSTCOLON_CGJ",
+    ],
+    [
+      "variation selector after colon",
+      'diagnostic {"password":\uFE0F"SYNTH_B06_POSTCOLON_VS"}',
+      "SYNTH_B06_POSTCOLON_VS",
+    ],
+  ] as const;
+  it.each(risky)("blocks %s at sanitizer", (_kind, raw, marker) => {
+    const result = sanitizeFeedbackText(raw);
+    expect(result).toBe("[REDACTED_SECRET]");
+    expect(result).not.toContain(marker);
+  });
+  it.each(risky)(
+    "blocks %s at all four repository fields",
+    async (_kind, raw, marker) => {
+      const forwarded: string[] = [];
+      const repository = {
+        createCase: async (
+          input: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          forwarded.push(input.description, input.body.description);
+          throw new Error("P1_POSTCOLON_CAPTURE_CASE");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          input: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          forwarded.push(input.body);
+          throw new Error("P1_POSTCOLON_CAPTURE_FOLLOWUP");
+        },
+      } as unknown as FeedbackRepository;
+      const svc = new FeedbackSupportService(repository);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+      await expect(
+        svc.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("P1_POSTCOLON_CAPTURE_CASE");
+      await expect(
+        svc.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("P1_POSTCOLON_CAPTURE_FOLLOWUP");
+      await expect(
+        svc.addAdminFollowup("SUPPORT", userId, caseId, { description: raw }),
+      ).rejects.toThrow("P1_POSTCOLON_CAPTURE_FOLLOWUP");
+      expect(forwarded).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+      expect(JSON.stringify(forwarded)).not.toContain(marker);
+    },
+  );
+  it.each([
+    'diagnostic {"requestId":\u2060"safe"}',
+    "diagnostic {'note':\u200B'normal'}",
+    "benign unicode \u2060 line one\nline two",
+    '{"note":"safe","requestId":"safe-keep"}',
+  ])("preserves harmless diagnostic metadata: %s", (raw) => {
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+});
+
+describe("B06 quoted credential keys followed by pseudo-JSON equals", () => {
+  const secrets = [
+    [
+      "double-quoted password",
+      'diagnostic {"password"="SYNTH_B06_EQ_PRIV_A"}',
+      "SYNTH_B06_EQ_PRIV_A",
+    ],
+    [
+      "single-quoted client secret",
+      "diagnostic {'clientSecret' = 'SYNTH_B06_EQ_PRIV_B'}",
+      "SYNTH_B06_EQ_PRIV_B",
+    ],
+    [
+      "double-quoted access token numeric",
+      'diagnostic {"access_token" = 97463218177}',
+      "97463218177",
+    ],
+    [
+      "double-quoted apiKey structured",
+      'diagnostic {"apiKey"={ "value":"SYNTH_B06_EQ_PRIV_D"}}',
+      "SYNTH_B06_EQ_PRIV_D",
+    ],
+    [
+      "single-quoted token array",
+      "diagnostic {'token'=['SYNTH_B06_EQ_PRIV_E']}",
+      "SYNTH_B06_EQ_PRIV_E",
+    ],
+  ] as const;
+  it.each(secrets)(
+    "rejects %s in support description sanitizer",
+    (_kind, raw, marker) => {
+      const cleaned = sanitizeFeedbackText(raw);
+      expect(cleaned).not.toContain(marker);
+      expect(cleaned).toContain("[REDACTED");
+    },
+  );
+  it.each(secrets)(
+    "does not forward %s to any of four repository fields",
+    async (_kind, raw, marker) => {
+      const captured: string[] = [];
+      const repository = {
+        createCase: async (
+          input: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          captured.push(input.description, input.body.description);
+          throw new Error("QUOTED_EQUALS_CASE_CAPTURE");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          input: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          captured.push(input.body);
+          throw new Error("QUOTED_EQUALS_FOLLOWUP_CAPTURE");
+        },
+      } as unknown as FeedbackRepository;
+      const svc = new FeedbackSupportService(repository);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+      await expect(
+        svc.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("QUOTED_EQUALS_CASE_CAPTURE");
+      await expect(
+        svc.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("QUOTED_EQUALS_FOLLOWUP_CAPTURE");
+      await expect(
+        svc.addAdminFollowup("SUPPORT", userId, caseId, { description: raw }),
+      ).rejects.toThrow("QUOTED_EQUALS_FOLLOWUP_CAPTURE");
+      expect(captured).toHaveLength(4);
+      for (const sanitized of captured) {
+        expect(sanitized).not.toContain(marker);
+        expect(sanitized).toContain("[REDACTED");
+      }
+    },
+  );
+  it.each([
+    'diagnostic {"requestId"="safe-req-1"}',
+    "diagnostic {'note' = 'ordinary'}",
+    'diagnostic {"safe\nnote"="visible text"}',
+    "Support description about login failure, no credentials",
+  ])("preserves safe pseudo-JSON/noncredentials: %s", (raw) => {
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+});
+
+describe("B06 nested credential inside single-quoted pseudo-JSON", () => {
+  const examples = [
+    [
+      "password",
+      "{'note':'{\"password\":\"SYNTH_B06_NESTED_PASSWORD_PRIVATE\"}'}",
+      "SYNTH_B06_NESTED_PASSWORD_PRIVATE",
+    ],
+    [
+      "clientSecret",
+      "{'note':'{\"clientSecret\":\"SYNTH_B06_NESTED_CLIENT_PRIVATE\"}'}",
+      "SYNTH_B06_NESTED_CLIENT_PRIVATE",
+    ],
+    [
+      "apiKey",
+      "{'note':'{\"apiKey\":\"SYNTH_B06_NESTED_API_PRIVATE\"}'}",
+      "SYNTH_B06_NESTED_API_PRIVATE",
+    ],
+  ] as const;
+
+  it.each(examples)(
+    "fails closed on a masked-by-parent %s in the sanitizer",
+    (_kind, raw, marker) => {
+      expect(sanitizeFeedbackText(raw)).toBe("[REDACTED_SECRET]");
+      expect(sanitizeFeedbackText(raw)).not.toContain(marker);
+    },
+  );
+
+  it.each(examples)(
+    "does not forward the nested %s through any of four repository fields",
+    async (_kind, raw, marker) => {
+      const received: string[] = [];
+      const repository = {
+        createCase: async (
+          input: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          received.push(input.description, input.body.description);
+          throw new Error("NESTED_CASE_CAPTURE");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          input: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          received.push(input.body);
+          throw new Error("NESTED_FOLLOWUP_CAPTURE");
+        },
+      } as unknown as FeedbackRepository;
+      const service = new FeedbackSupportService(repository);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("NESTED_CASE_CAPTURE");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("NESTED_FOLLOWUP_CAPTURE");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("NESTED_FOLLOWUP_CAPTURE");
+      expect(received).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+      expect(JSON.stringify(received)).not.toContain(marker);
+    },
+  );
+
+  it("keeps noncredential pseudo-JSON byte-identical", () => {
+    const safe =
+      "{'note':'{\"requestId\":\"safe-inner\"}','requestId':'safe-outer'}";
+    expect(sanitizeFeedbackText(safe)).toBe(safe);
+  });
+
+  it("preserves valid nested JSON and masks only its credential", () => {
+    const valid = JSON.stringify({
+      note: JSON.stringify({
+        password: "SYNTH_B06_VALID_NESTED_PRIVATE",
+        requestId: "safe-inner",
+      }),
+      requestId: "safe-outer",
+    });
+    const after = JSON.parse(sanitizeFeedbackText(valid)) as {
+      note: string;
+      requestId: string;
+    };
+    expect(after.requestId).toBe("safe-outer");
+    expect(JSON.parse(after.note)).toEqual({
+      password: "[REDACTED_SECRET]",
+      requestId: "safe-inner",
+    });
+    expect(JSON.stringify(after)).not.toContain(
+      "SYNTH_B06_VALID_NESTED_PRIVATE",
+    );
+  });
+});
+
+describe("B06 fullwidth colon after recognizable credential keys", () => {
+  const samples = [
+    [
+      "bare password",
+      "diagnostic password： SYNTH_B06_FWC_PASSWORD_PRIVATE",
+      "SYNTH_B06_FWC_PASSWORD_PRIVATE",
+    ],
+    [
+      "bare token",
+      "diagnostic token： SYNTH_B06_FWC_TOKEN_PRIVATE",
+      "SYNTH_B06_FWC_TOKEN_PRIVATE",
+    ],
+    [
+      "bare api_key",
+      "diagnostic api_key： SYNTH_B06_FWC_API_PRIVATE",
+      "SYNTH_B06_FWC_API_PRIVATE",
+    ],
+    [
+      "bare clientSecret",
+      "diagnostic clientSecret： SYNTH_B06_FWC_CLIENT_PRIVATE",
+      "SYNTH_B06_FWC_CLIENT_PRIVATE",
+    ],
+    [
+      "bare access_token",
+      "diagnostic access_token： SYNTH_B06_FWC_ACCESS_PRIVATE",
+      "SYNTH_B06_FWC_ACCESS_PRIVATE",
+    ],
+    [
+      "quoted JSON-like password",
+      'diagnostic {"password"： "SYNTH_B06_FWC_QUOTED_PRIVATE"}',
+      "SYNTH_B06_FWC_QUOTED_PRIVATE",
+    ],
+    [
+      "single quoted token",
+      "diagnostic {'token'： 'SYNTH_B06_FWC_SINGLE_PRIVATE'}",
+      "SYNTH_B06_FWC_SINGLE_PRIVATE",
+    ],
+    [
+      "bare structured password",
+      'diagnostic password： {"value":"SYNTH_B06_FWC_STRUCT_PRIVATE"}',
+      "SYNTH_B06_FWC_STRUCT_PRIVATE",
+    ],
+    [
+      "invisible joiner",
+      "diagnostic apiKey\u200B： SYNTH_B06_FWC_JOINER_PRIVATE",
+      "SYNTH_B06_FWC_JOINER_PRIVATE",
+    ],
+  ] as const;
+
+  it.each(samples)(
+    "never leaves %s fullwidth credential in sanitizer output",
+    (_kind, raw, marker) => {
+      const cleaned = sanitizeFeedbackText(raw);
+      expect(cleaned).toBe("[REDACTED_SECRET]");
+      expect(cleaned).not.toContain(marker);
+    },
+  );
+
+  it.each(samples)(
+    "blocks %s in all four repository-bound fields",
+    async (_kind, raw, marker) => {
+      const forwarded: string[] = [];
+      const repository = {
+        createCase: async (
+          input: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          forwarded.push(input.description, input.body.description);
+          throw new Error("FWC_CASE_CAPTURE");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          input: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          forwarded.push(input.body);
+          throw new Error("FWC_FOLLOWUP_CAPTURE");
+        },
+      } as unknown as FeedbackRepository;
+      const service = new FeedbackSupportService(repository);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("FWC_CASE_CAPTURE");
+      await expect(
+        service.addUserFollowup(userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("FWC_FOLLOWUP_CAPTURE");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("FWC_FOLLOWUP_CAPTURE");
+
+      expect(forwarded).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+      expect(JSON.stringify(forwarded)).not.toContain(marker);
+    },
+  );
+
+  it.each([
+    "Сообщение： ошибка проверки магазина",
+    "trace： harmless metadata",
+    "diagnostic {'note'： 'safe text'}",
+    'diagnostic {"requestId"： "safe-request"}',
+    '{"requestId":"safe-1","description":"проверка： прошла"}',
+    '{"labels":["safe：1","safe：2"],"requestId":"safe-2"}',
+  ])("keeps harmless fullwidth-colon text byte-identical: %s", (raw) => {
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+
+  it("preserves valid JSON safe siblings while redacting normal credentials", () => {
+    const raw =
+      '{"password":"SYNTH_B06_FWC_JSON_PRIVATE","note":"проверка： ок","requestId":"safe-request"}';
+    const output = JSON.parse(sanitizeFeedbackText(raw));
+    expect(output).toEqual({
+      password: "[REDACTED_SECRET]",
+      note: "проверка： ок",
+      requestId: "safe-request",
+    });
+  });
+
+  it("keeps unrelated NFKC-compatible text in a valid credential JSON sibling", () => {
+    const raw = JSON.stringify({
+      password: "SYNTH_B06_NFKC_JSON_PASSWORD",
+      note: "ｋ unit： harmless",
+      requestId: "safe-request",
+    });
+    expect(JSON.parse(sanitizeFeedbackText(raw))).toEqual({
+      password: "[REDACTED_SECRET]",
+      note: "ｋ unit： harmless",
+      requestId: "safe-request",
+    });
+  });
+});
+
+describe("B06 bare multiword credentials must not leak suffixes", () => {
+  const cases = [
+    [
+      "password",
+      "diagnostic password: SYNTH_PASS_PART_A SYNTH_PASS_PART_B",
+      "SYNTH_PASS_PART_B",
+    ],
+    [
+      "token",
+      "diagnostic token: SYNTH_TOKEN_PART_A SYNTH_TOKEN_PART_B",
+      "SYNTH_TOKEN_PART_B",
+    ],
+    [
+      "apiKey",
+      "diagnostic apiKey: SYNTH_API_PART_A SYNTH_API_PART_B",
+      "SYNTH_API_PART_B",
+    ],
+    [
+      "api_key",
+      "diagnostic api_key: SYNTH_APIUND_PART_A SYNTH_APIUND_PART_B",
+      "SYNTH_APIUND_PART_B",
+    ],
+    [
+      "clientSecret",
+      "diagnostic clientSecret= SYNTH_CLIENT_PART_A SYNTH_CLIENT_PART_B",
+      "SYNTH_CLIENT_PART_B",
+    ],
+    [
+      "tabs",
+      "diagnostic password: SYNTH_TAB_PART_A\tSYNTH_TAB_PART_B",
+      "SYNTH_TAB_PART_B",
+    ],
+    [
+      "nonbreaking-space",
+      "diagnostic token: SYNTH_NBSP_PART_A\u00a0SYNTH_NBSP_PART_B",
+      "SYNTH_NBSP_PART_B",
+    ],
+    [
+      "three-words",
+      "diagnostic password: SYNTH_TRIPLE_A SYNTH_TRIPLE_B SYNTH_TRIPLE_C",
+      "SYNTH_TRIPLE_C",
+    ],
+    [
+      "semicolon-tail",
+      "diagnostic password: SYNTH_DELIM_A SYNTH_DELIM_B; requestId: safe-1",
+      "SYNTH_DELIM_B",
+    ],
+    [
+      "structured-suffix",
+      'diagnostic password: SYNTH_BRACE_PART_A {"value":"SYNTH_BRACE_PART_B"}',
+      "SYNTH_BRACE_PART_B",
+    ],
+    [
+      "array-suffix",
+      'diagnostic token: SYNTH_ARRAY_PART_A ["SYNTH_ARRAY_PART_B"]',
+      "SYNTH_ARRAY_PART_B",
+    ],
+    [
+      "comma-passphrase",
+      "diagnostic password: SYNTH_COMMA_PART_A, SYNTH_COMMA_PART_B",
+      "SYNTH_COMMA_PART_B",
+    ],
+    [
+      "semicolon-passphrase",
+      "diagnostic token: SYNTH_SEMI_PART_A; SYNTH_SEMI_PART_B",
+      "SYNTH_SEMI_PART_B",
+    ],
+  ] as const;
+  it.each(cases)(
+    "fully rejects %s ambiguous bare credential text",
+    (_kind, raw, suffix) => {
+      const cleaned = sanitizeFeedbackText(raw);
+      expect(cleaned).toBe("[REDACTED_SECRET]");
+      expect(cleaned).not.toContain(suffix);
+    },
+  );
+
+  it.each(cases)(
+    "never forwards %s multiword suffix to any repository field",
+    async (_kind, raw, suffix) => {
+      const forwarded: string[] = [];
+      const repository = {
+        createCase: async (
+          input: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          forwarded.push(input.description, input.body.description);
+          throw new Error("MULTIWORD_CASE_CAPTURE");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          input: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          forwarded.push(input.body);
+          throw new Error("MULTIWORD_FOLLOWUP_CAPTURE");
+        },
+      } as unknown as FeedbackRepository;
+      const svc = new FeedbackSupportService(repository);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+      await expect(
+        svc.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("MULTIWORD_CASE_CAPTURE");
+      await expect(
+        svc.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("MULTIWORD_FOLLOWUP_CAPTURE");
+      await expect(
+        svc.addAdminFollowup("SUPPORT", userId, caseId, { description: raw }),
+      ).rejects.toThrow("MULTIWORD_FOLLOWUP_CAPTURE");
+      expect(forwarded).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+      expect(JSON.stringify(forwarded)).not.toContain(suffix);
+    },
+  );
+
+  it("retains safe sibling data in valid JSON with a nested bare passphrase", () => {
+    const raw = JSON.stringify({
+      message: "diagnostic password: SYNTH_JSON_PART_A SYNTH_JSON_PART_B",
+      requestId: "safe-request-1",
+      notes: ["safe-label", "safe-counter"],
+    });
+    const cleaned = JSON.parse(sanitizeFeedbackText(raw));
+    expect(cleaned.requestId).toBe("safe-request-1");
+    expect(cleaned.notes).toEqual(["safe-label", "safe-counter"]);
+    expect(cleaned.message).toBe("[REDACTED_SECRET]");
+    expect(JSON.stringify(cleaned)).not.toContain("SYNTH_JSON_PART_B");
+  });
+
+  it("retains safe sibling data when the JSON has a diagnostic prefix", () => {
+    const raw =
+      "ERROR " +
+      JSON.stringify({
+        message: "diagnostic token: SYNTH_PREFIX_PART_A SYNTH_PREFIX_PART_B",
+        requestId: "safe-request-2",
+      });
+    const cleaned = sanitizeFeedbackText(raw);
+    expect(cleaned.startsWith("ERROR ")).toBe(true);
+    const parsed = JSON.parse(cleaned.slice(6));
+    expect(parsed.requestId).toBe("safe-request-2");
+    expect(parsed.message).toBe("[REDACTED_SECRET]");
+    expect(cleaned).not.toContain("SYNTH_PREFIX_PART_B");
+  });
+
+  it.each([
+    "ordinary note: two safe words",
+    "diagnostic note: first second third",
+    "password manager reports login failure",
+    "Сообщение: полезный текст без пароля",
+  ])("preserves unrelated benign prose: %s", (raw) => {
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+
+  it("preserves previously known safe metadata after a separate single-token secret", () => {
+    const raw = "diagnostic password=synthetic-only\nX-Trace: safe-trace-1";
+    const cleaned = sanitizeFeedbackText(raw);
+    expect(cleaned).not.toContain("synthetic-only");
+    expect(cleaned).toContain("X-Trace: safe-trace-1");
+  });
+});
+
+describe("B06 private/secret key credential aliases", () => {
+  const fake = "B06_FAKE_KEY_MATERIAL_ONLY_" + "Q".repeat(24);
+
+  it.each([
+    ["private_key JSON", JSON.stringify({ private_key: fake, trace: "safe" })],
+    ["privateKey JSON", JSON.stringify({ privateKey: fake, trace: "safe" })],
+    ["secret_key JSON", JSON.stringify({ secret_key: fake, trace: "safe" })],
+    ["secretKey JSON", JSON.stringify({ secretKey: fake, trace: "safe" })],
+    [
+      "private-key JSON",
+      JSON.stringify({ "private-key": fake, trace: "safe" }),
+    ],
+    [
+      "escaped private_key JSON",
+      '{"private\\u005fkey":' + JSON.stringify(fake) + "}",
+    ],
+    [
+      "nested private_key JSON",
+      JSON.stringify({ nested: { private_key: fake } }),
+    ],
+    ["private_key array JSON", JSON.stringify({ private_key: [fake] })],
+    ["bare private_key", "diagnostic private_key=" + fake + " context"],
+    ["bare privateKey", "diagnostic privateKey=" + fake + " context"],
+    ["bare secret_key", "diagnostic secret_key=" + fake + " context"],
+    ["bare secret-key", "diagnostic secret-key=" + fake + " context"],
+    ["single-quoted key", "prefix 'private_key': '" + fake + "'"],
+    ["ignored Unicode in bare key", "pri\u200Dvate_key=" + fake],
+    ["fullwidth colon", "private_key：" + fake],
+  ])("removes confidential %s even without PEM framing", (_label, raw) => {
+    expect(sanitizeFeedbackText(raw)).not.toContain(fake);
+    expect(redactAccidentalSecrets(raw)).not.toContain(fake);
+  });
+
+  it("keeps public keys, identifiers and ordinary safe text", () => {
+    const benign = JSON.stringify({
+      public_key: fake,
+      private_key_id: fake,
+      trace: "safe",
+    });
+    expect(sanitizeFeedbackText(benign)).toBe(benign);
+    expect(sanitizeFeedbackText("a".repeat(4000))).toBe("a".repeat(4000));
+  });
+
+  it("masks a private key but retains safe JSON siblings", () => {
+    const input = JSON.stringify({
+      private_key: fake,
+      requestId: "synthetic-safe-request-id",
+      public_key: "synthetic-nonsecret-public-key",
+    });
+    const out = JSON.parse(sanitizeFeedbackText(input));
+    expect(out.private_key).toBe("[REDACTED_SECRET]");
+    expect(out.requestId).toBe("synthetic-safe-request-id");
+    expect(out.public_key).toBe("synthetic-nonsecret-public-key");
+  });
+});
+
+describe("B06 U+FF1D fullwidth equals credential delimiter", () => {
+  const fake = "B06_FAKE_FULLWIDTH_EQUALS_ONLY_" + "Q".repeat(24);
+  const cases = [
+    ["quoted private_key", '"private_key"＝"' + fake + '"'],
+    ["quoted access_token", '"access_token"＝"' + fake + '"'],
+    ["bare private_key", "private_key＝" + fake],
+    ["bare secret_key", "secret_key＝" + fake],
+    ["bare password", "password＝" + fake],
+    ["bare api_key", "api_key＝" + fake],
+    ["spaced private key", "private key＝" + fake],
+    ["spaced api key", "api key＝" + fake],
+    ["invisible joiner", "pri\u200Dvate_key＝" + fake],
+    ["pseudo-JSON nested", 'diagnostic {"private_key"＝"' + fake + '"}'],
+    [
+      "embedded JSON string",
+      JSON.stringify({ message: "private_key＝" + fake, trace: "safe" }),
+    ],
+    ["single quoted secret key", "'secret_key'＝'" + fake + "'"],
+  ] as const;
+
+  it.each(cases)("redacts %s before persistence", (_name, raw) => {
+    expect(sanitizeFeedbackText(raw)).not.toContain(fake);
+    expect(redactAccidentalSecrets(raw)).not.toContain(fake);
+  });
+
+  it.each(cases)(
+    "never forwards %s into any of the four feedback repository fields",
+    async (_name, raw) => {
+      const forwarded: string[] = [];
+      const repository = {
+        createCase: async (
+          input: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          forwarded.push(input.description, input.body.description);
+          throw new Error("FULLWIDTH_EQUALS_CASE_CAPTURE");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          input: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          forwarded.push(input.body);
+          throw new Error("FULLWIDTH_EQUALS_FOLLOWUP_CAPTURE");
+        },
+      } as unknown as FeedbackRepository;
+      const service = new FeedbackSupportService(repository);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("FULLWIDTH_EQUALS_CASE_CAPTURE");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("FULLWIDTH_EQUALS_FOLLOWUP_CAPTURE");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("FULLWIDTH_EQUALS_FOLLOWUP_CAPTURE");
+      expect(forwarded).toHaveLength(4);
+      expect(forwarded.every((value) => !value.includes(fake))).toBe(true);
+    },
+  );
+
+  it("retains ordinary Unicode text and public-key metadata", () => {
+    const benign = JSON.stringify({
+      public_key: fake,
+      private_key_id: fake,
+      trace: "synthetic-safe-trace",
+    });
+    expect(sanitizeFeedbackText(benign)).toBe(benign);
+    expect(sanitizeFeedbackText("ordinary note: a＝b")).toBe(
+      "ordinary note: a＝b",
+    );
+    expect(sanitizeFeedbackText("X-Trace: safe")).toBe("X-Trace: safe");
+  });
+
+  it("preserves the 4000-character contract and existing delimiter protection", () => {
+    const prefix = "private_key＝" + fake;
+    const raw = prefix + "x".repeat(4000 - prefix.length);
+    expect(raw).toHaveLength(4000);
+    expect(sanitizeFeedbackText(raw)).toBe("[REDACTED_SECRET]");
+    for (const separator of ["=", "："] as const)
+      expect(
+        sanitizeFeedbackText("private_key" + separator + fake),
+      ).not.toContain(fake);
+  });
+});
+
+describe("B06 Unicode compatibility-equivalent credential keys and separators", () => {
+  const fake = "B06_FAKE_NFKC_SECRET_ONLY_" + "W".repeat(24);
+  const cases = [
+    ["small colon password", "diagnostic password﹕" + fake],
+    ["small equals password", "diagnostic password﹦" + fake],
+    ["vertical colon password", "diagnostic password︓" + fake],
+    ["fullwidth letters password", "diagnostic ｐａｓｓｗｏｒｄ:" + fake],
+    ["fullwidth letters plus fullwidth equals", "ｐａｓｓｗｏｒｄ＝" + fake],
+    ["quoted fullwidth password", '{"ｐａｓｓｗｏｒｄ":"' + fake + '"}'],
+    [
+      "quoted fullwidth private key",
+      '{"ｐｒｉｖａｔｅ_ｋｅｙ":"' + fake + '"}',
+    ],
+    ["secret key with small colon", "diagnostic secret_key﹕" + fake],
+    ["private key with small equals", "diagnostic private_key﹦" + fake],
+    ["spaced api key with small colon", "diagnostic api key﹕" + fake],
+    ["spaced private key with small colon", "diagnostic private key﹕" + fake],
+    ["embedded compatibility token", '{"note":"ｔｏｋｅｎ﹕' + fake + '"}'],
+    [
+      "escaped fullwidth password",
+      '{"\\uff50\\uff41\\uff53\\uff53\\uff57\\uff4f\\uff52\\uff44":"' +
+        fake +
+        '"}',
+    ],
+    [
+      "escaped fullwidth private key",
+      '{"\\uff50\\uff52\\uff49\\uff56\\uff41\\uff54\\uff45_\\uff4b\\uff45\\uff59":"' +
+        fake +
+        '"}',
+    ],
+    [
+      "fullwidth spaced bare api key with small colon",
+      "diagnostic ａｐｉ　ｋｅｙ﹕" + fake,
+    ],
+    [
+      "fullwidth spaced bare private key with small equals",
+      "diagnostic ｐｒｉｖａｔｅ　ｋｅｙ﹦" + fake,
+    ],
+    [
+      "fullwidth spaced quoted malformed api key",
+      '"ａｐｉ　ｋｅｙ"﹕"' + fake + '"',
+    ],
+  ] as const;
+
+  it.each(cases)(
+    "does not persist a synthetic secret through %s",
+    (_name, input) => {
+      expect(sanitizeFeedbackText(input)).not.toContain(fake);
+      expect(redactAccidentalSecrets(input)).not.toContain(fake);
+    },
+  );
+
+  it.each(cases)(
+    "does not forward %s through any of the four feedback repository fields",
+    async (_name, input) => {
+      const forwarded: string[] = [];
+      const repository = {
+        createCase: async (
+          value: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          forwarded.push(value.description, value.body.description);
+          throw new Error("NFKC_REPOSITORY_CAPTURE");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          value: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          forwarded.push(value.body);
+          throw new Error("NFKC_FOLLOWUP_CAPTURE");
+        },
+      } as unknown as FeedbackRepository;
+      const service = new FeedbackSupportService(repository);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: input,
+        }),
+      ).rejects.toThrow("NFKC_REPOSITORY_CAPTURE");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: input }),
+      ).rejects.toThrow("NFKC_FOLLOWUP_CAPTURE");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: input,
+        }),
+      ).rejects.toThrow("NFKC_FOLLOWUP_CAPTURE");
+      expect(forwarded).toHaveLength(4);
+      expect(forwarded.every((value) => !value.includes(fake))).toBe(true);
+    },
+  );
+
+  it("preserves safe JSON siblings beside a quoted compatibility-spaced credential key", () => {
+    const raw = JSON.stringify({
+      "ａｐｉ　ｋｅｙ": fake,
+      requestId: "safe",
+      note: "ｋ unit： harmless",
+    });
+    expect(JSON.parse(sanitizeFeedbackText(raw))).toEqual({
+      "ａｐｉ　ｋｅｙ": "[REDACTED_SECRET]",
+      requestId: "safe",
+      note: "ｋ unit： harmless",
+    });
+  });
+
+  it("preserves unrelated compatibility Unicode and public-key identifiers", () => {
+    for (const safe of [
+      "public_key﹕" + fake,
+      "private_key_id﹕" + fake,
+      '{"ｐｕｂｌｉｃ_ｋｅｙ":"' + fake + '"}',
+      "Примечание﹕ Unicode " + fake,
+    ]) {
+      expect(sanitizeFeedbackText(safe)).toBe(safe);
+      expect(redactAccidentalSecrets(safe)).toBe(safe);
+    }
+  });
+
+  it("preserves bounded safe text and existing ASCII/fullwidth-equivalent guards", () => {
+    expect(sanitizeFeedbackText("a".repeat(4000))).toBe("a".repeat(4000));
+    for (const separator of [":", "=", "：", "＝"] as const) {
+      expect(sanitizeFeedbackText("password" + separator + fake)).not.toContain(
+        fake,
+      );
+    }
+    const padded = "ｐａｓｓｗｏｒｄ﹕" + fake;
+    const bounded = padded + "x".repeat(4000 - padded.length);
+    expect(bounded).toHaveLength(4000);
+    expect(sanitizeFeedbackText(bounded)).toBe("[REDACTED_SECRET]");
   });
 });
