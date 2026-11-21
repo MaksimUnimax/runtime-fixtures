@@ -361,7 +361,7 @@ class BrowserIsolation(ProductBrowser):
                 await shortcut.click()
                 settings=page.get_by_role("dialog",name="Вайлдберис",exact=True)
                 await expect(settings.get_by_role("button",name="Магазин WB",exact=True)).to_have_attribute("aria-pressed","true")
-                await settings.get_by_role("button",name="Закрыть доступ к данным магазина").click()
+                await settings.get_by_role("button",name="Отозвать доступ к данным магазина").click()
                 await expect(settings.get_by_role("button",name="Дать доступ к данным · Магазин WB")).to_be_visible()
                 await page.keyboard.press("Escape")
                 await expect(shortcut.locator("..").get_by_text("Актив", exact=True)).to_be_visible()
