@@ -45,8 +45,13 @@ function render(data) {
   const hiddenSuppliers = new Set((data.enrollment || []).filter(r => r.kind === 'excluded' && !r.configured).map(r => r.id));
   select.replaceChildren(...Object.entries(providers).filter(([id]) => !hiddenSuppliers.has(id)).map(([key, name]) => new Option(name,key)));
   if (prior in providers && !hiddenSuppliers.has(prior)) select.value = prior;
-  list('missing', Object.entries(data.missing).map(([id, models]) => providers[id] + ' · ' + models.join(', ')),
-    data.catalog?.succeeded ? 'Нет запросов на известные ключи' : 'Ожидается каталог');
+  const requests = Object.entries(data.missing).map(([id, models]) => providers[id] + ' · ' + models.join(', '));
+  for (const row of data.enrollment || []) {
+    if (row.kind === 'free' && !row.configured && !(row.id in data.missing)) {
+      requests.push(row.name + ' · добавить ключ для проверки прямого API. Инструкция в разделе «Где получить ключ».');
+    }
+  }
+  list('missing', requests, data.catalog?.succeeded ? 'Все известные необходимые ключи сохранены' : 'Ожидается каталог');
   list('keys', data.keys.map(k => providers[k.provider] + ' · ' + k.label +
     (k.provider === 'cloudflare' ? (k.account_configured ? ' · Account ID сохранён' : ' · Требуется Account ID') : '')),
     'Ключи ещё не добавлены');
