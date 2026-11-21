@@ -141,7 +141,9 @@ async function verifyReceipt(input: {
       source.authorityStatus !== "AUTHORITY_ACCEPTED" ||
       source.acquisitionOutcome !== "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE" ||
       source.blockerCode !== null ||
-      source.inventoryOperationCount === null ||
+      typeof source.inventoryOperationCount !== "number" ||
+      !Number.isSafeInteger(source.inventoryOperationCount) ||
+      source.inventoryOperationCount < 0 ||
       !["FIRST_SNAPSHOT", "CHANGED", "NO_CHANGE"].includes(
         source.changeMode ?? "",
       ) ||
