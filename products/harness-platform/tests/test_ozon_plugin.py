@@ -84,6 +84,23 @@ class OzonFlow(unittest.TestCase):
         self.assertEqual(self.client.post(self.url+"/save",headers=self.headers,json={
             "cid":self.cid,"sku":"18","metric":"loss","value":"0","revision":None}).status_code,400)
 
+    def test_model_and_reasoning_are_independent_between_plugins(self):
+        self.post(self.base,{"plugin":"wildberries","enabled":True})
+        self.post(self.base,{"plugin":"ozon","enabled":True})
+        models={"alpha":{"id":"alpha","efforts":["off","high"]},
+                "beta":{"id":"beta","efforts":["low","high"]}}
+        with patch("platform_core.user_plugins.service.chat_defaults.available_models",return_value=models):
+            self.post(self.base+"/wildberries/model",{"model":"alpha","effort":"high"})
+            self.post(self.url+"/model",{"model":"beta","effort":"low"})
+        def preference(url):
+            row=self.client.get(url,headers=self.headers).json()
+            return row["model"],row["effort"]
+        self.assertEqual(preference(self.url),("beta","low"))
+        self.assertEqual(preference(self.base+"/wildberries"),("alpha","high"))
+        self.post(self.url+"/model",{"model":"","effort":""})
+        self.assertEqual(preference(self.url),("",""))
+        self.assertEqual(preference(self.base+"/wildberries"),("alpha","high"))
+
     def test_migration_existing_chats_and_deliberate_disconnect(self):
         self.post("/api/chats/"+self.scope.chat_id+"/integrations",{"connectionId":self.cid,"enabled":True})
         self.wait(self.post(self.url+"/refresh",{"cid":self.cid})["job"])

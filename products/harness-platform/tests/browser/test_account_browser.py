@@ -232,6 +232,27 @@ class BrowserIsolation(ProductBrowser):
         await metric.get_by_role("textbox").fill("0")
         await metric.get_by_role("button",name="Сохранить").click()
         await expect(metric.get_by_text(re.compile("Вручную"))).to_be_visible()
+        if provider=="ozon":
+            from contextlib import asynccontextmanager
+            from types import SimpleNamespace
+
+            @asynccontextmanager
+            async def selected(*args, **kwargs):
+                yield SimpleNamespace(direct_model="fixture",token="fixture"), ("parameter.delivery_mean.v1",)
+
+            async def calculated(scope, cid, metric_id, period, sku, grant, job, database):
+                self.assertEqual((metric_id,sku),("forward","82"))
+                self.assertEqual((period[1]-period[0]).days,364)
+                return "25.5", {"inputs":{"ordered_units":"2","forward_delivery":"50","last_delivery":"1"}}
+
+            delivery=settings.locator(".plugin-metric").filter(has_text="Прямая и последняя доставка")
+            with patch("platform_core.user_plugins.model.choose_templates",selected), \
+                 patch("platform_core.marketplace_matrix.ozon_coefficients.calculate",calculated):
+                async with page.expect_response(lambda r: urlsplit(r.url).path.endswith("/ozon/calculate")) as job:
+                    await delivery.get_by_role("button",name="Рассчитать").click()
+                self.assertEqual((await job.value).status,202)
+                await expect(delivery.get_by_role("textbox")).to_have_value("25.5")
+                await expect(delivery.get_by_text(re.compile("По отчётам Озон"))).to_be_visible()
         await settings.get_by_label("Область расчёта").select_option("")
         await expect(metric.get_by_role("textbox")).to_have_value("12")
         await settings.get_by_role("button",name="Закрыть").click()
