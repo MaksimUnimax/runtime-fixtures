@@ -4,7 +4,7 @@ window.__ModuleLoader__.load({
     const React=require('react'), h=React.createElement;
     return {inject:['slots','uiWorkspace','sessions','contextMenus'],apply(ctx) {
       const a=window.harnessAccount;
-      const PluginMenu=window.octoPluginMenu(React,ctx,a.api);
+      const PluginMenu=window.octoPluginMenu(React,ctx,a.api,require('@deepseek-ai/dsh-client-ui-primitives'));
       const subscribers=new Set();
       let panel=a.panel;
       function select(value) {panel=value;for(const listener of subscribers)listener();}
@@ -55,8 +55,7 @@ window.__ModuleLoader__.load({
         const available=useAvailableCoins();
         const count=available==null?'—':coinAmount.format(available);
         const title=a.guest?'Войти':'Баланс';
-        return h('div',{className:'account-actions'},
-          !a.guest && h(PluginMenu,{wide}),
+        const actions=h('div',{className:'account-actions'},
           wide && a.guest && h('small',{className:'guest-coins'},'Монеты · доступны после входа'),
           h('button',{type:'button',className:'balance-action','aria-label':title,
             title:a.guest?title:(available==null?'Открыть баланс':'Доступно монет: '+count),
@@ -71,6 +70,7 @@ window.__ModuleLoader__.load({
           wide && h('a',{href:'https://octoport.ru/about/'},'О сервисе'),
           wide && !a.guest && h('form',{action:'/logout',method:'post'},h('button',null,'Выйти')),
           a.canGrant && h('a',{href:'/admin',title:'Администрирование','aria-label':'Администрирование'},wide?'Администрирование':'⚙'));
+        return h('div',{className:'octo-sidebar-footer'},actions,!a.guest&&h(PluginMenu,{wide}));
       }
       function Field(name,title,props={}) {
         return h('label',{key:name},title,h('input',{name,required:true,...props}));
