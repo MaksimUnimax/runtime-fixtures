@@ -36,16 +36,21 @@ def coefficient_lines(rows):
               "delivery_mean": ("Средняя прямая и последняя доставка", " ₽/шт.", Decimal("1"))}
     lines = []
     for row in rows:
-        if row.get("origin") != "calculated_preview" or row["parameter"] not in labels:
+        if row.get("origin") not in ("calculated_preview", "manual", "calculated") or row["parameter"] not in labels:
             continue
         label, unit, factor = labels[row["parameter"]]
         with localcontext() as arithmetic:
             arithmetic.prec = 80
             value = (Decimal(row["value"]) * factor).quantize(Decimal(".01"), rounding=ROUND_HALF_UP)
-        period = row["actual_period"]
-        start, end = (".".join(reversed(period[key].split("-"))) for key in ("from", "to"))
-        dates = start if start == end else f"{start} — {end}"
-        lines.append(f"{label} {str(value).replace('.', ',')}{unit}. Рассчитано по данным Ozon за {dates}.")
+        period = row.get("actual_period")
+        scope = (" Для SKU " + row["sku"] + ".") if row.get("sku") else ""
+        if row["origin"] == "manual":
+            detail = "Значение из настроек товара, введено вручную." if row.get("sku") else "Значение из настроек магазина, введено вручную."
+        else:
+            start, end = (".".join(reversed(period[key].split("-"))) for key in ("from", "to"))
+            dates = start if start == end else f"{start} — {end}"
+            detail = f"Рассчитано по данным Ozon за {dates}."
+        lines.append(f"{label} {str(value).replace('.', ',')}{unit}.{scope} {detail}")
     return list(dict.fromkeys(lines))
 
 
@@ -77,6 +82,7 @@ def configure(engine, authority=None):
         def __init__(self):
             self.references = {}
             self.coefficients = {}
+            self.readsets = {}
 
         def bind(self, worker, row, root, fragment):
             from secrets import token_urlsafe
@@ -96,7 +102,7 @@ def configure(engine, authority=None):
             }
             return {"reference": ref, **self.resolve(self.references[ref])}
 
-        def resolve(self, binding):
+        def resolve(self, binding, skus=("",)):
             from datetime import date
             from parameter_support import parameter_contract as pc
             from parameter_support import parameter_dependencies as dependencies
@@ -108,23 +114,44 @@ def configure(engine, authority=None):
             profiles = dependencies.profile(info["profile"])["bindings"]
             slots = {profile["slot"] for profile in profiles}
             pc.need(set(periods) <= slots, "PARAMETER_DEPENDENCY_PERIOD_SLOT")
-            inputs, basis, producers = {}, [], []
+            rows = authority.saved_ozon_coefficients(binding["store"])
+            stored = {}
+            for sku, metric, raw, source, since, until, revision in rows:
+                if metric not in ("loss", "forward"):
+                    continue
+                key, unit = ("loss_rate", "ratio") if metric == "loss" else ("delivery_mean", "RUB/ordered_unit")
+                with localcontext() as arithmetic:
+                    arithmetic.prec = max(80, len(raw) + 4)
+                    value = pc.decimal_text(Decimal(raw).scaleb(-2)) if metric == "loss" else raw
+                stored[sku, key] = dict(parameter=key, unit=unit, value=value, origin=source,
+                                        actual_period={"from": since, "to": until} if since else None,
+                                        revision=revision, sku=sku)
+            snapshot = fingerprint(rows)
+            by_sku, basis, producers = {sku: {} for sku in skus}, {}, []
             for profile in profiles:
                 slot, key = profile["slot"], profile["parameter"]
                 period = pc.resolve_period(date.fromisoformat(binding["as_of"]), periods.get(slot))
                 target = {"tenant_id": binding["tenant"], "store_id": binding["store"],
                           "provider": "OZON", "scope": {"kind": "store", "sku": ""}}
                 descriptor = {"key": key, "target": target, "period": period}
-                saved = self.coefficients.get(fingerprint(descriptor))
-                if saved is None:
-                    producers.append(descriptor)
-                else:
-                    inputs[slot] = saved["value"]
-                    basis.append({"parameter": key, "slot": slot, "value": saved["value"], "unit": saved["unit"],
-                                  "actual_period": period["actual"], "calculated_at": saved["calculated_at"],
-                                  "origin": "calculated_preview"})
-            return {"ready": not producers, "inputs": inputs, "basis": basis, "producers": producers,
-                    "checkpoint": {"basis_fingerprint": fingerprint([binding, basis])}}
+                preview = self.coefficients.get(fingerprint(descriptor))
+                for sku, inputs in by_sku.items():
+                    item = next((r for area in (sku, "") if (r := stored.get((area, key))) is not None
+                                 and (slot not in periods or r["actual_period"] == period["actual"])), None)
+                    if item is None and preview is not None:
+                        item = dict(parameter=key, value=preview["value"], unit=preview["unit"],
+                                    actual_period=period["actual"], calculated_at=preview["calculated_at"],
+                                    origin="calculated_preview")
+                    if item is None:
+                        if descriptor not in producers:
+                            producers.append(descriptor)
+                        continue
+                    inputs[slot] = item["value"]
+                    basis[fingerprint(item)] = {**item, "slot": slot}
+            basis = list(basis.values())
+            return {"ready": not producers, "inputs": by_sku.get("", {}), "by_sku": by_sku,
+                    "basis": basis, "producers": producers, "snapshot": snapshot,
+                    "checkpoint": {"basis_fingerprint": fingerprint([binding, snapshot, basis])}}
 
         def accept_result(self, reference, fragment, result):
             from parameter_support import parameter_contract as pc
@@ -154,7 +181,10 @@ def configure(engine, authority=None):
             method = payload["method"]
             if method == "report_current":
                 return {"current": True}
-            resolved = self.resolve(binding)
+            skus = self.readsets.get(payload["reference"], ("",))
+            if method == "report_owner_inputs":
+                skus = tuple(dict.fromkeys(item["sku"] for item in payload["readset"]["rows"]))
+            resolved = self.resolve(binding, skus)
             if method == "report_refresh":
                 return {"reference": payload["reference"], **resolved}
             if method == "report_fence":
@@ -169,6 +199,7 @@ def configure(engine, authority=None):
                               "provider": "OZON", "currency": "RUB"}
             if (readset["scope"] != expected_scope or readset["period"] != binding["input"]["period"]):
                 raise Rejected("ECONOMICS_CURRENT_INPUT_SCOPE")
+            self.readsets[payload["reference"]] = skus
             owner = binding["input"].get("owner_inputs", {})
             shared_cost = owner.get("unit_cost")
             per_sku = owner.get("unit_cost_by_sku", {})
@@ -182,7 +213,8 @@ def configure(engine, authority=None):
             cost_basis = ([{"value": shared_cost, "origin": "chat_input"}] if shared_cost is not None else
                           [{"sku": sku, "value": cost, "origin": "chat_input"} for sku, cost in sku_cost.items()])
             return {"ready": True,
-                    "coefficients": {key: resolved["inputs"] for key in costs},
+                    "coefficients": {pc.CANON([item["sku"], item["day"]]): resolved["by_sku"][item["sku"]]
+                                     for item in readset["rows"]},
                     "unit_costs": costs, "owner_period": amounts,
                     "checkpoint": self.owner_checkpoint(binding, resolved, fingerprint(readset)),
                     "basis": {"owner_data_revision": fingerprint(owner), "parameters_used": resolved["basis"],
@@ -192,7 +224,7 @@ def configure(engine, authority=None):
         def owner_checkpoint(binding, resolved, readset):
             from semantics import fingerprint
 
-            return {"schema": "alisa-economics-query-fence/v1", "owner": fingerprint(binding["input"]),
+            return {"schema": "alisa-economics-query-fence/v1", "owner": fingerprint([binding["input"], resolved["snapshot"]]),
                     "readset": readset, "parameters": resolved["checkpoint"]}
 
     engine.parameter_intent_authority = PreviewAuthority()

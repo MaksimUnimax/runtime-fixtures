@@ -75,7 +75,7 @@ def capability(stores):
               }, "additionalProperties": False}},
               "additionalProperties": False}
     plugin_inputs = {"type":"object","properties":{
-        "sku":{"type":"string","pattern":"^[1-9][0-9]{0,18}$"},
+        "sku":{"type":"string","pattern":"^[1-9][0-9]{0,19}$"},
         "quantity":{"type":"integer","minimum":1,"maximum":1000000000},
         "sellerPrice":{"type":"number","minimum":0,"maximum":1000000000},
         "officialRate":{"type":"number","minimum":0,"maximum":100}},"additionalProperties":False}
@@ -107,8 +107,8 @@ def capability(stores):
         "Если продавец задаёт себестоимость по SKU, передай значения в owner_inputs.unit_cost_by_sku. "
         "Для самостоятельного расчёта коэффициента передай его явно запрошенный интервал в period. "
         "Для прогноза передай период заказов в period, а отдельно указанные интервалы коэффициентов в parameter_periods.loss_rate "
-        "и parameter_periods.delivery_mean. Без отдельного интервала матрица возьмёт последние 12 месяцев. "
-        "Для расчётных шаблонов WB укажи артикул WB в plugin_inputs.sku и исходное количество в plugin_inputs.quantity. "
+        "и parameter_periods.delivery_mean. Без отдельного интервала прогноз использует сохранённые коэффициенты товара или магазина. Если значения нет, матрица рассчитает его за последние 12 месяцев. "
+        "Для сохранённых коэффициентов и прогноза по количеству используй шаблоны saved_coefficients и order_projection своей площадки. Укажи Ozon SKU или артикул WB в plugin_inputs.sku и исходное количество в plugin_inputs.quantity. "
         "Коэффициенты из настроек подставляет сервер, передавать их не нужно. "
         "Выводи рассчитанные матрицей значения и следуй guidance выбранного шаблона. "
         "В рекламном отчёте WB сохрани охват кампаний. Итоги по полученным строкам нельзя выдавать за итог всех кампаний. "

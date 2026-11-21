@@ -220,3 +220,7 @@ def sources():
         orders=json.load(archive.extractfile("scalar_source_catalog.json"))["sources"]["wb_orders"]
     return {"cards":cards["url"],"orders":orders["url"],
             "finance":"https://finance-api.wildberries.ru/api/finance/v1/sales-reports/detailed"}
+
+
+def headers(fields):
+    return {"Authorization": fields["token"]}

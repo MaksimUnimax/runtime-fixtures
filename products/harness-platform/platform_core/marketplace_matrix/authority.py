@@ -87,8 +87,8 @@ class ChatAuthority:
                 WHERE g.token_hash=? AND g.expires_at>? AND (r.session_digest IS NULL OR s.expires_at>?)
                   AND o.source='chat.turn' AND o.run_key=?
                   AND o.actor_id=? AND o.workspace_id=? AND c.chat_id=? AND i.provider IN ('ozon','wb')
-                  AND (i.provider!='wb' OR EXISTS(SELECT 1 FROM chat_plugins p WHERE p.workspace_id=w.workspace_id
-                        AND p.chat_id=c.chat_id AND p.plugin_id='wildberries'))
+                  AND EXISTS(SELECT 1 FROM chat_plugins p WHERE p.workspace_id=w.workspace_id
+                        AND p.chat_id=c.chat_id AND p.plugin_id=CASE i.provider WHEN 'wb' THEN 'wildberries' ELSE 'ozon' END)
                   AND i.id IN (""" + ",".join("?" for _ in self.ids) + ") ORDER BY i.id", args).fetchall()
         finally:
             db.close()
@@ -102,6 +102,14 @@ class ChatAuthority:
         if [r[:4] for r in rows] != [r[:4] for r in self.frozen]:
             raise Rejected("PERMISSION_DENIED")
         return rows
+
+    def saved_ozon_coefficients(self, cid):
+        from semantics import Rejected
+        if not any(row[0] == cid and row[1] == "ozon" for row in self.check()):
+            raise Rejected("PERMISSION_DENIED")
+        with sqlite3.connect(self.database, uri=True) as db:
+            return db.execute("""SELECT sku,metric,value,source,since,until,revision
+                FROM user_plugin_values WHERE plugin='ozon' AND cid=? ORDER BY sku,metric""", (cid,)).fetchall()
 
     def store(self, row):
         from semantics import Store

@@ -15,7 +15,9 @@ class Plugin:
 
 WB = Plugin("wildberries", "analytics", "Вайлдберис",
             "Отчёты WB и сохранённые коэффициенты потерь, доставки и комиссии для магазинов и товаров.", "wb")
-CATALOG = {WB.id: WB}
+OZON = Plugin("ozon", "analytics", "Озон",
+              "Отчёты Ozon, доля потерь и стоимость прямой и последней доставки для магазинов и товаров.", "ozon")
+CATALOG = {plugin.id: plugin for plugin in (WB, OZON)}
 CATEGORIES = (
     {"id": "analytics", "title": "Аналитика", "parent": None},
     {"id": "advertising", "title": "Реклама", "parent": None},
@@ -76,12 +78,17 @@ def connect_store(db,scope,cid):
 
 def install(db):
     from ..storage import Scope
-    first=not db.execute("SELECT 1 FROM sqlite_master WHERE name='user_plugin_stores'").fetchone()
     for statement in SCHEMA:
         db.execute(statement)
-    if first:
+    db.execute("CREATE TABLE IF NOT EXISTS user_plugin_migrations(plugin TEXT PRIMARY KEY)")
+    for plugin in CATALOG.values():
+        if db.execute("SELECT 1 FROM user_plugin_migrations WHERE plugin=?", (plugin.id,)).fetchone():
+            continue
         rows=db.execute("""SELECT w.owner_id,w.workspace_id,a.chat_id,a.connection_id FROM chat_integrations a
             JOIN chats c ON c.chat_id=a.chat_id JOIN workspaces w USING(workspace_id)
-            JOIN account_integrations i ON i.id=a.connection_id AND i.workspace=w.workspace_id""").fetchall()
+            JOIN account_integrations i ON i.id=a.connection_id AND i.workspace=w.workspace_id
+            WHERE i.provider=? AND NOT EXISTS(SELECT 1 FROM entitlements e
+              WHERE e.workspace_id=w.workspace_id AND e.plugin_id=?)""",(plugin.provider,plugin.id)).fetchall()
         for actor,ws,chat,cid in rows:
             connect_store(db,Scope(actor,ws,chat),cid)
+        db.execute("INSERT INTO user_plugin_migrations VALUES(?)",(plugin.id,))

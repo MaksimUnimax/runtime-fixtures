@@ -30,13 +30,13 @@
       start.setUTCDate(start.getUTCDate()-364);
       return [start.toISOString().slice(0,10),end.toISOString().slice(0,10)];
     }
-    function Coefficient({id,metric,entry,job,onSave,onCalculate,busy}) {
+    function Coefficient({id,metric,entry,job,onSave,onCalculate,busy,title:providerTitle}) {
       const [value,setValue]=React.useState(entry?.value??'');
       React.useEffect(()=>setValue(entry?.value??''),[entry?.revision]);
       const title=metric.title+' ('+metric.unit+')';
       return h('section',{className:'plugin-metric'},
         h('h3',null,metric.title),
-        h('p',null,entry ? (entry.source==='manual'?'Вручную':'По отчётам WB')+
+        h('p',null,entry ? (entry.source==='manual'?'Вручную':'По отчётам '+providerTitle)+
           (entry.since?' · '+entry.since+' — '+entry.until:'')+' · '+new Date(entry.updated).toLocaleDateString('ru-RU') : 'Значение ещё не задано'),
         h('label',null,title,h('input',{value,inputMode:'decimal',placeholder:'Введите число',onChange:e=>setValue(e.target.value)})),
         h('div',{className:'plugin-buttons'},
@@ -44,7 +44,7 @@
           h(Action,{disabled:busy||job?.state==='running',onClick:()=>onCalculate(id,entry?.revision??null)},'Рассчитать')),
         job&&job.state!=='done'&&h('p',{role:job.state==='failed'?'alert':'status'},job.message));
     }
-    function Wildberries({url,close,title}) {
+    function Marketplace({url,close,title,provider}) {
       const [cid,setCid]=React.useState(''),[sku,setSku]=React.useState(''),[data,setData]=React.useState(null);
       const [error,setError]=React.useState(''),[busy,setBusy]=React.useState(false),[tick,refresh]=React.useReducer(n=>n+1,0);
       const [period,setPeriod]=React.useState(initialPeriod),[models,setModels]=React.useState(null);
@@ -108,12 +108,12 @@
             h('label',null,'Найти товар',h('input',{type:'search',placeholder:'Название или артикул',value:search,onChange:e=>{setSearch(e.target.value);setLimit(100);}})),
             h('label',null,'Область расчёта',h('select',{'aria-label':'Область расчёта',value:sku,disabled:busy,onChange:e=>{setSku(e.target.value);setData(null);}},
               h('option',{value:''},'Весь магазин'),shown.map(p=>h('option',{key:p.sku,value:p.sku},
-                [p.title,p.offer,'WB '+p.sku].filter(Boolean).join(' · '))))),
+                [p.title,p.offer,(provider==='ozon'?'SKU ':'WB ')+p.sku].filter(Boolean).join(' · '))))),
             productRows.length>limit&&h(Action,{onClick:()=>setLimit(n=>n+100)},'Показать ещё товары'),
             h(Action,{disabled:busy||catalogJob?.state==='running',onClick:()=>act(()=>send(url+'/refresh',{cid}))},'Обновить товары'),
             h(Action,{disabled:busy,onClick:()=>act(async()=>{await send(url+'/disconnect',{cid});window.dispatchEvent(new Event('harness:grants'));changeStore('');})},'Отключить магазин от чата')),
             catalogJob?.state!=='done'&&catalogJob&&h('p',{role:'status'},catalogJob.message),
-            h(Fold,{label:'Схемы складов'},h('p',null,'Если в финансовом отчёте WB не указана схема доставки, её можно задать для этого склада.'),
+            provider==='wb'&&h(Fold,{label:'Схемы складов'},h('p',null,'Если в финансовом отчёте WB не указана схема доставки, её можно задать для этого склада.'),
               Object.entries(data.schemes||{}).map(([name,value])=>h('div',{key:name,className:'plugin-row'},h('span',null,name+' · '+value),
                 h(Action,{disabled:busy,onClick:()=>act(()=>send(url+'/scheme',{cid,office:name,scheme:''}))},'Удалить'))),
               h('div',{className:'plugin-controls'},h('label',null,'Название склада WB',h('input',{value:office,onChange:e=>setOffice(e.target.value)})),
@@ -124,7 +124,7 @@
                 const next=period.slice();next[i]=e.target.value;setPeriod(next);
               }}))),h(Action,{onClick:()=>setPeriod(initialPeriod())},'За год')),
             h('div',{className:'plugin-grid'},Object.entries(data.metrics).map(([id,metric])=>h(Coefficient,{key:cid+sku+id,
-              id,metric,entry:data.values?.[id],job:job(id),busy,
+              id,metric,title,entry:data.values?.[id],job:job(id),busy,
               onSave:(metric,value,revision)=>act(()=>send(url+'/save',{cid,sku,metric,value,revision})),
               onCalculate:(metric,revision)=>act(()=>send(url+'/calculate',{cid,sku,metric,revision,since:period[0],until:period[1],requestId:crypto.randomUUID().replaceAll('-','')}))})))),
           h(Fold,{label:'Модель для расчётов'},
@@ -140,7 +140,7 @@
                 setData(prev=>prev&&({...prev,model:saved.model,effort:saved.effort}));setModelDraft(null);
               })},'Сохранить модель')))));
     }
-    const panels={wildberries:Wildberries};
+    const panels={wb:Marketplace,ozon:Marketplace};
     function Menu({chat,wide}) {
       const url='/api/chats/'+encodeURIComponent(chat)+'/plugins';
       const [data,setData]=React.useState(null),[panel,setPanel]=React.useState(''),[err,setErr]=React.useState(''),[busy,setBusy]=React.useState(false);
@@ -190,10 +190,10 @@
         enabled.length>0&&h('nav',{'aria-label':'Подключённые плагины',className:'octo-enabled-plugins'},
           wide&&h('div',{className:'octo-plugin-list-title'},'Подключённые плагины'),
           h('ul',null,enabled.map(p=>h('li',{key:p.id},
-            link(p.title,p.id==='wildberries'?IconDataOutlineMedium:IconPersonalizationOutlineMedium,()=>setPanel(p.id)))))),
+            link(p.title,p.provider==='wb'?IconDataOutlineMedium:IconPersonalizationOutlineMedium,()=>setPanel(p.id)))))),
         panel==='catalog'&&h(Dialog,{label,close:()=>setPanel('')},
           err&&h('p',{role:'alert'},err),data?branch(null):!err&&h('p',{role:'status'},'Загружаем каталог…')),
-        plugin&&panels[plugin.id]&&h(panels[plugin.id],{key:chat+plugin.id,url:url+'/'+encodeURIComponent(plugin.id),title:plugin.title,close:()=>setPanel('')}));
+        plugin&&panels[plugin.provider]&&h(panels[plugin.provider],{key:chat+plugin.id,url:url+'/'+encodeURIComponent(plugin.id),title:plugin.title,provider:plugin.provider,close:()=>setPanel('')}));
     }
     function Sidebar({wide}) {
       const selection=ctx.uiWorkspace.selection;

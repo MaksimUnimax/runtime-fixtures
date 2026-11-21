@@ -228,6 +228,65 @@ def bind_read_builder_cache(files):
         "    return canonical_json(request)\n\n\ndef quota(")
 
 
+def bind_ozon_coefficient_items(files):
+    """Extend the existing authenticated source workflow with item-level financial receipts."""
+    files["ozon_sku_delivery.py"] = (Path(__file__).resolve().parents[1] /
+        "platform_core/marketplace_matrix/ozon_sku_delivery.py").read_bytes()
+    patch_runtime(files,"read_surface.py",
+        "    try:\n        proc=subprocess.run(['node',str(DATA/'contract_bridge.mjs')],input=payload,capture_output=True,text=True,timeout=5)\n"
+        "        response=json.loads(proc.stdout)\n"
+        "    except (OSError,ValueError,subprocess.TimeoutExpired):raise Rejected('READ_BUILDER_UNAVAILABLE')from None",
+        "    from platform_core.marketplace_matrix.read_builder import checked_response\n"
+        "    response=checked_response(DATA/'contract_bridge.mjs',payload)")
+    producer="parameter_support/parameter_producers.py"
+    source="parameter_source_runtime.py"
+    # Historical Seller reports also include a numeric delivery-speed field.
+    # Keep it in the receipt hash; it is not a monetary service component.
+    patch_runtime(files,"parameter_support/economics_accruals.py",
+        "  value=record['posting'];exact(value,('delivery_schema','products'))",
+        "  value=record['posting'];fields=('delivery_schema','products')\n"
+        "  if type(value)is dict and 'delivery_speed'in value:\n"
+        "   need(value['delivery_speed'] is None or type(value['delivery_speed'])is int,'ACCRUAL_DELIVERY_SPEED')\n"
+        "   fields+=('delivery_speed',)\n"
+        "  exact(value,fields)")
+    # The wire report is verified and fully decoded first. Retain only the
+    # requested product in SKU checkpoints and out-of-period return lookups.
+    patch_runtime(files,source,"                values=_table_orders(worker,row,state['step'],answer)",
+        "                values=_table_orders(worker,row,state['step'],answer)\n"
+        "                sku=p['target']['scope']['sku']\n"
+        "                if sku:values=[v for v in values if v['sku']==sku]")
+    patch_runtime(files,source,"                values,postings=_return_rows(worker,row,answer);state['rows']+=values;state['postings'].update(postings)",
+        "                values,postings=_return_rows(worker,row,answer)\n"
+        "                sku=p['target']['scope']['sku']\n"
+        "                if sku:values=[v for v in values if v['sku']==sku]\n"
+        "                state['rows']+=values;state['postings'].update({v['posting']:postings[v['posting']] for v in values})")
+    rules=json.loads(files["parameter_support/parameter_producers.json"])
+    finance=rules["sources"]["finance"]
+    finance["scopes"].append("sku")
+    finance["operations"].extend(("finance_accrual_types","finance_accrual_by_day"))
+    files["parameter_support/parameter_producers.json"]=json.dumps(rules,ensure_ascii=False,indent=2).encode()+b"\n"
+    patch_runtime(files,producer,
+        "        if source=='finance':need(target['scope']['kind']in spec['scopes'],'PARAMETER_SOURCE_SCOPE_UNAVAILABLE')",
+        "        if source=='finance' and target['scope']['kind']=='sku':\n"
+        "            from ozon_sku_delivery import steps\n"
+        "            required.extend(steps(period['actual']));continue")
+    patch_runtime(files,producer,"            need(target['scope']['kind']=='store','PARAMETER_SOURCE_SCOPE_UNAVAILABLE')",
+        "            need(target['scope']['kind'] in spec['scopes'],'PARAMETER_SOURCE_SCOPE_UNAVAILABLE')")
+    patch_runtime(files,source,"import read_surface as surface","import read_surface as surface\nimport ozon_sku_delivery as sku_delivery")
+    patch_runtime(files,source,"for m in (pc,pp)","for m in (pc,pp,sku_delivery)")
+    patch_runtime(files,source,"'returns_list','finance_balance','posting_fbo_get'",
+        "'returns_list','finance_balance','finance_accrual_types','finance_accrual_by_day','posting_fbo_get'")
+    patch_runtime(files,source,"'controls':json.loads(produced.proof_json)['controls']",
+        "'controls':json.loads(produced.proof_json)['controls'],'inputs':envelope['inputs']")
+    patch_runtime(files,source,"            elif operation=='finance_balance':",
+        "            elif operation=='finance_accrual_types':\n"
+        "                state['delivery_types']=sku_delivery.types(answer);state['i']+=1;state['phase']='next'\n"
+        "            elif operation=='finance_accrual_by_day':\n"
+        "                if sku_delivery.receive(state,answer,p['target']['scope']['sku']):\n"
+        "                    _batch(p,state,state['step'],state['rows'],stamp)\n"
+        "            elif operation=='finance_balance':")
+
+
 def bind_coefficient_guidance(files):
     catalog = json.loads(files["template_catalog.json"])
     templates = catalog["templates"]
@@ -356,6 +415,7 @@ def collect(core, renderer, config):
     bind_ozon_posting_money(files)
     bind_read_builder_cache(files)
     bind_coefficient_guidance(files)
+    bind_ozon_coefficient_items(files)
     files["source_qualifications.json"] = json.dumps(portable, sort_keys=True).encode()
     # Both discovery and selection compilation call the same catalogue hook.
     target = b"def _availability(engine,t,store):\n"
