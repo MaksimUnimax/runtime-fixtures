@@ -18,96 +18,6 @@
     "reference": "https://console.groq.com/docs/rate-limits"
   },
   {
-    "id": "nvidia",
-    "name": "NVIDIA Build",
-    "kind": "evaluation",
-    "url": "https://build.nvidia.com/nvidia/nemotron-3-ultra-550b-a55b/build",
-    "steps": "Войдите в NVIDIA Developer, откройте страницу модели, нажмите Get API Key и сгенерируйте ключ.",
-    "terms": "Четыре кандидата Nemotron в текущем каталоге. Публичные условия бесплатного API разрешают внутренние испытания.",
-    "reference": "https://assets.ngc.nvidia.com/products/api-catalog/legal/NVIDIA%20API%20Trial%20Terms%20of%20Service.pdf"
-  },
-  {
-    "id": "liquid-ai",
-    "name": "Liquid AI",
-    "kind": "credit",
-    "url": "https://console.liquid.ai/",
-    "steps": "Войдите в консоль, выберите свою организацию, откройте API Keys и создайте ключ.",
-    "terms": "LFM3-1.7B тарифицируется. Новая организация получает $2 стартового кредита.",
-    "reference": "https://www.liquid.ai/pricing"
-  },
-  {
-    "id": "mistral",
-    "name": "Mistral AI",
-    "kind": "evaluation",
-    "url": "https://console.mistral.ai/api-keys",
-    "steps": "Войдите в Mistral Studio. В своём workspace выберите бесплатный режим Experiment, откройте API Keys и нажмите New key.",
-    "terms": "Бесплатный режим для оценки и прототипов. Лимиты действуют на организацию.",
-    "reference": "https://help.mistral.ai/en/articles/698531-why-am-i-hitting-api-rate-limits-and-how-do-i-increase-them"
-  },
-  {
-    "id": "cohere",
-    "name": "Cohere",
-    "kind": "evaluation",
-    "url": "https://dashboard.cohere.com/api-keys",
-    "steps": "Войдите в Dashboard, откройте API Keys и скопируйте Trial key.",
-    "terms": "При регистрации выдаётся ограниченный ключ для оценки. Для клиентского сервиса нужны условия Production.",
-    "reference": "https://docs.cohere.com/docs/going-live"
-  },
-  {
-    "id": "siliconflow",
-    "name": "SiliconFlow",
-    "kind": "credit",
-    "url": "https://cloud.siliconflow.com/account/ak",
-    "steps": "Войдите в международную консоль. В API Keys нажмите Create API Key. В Models проверьте цену нужного ID.",
-    "terms": "Международная платформа указывает $1 стартового кредита. Нулевую ставку каждой модели проверяют отдельно.",
-    "reference": "https://www.siliconflow.com/pricing"
-  },
-  {
-    "id": "cerebras",
-    "name": "Cerebras",
-    "kind": "credit",
-    "url": "https://cloud.cerebras.ai/",
-    "steps": "Войдите в Cloud Console, откройте API Keys и создайте ключ. Для получения пробного кредита поставщик просит подтвердить карту.",
-    "terms": "Разовый кредит $5 на 30 дней после проверки карты. Постоянной бесплатной квоты у этого тарифа нет.",
-    "reference": "https://inference-docs.cerebras.ai/support/rate-limits"
-  },
-  {
-    "id": "ant-ling",
-    "name": "Ant Ling",
-    "kind": "metered",
-    "url": "https://chat.ant-ling.com/open",
-    "steps": "Войдите в API Console, привяжите Alipay и нажмите Create Token.",
-    "terms": "Прямой Ling-3.2-Flash тарифицируется.",
-    "reference": "https://developer.ant-ling.com/en/docs/models/price/"
-  },
-  {
-    "id": "baidu",
-    "name": "Baidu Qianfan",
-    "kind": "metered",
-    "url": "https://console.bce.baidu.com/iam/#/iam/apikey/list",
-    "steps": "Войдите в Baidu AI Cloud. В Security Authentication → API Key нажмите Create API Key. В Add Permissions выберите Qianfan ModelBuilder.",
-    "terms": "ERNIE-5.5-Flash-Preview имеет платную ставку.",
-    "reference": "https://cloud.baidu.com/product/qianfan_home/model_3.html"
-  },
-  {
-    "id": "particle",
-    "name": "Particle AI",
-    "kind": "metered",
-    "url": "https://platform.particle.ai/",
-    "steps": "Войдите в Particle Platform через Google, откройте раздел API Keys и создайте ключ.",
-    "terms": "Обычный ключ Particle-1 требует положительного баланса. Исключение действует для ключа со специально выданным бесплатным доступом.",
-    "reference": "https://docs.particle.ai/usage-billing"
-  },
-  {
-    "id": "huggingface",
-    "name": "Hugging Face Inference Providers",
-    "kind": "metered",
-    "url": "https://huggingface.co/settings/tokens",
-    "steps": "Войдите, нажмите Create new token, выберите Fine-grained и включите Make calls to Inference Providers.",
-    "terms": "Агрегатор. Для Free-аккаунта актуальная таблица не даёт ежемесячных кредитов.",
-    "reference": "https://huggingface.co/docs/inference-providers/main/pricing"
-  },
-  {
     "id": "google",
     "name": "Google AI Studio",
     "kind": "free",
@@ -141,6 +51,33 @@
     "url": "",
     "steps": "",
     "terms": "По решению владельца запросы на регистрацию отключены. Состояние имеющегося ключа отображается в маршрутах.",
+    "reference": ""
+  },
+  {
+    "id": "nvidia",
+    "name": "NVIDIA",
+    "kind": "excluded",
+    "url": "",
+    "steps": "",
+    "terms": "NVIDIA исключена владельцем из поставщиков хаба.",
+    "reference": ""
+  },
+  {
+    "id": "mistral",
+    "name": "Mistral",
+    "kind": "excluded",
+    "url": "",
+    "steps": "",
+    "terms": "Mistral исключена владельцем. Бесплатный режим предназначен для оценки и прототипов.",
+    "reference": ""
+  },
+  {
+    "id": "liquid-ai",
+    "name": "Liquid AI",
+    "kind": "excluded",
+    "url": "",
+    "steps": "",
+    "terms": "У Liquid AI платная тарификация и разовый кредит. Регистрация для бесплатного хаба отключена.",
     "reference": ""
   }
 ]

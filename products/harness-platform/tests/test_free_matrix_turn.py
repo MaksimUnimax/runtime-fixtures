@@ -53,6 +53,8 @@ class FreeMatrixTurn(unittest.TestCase):
             runtime=app.state.model_router.hub
             model="hub:auto"
             from platform_core import hub_direct
+            with app.state.model_hub.database() as hdb:
+                hdb.execute("INSERT INTO hub_keys VALUES('existing-atlas','atlas','atlas',X'00')")
             for provider_name in ("google","atlas"):
                 app.state.model_hub.save_key(provider_name,provider_name,"fixture-direct-"+provider_name)
             def healthy():

@@ -25,6 +25,7 @@ from . import hub_runtime
 CATALOG = "https://openrouter.ai/api/v1/models"
 # These mappings are discovery evidence, never permission to send traffic.
 ENROLLMENT = {row["id"]: row for row in json.loads(Path(__file__).with_name("hub_enrollment.json").read_text())}
+RESEARCH_VERSION = "direct-free-customer-use-v4"
 PROVIDERS = {key: row["name"] for key, row in ENROLLMENT.items()}
 ALIASES = {"dots-studio": "dots", "dots-ai": "dots", "dotsstudio": "dots", "rednote": "dots",
            "xiaohongshu": "dots", "xiao-hong-shu": "dots", "atlascloud": "atlas", "atlas-cloud": "atlas", "atlascloud-ai": "atlas", "atlas-cloud-ai": "atlas",
@@ -34,14 +35,23 @@ ALIASES = {"dots-studio": "dots", "dots-ai": "dots", "dotsstudio": "dots", "redn
 
 def provider_id(provider, name="", source=""):
     host = (urlsplit(source).hostname or "").lower()
-    for domain, key in (("atlascloud.ai", "atlas"), ("dots.ai", "dots"), ("askdiandian.com", "dots")):
+    for domain, key in (("atlascloud.ai", "atlas"), ("dots.ai", "dots"), ("askdiandian.com", "dots"),
+                        ("nvidia.com", "nvidia"), ("liquid.ai", "liquid-ai"), ("mistral.ai", "mistral")):
         if host == domain or host.endswith("." + domain):
             return key
     if name.strip() == "小红书":
         return "dots"
     label = re.sub(r"[^a-z0-9]", "", name.lower())
+    if label in {"nvidia","nvidiabuild","nvidianim","nvidiadeveloper","liquidai","liquidconsole"}:
+        return "nvidia" if label.startswith("nvidia") else "liquid-ai"
     if label in {"dotsstudio", "dotsai", "xiaohongshu", "rednote", "atlascloud", "atlascloudai"}:
         return "atlas" if label.startswith("atlas") else "dots"
+    if label in {"mistral","mistralai","mistralstudio","laplateforme"} or provider in {"mistralai","mistral-ai","mistral-studio","la-plateforme"}:
+        return "mistral"
+    if provider in {"nvidia-nim","nvidia-api-catalog","nvidia-developer","nvidiabuild"}:
+        return "nvidia"
+    if provider in {"liquidai","liquid-console"}:
+        return "liquid-ai"
     return ALIASES.get(provider, provider)
 
 
@@ -70,6 +80,7 @@ CREATE TABLE IF NOT EXISTS research_alternatives(
     model TEXT NOT NULL, checked INTEGER NOT NULL, finding TEXT NOT NULL, source TEXT NOT NULL,
     access TEXT NOT NULL, provider TEXT NOT NULL, provider_name TEXT NOT NULL, PRIMARY KEY(model,provider));
 CREATE TABLE IF NOT EXISTS research_versions(version TEXT PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS research_expiry(model TEXT NOT NULL, provider TEXT NOT NULL, expires INTEGER NOT NULL, PRIMARY KEY(model,provider));
 CREATE TABLE IF NOT EXISTS research_revision(model TEXT PRIMARY KEY, version TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS research_attempts(model TEXT PRIMARY KEY, attempted INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS research_state(
@@ -103,15 +114,16 @@ def valid_catalog_record(item):
             and all(isinstance(tier, dict) for tier in price.get("overrides", [])))
 
 
-def registry(db):
-    providers = PROVIDERS.copy()
+def registration_providers(db):
+    providers = {key: row["name"] for key,row in ENROLLMENT.items() if row["kind"] == "free"}
     for row in db.execute("""SELECT provider,provider_name,source FROM
             (SELECT * FROM research UNION ALL SELECT * FROM research_alternatives)
-            WHERE access IN ('public_free','conditional','paid') AND checked>0 ORDER BY checked"""):
+            JOIN candidates USING(model) JOIN research_revision v USING(model)
+            LEFT JOIN research_expiry e USING(model,provider)
+            WHERE (e.expires IS NULL OR e.expires>unixepoch()) AND access='public_free' AND checked>0 AND v.version=? ORDER BY checked""",(RESEARCH_VERSION,)):
         key = provider_id(row["provider"], row["provider_name"], row["source"])
-        providers.setdefault(key, row["provider_name"])
-    for row in db.execute("SELECT DISTINCT provider FROM hub_keys"):
-        providers.setdefault(row["provider"],row["provider"])
+        if not registration_excluded(key):
+            providers.setdefault(key, row["provider_name"])
     return providers
 
 
@@ -179,9 +191,9 @@ class Hub:
         cipher = vault_cipher()
         with self.database() as db:
             db.execute("BEGIN IMMEDIATE")
-            if provider not in registry(db):
-                raise ValueError("Неизвестный поставщик")
             previous = db.execute("SELECT id FROM hub_keys WHERE provider=? AND label=?", (provider,label)).fetchone()
+            if not previous and provider not in registration_providers(db):
+                raise ValueError("У поставщика нет подходящего бесплатного тарифа")
             kid = previous["id"] if previous else uuid4().hex
             nonce = os.urandom(12)
             aad = json.dumps(["model-hub", provider, kid]).encode()
@@ -234,14 +246,15 @@ class Hub:
             db.execute("BEGIN")
             state = db.execute("SELECT attempted,succeeded,error FROM catalog_state").fetchone()
             monitor = db.execute("SELECT attempted,succeeded,error FROM research_state").fetchone()
-            provider_names = registry(db)
+            eligible = registration_providers(db)
             keys = [dict(r) for r in db.execute("""SELECT k.id,k.provider,k.label,
                     a.key_id IS NOT NULL AS account_configured, coalesce(c.enabled,1) enabled, coalesce(c.private_until,0) private_until
                 FROM hub_keys k LEFT JOIN hub_cloudflare_accounts a ON a.key_id=k.id LEFT JOIN hub_control c ON c.key_id=k.id
                 ORDER BY k.provider,k.label""")]
             findings = {}
-            for row in db.execute("""SELECT * FROM research WHERE checked>0 UNION ALL
-                    SELECT * FROM research_alternatives WHERE checked>0 ORDER BY model,provider"""):
+            for row in db.execute("""SELECT f.*, v.version AS revision, e.expires FROM
+                    (SELECT * FROM research UNION ALL SELECT * FROM research_alternatives) f
+                    LEFT JOIN research_revision v USING(model) LEFT JOIN research_expiry e USING(model,provider) WHERE checked>0 ORDER BY model,provider"""):
                 review = dict(row)
                 key = provider_id(review["provider"], review["provider_name"], review["source"])
                 review["provider"] = key
@@ -249,7 +262,10 @@ class Hub:
                     review["finding"] = ENROLLMENT[key]["terms"]
                 findings.setdefault(row["model"], []).append(review)
             models = [dict(r) for r in db.execute("SELECT model,name FROM candidates ORDER BY model")]
+        provider_names = {k["provider"]: PROVIDERS.get(k["provider"],k["provider"]) for k in keys}
+        provider_names.update(eligible)
         configured = {provider_id(k["provider"]) for k in keys}
+        now = int(time.time())
         missing = {}
         for item in models:
             mid = item["model"]
@@ -260,9 +276,9 @@ class Hub:
                 key = review["provider"]
                 if registration_excluded(key):
                     blocked.add(key)
-                if review["access"] in {"paid","unknown"}:
+                if review["access"] != "public_free" or (review["expires"] is not None and review["expires"] <= now):
                     suppliers.discard(key)
-                elif review["access"] == "public_free":
+                elif review["revision"] == RESEARCH_VERSION:
                     suppliers.add(key)
             candidates = suppliers - blocked
             for key in sorted(candidates - configured):
@@ -279,7 +295,7 @@ class Hub:
                         findings=reviews, status=status)
         enrollment = [dict(row, configured=row["id"] in configured) for row in ENROLLMENT.values()]
         return dict(catalog=dict(state) if state else None, monitor=dict(monitor) if monitor else None,
-                    providers=provider_names, keys=keys, models=models, missing=missing, enrollment=enrollment)
+                    providers=provider_names, registration_providers=eligible, keys=keys, models=models, missing=missing, enrollment=enrollment)
 
 
 def routes(get_token, body):

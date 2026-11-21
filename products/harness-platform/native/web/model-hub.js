@@ -15,14 +15,13 @@ function monitor(title, state) {
   const success = state.succeeded ? stamp(state.succeeded) : 'пока отсутствует';
   return title + ' · последняя попытка ' + stamp(state.attempted) + ' · успешная ' + success + (state.error ? ' · ' + state.error : '');
 }
-const accessLabels = {free:'Есть бесплатный тариф', evaluation:'Для испытаний', credit:'Стартовый кредит', metered:'Платный API'};
 function renderEnrollment(rows) {
-  const active = rows.filter(row => row.kind !== 'excluded');
+  const active = rows.filter(row => row.kind === 'free');
   byId('enrollment').replaceChildren(...active.map(row => {
     const item = document.createElement('li');
     const title = document.createElement('strong');
     title.textContent = row.name;
-    item.append(title, ' · ', accessLabels[row.kind], row.configured ? ' · ключ уже сохранён. ' : '. ', row.terms, ' ');
+    item.append(title, ' · Есть бесплатный тариф', row.configured ? ' · ключ уже сохранён. ' : '. ', row.terms, ' ');
     if (!row.configured) {
       const link = document.createElement('a');
       link.href = row.url;
@@ -42,9 +41,19 @@ function render(data) {
   const providers = data.providers;
   const select = form.elements.provider;
   const prior = select.value;
-  const hiddenSuppliers = new Set((data.enrollment || []).filter(r => r.kind === 'excluded' && !r.configured).map(r => r.id));
-  select.replaceChildren(...Object.entries(providers).filter(([id]) => !hiddenSuppliers.has(id)).map(([key, name]) => new Option(name,key)));
-  if (prior in providers && !hiddenSuppliers.has(prior)) select.value = prior;
+  const eligible = data.registration_providers || Object.fromEntries(
+    (data.enrollment || []).filter(row => row.kind === 'free').map(row => [row.id,row.name])
+  );
+  const choices = Object.entries(eligible).map(([id, name]) => new Option(name,id));
+  for (const key of data.keys.filter(k => !(k.provider in eligible))) {
+    const option = new Option('Заменить ключ · ' + providers[key.provider] + ' · ' + key.label, 'saved:' + key.id);
+    option.dataset.provider = key.provider;
+    option.dataset.label = key.label;
+    choices.push(option);
+  }
+  select.replaceChildren(...choices);
+  if (choices.some(option => option.value === prior)) select.value = prior;
+  syncKeyLabel();
   const requests = Object.entries(data.missing).map(([id, models]) => providers[id] + ' · ' + models.join(', '));
   for (const row of data.enrollment || []) {
     if (row.kind === 'free' && !row.configured && !(row.id in data.missing)) {
@@ -104,6 +113,14 @@ function refresh() {
   byId('problem').textContent = '';
   load().catch(err => {byId('problem').textContent = err.message;});
 }
+function syncKeyLabel() {
+  const option = form.elements.provider.selectedOptions[0];
+  const label = form.elements.label;
+  const locked = option?.dataset.label;
+  if (locked || label.readOnly) label.value = locked || '';
+  label.readOnly = Boolean(locked);
+}
+form.elements.provider.addEventListener('change',syncKeyLabel);
 byId('refresh').addEventListener('click',refresh);
 form.addEventListener('submit',async event => {
   event.preventDefault();
@@ -112,7 +129,13 @@ form.addEventListener('submit',async event => {
   button.disabled = true;
   byId('problem').textContent = byId('saved').textContent = '';
   try {
-    await load('/api/admin/model-hub/keys',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(form)))});
+    const fields = Object.fromEntries(new FormData(form));
+    const option = form.elements.provider.selectedOptions[0];
+    if (option?.dataset.provider) {
+      fields.provider = option.dataset.provider;
+      fields.label = option.dataset.label;
+    }
+    await load('/api/admin/model-hub/keys',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(fields)});
     form.elements.key.value = '';
     byId('saved').textContent = 'Ключ сохранён';
   } catch (error) { byId('problem').textContent = error.message; }

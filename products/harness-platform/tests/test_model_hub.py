@@ -98,7 +98,7 @@ class ModelHubTests(unittest.TestCase):
         def review(batch):
             self.assertEqual(batch,ids[4:])
             rows = [dict(model=mid, finding="Бесплатный API с квотой", source="https://example.org/terms",
-                         access="public_free",provider="new-company",provider_name="New Company") for mid in batch]
+                         billing="renewing_free_quota",customer_use=True,access="public_free",provider="new-company",provider_name="New Company") for mid in batch]
             return hub_research.validate({"results":rows},batch)
         self.assertTrue(hub_research.run(self.hub,review))
         self.assertEqual(self.hub.dashboard()["missing"]["new-company"],ids[4:])
@@ -113,7 +113,7 @@ class ModelHubTests(unittest.TestCase):
             suppliers = [("dots-studio","Dots Studio","dots.ai"),("atlas-cloud","AtlasCloud","atlascloud.ai"),
                          ("new-company","New Company","example.org"),("other-company","Other Company","example.net")]
             rows = [dict(model=mid, finding="Direct API", source="https://"+domain+"/terms",
-                         access="public_free",provider=key,provider_name=name) for key,name,domain in suppliers]
+                         billing="renewing_free_quota",customer_use=True,access="public_free",provider=key,provider_name=name) for key,name,domain in suppliers]
             return hub_research.validate({"results":rows}, batch)
         self.assertTrue(hub_research.run(self.hub,audit))
         self.hub.save_key("new-company","test","synthetic-test-key")
@@ -122,10 +122,11 @@ class ModelHubTests(unittest.TestCase):
         self.assertEqual(data["missing"],{"other-company":[mid]})
         self.assertEqual(len(data["models"][0]["findings"]),4)
         excluded = {row["id"] for row in data["enrollment"] if row["kind"]=="excluded" and not row["url"]}
-        self.assertEqual(excluded,{"atlas","dots"})
+        self.assertEqual(excluded,{"atlas","dots","mistral","nvidia","liquid-ai"})
         self.assertNotIn("atlas-cloud",data["providers"])
         self.assertIn("groq",data["providers"])
-        self.hub.save_key("nvidia","pilot","synthetic-trial-key")
+        with self.assertRaises(ValueError):
+            self.hub.save_key("nvidia","pilot","synthetic-trial-key")
         self.assertEqual(self.hub.dashboard()["missing"],{"other-company":[mid]})
         with self.hub.database() as db:
             db.execute("UPDATE research SET checked=1")
@@ -144,7 +145,7 @@ class ModelHubTests(unittest.TestCase):
     def test_research_separates_provider_products_and_trial_rights(self):
         mid = "nvidia/nemotron:free"
         record = dict(model=mid,finding="Direct API",source="https://build.nvidia.com/model",
-                      access="public_free",provider="nvidia",provider_name="NVIDIA")
+                      billing="renewing_free_quota",customer_use=True,access="public_free",provider="nvidia",provider_name="NVIDIA")
         def validate(**changes):
             return hub_research.validate({"results":[record | changes]},[mid])[0]
         self.assertEqual(validate()[3],"conditional")
@@ -155,9 +156,64 @@ class ModelHubTests(unittest.TestCase):
         self.discover({"data":[model(GEMMA)]})
         def review(batch):
             return [(GEMMA,"Бесплатно в пределах квоты","https://developers.cloudflare.com/workers-ai/platform/pricing/",
-                     "conditional","cloudflare","Cloudflare")]
+                     "public_free","cloudflare","Cloudflare")]
         self.assertTrue(hub_research.run(self.hub,review))
         self.assertIn("cloudflare",self.hub.dashboard()["missing"])
+
+    def test_registration_requires_a_free_business_offer_and_respects_supplier_exclusions(self):
+        mid = "nvidia/new-model:free"
+        self.discover({"data":[model(mid)]})
+        def review(batch):
+            offers = [
+                ("nv-build","NVIDIA","build.nvidia.com","zero_rate",True),
+                ("liquidai","Liquid","console.liquid.ai","zero_rate",True),
+                ("mistralai","La Plateforme","console.mistral.ai","zero_rate",True),
+                ("launch","Launch Credits","credits.example","signup_credit",True),
+                ("pilot","Testing Only","test.example","zero_rate",False),
+                ("paid","Paid API","paid.example","metered",True),
+                ("trial","Time Limited Trial","trial.example","trial",True),
+                ("real-host","Independent Host","host.example","zero_rate",True)]
+            rows = [dict(model=mid, finding="Условия тарифа", source="https://"+host+"/terms", access="public_free",
+                         provider=provider, provider_name=name, billing=billing, customer_use=rights)
+                    for provider,name,host,billing,rights in offers]
+            return hub_research.validate({"results":rows},batch)
+        self.assertTrue(hub_research.run(self.hub,review))
+        self.discover({"data":[model(mid)]})
+        state = Hub(self.hub.path).dashboard()
+        self.assertEqual(state["missing"],{"real-host":[mid]})
+        self.assertEqual({r["id"] for r in state["enrollment"] if r["url"]},{"zai","groq","google","cloudflare"})
+        self.assertFalse({"nvidia","liquid-ai","mistral","launch","pilot","paid","trial"} & state["providers"].keys())
+        with self.hub.database() as db:
+            db.execute("UPDATE research_revision SET version='legacy'")
+        self.assertNotIn("real-host",self.hub.dashboard()["providers"])
+        self.assertEqual(self.hub.dashboard()["missing"],{})
+
+    def test_zero_price_promotion_expires_even_without_another_catalog_refresh(self):
+        mid = "new/promo:free"
+        self.discover({"data":[model(mid)]})
+        row = dict(model=mid, finding="Акция", source="https://promo.example/terms", access="public_free",
+                   provider="promo",provider_name="Promo",billing="promo_zero_rate",customer_use=True)
+        self.assertEqual(hub_research.validate({"results":[row]},[mid])[0][3],"conditional")
+        row["ends_at"] = "2099-05-01T00:00:00+00:00"
+        self.assertTrue(hub_research.run(self.hub,lambda batch: hub_research.validate({"results":[row]},batch)))
+        self.assertEqual(self.hub.dashboard()["missing"],{"promo":[mid]})
+        with self.hub.database() as db:
+            db.execute("UPDATE research_expiry SET expires=1")
+        state = self.hub.dashboard()
+        self.assertEqual(state["missing"],{})
+        self.assertNotIn("promo",state["registration_providers"])
+        with self.assertRaises(ValueError):
+            self.hub.save_key("promo","new","synthetic-promo-key")
+
+    def test_legacy_trial_key_can_rotate_without_becoming_a_registration(self):
+        with self.hub.database() as db:
+            db.execute("INSERT INTO hub_keys VALUES('old-mistral','mistral','Original',X'00')")
+        self.hub.save_key("mistral","Original","new-synthetic-secret")
+        state = self.hub.dashboard()
+        self.assertEqual([key["id"] for key in state["keys"]],["old-mistral"])
+        self.assertNotIn("mistral",state["registration_providers"])
+        with self.assertRaises(ValueError):
+            self.hub.save_key("mistral","Additional","new-synthetic-secret")
 
     def test_admin_and_member_through_http(self):
         db = self.root / "identity.db"
@@ -175,6 +231,8 @@ class ModelHubTests(unittest.TestCase):
                 self.assertIn(http.get(path).status_code,(401,403))
             self.assertEqual(http.get(url,headers={"Authorization":"Bearer "+member}).status_code,403)
             headers = {"Authorization":"Bearer "+admin}
+            with self.hub.database() as conn:
+                conn.execute("INSERT INTO hub_keys VALUES('existing-dots','dots','pilot',X'00')")
             result = http.post(url+"/keys",json={"provider":"dots","label":"pilot","key":"dummy-sample-dots"}, headers=headers)
             self.assertEqual(result.status_code,200,result.text)
             self.assertEqual(result.json()["keys"][0]["label"],"pilot")

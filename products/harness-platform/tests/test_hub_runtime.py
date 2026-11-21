@@ -19,6 +19,9 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         (root/"vault").write_bytes(os.urandom(32))
         self.enterContext(patch.dict(os.environ,HARNESS_INTEGRATIONS_KEY_FILE=str(root/"vault")))
         self.hub=Hub(root/"hub.sqlite3")
+        # Existing Atlas credential from a release that accepted its registration.
+        with self.hub.database() as db:
+            db.execute("INSERT INTO hub_keys VALUES('existing-atlas','atlas','atlas',X'00')")
         for p in ("google","atlas"):
             self.hub.save_key(p,p,"fixture-secret-"+p)
         self.runtime=Runtime(self.hub,None)
