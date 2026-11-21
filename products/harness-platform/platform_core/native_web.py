@@ -234,6 +234,10 @@ def roster(base, core=None, workspace=None):
         if not path.is_file():
             raise ValueError("Missing native browser module")
         deps = [dep for dep in config.get("inject", []) if isinstance(dep, str)]
+        if name == "dsh-client-ui-attachment":
+            # The attachment plugin also offers an image slot for the optional trajectory view.
+            # Octoport uses the composer and message slots without enabling that view.
+            deps = [dep for dep in deps if dep != GROUP + "dsh-client-ui-trajectory"]
         entry = {"id": GROUP + name, "rev": VERSION, "url": "/ui-assets/modules/" + name + ".js",
                  "inject": deps, "immediately": bool(config.get("immediately"))}
         entries[name], files[name] = entry, path
