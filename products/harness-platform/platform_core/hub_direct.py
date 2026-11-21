@@ -14,6 +14,8 @@ from .chat_connections import VaultUnavailable
 
 from .chat_connections import vault_cipher
 
+ZAI_TEMPORARY_OVERLOAD = "Z.ai 1305: временная перегрузка"
+
 
 class Refused(Exception):
     def __init__(self, reason, delay=90):
@@ -46,7 +48,7 @@ def secret(key):
     return vault_cipher().decrypt(blob[:12],blob[12:],aad).decode()
 
 
-def response_ok(response):
+def response_ok(response, *, provider=None):
     if response.is_success:
         return
     status = response.status_code
@@ -55,7 +57,16 @@ def response_ok(response):
         seconds = int(retry) if retry.isdigit() else int(parsedate_to_datetime(retry).timestamp()-time())
     except (ValueError,TypeError,OverflowError):
         seconds = 300
-    raise Refused("HTTP "+str(status), max(1,seconds) if status==429 else 600 if status in {401,402,403,404} else 60)
+    if status == 429:
+        if provider == "zai":
+            try:
+                code = response.json()["error"]["code"]
+            except (ValueError, KeyError, TypeError):
+                code = None
+            if code in (1305, "1305"):
+                raise Refused(ZAI_TEMPORARY_OVERLOAD, max(1, seconds))
+        raise Refused("HTTP 429", max(1, seconds))
+    raise Refused("HTTP "+str(status), 600 if status in {401,402,403,404} else 60)
 
 
 async def tariff(http, spec, key):
@@ -129,7 +140,7 @@ async def call(http, spec, key, request, timeout):
         payload = {k:request[k] for k in ("messages","tools","max_tokens") if k in request}
         response = await http.post(base+"/chat/completions",headers={"Authorization":"Bearer "+secret(key)},
                                    json={**payload,"model":spec["model"],"stream":False},timeout=timeout)
-        response_ok(response)
+        response_ok(response, provider=spec["provider"])
         data=response.json()
         choice=data["choices"][0]
         msg=choice["message"]

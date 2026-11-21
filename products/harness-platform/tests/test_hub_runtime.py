@@ -100,6 +100,34 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(PUBLIC,self.runtime.catalog())
         self.assertIsNone(self.runtime._acquire("private",AUTO,set()))
 
+    async def test_zai_overload_preserves_other_models_but_quota_limit_pauses_account(self):
+        model = "glm-4.7-flash"
+        alternative = "glm-4.5-flash"
+        self.hub.save_key("zai", "test", "fixture-secret-zai")
+        self.hub.save_key("zai", "second", "fixture-second-zai")
+        with self.hub.database() as db:
+            key = db.execute("SELECT id FROM hub_keys WHERE provider='zai' AND label='test'").fetchone()[0]
+        self.seed(key, alternative, 2)
+        async def tariff(*args):
+            return "https://api.z.ai/api/paas/v4"
+        for code, reason, usable in [
+                ("1305", direct.ZAI_TEMPORARY_OVERLOAD, True), (1305, direct.ZAI_TEMPORARY_OVERLOAD, True),
+                ("1302", "HTTP 429", False), ("1308", "HTTP 429", False), (None, "HTTP 429", False)]:
+            def sender(req):
+                return httpx.Response(429, json={"error": {"code": code}}, headers={"Retry-After": "8"})
+            async with httpx.AsyncClient(transport=httpx.MockTransport(sender)) as http:
+                runtime = Runtime(self.hub, http)
+                with patch.object(direct, "tariff", tariff):
+                    await runtime.probe_text(key, model)
+            routes = {r["model"]: r for r in runtime.status() if r["key"]==key}
+            self.assertEqual(routes[model]["text_reason"], reason)
+            self.assertEqual(routes[alternative]["public_ready"], usable)
+            self.assertTrue(all(runtime._acquire("", AUTO, set(), (row["key"],model)) is None
+                                for row in runtime.status() if row["model"]==model))
+            with self.hub.database() as db:
+                db.execute("DELETE FROM hub_text_health WHERE key_id=? AND model=?", (key,model))
+                db.execute("DELETE FROM hub_cooldown")
+
     async def test_text_health_admits_public_questions_without_admitting_a_report(self):
         self.hub.key_control(self.atlas,"disable")
         with self.hub.database() as db:

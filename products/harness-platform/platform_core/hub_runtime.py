@@ -74,16 +74,18 @@ class Runtime:
                 text_count,text_success=stats.get((*rid,1),(0,0))
                 retry=state.get("retry",0)
                 account_retry,account_reason=cooldowns.get(account(k),(0,""))
-                retry=max(retry,account_retry)
+                model_retry,model_reason=cooldowns.get(account(k)+"/"+model,(0,""))
+                cooldown=max(account_retry,model_retry)
+                retry=max(retry,cooldown)
                 verified=state.get("verified",0)
                 ok=bool(k["enabled"] and verified>now-TTL and retry<=now and state.get("reason")=="ok")
                 th=text_health.get(rid,{})
-                text_ok=bool(k["enabled"] and account_retry<=now and th.get("checked",0)>now-TTL and th.get("reason")=="ok")
-                text_retry=max(account_retry,th.get("retry",0))
+                text_ok=bool(k["enabled"] and cooldown<=now and th.get("checked",0)>now-TTL and th.get("reason")=="ok")
+                text_retry=max(cooldown,th.get("retry",0))
                 color=("green" if count>=3 and success/count>=0.95 else "yellow") if ok else "red" if state else "pending"
                 yield k,s,dict(model=model,group=s["group"],key=k["id"],label=k["label"],provider=provider,
                      scope="private" if s["scope"]=="private" or k["private_until"]>now else "public",
-                     color=color,text_green=text_count>=3 and text_success/text_count>=.95,ready=ok,public_ready=(ok or text_ok) and text_retry<=now,text_checked=th.get("checked",0),text_reason=th.get("reason","Ожидается проверка"),text_retry=text_retry,retry=retry,checked=verified,reason=account_reason or state.get("reason","Ожидается проверка"),
+                     color=color,text_green=text_count>=3 and text_success/text_count>=.95,ready=ok,public_ready=(ok or text_ok) and text_retry<=now,text_checked=th.get("checked",0),text_reason=account_reason or model_reason or th.get("reason","Ожидается проверка"),text_retry=text_retry,retry=retry,checked=verified,reason=account_reason or model_reason or state.get("reason","Ожидается проверка"),
                      power=state.get("quality",0),in_use=account_load[account(k)],capacity=s["slots"],enabled=bool(k["enabled"]))
 
     def status(self):
@@ -177,9 +179,11 @@ class Runtime:
                 db.execute("UPDATE hub_text_health SET retry=?,reason=? WHERE key_id=?",(now+delay,reason,kid))
             if reason=="HTTP 401":
                 db.execute("UPDATE hub_health SET verified=0,retry=?,reason=? WHERE key_id=?",(now+delay,reason,kid))
-            if reason=="HTTP 429":
-                # All keys for this provider conservatively share a cooldown unless distinct accounts are known.
+            if reason in {"HTTP 429",direct.ZAI_TEMPORARY_OVERLOAD}:
+                # Quota limits apply to the account. Z.ai 1305 pauses only the affected model.
                 account=key["provider"]+"/"+(key["account_id"] or "shared")
+                if reason==direct.ZAI_TEMPORARY_OVERLOAD:
+                    account+="/"+model
                 db.execute("""INSERT INTO hub_cooldown VALUES(?,?,?) ON CONFLICT(account)
                     DO UPDATE SET until=max(until,excluded.until),reason=excluded.reason""",(account,now+delay,reason))
             if kind=="call" and reason=="ok":
