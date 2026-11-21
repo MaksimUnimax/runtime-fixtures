@@ -17,7 +17,7 @@ from .authority import ChatAuthority
 from . import advertising, forecast_preview, store_currency
 
 BUNDLE = Path(__file__).with_name("runtime.tar.gz")
-BUNDLE_SHA256 = "38451357ab5217cd238a4794dc6f3574a50e4fb677c1903b481832e66d41f129"
+BUNDLE_SHA256 = "7361ae919007ca8a424cf850c105e659e93d8b922e6ec9fcdd8ee17d32ddb51b"
 
 
 def log_failure(operation, code, retry_at=None):
@@ -211,7 +211,10 @@ def execute(packet, directory):
         def _read_request(self, request, store):
             if request.operation not in permitted_parameter_reads:
                 raise CallError("MARKETPLACE_OPERATION_REQUIRED")
-            return super()._read_request(request, store)
+            built, metadata = super()._read_request(request, store)
+            if request.operation in realization_reads:
+                metadata = {**metadata, "completion": {"mode": "ozon-protected"}}
+            return built, metadata
 
         def _scoped_qualification(self, matrix, request, store):
             if request.operation == "ozon_ads_daily":
@@ -260,7 +263,10 @@ def execute(packet, directory):
     else:
         READ_OPERATIONS = ()
     permitted_parameter_reads = {"read.ozon." + op for key in parameter_keys for op in required_operations(key)}
+    realization_reads = set()
     if any(call["template_id"] == "economics.unit_forecast.v1" for call in calls):
+        from realization_source_runtime import STEPS
+        realization_reads = {"read.ozon." + item["operation"] for item in STEPS}
         permitted_parameter_reads.update("read.ozon." + op for op in READ_OPERATIONS)
     transport = ChatTransport(directory, {}, proofs, enabled=True,
                               read_surface_policy=lambda: {"enabled": True, "pin": read_surface.PIN})
@@ -357,6 +363,8 @@ def seller_result(result):
         "TEMPLATE_EXECUTION_FAILED": "Рассчитать запрошенный показатель не удалось.",
         "SOURCE_ACCESS": "Для подключения сейчас недоступны запрошенные данные.",
         "WB_ADVERTISING_ACCESS": "Для рекламы Wildberries нужен токен с доступом к категории «Продвижение».",
+        "TARIFF_QUOTE_OR_SKU_MISSING": "В текущем каталоге Ozon отсутствует тариф для части товаров или схем доставки из выбранных заказов. Полный прогноз требует этих тарифов.",
+        "OTHER_UNCLASSIFIED_FEE": "В заказах есть начисление Ozon, для которого в правилах прогноза ещё не определена статья расходов.",
         "ECONOMICS_OWNER_INPUTS_MISSING": "Для прогноза не хватает себестоимости части товаров. Укажите её по SKU или общую для всех товаров.",
         "UNSPECIFIED": "Получить подтверждённый результат за выбранный период не удалось.",
     }
