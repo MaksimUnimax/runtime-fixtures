@@ -118,10 +118,31 @@ class ModelHubTests(unittest.TestCase):
             self.assertEqual(result.status_code,200,result.text)
             self.assertEqual(result.json()["keys"][0]["label"],"pilot")
             self.assertNotIn("dummy-sample",result.text)
+            dots_key = result.json()["keys"][0]["id"]
+            cloudflare = {"provider":"cloudflare","label":"main","key":"dummy-cloudflare-token"}
+            before = http.post(url+"/keys",json=cloudflare,headers=headers).json()["keys"][0]
+            account = {"account_id":"a"*32}
+            account_path = url+"/keys/"+before["id"]+"/cloudflare-account"
+            self.assertFalse(before["account_configured"])
+            self.assertEqual(http.post(account_path,json=account,headers={"Authorization":"Bearer "+member}).status_code,403)
+            self.assertEqual(http.post(account_path,json={"account_id":"123"},headers=headers).status_code,400)
+            self.assertEqual(http.post(url+"/keys/"+dots_key+"/cloudflare-account",json=account,headers=headers).status_code,400)
+            result = http.post(account_path,json=account,headers=headers)
+            self.assertEqual(result.status_code,200)
+            self.assertTrue(result.json()["keys"][0]["account_configured"])
+            self.assertNotIn(account["account_id"],result.text)
+            with self.hub.database() as conn:
+                old_token = conn.execute("SELECT sealed FROM hub_keys WHERE id=?", (before["id"],)).fetchone()[0]
+            cloudflare["key"] = "dummy-rotated-cloudflare-token"
+            rotated = http.post(url+"/keys",json=cloudflare,headers=headers).json()["keys"][0]
+            self.assertFalse(rotated["account_configured"])
+            with self.assertRaisesRegex(ValueError, "изменился во время проверки"):
+                self.hub.save_cloudflare_account(before["id"], account["account_id"], expected_sealed=old_token)
             self.assertEqual(http.get("/api/admin/provider-keys",headers=headers).json().keys(),{"deepseek","openrouter"})
             http.cookies.set("__Host-harness_session",admin)
             self.assertIn('href="/admin/model-hub"',http.get("/admin").text)
             self.assertIn("Ключи хаба",http.get("/admin/model-hub").text)
+            self.assertEqual(http.post(account_path,json=account).status_code,403)
             self.assertEqual(http.post(url+"/keys",json={"provider":"dots","label":"pilot","key":"other-dummy-key"}).status_code,403)
 
 if __name__ == "__main__":

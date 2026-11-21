@@ -35,6 +35,9 @@ CREATE TABLE IF NOT EXISTS catalog_state(
 CREATE TABLE IF NOT EXISTS hub_keys(
     id TEXT PRIMARY KEY, provider TEXT NOT NULL, label TEXT NOT NULL, sealed BLOB NOT NULL,
     UNIQUE(provider,label));
+CREATE TABLE IF NOT EXISTS hub_cloudflare_accounts(
+    key_id TEXT PRIMARY KEY REFERENCES hub_keys(id) ON DELETE CASCADE,
+    account_id TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS research(
     model TEXT PRIMARY KEY, checked INTEGER NOT NULL, finding TEXT NOT NULL, source TEXT NOT NULL,
     access TEXT NOT NULL, provider TEXT NOT NULL, provider_name TEXT NOT NULL);
@@ -91,6 +94,7 @@ class Hub:
         db = sqlite3.connect(self.path, timeout=8)
         try:
             db.row_factory = sqlite3.Row
+            db.execute("PRAGMA foreign_keys = ON")
             db.executescript(SCHEMA)
             with db:
                 yield db
@@ -153,6 +157,22 @@ class Hub:
             sealed = nonce + cipher.encrypt(nonce, key.encode(), aad)
             db.execute("""INSERT INTO hub_keys VALUES(?,?,?,?)
                 ON CONFLICT(provider,label) DO UPDATE SET sealed=excluded.sealed""", (kid,provider,label,sealed))
+            if previous and provider == "cloudflare":
+                db.execute("DELETE FROM hub_cloudflare_accounts WHERE key_id=?", (kid,))
+
+    def save_cloudflare_account(self, key_id, account_id, *, expected_sealed=None):
+        if not isinstance(account_id, str) or not re.fullmatch(r"[0-9A-Fa-f]{32}", account_id.strip()):
+            raise ValueError("Account ID должен содержать 32 шестнадцатеричных символа")
+        with self.database() as db:
+            db.execute("BEGIN IMMEDIATE")
+            key = db.execute("SELECT sealed FROM hub_keys WHERE id=? AND provider='cloudflare'", (key_id,)).fetchone()
+            if key is None:
+                raise ValueError("Выберите сохранённый ключ Cloudflare")
+            if expected_sealed is not None and key["sealed"] != expected_sealed:
+                raise ValueError("Ключ Cloudflare изменился во время проверки")
+            db.execute("""INSERT INTO hub_cloudflare_accounts(key_id, account_id) VALUES(?,?)
+                ON CONFLICT(key_id) DO UPDATE SET account_id=excluded.account_id""",
+                       (key_id, account_id.strip().lower()))
 
     def dashboard(self):
         with self.database() as db:
@@ -160,7 +180,10 @@ class Hub:
             state = db.execute("SELECT attempted,succeeded,error FROM catalog_state").fetchone()
             monitor = db.execute("SELECT attempted,succeeded,error FROM research_state").fetchone()
             provider_names = registry(db)
-            keys = [dict(r) for r in db.execute("SELECT id,provider,label FROM hub_keys ORDER BY provider,label")]
+            keys = [dict(r) for r in db.execute("""SELECT k.id,k.provider,k.label,
+                    a.key_id IS NOT NULL AS account_configured
+                FROM hub_keys k LEFT JOIN hub_cloudflare_accounts a ON a.key_id=k.id
+                ORDER BY k.provider,k.label""")]
             findings = {r["model"]: dict(r) for r in db.execute("SELECT * FROM research WHERE checked>0")}
             models = [dict(r) for r in db.execute("SELECT model,name FROM candidates ORDER BY model")]
         configured = {k["provider"] for k in keys}
@@ -193,14 +216,20 @@ def routes(get_token, body):
             raise HTTPException(403, "Administrator required")
         hub = req.app.state.model_hub
         if req.method == "POST":
-            fields = await body(req, "provider", "label", "key")
             try:
-                await run_in_threadpool(hub.save_key, **fields)
+                if "key_id" in req.path_params:
+                    fields = await body(req, "account_id")
+                    await run_in_threadpool(hub.save_cloudflare_account,
+                                           req.path_params["key_id"], fields["account_id"])
+                else:
+                    fields = await body(req, "provider", "label", "key")
+                    await run_in_threadpool(hub.save_key, **fields)
             except ValueError as exc:
                 raise HTTPException(400, str(exc)) from None
         return JSONResponse(await run_in_threadpool(hub.dashboard))
     return [Route("/api/admin/model-hub", dashboard),
-            Route("/api/admin/model-hub/keys", dashboard, methods=["POST"])]
+            Route("/api/admin/model-hub/keys", dashboard, methods=["POST"]),
+            Route("/api/admin/model-hub/keys/{key_id}/cloudflare-account", dashboard, methods=["POST"])]
 
 async def refresh_database(path):
     async with httpx.AsyncClient(timeout=15, trust_env=False, follow_redirects=False) as http:

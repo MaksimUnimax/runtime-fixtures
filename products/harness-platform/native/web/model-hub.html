@@ -9,5 +9,10 @@
 <label>Поставщик<select required name="provider"></select></label>
 <label>Метка ключа<input name="label" required maxlength="70"></label>
 <label>Ключ API<input type="password" required name="key" autocomplete="new-password"></label>
-<button>Сохранить ключ</button><output id="saved" aria-live="polite"></output></form></section>
+<button>Сохранить ключ</button><output id="saved" aria-live="polite"></output></form>
+<div hidden><form id="cloudflare-account" autocomplete="off">
+<label>Ключ Cloudflare<select name="key_id" required></select></label>
+<label>Cloudflare Account ID<input name="account_id" maxlength="32" pattern="[0-9A-Fa-f]{32}" required spellcheck="false"></label>
+<button>Сохранить Account ID</button><output aria-live="polite"></output>
+</form></div></section>
 <section><h2>Кандидаты из каталога</h2><ul id="models"></ul></section><p id="problem" role="alert"></p></main></body></html>
