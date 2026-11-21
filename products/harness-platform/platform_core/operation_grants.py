@@ -231,14 +231,21 @@ def extend_marketplace_wait(database_path, token_hash, deadline_ms, retry_at_ms,
     """Pause the working budget and renew only the short authorization lease."""
     if not (now_ms < deadline_ms and now_ms < retry_at_ms < 8_000_000_000_000_000):
         return None
+    return set_marketplace_window(database_path, token_hash, deadline_ms,
+                                  deadline_ms + retry_at_ms - now_ms, retry_at_ms, now_ms)
+
+
+def set_marketplace_window(database_path, token_hash, previous_ms, deadline_ms, retry_at_ms, now_ms):
+    """Record safe current progress while retaining the short authorization lease."""
+    if not now_ms < previous_ms < deadline_ms < 8_000_000_000_000_000:
+        return None
     with _transaction(database_path) as db:
         prior = db.execute("SELECT deadline_ms FROM marketplace_retry_windows WHERE token_hash=?",
                            (token_hash,)).fetchone()
-        if prior and prior[0] not in (None, deadline_ms):
+        if prior and prior[0] not in (None, previous_ms):
             return None
         if not _renew_marketplace_grant(db, token_hash, now_ms // 1000):
             return None
-        deadline_ms += retry_at_ms - now_ms
         db.execute("""
             INSERT INTO marketplace_retry_windows(token_hash,deadline_ms,retry_at_ms) VALUES (?,?,?)
             ON CONFLICT(token_hash) DO UPDATE SET deadline_ms=excluded.deadline_ms,

@@ -14,10 +14,10 @@ from zoneinfo import ZoneInfo
 
 
 from .authority import ChatAuthority
-from . import store_currency
+from . import advertising, forecast_preview, store_currency
 
 BUNDLE = Path(__file__).with_name("runtime.tar.gz")
-BUNDLE_SHA256 = "8db9405c6834c259f7d2b03a5a68247f121d41b766cdb546f6dd9e1281b4a7a2"
+BUNDLE_SHA256 = "45e45cecbaca9a67883f97905e797d8f9703f55ecbb7e0a65de7aa0c4d6a37d4"
 
 
 def log_failure(operation, code, retry_at=None):
@@ -40,22 +40,28 @@ def unpack(directory):
     sys.path.insert(0, str(directory))
 
 
-def configure_catalogue(engine, fields):
+def configure_catalogue(engine, fields, authority=None):
     from dataset_pipeline import SOURCES as DATASET_SOURCES, CATALOG as DATASET_CATALOG, operations as dataset_operations
     from http_transport import MATRICES, SCALARS, SCALAR_SOURCES
     from platform_store_credentials import required_fields
     import parameter_source_runtime
     from template_catalog import TEMPLATES, dependencies
     proofs = json.loads(Path(sys.path[0], "source_qualifications.json").read_bytes())
+    proofs.update(advertising.descriptors())
     caps = {cid: proofs for cid in fields}
     engine.parameter_source_policy = {"enabled": True, "pin": parameter_source_runtime.PIN}
+    forecast_preview.configure(engine, authority)
     engine.table_capabilities = engine.dataset_capabilities = lambda: caps
 
     def supported(template, store):
         for dependency in dependencies(template["id"]):
             entry = TEMPLATES[dependency]
-            if entry["kind"] == "parameter" and not {"seller_client_id", "seller_api_key"}.issubset(fields[store.id]):
-                return False
+            if entry["kind"] == "parameter" or entry.get("parameter_report"):
+                needed = {"seller_client_id", "seller_api_key"}
+                if entry.get("parameter_report") == "economics.unit_forecast.v1":
+                    needed |= {"performance_client_id", "performance_client_secret"}
+                if not needed.issubset(fields[store.id]):
+                    return False
             if query := entry.get("dataset_query"):
                 flows = DATASET_CATALOG["queries"][query]["flows"]
                 if store.platform not in flows:
@@ -69,6 +75,8 @@ def configure_catalogue(engine, fields):
                     continue
                 recipe = MATRICES[op].recipe(op)
                 needed = required_fields(recipe)
+                if op == "ozon_ads_daily":
+                    needed |= {"seller_api_key", "seller_client_id"}
                 profile = SCALARS.profile_for(op)
                 if profile:
                     grant_op = SCALARS.auth[profile]["operation"]
@@ -164,7 +172,7 @@ def execute(packet, directory):
     engine = Engine(repo, lambda tenant: authority.scope_for(guard), execution_policy=authority, template_mode=True)
     allowed = {store.id: store for store in authority.scope_for(guard).stores}
     fields = {cid: authority.field_names(store) for cid, store in allowed.items()}
-    proofs = configure_catalogue(engine, fields)
+    proofs = configure_catalogue(engine, fields, authority)
     calls = []
     for index, item in enumerate(packet["selections"], 1):
         tid, cid = item["templateId"], item["connectionId"]
@@ -172,6 +180,11 @@ def execute(packet, directory):
             raise Rejected("SOURCE_ACCESS")
         if item["input"].get("parameter_mode", "preview") != "preview":
             raise Rejected("PERMISSION_DENIED")
+        if item["input"].get("owner_inputs") and tid != "economics.unit_forecast.v1":
+            raise Rejected("ECONOMICS_OWNER_INPUT")
+        owner_inputs = item["input"].get("owner_inputs", {})
+        if tid == "economics.unit_forecast.v1" and not {"unit_cost", "unit_cost_by_sku"} & owner_inputs.keys():
+            return {"ok": True, "clarification": "Укажите себестоимость в рублях по SKU или общую для всех товаров."}
         calls.append({"id": str(index), "template_id": tid, "store_id": cid, "input": item["input"]})
     try:
         store_currency.resolve(authority, calls, allowed, fields)
@@ -187,6 +200,10 @@ def execute(packet, directory):
     engine.program_answers = False
     model_answer.step = answer_step  # Only in this request's private child interpreter.
     operations = []
+    campaign_coverage = {}
+    report_pending = False
+    long_report = any(TEMPLATES[call["template_id"]]["kind"] == "parameter"
+                      or TEMPLATES[call["template_id"]].get("parameter_report") for call in calls)
 
     rate_limits = []
 
@@ -196,24 +213,55 @@ def execute(packet, directory):
                 raise CallError("MARKETPLACE_OPERATION_REQUIRED")
             return super()._read_request(request, store)
 
+        def _scoped_qualification(self, matrix, request, store):
+            if request.operation == "ozon_ads_daily":
+                advertising.authorize_daily_request(matrix, request, store)
+                return
+            return super()._scoped_qualification(matrix, request, store)
+
         def execute(self, request, store, *, on_dispatch=None):
+            nonlocal report_pending
+            report_pending = False
             if store is None:
                 raise CallError("MARKETPLACE_OPERATION_REQUIRED")
             context = copy_context()
             guard_dispatch = (lambda: context.run(on_dispatch)) if on_dispatch else None
             try:
                 answer = super().execute(request, store, on_dispatch=guard_dispatch)
+                if request.operation == "ds_wb_adstats" and answer[0] is None and answer[1]["status"] == 200:
+                    # A successful null payload is an empty response, not numeric zeros.
+                    answer = ([], answer[1])
+                if request.operation == "ozon_ads_daily":
+                    from http_transport import MATRICES
+                    advertising.qualify_daily_response(MATRICES[request.operation], request, store, *answer)
             except CallError as error:
                 log_failure(request.operation, error.code, error.retry_at)
+                if request.operation in ("ds_wb_campaigns", "ds_wb_adstats") and error.status in (401, 403):
+                    raise CallError("WB_ADVERTISING_ACCESS", status=error.status) from None
                 if error.status == 429:
                     rate_limits.append(request.operation)
                 raise
+            if request.operation == "ds_wb_adstats":
+                advertising.record_campaign_coverage(campaign_coverage, request, store, answer[0])
+            if request.operation == "read.ozon.report_info" and isinstance(answer[0], dict):
+                report_pending = answer[0].get("result", {}).get("status") in ("waiting", "processing")
+            if authority.resume_rate_limits and (request.operation == "ds_wb_adstats"
+                                                    or long_report and store["platform"] == "ozon"):
+                authority.report_progress()
             operations.append({"operation": request.operation, "connectionId": store["id"]})
             return answer
 
     parameter_keys = {TEMPLATES[tid]["parameter_key"] for call in calls
                       for tid in dependencies(call["template_id"]) if TEMPLATES[tid]["kind"] == "parameter"}
+    has_forecast = any(TEMPLATES[call["template_id"]].get("parameter_report") for call in calls)
+    if has_forecast:
+        from economics_report_runtime import READ_OPERATIONS
+        parameter_keys.update(("loss_rate", "delivery_mean"))
+    else:
+        READ_OPERATIONS = ()
     permitted_parameter_reads = {"read.ozon." + op for key in parameter_keys for op in required_operations(key)}
+    if any(call["template_id"] == "economics.unit_forecast.v1" for call in calls):
+        permitted_parameter_reads.update("read.ozon." + op for op in READ_OPERATIONS)
     transport = ChatTransport(directory, {}, proofs, enabled=True,
                               read_surface_policy=lambda: {"enabled": True, "pin": read_surface.PIN})
     worker = Worker(engine, transport, execution_ready=authority.check)
@@ -227,8 +275,11 @@ def execute(packet, directory):
         delay = row["due"] - time.time()
         if delay > 0:
             pending = pending_result(repo, row)
-            if pending["code"] == "HTTP_429" and authority.resume_rate_limits:
-                authority.wait_for_rate_limit(row["due"])
+            if authority.resume_rate_limits and report_pending:
+                authority.wait_for_provider(max(row["due"], time.time() + 4))
+                report_pending = False
+            elif pending["code"] == "HTTP_429" and authority.resume_rate_limits:
+                authority.wait_for_provider(row["due"])
             elif row["due"] >= authority.deadline:
                 return pending
             else:
@@ -269,7 +320,11 @@ def execute(packet, directory):
     guidance = list(dict.fromkeys(note for item in selected
         for note in TEMPLATES[item["template_id"]].get("notes", [])))
     source_values = formula_inputs(plan, (result.get("data") or {}).get("templates", []), authority.names) if not result.get("failure_code") else []
-    return {"ok": not bool(result.get("failure_code")), "sourceValues": source_values, "guidance": guidance, "answer": presentation.get("details") or "\n".join(result.get("pages", [])),
+    answer = presentation.get("details") or "\n".join(result.get("pages", []))
+    coverage = advertising.coverage_notes(campaign_coverage, authority.names)
+    if coverage:
+        answer = "\n".join(coverage) + "\n\n" + answer
+    return {"ok": not bool(result.get("failure_code")), "sourceValues": source_values, "guidance": guidance, "answer": answer,
             "code": result.get("failure_code"), "trace": trace}
 
 
@@ -301,6 +356,8 @@ def seller_result(result):
         "TEMPLATE_NOT_FOUND": "Такой отчёт пока недоступен для выбранного магазина.",
         "TEMPLATE_EXECUTION_FAILED": "Рассчитать запрошенный показатель не удалось.",
         "SOURCE_ACCESS": "Для подключения сейчас недоступны запрошенные данные.",
+        "WB_ADVERTISING_ACCESS": "Для рекламы Wildberries нужен токен с доступом к категории «Продвижение».",
+        "ECONOMICS_OWNER_INPUTS_MISSING": "Для прогноза не хватает себестоимости части товаров. Укажите её по SKU или общую для всех товаров.",
         "UNSPECIFIED": "Получить подтверждённый результат за выбранный период не удалось.",
     }
     info = explain(code)

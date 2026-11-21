@@ -345,7 +345,7 @@ export async function openWorker(env) {
               if (retry && retry.deadline_ms > deadline) {
                 deadline = retry.deadline_ms;
                 waitUntil = retry.retry_at_ms;
-                req.progress?.({ stage: 'marketplace_wait', deadline, retryAt: waitUntil });
+                req.progress?.({ stage: waitUntil ? 'marketplace_wait' : 'tool', deadline, retryAt: waitUntil });
               }
               if (deadline > dispatchLease && now >= dispatchLease - 60_000) {
                 const lease = Math.min(deadline, now + 120_000);

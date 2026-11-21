@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 from ..chat_connections import unseal
-from ..operation_grants import extend_marketplace_wait, marketplace_deadline, renew_marketplace_grant
+from ..operation_grants import extend_marketplace_wait, marketplace_deadline, renew_marketplace_grant, set_marketplace_window
 
 
 class ChatAuthority:
@@ -33,7 +33,20 @@ class ChatAuthority:
     def deadline(self):
         return self.deadline_ms / 1000
 
-    def wait_for_rate_limit(self, due):
+    def report_progress(self):
+        """Give a verified long report working time for its next operations."""
+        from semantics import Rejected
+        now = int(time.time() * 1000)
+        if self.deadline_ms - now >= 90_000:
+            return
+        self.check()
+        deadline = set_marketplace_window(self.database_path, self.grant_hash, self.deadline_ms,
+                                           now + 120_000, None, now)
+        if deadline is None:
+            raise Rejected("PERMISSION_DENIED")
+        self.deadline_ms = deadline
+
+    def wait_for_provider(self, due):
         from semantics import Rejected
 
         self.check()

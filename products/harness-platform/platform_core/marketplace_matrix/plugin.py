@@ -63,7 +63,15 @@ def capability(stores):
               "required": ["from", "to"], "additionalProperties": False}
     inputs = {"type": "object", "properties": {"period": period, "comparison": period,
               "filters": {"type": "object"}, "group_by": {"enum": ["marketplace", "total"]},
-              "parameter_periods": {"type": "object"}, "parameter_mode": {"const": "preview"}},
+              "parameter_periods": {"type": "object", "properties": {
+                  "loss_rate": {**period, "type": "object"},
+                  "delivery_mean": {**period, "type": "object"},
+              }, "additionalProperties": False}, "parameter_mode": {"const": "preview"},
+              "owner_inputs": {"type": "object", "properties": {
+                  **{key: {"type": ["string", "number"]} for key in ("unit_cost", "tax_amount", "own_cost_amount")},
+                  "unit_cost_by_sku": {"type": "object", "propertyNames": {"pattern": "^[1-9][0-9]{0,19}$"},
+                                       "additionalProperties": {"type": ["string", "number"]}},
+              }, "additionalProperties": False}},
               "additionalProperties": False}
     item = {"type": "object", "properties": {
         "templateId": {"type": "string", "enum": [row["id"] for row in rows]},
@@ -83,6 +91,13 @@ def capability(stores):
         "Для составляющих формул используй исходные суммы из sourceValues. Округлённый процент не позволяет восстановить точный оборот. "
         "При ограничении частоты матрица ждёт разрешённого времени и автоматически продолжает тот же запрос. "
         "Дождись результата и продолжи выполнение остальных частей без повторной команды продавца. "
+        "Для прогноза Ozon используй owner_inputs.unit_cost только при явно одинаковой себестоимости всех товаров. "
+        "Если продавец задаёт себестоимость по SKU, передай значения в owner_inputs.unit_cost_by_sku. "
+        "Для самостоятельного расчёта коэффициента передай его явно запрошенный интервал в period. "
+        "Для прогноза передай период заказов в period, а отдельно указанные интервалы коэффициентов в parameter_periods.loss_rate "
+        "и parameter_periods.delivery_mean. Без отдельного интервала матрица возьмёт последние 12 месяцев. "
+        "Выводи рассчитанные матрицей значения и следуй guidance выбранного шаблона. "
+        "В рекламном отчёте WB сохрани охват кампаний. Итоги по полученным строкам нельзя выдавать за итог всех кампаний. "
         "Если площадка вернула другую ошибку, передай причину из инструмента понятным языком.\n" + menu, schema, run)
 
 
