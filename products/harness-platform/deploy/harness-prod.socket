@@ -1,0 +1,9 @@
+[Unit]
+Description=Octoport chat HTTP listener
+
+[Socket]
+ListenStream=127.0.0.1:18763
+Backlog=1024
+
+[Install]
+WantedBy=sockets.target

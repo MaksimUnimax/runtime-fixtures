@@ -13,7 +13,10 @@ from pathlib import Path
 from starlette.exceptions import HTTPException
 from starlette.responses import HTMLResponse, FileResponse, Response
 
+from starlette.concurrency import run_in_threadpool
+
 from .browser_session import _PRIVATE_HEADERS
+from .retained_assets import application_bytes, retained_source
 
 UI = Path(__file__).resolve().parents[1] / "native" / "web"
 VERSION = "0.2.2-rc.1"
@@ -31,14 +34,14 @@ def application_name():
     return "application-" + application_bundle()[2][:20]
 
 
-@lru_cache(maxsize=1)
-def core_assets():
-    with zipfile.ZipFile(UI / "chat-core.pack") as archive:
+@lru_cache(maxsize=2)
+def core_assets(group="core"):
+    with zipfile.ZipFile(UI / f"chat-{group}.pack") as archive:
         return (archive.read("sha256").decode("ascii"), archive.read("core.js.gz"), archive.read("core.js.br"))
 
 
-def core_name():
-    return "core-" + core_assets()[0][:20]
+def core_name(group="core"):
+    return group + "-" + core_assets(group)[0][:20]
 
 
 @lru_cache(maxsize=32)
@@ -134,14 +137,33 @@ def encoded(data):
     return data, gzip.compress(data, compresslevel=6, mtime=0), hashlib.sha256(data).hexdigest()
 
 
-def asset_response(request, parts, media, immutable=False):
+@lru_cache(maxsize=2)
+def frontend_brotli(digest):
+    # The lookup key is the hash of the exact bytes served for this pinned client.
+    with zipfile.ZipFile(UI / "chat-frontend.br.pack") as archive:
+        try:
+            return archive.read(digest)
+        except KeyError:
+            return None
+
+
+def asset_response(request, parts, media, immutable=False, frontend=False):
     raw, compressed, digest = parts
     headers = {"Cache-Control": "public, max-age=31536000, immutable" if immutable else "public, no-cache",
                "ETag": 'W/"' + digest + '"', "Vary": "Accept-Encoding", "X-Content-Type-Options": "nosniff"}
     if headers["ETag"] in request.headers.get("if-none-match", "").split(", "):
         return Response(status_code=304, headers=headers)
     codings = request.headers.get("accept-encoding", "").lower().split(",")
-    use_gzip = any(re.fullmatch(r"\s*gzip(?:\s*;\s*q=(?:1(?:\.0*)?|0?\.\d*[1-9]\d*))?\s*", item) for item in codings)
+    def accepts(coding):
+        return any(re.fullmatch(r"\s*" + coding + r"(?:\s*;\s*q=(?:1(?:\.0*)?|0?\.\d*[1-9]\d*))?\s*", item)
+                   for item in codings)
+
+    if frontend and accepts("br"):
+        packed = frontend_brotli(digest)
+        if packed is not None:
+            headers["Content-Encoding"] = "br"
+            return Response(packed, media_type=media, headers=headers)
+    use_gzip = accepts("gzip")
     if use_gzip:
         headers["Content-Encoding"] = "gzip"
     return Response(compressed if use_gzip else raw, media_type=media, headers=headers)
@@ -154,7 +176,7 @@ def modules():
     return path / GROUP.rstrip("/")
 
 @lru_cache(maxsize=4)
-def roster(base, core=None):
+def roster(base, core=None, workspace=None):
     entries, files = {}, {}
     def visit(name):
         if name in entries:
@@ -190,18 +212,20 @@ def roster(base, core=None):
     bootstrap = entries["dsh-client-modules"]
     batches = [{"phase":"bootstrap", "url":bootstrap["url"], "rev":VERSION, "entries":[bootstrap["id"]]},
                {"phase":"application", "url":"/ui-assets/modules/" + (core or core_name()) + ".js", "rev":VERSION,
-                "entries":[row["id"] for row in entries.values() if row is not bootstrap]},
+                "entries":[row["id"] for row in entries.values() if row is not bootstrap and row["id"]!=GROUP+"dsh-client-ui-workspace"]},
+               {"phase":"application", "url":"/ui-assets/modules/" + (workspace or core_name("workspace")) + ".js",
+                "rev":VERSION, "entries":[GROUP+"dsh-client-ui-workspace"]},
                {"phase":"application", "url":"/ui-assets/modules/" + application_name() + ".js", "rev":VERSION,
                 "entries":[row["id"] for row in rows[len(entries):]]}]
     return {"rev":VERSION, "release":{"version":VERSION}, "entries":rows, "batches":batches}, files
 
 @lru_cache(maxsize=1)
 def application_bundle():
-    return encoded(b"\n;\n".join((UI / name).read_bytes() for name in ("plugins.js", "account.js", "connections.js")))
+    return encoded(application_bytes(UI))
 
 
-def core_response(request):
-    digest, gz, br = core_assets()
+def core_response(request, group="core"):
+    digest, gz, br = core_assets(group)
     codings = {}
     for item in request.headers.get("accept-encoding", "").lower().split(","):
         coding, _, quality = item.strip().partition(";")
@@ -222,19 +246,30 @@ def core_response(request):
     return Response(body, media_type="text/javascript", headers=headers)
 
 
+@lru_cache(maxsize=4)
+def retained_parts(name):
+    source = retained_source(UI.parents[3], name)
+    return encoded(source) if source is not None else None
+
+
 async def module_file(request):
     try:
         manifest, files = roster(modules())
     except (ValueError, OSError, KeyError):
         raise HTTPException(503, "Pinned Harness client unavailable") from None
     name = request.path_params["name"]
-    if name == core_name():
-        return core_response(request)
+    for group in ("core","workspace"):
+        if name == core_name(group):
+            return core_response(request,group)
     if name == application_name():
         return asset_response(request, application_bundle(), 'text/javascript', immutable=True)
     if name == 'manifest':
         return Response('window.__DSH_BOOT__ = ' + json.dumps(manifest) + ';', media_type='text/javascript')
     if name not in files:
+        if re.fullmatch(r"(?:application|workspace|core)-[a-f0-9]{20}", name):
+            parts = await run_in_threadpool(retained_parts, name)
+            if parts is not None:
+                return asset_response(request, parts, "text/javascript", immutable=True)
         raise HTTPException(404)
     return asset_response(request, static_bytes(files[name], client_source), 'text/javascript')
 
@@ -242,7 +277,7 @@ async def module_file(request):
 def initial_script():
     # Only trusted, release-owned JavaScript enters this block. Account data stays in HTML attributes.
     template = (UI / "chat-bootstrap.js").read_text()
-    script = template.replace("@@application@@", application_name()).replace("@@core@@", core_name())
+    script = template.replace("@@application@@", application_name()).replace("@@core@@", core_name()).replace("@@workspace@@", core_name("workspace"))
     if "</script" in script.lower():
         raise ValueError("Unexpected inline script terminator")
     digest = base64.b64encode(hashlib.sha256(script.encode()).digest()).decode()
@@ -251,7 +286,7 @@ def initial_script():
 
 def shell(*, theme="system", panel="", error="", recovery="", chat="", guest=False, status=200, account=None):
     page = (UI / "index.html").read_text()
-    page = page.replace("@@application@@", application_name()).replace("@@core@@", core_name())
+    page = page.replace("@@application@@", application_name()).replace("@@core@@", core_name()).replace("@@workspace@@", core_name("workspace"))
     for name, value in {"theme":theme if theme in ("light","dark") else "system", "panel":panel, "error":error, "recovery":recovery, "chat":chat,
                         "account":json.dumps(account, separators=(",", ":")) if account is not None else "",
                         "mode":"guest" if guest else "member"}.items():

@@ -123,19 +123,24 @@ class RegistrationStore(IdentityStore):
         result = dict(rows)
         if not rows or not journal.is_file():
             return result
-        with closing(sqlite3.connect(journal.as_uri() + "?mode=ro", uri=True)) as db:
-            if not db.execute("SELECT 1 FROM sqlite_schema WHERE name='native_batches'").fetchone():
-                return result
-            # A single index lookup per chat. Reading the list never loads transcripts.
-            keys = {hashlib.sha256(json.dumps([actor, workspace, cid], ensure_ascii=False,
-                         separators=(",", ":")).encode()).hexdigest(): cid for cid in result}
-            for key, at in db.execute("""SELECT value,
-                    (SELECT json_extract(events,'$[#-1].time') FROM native_batches
-                     WHERE scope_key=value ORDER BY revision DESC LIMIT 1)
-                    FROM json_each(?)""", (json.dumps(list(keys)),)):
-                if isinstance(at, int):
-                    cid = keys[key]
-                    result[cid] = max(result[cid] or 0, at)
+        try:
+            with closing(sqlite3.connect(journal.as_uri() + "?mode=ro", uri=True, timeout=0.1)) as db:
+                if not db.execute("SELECT 1 FROM sqlite_schema WHERE name='native_batches'").fetchone():
+                    return result
+                # A single index lookup per chat. Reading the list never loads transcripts.
+                keys = {hashlib.sha256(json.dumps([actor, workspace, cid], ensure_ascii=False,
+                             separators=(",", ":")).encode()).hexdigest(): cid for cid in result}
+                for key, at in db.execute("""SELECT value,
+                        (SELECT json_extract(events,'$[#-1].time') FROM native_batches
+                         WHERE scope_key=value ORDER BY revision DESC LIMIT 1)
+                        FROM json_each(?)""", (json.dumps(list(keys)),)):
+                    if isinstance(at, int):
+                        cid = keys[key]
+                        result[cid] = max(result[cid] or 0, at)
+        except sqlite3.OperationalError as exc:
+            # Sidebar timestamps are optional while the worker holds the journal lock.
+            if (exc.sqlite_errorcode & 0xff) not in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
+                raise
         return result
 
     def guest_history(self, token, chat):

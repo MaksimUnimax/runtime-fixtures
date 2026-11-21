@@ -44,12 +44,14 @@ export async function privatePrompt(text,guest,api,chatId) {
   return true;
 }
 
+export const isPrivatePaste = text => hint.test(text);
+
 export function protectPaste(guest,api) {
   document.addEventListener('paste',event=>{
     const element=event.target;
     if(!element.closest?.('[contenteditable=true],textarea') || element.closest('[data-private-connection],dialog'))return;
     const text=event.clipboardData?.getData('text/plain')||'';
-    if(!hint.test(text))return;
+    if(element.id==='opening-draft' || !isPrivatePaste(text))return;
     event.preventDefault();
     event.stopImmediatePropagation();
     const parsed=parsePrivate(text);

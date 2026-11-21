@@ -9,7 +9,19 @@
     font:14px/1.5 system-ui,sans-serif}
   #chat-history-error button {margin-left:.5rem; font:inherit; cursor:pointer}
   #chat-opening p {margin:0}
-  #root:not(:empty) + #chat-opening {display:none}
+  #chat-opening.has-history {z-index:1;display:flex;align-items:center;flex-direction:column;justify-content:flex-end;padding:1rem;}
+  .opening-history:empty {display:none}
+  .opening-history {width:min(100%,56rem);min-height:0;overflow:auto;text-align:left;}
+  #chat-opening .opening-message {white-space:pre-wrap;overflow-wrap:anywhere;margin:1rem auto;line-height:1.55;}
+  #chat-opening .opening-message.user {width:fit-content;max-width:85%;margin-right:0;padding:.5rem .8rem;border-radius:1rem;background:rgba(104,141,207,.12);}
+  #chat-opening.has-history [role=status] {font-size:.8rem;margin-top:.5rem}
+  #chat-opening.failed {z-index:1}
+  #chat-opening.with-draft {z-index:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:.65rem; padding:1rem; box-sizing:border-box}
+  #opening-draft {width:min(100%,48rem); box-sizing:border-box; min-height:3rem; padding:.75rem 1rem; border:1px solid #8893a0; border-radius:1rem; font:inherit; color:CanvasText; background:Canvas; resize:vertical}
+  #opening-draft[hidden] {display:none}
+  #chat-opening.draft-recovery {inset:auto 1rem 1rem auto; max-width:min(28rem,90vw); height:auto; border:1px solid currentColor; border-radius:1rem}
+  #chat-opening.draft-recovery .opening-history {display:none}
+  #root:not(:empty) + #chat-opening:not(.has-history):not(.with-draft):not(.failed) {display:none}
   html[data-theme=dark] {color-scheme:dark;background:#131519}
   html[data-theme=dark] #chat-opening {color:#bbc2cb;background:#131519}
   @media (prefers-color-scheme:dark) {
@@ -17,11 +29,12 @@
     html[data-theme=system] #chat-opening {color:#bbc2cb;background:#131519}
   }
 </style>
-<link rel="modulepreload" href="/ui-assets/project/start.js">
+<link rel="modulepreload" fetchpriority="high" href="/ui-assets/project/start.js">
 <link rel="modulepreload" href="/ui-assets/project/transport.js">
 <link rel="modulepreload" href="/ui-assets/project/private-input.js">
 <link rel="modulepreload" href="/ui-assets/project/live-turn.js">
 <link rel="preload" as="script" href="/ui-assets/modules/@@core@@.js">
+<link rel="preload" as="script" href="/ui-assets/modules/@@workspace@@.js">
 <link rel="preload" as="script" href="/ui-assets/modules/@@application@@.js">
 <link rel="modulepreload" data-chat-entry href="/ui-assets/harness/dsh-web-frontend/dist/assets/index-BgUyXZcc.js?build=octoport-2">
 <link rel="modulepreload" href="/ui-assets/harness/dsh-web-frontend/dist/assets/vendor-BUMdD3V7.js">
@@ -32,7 +45,10 @@
 <script type="module" src="/ui-assets/project/start.js"></script></head>
 <body data-account="@@account@@" data-mode="@@mode@@" data-panel="@@panel@@" data-chat="@@chat@@" data-error="@@error@@" data-recovery="@@recovery@@"><div id="root"></div>
 <div id="chat-opening">
+<div class="opening-history" role="region" aria-label="История чата"></div>
 <p role="status">Открываем чат…</p>
+<textarea id="opening-draft" aria-label="Черновик сообщения" placeholder="Напишите сообщение" autocomplete="off" hidden></textarea>
+<form method="get"><button type="submit" hidden>Повторить открытие чата</button></form>
 </div>
 <form id="chat-history-error" method="get" hidden><span role="alert">Не удалось загрузить историю чата.</span>
 <button type="submit">Повторить загрузку</button></form></body></html>

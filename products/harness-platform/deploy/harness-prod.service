@@ -1,6 +1,7 @@
 [Unit]
 Description=Harness public seller service
-After=network.target
+Requires=harness-prod.socket
+After=network.target harness-prod.socket
 
 [Service]
 DynamicUser=yes

@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import os
+import socket
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -17,7 +18,15 @@ PRODUCT = Path(__file__).resolve().parents[1]
 async def run_app(database, state, port):
     app = create_app(database, state / "chats")
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, access_log=False))
-    await server.serve()
+    # PID 1 keeps the listening socket across service restarts. Queued requests
+    # can be accepted after the local gateway and the application are ready.
+    if os.environ.get("LISTEN_PID") == str(os.getpid()) and os.environ.get("LISTEN_FDS") == "1":
+        with socket.socket(fileno=3) as listener:
+            if listener.getsockname() != ("127.0.0.1", port):
+                raise RuntimeError("Unexpected HTTP listener")
+            await server.serve(sockets=[listener])
+    else:
+        await server.serve()
 
 
 async def serve(state, port, model=None):
