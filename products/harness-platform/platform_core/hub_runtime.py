@@ -241,7 +241,9 @@ class Runtime:
         for key,spec,row in routes:
             group=(key["provider"],key["account_id"] or "shared")
             group_tasks=groups.setdefault(group,[])
-            if spec["scope"]=="public" and not (row["public_ready"] and max(row["text_checked"],row["checked"])>time.time()-600):
+            blocked_account = row["retry"]>time.time() and row["reason"] in {
+                "HTTP 401","HTTP 402","Cloudflare: Billing Read, HTTP 403","План Workers Free не подтверждён"}
+            if not blocked_account and not (row["public_ready"] and max(row["text_checked"],row["checked"])>time.time()-600):
                 group_tasks.append((self.probe_text,row["key"],row["model"]))
             if not row["ready"] or row["checked"]<=time.time()-600:
                 group_tasks.append((self.probe,row["key"],row["model"]))
