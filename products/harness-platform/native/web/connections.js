@@ -31,6 +31,12 @@ window.__ModuleLoader__.load({
         const select=value=>{setProvider(value);setFields({});setName('');setMsg('');};
         return h('section',{'data-private-connection':true,className:'service-settings'},
           h('h2',null,'Интеграции'),
+          list?.telegram?.hasBinding&&h('div',{className:'service-connection'},
+            h('div',null,h('strong',null,'Telegram'),h('small',null,list.telegram.linked?'Подключён к аккаунту':'Требуется повторное подключение')),
+            h('button',{type:'button',disabled:busy,onClick:()=>act(async()=>{
+              await post('/api/integrations/telegram/disconnect',{});
+              await refresh();setMsg('Telegram отключён для всех плагинов аккаунта.');
+            })},'Отключить Telegram для всех плагинов')),
           list?.connections.map(c=>h('div',{key:c.id,className:'service-connection'},
             h('div',null,h('strong',null,c.name),h('small',null,list.providers[c.provider].title+' · '+status[c.status])),
             h('button',{disabled:busy,onClick:()=>act(async()=>{
@@ -52,7 +58,14 @@ window.__ModuleLoader__.load({
           entry && provider==='wb' && h(KeyGuide,{title:'Как получить токен Wildberries',steps:list.keyGuides['Wildberries API']}),
           entry && provider==='ozon' && ['Ozon Seller','Ozon Performance'].map(kind=>h(KeyGuide,{
             key:kind,title:'Как получить ключи '+kind,steps:list.keyGuides[kind]})),
-          entry && h('form',{autoComplete:'off',onSubmit:e=>{e.preventDefault();act(async()=>{
+          entry?.auth==='telegram'&&!list.telegram.hasBinding&&h('div',null,
+            h('p',null,list.telegram.configured?'Разрешите боту Октопорта писать вам. Подключение будет доступно плагинам этого аккаунта.':'Администратору нужно настроить бота Октопорта.'),
+            list.telegram.configured&&h('button',{type:'button',disabled:busy,onClick:()=>act(async()=>{
+              const reply=await post('/api/integrations/telegram/connect',{});
+              sessionStorage.setItem('octoport.telegram.return',location.pathname);
+              location.assign(reply.url);
+            })},'Подключить Telegram')),
+          entry && !entry.auth && h('form',{autoComplete:'off',onSubmit:e=>{e.preventDefault();act(async()=>{
             await post('/api/integrations',{provider,name:name.trim()||entry.title,fields,...(initial.chatId?{chatId:initial.chatId}:{})});
             window.dispatchEvent(new Event('harness:grants'));setFields({});setProvider('');setName('');await refresh();
             const notice=initial.chatId?'Подключение добавлено в этот чат':'Ключи сохранены.';
