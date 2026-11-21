@@ -2,7 +2,7 @@ const byId = id => document.getElementById(id);
 const form = byId('save');
 const accountForm = byId('cloudflare-account');
 const stamp = value => new Date(value * 1000).toLocaleString('ru-RU');
-const statuses = { research: 'Проверить прямого поставщика', key_saved: 'Ключ сохранён, требуется прямая проверка', needs_key: 'Требуется ключ' };
+const statuses = { research: 'Проверить прямого поставщика', key_saved: 'Ключ сохранён, требуется прямая проверка', needs_key: 'Требуется ключ', excluded: 'Регистрация отключена для проекта' };
 function list(id, items, empty) {
   byId(id).replaceChildren(...(items.length ? items : [empty]).map(text => {
     const item = document.createElement('li');
@@ -15,14 +15,36 @@ function monitor(title, state) {
   const success = state.succeeded ? stamp(state.succeeded) : 'пока отсутствует';
   return title + ' · последняя попытка ' + stamp(state.attempted) + ' · успешная ' + success + (state.error ? ' · ' + state.error : '');
 }
+const accessLabels = {free:'Есть бесплатный тариф', evaluation:'Для испытаний', credit:'Стартовый кредит', metered:'Платный API'};
+function renderEnrollment(rows) {
+  const active = rows.filter(row => row.kind !== 'excluded');
+  byId('enrollment').replaceChildren(...active.map(row => {
+    const item = document.createElement('li');
+    const title = document.createElement('strong');
+    title.textContent = row.name;
+    item.append(title, ' · ', accessLabels[row.kind], row.configured ? ' · ключ уже сохранён. ' : '. ', row.terms, ' ');
+    if (!row.configured) {
+      const link = document.createElement('a');
+      link.href = row.url;
+      link.textContent = 'Открыть кабинет';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      item.append(link, '. ', row.steps);
+    }
+    return item;
+  }));
+  list('excluded', rows.filter(row => row.kind === 'excluded').map(row => row.name + ' · ' + row.terms), 'Нет исключений');
+}
 function render(data) {
   byId('catalog').textContent = monitor('Каталог OpenRouter', data.catalog);
   byId('monitor').textContent = monitor('Проверка Codex', data.monitor);
+  renderEnrollment(data.enrollment || []);
   const providers = data.providers;
   const select = form.elements.provider;
   const prior = select.value;
-  select.replaceChildren(...Object.entries(providers).map(([key, name]) => new Option(name,key)));
-  if (prior in providers) select.value = prior;
+  const hiddenSuppliers = new Set((data.enrollment || []).filter(r => r.kind === 'excluded' && !r.configured).map(r => r.id));
+  select.replaceChildren(...Object.entries(providers).filter(([id]) => !hiddenSuppliers.has(id)).map(([key, name]) => new Option(name,key)));
+  if (prior in providers && !hiddenSuppliers.has(prior)) select.value = prior;
   list('missing', Object.entries(data.missing).map(([id, models]) => providers[id] + ' · ' + models.join(', ')),
     data.catalog?.succeeded ? 'Нет запросов на известные ключи' : 'Ожидается каталог');
   list('keys', data.keys.map(k => providers[k.provider] + ' · ' + k.label +
@@ -66,7 +88,7 @@ function render(data) {
   accountForm.parentElement.hidden = !accountKeys.length;
   keySelect.replaceChildren(...accountKeys.map(k => new Option(k.label, k.id)));
   if (accountKeys.some(k => k.id === previousKey)) keySelect.value = previousKey;
-  list('models', data.models.map(m => m.model + ' · ' + statuses[m.status] + (m.research ? ' · ' + m.research.finding + ' · ' + m.research.source : '')), 'Кандидатов пока нет');
+  list('models', data.models.map(m => m.model + ' · ' + statuses[m.status] + (m.findings || []).map(r => ' · ' + r.finding + (r.source ? ' · ' + r.source : '')).join('')), 'Кандидатов пока нет');
 }
 async function load(path = '/api/admin/model-hub', options = {}) {
   const response = await fetch(path, {credentials:'same-origin', cache:'no-store', ...options});

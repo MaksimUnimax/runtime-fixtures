@@ -72,6 +72,25 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
                     await direct.call(http,self.runtime.routes[("atlas",self.a)],key,direct.PROBE,5)
             self.assertEqual(seen,["GET"])
 
+    async def test_zai_pricing_requires_a_unique_free_row_and_expected_columns(self):
+        header = "> | Model | Input | Cached Input | Cached Input Storage | Output |"
+        row = "> | GLM-4.7-Flash | Free | Free | Free | Free |"
+        spec = self.runtime.routes["zai", "glm-4.7-flash"]
+        for data, allowed in [(header+"\n"+row, True), (header+"\n"+row.replace("Free","$1",1), False),
+                              (header+"\n"+row+"\n"+row, False), (row, False),
+                              (header+"\n"+row+"\n"+row.lstrip("> |").replace("Free","$1",1), False),
+                              (header+"\n"+row+"\n"+row.replace("GLM-4.7-Flash","**GLM-4.7-Flash**"), False),
+                              (header+"\n"+row.replace("Flash","FlashX"), False)]:
+            async with httpx.AsyncClient(transport=httpx.MockTransport(
+                    lambda req: httpx.Response(200,text=data))) as http:
+                if allowed:
+                    self.assertEqual(await direct.tariff(http,spec,{}),spec["url"])
+                else:
+                    with self.assertRaises(direct.Refused):
+                        await direct.tariff(http,spec,{})
+        with self.assertRaisesRegex(direct.Refused,"платные инструменты"):
+            await direct.call(None,spec,{},{"tools":[{"type":"web_search"}]},1)
+
     def test_unverified_private_route_unavailable_even_if_public_model_is_stronger(self):
         self.hub.key_control(self.atlas,"disable")
         self.assertNotIn(AUTO,self.runtime.catalog())

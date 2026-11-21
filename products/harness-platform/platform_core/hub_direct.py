@@ -30,7 +30,7 @@ def config():
             parsed = urlsplit(url)
             if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.query or parsed.fragment:
                 raise ValueError("Expected an HTTPS provider endpoint")
-        if (row["policy"] not in {"google-gemma","workers-free","atlas-zero"}
+        if (row["policy"] not in {"google-gemma","workers-free","atlas-zero","zai-flash"}
                 or row["scope"] not in {"private","public"} or not 1 <= row["slots"] <= 32):
             raise ValueError("Invalid direct route")
         identity = row["provider"], row["model"]
@@ -69,6 +69,26 @@ async def tariff(http, spec, key):
         for kind in ("Input price","Output price","Context caching price",r"Context caching \(storage\)"):
             if not section or not re.search(r'\* '+kind+r'\s+\* Free of charge\s+\* Not available\s',section[1]):
                 raise Refused("Бесплатный тариф Google не подтверждён")
+    elif spec["policy"] == "zai-flash":
+        page = await http.get(spec["price_url"], timeout=8)
+        response_ok(page)
+        header = ["Model", "Input", "Cached Input", "Cached Input Storage", "Output"]
+        model_id = spec["model"]
+        token = re.compile(r"(?<![a-z0-9_.-])" + re.escape(model_id) + r"(?![a-z0-9_.-])", re.I)
+        columns = []
+        matches = []
+        for line in page.text.splitlines():
+            line = line.lstrip("> ").strip()
+            if "|" not in line:
+                columns = []
+                continue
+            cells = [cell.strip() for cell in line.strip("|").split("|")]
+            if cells[0] == "Model":
+                columns = cells
+            if token.search(cells[0]):
+                matches.append(cells[0].lower() == model_id and columns == header and cells[1:] == ["Free"] * 4)
+        if matches != [True]:
+            raise Refused("Z.ai не подтвердил нулевые ставки для этой модели")
     elif spec["policy"] == "atlas-zero":
         response = await http.get(base+"/models",headers={"Authorization":"Bearer "+secret(key)},timeout=8)
         response_ok(response)
@@ -103,6 +123,8 @@ PROBE = {"messages":[{"role":"user","content":"Call report with market Ozon and 
 
 async def call(http, spec, key, request, timeout):
     try:
+        if spec["policy"] == "zai-flash" and any(t.get("type") != "function" for t in request.get("tools", [])):
+            raise Refused("Встроенные платные инструменты Z.ai отключены")
         base = await tariff(http,spec,key)
         payload = {k:request[k] for k in ("messages","tools","max_tokens") if k in request}
         response = await http.post(base+"/chat/completions",headers={"Authorization":"Bearer "+secret(key)},

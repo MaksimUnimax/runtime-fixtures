@@ -84,7 +84,7 @@ class ModelHubTests(unittest.TestCase):
         for secret in ("fixture-cloudflare-secret-a","fixture-cloudflare-secret-b"):
             self.hub.save_key("cloudflare","main",secret)
         result = self.hub.dashboard()
-        self.assertEqual(result["missing"],{})
+        self.assertEqual(result["missing"],{"google":[GEMMA]})
         self.assertEqual(len(result["keys"]),1)
         self.assertEqual(result["models"][0]["status"],"key_saved")
         self.assertNotIn("fixture-cloudflare",json.dumps(result))
@@ -105,6 +105,41 @@ class ModelHubTests(unittest.TestCase):
         self.hub.save_key("new-company","test","example-test-key-1")
         self.assertEqual(self.hub.dashboard()["missing"],{})
         self.assertTrue(hub_research.run(self.hub,lambda _: self.fail("checked too soon")))
+
+    def test_enrollment_survives_refresh_and_tracks_alternative_suppliers(self):
+        mid = "dots-studio/dots-3-note-preview:free"
+        self.discover({"data":[model(mid)]})
+        def audit(batch):
+            suppliers = [("dots-studio","Dots Studio","dots.ai"),("atlas-cloud","AtlasCloud","atlascloud.ai"),
+                         ("new-company","New Company","example.org"),("other-company","Other Company","example.net")]
+            rows = [dict(model=mid, finding="Direct API", source="https://"+domain+"/terms",
+                         access="public_free",provider=key,provider_name=name) for key,name,domain in suppliers]
+            return hub_research.validate({"results":rows}, batch)
+        self.assertTrue(hub_research.run(self.hub,audit))
+        self.hub.save_key("new-company","test","synthetic-test-key")
+        self.discover({"data":[model(mid)]})
+        data = Hub(self.hub.path).dashboard()
+        self.assertEqual(data["missing"],{"other-company":[mid]})
+        self.assertEqual(len(data["models"][0]["findings"]),4)
+        excluded = {row["id"] for row in data["enrollment"] if row["kind"]=="excluded" and not row["url"]}
+        self.assertEqual(excluded,{"atlas","dots"})
+        self.assertNotIn("atlas-cloud",data["providers"])
+        self.assertIn("groq",data["providers"])
+        self.hub.save_key("nvidia","pilot","synthetic-trial-key")
+        self.assertEqual(self.hub.dashboard()["missing"],{"other-company":[mid]})
+        with self.hub.database() as db:
+            db.execute("UPDATE research SET checked=1")
+            db.execute("UPDATE research_attempts SET attempted=1")
+        self.assertFalse(hub_research.run(self.hub,lambda batch: [audit(batch)[0]]))
+        self.assertEqual(self.hub.dashboard()["missing"],{"other-company":[mid]})
+        with self.hub.database() as db:
+            db.execute("UPDATE research_attempts SET attempted=1")
+        def changed(batch):
+            return [(*row[:3], "paid" if row[4].endswith("-company") else row[3], *row[4:]) for row in audit(batch)]
+        self.assertTrue(hub_research.run(self.hub,changed))
+        data = self.hub.dashboard()
+        self.assertEqual(data["missing"],{})
+        self.assertEqual(data["models"][0]["status"],"excluded")
 
     def test_research_separates_provider_products_and_trial_rights(self):
         mid = "nvidia/nemotron:free"

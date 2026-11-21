@@ -10,6 +10,7 @@ from decimal import Decimal, InvalidOperation
 from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
+from urllib.parse import urlsplit
 
 import httpx
 from starlette.concurrency import run_in_threadpool
@@ -23,7 +24,30 @@ from . import hub_runtime
 
 CATALOG = "https://openrouter.ai/api/v1/models"
 # These mappings are discovery evidence, never permission to send traffic.
-PROVIDERS = {"dots": "Dots Studio", "atlas": "Atlas Cloud", "cloudflare": "Cloudflare", "google": "Google AI Studio"}
+ENROLLMENT = {row["id"]: row for row in json.loads(Path(__file__).with_name("hub_enrollment.json").read_text())}
+PROVIDERS = {key: row["name"] for key, row in ENROLLMENT.items()}
+ALIASES = {"dots-studio": "dots", "dots-ai": "dots", "dotsstudio": "dots", "rednote": "dots",
+           "xiaohongshu": "dots", "xiao-hong-shu": "dots", "atlascloud": "atlas", "atlas-cloud": "atlas", "atlascloud-ai": "atlas", "atlas-cloud-ai": "atlas",
+           "liquid": "liquid-ai", "nvidia-build": "nvidia", "inclusionai": "ant-ling", "z-ai": "zai",
+           "particle-ai": "particle", "groqcloud": "groq"}
+
+
+def provider_id(provider, name="", source=""):
+    host = (urlsplit(source).hostname or "").lower()
+    for domain, key in (("atlascloud.ai", "atlas"), ("dots.ai", "dots"), ("askdiandian.com", "dots")):
+        if host == domain or host.endswith("." + domain):
+            return key
+    if name.strip() == "小红书":
+        return "dots"
+    label = re.sub(r"[^a-z0-9]", "", name.lower())
+    if label in {"dotsstudio", "dotsai", "xiaohongshu", "rednote", "atlascloud", "atlascloudai"}:
+        return "atlas" if label.startswith("atlas") else "dots"
+    return ALIASES.get(provider, provider)
+
+
+def registration_excluded(provider):
+    return ENROLLMENT.get(provider, {}).get("kind") == "excluded"
+
 MODELS = {
     "dots-studio/dots-3-note-preview": ("dots", "atlas"),
     "google/gemma-4-26b-a4b-it": ("cloudflare", "google"),
@@ -42,7 +66,11 @@ CREATE TABLE IF NOT EXISTS hub_cloudflare_accounts(
 CREATE TABLE IF NOT EXISTS research(
     model TEXT PRIMARY KEY, checked INTEGER NOT NULL, finding TEXT NOT NULL, source TEXT NOT NULL,
     access TEXT NOT NULL, provider TEXT NOT NULL, provider_name TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS research_alternatives(
+    model TEXT NOT NULL, checked INTEGER NOT NULL, finding TEXT NOT NULL, source TEXT NOT NULL,
+    access TEXT NOT NULL, provider TEXT NOT NULL, provider_name TEXT NOT NULL, PRIMARY KEY(model,provider));
 CREATE TABLE IF NOT EXISTS research_versions(version TEXT PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS research_revision(model TEXT PRIMARY KEY, version TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS research_attempts(model TEXT PRIMARY KEY, attempted INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS research_state(
     id INTEGER PRIMARY KEY CHECK(id=1), attempted INTEGER, succeeded INTEGER, error TEXT);
@@ -77,9 +105,11 @@ def valid_catalog_record(item):
 
 def registry(db):
     providers = PROVIDERS.copy()
-    for row in db.execute("""SELECT provider,provider_name FROM research
-            WHERE access='public_free' AND checked>0 ORDER BY checked"""):
-        providers.setdefault(row["provider"], row["provider_name"])
+    for row in db.execute("""SELECT provider,provider_name,source FROM
+            (SELECT * FROM research UNION ALL SELECT * FROM research_alternatives)
+            WHERE access IN ('public_free','conditional','paid') AND checked>0 ORDER BY checked"""):
+        key = provider_id(row["provider"], row["provider_name"], row["source"])
+        providers.setdefault(key, row["provider_name"])
     for row in db.execute("SELECT DISTINCT provider FROM hub_keys"):
         providers.setdefault(row["provider"],row["provider"])
     return providers
@@ -209,30 +239,48 @@ class Hub:
                     a.key_id IS NOT NULL AS account_configured, coalesce(c.enabled,1) enabled, coalesce(c.private_until,0) private_until
                 FROM hub_keys k LEFT JOIN hub_cloudflare_accounts a ON a.key_id=k.id LEFT JOIN hub_control c ON c.key_id=k.id
                 ORDER BY k.provider,k.label""")]
-            findings = {r["model"]: dict(r) for r in db.execute("SELECT * FROM research WHERE checked>0")}
+            findings = {}
+            for row in db.execute("""SELECT * FROM research WHERE checked>0 UNION ALL
+                    SELECT * FROM research_alternatives WHERE checked>0 ORDER BY model,provider"""):
+                review = dict(row)
+                key = provider_id(review["provider"], review["provider_name"], review["source"])
+                review["provider"] = key
+                if registration_excluded(key):
+                    review["finding"] = ENROLLMENT[key]["terms"]
+                findings.setdefault(row["model"], []).append(review)
             models = [dict(r) for r in db.execute("SELECT model,name FROM candidates ORDER BY model")]
-        configured = {k["provider"] for k in keys}
+        configured = {provider_id(k["provider"]) for k in keys}
         missing = {}
         for item in models:
             mid = item["model"]
-            providers = MODELS.get(mid.removesuffix(":free"), ())
-            review = findings.get(mid)
-            # A vetted free quota may have conditions such as region or daily capacity.
-            if review and review["access"] == "paid":
-                providers = tuple(provider for provider in providers if provider != review["provider"])
-            if review and review["access"] == "public_free" and review["provider"] not in providers:
-                providers = (*providers, review["provider"])
-            item.update(providers=providers, research=review)
-            if not providers:
-                item["status"] = "research"
-            elif configured.intersection(providers):
-                item["status"] = "key_saved"
+            reviews = findings.get(mid, [])
+            suppliers = set(MODELS.get(mid.removesuffix(":free"), ()))
+            blocked = {p for p in suppliers if registration_excluded(p)}
+            for review in reviews:
+                key = review["provider"]
+                if registration_excluded(key):
+                    blocked.add(key)
+                if review["access"] in {"paid","unknown"}:
+                    suppliers.discard(key)
+                elif review["access"] == "public_free":
+                    suppliers.add(key)
+            candidates = suppliers - blocked
+            for key in sorted(candidates - configured):
+                missing.setdefault(key, []).append(mid)
+            if configured.intersection(suppliers):
+                status = "key_saved"
+            elif candidates:
+                status = "needs_key"
+            elif blocked:
+                status = "excluded"
             else:
-                item["status"] = "needs_key"
-                for provider in providers:
-                    missing.setdefault(provider, []).append(mid)
+                status = "research"
+            item.update(providers=sorted(suppliers), research=reviews[0] if reviews else None,
+                        findings=reviews, status=status)
+        enrollment = [dict(row, configured=row["id"] in configured) for row in ENROLLMENT.values()]
         return dict(catalog=dict(state) if state else None, monitor=dict(monitor) if monitor else None,
-                    providers=provider_names, keys=keys, models=models, missing=missing)
+                    providers=provider_names, keys=keys, models=models, missing=missing, enrollment=enrollment)
+
 
 def routes(get_token, body):
     async def dashboard(req):

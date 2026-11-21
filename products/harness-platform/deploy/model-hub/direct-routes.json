@@ -2,5 +2,8 @@
   {"provider":"google","model":"gemma-4-31b-it","group":"google/gemma-4-31b-it","url":"https://generativelanguage.googleapis.com/v1beta/openai","price_url":"https://aistudio.google.com/docs/pricing.md","policy":"google-gemma","scope":"public","slots":2},
   {"provider":"google","model":"gemma-4-26b-a4b-it","group":"google/gemma-4-26b-a4b-it","url":"https://generativelanguage.googleapis.com/v1beta/openai","price_url":"https://aistudio.google.com/docs/pricing.md","policy":"google-gemma","scope":"public","slots":2},
   {"provider":"atlas","model":"dots-studio/dots-3-note-prev-free","group":"dots-studio/dots-3-note-preview","url":"https://api.atlascloud.ai/v1","policy":"atlas-zero","scope":"private","slots":2},
-  {"provider":"cloudflare","model":"@cf/google/gemma-4-26b-a4b-it","group":"google/gemma-4-26b-a4b-it","url":"https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1","policy":"workers-free","scope":"private","slots":2}
+  {"provider":"cloudflare","model":"@cf/google/gemma-4-26b-a4b-it","group":"google/gemma-4-26b-a4b-it","url":"https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1","policy":"workers-free","scope":"private","slots":2},
+  {"provider":"zai","model":"glm-4.7-flash","group":"z-ai/glm-4.7-flash","url":"https://api.z.ai/api/paas/v4","price_url":"https://docs.z.ai/guides/overview/pricing.md","policy":"zai-flash","scope":"public","slots":1},
+  {"provider":"zai","model":"glm-4.5-flash","group":"z-ai/glm-4.5-flash","url":"https://api.z.ai/api/paas/v4","price_url":"https://docs.z.ai/guides/overview/pricing.md","policy":"zai-flash","scope":"public","slots":1},
+  {"provider":"zai","model":"glm-4.6v-flash","group":"z-ai/glm-4.6v-flash","url":"https://api.z.ai/api/paas/v4","price_url":"https://docs.z.ai/guides/overview/pricing.md","policy":"zai-flash","scope":"public","slots":1}
 ]
