@@ -15,10 +15,16 @@ export function createTelegramTransport(
     method: string,
     body: Record<string, unknown>,
   ): Promise<T> {
+    // Telegram getUpdates long-polls for 20 seconds; bound the whole read
+    // exchange so it cannot stall poll recovery or shutdown indefinitely.
+    // Mutating Telegram calls retain their current unknown-outcome behavior.
+    const signal =
+      method === "getUpdates" ? AbortSignal.timeout(30_000) : undefined;
     const response = await fetcher(`${endpoint}/${method}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
+      signal,
     });
     const payload = (await response.json()) as TelegramApiResponse<T>;
     if (!response.ok || !payload.ok || payload.result === undefined)

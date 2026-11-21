@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   IndependentMonitoringScheduler,
   InMemoryMonitoringScheduleStore,
@@ -24,6 +24,65 @@ function deferred() {
   });
   return { promise, resolve };
 }
+
+describe("Telegram getUpdates HTTP deadline", () => {
+  it("bounds only read-only polling and propagates transport abort without resending", async () => {
+    const deadline = new AbortController();
+    const timeout = vi
+      .spyOn(AbortSignal, "timeout")
+      .mockImplementation((ms) => {
+        expect(ms).toBe(30_000);
+        return deadline.signal;
+      });
+    const requests: Array<{
+      method: string;
+      signal: AbortSignal | null | undefined;
+      body: Record<string, unknown>;
+    }> = [];
+    const fetcher = (async (url, init) => {
+      const method = String(url).split("/").at(-1) ?? "";
+      requests.push({
+        method,
+        signal: init?.signal,
+        body: JSON.parse(String(init?.body)),
+      });
+      if (method === "sendMessage") {
+        return new Response(
+          JSON.stringify({ ok: true, result: { message_id: 1 } }),
+        );
+      }
+      return await new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          "abort",
+          () => reject(init.signal?.reason),
+          {
+            once: true,
+          },
+        );
+      });
+    }) as typeof fetch;
+    const transport = createTelegramTransport("fixture-no-network", fetcher);
+    const pending = transport.getUpdates(undefined);
+    try {
+      expect(requests).toHaveLength(1);
+      expect(requests[0]?.method).toBe("getUpdates");
+      expect(requests[0]?.body).toMatchObject({ timeout: 20 });
+      expect(requests[0]?.signal).toBe(deadline.signal);
+      deadline.abort(new DOMException("synthetic timeout", "TimeoutError"));
+      await expect(pending).rejects.toMatchObject({ name: "TimeoutError" });
+      await transport.sendMessage("42", "fixture");
+      expect(requests.map((request) => request.method)).toEqual([
+        "getUpdates",
+        "sendMessage",
+      ]);
+      expect(requests[1]?.signal).toBeUndefined();
+    } finally {
+      deadline.abort();
+      timeout.mockRestore();
+      void pending.catch(() => {});
+    }
+  });
+});
 
 describe("review P2 Telegram polling progress", () => {
   it("acknowledges a complete raw page of 100 unsupported updates and reaches the operator command", async () => {
