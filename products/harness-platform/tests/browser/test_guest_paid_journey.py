@@ -16,8 +16,8 @@ from playwright.async_api import async_playwright, expect
 
 from platform_core.guest_registration import RegistrationStore
 from platform_core.operation_grants import initialize_grants
-from test_account_browser import running_product
-
+from test_account_browser import open_integrations, running_product
+from turn_response import observe_turns
 
 from turn_response import observe_turns
 
@@ -120,7 +120,7 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         conversation = page.locator('[data-slot="conversation.view"]')
         for answer in guest_answers:
             await expect(conversation).to_contain_text(answer, timeout=30_000)
-        await page.get_by_role("button",name="Интеграции",exact=True).click()
+        await open_integrations(page)
         await expect(page.get_by_role("heading",name="Интеграции")).to_be_visible()
         await page.get_by_role("dialog").get_by_role("button",name="Закрыть").click()
         self.assertEqual((await send(page, results, QUESTION))['status'], 402)

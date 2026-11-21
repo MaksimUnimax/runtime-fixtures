@@ -123,13 +123,39 @@ html body[data-mode][data-ds-dark-theme] {
 @keyframes octo-think {0%,65%,100% {opacity:.45;transform:translateY(0)} 30% {opacity:1;transform:translateY(-.16em)}}
 @media(prefers-reduced-motion:reduce) {.thinking-dots span {animation:none}}
 
-.account-actions .balance-action {display:flex;align-items:center;justify-content:space-between;gap:6px}
-.sidebar-coins {font-variant-numeric:tabular-nums;overflow-wrap:anywhere;text-align:end;font-size:12px}
-.guest-coins {padding:0 8px;color:var(--dsw-alias-label-secondary);font-size:12px}
+.account-actions { min-width:0; }
+.octo-account-anchor { min-width:0; width:100%; }
+.account-actions :is(.balance-action,.octo-account-trigger) {
+  display:flex; min-width:0; align-items:center; gap:9px;
+}
+.account-actions .balance-action { justify-content:center; font-size:13px; }
+.sidebar-coins { font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.account-actions .octo-account-trigger { padding-inline:8px; min-height:40px; }
+.octo-account-name,.octo-profile-login { overflow-wrap:anywhere; }
+.octo-account-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.octo-account-avatar {
+  display:grid; flex:none; place-items:center; width:24px; height:24px; border-radius:50%;
+  background:var(--dsw-alias-button-primary-fill,var(--octo-action));
+  color:var(--dsw-alias-label-primary-foreground,var(--octo-on-action)); font-size:12px; font-weight:600;
+}
+.account-actions[data-wide="false"] :is(.balance-action,.octo-account-trigger) {
+  justify-content:center; padding-inline:0;
+}
+/* The native menu measures its anchor in viewport pixels. */
+.octo-account-menu { zoom:calc(1 / var(--octo-ui-scale)); min-width:min(13rem,calc(100vw - 2rem)); }
+.octo-coin {
+  box-sizing:border-box; display:inline-block; width:16px; height:16px; flex:none; border-radius:50%;
+  border:1px solid #a76b0f; background:#f3c851; box-shadow:inset 0 0 0 2px #ffecab;
+}
+.octo-profile-login { color:var(--muted); margin:0 0 16px; }
 
-/* The sidebar owns only its navigation. Harness renders both panels in its modal layer. */
-.octo-sidebar-footer { width:100%; min-width:0 }
-.octo-plugin-navigation { padding:0 6px 4px; color:var(--dsw-alias-label-primary); }
+/* Chat and plugin navigation share the available height above the account. */
+.octo-workspace-list:has(> [data-slot="sidebar.workspaces.afterList"] > .octo-plugin-navigation)
+  > :not([data-slot="sidebar.workspaces.afterList"]) { flex:0 1 auto; }
+.octo-plugin-navigation {
+  flex:none; max-block-size:min(40%,16rem); overflow:auto; overscroll-behavior:contain;
+  padding:4px 6px; color:var(--dsw-alias-label-primary);
+}
 .octo-plugin-link,.octo-plugin-fold-trigger {
   display:flex; align-items:center; gap:10px; width:100%; cursor:pointer; color:inherit;
   background:transparent; border:0; border-radius:var(--dsw-radius-md,8px);

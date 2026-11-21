@@ -106,6 +106,10 @@ def _clear_cookie(response, secure):
     response.delete_cookie(_cookie_name(secure), path="/", httponly=True, secure=secure, samesite="strict")
 
 
+def _set_cookie(response, secure, token):
+    response.set_cookie(_cookie_name(secure), token, path="/", secure=secure, httponly=True, samesite="strict")
+
+
 async def _login(request):
     from .web_ui import page
     secure = _secure(request)
@@ -136,7 +140,7 @@ async def _login(request):
             pass  # A malformed cookie does not prevent a fresh sign-in.
     response = _redirect("/app/")
     clear_guest_cookie(request, response)
-    response.set_cookie(name, token, path="/", secure=secure, httponly=True, samesite="strict")
+    _set_cookie(response, secure, token)
     return response
 
 
@@ -150,6 +154,25 @@ async def _logout(request):
     response = _redirect("/login")
     _clear_cookie(response, secure)
     clear_guest_cookie(request, response)
+    return response
+
+
+async def _change_password(request):
+    token = browser_token(request)
+    fields = await _form_fields(request, {"current", "password", "confirmation"}, max_bytes=12_288)
+    if fields["password"] != fields["confirmation"]:
+        return JSONResponse({"error": "Новые пароли не совпадают."}, status_code=400, headers=_PRIVATE_HEADERS)
+    try:
+        renewed = await run_in_threadpool(request.app.state.identity.change_password, token,
+                                           fields["current"], fields["password"])
+    except ValueError:
+        return JSONResponse({"error": "Пароль должен содержать от 1 до 256 символов."},
+                            status_code=400, headers=_PRIVATE_HEADERS)
+    if renewed is None:
+        return JSONResponse({"error": "Проверьте текущий пароль. Если было несколько попыток, повторите через 5 минут."},
+                            status_code=400, headers=_PRIVATE_HEADERS)
+    response = JSONResponse({"changed": True}, headers=_PRIVATE_HEADERS)
+    _set_cookie(response, _secure(request), renewed)
     return response
 
 
@@ -172,5 +195,6 @@ def browser_routes():
         Route("/login", _login, methods=["GET", "POST"]),
         Route("/logout", _logout, methods=["POST"]),
         Route("/api/session/status", _session_status),
+        Route("/api/profile/password", _change_password, methods=["POST"]),
         Route("/session-nav.js", _navigation_script),
     ]

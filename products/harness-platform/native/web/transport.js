@@ -32,7 +32,7 @@ async function api(path, options) {
       403: 'Доступ запрещён', 404: detail.error === 'unavailable' ? 'Действие недоступно' : 'Чат недоступен',
       409: detail.error === 'chat_busy' ? 'Дождитесь завершения запроса в этом чате.' : 'Запрос требует сверки', 413: 'Сообщение слишком длинное',
     };
-    const error = new Error(((path.startsWith('/api/integrations') || path.includes('/plugins') || path==='/api/model-settings') && /[А-Яа-я]/.test(detail.error||'') ? detail.error : null) ?? reason[status] ?? 'Запрос не выполнен (' + status + ')');
+    const error = new Error(((path==='/api/profile/password' || path.startsWith('/api/integrations') || path.includes('/plugins') || path==='/api/model-settings') && /[А-Яа-я]/.test(detail.error||'') ? detail.error : null) ?? reason[status] ?? 'Запрос не выполнен (' + status + ')');
     const providerErrors={
       provider_key:'Сервису нужно обновить ключ OpenRouter. Можно выбрать другую модель.',
       provider_access:'Модель недоступна этому сервису. Выберите другую модель.',
@@ -136,7 +136,7 @@ export async function createTransport(data) {
       autoGenerate:false,value:{...themeDefaults,...user},base:themeDefaults,user,
       applies:'live',secrets:[],revision:themeRevision};
   };
-  const account = {guest, selected, hasChat:id=>ids.includes(id), panel:data.panel, error:data.error, recovery:data.recovery,
+  const account = {guest, login:flags.login, selected, hasChat:id=>ids.includes(id), panel:data.panel, error:data.error, recovery:data.recovery,
     balanceEvents:new EventTarget(), canGrant:flags.canGrant, modelChoice:flags.modelChoice, api, changes, live, activityEvents, costs:new Map(), illustrations:new Map(),savedIllustrations:new Map()};
   function recordActivity(id, at) {
     if (!ids.includes(id) || !Number.isSafeInteger(at) || at <= (updated.get(id) ?? 0)) return;

@@ -132,42 +132,73 @@ class IdentityStore(Store):
                    FROM identity_accounts WHERE login = ?""",
                 (name,),
             ).fetchone()
-        if row and row[3] >= _MAX_FAILURES and row[4] + _FAILURE_WINDOW > time():
+        token = self._session_with_password(row, encoded)
+        if token is None:
             raise AuthenticationError("Invalid credentials")
+        return token
+
+    def account_login(self, token: str) -> str:
+        with self._lock:
+            actor, _ = _principal(self._db, token)
+            return self._db.execute("SELECT login FROM identity_accounts WHERE actor_id = ?", (actor,)).fetchone()[0]
+
+    def change_password(self, token: str, current: str, new: str) -> str | None:
+        """Verify the current password and renew the browser session in one transaction."""
+        encoded, replacement = _password_bytes(current), _password_bytes(new)
+        with self._lock:
+            actor, _ = _principal(self._db, token)
+            row = self._db.execute(
+                """SELECT actor_id, salt, password_hash, failures, failure_start
+                   FROM identity_accounts WHERE actor_id = ?""",
+                (actor,),
+            ).fetchone()
+        return self._session_with_password(row, encoded, session=token, replacement=replacement)
+
+    def _session_with_password(self, row, encoded, *, session=None, replacement=None):
+        if row and row[3] >= _MAX_FAILURES and row[4] + _FAILURE_WINDOW > time():
+            return None
         # Hash outside the SQLite writer lock. Unknown logins do comparable work.
         candidate = _derive(encoded, row[1] if row else bytes(16))
         if row is None:
-            raise AuthenticationError("Invalid credentials")
+            return None
         actor, _, previous_hash, _, _ = row
         matched = hmac.compare_digest(previous_hash, candidate)
+        if matched and replacement is not None:
+            salt = secrets.token_bytes(16)
+            password_hash = _derive(replacement, salt)
         with self._write() as db:
+            if session is not None:
+                _principal(db, session)
             now = int(time())
             current = db.execute(
                 "SELECT password_hash, failures, failure_start FROM identity_accounts WHERE actor_id = ?",
                 (actor,),
             ).fetchone()
             if current is None or current[0] != previous_hash:
-                raise AuthenticationError("Invalid credentials")
+                return None
             _, failures, start = current
             if start + _FAILURE_WINDOW <= now:
                 failures, start = 0, now
             if failures >= _MAX_FAILURES:
-                raise AuthenticationError("Invalid credentials")
-            if matched:
-                token = secrets.token_urlsafe(32)
-                db.execute("UPDATE identity_accounts SET failures = 0, failure_start = 0 WHERE actor_id = ?", (actor,))
-                db.execute("DELETE FROM identity_sessions WHERE expires_at <= ?", (now,))
+                return None
+            if not matched:
                 db.execute(
-                    "INSERT INTO identity_sessions (digest, actor_id, expires_at) VALUES (?, ?, ?)",
-                    (_secret_digest(token), actor, now + _SESSION_SECONDS),
+                    "UPDATE identity_accounts SET failures = ?, failure_start = ? WHERE actor_id = ?",
+                    (failures + 1, start, actor),
                 )
-                return token
+                return None
+            if replacement is not None:
+                db.execute("UPDATE identity_accounts SET salt = ?, password_hash = ? WHERE actor_id = ?",
+                           (salt, password_hash, actor))
+                db.execute("DELETE FROM identity_sessions WHERE actor_id = ?", (actor,))
+            token = secrets.token_urlsafe(32)
+            db.execute("UPDATE identity_accounts SET failures = 0, failure_start = 0 WHERE actor_id = ?", (actor,))
+            db.execute("DELETE FROM identity_sessions WHERE expires_at <= ?", (now,))
             db.execute(
-                "UPDATE identity_accounts SET failures = ?, failure_start = ? WHERE actor_id = ?",
-                (failures + 1, start, actor),
+                "INSERT INTO identity_sessions (digest, actor_id, expires_at) VALUES (?, ?, ?)",
+                (_secret_digest(token), actor, now + _SESSION_SECONDS),
             )
-        # Raise after committing the failed attempt.
-        raise AuthenticationError("Invalid credentials")
+            return token
 
     def logout(self, token: str) -> None:
         with self._write() as db:

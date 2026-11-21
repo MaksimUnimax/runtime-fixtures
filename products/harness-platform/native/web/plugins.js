@@ -1,4 +1,4 @@
-// Registered once per native account sidebar.
+// Mounted in the workspace browser after the chat list.
 (() => {
   const components = new WeakMap();
   window.octoPluginMenu = (React,ctx,api,ui) => {
@@ -101,7 +101,10 @@
       },[cid,current?.selected,data?.catalogAt,catalogJob?.id]);
       return h(Dialog,{label:title,close,settings:true},error&&h('p',{role:'alert'},error),
         !data ? h('p',{role:'status'},'Загружаем настройки…') : h(React.Fragment,null,
-          h('h3',null,'Магазины'),data.stores.length===0&&h('p',null,'Добавьте магазин в разделе «Интеграции».'),
+          h('h3',null,'Магазины'),data.stores.length===0&&h(Action,{onClick:()=>{
+            close();
+            ctx.slots.entries('sidebar.settings')[0]?.store.create().actions.openSection('integrations');
+          }},'Добавить магазин'),
           h('div',{className:'plugin-stores'},data.stores.map(s=>h(Action,{key:s.id,disabled:busy,'aria-pressed':cid===s.id,
             onClick:()=>s.selected?changeStore(s.id):choose(s)},s.selected?s.name:'Подключить в этом чате · '+s.name))),
           current&&h(React.Fragment,null,h('div',{className:'plugin-controls'},

@@ -47,12 +47,33 @@ def static_bytes(path, transform=None):
     return encoded(data)
 
 
+def workspace_sidebar(source):
+    """Expose the sidebar extension directly after the native chat list."""
+    patches = (
+        (b'name: "sidebar.workspaces",\n\t\t\t\tchildren: {',
+         b'name: "sidebar.workspaces",\n\t\t\t\tchildren: {\n'
+         b'\t\t\t\t\t"sidebar.workspaces.afterList": { kind: "single", scope: "root" },'),
+        (b'className: WorkspaceBrowser_module_css_default.listArea,\n\t\t\t\t\t\tchildren: wide &&',
+         b'className: clsx(WorkspaceBrowser_module_css_default.listArea, "octo-workspace-list"),\n'
+         b'\t\t\t\t\t\tchildren: [wide &&'),
+        (b'}))\n\t\t\t\t\t}),\n\t\t\t\t\tworkspaceActionRequest !== null',
+         b'})), renderSlot("sidebar.workspaces.afterList", { wide })]\n'
+         b'\t\t\t\t\t}),\n\t\t\t\t\tworkspaceActionRequest !== null'),
+    )
+    for old, new in patches:
+        if source.count(old) != 1:
+            raise ValueError("Unsupported Harness workspace sidebar revision")
+        source = source.replace(old, new, 1)
+    return source
+
+
 def client_source(path):
     source = path.read_bytes()
     package = path.parent.parent.name
     if package.startswith("dsh-client-ui-"):
         source = source.replace(b"DeepSeek Harness", b"octoport")
     if package == "dsh-client-ui-workspace":
+        source = workspace_sidebar(source)
         # Resolve the authenticated deep link before native recent-session restoration.
         signature = b"async restoreSelection(workspaces, sessions) {"
         source = source.replace(signature, signature +
@@ -131,7 +152,8 @@ def roster(base, core=None):
     for name in ROOTS:
         visit(name)
     plugin = {"id":"harness-account", "rev":VERSION, "url":"/ui-assets/project/account.js",
-              "inject":[GROUP + "dsh-client-ui-workspace", GROUP + "dsh-client-ui-sidebar"]}
+              "inject":[GROUP + name for name in ("dsh-client-ui-workspace", "dsh-client-ui-sidebar",
+                                          "dsh-client-ui-settings-general")]}
     rows = [*entries.values(), plugin, {"id":"harness-integrations","rev":VERSION,
             "url":"/ui-assets/project/connections.js","inject":[GROUP+"dsh-client-ui-settings-general"]}]
     bootstrap = entries["dsh-client-modules"]

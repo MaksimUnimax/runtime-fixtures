@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 from urllib.parse import urlsplit
 
 from playwright.async_api import expect
-from test_account_browser import ProductBrowser
+from test_account_browser import ProductBrowser, account_action
 
 from deploy.publish_info import PAGES, publish
 
@@ -48,6 +48,8 @@ class PublicInfoBrowser(ProductBrowser):
             await expect(page.locator("footer #seller")).to_have_count(int(name == "index"))
         await chat.click()
         await expect(page.get_by_role("button", name="Баланс", exact=True)).to_be_visible()
+        await account_action(page, "О сервисе")
+        await expect(page).to_have_url(self.base_url + "/about/")
         await page.goto("/about/#seller")
         for width in (1280, 820, 390, 320):
             await page.set_viewport_size({"width": width, "height": 800})
