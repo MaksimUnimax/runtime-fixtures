@@ -1,0 +1,21 @@
+Запрос A	Запрос B	Общих URL	Общих хостов	Совпавшие URL
+ии агент для маркетплейсов	ии для маркетплейсов	0	1	
+ии агент для маркетплейсов	нейросеть для маркетплейсов	0	1	
+генератор карточек для маркетплейсов	ии для карточек маркетплейсов	4	4	https://aidesk.io/tasks/marketplace-images | https://fabula-ai.com/ | https://neiro-card.ai/ | https://supa.ru/features/marketplace
+генератор карточек для маркетплейсов	нейросеть для создания карточек для маркетплейсов	4	4	https://aidesk.io/tasks/marketplace-images | https://fabula-ai.com/ | https://homiwork.com/ru/app/pictures/create/banner | https://neiro-card.ai/
+генератор карточек для маркетплейсов	как создать карточку товара на озон	0	0	
+генератор карточек для маркетплейсов	инфографика для маркетплейсов нейросеть	4	4	https://aidesk.io/tasks/marketplace-images | https://fabula-ai.com/ | https://infografov.ru/ | https://neiro-card.ai/
+как создать карточку товара на озон	как создать карточку товара на вайлдберриз	0	4	
+инфографика для маркетплейсов нейросеть	фото товара для маркетплейсов	0	0	
+сервис аналитики маркетплейсов	сервисы аналитики для маркетплейсов	4	5	https://mpspace.ru/ | https://mpstats.io/ | https://www.sberbank.ru/ru/s_m_business/pro_business/analitika-prodazh-na-marketplejsah | https://www.tbank.ru/business/seller/analytics/
+сервис аналитики маркетплейсов	сервис аналитики озон	1	2	https://mayak.bz/
+сервис аналитики маркетплейсов	аналитика продаж озон	0	2	
+юнит экономика озон	калькулятор прибыли озон	1	2	https://seller-edu.ozon.ru/commissions-tariffs/commissions-tariffs-ozon/online-calculyator
+калькулятор прибыли озон	калькулятор прибыли вб	0	3	
+юнит экономика озон	юнит экономика вб	0	2	
+почему упали продажи на вб	почему упали продажи на озон	0	4	
+что такое дрр на озон	что такое дрр на вб	2	3	https://reklama.tochka.com/blog/chto-takoe-drr-dolya-reklamnyh-rashodov-na-marketpleysah | https://tochka.com/knowledge/marketpleisy/dolya-reklamnyh-rashodov-na-marketpleysah/
+перенос карточек с вб на озон	перенос карточек с озон на вб	0	2	
+биддер озон	биддер для вб	0	4	
+бот заказов озон	уведомления о выкупах вб	0	0	
+автоответы на отзывы вб	ответы на отзывы озон	0	1	
