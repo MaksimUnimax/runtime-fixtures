@@ -145,6 +145,12 @@ class TelegramReports(TestCase):
             self.assertIn('data-telegram-login="ExampleBot"', page.text)
             self.assertIn('data-request-access="write"', page.text)
             self.assertIn('data-auth-url="/telegram/return?state=' + params["state"][0], page.text)
+            embed = self.client.get(link+"&embed=1")
+            self.assertIn("frame-ancestors 'self'", embed.headers["Content-Security-Policy"])
+            self.assertIn("frame-ancestors 'none'", page.headers["Content-Security-Policy"])
+            self.assertIn('&amp;embed=1',embed.text)
+            self.assertIn('integrity="sha384-',embed.text)
+            self.assertNotIn('<h1>',embed.text)
             return params["state"][0]
 
         def profile(stamp):
