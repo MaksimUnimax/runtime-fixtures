@@ -123,31 +123,55 @@ html body[data-mode][data-ds-dark-theme] {
 @keyframes octo-think {0%,65%,100% {opacity:.45;transform:translateY(0)} 30% {opacity:1;transform:translateY(-.16em)}}
 @media(prefers-reduced-motion:reduce) {.thinking-dots span {animation:none}}
 
-.account-actions { min-width:0; }
+.account-actions { min-width:0; gap:2px; }
 .octo-account-anchor { min-width:0; width:100%; }
-.account-actions :is(.balance-action,.octo-account-trigger) {
-  display:flex; min-width:0; align-items:center; gap:9px;
+.account-actions button:is(.balance-action,.octo-account-trigger) {
+  display:flex; align-items:center; gap:.625rem; min-width:0; min-height:36px; padding:6px 10px;
+  background:transparent; border:0; color:var(--dsw-alias-label-primary); font:inherit; font-size:14px;
 }
-.account-actions .balance-action { justify-content:center; font-size:13px; }
+.account-actions button:is(.balance-action,.octo-account-trigger):is(:hover,:focus-visible,[aria-expanded="true"]) {
+  background:var(--dsw-alias-interactive-bg-hover,var(--octo-hover));
+}
+.account-actions svg,.octo-profile-identity svg { flex:none; }
 .sidebar-coins { font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
-.account-actions .octo-account-trigger { padding-inline:8px; min-height:40px; }
-.octo-account-name,.octo-profile-login { overflow-wrap:anywhere; }
-.octo-account-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.octo-account-avatar {
-  display:grid; flex:none; place-items:center; width:24px; height:24px; border-radius:50%;
-  background:var(--dsw-alias-button-primary-fill,var(--octo-action));
-  color:var(--dsw-alias-label-primary-foreground,var(--octo-on-action)); font-size:12px; font-weight:600;
+.octo-account-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:550; }
+.account-actions[data-wide="false"] button:is(.balance-action,.octo-account-trigger) { justify-content:center; padding-inline:0; }
+.octo-coin { color:#846118; }
+body[data-ds-dark-theme] .octo-coin { color:#d9b56c; }
+/* Portaled menus measure their anchor in viewport pixels. */
+:is(.octo-account-menu,.octo-plugin-menu) { zoom:calc(1 / var(--octo-ui-scale)); min-width:min(12rem,calc(100vw - 2rem)); }
+.octo-account-panel {
+  zoom:calc(1 / var(--octo-ui-scale));
+  width:min(26rem,100%); max-width:100%; min-width:0; box-sizing:border-box;
+  max-height:calc(100dvh - 2rem); min-height:0; overflow:auto; overscroll-behavior:contain;
 }
-.account-actions[data-wide="false"] :is(.balance-action,.octo-account-trigger) {
-  justify-content:center; padding-inline:0;
+.octo-profile-body,.octo-wallet-body { min-width:0; color:var(--dsw-alias-label-primary); font:inherit; }
+.octo-profile-identity {
+  display:flex; align-items:center; gap:.625rem; padding-bottom:1rem; margin-bottom:1rem;
+  border-bottom:1px solid var(--dsw-alias-border-l3); color:var(--dsw-alias-label-secondary); overflow-wrap:anywhere;
 }
-/* The native menu measures its anchor in viewport pixels. */
-.octo-account-menu { zoom:calc(1 / var(--octo-ui-scale)); min-width:min(13rem,calc(100vw - 2rem)); }
-.octo-coin {
-  box-sizing:border-box; display:inline-block; width:16px; height:16px; flex:none; border-radius:50%;
-  border:1px solid #a76b0f; background:#f3c851; box-shadow:inset 0 0 0 2px #ffecab;
+.octo-password-form { display:grid; gap:1rem; margin:0; }
+.octo-password-form label { display:grid; gap:.375rem; min-width:0; font-size:.875rem; }
+.octo-password-form input:not([hidden]) {
+  box-sizing:border-box; width:100%; min-width:0; min-height:2.75rem; padding:.5rem .75rem;
+  background:var(--dsw-alias-bg-base); border:1px solid var(--dsw-alias-border-l4);
+  border-radius:var(--dsw-radius-md,8px); color:inherit; font:inherit; font-size:1rem;
 }
-.octo-profile-login { color:var(--muted); margin:0 0 16px; }
+.octo-password-form input:focus-visible { outline:2px solid var(--dsw-alias-label-primary); outline-offset:1px; }
+.octo-password-form button,.octo-wallet-topup { min-height:2.75rem; }
+@media (max-height:540px) {
+  .octo-profile-identity { padding-bottom:.5rem; margin-bottom:.625rem; font-size:.875rem; }
+  .octo-password-form { gap:.625rem; }
+  .octo-password-form label { gap:.25rem; }
+}
+.octo-profile-body [role=alert],.octo-plugin-navigation > [role=alert] { color:var(--dsw-alias-label-error,var(--dsw-alias-label-primary)); }
+.octo-wallet-body { --line:var(--dsw-alias-border-l3); --muted:var(--dsw-alias-label-secondary); }
+.octo-wallet-topup {
+  display:flex; justify-content:center; align-items:center; border-radius:var(--dsw-radius-md,8px);
+  background:var(--dsw-alias-button-primary-fill); color:var(--dsw-alias-label-primary-foreground);
+  text-decoration:none; font-weight:600;
+}
+.octo-wallet-topup:hover { background:var(--dsw-alias-button-primary-hover); }
 
 /* Chat and plugin navigation share the available height above the account. */
 .octo-workspace-list:has(> [data-slot="sidebar.workspaces.afterList"] > .octo-plugin-navigation)
@@ -165,6 +189,22 @@ html body[data-mode][data-ds-dark-theme] {
 .octo-plugin-link:hover,.octo-plugin-fold-trigger:hover { background:var(--dsw-alias-interactive-bg-hover,var(--octo-hover)); }
 .octo-enabled-plugins { margin-top:5px; padding-top:5px; border-top:1px solid var(--dsw-alias-border-l3,var(--octo-line)); }
 .octo-enabled-plugins ul { list-style:none; padding:0; margin:0; }
+.octo-enabled-plugins li { display:flex; align-items:center; min-width:0; border-radius:var(--dsw-radius-md,8px); }
+.octo-enabled-plugins li:is(:hover,:focus-within) { background:var(--dsw-alias-interactive-bg-hover,var(--octo-hover)); }
+.octo-enabled-plugins .octo-plugin-link { flex:1; min-width:0; }
+.octo-plugin-link > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.octo-plugin-link svg { flex:none; }
+.octo-plugin-overflow { flex:none; }
+.octo-plugin-more {
+  display:grid; place-items:center; width:32px; height:32px; padding:0; border:0; background:transparent;
+  color:inherit; border-radius:var(--dsw-radius-md,8px); cursor:pointer;
+}
+@media (hover:hover) and (pointer:fine) {
+  .octo-enabled-plugins li:not(:hover,:focus-within) .octo-plugin-more:not([aria-expanded=true]) { opacity:0; }
+}
+.octo-plugin-compact { position:relative; }
+.octo-plugin-compact .octo-plugin-dots { position:absolute; inset-inline-end:1px; inset-block-end:0; }
+.octo-plugin-navigation[data-wide="false"] .octo-plugin-overflow { width:100%; }
 .octo-plugin-list-title { padding:4px 10px; font-size:12px; color:var(--dsw-alias-label-secondary); }
 .octo-plugin-navigation[data-wide="false"] .octo-plugin-link { justify-content:center; padding-inline:0; }
 .octo-plugin-panel { width:min(540px,calc(100vw - 32px)); max-width:100%; }

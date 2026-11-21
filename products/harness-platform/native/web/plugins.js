@@ -5,7 +5,7 @@
     if (components.has(ctx)) return components.get(ctx);
     const h=React.createElement;
     const send=(path,data)=>api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-    const {Modal,Button,Switch,IconDataOutlineMedium,IconPersonalizationOutlineMedium,IconChevronRightOutlineRegular}=ui;
+    const {Menu:Popup,Modal,Button,Switch,IconEllipsisOutlineRegular,IconDataOutlineMedium,IconPersonalizationOutlineMedium,IconChevronRightOutlineRegular}=ui;
     function Dialog({label,close,children,settings=false}) {
       return h(Modal,{open:true,title:label,closeLabel:'Закрыть',onClose:close,
         className:settings?'octo-plugin-panel octo-plugin-settings':'octo-plugin-panel'},
@@ -176,7 +176,8 @@
     function Menu({chat,wide}) {
       const url='/api/chats/'+encodeURIComponent(chat)+'/plugins';
       const [data,setData]=React.useState(null),[panel,setPanel]=React.useState(''),[err,setErr]=React.useState(''),[busy,setBusy]=React.useState(false);
-      const latest=React.useRef(0);
+      const latest=React.useRef(0),catalogButton=React.useRef(null),overflowTrigger=React.useRef(null);
+      const [actions,setActions]=React.useState('');
       React.useEffect(()=>{
         const controller=new AbortController();
         async function refresh() {
@@ -191,11 +192,11 @@
         refresh();window.addEventListener('harness:grants',refresh);
         return()=>{latest.current++;controller.abort();window.removeEventListener('harness:grants',refresh);};
       },[url]);
-      async function toggle(p) {
+      async function toggle(p,enabled) {
         latest.current++;
         setBusy(true);setErr('');
         try {
-          const result=await send(url,{plugin:p.id,enabled:!p.enabled});
+          const result=await send(url,{plugin:p.id,enabled});
           latest.current++;setData(result);
           window.dispatchEvent(new Event('harness:grants'));
         } catch(e){setErr(e.message);}finally{setBusy(false);}
@@ -208,21 +209,46 @@
           return h(Fold,{key:c.id,label:c.title,initial:items.length>0},
             items.map(p=>h('div',{key:p.id,className:'octo-plugin-row'},
               h('div',null,h('strong',null,p.title),h('p',null,p.description)),
-              h(Switch,{label:'Подключить '+p.title,checked:p.enabled,disabled:busy,onChange:()=>toggle(p)}))),
+              h(Switch,{label:'Подключить '+p.title,checked:p.enabled,disabled:busy,onChange:()=>toggle(p,!p.enabled)}))),
             !items.length&&!data.categories.some(x=>x.parent===c.id)&&h('p',null,'Плагинов пока нет.'),branch(c.id));
         });
       }
       const enabled=(data?.plugins||[]).filter(p=>p.enabled);
-      function link(title,Icon,open) {
-        return h('button',{type:'button',className:'octo-plugin-link',title,'aria-label':title,'aria-haspopup':'dialog',
+      function link(title,Icon,open,ref) {
+        return h('button',{type:'button',className:'octo-plugin-link',ref,title,'aria-label':title,'aria-haspopup':'dialog',
           onClick:open},h(Icon,{size:wide?16:18}),wide&&h('span',null,title));
       }
+      function enabledRow(p) {
+        const Icon=p.provider==='wb'?IconDataOutlineMedium:IconPersonalizationOutlineMedium;
+        const isOpen=actions===p.id;
+        const items=[...(!wide?[{id:'open',label:'Открыть плагин'}]:[]),{id:'disable',label:'Отключить плагин'}];
+        const label=wide?'Действия плагина «'+p.title+'»':p.title;
+        return h('li',{key:p.id},
+          wide&&link(p.title,Icon,()=>setPanel(p.id)),
+          h(Popup,{open:isOpen,portal:true,autoFocus:true,align:'start',side:'bottom',className:'octo-plugin-overflow',
+            listClassName:'octo-plugin-menu',items,
+            anchor:h('button',{type:'button',className:wide?'octo-plugin-more':'octo-plugin-link octo-plugin-compact',
+              title:label,'aria-label':label,'aria-haspopup':'menu','aria-expanded':isOpen,disabled:busy,
+              onClick:e=>{overflowTrigger.current=e.currentTarget;setActions(isOpen?'':p.id);}},
+              wide?h(IconEllipsisOutlineRegular,{size:16}):h(React.Fragment,null,h(Icon,{size:18}),
+                h('span',{className:'octo-plugin-dots','aria-hidden':true},h(IconEllipsisOutlineRegular,{size:12})))),
+            onClose:()=>setActions(''),onSelect:id=>{
+              setActions('');
+              if(id==='disable'){
+                catalogButton.current?.focus({preventScroll:true});
+                toggle(p,false);
+              }else if(id==='open'){
+                overflowTrigger.current?.focus({preventScroll:true});
+                setPanel(p.id);
+              }
+            }}));
+      }
       return h('div',{className:'octo-plugin-navigation','data-wide':wide},
-        link(label,IconPersonalizationOutlineMedium,()=>setPanel('catalog')),
+        link(label,IconPersonalizationOutlineMedium,()=>setPanel('catalog'),catalogButton),
+        err&&!panel&&h('p',{role:'alert'},err),
         enabled.length>0&&h('nav',{'aria-label':'Подключённые плагины',className:'octo-enabled-plugins'},
           wide&&h('div',{className:'octo-plugin-list-title'},'Подключённые плагины'),
-          h('ul',null,enabled.map(p=>h('li',{key:p.id},
-            link(p.title,p.provider==='wb'?IconDataOutlineMedium:IconPersonalizationOutlineMedium,()=>setPanel(p.id)))))),
+          h('ul',null,enabled.map(enabledRow))),
         panel==='catalog'&&h(Dialog,{label,close:()=>setPanel('')},
           err&&h('p',{role:'alert'},err),data?branch(null):!err&&h('p',{role:'status'},'Загружаем каталог…')),
         plugin&&panels[plugin.provider]&&h(panels[plugin.provider],{key:chat+plugin.id,url:url+'/'+encodeURIComponent(plugin.id),title:plugin.title,provider:plugin.provider,close:()=>setPanel('')}));

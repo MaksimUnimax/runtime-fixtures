@@ -47,6 +47,12 @@ def static_bytes(path, transform=None):
     return encoded(data)
 
 
+def replace_ui(source, old, new):
+    if source.count(old) != 1:
+        raise ValueError("Unsupported Harness UI revision: " + old[:64].decode())
+    return source.replace(old, new, 1)
+
+
 def workspace_sidebar(source):
     """Expose the sidebar extension directly after the native chat list."""
     patches = (
@@ -59,11 +65,22 @@ def workspace_sidebar(source):
         (b'}))\n\t\t\t\t\t}),\n\t\t\t\t\tworkspaceActionRequest !== null',
          b'})), renderSlot("sidebar.workspaces.afterList", { wide })]\n'
          b'\t\t\t\t\t}),\n\t\t\t\t\tworkspaceActionRequest !== null'),
+        # The product exposes one personal workspace. Use the native flat list, including
+        # its search, ordering and session actions, when no grouping choice exists.
+        (b"const groupBy = useStore((s) => s.groupBy);",
+         b"const groupBy = useStore((s) => workspaces.length > 1 ? s.groupBy : 'flat');"),
+        (b"onGroupPick: actions.setGroupBy,",
+         b"onGroupPick: workspaces.length > 1 ? actions.setGroupBy : undefined,"),
+        (b'items: [\n\t\t\t\t\t{\n\t\t\t\t\t\ttype: "label",\n\t\t\t\t\t\tid: "group-by",',
+         b'items: [...(onGroupPick ? [{type:"label", id:"group-by",'),
+        (b'id: "order-by-separator"\n\t\t\t\t\t},',
+         b'id: "order-by-separator"}] : []),'),
+        # The native preview supports disabling independently of the row and its actions.
+        (b'disabled: menuOpen || drag?.active === true,\n\t\t\t\tcopyText: row.blank',
+         b'disabled: true,\n\t\t\t\tcopyText: row.blank'),
     )
     for old, new in patches:
-        if source.count(old) != 1:
-            raise ValueError("Unsupported Harness workspace sidebar revision")
-        source = source.replace(old, new, 1)
+        source = replace_ui(source, old, new)
     return source
 
 
@@ -87,6 +104,9 @@ def client_source(path):
     if package == "dsh-client-ui-shortcuts":
         source = re.sub(rb"\bHarness\b", b"octoport", source)
     if package == "dsh-client-ui-conversation":
+        # Keep the picker for installations with multiple workspaces and for initial selection.
+        source = replace_ui(source, b'(0, react_jsx_runtime.jsx)(WorkspaceChip, {',
+                            b'workspaces.items.length !== 1 && (0, react_jsx_runtime.jsx)(WorkspaceChip, {')
         # The pinned HeroShell has a mark slot but no headline or badge slot.
         title_group = (
             rb'children: \[\(0, react_jsx_runtime.jsx\)\("span", \{ children: t\("hero.headline"\) \}\), '
