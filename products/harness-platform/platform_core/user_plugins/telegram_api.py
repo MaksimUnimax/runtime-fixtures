@@ -24,6 +24,7 @@ class Config:
     bot: str
     secret: str
     token: str
+    proxy_port: int | None = None
 
     @classmethod
     def load(cls):
@@ -40,7 +41,10 @@ class Config:
             raise ValueError("Invalid Telegram login configuration")
         if not re.fullmatch(re.escape(bot) + r":[A-Za-z0-9_-]{20,}", token):
             raise ValueError("Telegram bot and client IDs do not match")
-        return cls(bot, secret, token)
+        proxy_port = data.get("connect_proxy_port")
+        if proxy_port is not None and (type(proxy_port) is not int or not 1 <= proxy_port <= 65535):
+            raise ValueError("Invalid loopback proxy port")
+        return cls(bot, secret, token, proxy_port)
 
 
 def authorize(config, state, verifier, nonce):
@@ -96,7 +100,12 @@ def _post(config, uid, text):
             data={"chat_id": str(uid), "protect_content": "true", "caption": "Отчёт Октопорта"},
             files={"document": ("octoport-report.txt", text.encode(), "text/plain; charset=utf-8")})
         body, content_type = encoded.read(), encoded.headers["content-type"]
-    conn = http.client.HTTPSConnection("api.telegram.org", timeout=12)
+    if config.proxy_port is None:
+        conn = http.client.HTTPSConnection("api.telegram.org", timeout=12)
+    else:
+        # HTTPSConnection checks the certificate of the CONNECT destination.
+        conn = http.client.HTTPSConnection("127.0.0.1", config.proxy_port, timeout=12)
+        conn.set_tunnel("api.telegram.org", 443)
     try:
         conn.request("POST", "/bot" + config.token + "/" + method, body, {"Content-Type": content_type})
         response = conn.getresponse()

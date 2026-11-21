@@ -5,8 +5,9 @@ import logging
 import secrets
 import sqlite3
 import time
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 
+import httpx
 from starlette.exceptions import HTTPException
 from starlette.responses import HTMLResponse, JSONResponse
 from starlette.routing import Route
@@ -50,11 +51,16 @@ async def activate(state):
     except (OSError, KeyError, ValueError, TypeError):
         logging.getLogger(__name__).error("Telegram configuration is invalid; report delivery is disabled")
         config = None
-    state.telegram = Delivery(state, config)
-    try:
-        yield
-    finally:
-        await state.telegram.close()
+    async with AsyncExitStack() as clients:
+        state.telegram_http = state.http
+        if config and config.proxy_port:
+            state.telegram_http = await clients.enter_async_context(httpx.AsyncClient(
+                proxy=f"http://127.0.0.1:{config.proxy_port}", timeout=12, trust_env=False, follow_redirects=False))
+        state.telegram = Delivery(state, config)
+        try:
+            yield
+        finally:
+            await state.telegram.close()
 
 
 def require_chat(db, token, chat):
@@ -168,7 +174,7 @@ def routes(body):
             # Reserve this response exactly once but leave the row revocable during network I/O.
             reservation = secrets.token_hex(32)
             db.execute("UPDATE telegram_consents SET state=? WHERE session=?", (reservation,sid))
-        uid = await tg.verified_user(state.http, cfg, fields["code"], verifier, nonce)
+        uid = await tg.verified_user(state.telegram_http, cfg, fields["code"], verifier, nonce)
         with state.identity._lock:
             db = state.identity._db
             require_chat(db,token,chat)

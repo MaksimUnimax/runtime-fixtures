@@ -207,3 +207,8 @@ class TelegramReports(TestCase):
         self.assertIn("multipart/form-data",headers["Content-Type"])
         self.assertIn(b"octoport-report.txt",payload)
         self.assertIn(("Я"*4100).encode(),payload)
+        with patch("http.client.HTTPSConnection",return_value=connection) as connect:
+            tg._post(tg.Config("123","s","123:test",18999),884,"Короткий отчёт")
+        connect.assert_called_once_with("127.0.0.1",18999,timeout=12)
+        connection.set_tunnel.assert_called_once_with("api.telegram.org",443)
+        self.assertTrue(connection.request.call_args.args[1].endswith("/sendMessage"))
