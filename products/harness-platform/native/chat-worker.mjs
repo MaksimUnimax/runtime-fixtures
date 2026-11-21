@@ -19,7 +19,8 @@ function registerConnectionContext(ctx, attached, available) {
   const toolDefinitions = ctx.tools.definitions();
   const bindings = attached.map(({id, name, provider, status, access}) => ({
     id, name, provider, status, access,
-    tools: toolDefinitions.filter(tool => tool.parameters?.properties?.connectionId?.enum?.includes(id))
+    tools: toolDefinitions.filter(tool => tool.parameters?.properties?.connectionId?.enum?.includes(id)
+      || tool.parameters?.properties?.selections?.items?.properties?.connectionId?.enum?.includes(id))
       .map(tool => tool.name),
   }));
   ctx.systemPrompt.section({name:'connection-instructions',order:80,interpolate:false,
@@ -29,7 +30,8 @@ function registerConnectionContext(ctx, attached, available) {
       'Секретные ключи хранит и подставляет сервис.'});
   ctx.systemPrompt.context({name:'chat-connections',order:80,interpolate:false,required:true,
     text:'Текущее состояние подключений этого диалога: '+JSON.stringify({
-      connections:bindings, tools:toolDefinitions.map(tool=>tool.name).sort(), availableToAttach:available
+      calendarDate: new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Moscow'}).format(new Date()),
+      timezone:'Europe/Moscow', connections:bindings, tools:toolDefinitions.map(tool=>tool.name).sort(), availableToAttach:available
     })});
 }
 
@@ -235,6 +237,10 @@ export async function openWorker(env) {
           pythonExecutable: env.HARNESS_TEST_PYTHON, productDirectory,
           integrationKeyFile:env.HARNESS_INTEGRATIONS_KEY_FILE, databasePath: env.HARNESS_PLATFORM_DATABASE,
           compositionModule: env.HARNESS_PLATFORM_COMPOSITION || undefined, scope: req.scope,
+          marketplaceTurn: metered && req.grant ? {
+            question: req.text, requestId: req.requestId, deadline: req.deadline,
+            token: req.grant.token,
+          } : undefined,
         });
         registerConnectionContext(ctx,attached,available);
       }
