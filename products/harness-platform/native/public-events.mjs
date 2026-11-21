@@ -1,7 +1,8 @@
 // Projection for the browser's stock Chat and Trajectory views. Internal model
 // requests, private prompts and unrecognized event data stay in the native log.
-export function publicEvents(events) {
+export function publicEvents(events, attachments = []) {
   const displayed = [];
+  let publishedFiles = false;
   for (const event of events) {
     const { type, seq, time, data } = event;
     const output = {};
@@ -15,6 +16,10 @@ export function publicEvents(events) {
       const content = message.content
         .filter(block => block.type === 'text' && typeof block.text === 'string')
         .map(block => ({ type: 'text', text: block.text }));
+      if (!assistant && !publishedFiles) {
+        content.push(...attachments.map(attachment=>({type:'file',attachment})));
+        publishedFiles = true;
+      }
       if (!content.length) continue;
       const visible = { id: message.id, role: message.role, content,
         source: { kind: assistant ? 'model' : 'user' } };

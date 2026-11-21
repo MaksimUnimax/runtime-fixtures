@@ -11,7 +11,7 @@ import zipfile
 
 PRODUCT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PRODUCT))
-from platform_core.native_web import UI, application_name, client_source, modules, roster
+from platform_core.native_web import UI, application_name, client_source, modules, product_bundle_source, roster
 from platform_core.browser_session import _NAVIGATION_JS
 from platform_core.native_ui_entry import browser_entry
 
@@ -29,7 +29,7 @@ def build(esbuild, node, output):
     bootstrap = subprocess.run([esbuild, "--minify", "--charset=utf8", "--target=es2022"],
                                input=boot, stdout=subprocess.PIPE, check=True).stdout
     output.with_name("chat-bootstrap.js").write_bytes(bootstrap)
-    components = {name: client_source(path) for name, path in files.items() if name != "dsh-client-modules"}
+    components = {name: product_bundle_source(path) for name, path in files.items() if name != "dsh-client-modules"}
     workspace = components.pop("dsh-client-ui-workspace")
     write_pack(esbuild, node, output.with_name("chat-workspace.pack"), workspace)
     write_pack(esbuild, node, output, b"\n;\n".join(components.values()))

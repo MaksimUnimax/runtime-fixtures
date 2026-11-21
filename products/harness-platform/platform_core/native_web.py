@@ -22,7 +22,7 @@ UI = Path(__file__).resolve().parents[1] / "native" / "web"
 VERSION = "0.2.2-rc.1"
 GROUP = "@deepseek-ai/"
 ROOTS = ("dsh-client-modules", "dsh-client-ui-chat",
-         "dsh-client-ui-tool", "dsh-client-ui-approval",
+         "dsh-client-ui-tool", "dsh-client-ui-approval", "dsh-client-ui-attachment",
          "dsh-client-ui-user-questions", "dsh-client-ui-settings-general")
 HEADERS = {**_PRIVATE_HEADERS, "Content-Security-Policy":
            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
@@ -139,6 +139,35 @@ def client_source(path):
         return re.sub(title_group, 'children: "С чего начнем?"'.encode(), source, count=1)
     if package == "dsh-client-ui-chat":
         return source.replace(b"DeepSeek", b"octoport")
+    return source
+
+
+def product_bundle_source(path):
+    source = client_source(path)
+    package = path.parent.parent.name
+    if package == "dsh-client-ui-conversation":
+        # The stock composer registers a file-picker action. Use it for the toolbar button.
+        source = replace_ui(source,
+            b'label: t("input.commands"),\n\t\t\t\t\t\t\t\t\t\t\tside: "top",',
+            'label: uploadDenied ? "Войдите, чтобы прикрепить файлы" : "Прикрепить файлы",\n\t\t\t\t\t\t\t\t\t\t\tside: "top",'.encode())
+        source = replace_ui(source,
+            b'"aria-label": t("input.commands"),\n\t\t\t\t\t\t\t\t\t\t\t\t"aria-haspopup": "listbox",\n\t\t\t\t\t\t\t\t\t\t\t\t"aria-expanded": commandMenuOpen,\n\t\t\t\t\t\t\t\t\t\t\t\tdisabled: locked || toggleCommandMenu === void 0,',
+            '"aria-label": "Прикрепить файлы",\n disabled: !canAcceptDrop || subagent !== null,'.encode())
+        source = replace_ui(source, b'onClick: onToggleCommandMenu,', b'onClick: () => fileInputRef.current?.click(),')
+        # The platform stores arbitrary uploads as downloadable files. Its document reader
+        # is available independently of a provider's image capabilities.
+        source = replace_ui(source, b'if (isImageMediaType(file.type)) {\n\t\t\t\t\t\tconst attachment = browserDraftAttachment(file);',
+                            b'if (isImageMediaType(file.type) && !window.__DSH_FILE_UPLOAD__) {\n\t\t\t\t\t\tconst attachment = browserDraftAttachment(file);')
+        source = replace_ui(source, b'const rejected = (() => {\n\t\t\t\t\tif (continuable && files.some',
+                            'const rejected = (() => {\n if (attachments.length + files.length > 10) return "Можно прикрепить до 10 файлов.";\n if (continuable && files.some'.encode())
+        source = replace_ui(source, b'failedUpload.reason === void 0 ? t("file.uploadFailed")',
+                            b'failedUpload.reason === void 0 ? failedUpload.message || t("file.uploadFailed")')
+    if package == "dsh-client-ui-chat":
+        source = replace_ui(source,
+            b'`image:${index}`) : (0, react_jsx_runtime.jsxs)("span", {\n\t\t\t\t\t\t\tclassName: MessageItem_module_css_default.fileCard,',
+            b'`image:${index}`) : (0, react_jsx_runtime.jsxs)(attachment.file.download ? "a" : "span", {\n'
+            b'...attachment.file.download ? {href:attachment.file.download, download:attachment.file.name} : {},\n'
+            b'className: MessageItem_module_css_default.fileCard,')
     return source
 
 
@@ -280,7 +309,7 @@ async def module_file(request):
             if parts is not None:
                 return asset_response(request, parts, "text/javascript", immutable=True)
         raise HTTPException(404)
-    return asset_response(request, static_bytes(files[name], client_source), 'text/javascript')
+    return asset_response(request, static_bytes(files[name], product_bundle_source), 'text/javascript')
 
 @lru_cache(maxsize=1)
 def initial_script():

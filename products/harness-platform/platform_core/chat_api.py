@@ -23,7 +23,7 @@ from .admin_costs import AdminCosts, present_chat
 from .user_plugins import service as user_plugins, illustrations, telegram_routes
 from .browser_session import browser_routes, browser_token
 from .chat_worker import ChatWorker, WorkerError
-from . import integrations, provider_keys, chat_connections, chat_defaults, turn_progress
+from . import integrations, provider_keys, chat_connections, chat_defaults, turn_progress, chat_attachments
 from .identity import AuthenticationError, ChatUnavailable, _secret_digest
 from .operation_grants import DIRECT_DEFAULT_SCHEMA
 from .guest_registration import RegistrationStore
@@ -194,13 +194,14 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                 raise HTTPException(400, "Expected an arguments object")
             data["name"] = req.path_params["name"]
         elif action in {"append", "turn"}:
-            data = await _body(req, "requestId", "text", optional=("maxCoins",) if action == "turn" else ())
+            data = await _body(req, "requestId", "text", optional=("maxCoins", "attachments") if action == "turn" else ())
+            attachments = chat_attachments.validate_ids(data.get("attachments", []))
             if "maxCoins" in data:
                 from .coins import parse_amount
                 parse_amount(data["maxCoins"])
             if not isinstance(data["requestId"], str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", data["requestId"]):
                 raise HTTPException(400, "Invalid requestId")
-            if not isinstance(data["text"], str) or not data["text"].strip() or len(data["text"].encode("utf-8")) > 8192:
+            if not isinstance(data["text"], str) or (not data["text"].strip() and not attachments) or len(data["text"].encode("utf-8")) > 8192:
                 raise HTTPException(400, "Invalid message text")
             if integrations.SECRET_TEXT.search(data["text"]):
                 raise HTTPException(400, "Введите ключ через Интеграции")
@@ -279,7 +280,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         if isinstance(exc, ChatUnavailable):
             return JSONResponse({"error": "Chat unavailable"}, status_code=404)
         if isinstance(exc, WorkerError):
-            statuses = {"invalid_request": 400, "chat_busy": 409, "conflict": 409, "unavailable": 404, "busy": 503,
+            statuses = {"invalid_request": 400, "chat_busy": 409, "attachment_unavailable": 404, "conflict": 409, "unavailable": 404, "busy": 503,
                         "result_too_large": 502, "turn_unconfirmed": 409, "model_wait_cancelled": 409, "payment_required": 402,
                         "provider_key":503,"provider_access":503,"provider_balance":503,
                         "provider_model":503,"provider_connection":503}
@@ -295,6 +296,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         *guest_routes(),
         *web_routes(),
         *turn_progress.routes(_token),
+        *chat_attachments.routes(_token),
         *chat_connections.routes(_token,_body),
         *telegram_routes.routes(_body),
         *user_plugins.routes(_token,_body),

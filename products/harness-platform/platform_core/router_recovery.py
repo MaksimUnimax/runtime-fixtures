@@ -60,12 +60,24 @@ def claim(router, aid, grant):
             (digest, aid, aid, grant.operation_id, digest)).rowcount)
 
 
+def valid_file_ids(ids):
+    from .chat_attachments import validate_ids
+    from starlette.exceptions import HTTPException
+    try:
+        validate_ids(ids)
+    except HTTPException:
+        return False
+    return True
+
+
 def valid_checkpoint(value):
-    if not isinstance(value, dict) or set(value) != {
+    if not isinstance(value, dict) or set(value) - {"attachments"} != {
         "text", "baseRevision", "priorCalls", "events", "connections", "illustrations", "availableServices", "connectionGuides"
     }:
         return False
-    return (isinstance(value["text"], str) and 0 < len(value["text"].encode()) <= 8192
+    return (isinstance(value["text"], str) and len(value["text"].encode()) <= 8192
+            and (bool(value["text"]) or bool(value.get("attachments")))
+            and ("attachments" not in value or valid_file_ids(value["attachments"]))
             and all(type(value[k]) is int and value[k] >= 0 for k in ("baseRevision", "priorCalls"))
             and all(isinstance(value[k], list) and all(isinstance(r, dict) for r in value[k])
                     for k in ("events", "connections", "availableServices"))
@@ -160,6 +172,7 @@ class Recovery:
                 live,owner=hub.begin(scope,rid)
                 try:
                     await self.worker.request(scope,'turn',requestId=rid,text=checkpoint['text'],
+                        attachments=checkpoint.get('attachments', []),
                         connections=checkpoint['connections'],illustrations=checkpoint['illustrations'],
                         availableServices=checkpoint['availableServices'],connectionGuides=checkpoint['connectionGuides'],
                         session_digest=session,on_progress=live.set,restore={**checkpoint,'attempt':aid})
@@ -167,7 +180,7 @@ class Recovery:
                     close_rejected(self.router,aid)
                 except Exception as error:
                     from .chat_worker import WorkerError
-                    if isinstance(error,WorkerError) and error.code in ('conflict','unavailable','turn_unconfirmed','model_wait_cancelled','payment_required'):
+                    if isinstance(error,WorkerError) and error.code in ('conflict','unavailable','turn_unconfirmed','model_wait_cancelled','payment_required','attachment_unavailable'):
                         close_rejected(self.router,aid)
                     # A worker/process failure leaves a still-confirmed wait available to the next owner.
                     await asyncio.sleep(1)
