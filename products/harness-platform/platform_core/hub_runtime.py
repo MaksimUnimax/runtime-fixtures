@@ -53,8 +53,9 @@ class Runtime:
         health={(r["key_id"],r["model"]):dict(r) for r in db.execute("SELECT * FROM hub_health")}
         text_health={(r["key_id"],r["model"]):dict(r) for r in db.execute("SELECT * FROM hub_text_health")}
         now=int(time.time())
-        stats={(r[0],r[1]):(r[2],r[3]) for r in db.execute("""SELECT key_id,model,count(*),sum(reason='ok')
-            FROM hub_events WHERE t>=? GROUP BY key_id,model""",(now-86400,))}
+        stats={(r[0],r[1],r[2]):(r[3],r[4]) for r in db.execute("""SELECT key_id,model,
+            (kind='probe-text' OR stage='публичный вопрос') AS public,count(*),sum(reason='ok')
+            FROM hub_events WHERE t>=? GROUP BY key_id,model,public""",(now-86400,))}
         slots={(r[0],r[1]):r[2] for r in db.execute("SELECT key_id,model,count(*) FROM hub_leases WHERE expires>? GROUP BY key_id,model",(now,))}
         cooldowns={r[0]:(r[1],r[2]) for r in db.execute("SELECT account,until,reason FROM hub_cooldown WHERE until>?",(now,))}
         def account(k):
@@ -69,7 +70,8 @@ class Runtime:
                 if provider!=key["provider"]: continue
                 rid=key["id"],model
                 state=health.get(rid,{})
-                count,success=stats.get(rid,(0,0))
+                count,success=stats.get((*rid,0),(0,0))
+                text_count,text_success=stats.get((*rid,1),(0,0))
                 retry=state.get("retry",0)
                 account_retry,account_reason=cooldowns.get(account(k),(0,""))
                 retry=max(retry,account_retry)
@@ -81,7 +83,7 @@ class Runtime:
                 color=("green" if count>=3 and success/count>=0.95 else "yellow") if ok else "red" if state else "pending"
                 yield k,s,dict(model=model,group=s["group"],key=k["id"],label=k["label"],provider=provider,
                      scope="private" if s["scope"]=="private" or k["private_until"]>now else "public",
-                     color=color,ready=ok,public_ready=(ok or text_ok) and text_retry<=now,text_checked=th.get("checked",0),text_reason=th.get("reason","Ожидается проверка"),text_retry=text_retry,retry=retry,checked=verified,reason=account_reason or state.get("reason","Ожидается проверка"),
+                     color=color,text_green=text_count>=3 and text_success/text_count>=.95,ready=ok,public_ready=(ok or text_ok) and text_retry<=now,text_checked=th.get("checked",0),text_reason=th.get("reason","Ожидается проверка"),text_retry=text_retry,retry=retry,checked=verified,reason=account_reason or state.get("reason","Ожидается проверка"),
                      power=state.get("quality",0),in_use=account_load[account(k)],capacity=s["slots"],enabled=bool(k["enabled"]))
 
     def status(self):
@@ -105,11 +107,13 @@ class Runtime:
             db.execute("BEGIN")
             rows=[r for _,_,r in self._rows(db)]
             for r in rows:
-                events=list(db.execute("""SELECT t,kind,reason,ms FROM hub_events WHERE key_id=? AND model=?
+                events=list(db.execute("""SELECT t,kind,reason,ms,stage FROM hub_events WHERE key_id=? AND model=?
                     AND t>=? ORDER BY t,rowid""",(r["key"],r["model"],now-WINDOW)))
                 r["windows"]={}
-                for name,span in (("24h",86400),("7d",WINDOW)):
-                    data=[e for e in events if e["t"]>=now-span]
+                for name,span,public in (("матрица 24ч",86400,False),("матрица 7д",WINDOW,False),
+                                          ("текст 24ч",86400,True),("текст 7д",WINDOW,True)):
+                    data=[e for e in events if e["t"]>=now-span and
+                          ((e["kind"]=="probe-text" or e["stage"]=="публичный вопрос")==public)]
                     latency=sorted(e["ms"] for e in data)
                     bad=Counter(e["reason"] for e in data if e["reason"]!="ok")
                     down=0; start=None; recoveries=[]
@@ -142,7 +146,7 @@ class Runtime:
                 elif not r["ready"] or r["scope"]!="private": continue
                 preferred=pin["grp"] if pin else choice.removeprefix("hub:")
                 rank=(bool(pin and pin["key_id"]==rid[0] and pin["model"]==rid[1]), r["group"]==preferred,
-                      r["power"],r["color"]=="green",-r["in_use"])
+                      r["power"],r["text_green"] if choice==PUBLIC else r["color"]=="green",-r["in_use"])
                 matches.append((rank,key,s,r))
             if not matches: return None
             _,key,s,r=max(matches,key=lambda x:x[0])

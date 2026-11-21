@@ -147,7 +147,7 @@ window.__ModuleLoader__.load({
         return h('div',{className:'chat-access'},
           view && h('div',{'data-live-turn':view.stage,className:'chat-live'},
             h('small',{role:'status'},labels[view.stage]),view.text && h('div',{className:'chat-live-text'},view.text),
-            view.retry && h('button',{onClick:()=>view.retry().catch(e=>setError(e.message))},'Продолжить отчёт'),
+            view.retry && h('button',{onClick:()=>view.retry().catch(e=>setError(e.message))},'Продолжить запрос'),
             view.stage==='failed' && h('button',{onClick:()=>a.live.clear(sessionId,view.rid)},'Закрыть')),
           h('button',{className:'chat-access-trigger','aria-haspopup':'dialog',onClick:()=>setOpen(true)},
             'Подключения'+(active.length?' · '+active.map(r=>r.name).join(', '):'')),

@@ -147,10 +147,17 @@ class FreeMatrixTurn(unittest.TestCase):
         bodies=[]
         async def answer(http,spec,key,request,timeout):
             bodies.append(request)
+            if len(bodies)==1:
+                raise hub_direct.Refused("HTTP 503",1)
             return {"message":{"role":"assistant","content":"23"},"finish_reason":"stop"},{}
         from platform_core import hub_direct
         with patch.object(hub_direct,"call",answer):
+            failed=client.post(f"/api/chats/{chat}/turns",headers=auth,json={"text":question,"requestId":"q"})
+            self.assertEqual(failed.status_code,503)
+            self.assertTrue(failed.json()["resume"])
+            with hub.database() as hdb:
+                hdb.execute("UPDATE hub_text_health SET reason='ok',retry=0,checked=unixepoch()")
             turn=client.post(f"/api/chats/{chat}/turns",headers=auth,json={"text":question,"requestId":"q"})
         self.assertEqual(turn.status_code,200,turn.text)
         self.assertEqual(turn.json()["text"],"23")
-        self.assertEqual(bodies,[{"messages":[{"role":"user","content":question}],"max_tokens":4096}])
+        self.assertEqual(bodies,[{"messages":[{"role":"user","content":question}],"max_tokens":4096}]*2)

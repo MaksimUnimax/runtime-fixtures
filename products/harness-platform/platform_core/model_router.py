@@ -333,14 +333,14 @@ class ModelRouter:
                     result,usage,actual=await self.hub.complete(op,choice,request)
                 except hub_direct.Refused as exc:
                     with self.identity._write() as db:
-                        if choice!=hub_runtime.PUBLIC and not db.execute("SELECT 1 FROM hub_resume WHERE operation_id=?",(op,)).fetchone():
+                        if not db.execute("SELECT 1 FROM hub_resume WHERE operation_id=?",(op,)).fetchone():
                             hub_checkpoint.save(db,op,stamp,request)
                         db.execute("UPDATE coin_attempts SET evidence=? WHERE attempt_id=?",("hub-unavailable:"+exc.reason,aid))
                     raise HTTPException(503,"Бесплатные маршруты недоступны") from None
                 counts={"input_tokens":usage.get("prompt_tokens",0),"output_tokens":usage.get("completion_tokens",0),
                         "cache_read_input_tokens":0,"cache_creation_input_tokens":0}
                 with self.identity._write() as db:
-                    if choice!=hub_runtime.PUBLIC and not result["message"].get("tool_calls"):
+                    if not result["message"].get("tool_calls"):
                         hub_checkpoint.persist(db,op,stamp,{"_final":[result,actual]})
                     else:
                         db.execute("DELETE FROM hub_resume WHERE operation_id=?",(op,))

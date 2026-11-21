@@ -51,5 +51,5 @@ export async function runRouterTurn({gatewayUrl,model,grant,onTransport,signal,.
       yield {type:'finish',reason:{kind:reason==='length'?'max-tokens':reason==='tool_calls'?'tool-calls':'stop'}};
     }
   }
-  return runNativeTurn({...turn,provider:'platform-openrouter',model,adapter:new Adapter(),signal});
+  return runNativeTurn({...turn,provider:model.startsWith('hub:')?'platform-model-hub':'platform-openrouter',model,adapter:new Adapter(),signal});
 }
