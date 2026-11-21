@@ -676,6 +676,68 @@ class BrowserIsolation(ProductBrowser):
             await expect(page.locator("[data-composer-input]").last).to_be_visible()
             await expect(page.locator("body[data-ds-dark-theme]")).to_have_count(int(value != "light"))
 
+    async def test_chat_menu_attaches_catalog_plugin_to_target_chat(self):
+        from platform_core.user_plugins.registry import Plugin
+
+        future = Plugin("fixture-doc", "documents", "Документы для теста", "Проверочный плагин", "fixture")
+        with patch.dict("platform_core.user_plugins.registry.CATALOG", {future.id: future}):
+            page = await self.open_chat("first-browser")
+            current = page.url
+            active = urlsplit(current).path.rsplit("/", 1)[-1]
+            response = await page.request.post("/api/chats", headers={"Origin": self.base_url})
+            other = (await response.json())["chatId"]
+            await page.reload()
+            composer = page.locator("[data-composer-input]").last
+            await composer.fill("Черновик открытого чата")
+            dialog = page.get_by_role("dialog", name="Плагины", exact=True)
+
+            async def open_from_row(chat):
+                row = page.locator(f'[data-row-key="session:{chat}"]')
+                await row.hover()
+                await row.locator("[data-context-menu-trigger]").click()
+                await page.get_by_role("menuitem", name="Подключить плагин", exact=True).click()
+                await expect(dialog).to_be_visible()
+                await expect(dialog.get_by_text(re.compile(r"^Чат «.+»$"))).to_be_visible()
+
+            async def enabled(chat):
+                response = await page.request.get(f"/api/chats/{chat}/plugins")
+                return {p["id"] for p in (await response.json())["plugins"] if p["enabled"]}
+
+            await open_from_row(other)
+            target = dialog.get_by_role("switch", name="Подключить "+future.title, exact=True)
+            await target.click()
+            await expect(target).to_be_checked()
+            await page.keyboard.press("Escape")
+            await expect(dialog).to_have_count(0)
+            await expect(page).to_have_url(current)
+            await expect(composer).to_have_text("Черновик открытого чата")
+            self.assertEqual(await enabled(other), {future.id})
+            self.assertEqual(await enabled(active), set())
+
+            # A new, empty chat exposes its own actions even on a short mobile viewport.
+            await page.set_viewport_size({"width": 680, "height": 320})
+            opener = page.locator("[data-sidebar-opener]:visible")
+            await opener.click()
+            await open_from_row(active)
+            self.assertTrue(await dialog.evaluate('''el => {
+                const {top, bottom} = el.getBoundingClientRect();
+                return top >= 0 && bottom <= innerHeight && el.scrollHeight > el.clientHeight;
+            }'''))
+            await expect(target).not_to_be_checked()
+            builtin = dialog.get_by_role("switch", name="Подключить Озон", exact=True)
+            await builtin.scroll_into_view_if_needed()
+            await builtin.click()
+            await expect(builtin).to_be_checked()
+            await dialog.get_by_role("button", name="Закрыть", exact=True).click()
+            await page.set_viewport_size({"width": 1280, "height": 800})
+            connected = page.get_by_role("navigation", name="Подключённые плагины")
+            await expect(connected.get_by_role("button", name="Озон", exact=True)).to_be_visible()
+            self.assertEqual(await enabled(active), {"ozon"})
+            self.assertEqual(await enabled(other), {future.id})
+            await page.locator(f'[data-row-key="session:{other}"]').click()
+            await expect(connected.get_by_text(future.title, exact=True)).to_be_visible()
+            await expect(connected.get_by_role("button", name=future.title, exact=True)).to_have_count(0)
+
     async def test_delete_background_chat_preserves_current_draft(self):
         page = await self.open_chat("first-browser")
         current = page.url
