@@ -1,11 +1,13 @@
 """Account linking and per-chat Telegram report settings."""
 import asyncio
 import hashlib
+import html
 import logging
 import secrets
 import sqlite3
 import time
 from contextlib import AsyncExitStack, asynccontextmanager
+from urllib.parse import urlencode
 
 import httpx
 from starlette.exceptions import HTTPException
@@ -26,7 +28,6 @@ content="width=device-width,initial-scale=1"><title>Telegram · Октопорт
 <a href="/app/">Вернуться в Октопорт</a></main><script src="/telegram/return.js" defer></script></html>"""
 RETURN_JS = """(async () => {
   const query = new URLSearchParams(location.search);
-  const fragment = new URLSearchParams(location.hash.slice(1));
   history.replaceState(null, '', '/telegram/return');
   const label = document.querySelector('[role=status]');
   const state = query.get('state');
@@ -35,15 +36,7 @@ RETURN_JS = """(async () => {
   }
   try {
     const payload = {state};
-    if (fragment.has('tgAuthResult')) {
-      const encoded = fragment.get('tgAuthResult');
-      if (!encoded || encoded.length > 16384 || !/^[A-Za-z0-9_=-]+$/.test(encoded)) {
-        throw Error('Некорректный ответ Telegram.');
-      }
-      const bytes = atob(encoded.replace(/-/g, '+').replace(/_/g, '/'));
-      payload.user = JSON.parse(new TextDecoder('utf-8', {fatal:true}).decode(
-        Uint8Array.from(bytes, c => c.charCodeAt(0))));
-    } else if (query.has('hash')) {
+    if (query.has('hash')) {
       query.delete('state');
       payload.user = Object.fromEntries(query);
     } else if (query.get('code')) {
@@ -61,6 +54,10 @@ RETURN_JS = """(async () => {
 })();"""
 PRIVATE = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff",
            "Content-Security-Policy": "default-src 'none'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"}
+WIDGET_HEADERS = {**PRIVATE, "Content-Security-Policy":
+    "default-src 'none'; script-src https://telegram.org/js/telegram-widget.js; "
+    "frame-src https://oauth.telegram.org; style-src 'unsafe-inline'; "
+    "base-uri 'none'; frame-ancestors 'none'; form-action 'none'"}
 
 
 @asynccontextmanager
@@ -114,6 +111,27 @@ def routes(body):
     async def returning(req):
         if req.url.path.endswith(".js"):
             return Response(RETURN_JS, media_type="text/javascript", headers=PRIVATE)
+        if req.query_params.get("widget") == "1":
+            state = req.app.state
+            cfg = require_config(state)
+            challenge = req.query_params.get("state", "")
+            # Telegram can navigate back here without the Strict session cookie.
+            # Only the same-origin completion POST may bind a recipient.
+            with state.identity._lock:
+                db = state.identity._db
+                row = db.execute("""SELECT 1 FROM telegram_consents WHERE state=? AND
+                    bot=? AND verifier='' AND expires>unixepoch()""",
+                    (digest(challenge), cfg.bot)).fetchone()
+                if not row or not cfg.username:
+                    raise HTTPException(409, "Подключение истекло. Начните его заново в своём чате.")
+            target = html.escape("/telegram/return?" + urlencode({"state": challenge}), quote=True)
+            return HTMLResponse(f"""<!doctype html><html lang="ru"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Подключить Telegram · Октопорт</title>
+<main><h1>Подключить Telegram</h1><p>Выберите аккаунт Telegram и разрешите боту присылать отчёты.</p>
+<script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="{html.escape(cfg.username)}"
+data-size="large" data-lang="ru" data-request-access="write" data-auth-url="{target}"></script>
+<p><a href="/app/">Вернуться в Октопорт</a></p></main></html>""",
+                                headers=WIDGET_HEADERS)
         return HTMLResponse(RETURN_PAGE, headers=PRIVATE)
 
     async def settings(req):

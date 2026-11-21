@@ -48,7 +48,8 @@ def main():
     if previous and str(previous.get("client_id")) != bot_id:
         if input("Меняется бот. Для замены введите его @имя: ").strip() != "@" + username:
             sys.exit("Запись отменена.")
-    config = dict(auth_mode="widget", client_id=bot_id, bot_token=token, connect_proxy_port=port)
+    config = dict(auth_mode="widget", client_id=bot_id, bot_username=username,
+                  bot_token=token, connect_proxy_port=port)
     tmp = None
     try:
         with tempfile.NamedTemporaryFile("w", dir=CREDENTIAL.parent, delete=False) as stream:

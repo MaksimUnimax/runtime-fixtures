@@ -123,17 +123,21 @@ class TelegramReports(TestCase):
         self.assertFalse(status["subscribed"])
 
     def test_widget_checks_signature_time_session_and_single_use(self):
-        cfg = tg.Config("123", None, "123:unit-test")
+        cfg = tg.Config("123", None, "123:unit-test", username="ExampleBot")
         self.client.app.state.telegram.config = cfg
 
         def begin():
             response = self.post(self.url + "/connect")
             response.raise_for_status()
-            params = parse_qs(urlsplit(response.json()["url"]).query)
-            self.assertEqual(params["origin"], [ORIGIN])
-            self.assertEqual(params["bot_id"], [cfg.bot])
-            self.assertEqual(params["request_access"], ["write"])
-            return parse_qs(urlsplit(params["return_to"][0]).query)["state"][0]
+            link = response.json()["url"]
+            params = parse_qs(urlsplit(link).query)
+            self.assertEqual(params["widget"], ["1"])
+            page = self.client.get(link)
+            self.assertEqual(page.status_code, 200)
+            self.assertIn('data-telegram-login="ExampleBot"', page.text)
+            self.assertIn('data-request-access="write"', page.text)
+            self.assertIn('data-auth-url="/telegram/return?state=' + params["state"][0], page.text)
+            return params["state"][0]
 
         def profile(stamp):
             signed = f"auth_date={stamp}\nfirst_name=Ирина\nid=884".encode()

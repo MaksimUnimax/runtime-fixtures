@@ -28,6 +28,7 @@ class Config:
     secret: str | None
     token: str
     proxy_port: int | None = None
+    username: str | None = None
 
     @classmethod
     def load(cls):
@@ -45,24 +46,24 @@ class Config:
         if mode not in ("widget", "oidc") or not re.fullmatch(r"[1-9][0-9]{0,15}", bot):
             raise ValueError("Invalid Telegram login configuration")
         if mode == "widget":
-            if secret is not None:
-                raise ValueError("Unexpected OIDC credentials for domain widget")
+            username = data.get("bot_username")
+            if secret is not None or not isinstance(username, str) or not re.fullmatch(r"[A-Za-z0-9_]{1,32}", username):
+                raise ValueError("Invalid Telegram domain widget configuration")
         elif not isinstance(secret, str) or not secret.strip():
             raise ValueError("Missing Telegram OIDC client secret")
+        else:
+            username = None
         if not re.fullmatch(re.escape(bot) + r":[A-Za-z0-9_-]{20,}", token):
             raise ValueError("Telegram bot and client IDs do not match")
         proxy_port = data.get("connect_proxy_port")
         if proxy_port is not None and (type(proxy_port) is not int or not 1 <= proxy_port <= 65535):
             raise ValueError("Invalid loopback proxy port")
-        return cls(bot, secret, token, proxy_port)
+        return cls(bot, secret, token, proxy_port, username)
 
 
 def authorize(config, state, verifier, nonce):
     if config.secret is None:
-        return ISSUER + "/auth?" + urlencode({
-            "bot_id": config.bot, "origin": SITE_ORIGIN,
-            "request_access": "write", "return_to": CALLBACK + "?" + urlencode({"state": state}),
-        })
+        return "/telegram/return?" + urlencode({"widget": "1", "state": state})
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
     return ISSUER + "/auth?" + urlencode(dict(client_id=config.bot, redirect_uri=CALLBACK,
         response_type="code", scope=SCOPES, state=state, nonce=nonce,
