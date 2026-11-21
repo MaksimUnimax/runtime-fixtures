@@ -1,0 +1,126 @@
+{
+  "schema": "alice-report-contracts/v1",
+  "version": "20261105-evidence-r1",
+  "policies": {
+    "period_unit_expenses": {
+      "mode": "period_financial_result_per_ordered_unit",
+      "label": "Расходы периода на исходно заказанную единицу. Это не прибыль выбранной когорты заказов.",
+      "components": {
+        "ordered_units": {
+          "required": true,
+          "role": "base",
+          "axes": [
+            "order_date"
+          ],
+          "unit": "item",
+          "allow_negative": false,
+          "missing_label": "",
+          "allow_user_exclusion": false,
+          "require_expense_keys": false
+        },
+        "marketplace_costs": {
+          "required": true,
+          "role": "contribution",
+          "axes": [
+            "accrual_date"
+          ],
+          "unit": "currency",
+          "allow_negative": true,
+          "missing_label": "",
+          "allow_user_exclusion": false,
+          "require_expense_keys": true
+        },
+        "advertising": {
+          "required": true,
+          "role": "contribution",
+          "axes": [
+            "advertising_date"
+          ],
+          "unit": "currency",
+          "allow_negative": false,
+          "missing_label": "",
+          "allow_user_exclusion": false,
+          "require_expense_keys": true
+        },
+        "advertising_finance_overlap": {
+          "required": true,
+          "role": "control",
+          "axes": [
+            "reconciliation"
+          ],
+          "unit": "currency",
+          "allow_negative": false,
+          "missing_label": "",
+          "allow_user_exclusion": false,
+          "require_expense_keys": false
+        },
+        "expense_coverage": {
+          "required": true,
+          "role": "control",
+          "axes": [
+            "reconciliation"
+          ],
+          "unit": "currency",
+          "allow_negative": false,
+          "missing_label": "",
+          "allow_user_exclusion": false,
+          "require_expense_keys": false
+        },
+        "cpo_detail": {
+          "required": false,
+          "role": "control",
+          "axes": [
+            "advertising_date"
+          ],
+          "unit": "currency",
+          "allow_negative": false,
+          "missing_label": "Детализация CPO отдельно не подтверждена; к расходу повторно не прибавляется.",
+          "allow_user_exclusion": false,
+          "require_expense_keys": false
+        },
+        "cogs": {
+          "required": false,
+          "role": "contribution",
+          "axes": [
+            "qualified_consumed_units"
+          ],
+          "unit": "currency",
+          "allow_negative": false,
+          "missing_label": "Себестоимость не включена; результат не является чистой прибылью.",
+          "allow_user_exclusion": false,
+          "require_expense_keys": true
+        },
+        "tax": {
+          "required": false,
+          "role": "contribution",
+          "axes": [
+            "user_tax_basis"
+          ],
+          "unit": "currency",
+          "allow_negative": false,
+          "missing_label": "Налог не включён; режим и основание не задавались либо явно исключены.",
+          "allow_user_exclusion": true,
+          "require_expense_keys": true
+        },
+        "own_costs": {
+          "required": false,
+          "role": "contribution",
+          "axes": [
+            "user_cost_period"
+          ],
+          "unit": "currency",
+          "allow_negative": false,
+          "missing_label": "Неуказанные собственные расходы не включены.",
+          "allow_user_exclusion": false,
+          "require_expense_keys": true
+        }
+      },
+      "nonoverlap": true,
+      "required_controls": [
+        "advertising_finance_overlap",
+        "expense_coverage"
+      ],
+      "missing_inputs_label": "Не все собственные входные затраты включены; пропуски перечислены явно."
+    }
+  }
+}

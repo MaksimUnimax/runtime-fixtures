@@ -1,0 +1,7 @@
+{
+  "base_runtime": "alisa-model-usage-r7-typed-first-20261109",
+  "files": {
+    "runtime/query_program.py": "7fd92f8d90e7c5ece3a1d79cb86defc569b74a25880b82a31796ebcf9d2c7b96"
+  },
+  "rule": "Copy the entire immutable base; overlay only these five files. Preserve all protected-read, token-boundary, artifact and retention code from the base."
+}
