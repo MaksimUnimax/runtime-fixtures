@@ -189,6 +189,61 @@ checks.push({id:"A11-P3-05",label:"invalid legacy timestamp is cleaned fail-clos
   expected:"cleanup once and no pending alarm",
   observed:{cleanupCalls:invalidCleanup,scheduled:Boolean(invalidState)},
   pass:invalidCleanup===1&&!invalidState});
+// A04-P3-06: a corrupt persisted "__proto__" own task may not be
+// silently lost when an unrelated legitimate technical wake is scheduled.
+wipeFixture();
+const unsafeStorageKey = "seller_agents_technical_wake_v1";
+const corruption = makeContext();
+const badRaw = { version: 1, entries: {}, updatedAt: baseNow };
+const badEntry = {
+  taskId: "__proto__", kind: corruption.context.SellerAgentsTechnicalScheduler.KINDS.SYNC,
+  dueAt: baseNow + TTL, revision: 1, attempts: 0, claimedUntil: 0,
+  claimedBy: null, identity: { requestId: "SYNTHETIC_ONLY" },
+};
+Object.defineProperty(badRaw.entries, "__proto__",
+  { value: badEntry, enumerable: true, writable: true, configurable: true });
+assert.equal(Object.hasOwn(badRaw.entries, "__proto__"), true);
+persisted[unsafeStorageKey] = badRaw;
+const snapshotBefore = JSON.stringify(persisted[unsafeStorageKey]);
+let corruptionError = null, corruptionAccepted = false;
+try {
+  const result = await corruption.context.SellerAgentsTechnicalScheduler.schedule(
+    corruption.context.SellerAgentsTechnicalScheduler.KINDS.EXPIRY,
+    { taskId: "expiry:safe-followup", dueAt: baseNow + TTL + 10_000,
+      identity: { artifactKey: "SYNTHETIC_ONLY" } });
+  corruptionAccepted = result?.ok === true;
+} catch (error) { corruptionError = String(error?.code || "UNCLASSIFIED"); }
+const afterCorrupted = persisted[unsafeStorageKey];
+const oldPresent = Object.hasOwn(afterCorrupted?.entries || {}, "__proto__");
+const newPresent = Object.hasOwn(afterCorrupted?.entries || {}, "expiry:safe-followup");
+const rejectedWithoutMutation = !corruptionAccepted &&
+  corruptionError === "TECHNICAL_TASK_CORRUPT" &&
+  JSON.stringify(afterCorrupted) === snapshotBefore;
+checks.push({ id:"A04-P3-06", label:"bad persisted own task index never silently lost",
+  expected:"corrupt state rejected without write, or durable old task safely preserved",
+  observed:{accepted:corruptionAccepted, rejectedCode:corruptionError,
+    oldPresent, newPresent, beforeBytesRetained:JSON.stringify(afterCorrupted)===snapshotBefore },
+  pass:rejectedWithoutMutation || (corruptionAccepted && oldPresent && newPresent) });
+// A04-P3-07: a direct schedule call with special ID must not report success
+// for a technical task which is absent from durable storage.
+wipeFixture();
+const unsafeLive = makeContext();
+let unsafeReply = null, unsafeError = null;
+try {
+  unsafeReply = await unsafeLive.context.SellerAgentsTechnicalScheduler.schedule(
+    unsafeLive.context.SellerAgentsTechnicalScheduler.KINDS.SYNC,
+    { taskId:"__proto__", dueAt:baseNow + TTL,
+      identity:{requestId:"SYNTHETIC_ONLY"} });
+} catch (error) { unsafeError = String(error?.code || "UNCLASSIFIED"); }
+const ownPersisted = Object.hasOwn(persisted[unsafeStorageKey]?.entries || {}, "__proto__");
+const liveDenied = unsafeReply?.ok === false &&
+  unsafeReply?.code === "TECHNICAL_TASK_INVALID" ||
+  unsafeError === "TECHNICAL_TASK_INVALID";
+checks.push({ id:"A04-P3-07", label:"direct reserved task identifier is rejected or stored as a safe own key",
+  expected:"no phantom accepted task",
+  observed:{returned_ok:unsafeReply?.ok === true, errorCode:unsafeError,
+    refused:liveDenied, ownPersisted},
+  pass:liveDenied || (unsafeReply?.ok === true && ownPersisted) });
 const failed=checks.filter(x=>!x.pass);
 console.log(JSON.stringify({
   status:failed.length?"FAIL":"PASS", scenarios:8, wake_deliveries:100,
