@@ -210,6 +210,21 @@ def bind_ozon_packaging_cost(files):
         "              'all_selected_costs': 'Выбранные расходы',")
 
 
+def bind_unclassified_ozon_fee_diagnostics(files):
+    source = "parameter_support/economics_other.py"
+    patch_runtime(files, source, "def _entry(entry,posting,received):\n",
+        "def _require_known_fee(kind):\n"
+        "    if kind not in KNOWN:\n"
+        "        from platform_core.marketplace_matrix.worker import log_failure\n"
+        "        log_failure('ozon_accrual_type', str(kind))\n"
+        "        raise OtherError('OTHER_UNCLASSIFIED_FEE')\n\n\n"
+        "def _entry(entry,posting,received):\n")
+    patch_runtime(files, source, "    need(kind in KNOWN,'OTHER_UNCLASSIFIED_FEE')\n    day,",
+        "    _require_known_fee(kind)\n    day,")
+    patch_runtime(files, source, "        need(kind in KNOWN,'OTHER_UNCLASSIFIED_FEE')\n        entry=",
+        "        _require_known_fee(kind)\n        entry=")
+
+
 def bind_report_previews(files):
     filename = "parameter_report_runtime.py"
     patch_runtime(files, filename,
@@ -476,6 +491,7 @@ def collect(core, renderer, config):
     bind_coefficient_guidance(files)
     bind_ozon_coefficient_items(files)
     bind_ozon_packaging_cost(files)
+    bind_unclassified_ozon_fee_diagnostics(files)
     files["source_qualifications.json"] = json.dumps(portable, sort_keys=True).encode()
     # Both discovery and selection compilation call the same catalogue hook.
     target = b"def _availability(engine,t,store):\n"

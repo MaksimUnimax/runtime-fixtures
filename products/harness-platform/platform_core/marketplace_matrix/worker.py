@@ -17,7 +17,7 @@ from .authority import ChatAuthority
 from . import advertising, forecast_preview, store_currency
 
 BUNDLE = Path(__file__).with_name("runtime.tar.gz")
-BUNDLE_SHA256 = "cc3d348adf39405bac89555e7027d15fe677a0af1b58f479ef30b39d249d234a"
+BUNDLE_SHA256 = "99ca30e8b35c6e428b16ac2b33506fa664e9d781455421636abb11c07fa37124"
 
 
 def log_failure(operation, code, retry_at=None):
@@ -178,14 +178,21 @@ def execute(packet, directory):
         tid, cid = item["templateId"], item["connectionId"]
         if tid not in TEMPLATES or cid not in allowed or not _availability(engine, TEMPLATES[tid], allowed[cid]):
             raise Rejected("SOURCE_ACCESS")
-        if item["input"].get("parameter_mode", "preview") != "preview":
+        inputs = item["input"]
+        if inputs.get("parameter_mode", "preview") != "preview":
             raise Rejected("PERMISSION_DENIED")
-        if item["input"].get("owner_inputs") and tid != "economics.unit_forecast.v1":
+        if inputs.get("owner_inputs") and tid != "economics.unit_forecast.v1":
             raise Rejected("ECONOMICS_OWNER_INPUT")
-        owner_inputs = item["input"].get("owner_inputs", {})
+        owner_inputs = inputs.get("owner_inputs", {})
         if tid == "economics.unit_forecast.v1" and not {"unit_cost", "unit_cost_by_sku"} & owner_inputs.keys():
             return {"ok": True, "clarification": "Укажите себестоимость в рублях по SKU или общую для всех товаров."}
-        calls.append({"id": str(index), "template_id": tid, "store_id": cid, "input": item["input"]})
+        if TEMPLATES[tid].get("parameter_report"):
+            inputs = dict(inputs)
+            inputs.pop("parameter_mode", None)
+            # A projection is compiled separately for each selected store.
+            if inputs.get("group_by") == "total":
+                inputs["group_by"] = "marketplace"
+        calls.append({"id": str(index), "template_id": tid, "store_id": cid, "input": inputs})
     try:
         store_currency.resolve(authority, calls, allowed, fields)
     except store_currency.ProfileError as error:
@@ -371,6 +378,8 @@ def seller_result(result):
         "TEMPLATE_EXECUTION_FAILED": "Рассчитать запрошенный показатель не удалось.",
         "PARAMETER_DELIVERY_SKU_UNALLOCATED": "В начислениях Ozon есть доставка без привязки к товару. Для этого SKU можно ввести сумму вручную.",
         "PARAMETER_ZERO_DENOMINATOR": "За выбранный период нет заказанных единиц для расчёта.",
+        "PARAMETER_REPORT_INPUT": "В прогноз переданы неподдерживаемые параметры.",
+        "PARAMETER_REPORT_SCOPE_UNSUPPORTED": "Этот прогноз строится по одному магазину за выбранный период. Фильтры и сравнение периодов для него недоступны.",
         "SOURCE_ACCESS": "Для подключения сейчас недоступны запрошенные данные.",
         "WB_ADVERTISING_ACCESS": "Для рекламы Wildberries нужен токен с доступом к категории «Продвижение».",
         "TARIFF_QUOTE_OR_SKU_MISSING": "В текущем каталоге Ozon отсутствует тариф для части товаров или схем доставки из выбранных заказов. Полный прогноз требует этих тарифов.",

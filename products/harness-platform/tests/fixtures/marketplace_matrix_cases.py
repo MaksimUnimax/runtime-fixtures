@@ -213,6 +213,26 @@ class MarketplaceMatrix(unittest.TestCase):
             worker.execute(self.packet, self.root)
         send.assert_not_called()
 
+    def test_delivery_projection_accepts_the_chat_preview_and_single_store_total(self):
+        from urllib.error import HTTPError
+
+        cid = self.ids["ozon"]
+        self.packet.update(connections=[cid], selections=[{
+            "templateId": "economics.delivery_projection.v1", "connectionId": cid,
+            "input": {"period": {"from": "2026-10-01", "to": "2026-10-01"},
+                      "parameter_mode": "preview", "group_by": "total"},
+        }])
+        def read(req, **options):
+            options["on_dispatch"]()
+            raise HTTPError(req.full_url, 403, "forbidden", {}, None)
+
+        with patch("http_transport.read_response", side_effect=read) as send:
+            worker.execute(self.packet, self.root)
+        send.assert_called()
+        model_input = self.packet["selections"][0]["input"]
+        self.assertEqual(model_input["parameter_mode"], "preview")
+        self.assertEqual(model_input["group_by"], "total")
+
     def test_plugin_coefficients_feed_forecasts_and_fence_changes(self):
         from types import SimpleNamespace
         from platform_core.marketplace_matrix import forecast_preview
