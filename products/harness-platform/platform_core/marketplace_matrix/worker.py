@@ -17,7 +17,7 @@ from .authority import ChatAuthority
 from . import advertising, forecast_preview, store_currency
 
 BUNDLE = Path(__file__).with_name("runtime.tar.gz")
-BUNDLE_SHA256 = "7361ae919007ca8a424cf850c105e659e93d8b922e6ec9fcdd8ee17d32ddb51b"
+BUNDLE_SHA256 = "224ba8ece8d507bc8b2b998c47fe7109cba363e76792ade0e09c845e67458336"
 
 
 def log_failure(operation, code, retry_at=None):
@@ -330,7 +330,17 @@ def execute(packet, directory):
     coverage = advertising.coverage_notes(campaign_coverage, authority.names)
     if coverage:
         answer = "\n".join(coverage) + "\n\n" + answer
-    return {"ok": not bool(result.get("failure_code")), "sourceValues": source_values, "guidance": guidance, "answer": answer,
+    coefficient=None
+    if packet.get("coefficientJob") and not result.get("failure_code"):
+        fragments=plan["fragments"]
+        if len(fragments)!=1 or fragments[0]["kind"]!="parameter":
+            raise Rejected("PARAMETER_PREVIEW_INVALID")
+        source=fragments[0]["plan"]["parameter_source"]
+        info=result["data"]["templates"][0]["data"]
+        if info.get("saved") is not False or info["mode"]!="preview":
+            raise Rejected("PARAMETER_PREVIEW_INVALID")
+        coefficient={**info,"sku":source["target"]["scope"]["sku"],"store":source["target"]["store_id"]}
+    return {"ok": not bool(result.get("failure_code")), "coefficient":coefficient, "sourceValues": source_values, "guidance": guidance, "answer": answer,
             "code": result.get("failure_code"), "trace": trace}
 
 
@@ -361,6 +371,8 @@ def seller_result(result):
         "FINANCIAL_REPORT_NOT_READY": "Финансовый отчёт пока не охватывает весь выбранный период.",
         "TEMPLATE_NOT_FOUND": "Такой отчёт пока недоступен для выбранного магазина.",
         "TEMPLATE_EXECUTION_FAILED": "Рассчитать запрошенный показатель не удалось.",
+        "PARAMETER_DELIVERY_SKU_UNALLOCATED": "В начислениях Ozon есть доставка без привязки к товару. Для этого SKU можно ввести сумму вручную.",
+        "PARAMETER_ZERO_DENOMINATOR": "За выбранный период нет заказанных единиц для расчёта.",
         "SOURCE_ACCESS": "Для подключения сейчас недоступны запрошенные данные.",
         "WB_ADVERTISING_ACCESS": "Для рекламы Wildberries нужен токен с доступом к категории «Продвижение».",
         "TARIFF_QUOTE_OR_SKU_MISSING": "В текущем каталоге Ozon отсутствует тариф для части товаров или схем доставки из выбранных заказов. Полный прогноз требует этих тарифов.",
@@ -388,8 +400,11 @@ def main():
         if not result.get("ok"):
             log_failure(",".join(sorted({item["templateId"] for item in packet["selections"]})),
                         result.get("code"), result.get("retryAt"))
+        coefficient=result.get("coefficient")
         public = seller_result(result)
         result = {"public": public, "diagnostics": {k: result[k] for k in ("code", "trace") if k in result}}
+        if coefficient is not None:
+            result["coefficient"]=coefficient
     print(json.dumps(result, ensure_ascii=False, allow_nan=False))
 
 

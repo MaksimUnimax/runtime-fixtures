@@ -97,7 +97,11 @@ class IntegrationStore:
                 db.execute("UPDATE user_plugin_stores SET catalog_at=NULL WHERE cid=?", (cid,))
             if row and provider == "ozon":
                 previous = json.loads(cipher.decrypt(row[1][:12], row[1][12:], aad))
+                if previous.get("client_id") and fields.get("client_id",previous["client_id"]) != previous["client_id"]:
+                    raise HTTPException(409, "Этот магазин уже связан с другим Client-Id. Добавьте новый магазин под отдельным названием.")
                 fields = previous | fields
+                if any(previous.get(k)!=fields.get(k) for k in ("client_id","api_key")):
+                    db.execute("UPDATE user_plugin_stores SET catalog_at=NULL WHERE cid=?", (cid,))
             nonce = os.urandom(12)
             sealed = nonce + cipher.encrypt(nonce,json.dumps(fields).encode(),aad)
             db.execute("""INSERT INTO account_integrations VALUES(?,?,?,?,?,1,'saved')

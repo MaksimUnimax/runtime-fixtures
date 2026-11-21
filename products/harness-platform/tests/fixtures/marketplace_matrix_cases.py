@@ -213,6 +213,106 @@ class MarketplaceMatrix(unittest.TestCase):
             worker.execute(self.packet, self.root)
         send.assert_not_called()
 
+    def test_plugin_coefficients_feed_forecasts_and_fence_changes(self):
+        from types import SimpleNamespace
+        from platform_core.marketplace_matrix import forecast_preview
+        from platform_core.marketplace_matrix.authority import ChatAuthority
+        from platform_core.user_plugins.registry import OZON
+        from platform_core.user_plugins.store import write_value
+        from parameter_support.parameter_contract import CANON
+        from semantics import Rejected
+        cid=self.ids["ozon"]
+        db=self.identity._db
+        def put(sku,metric,value,revision=None):
+            with self.identity._write() as conn:
+                write_value(conn,cid,sku,metric,value,"manual",None,None,None,revision,OZON)
+        put("","loss","12.5")
+        put("","forward","100.25")
+        put("17","loss","0")
+        engine=SimpleNamespace()
+        forecast_preview.configure(engine,ChatAuthority(self.packet))
+        api=engine.parameter_intent_authority
+        period={"from":"2026-10-01","to":"2026-10-07"}
+        binding=dict(template="economics.unit_forecast.v1",store=cid,tenant=self.scope.workspace_id,
+                     job="case",as_of="2026-11-21",input=dict(parameter_periods={},period=period,owner_inputs={"unit_cost":"10"}))
+        api.references["ref"]=binding
+        readset=dict(scope={"tenant_id":self.scope.workspace_id,"store_id":cid,"provider":"OZON","currency":"RUB"},
+                     period=period,rows=[{"sku":sku,"day":period["from"]} for sku in ("17","18")])
+        result=api.call(dict(method="report_owner_inputs",reference="ref",job_id="case",readset=readset))
+        self.assertTrue(result["ready"])
+        for sku,loss in (("17",0),("18",.125)):
+            coeff=result["coefficients"][CANON([sku,period["from"]])]
+            self.assertEqual(float(coeff["loss_rate"]),loss)
+            self.assertEqual(coeff["delivery_mean"],"100.25")
+        self.assertTrue(any("вручную" in line for line in forecast_preview.coefficient_lines(result["basis"]["parameters_used"])))
+        fence=dict(method="report_owner_fence",reference="ref",checkpoint=result["checkpoint"])
+        self.assertTrue(api.call(fence)["current"])
+        rev=db.execute("select revision from user_plugin_values where cid=? and sku=? and metric='loss'",(cid,"17")).fetchone()[0]
+        put("17","loss","5",rev)
+        self.assertFalse(api.call(fence)["current"])
+        binding["input"]["parameter_periods"]={"loss_rate":period}
+        self.assertEqual([r["key"] for r in api.resolve(binding)["producers"]],["loss_rate"])
+        with self.identity._write() as conn:
+            conn.execute("delete from chat_plugins where chat_id=? and plugin_id='ozon'",(self.scope.chat_id,))
+        with self.assertRaises(Rejected):
+            api.resolve(binding)
+
+    def test_local_builder_retry_does_not_repeat_provider_io(self):
+        import subprocess
+        from types import SimpleNamespace
+        from platform_core.marketplace_matrix.read_builder import checked_response
+        success=SimpleNamespace(stdout='{"ok":true}',returncode=0)
+        with patch("subprocess.run",side_effect=[subprocess.TimeoutExpired("node",5),success]) as build:
+            with patch("http_transport.read_response") as provider:
+                self.assertTrue(checked_response("contract_bridge.mjs","{}")["ok"])
+                provider.assert_not_called()
+            self.assertEqual(build.call_count,2)
+        deny=SimpleNamespace(stdout='{"ok":false,"error":"READ_REQUEST_INVALID"}',returncode=2)
+        with patch("subprocess.run",return_value=deny) as build:
+            self.assertFalse(checked_response("contract_bridge.mjs","{}")["ok"])
+            self.assertEqual(build.call_count,1)
+
+    def test_sku_delivery_year_window_pagination_and_signed_corrections(self):
+        import ozon_sku_delivery as source
+        from parameter_support.parameter_contract import ParameterError
+        from parameter_support.parameter_producers import expense_components
+        period={"from":"2025-11-20","to":"2026-11-19"}
+        steps=list(source.steps(period))
+        self.assertEqual(len(steps),366)
+        self.assertEqual(steps[1]["params"]["date"],period["from"])
+        self.assertEqual(steps[-1]["params"]["date"],period["to"])
+        types=source.types({"accrual_types":[{"id":n,"name":name} for n,name in
+                            enumerate(("Logistic","LastMileCourier","DeliveryToHandoverPlaceByOzon"),10)]})
+        state=dict(step=steps[1],rows=[],cursor_seen=[],delivery_types=types)
+        def row(identifier,sku,amount):
+            money={"amount":amount,"currency":"RUB"}
+            return dict(accrual_id=identifier,date=period["from"],total_amount=money,accrued_category="ITEM",
+                        posting=None,non_item_fee=None,container_fees=None,item_fees={"fees":[{
+                        "sku":sku,"quantity":1,"fees":[{"type_id":10,"accrued":money}]}]})
+        # Both historical and current POSTING formats carry the same signed fees.
+        from parameter_support import economics_accruals as accruals
+        import hashlib
+        encode=lambda kind,raw:hashlib.sha256((kind+raw).encode()).hexdigest()
+        posting=row("p","10","-12")
+        posting.update(accrued_category="POSTING",item_fees=None,unit_number="posting",posting={
+            "delivery_schema":"Fbo","products":[{"sku":"10","quantity":1,"commission":None,
+            "delivery":{"total_accrued":posting["total_amount"],"services":[{"type_id":10,"accrued":posting["total_amount"]}]}}]})
+        modern=accruals.extract(posting,encode)
+        posting["posting"]["delivery_speed"]=2
+        historical=accruals.extract(posting,encode)
+        self.assertEqual(historical["atoms"],modern["atoms"])
+        self.assertNotEqual(historical["content_hash"],modern["content_hash"])
+        charge=row("a","10","-12")
+        self.assertFalse(source.receive(state,{"last_id":"next","accruals":[charge,row("b","20","-300")]}, "10"))
+        self.assertTrue(source.receive(state,{"last_id":"","accruals":[charge,row("c","10","2")]}, "10"))
+        self.assertEqual(expense_components(state["rows"],{"forward":["logistics"]}),{"forward":"10"})
+        state.update(step=steps[2],cursor_seen=[])
+        invalid=row("d","10","-1")
+        invalid.update(date=state["step"]["params"]["date"],accrued_category="NON_ITEM",
+                       non_item_fee={"type_id":10,"accrued":invalid["total_amount"]},item_fees=None)
+        with self.assertRaises(ParameterError):
+            source.receive(state,{"last_id":"","accruals":[invalid]},"10")
+
     def test_drr_returns_exact_denominator_from_source(self):
         cid = self.ids["wb"]
         self.packet.update(connections=[cid], selections=[{
