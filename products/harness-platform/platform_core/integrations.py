@@ -75,12 +75,17 @@ class IntegrationStore:
         except (KeyError, OSError, ValueError):
             raise HTTPException(503, "Хранилище ключей недоступно") from None
 
-    def list(self, token):
+    def list(self, token, telegram=None):
         with self.identity._lock:
             db = self.identity._db
             _, ws = _principal(db, token)
             rows = db.execute("SELECT id,provider,name,status FROM account_integrations WHERE workspace=? ORDER BY name,id", (ws,))
-            return {"providers": PROVIDERS, "keyGuides": KEY_GUIDES, "connections": [dict(zip(("id","provider","name","status"),row)) for row in rows]}
+            result = {"providers": PROVIDERS, "keyGuides": KEY_GUIDES, "connections": [dict(zip(("id","provider","name","status"),row)) for row in rows]}
+
+            if telegram is not None:
+                result["providers"] = {**PROVIDERS, "telegram": {"title": "Telegram", "auth": "telegram"}}
+                result["telegram"] = telegram.status(db, ws)
+            return result
 
     def save(self, token, provider, name, fields, chatId=None):
         fields = credentials(provider, fields)
@@ -165,7 +170,7 @@ def routes(get_token, body):
         token = get_token(req,allow_cookie=True)
         store = req.app.state.integrations
         if req.method == "GET":
-            return JSONResponse(store.list(token))
+            return JSONResponse(store.list(token, req.app.state.telegram))
         data = await body(req,"provider","name","fields",optional=("chatId",))
         saved=store.save(token,**data)
         if data.get("chatId") and data["provider"]=="wb":

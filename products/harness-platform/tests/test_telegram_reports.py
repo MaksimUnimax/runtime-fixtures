@@ -18,7 +18,7 @@ from starlette.testclient import TestClient
 
 from platform_core.chat_api import create_app
 from platform_core.guest_registration import RegistrationStore
-from platform_core.user_plugins import telegram_api as tg
+from platform_core import telegram_api as tg
 from platform_core.user_plugins.telegram_delivery import PLUGIN, report_text
 
 ORIGIN = "https://octoport.ru"
@@ -66,7 +66,7 @@ class TelegramReports(TestCase):
         return self.client.post(path,headers=HEAD,json=body or {})
 
     def start(self):
-        result=self.post(self.url+"/connect")
+        result=self.post("/api/integrations/telegram/connect")
         result.raise_for_status()
         query=parse_qs(urlsplit(result.json()["url"]).query)
         self.assertEqual(query["scope"],["openid profile telegram:bot_access"])
@@ -107,19 +107,27 @@ class TelegramReports(TestCase):
             self.post("/api/telegram/complete",body).raise_for_status()
             self.assertEqual(sender.await_args.args[1],884)
             self.assertEqual(self.post("/api/telegram/complete",body).status_code,409)
+        self.assertFalse(self.client.get(self.url).json()["subscribed"])
+        self.post(self.url+"/enable").raise_for_status()
         self.assertTrue(self.client.get(self.url).json()["subscribed"])
         self.toggle(False); self.toggle(True)
         self.assertFalse(self.client.get(self.url).json()["subscribed"])
         self.assertTrue(self.client.get(self.url).json()["linked"])
-        self.post(self.url+"/disconnect").raise_for_status()
+        self.post("/api/integrations/telegram/disconnect").raise_for_status()
         self.assertFalse(self.client.get(self.url).json()["linked"])
 
-    def test_uninstall_removes_receiver_and_pending_subscriptions(self):
+    def test_binding_is_available_without_an_installed_plugin(self):
+        self.post("/api/plugins",{"plugin":PLUGIN,"installed":False}).raise_for_status()
         self.bind()
+        account = self.client.get("/api/integrations").json()
+        self.assertTrue(account["telegram"]["linked"])
+        self.assertIn("telegram", account["providers"])
+        self.toggle(True)
+        self.post(self.url+"/enable").raise_for_status()
         self.post("/api/plugins",{"plugin":PLUGIN,"installed":False}).raise_for_status()
         self.toggle(True)
         status=self.client.get(self.url).json()
-        self.assertFalse(status["linked"])
+        self.assertTrue(status["linked"])
         self.assertFalse(status["subscribed"])
 
     def test_widget_checks_signature_time_session_and_single_use(self):
@@ -127,7 +135,7 @@ class TelegramReports(TestCase):
         self.client.app.state.telegram.config = cfg
 
         def begin():
-            response = self.post(self.url + "/connect")
+            response = self.post("/api/integrations/telegram/connect")
             response.raise_for_status()
             link = response.json()["url"]
             params = parse_qs(urlsplit(link).query)
@@ -157,8 +165,9 @@ class TelegramReports(TestCase):
             self.client.cookies.set("__Host-harness_session", self.token)
             delivery.assert_not_awaited()
             success = self.post("/api/telegram/complete", {"state":state, "user":user})
-            self.assertEqual(success.json(), {"chat":self.scope.chat_id})
-            self.assertTrue(self.client.get(self.url).json()["subscribed"])
+            self.assertEqual(success.json(), {"linked":True})
+            self.assertFalse(self.client.get(self.url).json()["subscribed"])
+            self.post("/api/integrations/telegram/disconnect").raise_for_status()
             self.assertEqual(self.post("/api/telegram/complete", {"state":begin(), "user":user}).status_code,409)
             self.assertEqual(delivery.await_count, 1)
             self.assertEqual(delivery.await_args.args[1], 884)
@@ -169,7 +178,7 @@ class TelegramReports(TestCase):
             self.assertEqual(self.post("/api/telegram/complete",{"state":query["state"][0],"code":"x"}).status_code,409)
         self.assertFalse(self.client.get(self.url).json()["linked"])
         query=self.start()
-        self.toggle(False); self.toggle(True)
+        self.post("/api/integrations/telegram/disconnect").raise_for_status()
         self.assertEqual(self.post("/api/telegram/complete",{"state":query["state"][0],"code":"x"}).status_code,409)
 
     def test_same_recipient_cannot_replace_another_workspaces_binding(self):
@@ -186,7 +195,78 @@ class TelegramReports(TestCase):
         self.assertFalse(self.client.get(self.url).json()["linked"])
         self.client.cookies.set("__Host-harness_session",self.token)
         own = "/api/chats/"+self.scope.chat_id+"/plugins/"+PLUGIN
-        self.assertTrue(self.client.get(own).json()["subscribed"])
+        self.assertTrue(self.client.get(own).json()["linked"])
+
+    def test_plugins_share_only_their_accounts_confirmed_recipient(self):
+        missing = self.post(self.url+"/enable")
+        self.assertEqual(missing.status_code,409)
+        self.assertIn("Добавьте интеграцию Telegram", missing.json()["error"])
+        for action in ("connect", "disconnect"):
+            self.assertEqual(self.post(self.url+"/"+action).status_code,404)
+        self.assertEqual(self.client.post("/api/integrations/telegram/connect",json={}).status_code,403)
+        self.bind()
+        self.post(self.url+"/enable").raise_for_status()
+        integration = self.client.app.state.telegram
+        with patch.object(tg, "send", AsyncMock(return_value=77)) as send:
+            self.assertEqual(self.client.portal.call(integration.send,self.scope.workspace_id,"Тест таймера"),77)
+            send.assert_awaited_once_with(CFG,884,"Тест таймера")
+            self.client.cookies.set("__Host-harness_session",self.other)
+            self.assertFalse(self.client.get("/api/integrations").json()["telegram"]["linked"])
+            self.post("/api/integrations/telegram/disconnect").raise_for_status()
+            with self.assertRaises(tg.DeliveryError):
+                self.client.portal.call(integration.send,self.foreign.workspace_id,"Чужой отчёт")
+            self.client.cookies.set("__Host-harness_session",self.token)
+            self.assertTrue(self.client.get(self.url).json()["subscribed"])
+            self.post("/api/integrations/telegram/disconnect").raise_for_status()
+            self.assertFalse(self.client.get(self.url).json()["subscribed"])
+            with self.assertRaises(tg.DeliveryError):
+                self.client.portal.call(integration.send,self.scope.workspace_id,"После отключения")
+            self.assertEqual(send.await_count,1)
+
+    def test_old_blocked_send_cannot_remove_fresh_consent_for_same_user(self):
+        from threading import Event
+        from concurrent.futures import ThreadPoolExecutor
+        self.bind()
+        started, release = Event(), Event()
+        async def slow_rejection(*args):
+            started.set()
+            await asyncio.to_thread(release.wait, 8)
+            raise tg.DeliveryError("blocked")
+        integration = self.client.app.state.telegram
+        with ThreadPoolExecutor(max_workers=1) as pool, patch.object(tg,"send",slow_rejection):
+            future=pool.submit(self.client.portal.call,integration.send,self.scope.workspace_id,"Первый отчёт")
+            try:
+                self.assertTrue(started.wait(4))
+                self.post("/api/integrations/telegram/disconnect").raise_for_status()
+                self.bind()
+            finally:
+                release.set()
+            with self.assertRaises(tg.DeliveryError):
+                future.result(timeout=5)
+        self.assertTrue(self.client.get("/api/integrations").json()["telegram"]["linked"])
+
+    def test_upgrade_keeps_existing_recipient_and_report_cursor(self):
+        from platform_core.telegram_integration import TelegramIntegration
+        self.bind()
+        self.post(self.url+"/enable").raise_for_status()
+        with sqlite3.connect(self.path) as db:
+            db.execute("UPDATE telegram_subscriptions SET cursor=17,status='unknown'")
+            db.execute("""CREATE TRIGGER telegram_uninstall AFTER DELETE ON entitlements
+                WHEN OLD.plugin_id='telegram-reports' BEGIN
+                DELETE FROM telegram_recipients WHERE workspace=OLD.workspace_id; END""")
+        state = self.client.app.state
+        TelegramIntegration(state.identity, CFG, state.http)
+        with sqlite3.connect(self.path) as db:
+            self.assertEqual(db.execute("SELECT cursor,status FROM telegram_subscriptions").fetchone(),(17,"unknown"))
+        self.post("/api/plugins",{"plugin":PLUGIN,"installed":False}).raise_for_status()
+        self.assertTrue(self.client.get("/api/integrations").json()["telegram"]["linked"])
+        new_chat = state.identity.create_user_chat(self.token)
+        self.base = "/api/chats/"+new_chat.chat_id+"/plugins"
+        self.url = self.base+"/"+PLUGIN
+        self.toggle(True)
+        self.assertTrue(self.client.get(self.url).json()["linked"])
+        self.assertFalse(self.client.get(self.url).json()["subscribed"])
+        self.post(self.url+"/enable").raise_for_status()
 
     def test_invalid_signature_audience_nonce_and_declined_scope(self):
         key=rsa.generate_private_key(public_exponent=65537,key_size=2048)
@@ -218,13 +298,14 @@ class TelegramReports(TestCase):
             db.execute("CREATE TABLE native_batches(scope_key,revision INTEGER,action,events,PRIMARY KEY(scope_key,revision))")
             db.execute("INSERT INTO native_batches VALUES(?,0,'turn',?)",(digest,json.dumps(events("old"))))
         self.bind()
+        self.post(self.url+"/enable").raise_for_status()
         def append(revision,items):
             with sqlite3.connect(journal) as db:
                 db.execute("INSERT INTO native_batches VALUES(?,?,'turn',?)",(digest,revision,json.dumps(items)))
         def drive():
             with sqlite3.connect(self.path) as db:
-                row=db.execute("""SELECT ?,workspace,chat,cursor,generation,884 FROM telegram_subscriptions""",(scope.actor_id,)).fetchone()
-            self.client.portal.call(self.client.app.state.telegram.process,row)
+                row=db.execute("""SELECT ?,workspace,chat,cursor,generation FROM telegram_subscriptions""",(scope.actor_id,)).fetchone()
+            self.client.portal.call(self.client.app.state.telegram_reports.process,row)
         append(1,events("failure",False)); append(2,events("Отчёт 2")); append(3,events("Отчёт 3"))
         sender=AsyncMock(side_effect=[tg.DeliveryError("limited",60),5,tg.DeliveryError("unknown")])
         with patch.object(tg,"send",sender):

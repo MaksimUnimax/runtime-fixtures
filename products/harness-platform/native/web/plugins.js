@@ -183,8 +183,7 @@
       async function act(action) {
         setBusy(true);setError('');
         try {
-          const reply=await send(url+'/'+action,{});
-          if(action==='connect'){location.assign(reply.url);return;}
+          await send(url+'/'+action,{});
           setData(await api(url));
         } catch(e){setError(e.message);} finally {setBusy(false);}
       }
@@ -199,15 +198,16 @@
         !data&&!error&&h('p',{role:'status'},'Загружаем настройки…'),
         data&&h(React.Fragment,null,
           h('p',null,'Бот присылает в личные сообщения готовые отчёты по данным маркетплейсов из этого диалога.'),
-          h('p',{role:'status'},!data.configured?'Администратору нужно настроить бота Октопорта.':
-            data.subscribed?'Отчёты этого чата включены.':data.linked?'Telegram подключён к аккаунту.':'Подтвердите свой Telegram и разрешите боту писать.'),
+          h('p',{role:'status'},data.subscribed?'Отчёты этого чата включены.':data.linked?'Telegram подключён к аккаунту.':'Добавьте интеграцию Telegram в разделе «Интеграции».'),
           messages[data.status]&&h('p',{role:'status'},messages[data.status]),
           data.lastSent&&h('p',null,'Последняя отправка: '+new Date(data.lastSent*1000).toLocaleString('ru-RU')),
-          !data.linked&&data.configured&&h(Action,{disabled:busy,onClick:()=>act('connect')},'Подключить Telegram для отчётов этого чата'),
+          !data.linked&&h(Action,{onClick:()=>{
+            close();
+            ctx.slots.entries('sidebar.settings')[0]?.store.create().actions.openSection('integrations');
+          }},'Открыть интеграции'),
           data.linked&&!data.subscribed&&h(Action,{disabled:busy,onClick:()=>act('enable')},'Получать новые отчёты этого чата'),
           ['unknown','rejected'].includes(data.status)&&h(Action,{disabled:busy,onClick:()=>act('resume')},'Продолжить со следующего отчёта'),
-          data.subscribed&&h(Action,{disabled:busy,onClick:()=>act('pause')},'Остановить доставку из этого чата'),
-          data.hasBinding&&h(Action,{disabled:busy,onClick:()=>act('disconnect')},'Отключить Telegram во всех чатах')));
+          data.subscribed&&h(Action,{disabled:busy,onClick:()=>act('pause')},'Остановить доставку из этого чата')));
     }
     const panels={wb:Marketplace,ozon:Marketplace,images:Illustrations,telegram:TelegramReports};
     function useCatalog(url) {

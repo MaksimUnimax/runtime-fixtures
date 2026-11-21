@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 
 from playwright.async_api import expect
 
-from platform_core.user_plugins import telegram_api as tg
+from platform_core import telegram_api as tg
 from test_account_browser import ProductBrowser, plugin_action
 
 
@@ -55,7 +55,10 @@ class TelegramBrowser(ProductBrowser):
         await selector.click()
         panel = page.get_by_role("dialog",name="Отчёты в Telegram")
         with patch.object(tg,"send",AsyncMock(return_value=1)) as sender:
-            await panel.get_by_role("button",name="Подключить Telegram для отчётов этого чата").click()
+            await expect(panel.get_by_text("Добавьте интеграцию Telegram",exact=False)).to_be_visible()
+            await panel.get_by_role("button",name="Открыть интеграции").click()
+            await page.get_by_role("combobox",name="Сервис").select_option("telegram")
+            await page.get_by_role("button",name="Подключить Telegram",exact=True).click()
             widget = page.locator('script[data-telegram-login="ExampleBot"]')
             await expect(widget).to_have_attribute("data-request-access", "write")
             await page.get_by_role("link",name="Войти через Telegram").click()
@@ -67,5 +70,7 @@ class TelegramBrowser(ProductBrowser):
         await page.get_by_role("link",name="Вернуться в чат").click()
         await expect(page).to_have_url(original)
         await selector.click()
+        await expect(panel.get_by_text("Telegram подключён к аккаунту.")).to_be_visible()
+        await panel.get_by_role("button",name="Получать новые отчёты этого чата").click()
         await panel.get_by_role("button",name="Остановить доставку из этого чата").click()
         await expect(panel.get_by_role("button",name="Получать новые отчёты этого чата")).to_be_visible()
