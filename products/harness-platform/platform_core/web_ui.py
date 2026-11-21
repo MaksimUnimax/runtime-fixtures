@@ -33,7 +33,7 @@ async def page(request, *, panel="", error="", status=200):
             activity = await run_in_threadpool(identity.chat_activity, token, request.app.state.worker.journal)
             router = request.app.state.model_router
             account = {"chats": list(activity), "activity": activity, "canGrant": await run_in_threadpool(identity.is_admin, token),
-                       "modelChoice": router is not None and router.available()}
+                       "modelChoice": router is not None}
             if chat:
                 await run_in_threadpool(identity.resolve_chat, token, chat)
             return shell(theme=theme, chat=chat, account=account, status=status)

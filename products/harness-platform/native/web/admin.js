@@ -94,7 +94,7 @@ for (const form of document.querySelectorAll('form:not(#default-model)')) form.a
 const defaultsForm = document.querySelector('#default-model');
 const refreshModels = document.querySelector('#refresh-models');
 const modelStatus = document.querySelector('#model-status');
-const modelLabels = {off:'Выключено',low:'Низкое',high:'Высокое',max:'Максимальное'};
+const modelLabels = {auto:'По умолчанию',medium:'Среднее',off:'Выключено',low:'Низкое',high:'Высокое',max:'Максимальное'};
 let activeDefault, choices = [];
 async function defaultsRequest(path, options) {
   const response = await fetch('/api/admin/'+path, {credentials:'same-origin', cache:'no-store', ...options});
@@ -120,18 +120,25 @@ function busy(value) {
 }
 defaultsForm.elements.model.addEventListener('change',setEfforts);
 refreshModels.addEventListener('click',async ()=>{
-  busy(true); modelStatus.textContent='Запрашиваю список у DeepSeek…';
+  busy(true); modelStatus.textContent='Загружаю доступные модели…';
   try {
     const [catalog,current]=await Promise.all([defaultsRequest('chat-models'),defaultsRequest('chat-default')]);
     choices=catalog.models; showDefault(current);
-    defaultsForm.hidden=!choices.length;
+    defaultsForm.hidden=!choices.some(m=>m.chat);
     const select=defaultsForm.elements.model;
-    select.replaceChildren(...choices.map(m=>new Option(m.name,m.id)));
-    if(choices.length) {
+    const groups=new Map();
+    for(const model of choices) {
+      let group=groups.get(model.family);
+      if(!group){group=document.createElement('optgroup');group.label=model.family;groups.set(model.family,group);}
+      const option=new Option(model.name,model.id);option.disabled=!model.chat;group.append(option);
+    }
+    select.replaceChildren(...[...groups.values()].sort((a,b)=>a.label.localeCompare(b.label)));
+    if(!choices.find(m=>m.id===select.value)?.chat)select.value=choices.find(m=>m.chat)?.id || '';
+    if(choices.some(m=>m.chat)) {
       if(choices.some(m=>m.id===current.model)) select.value=current.model;
       setEfforts();
     }
-    modelStatus.textContent=choices.length?'Доступно моделей: '+choices.length:'DeepSeek не вернул доступных для этого сервера моделей.';
+    modelStatus.textContent=[choices.length?'Доступно моделей: '+choices.length:'Подходящих моделей пока нет.',catalog.catalogAt?'Каталог OpenRouter обновлён '+new Date(catalog.catalogAt*1000).toLocaleString('ru-RU'):'',catalog.catalogMessage].filter(Boolean).join(' · ');
   } catch(e) {modelStatus.textContent=e.message;}
   finally {busy(false);}
 });

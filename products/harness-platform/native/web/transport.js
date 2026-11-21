@@ -165,6 +165,9 @@ export async function createTransport(data) {
         records.push({type:'event',event:{seq,type:'harness/omitted',time:event.time,data:{},ignorable:true}});
       if (event.type==='assistant/message') {
         const reply=assistants[assistantIndex++];
+        if(reply?.illustration){
+          event.data.message.content.push({type:'text',text:'\n\n![Иллюстрация]('+reply.illustration+')\n\n[Открыть иллюстрацию]('+reply.illustration+')'});
+        }
         const cost=reply?.modelUsage ?? reply?.modelCost;
         if(result.adminCosts && cost) account.costs.set(id+'|'+event.seq,cost);
         event.data.stream ??= [];

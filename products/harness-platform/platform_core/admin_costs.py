@@ -70,6 +70,15 @@ def present_chat(identity, costs, token, scope, action, result):
         operation = message.pop("operationId", None)
         if operation is not None:
             references.append((message, operation))
+    images = [(m, op) for m, op in references if m.get("role") == "assistant"]
+    if images:
+        with identity._lock:
+            if identity._db.execute("SELECT 1 FROM sqlite_master WHERE name='plugin_illustrations'").fetchone():
+                for message,key in images:
+                    row=identity._db.execute("SELECT id FROM plugin_illustrations WHERE operation_id=? AND chat=? AND content IS NOT NULL",
+                                             (key,scope.chat_id)).fetchone()
+                    if row:
+                        message["illustration"]="/api/chats/"+scope.chat_id+"/illustrations/"+row[0]
     if not identity.can_view_costs(token, scope):
         return result
     if references:

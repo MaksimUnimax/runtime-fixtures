@@ -56,7 +56,9 @@ class OpenRouterCatalog(unittest.TestCase):
         return response.json()
 
     def test_rotation_revocation_and_recovery(self):
-        self.assertEqual(self.settings()['models'], [{'id': 'maker/chat', 'family': 'maker', 'name': 'Chat'}])
+        [entry] = self.settings()['models']
+        self.assertEqual({k:entry[k] for k in ('id','family','name','chat','image','free')},
+                         dict(id='maker/chat', family='maker', name='Chat', chat=True, image=False, free=False))
         self.assertEqual(self.settings('maker/chat')['model'], 'maker/chat')
         self.assertEqual(self.upstream, ['Bearer catalog-fixture-a'])
         provider_keys.save(self.keys, 'openrouter', 'catalog-fixture-b')

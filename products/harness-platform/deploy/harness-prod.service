@@ -19,6 +19,7 @@ Environment=HARNESS_NODE_MODULES=/opt/harness-prod/runtime/v1/node_modules
 Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=HARNESS_PROVIDER_KEYS_DIR=/var/lib/harness-prod/provider-keys
 Environment=HARNESS_OPENROUTER_ENABLED=1
+EnvironmentFile=-/etc/octoport-openrouter-client.env
 Environment=HARNESS_RUB_PER_USD=81.9290
 ExecStart=/opt/harness-prod/runtime/v1/venv/bin/python -m platform_core.serve --state /var/lib/harness-prod --port 18763 --model live
 Restart=on-failure

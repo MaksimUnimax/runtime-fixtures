@@ -20,7 +20,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from .admin_costs import AdminCosts, present_chat
-from .user_plugins import service as user_plugins
+from .user_plugins import service as user_plugins, illustrations
 from .browser_session import browser_routes, browser_token
 from .chat_worker import ChatWorker, WorkerError
 from . import integrations, provider_keys, chat_connections, chat_defaults, turn_progress
@@ -137,16 +137,18 @@ def create_app(database_path, chat_directory, *, composition_module=None):
 
     async def wallet(req):
         token = _token(req, allow_cookie=True)
+        balance_only = req.url.path == "/api/wallet/balance"
         try:
             result = await run_in_threadpool(req.app.state.identity.wallet, token,
-                                             account_login=req.path_params.get("login"))
+                                             account_login=req.path_params.get("login"), balance_only=balance_only)
         except AuthenticationError:
             raise
         except PermissionError:
             raise HTTPException(403, "Administrator required") from None
         except LookupError:
             raise HTTPException(404, "Account unavailable") from None
-        result["modelChoice"] = req.app.state.model_router is not None and req.app.state.model_router.available()
+        if not balance_only:
+            result["modelChoice"] = req.app.state.model_router is not None
         return JSONResponse(result)
 
     async def pricing(req):
@@ -225,13 +227,13 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         if action in ("turn","tools","call"):
             identity=req.app.state.identity
             with identity._lock:
+                data["illustrations"]=bool(req.app.state.model_router and user_plugins.attached(identity._db,scope,illustrations.PLUGIN))
                 rows=chat_connections.snapshot(identity._db,scope,describe_saved=(action == "turn"))
             data["connections"]=[r for r in rows if r["attached"]]
             data["availableServices"]=[{"provider":r["provider"], "access":r["access"]}
                                        for r in rows if not r["attached"]]
             if action == "turn":
-                if any(row["provider"] in ("ozon", "wb") for row in data["connections"]):
-                    data["session_digest"] = _secret_digest(token)
+                data["session_digest"] = _secret_digest(token)
                 saved_access = {kind for row in rows for kind in row["access"]}
                 data["connectionGuides"] = {
                     kind: steps for kind, steps in integrations.KEY_GUIDES.items()
@@ -292,11 +294,13 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         *turn_progress.routes(_token),
         *chat_connections.routes(_token,_body),
         *user_plugins.routes(_token,_body),
+        *illustrations.routes(_token),
         *integrations.routes(_token, _body),
         *provider_keys.routes(_token, _body),
         *chat_defaults.routes(_token, _body),
         *(router_plugin.routes(_token, _body) if router_plugin else [Route("/api/model-settings",disabled_models,methods=["GET","POST"])]),
         Route("/api/wallet", wallet),
+        Route("/api/wallet/balance", wallet),
         Route("/api/admin/accounts/{login}/wallet", wallet),
         Route("/api/admin/coin-pricing", pricing, methods=["GET", "POST"]),
         Route("/api/admin/coin-grants", credit, methods=["POST"]),

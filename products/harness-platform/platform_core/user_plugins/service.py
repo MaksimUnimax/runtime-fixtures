@@ -17,7 +17,7 @@ from .. import chat_defaults
 from ..chat_connections import attach, scope_for
 from ..identity import AuthenticationError, _secret_digest
 from .store import adapter, now, values, valid_sku, write_value
-from . import model
+from . import illustrations, model
 from ..marketplace_matrix import wb_coefficients as wb
 from .registry import CATALOG, CATEGORIES, WB, OZON, attached, enable, store_row
 
@@ -151,7 +151,7 @@ class Service:
                     if metric=="commission" and overrides!=schemes(db):
                         raise HTTPException(409,"Схемы складов изменились. Запустите расчёт ещё раз.")
                     write_value(db,cid,sku,metric,value,"calculated",*(d.isoformat() for d in period),
-                                {**basis,"model":grant.direct_model,"templates":list(plan)},revision,plugin)
+                                {**basis,"model":grant.model or grant.direct_model,"templates":list(plan)},revision,plugin)
             progress("Готово.","done")
         except (HTTPException,wb.DataError) as exc:
             progress(str(exc.detail if isinstance(exc,HTTPException) else exc),"failed")
@@ -193,7 +193,6 @@ def routes(get_token,body):
         plugin=CATALOG.get(req.path_params["plugin_id"])
         if not plugin:
             raise HTTPException(404,"Плагин недоступен.")
-        platform=adapter(plugin)
         state=req.app.state
         token=get_token(req,allow_cookie=True)
         chat=req.path_params["chat_id"]
@@ -211,20 +210,34 @@ def routes(get_token,body):
             scope=scope_for(state.identity._db,token,chat)
             if not attached(state.identity._db,scope,plugin.id):
                 raise HTTPException(403,"Подключите плагин к этому чату.")
-        if req.query_params.get("models")=="1" or (action=="model" and data["model"]):
-            available=await chat_defaults.available_models(state.http,state.worker.gateway)
+        image_plugin = plugin.id == illustrations.PLUGIN
+        action_name = illustrations.ACTION if image_plugin else "calculate"
+        if image_plugin and (cid or sku or action not in (None,"model")):
+            raise HTTPException(400,"У плагина нет такой настройки.")
+        data_model=data.get("model")
+        if req.query_params.get("models")=="1" or (action=="model" and data_model):
+            available,notice=await chat_defaults.choice_catalog(state,direct=not image_plugin)
+            capability="image" if image_plugin else "chat"
+            available={k:m for k,m in available.items() if m.get(capability)}
             if not action:
-                return JSONResponse({"models":list(available.values())})
-            if not isinstance(data["model"],str) or data["model"] not in available or data["effort"] not in available[data["model"]]["efforts"]:
+                return JSONResponse({"models":list(available.values()),"catalogMessage":notice})
+            if not isinstance(data_model,str) or data_model not in available or data["effort"] not in available[data_model]["efforts"]:
                 raise HTTPException(400,"Выберите доступную модель и степень рассуждения.")
         with state.identity._write() as db:
             scope=scope_for(db,token,chat)
             if not attached(db,scope,plugin.id):
                 raise HTTPException(403,"Плагин отключён.")
             if action=="model":
+                db.execute("DELETE FROM plugin_action_models WHERE workspace=? AND plugin=? AND action=?",(scope.workspace_id,plugin.id,action_name))
+                if data_model:
+                    db.execute("INSERT INTO plugin_action_models VALUES(?,?,?,?,?,?)",(scope.workspace_id,plugin.id,action_name,data_model,data["effort"],int(available[data_model].get("free",False))))
                 db.execute("DELETE FROM user_plugin_models WHERE workspace=? AND plugin=?",(scope.workspace_id,plugin.id))
                 if data["model"]:
                     db.execute("INSERT INTO user_plugin_models VALUES(?,?,?,?)",(scope.workspace_id,plugin.id,data["model"],data["effort"]))
+            if image_plugin:
+                selected,_=illustrations.settings_model(db,scope.workspace_id)
+                return JSONResponse({"model":selected,"effort":"auto"})
+            platform=adapter(plugin)
             if action=="store":
                 if not db.execute("SELECT 1 FROM account_integrations WHERE workspace=? AND id=? AND provider=?",(scope.workspace_id,cid,plugin.provider)).fetchone():
                     raise HTTPException(404,"Магазин "+plugin.title+" недоступен.")

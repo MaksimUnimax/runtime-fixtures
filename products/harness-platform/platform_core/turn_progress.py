@@ -6,7 +6,7 @@ from starlette.exceptions import HTTPException
 from starlette.responses import StreamingResponse, JSONResponse
 from starlette.routing import Route
 
-STAGES={"accepted","model","thinking","tool","marketplace_wait","writing"}
+STAGES={"accepted","model","thinking","tool","marketplace_wait","model_wait","writing"}
 
 class LiveTurn:
     def __init__(self):
@@ -14,17 +14,20 @@ class LiveTurn:
         self.text=""
         self.step=0
         self.done=False
+        self.cancel_wait=None
         self.changed=asyncio.Event()
 
     def set(self,data):
         if self.done: return
         stage=data.get("stage")
         if stage not in STAGES: return
+        if self.cancel_wait is not None and stage in {"marketplace_wait","tool"}:
+            stage="model_wait"
         self.stage=stage
         if stage=="model":
             self.step+=1
             self.text=""
-        if stage=="marketplace_wait":
+        if stage in {"marketplace_wait","model_wait"}:
             self.text = ""
         if stage=="writing" and isinstance(data.get("text"),str):
             self.text=(self.text+data["text"])[:65536]
@@ -110,4 +113,12 @@ def routes(token_for):
                 except TimeoutError: pass
                 await asyncio.sleep(.05)
         return StreamingResponse(messages(),media_type="application/x-ndjson",headers={"X-Accel-Buffering":"no","Cache-Control":"no-store"})
-    return [Route("/api/chats/{chat_id}/progress",stream)]
+    async def cancel(req):
+        scope=req.app.state.identity.resolve_chat(token_for(req,allow_cookie=True),req.path_params["chat_id"])
+        turn=req.app.state.progress.turns.get((scope,req.path_params["rid"]))
+        if not turn or turn.done or turn.cancel_wait is None:
+            raise HTTPException(409,"Ожидание уже завершено.")
+        turn.cancel_wait.set()
+        return JSONResponse({"cancelled":True})
+    return [Route("/api/chats/{chat_id}/progress",stream),
+            Route("/api/chats/{chat_id}/progress/{rid}/cancel",cancel,methods=["POST"])]

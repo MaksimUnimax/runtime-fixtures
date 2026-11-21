@@ -132,7 +132,7 @@
             h(Action,{disabled:busy,onClick:()=>act(async()=>setModels((await api(url+'?models=1')).models),false)},'Запросить модели'),
             models&&h('div',{className:'plugin-controls'},
               h('label',null,'Модель',h('select',{'aria-label':'Модель',value:model,onChange:e=>modelChange(e.target.value)},h('option',{value:''},'Общая модель Octoport'),
-                models.map(m=>h('option',{key:m.id,value:m.id},m.name)))),
+                modelGroups(models))),
               model&&h('label',null,'Рассуждение',h('select',{'aria-label':'Рассуждение',value:effort,onChange:e=>setModelDraft({model,effort:e.target.value})},
                 modelChoices.map(v=>h('option',{key:v,value:v},v)))),
               h(Action,{disabled:busy,onClick:()=>act(async()=>{
@@ -140,7 +140,36 @@
                 setData(prev=>prev&&({...prev,model:saved.model,effort:saved.effort}));setModelDraft(null);
               })},'Сохранить модель')))));
     }
-    const panels={wb:Marketplace,ozon:Marketplace};
+    function modelGroups(models){
+      const groups=new Map();
+      for(const m of models){
+        const family=m.family || 'DeepSeek';
+        if(!groups.has(family))groups.set(family,[]);
+        groups.get(family).push(h('option',{key:m.id,value:m.id},m.name+(m.free?' · Бесплатно':'')));
+      }
+      return [...groups].sort(([a],[b])=>a.localeCompare(b)).map(([family,rows])=>h('optgroup',{key:family,label:family},rows));
+    }
+    function Illustrations({url,close,title}){
+      const [rows,setRows]=React.useState([]),[model,setModel]=React.useState(''),[msg,setMsg]=React.useState('');
+      const [busy,setBusy]=React.useState(true);
+      React.useEffect(()=>{
+        const ctrl=new AbortController();
+        Promise.all([api(url,{signal:ctrl.signal}),api(url+'?models=1',{signal:ctrl.signal})]).then(([current,catalog])=>{
+          if(!ctrl.signal.aborted){setRows(catalog.models);setModel(current.model);setMsg(catalog.catalogMessage || '');}
+        }).catch(e=>{if(!ctrl.signal.aborted)setMsg(e.message);}).finally(()=>{if(!ctrl.signal.aborted)setBusy(false);});
+        return ()=>ctrl.abort();
+      },[url]);
+      async function save(){
+        setBusy(true);
+        try{await send(url+'/model',{model,effort:'auto'});setMsg('Модель иллюстраций сохранена');}
+        catch(e){setMsg(e.message);}finally{setBusy(false);}
+      }
+      return h(Dialog,{label:title,close,settings:true},
+        h('label',null,'Модель для создания иллюстраций',h('select',{value:model,disabled:busy,onChange:e=>setModel(e.target.value)},
+          h('option',{value:''},'Выберите модель'),modelGroups(rows))),
+        h(Action,{disabled:busy,onClick:save},'Сохранить модель'),h('p',{role:'status'},msg));
+    }
+    const panels={wb:Marketplace,ozon:Marketplace,images:Illustrations};
     function Menu({chat,wide}) {
       const url='/api/chats/'+encodeURIComponent(chat)+'/plugins';
       const [data,setData]=React.useState(null),[panel,setPanel]=React.useState(''),[err,setErr]=React.useState(''),[busy,setBusy]=React.useState(false);

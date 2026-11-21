@@ -154,10 +154,6 @@ def issue_grant(database_path, scope, *, source, run_key, ttl_seconds=900, coin_
         ).fetchone()
         if owner is None:
             raise PermissionError("Operation scope unavailable")
-        if source == "chat.turn" and not db.execute(
-            "SELECT 1 FROM workspace_paid_model_access WHERE workspace_id=?", (workspace,)
-        ).fetchone():
-            raise PaidAccessRequired("Paid model access required")
         now = int(time.time())
         expires = now + ttl_seconds
         if expires >= 2**63:
@@ -179,11 +175,15 @@ def issue_grant(database_path, scope, *, source, run_key, ttl_seconds=900, coin_
                    VALUES (?, ?, ?, ?, ?, ?)""",
                 (operation_id, *binding),
             )
+        model, free = bind_model(db,scope,operation_id) if bind_model else (None,False)
+        if source == "chat.turn" and not free and not db.execute(
+            "SELECT 1 FROM workspace_paid_model_access WHERE workspace_id=?", (workspace,)
+        ).fetchone():
+            raise PaidAccessRequired("Paid model access required")
         try:
-            coins.reserve_order(db, workspace, operation_id, coin_limit)
+            coins.reserve_order(db, workspace, operation_id, coin_limit, free=free)
         except coins.InsufficientCoins as exc:
             raise PaidAccessRequired("Insufficient coins") from exc
-        model = bind_model(db,scope,operation_id) if bind_model else None
         direct_model = effort = None
         if model is None and direct_fallback:
             saved = db.execute("SELECT model,effort FROM direct_operation_models WHERE operation_id=?",

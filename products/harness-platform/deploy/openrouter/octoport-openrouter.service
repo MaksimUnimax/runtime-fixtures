@@ -1,0 +1,21 @@
+[Unit]
+Description=Octoport dedicated OpenRouter proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=/etc/octoport-openrouter/router.env
+RuntimeDirectory=octoport-openrouter
+LogsDirectory=octoport-openrouter
+LogsDirectoryMode=0750
+ExecStartPre=/usr/sbin/apache2 -t -f /etc/octoport-openrouter/httpd.conf
+ExecStart=/usr/sbin/apache2 -DFOREGROUND -f /etc/octoport-openrouter/httpd.conf
+Restart=on-failure
+RestartSec=3
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

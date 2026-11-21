@@ -285,6 +285,22 @@ export async function openWorker(env) {
             token: req.grant.token, resumeRateLimits: attached.some(connection => ['ozon', 'wb'].includes(connection.provider)),
           } : undefined,
         });
+        if(req.illustrations && req.grant && env.HARNESS_ROUTER_LOCAL){
+          const {defineTool}=await load('dsh-tools');
+          ctx.tools.register(defineTool({
+            name:'create_illustration', description:'Создай иллюстрацию по описанию пользователя. Изображение будет прикреплено к сообщению автоматически.',
+            parameters:{prompt:{type:'string',required:true,description:'Описание требуемой иллюстрации'}},
+            output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
+            timeoutMs:2147483647,
+            async execute({prompt},exec){
+              const response=await fetch(env.HARNESS_ROUTER_LOCAL+'/illustrate',{method:'POST',signal:exec.signal,
+                headers:{'Content-Type':'application/json','x-operation':req.grant.token},body:JSON.stringify({prompt})});
+              if(!response.ok)return 'Не удалось создать изображение. '+(await response.text()).slice(0,250);
+              await response.json();
+              return 'Изображение готово и прикреплено к ответу в этом чате.';
+            }
+          }));
+        }
         registerConnectionContext(ctx,attached,available,req.connectionGuides);
       }
       if (req.action === 'tools') {
@@ -334,7 +350,7 @@ export async function openWorker(env) {
           const runGatewayTurn = req.grant.model ? (await import('./openrouter-turn.mjs')).runRouterTurn
             : (await import('./gateway-turn.mjs')).runGatewayTurn;
           const controller = new AbortController();
-          const followsMarketplace = req.connections?.some(connection => ['ozon', 'wb'].includes(connection.provider));
+          const followsMarketplace = req.illustrations || !!req.grant.model || req.connections?.some(connection => ['ozon', 'wb'].includes(connection.provider));
           const grantHash = createHash('sha256').update(req.grant.token).digest('hex');
           let waitUntil = 0;
           let dispatchLease = deadline;

@@ -105,11 +105,11 @@ class InsufficientCoins(PermissionError):
     pass
 
 
-def reserve_order(db, workspace, operation, limit=None):
+def reserve_order(db, workspace, operation, limit=None, *, free=False):
     close_orders(db, workspace)
     if db.execute("SELECT 1 FROM coin_orders WHERE operation_id=?", (operation,)).fetchone():
         return  # Native replay may read the result. The gateway refuses closed orders.
-    if balances(db, workspace)[0] <= 0:
+    if not free and balances(db, workspace)[0] <= 0:
         raise InsufficientCoins()
     # Only explicit limits from older clients constrain an operation. The gateway
     # reserves each provider attempt against the shared available balance.

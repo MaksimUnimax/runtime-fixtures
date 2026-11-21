@@ -57,25 +57,50 @@ window.__ModuleLoader__.load({
       }
       function Models() {
         const [data,setData]=React.useState(null),[filter,setFilter]=React.useState(''),[msg,setMsg]=React.useState('');
-        const [busy,setBusy]=React.useState(false);
-        React.useEffect(()=>{a.api('/api/model-settings').then(setData).catch(e=>setMsg(e.message));},[]);
-        const choose=async model=>{setBusy(true);try{
-          setData(await post('/api/model-settings',{model}));setMsg('Выбор сохранён');
-        } catch(e){setMsg(e.message);}finally{setBusy(false);}};
-        const radio=(id,title)=>h('label',{className:'service-model',key:id},h('input',{type:'radio',name:'model',disabled:busy,
-            checked:data?.model===id,onChange:()=>choose(id)}),title);
+        const [busy,setBusy]=React.useState(false),[free,setFree]=React.useState(false);
+        const serial=React.useRef(0),saving=React.useRef(false);
+        async function refresh(manual=false){
+          if(saving.current)return;
+          const id=++serial.current;
+          try{
+            const next=await a.api('/api/model-settings'+(manual?'?refresh=1':''));
+            if(id===serial.current){setData(next);setMsg('');}
+          }catch(e){if(id===serial.current)setMsg(e.message);}
+        }
+        React.useEffect(()=>{
+          refresh();const timer=setInterval(()=>{if(!document.hidden)refresh();},60000);
+          return ()=>{clearInterval(timer);serial.current++;};
+        },[]);
+        async function choose(model){
+          if(!data || saving.current)return;
+          const id=++serial.current;saving.current=true;setBusy(true);
+          try{
+            const next=await post('/api/model-settings',{model,revision:data.revision});
+            if(id===serial.current){setData(next);setMsg('Выбор сохранён');}
+          }catch(e){
+            if(id===serial.current){setMsg(e.message);try{const next=await a.api('/api/model-settings');if(id===serial.current)setData(next);}catch{}}
+          }finally{saving.current=false;setBusy(false);}
+        }
+        const radio=(id,title,disabled=false)=>h('label',{className:'service-model',key:id},h('input',{type:'radio',name:'model',
+          disabled:busy||disabled,checked:data?.inherited?id==='default':data?.model===id,onChange:()=>choose(id)}),title);
         const groups=new Map();
-        for(const m of [...(data?.models||[])].sort((a,b)=>a.id.localeCompare(b.id))){
-          if(!(m.id+' '+m.name).toLowerCase().includes(filter.toLowerCase()))continue;
+        for(const m of [...(data?.models||[])].sort((a,b)=>a.family.localeCompare(b.family)||a.name.localeCompare(b.name))){
+          if(free&&!m.free || !(m.id+' '+m.name+' '+m.family).toLowerCase().includes(filter.toLowerCase()))continue;
           if(!groups.has(m.family))groups.set(m.family,[]);groups.get(m.family).push(m);
         }
-        return h('section',{className:'service-settings'},h('h2',null,'Выбор ИИ'),radio('direct','DeepSeek · прямое подключение'),
-          h('label',null,'Поиск модели',h('input',{type:'search',value:filter,onChange:e=>setFilter(e.target.value)})),
+        return h('section',{className:'service-settings'},h('h2',null,'Выбор ИИ'),
+          data && radio('default','Общая модель Octoport'+(data.inherited?' · '+(data.model==='direct'?'DeepSeek':data.model):'')),
+          data && radio('direct','DeepSeek · прямое подключение'),
+          h('label',null,'Поиск модели или производителя',h('input',{type:'search',value:filter,onChange:e=>setFilter(e.target.value)})),
+          h('button',{type:'button',disabled:busy,onClick:()=>refresh(true)},'Обновить список'),
+          h('label',null,h('input',{type:'checkbox',checked:free,onChange:e=>setFree(e.target.checked)}),' Только бесплатные'),
+          data?.catalogAt&&h('small',null,'Каталог обновлён '+new Date(data.catalogAt*1000).toLocaleString('ru-RU')),
           data?.catalogMessage && h('p',{role:'status'},data.catalogMessage),
-          data?.enabled && data.model!=='direct' && !data.models.some(m=>m.id===data.model) &&
-            h('p',null,'Выбранная модель сейчас недоступна: '+data.model),
+          !data&&!msg && h('p',{role:'status'},'Загрузка каталога…'),
+          data&&!groups.size && h('p',{role:'status'},'Подходящих моделей нет.'),
           [...groups].map(([family,models])=>h('details',{key:family,open:filter?true:undefined},
-            h('summary',null,family+' ('+models.length+')'),models.map(m=>radio(m.id,m.name)))),
+            h('summary',null,family+' ('+models.length+')'),models.map(m=>radio(m.id,m.name+
+              (m.free?' · Бесплатно':'')+(!m.chat?(m.image?' · Для иллюстраций':' · Для других задач'):''),!m.chat)))),
           h('p',{role:'status'},msg));
       }
       function PrivateDialog() {
@@ -109,7 +134,7 @@ window.__ModuleLoader__.load({
         React.useEffect(()=>{if(open && !dialog.current.open)dialog.current.showModal();},[open]);
         const active=(rows||[]).filter(row=>row.attached);
         const labels={sending:'Отправляю сообщение…',accepted:'Сообщение принято',model:'Модель готовит ответ',
-          thinking:'Модель обдумывает ответ',tool:'Модель запрашивает данные',marketplace_wait:'Ждём следующей разрешённой попытки',writing:'Модель отвечает…',failed:'Не удалось завершить запрос'};
+          thinking:'Модель обдумывает ответ',tool:'Модель запрашивает данные',model_wait:'Модель временно занята. Повторим запрос автоматически',marketplace_wait:'Ждём следующей разрешённой попытки',writing:'Модель отвечает…',failed:'Не удалось завершить запрос'};
         async function toggle(row,enabled){
           const before=rows;
           setBusy(true);setError('');
@@ -122,8 +147,9 @@ window.__ModuleLoader__.load({
         }
         return h('div',{className:'chat-access'},
           view && h('div',{'data-live-turn':view.stage,className:'chat-live'},
-            h('small',{role:'status'},labels[view.stage], ['model','thinking','tool','marketplace_wait'].includes(view.stage) &&
+            h('small',{role:'status'},labels[view.stage], ['model','thinking','tool','marketplace_wait','model_wait'].includes(view.stage) &&
               h('span',{className:'thinking-dots','aria-hidden':true},[0,1,2].map(i=>h('span',{key:i},'.')))),view.text && h('div',{className:'chat-live-text'},view.text),
+            view.stage==='model_wait' && h('button',{type:'button',onClick:()=>post('/api/chats/'+encodeURIComponent(sessionId)+'/progress/'+encodeURIComponent(view.rid)+'/cancel',{}).catch(e=>setError(e.message))},'Отменить ожидание'),
             view.stage==='failed' && h('button',{onClick:()=>a.live.clear(sessionId,view.rid)},'Закрыть')),
           h('button',{className:'chat-access-trigger','aria-haspopup':'dialog',onClick:()=>setOpen(true)},
             'Подключения'+(active.length?' · '+active.map(r=>r.name).join(', '):'')),

@@ -17,7 +17,8 @@ WB = Plugin("wildberries", "analytics", "Вайлдберис",
             "Отчёты WB и сохранённые коэффициенты потерь, доставки и комиссии для магазинов и товаров.", "wb")
 OZON = Plugin("ozon", "analytics", "Озон",
               "Отчёты Ozon, доля потерь и стоимость прямой и последней доставки для магазинов и товаров.", "ozon")
-CATALOG = {plugin.id: plugin for plugin in (WB, OZON)}
+ILLUSTRATIONS = Plugin("illustrations","graphics","Иллюстрации","Создаёт изображения по описанию и прикрепляет их к сообщению.","images")
+CATALOG = {plugin.id: plugin for plugin in (WB, OZON, ILLUSTRATIONS)}
 CATEGORIES = (
     {"id": "analytics", "title": "Аналитика", "parent": None},
     {"id": "advertising", "title": "Реклама", "parent": None},
@@ -78,6 +79,11 @@ def connect_store(db,scope,cid):
 
 def install(db):
     from ..storage import Scope
+    from .illustrations import SCHEMA as image_schema
+    db.execute(image_schema)
+    db.execute("""CREATE TABLE IF NOT EXISTS plugin_action_models(workspace TEXT NOT NULL REFERENCES workspaces ON DELETE CASCADE,
+        plugin TEXT NOT NULL, action TEXT NOT NULL, model TEXT NOT NULL, effort TEXT NOT NULL, free INTEGER NOT NULL,
+        PRIMARY KEY(workspace,plugin,action))""")
     for statement in SCHEMA:
         db.execute(statement)
     db.execute("CREATE TABLE IF NOT EXISTS user_plugin_migrations(plugin TEXT PRIMARY KEY)")
