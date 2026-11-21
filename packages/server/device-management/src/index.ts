@@ -20,6 +20,11 @@ export const EXCHANGE_RATE_LIMIT = 120;
 export const EXCHANGE_RATE_WINDOW_MS = 10 * 60_000;
 export const PENDING_RETRY_AFTER_SECONDS = 5;
 const maxSaneLimit = 10_000;
+function validNumericDeviceLimit(maxActive: number): boolean {
+  return (
+    Number.isInteger(maxActive) && maxActive >= 0 && maxActive <= maxSaneLimit
+  );
+}
 const salt = Buffer.from(
   "product-control-plane/device-management/hkdf-salt/v1",
 );
@@ -216,14 +221,13 @@ export class DeviceManagementService {
           value.kind === "BETA_UNLIMITED_FOR_COMMERCIAL_COUNT"
         )
           return value;
-        if ("kind" in value && value.kind === "ELIGIBLE")
+        if ("kind" in value && value.kind === "ELIGIBLE") {
+          if (!validNumericDeviceLimit(value.maxActive))
+            throw new Error("invalid device limit");
           return { maxActive: value.maxActive, source: value.source };
+        }
         if ("kind" in value) return value;
-        if (
-          !Number.isInteger(value.maxActive) ||
-          value.maxActive < 0 ||
-          value.maxActive > maxSaneLimit
-        )
+        if (!validNumericDeviceLimit(value.maxActive))
           throw new Error("invalid device limit");
         return value;
       },
