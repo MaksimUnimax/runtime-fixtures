@@ -141,10 +141,10 @@ const reportProjection = `SELECT report_id AS "reportId",run_source AS "runSourc
 async function readReport(
   query: ApiWatchSqlQuery,
   reportId: string,
-  forUpdate = false,
+  lock: "FOR SHARE" | "FOR UPDATE" | null = null,
 ): Promise<ApiWatchReport | undefined> {
   const result = await query.query<ReportRow>(
-    `${reportProjection} WHERE report_id=$1${forUpdate ? " FOR UPDATE" : ""}`,
+    `${reportProjection} WHERE report_id=$1${lock ? " " + lock : ""}`,
     [reportId],
   );
   const row = result.rows[0];
@@ -165,21 +165,29 @@ export function createPostgresApiWatchReportStore(
   return {
     async createReport(input) {
       const report = emptyReport(input);
-      const result = await runtime.query<ReportRow>(
-        `INSERT INTO api_watch_reports(report_id,run_source,created_at,state,added_count,removed_count,changed_count,unchanged_count,blocking_risk_count,review_required_count,unknown_count,no_policy_impact_count) VALUES($1,$2,$3,'CREATED',0,0,0,0,0,0,0,0) RETURNING report_id AS "reportId",run_source AS "runSource",created_at AS "createdAt",started_at AS "startedAt",completed_at AS "completedAt",state,added_count AS "addedCount",removed_count AS "removedCount",changed_count AS "changedCount",unchanged_count AS "unchangedCount",blocking_risk_count AS "blockingRiskCount",review_required_count AS "reviewRequiredCount",unknown_count AS "unknownCount",no_policy_impact_count AS "noPolicyImpactCount",overall_impact_severity AS "overallImpactSeverity"`,
-        [report.reportId, report.runSource, report.createdAt],
-      );
-      if (!result.rows[0]) throw new Error("REPORT_CREATE_FAILED");
-      return (await readReport(runtime, report.reportId)) ?? report;
+      return runtime.transaction(async (query) => {
+        // INSERT and readback share one transaction: a terminal writer
+        // cannot observe or mutate the not-yet-committed new report.
+        const result = await query.query<ReportRow>(
+          `INSERT INTO api_watch_reports(report_id,run_source,created_at,state,added_count,removed_count,changed_count,unchanged_count,blocking_risk_count,review_required_count,unknown_count,no_policy_impact_count) VALUES($1,$2,$3,'CREATED',0,0,0,0,0,0,0,0) RETURNING report_id AS "reportId",run_source AS "runSource",created_at AS "createdAt",started_at AS "startedAt",completed_at AS "completedAt",state,added_count AS "addedCount",removed_count AS "removedCount",changed_count AS "changedCount",unchanged_count AS "unchangedCount",blocking_risk_count AS "blockingRiskCount",review_required_count AS "reviewRequiredCount",unknown_count AS "unknownCount",no_policy_impact_count AS "noPolicyImpactCount",overall_impact_severity AS "overallImpactSeverity"`,
+          [report.reportId, report.runSource, report.createdAt],
+        );
+        if (!result.rows[0]) throw new Error("REPORT_CREATE_FAILED");
+        return (await readReport(query, report.reportId)) ?? report;
+      });
     },
     async getReport(reportId) {
-      return readReport(runtime, reportId);
+      // One shared row lock protects the header and its source rows from
+      // a concurrent terminal transition's FOR UPDATE and source UPSERT.
+      return runtime.transaction((query) =>
+        readReport(query, reportId, "FOR SHARE"),
+      );
     },
     async transitionReport(input) {
       return runtime.transaction(async (query) => {
         // Serialize transitions of the same report before checking its state.
         // A competing transaction then reads the committed terminal outcome.
-        const current = await readReport(query, input.reportId, true);
+        const current = await readReport(query, input.reportId, "FOR UPDATE");
         if (!current) throw new Error("REPORT_NOT_FOUND");
         const next = transition(current, input);
         const counts = next;
