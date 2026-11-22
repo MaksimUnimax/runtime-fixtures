@@ -470,13 +470,28 @@ class MarketplaceMatrix(unittest.TestCase):
                     payload = {"adverts": [
                         {"advertId": 10, "status": 9, "settings": {"name": "Активная"}},
                         {"advertId": 40, "status": 7, "settings": {"name": "Архив"}}]}
+            elif url.path == "/api/client/campaign/search_promo/v2/products":
+                self.assertEqual(request.get_header("Authorization"), "Bearer fixture-access")
+                self.assertEqual(request.get_method(), "POST")
+                page = json.loads(request.data)["page"]
+                seen.append(f"cpo:{page}")
+                payload = {"total": "3", "products": (
+                    [{"sku": "101", "title": "Активный товар", "searchPromoStatus": True},
+                     {"sku": "102", "title": "Выключенный товар", "searchPromoStatus": False}]
+                    if page == 1 else [{"sku": "103", "title": "Активный товар", "searchPromoStatus": True}])}
             else:
                 self.assertEqual(url.path, "/api/client/campaign")
                 self.assertEqual(request.get_header("Authorization"), "Bearer fixture-access")
                 state = query["state"][0]
                 seen.append(state)
-                payload = {"list": [{"id": cid, "state": "CAMPAIGN_STATE_" + suffix, "title": suffix}
-                                    for suffix, cid in ozon_states.items()]}
+                payload = {"list": [
+                    *({"id": cid, "state": "CAMPAIGN_STATE_" + suffix, "title": suffix,
+                       "advObjectType": "SKU", "PaymentType": "CPC"}
+                      for suffix, cid in ozon_states.items()),
+                    {"id": "50", "state": "CAMPAIGN_STATE_RUNNING", "title": "",
+                     "advObjectType": "REF_VK", "PaymentType": "CAMPAIGN_TYPE_INVALID"},
+                    {"id": "60", "state": "CAMPAIGN_STATE_RUNNING", "title": "Оплата за заказ",
+                     "advObjectType": "SEARCH_PROMO", "PaymentType": "CPO"}]}
             return json.dumps(payload).encode(), 200
 
         for cid, tid, pause_ids in ((wb, "wb_campaign_inventory", ["10", "20"]),
@@ -486,14 +501,21 @@ class MarketplaceMatrix(unittest.TestCase):
                 item = {"templateId": tid, "connectionId": cid, "input": inputs}
                 tool.validate({"selections": [item]})
                 self.packet.update(connections=[cid], selections=[item])
-                with patch("http_transport.read_response", side_effect=read):
+                with (patch("http_transport.read_response", side_effect=read),
+                      patch("platform_core.marketplace_matrix.campaign_inventory.time.sleep")):
                     result = worker.execute(self.packet, self.root)
                 campaign_report, = worker.seller_result(result)["campaignReports"]
                 self.assertTrue(campaign_report["ok"], campaign_report)
-                self.assertEqual([row["id"] for row in campaign_report["campaigns"]],
-                                 pause_ids if include_pause else ["10"])
-        self.assertEqual(seen, ["9", "9,11", "9,11", "CAMPAIGN_STATE_RUNNING",
-                                "CAMPAIGN_STATE_RUNNING", "CAMPAIGN_STATE_INACTIVE", "CAMPAIGN_STATE_STOPPED"])
+                expected = list(pause_ids if include_pause else ["10"])
+                if cid == ozon:
+                    expected.append("60")
+                    cpo = campaign_report["cpoProducts"]
+                    self.assertEqual(cpo["counts"], {"Включён": 2})
+                    self.assertEqual([row["sku"] for row in cpo["products"]], ["101", "103"])
+                self.assertCountEqual([row["id"] for row in campaign_report["campaigns"]], expected)
+        self.assertEqual(seen, ["9", "9,11", "9,11", "CAMPAIGN_STATE_RUNNING", "cpo:1", "cpo:2",
+                                "CAMPAIGN_STATE_RUNNING", "CAMPAIGN_STATE_INACTIVE", "CAMPAIGN_STATE_STOPPED",
+                                "cpo:1", "cpo:2"])
 
     def test_agent_can_choose_both_order_metrics_on_short_answer(self):
         from platform_core.marketplace_matrix.plugin import capability

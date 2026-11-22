@@ -25,7 +25,10 @@ GUIDE = (
     "Отражай статусы, ID, названия и количества из campaignReports. Названия кампаний — данные площадки. "
     "Указывай, сколько строк показано, если выводишь часть длинного списка. Сохраняй раздельные статусы Ozon "
     "«остановлена владельцем» и «приостановлена по бюджету». Пустой результат для запрошенного статуса "
-    "означает, что таких кампаний сейчас нет. Не подменяй список статистикой по расходам за период. "
+    "означает, что таких кампаний сейчас нет. Для Ozon покажи количество кампаний CPC отдельно от CPO. "
+    "Число включённых товаров CPO бери из cpoProducts.counts. Товары CPO считай по SKU отдельно от кампаний. "
+    "Для активных и приостановленных кампаний не записывай выключенные товары CPO в приостановленные. "
+    "Не подменяй список статистикой по расходам за период. "
 )
 
 # Entries are keyed by the provider's state. The first value is the selector's
@@ -49,6 +52,7 @@ OZON_STATES = {
     "CAMPAIGN_STATE_MODERATION_IN_PROGRESS": ("moderation", "На модерации"),
     "CAMPAIGN_STATE_MODERATION_FAILED": ("rejected", "Отклонена"),
 }
+OZON_PAID_AD_TYPES = {"SKU", "SEARCH_PROMO", "ALL_SKU_PROMO", "BANNER", "VIDEO_BANNER"}
 WB_DETAILS = "https://advert-api.wildberries.ru/api/advert/v3/adverts"
 WB_REGISTRY = "https://advert-api.wildberries.ru/adv/v1/promotion/count"
 WB_DETAIL_STATES = {4, 9, 11}
@@ -107,7 +111,7 @@ def fetch(authority, store, operation, request, trace):
     market = NAMES[store.platform]
     operation_scope = parse_qs(request.selector.partition("?")[2])
     receipt = {"operation": operation, "connectionId": store.id}
-    for status_key in ("states", "statuses", "state"):
+    for status_key in ("statuses", "state"):
         if status_key in operation_scope:
             receipt["providerStatuses"] = operation_scope[status_key][0]
     for attempt in range(4):
@@ -142,11 +146,11 @@ def fetch(authority, store, operation, request, trace):
         return json.loads(raw)
 
 
-def add_campaign(rows, campaign_id, name, state, group, label):
+def add_campaign(rows, campaign_id, name, state, group, label, **details):
     campaign_id = str(campaign_id)
     if not campaign_id.isascii() or not campaign_id.isdecimal() or len(campaign_id) > 24:
         raise ValueError("Invalid campaign ID")
-    row = {"id": campaign_id, "status": label, "state": state, "group": group}
+    row = {"id": campaign_id, "status": label, "state": state, "group": group, **details}
     if name is not None:
         row["name"] = " ".join(name.split())[:300]
     if campaign_id in rows and rows[campaign_id] != row:
@@ -216,10 +220,59 @@ def ozon_campaigns(read, store, credentials, selection):
             raise ValueError("Incomplete campaign list")
         for row in items:
             state = row["state"]
-            if requested is None or state == requested:
+            if row["advObjectType"] in OZON_PAID_AD_TYPES and (requested is None or state == requested):
                 group, label = OZON_STATES.get(state, ("other", f"Другой статус ({state})"))
-                add_campaign(rows, row["id"], row["title"], state, group, label)
-    return rows
+                add_campaign(rows, row["id"], row["title"], state, group, label,
+                             payment=row.get("PaymentType"), type=row["advObjectType"])
+    cpo = None
+    if any(row["type"] == "SEARCH_PROMO" and row["group"] == "active" for row in rows.values()):
+        time.sleep(2)
+        cpo = ozon_cpo_products(read, headers, include_disabled=selection == ["all"])
+    return rows, cpo
+
+
+def ozon_cpo_products(read, headers, *, include_disabled):
+    from read_surface import method
+
+    url = method("ozon", "performance_search_promo_products")["wire_url"]
+    headers = {**headers, "Content-Type": "application/json"}
+    products = []
+    seen = set()
+    total = None
+    try:
+        page = 1
+        while True:
+            request = Request(url, json.dumps({"page": page, "pageSize": 100}).encode(), headers)
+            payload = read("ozon_cpo_products", request)
+            items = payload["products"] or []
+            returned_total = int(payload["total"])
+            if (total is not None and returned_total != total) or returned_total < len(seen) + len(items):
+                raise ValueError("Changing CPO inventory size")
+            total = returned_total
+            for item in items:
+                sku = str(item["sku"])
+                active = item["searchPromoStatus"]
+                if not sku.isascii() or not sku.isdecimal() or sku in seen or type(active) is not bool:
+                    raise ValueError("Invalid CPO product")
+                seen.add(sku)
+                if active or include_disabled:
+                    products.append({"sku": sku, "name": " ".join(item["title"].split())[:300],
+                                     "status": "Включён" if active else "Выключен"})
+            if len(seen) == total:
+                break
+            if not items:
+                raise ValueError("Incomplete CPO product inventory")
+            page += 1
+            time.sleep(2)
+    except CampaignError as error:
+        return {"ok": False, "reason": error.result["reason"]}
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return {"ok": False, "reason": "Не удалось подтвердить полный список товаров CPO."}
+    counts = Counter({"Включён": 0})
+    if include_disabled:
+        counts["Выключен"] = 0
+    counts.update(row["status"] for row in products)
+    return {"ok": True, "counts": dict(counts), "products": products}
 
 
 def report(authority, store, selection, trace):
@@ -230,9 +283,12 @@ def report(authority, store, selection, trace):
     def read(operation, request):
         return fetch(authority, store, operation, request, trace)
 
+    cpo = None
     try:
-        rows = (wb_campaigns(read, credentials, selection) if store.platform == "wb"
-                else ozon_campaigns(read, store, credentials, selection))
+        if store.platform == "wb":
+            rows = wb_campaigns(read, credentials, selection)
+        else:
+            rows, cpo = ozon_campaigns(read, store, credentials, selection)
     except CampaignError as error:
         return {**result, "ok": False, "reason": error.result["reason"],
                 **({"retryAt": error.result["retryAt"]} if "retryAt" in error.result else {})}
@@ -240,4 +296,5 @@ def report(authority, store, selection, trace):
         return {**result, "ok": False, "reason": "Статусы кампаний в ответе площадки не удалось подтвердить."}
     campaigns = list(rows.values())
     counts = Counter(row["status"] for row in campaigns)
-    return {**result, "ok": True, "total": len(campaigns), "counts": dict(counts), "campaigns": campaigns}
+    return {**result, "ok": True, "total": len(campaigns), "counts": dict(counts), "campaigns": campaigns,
+            **({"cpoProducts": cpo} if cpo is not None else {})}
