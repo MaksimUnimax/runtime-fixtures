@@ -559,7 +559,7 @@ class MarketplaceMatrix(unittest.TestCase):
         from read_surface import available, method
 
         cards = read_templates.cards()
-        self.assertEqual(len(cards), 471)
+        self.assertEqual(len(cards), 472)
         ready = [card for card in cards.values() if card["state"] == "ready"]
         self.assertTrue(ready)
         for card in ready:
@@ -863,6 +863,66 @@ class MarketplaceMatrix(unittest.TestCase):
             {"id": 11, "name": "Second", "firstFulfillmentWarehouses": [], "fulfillmentWarehouseCount": 0},
             {"id": 12, "name": "Third"},
         ]})
+
+    def test_posting_cancellation_details_only_disclose_the_requested_posting(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        target = "12345678-0001-1"
+        params = {"posting_number": target}
+        read = {"action": "read", "templateId": read_templates.POSTING_CANCELLATION_DETAILS, "params": params}
+        packet = {**self.packet, "connections": [self.ids["ozon"]],
+                  "turn": {**self.turn, "question": f"Причина отмены {target}?"},
+                  "readTemplate": read}
+        unrelated = "87654321-0002-1"
+        cancellation = {"cancel_reason": "Ограничение на продажу", "cancellation_initiator": "Ozon"}
+        def returned(number, status):
+            payload = {"result": {"posting_number": number, "status": status, "cancellation": cancellation,
+                                  "customer": {"name": "Private contact"}, "tracking_number": "Private tracking"}}
+            return json.dumps(payload, ensure_ascii=False).encode(), 200
+        with patch("http_transport.read_response", return_value=returned(target, "cancelled")) as outbound:
+            result = read_templates.execute(packet, self.root)
+            self.assertEqual(outbound.call_args.args[0].full_url, "https://api-seller.ozon.ru/v3/posting/fbs/get")
+            self.assertEqual(json.loads(outbound.call_args.args[0].data), params)
+        self.assertEqual(result["data"], {"posting_number": target, "status": "cancelled",
+                                        "reason":"Ограничение на продажу","initiator":"Ozon"})
+        with patch("http_transport.read_response", return_value=returned(target, "delivering")):
+            self.assertEqual(read_templates.execute(packet, self.root)["data"],
+                             {"posting_number": target, "status": "delivering"})
+        with patch("http_transport.read_response", return_value=returned(unrelated, "cancelled")):
+            denied = read_templates.execute(packet, self.root)
+            self.assertNotIn("data", denied)
+            self.assertEqual(denied["reasonSource"], "template")
+
+    def test_digital_posting_filter_and_confirmed_service_seller_denial(self):
+        from io import BytesIO
+        from urllib.error import HTTPError
+        from platform_core.marketplace_matrix import read_templates
+
+        url = "https://api-seller.ozon.ru/v2/posting/digital/list"
+        params = {"limit": 5, "filter": {"since": "2026-11-16T00:00:00Z", "to": "2026-11-22T23:59:59Z"},
+                  "sort_dir": "ASC"}
+        read = {"action": "read", "templateId": "read.seller.posting_digital_list_v2", "params": params}
+        packet = {**self.packet, "connections": [self.ids["ozon"]],
+                  "turn": {**self.turn, "question":"Первая страница цифровых отправлений"},
+                  "readTemplate": read}
+        with patch("http_transport.read_response") as outbound:
+            missing = {**packet, "readTemplate": {**read, "params": {"limit":5}}}
+            self.assertEqual(read_templates.execute(missing,self.root)["reasonSource"],"template")
+            outbound.assert_not_called()
+        rule = "commonService.PostingDigitalList: rpc error: code = PermissionDenied desc = Method can only be used by a service seller"
+        for message, known in ((rule, True), ("Permission denied", False)):
+            body = json.dumps({"code": 7, "message": message}).encode()
+            with self.subTest(known=known), patch("http_transport.read_response", side_effect=HTTPError(
+                    url, 403, "Denied", {}, BytesIO(body))) as outbound:
+                output = read_templates.execute(packet, self.root)
+            request = outbound.call_args.args[0]
+            self.assertEqual(request.full_url,url)
+            self.assertEqual(json.loads(request.data),params)
+            self.assertEqual(output.get("reasonSource") == "template", known)
+            if known:
+                self.assertIn("только продавцам услуг",output["reason"])
+            else:
+                self.assertTrue(output["requiresTestReview"])
 
     def test_rfbs_return_points_explain_only_confirmed_missing_key_role(self):
         from io import BytesIO

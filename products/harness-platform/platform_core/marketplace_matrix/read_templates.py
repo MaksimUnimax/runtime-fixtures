@@ -46,6 +46,7 @@ PERFORMANCE_REPORT_STATUSES = {
     "performance_vendor_statistics_status": "vendor",
 }
 REPORT_UUID = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", re.IGNORECASE)
+POSTING_CANCELLATION_DETAILS = "read.seller.posting_fbs_cancellation_details"
 WB_ACQUIRING_LIST = "read.wb.finance_acquiring_reports"
 WB_ACQUIRING_DETAIL = "read.wb.finance_acquiring_detail_report"
 WB_ACQUIRING_REPORT_PREFIX = "wb-acquiring-report:"
@@ -225,6 +226,25 @@ def _result_sample(value, row_limits, time_zones=None):
 
     data = sample(value)
     return data, dict(omitted), coverage
+
+
+def posting_cancellation_details(data, posting_number):
+    from engine import CallError
+
+    posting = data.get("result") if isinstance(data, dict) else None
+    if (not isinstance(posting, dict) or posting.get("posting_number") != posting_number
+            or not isinstance(posting.get("status"), str)):
+        raise CallError("POSTING_CANCELLATION_RESPONSE", status=200)
+    result = {"posting_number": posting_number, "status": posting["status"]}
+    cancellation = posting.get("cancellation")
+    if posting["status"] == "cancelled" and isinstance(cancellation, dict):
+        reason = cancellation.get("cancel_reason")
+        if isinstance(reason, str) and reason.strip():
+            result["reason"] = reason
+        initiator = cancellation.get("cancellation_initiator")
+        if isinstance(initiator, str) and initiator.casefold() in {"ozon", "seller", "client", "customer"}:
+            result["initiator"] = initiator
+    return result
 
 
 def fulfillment_clusters(data):
@@ -460,6 +480,8 @@ def _read_store(authority, store, card, params, directory, selected_proofs, turn
     authority.check()
     if data is None and str(receipt["status"]) in card.get("emptyResponses", {}):
         data = card["emptyResponses"][str(receipt["status"])]
+    if card["id"] == POSTING_CANCELLATION_DETAILS:
+        data = posting_cancellation_details(data, params["posting_number"])
     payload, omitted, coverage = _result_sample(data, card.get("sampleRows", {}), card.get("responseTimeZones"))
     result = {"ok": True, "data": payload, "omitted": omitted, "http": receipt["status"],
               "providerMilliseconds": receipt["elapsed_ms"]}
