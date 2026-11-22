@@ -1,6 +1,7 @@
 """Build the standalone source package from the pinned matrix and chat renderer releases."""
 import argparse
 import ast
+from copy import deepcopy
 import gzip
 import hashlib
 import io
@@ -65,6 +66,14 @@ def bind_provider_retry(files):
         "            from platform_core.marketplace_matrix.store_currency import retry_time\n"
         "            retry_at=retry_time(exc.headers,time.time(),store is not None and store['platform']=='wb')\n"
         + end + right).encode()
+
+
+def bind_ozon_retry(files):
+    patch_runtime(files, "request_recovery.py", "    if error.status == 429:\n",
+        "    if error.status == 429 and getattr(error, 'ozon_retry', None) is not None:\n"
+        "        from platform_core.marketplace_matrix.ozon_retry import retry_due as ozon_due\n"
+        "        return ozon_due(repo, row, request, error)\n"
+        "    if error.status == 429:\n")
 
 
 def bind_table_contracts(portable, planner_proofs, files):
@@ -144,11 +153,255 @@ def bind_wb_advertising_coverage(files, portable):
             proof["dataset_query_hash"] = digest({"queries": queries, "sources": sources})
 
 
+def bind_wb_advertising_statuses(files, portable):
+    """Keep current campaign status separate from statistics over a period."""
+    sources = json.loads(files["dataset_sources.json"])
+    queries = json.loads(files["dataset_queries.json"])
+    templates = json.loads(files["template_catalog.json"])
+    previous_source = digest(sources)
+    previous_query = digest({"queries": queries, "sources": sources})
+
+    inventory = sources["sources"]["ds_wb_campaigns"]["response"]
+    raw_campaign = inventory["items"]["$fn"][1]["$map"][2]["$map"][2]
+    raw_campaign["changed_at"] = {"$path": ["ad", "changeTime"], "default": None}
+    inventory["map"]["changed_at"] = {"$path": ["row", "changed_at"]}
+    status = {"$path": ["row", "status"]}
+    label = "другой статус"
+    for code, text in ((4, "готова к запуску"), (7, "завершена"), (9, "активна"), (11, "на паузе")):
+        label = {"$if": [{"$fn": ["eq", status, code]}, text, label]}
+    inventory["map"]["status_label"] = label
+
+    active_note = "В этот отчёт входят только кампании со статусом 9 на момент запроса WB. Кампании на паузе, завершённые и готовые к запуску учитываются отдельно."
+    supported_note = "Статус кампании относится к моменту запроса, показатели относятся к запрошенному периоду. Различай активные, приостановленные и завершённые кампании."
+    coverage_note = "Если WB не вернул строку за период, соответствующие метрики остаются неизвестными. Нулевые значения допускаются только по полученным строкам."
+    for key in ("wb_active_ads", "wb_active_ads_totals", "wb_supported_ads"):
+        query = queries["queries"][key]
+        template = templates["templates"][key]
+        stage = next(s for s in query["flows"]["wb"] if s["source"] == "ds_wb_adstats")
+        if key in ("wb_active_ads", "wb_active_ads_totals"):
+            predicate = stage["foreach"]["$map"][0]["$fn"][1]["$map"][0]["$filter"][2]["$fn"]
+            if predicate[-1] != [9, 11]:
+                raise ValueError("Review the active WB campaign selection")
+            predicate[-1] = [9]
+            template["notes"][0] = query["notes"][0] = active_note
+        else:
+            query["columns"].insert(1, {"field": "status_at_request", "label": "статус на момент запроса", "kind": "text"})
+            query["relations"] = [{
+                "id": "classified", "label": "текущий статус кампании",
+                "left": "rows", "right": ["campaigns"], "on": [["key", "key"]],
+                "parent_keys": [], "left_where": True, "capacity": None, "preserve": ["spend", "views", "clicks", "orders"],
+                "fields": {"status_at_request": {"source": "status_label", "unknown": "неизвестно", "unknown_values": []}},
+                "coverage_field": "status_match", "missing": "reject",
+            }]
+            query["output_stage"] = "classified"
+            template["columns"] = deepcopy(query["columns"])
+            template["relations"] = deepcopy(query["relations"])
+            template["output_stage"] = query["output_stage"]
+            template["notes"][0] = query["notes"][0] = supported_note
+        template["notes"][1] = query["notes"][1] = coverage_note
+        step = next(s for s in template["steps"] if s["operation"] == "ds_wb_adstats")
+        step["params"] = deepcopy(stage["foreach"])
+
+    source_hash = digest(sources)
+    query_hash = digest({"queries": queries, "sources": sources})
+    for name, proof in portable.items():
+        if name not in sources["sources"] or proof.get("dataset_source_hash") != previous_source:
+            continue
+        proof["dataset_source_hash"] = source_hash
+        if proof.get("dataset_query_hash") == previous_query:
+            proof["dataset_query_hash"] = query_hash
+    for name, value in (("dataset_sources.json", sources), ("dataset_queries.json", queries),
+                        ("template_catalog.json", templates)):
+        files[name] = json.dumps(value, ensure_ascii=False, indent=2).encode() + b"\n"
+
+
 def patch_runtime(files, filename, old, new):
     source = files[filename].decode()
     if source.count(old) != 1:
         raise ValueError(f"Review the chat integration point in {filename}")
     files[filename] = source.replace(old, new).encode()
+
+
+def bind_ozon_packaging_cost(files):
+    """Put materials and packing services on independent reconciled expense lines."""
+    articles = {"packaging": (38, "Материалы для упаковки"), "packing_service": (39, "Услуга упаковки")}
+    other_path = "parameter_support/economics_other_catalog.json"
+    other = json.loads(files[other_path])
+    other["approved_packaging_types"] = {name: type_id for name, (type_id, _) in articles.items()}
+    files[other_path] = json.dumps(other, ensure_ascii=False, indent=2).encode() + b"\n"
+
+    source = "parameter_support/economics_other.py"
+    patch_runtime(files, source,
+        "KNOWN=OTHER|set(CATALOG['excluded_delivery_types'])",
+        "PACKAGING=CATALOG['approved_packaging_types']\n"
+        "APPROVED=OTHER|set(PACKAGING.values())\n"
+        "KNOWN=APPROVED|set(CATALOG['excluded_delivery_types'])")
+    patch_runtime(files, source, "if kind in OTHER:selected.append(", "if kind in APPROVED:selected.append(")
+    patch_runtime(files, source, "for entry in entries if entry['type_id']in OTHER)",
+        "for entry in entries if entry['type_id']in APPROVED)")
+    patch_runtime(files, source, "    inputs=_inputs(rows,selected)",
+        "    inputs=_inputs(rows,[entry for entry in selected if entry['type_id']in OTHER])\n"
+        "    for article,type_id in PACKAGING.items():\n"
+        "        charges=_inputs(rows,[entry for entry in selected if entry['type_id']==type_id])\n"
+        "        for key,line in inputs.items():\n"
+        "            line[article]=charges[key]")
+
+    cohort_path = "parameter_support/economics_cohort_catalog.json"
+    cohort = json.loads(files[cohort_path])
+    for name, (type_id, _) in articles.items():
+        cohort["fee_groups"][name] = {**cohort["fee_groups"]["other"], "types": [type_id]}
+        cohort["posting_allocations"][name] = cohort["posting_allocations"]["other"]
+        cohort["line_inputs"][name] = {**deepcopy(cohort["line_inputs"]["other"]), "fee_group": name}
+        cohort["row_outputs"][name] = {"input": name}
+        cohort["report_outputs"]["all_selected_costs"] = {"add": [
+            cohort["report_outputs"]["all_selected_costs"], {"input": name}]}
+    after_other = cohort["money_outputs"].index("other") + 1
+    cohort["money_outputs"][after_other:after_other] = list(articles)
+    files[cohort_path] = json.dumps(cohort, ensure_ascii=False, indent=2).encode() + b"\n"
+    patch_runtime(files, "parameter_support/economics_cohort.py",
+        "                if group=='other'and other_inputs is not None:\n"
+        "                    observed=other_inputs[c.CANON(k)]",
+        f"                if group in {('other', *articles)!r} and other_inputs is not None:\n"
+        "                    observed=other_inputs[c.CANON(k)]\n"
+        "                    if group!='other':observed=observed[group]")
+
+    for path, key in (("template_catalog.json", "templates"),
+                      ("parameter_support/parameter_report_catalog.json", "reports")):
+        catalog = json.loads(files[path])
+        report = catalog[key]["economics.unit_forecast.v1"]
+        after_other = report["metrics"].index("other") + 1
+        report["metrics"][after_other:after_other] = list(articles)
+        notes = report["notes"]
+        notes[0] = notes[0].replace("все девять групп расходов", "все статьи расходов")
+        notes.append("Материалы для упаковки и услуга упаковки Ozon — отдельные фактические статьи в обоих сценариях. "
+                     "Сохраняй знак корректировок. Коэффициент потерь на эти расходы не влияет, прочие расходы их не включают.")
+        files[path] = json.dumps(catalog, ensure_ascii=False, indent=2).encode() + b"\n"
+    labels = "".join(f"{name!r}: {label!r}, " for name, (_, label) in articles.items())
+    patch_runtime(files, "direct_response.py",
+        "            'cogs': 'Себестоимость',",
+        f"            {labels}'cogs': 'Себестоимость',")
+    patch_runtime(files, "chat_response.py",
+        "    labels = {'revenue': 'Выручка', 'all_selected_costs': 'Выбранные расходы',",
+        f"    labels = {{'revenue': 'Выручка', {labels.rstrip()}\n"
+        "              'all_selected_costs': 'Выбранные расходы',")
+
+
+def bind_unclassified_ozon_fee_diagnostics(files):
+    source = "parameter_support/economics_other.py"
+    patch_runtime(files, source, "def _entry(entry,posting,received):\n",
+        "def _require_known_fee(kind):\n"
+        "    if kind not in KNOWN:\n"
+        "        from platform_core.marketplace_matrix.worker import log_failure\n"
+        "        log_failure('ozon_accrual_type', str(kind))\n"
+        "        raise OtherError('OTHER_UNCLASSIFIED_FEE')\n\n\n"
+        "def _entry(entry,posting,received):\n")
+    patch_runtime(files, source, "    need(kind in KNOWN,'OTHER_UNCLASSIFIED_FEE')\n    day,",
+        "    _require_known_fee(kind)\n    day,")
+    patch_runtime(files, source, "        need(kind in KNOWN,'OTHER_UNCLASSIFIED_FEE')\n        entry=",
+        "        _require_known_fee(kind)\n        entry=")
+
+
+def bind_ozon_tariff_page_totals(files):
+    """Accept Seller API's replacement field without weakening completeness checks."""
+    normalizer = "parameter_support/economics_tariffs.py"
+    patch_runtime(files, normalizer, "def normalize(price_pages,product_pages,target,*,verify,encode):\n",
+        "def price_page_total(data):\n"
+        "    required = {'items', 'cursor'}\n"
+        "    count_fields = {'total', 'total_items'}\n"
+        "    need(type(data) is dict and required <= data.keys() <= required | count_fields\n"
+        "         and type(data['items']) is list and type(data['cursor']) is str, 'TARIFF_RESPONSE_SCHEMA')\n"
+        "    totals = [data[name] for name in count_fields if name in data]\n"
+        "    need(totals and all(type(value) is int and value >= 0 for value in totals), 'TARIFF_RESPONSE_SCHEMA')\n"
+        "    need(len(set(totals)) == 1, 'TARIFF_TOTAL_CHANGED')\n"
+        "    return totals[0]\n\n\n"
+        "def normalize(price_pages,product_pages,target,*,verify,encode):\n")
+    patch_runtime(files, normalizer,
+        "  need(type(data)is dict and {'items','cursor','total'}<=set(data)<={'items','cursor','total','total_items'}\n"
+        "      and type(data['items'])is list and type(data['cursor'])is str and type(data['total'])is int and data['total']>=0,'TARIFF_RESPONSE_SCHEMA')\n"
+        "  if total is None:total=data['total']\n"
+        "  need(data['total']==total and data.get('total_items',total)==total,'TARIFF_TOTAL_CHANGED')\n",
+        "  page_total = price_page_total(data)\n"
+        "  if total is None:total=page_total\n"
+        "  need(page_total==total,'TARIFF_TOTAL_CHANGED')\n")
+    patch_runtime(files, "tariff_source_runtime.py",
+        "                need({'items','cursor','total'}<=set(answer)<={'items','cursor','total','total_items'}and type(answer['items'])is list\n"
+        "                    and type(answer['cursor'])is str and type(answer['total'])is int and answer['total']>=0,'TARIFF_RESPONSE_SCHEMA')\n"
+        "                need(answer.get('total_items',answer['total'])==answer['total'],'TARIFF_TOTAL_CHANGED')\n"
+        "                if state['total']is None:state['total']=answer['total']\n"
+        "                need(state['total']==answer['total'],'TARIFF_TOTAL_CHANGED')\n",
+        "                page_total=source.price_page_total(answer)\n"
+        "                if state['total']is None:state['total']=page_total\n"
+        "                need(state['total']==page_total,'TARIFF_TOTAL_CHANGED')\n")
+
+
+def bind_ozon_cohort_tariffs(files):
+    normalizer = "parameter_support/economics_tariffs.py"
+    patch_runtime(files, normalizer,
+        "  else:need(not next_cursor,'TARIFF_SOURCE_INCOMPLETE')\n",
+        "  else:need(not next_cursor or 'product_id' in filters,'TARIFF_SOURCE_INCOMPLETE')\n")
+    patch_runtime(files, normalizer,
+        " need(len(prices)==total,'TARIFF_TOTAL_INCOMPLETE')\n",
+        " need(len(prices)==total,'TARIFF_TOTAL_INCOMPLETE')\n"
+        " if 'product_id' in filters:\n"
+        "  need(set(prices)=={identifier(pid) for pid in filters['product_id']},'TARIFF_QUOTE_OR_SKU_MISSING')\n")
+    patch_runtime(files, normalizer,
+        "  need(type(request)is dict and set(request)=={'product_id'}and type(request['product_id'])is list and request['product_id'],'TARIFF_PRODUCT_REQUEST')\n"
+        "  ids=[identifier(v)for v in request['product_id']];need(len(ids)==len(set(ids)),'TARIFF_PRODUCT_REQUEST')",
+        "  need(type(request)is dict and set(request) in ({'product_id'},{'sku'}),'TARIFF_PRODUCT_REQUEST')\n"
+        "  key = next(iter(request))\n"
+        "  need(type(request[key]) is list and request[key],'TARIFF_PRODUCT_REQUEST')\n"
+        "  ids=[identifier(v)for v in request[key]];need(len(ids)==len(set(ids)),'TARIFF_PRODUCT_REQUEST')")
+    patch_runtime(files, normalizer,
+        "   need(pid in ids and pid not in returned and pid not in products,'TARIFF_MAPPING_CONFLICT')\n"
+        "   returned.add(pid);products[pid]=sku",
+        "   requested = sku if key=='sku' else pid\n"
+        "   need(requested in ids and requested not in returned and pid not in products,'TARIFF_MAPPING_CONFLICT')\n"
+        "   returned.add(requested);products[pid]=sku")
+
+    runtime = "tariff_source_runtime.py"
+    patch_runtime(files, runtime,
+        "from datetime import datetime, timezone\n",
+        "from platform_core.marketplace_matrix import tariff_cohort\n")
+    patch_runtime(files, runtime, "from parameter_source_runtime import _token\nfrom period_cost_source_runtime import _transport_body\n", "")
+    patch_runtime(files, runtime, "import base64, json, secrets", "import base64, secrets")
+    patch_runtime(files, runtime,
+        "# These are the documented per-request capacities, not total report quotas.\n"
+        "PRICE_LIMIT=1000\nPRODUCT_LIMIT=1000\nFILTER={'visibility':'ALL'}\n", "")
+    patch_runtime(files, runtime,
+        "    'wire_encoder':sha256(Path(__import__('period_cost_source_runtime').__file__).read_bytes()).hexdigest(),\n"
+        "    'limits':[PRICE_LIMIT,PRODUCT_LIMIT],'filter':FILTER})",
+        "    'wire_encoder':sha256(Path(__import__('period_cost_source_runtime').__file__).read_bytes()).hexdigest(),\n"
+        "    'cohort_source':sha256(Path(tariff_cohort.__file__).read_bytes()).hexdigest()})")
+    patch_runtime(files, runtime,
+        "        need(type(state)is dict and set(state)=={'phase','cursor','seen_cursors','total','product_ids','mapped',\n"
+        "            'price_pages','product_pages','receipts'},'TARIFF_PROGRESS_INTEGRITY')\n"
+        "        need(state['phase']in('prices','products','ready'),'TARIFF_PROGRESS_INTEGRITY')",
+        "        need(tariff_cohort.open_state(state),'TARIFF_PROGRESS_INTEGRITY')")
+    content = files[runtime].decode()
+    head, controller = content.split("def _request(store,state):\n")
+    _, verifier = controller.split("def _verifier(")
+    verifier, _ = verifier.split("def _normalize(")
+    files[runtime] = (head + "def _verifier(" + verifier
+                      + "from platform_core.marketplace_matrix.tariff_cohort import restore, step\n").encode()
+
+    report = "economics_report_runtime.py"
+    patch_runtime(files, report,
+        "        'tariff_prices':('product_prices_bulk','read_surface',{'visibility':'ALL','pagination':'complete'}),\n"
+        "        'tariff_skus':('seller_product_info_list','read_surface',{'product_id':'verified_price_products'}),",
+        "        'tariff_prices':('product_prices_bulk','read_surface',"
+        "{'visibility':'ALL','pagination':'complete','product_id':'verified_order_products'}),\n"
+        "        'tariff_skus':('seller_product_info_list','read_surface',{'sku':'verified_order_skus'}),")
+    for method in ("step", "restore"):
+        call = f"tariff_source.{method}(worker,row,root,sources['tariffs'],state['tariffs'],authorize=authorize"
+        patch_runtime(files, report, call, call.replace("authorize=", "orders=orders.data['rows'],authorize="))
+    for filename, key, steps_key in (("template_catalog.json", "templates", "steps"),
+                                     ("parameter_support/parameter_report_catalog.json", "reports", "source_steps")):
+        catalog = json.loads(files[filename])
+        steps = catalog[key]["economics.unit_forecast.v1"][steps_key]
+        by_name = {step["id"]: step for step in steps}
+        by_name["tariff_prices"]["params"]["product_id"] = "verified_order_products"
+        by_name["tariff_skus"]["params"] = {"sku": "verified_order_skus"}
+        files[filename] = json.dumps(catalog, ensure_ascii=False, indent=2).encode() + b"\n"
 
 
 def bind_report_previews(files):
@@ -408,14 +661,20 @@ def collect(core, renderer, config):
     bind_table_contracts(portable, config.get("table_capabilities", {}), files)
     bind_dataset_contracts(portable, config.get("dataset_capabilities", {}), files)
     bind_wb_advertising_coverage(files, portable)
+    bind_wb_advertising_statuses(files, portable)
     group_table_requests(files)
     bind_node_runtime(files)
     bind_provider_retry(files)
+    bind_ozon_retry(files)
     bind_report_previews(files)
     bind_ozon_posting_money(files)
     bind_read_builder_cache(files)
     bind_coefficient_guidance(files)
     bind_ozon_coefficient_items(files)
+    bind_ozon_packaging_cost(files)
+    bind_unclassified_ozon_fee_diagnostics(files)
+    bind_ozon_tariff_page_totals(files)
+    bind_ozon_cohort_tariffs(files)
     files["source_qualifications.json"] = json.dumps(portable, sort_keys=True).encode()
     # Both discovery and selection compilation call the same catalogue hook.
     target = b"def _availability(engine,t,store):\n"
@@ -435,18 +694,22 @@ def collect(core, renderer, config):
     return files
 
 
+def write_bundle(path, data):
+    with path.open("wb") as out, gzip.GzipFile(filename="", fileobj=out, mode="wb", mtime=0) as gz:
+        with tarfile.open(fileobj=gz, mode="w") as archive:
+            for name, body in sorted(data.items()):
+                entry = tarfile.TarInfo(name)
+                entry.size, entry.mode = len(body), 0o644
+                archive.addfile(entry, io.BytesIO(body))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("core", "renderer", "config", "output"):
         parser.add_argument(name, type=Path)
     args = parser.parse_args()
     data = collect(args.core, args.renderer, json.loads(args.config.read_bytes()))
-    with args.output.open("wb") as out, gzip.GzipFile(filename="", fileobj=out, mode="wb", mtime=0) as gz:
-        with tarfile.open(fileobj=gz, mode="w") as archive:
-            for name, body in sorted(data.items()):
-                entry = tarfile.TarInfo(name)
-                entry.size, entry.mode = len(body), 0o644
-                archive.addfile(entry, io.BytesIO(body))
+    write_bundle(args.output, data)
     print(len(data), "source and catalogue files")
 
 

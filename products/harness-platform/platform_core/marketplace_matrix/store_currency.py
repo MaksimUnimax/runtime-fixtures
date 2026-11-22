@@ -77,6 +77,8 @@ def profile_currency(authority, store):
     from http_transport import MATRICES, read_response
     from request_recovery import RATE_LIMIT_RETRY_SECONDS
 
+    from . import ozon_retry
+    previous = None
     market = "Wildberries" if store.platform == "wb" else "Ozon"
     prefix = store.platform.upper() + "_SELLER_PROFILE_"
     while True:
@@ -87,19 +89,31 @@ def profile_currency(authority, store):
         else:
             req = Request(PROFILE_URL, b"{}", headers={"Content-Type": "application/json",
                           "Client-Id": credentials["seller_client_id"], "Api-Key": credentials["seller_api_key"]})
+        def dispatch():
+            authority.check()
+            if previous and authority.resume_rate_limits:
+                authority.ozon_notice(ozon_retry.SENDING_NOTICE)
         try:
             body, _ = read_response(req, timeout=min(10, max(.01, authority.deadline-time.time())),
-                                    limit=256_000, on_dispatch=authority.check)
+                                    limit=256_000, on_dispatch=dispatch)
         except HTTPError as error:
             if error.code != 429:
                 suffix = "ACCESS" if store.platform == "wb" and error.code in (401, 403) else "HTTP"
                 raise ProfileError({"ok": False, "code": prefix + suffix,
                     "reason": f"{market} вернул HTTP {error.code} при чтении валюты кабинета."}) from None
             now = time.time()
-            due = now + RATE_LIMIT_RETRY_SECONDS
-            due = max(due, retry_time(error.headers, now, store.platform == "wb") or 0)
+            indicated = retry_time(error.headers, now, store.platform == "wb")
+            error.close()
+            if store.platform == "ozon":
+                previous = ozon_retry.plan(indicated, now)
+                due = previous.due
+                if authority.resume_rate_limits:
+                    authority.ozon_notice(previous.waiting())
+            else:
+                due = max(now + RATE_LIMIT_RETRY_SECONDS, indicated or 0)
             if authority.resume_rate_limits:
-                authority.wait_for_provider(due)
+                if due > time.time():
+                    authority.wait_for_provider(due)
             elif due >= authority.deadline:
                 raise ProfileError(wait_result(due, "HTTP_429")) from None
             else:
@@ -109,6 +123,8 @@ def profile_currency(authority, store):
             raise ProfileError({"ok": False, "code": prefix + "UNAVAILABLE",
                                 "reason": f"Не удалось проверить валюту кабинета {market}."}) from None
         authority.check()
+        if previous and authority.resume_rate_limits:
+            authority.ozon_notice(ozon_retry.RECEIVED_NOTICE)
         try:
             payload = json.loads(body)
             code = payload["currency"] if store.platform == "wb" else payload["company"]["currency"]

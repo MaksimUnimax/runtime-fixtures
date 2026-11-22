@@ -18,6 +18,7 @@ from ..chat_connections import attach, scope_for
 from ..identity import AuthenticationError, _principal, _secret_digest
 from .store import adapter, now, values, valid_sku, write_value
 from . import illustrations, model
+from ..marketplace_matrix import ozon_retry, store_currency
 from ..marketplace_matrix import wb_coefficients as wb
 from .registry import CATALOG, CATEGORIES, WB, OZON, attached, store_row
 
@@ -105,16 +106,26 @@ class Service:
             with identity._write() as db:
                 db.execute("UPDATE user_plugin_jobs SET state=?,message=? WHERE id=?",(status,message,jid))
         async def read(source,body):
+            retry = None
             while True:
                 guard()
                 provider,version,fields=self.state.integrations.open(token,cid)
                 if provider!=plugin.provider or version!=original[0]:
                     raise HTTPException(409,"Подключение изменилось.")
-                resp=await self.state.http.post(platform.sources()[source],headers=platform.headers(fields),json=body,timeout=55)
+                url = platform.sources()[source]
+                if retry:
+                    progress(ozon_retry.SENDING_NOTICE)
+                resp=await self.state.http.post(url,headers=platform.headers(fields),json=body,timeout=55)
                 if resp.status_code!=429:
                     break
-                delay=retry_delay(resp.headers)
-                progress(plugin.title+" ограничил частоту запросов. Продолжим автоматически.")
+                if plugin == OZON:
+                    now_s = time.time()
+                    retry = ozon_retry.plan(store_currency.retry_time(resp.headers, now_s), now_s)
+                    progress(retry.waiting())
+                    delay = retry.due - now_s
+                else:
+                    delay=retry_delay(resp.headers)
+                    progress(plugin.title+" ограничил частоту запросов. Продолжим автоматически.")
                 until=time.monotonic()+delay
                 while (remaining:=until-time.monotonic())>0:
                     await asyncio.sleep(min(remaining,15))

@@ -14,10 +14,10 @@ from zoneinfo import ZoneInfo
 
 
 from .authority import ChatAuthority
-from . import advertising, forecast_preview, store_currency
+from . import advertising, campaign_inventory, forecast_preview, ozon_retry, store_currency
 
 BUNDLE = Path(__file__).with_name("runtime.tar.gz")
-BUNDLE_SHA256 = "224ba8ece8d507bc8b2b998c47fe7109cba363e76792ade0e09c845e67458336"
+BUNDLE_SHA256 = "b9cb1daec21a7edcf4c6270324d6f9bbac94302b04f07139b2fae68db3fefd5d"
 
 
 def log_failure(operation, code, retry_at=None):
@@ -99,7 +99,9 @@ def catalogue(profiles):
     fields = {key: set(names) for key, _, names in profiles}
     engine = SimpleNamespace()
     configure_catalogue(engine, fields)
-    return [row for row in discovery(engine, Scope("", "", stores)) if row["available_stores"]]
+    return [row for row in discovery(engine, Scope("", "", stores))
+            if row["available_stores"] and row["id"] not in campaign_inventory.TEMPLATES
+            ] + list(campaign_inventory.catalogue(profiles))
 
 
 def formula_inputs(plan, completed, names):
@@ -174,22 +176,49 @@ def execute(packet, directory):
     fields = {cid: authority.field_names(store) for cid, store in allowed.items()}
     proofs = configure_catalogue(engine, fields, authority)
     calls = []
+    inventories = []
     for index, item in enumerate(packet["selections"], 1):
         tid, cid = item["templateId"], item["connectionId"]
+        if tid in campaign_inventory.TEMPLATES:
+            platform = campaign_inventory.TEMPLATES[tid]
+            store = allowed.get(cid)
+            if not store or store.platform != platform or not campaign_inventory.FIELDS[platform] <= fields[cid]:
+                raise Rejected("SOURCE_ACCESS")
+            inventories.append((tid, store, campaign_inventory.scope_for(platform, item["input"])))
+            continue
         if tid not in TEMPLATES or cid not in allowed or not _availability(engine, TEMPLATES[tid], allowed[cid]):
             raise Rejected("SOURCE_ACCESS")
-        if item["input"].get("parameter_mode", "preview") != "preview":
+        inputs = item["input"]
+        if inputs.get("parameter_mode", "preview") != "preview":
             raise Rejected("PERMISSION_DENIED")
-        if item["input"].get("owner_inputs") and tid != "economics.unit_forecast.v1":
+        if inputs.get("owner_inputs") and tid != "economics.unit_forecast.v1":
             raise Rejected("ECONOMICS_OWNER_INPUT")
-        owner_inputs = item["input"].get("owner_inputs", {})
+        owner_inputs = inputs.get("owner_inputs", {})
         if tid == "economics.unit_forecast.v1" and not {"unit_cost", "unit_cost_by_sku"} & owner_inputs.keys():
             return {"ok": True, "clarification": "Укажите себестоимость в рублях по SKU или общую для всех товаров."}
-        calls.append({"id": str(index), "template_id": tid, "store_id": cid, "input": item["input"]})
+        if TEMPLATES[tid].get("parameter_report"):
+            inputs = dict(inputs)
+            inputs.pop("parameter_mode", None)
+            # A projection is compiled separately for each selected store.
+            if inputs.get("group_by") == "total":
+                inputs["group_by"] = "marketplace"
+        calls.append({"id": str(index), "template_id": tid, "store_id": cid, "input": inputs})
+    campaign_trace = {"templates": [{"id": tid, "connectionId": store.id, "statuses": selection}
+                                    for tid, store, selection in inventories],
+                      "operations": [], "rateLimitResponses": 0}
+    campaign_reports = [campaign_inventory.report(authority, store, selection, campaign_trace)
+                        for _, store, selection in inventories]
+    if not calls:
+        authority.check()
+        return {"ok": True, "campaignReports": campaign_reports,
+                "trace": {"selectionBy": "chat_agent", **campaign_trace}}
     try:
         store_currency.resolve(authority, calls, allowed, fields)
     except store_currency.ProfileError as error:
         log_failure("store_currency", error.result["code"], error.result.get("retryAt"))
+        if campaign_reports:
+            return {"ok": True, "campaignReports": campaign_reports, "reportFailure": error.result["reason"],
+                    "trace": {"selectionBy": "chat_agent", **campaign_trace}}
         return error.result
     engine.chat_template_selection = {
         "action": "plan", "complete": True, "missing": [], "invocations": calls,
@@ -200,12 +229,12 @@ def execute(packet, directory):
     engine.program_answers = False
     model_answer.step = answer_step  # Only in this request's private child interpreter.
     operations = []
-    campaign_coverage = {}
     report_pending = False
     long_report = any(TEMPLATES[call["template_id"]]["kind"] == "parameter"
                       or TEMPLATES[call["template_id"]].get("parameter_report") for call in calls)
 
-    rate_limits = []
+    rate_limits = 0
+    ozon_retries = set()
 
     class ChatTransport(HTTPTransport):
         def _read_request(self, request, store):
@@ -223,12 +252,19 @@ def execute(packet, directory):
             return super()._scoped_qualification(matrix, request, store)
 
         def execute(self, request, store, *, on_dispatch=None):
-            nonlocal report_pending
+            nonlocal report_pending, rate_limits
             report_pending = False
             if store is None:
                 raise CallError("MARKETPLACE_OPERATION_REQUIRED")
             context = copy_context()
-            guard_dispatch = (lambda: context.run(on_dispatch)) if on_dispatch else None
+            retry_key = (request.source, request.operation, fingerprint(request.body))
+            is_retry = retry_key in ozon_retries
+
+            def guard_dispatch():
+                result = context.run(on_dispatch) if on_dispatch else authority.check()
+                if is_retry and authority.resume_rate_limits:
+                    authority.ozon_notice(ozon_retry.SENDING_NOTICE)
+                return result
             try:
                 answer = super().execute(request, store, on_dispatch=guard_dispatch)
                 if request.operation == "ds_wb_adstats" and answer[0] is None and answer[1]["status"] == 200:
@@ -242,10 +278,19 @@ def execute(packet, directory):
                 if request.operation in ("ds_wb_campaigns", "ds_wb_adstats") and error.status in (401, 403):
                     raise CallError("WB_ADVERTISING_ACCESS", status=error.status) from None
                 if error.status == 429:
-                    rate_limits.append(request.operation)
+                    rate_limits += 1
+                    if store["platform"] == "ozon":
+                        retry = ozon_retry.plan(error.retry_at, time.time())
+                        error.ozon_retry = retry
+                        ozon_retries.add(retry_key)
+                        from request_recovery import repeat_safe
+                        if authority.resume_rate_limits and repeat_safe(request):
+                            authority.ozon_notice(retry.waiting())
                 raise
-            if request.operation == "ds_wb_adstats":
-                advertising.record_campaign_coverage(campaign_coverage, request, store, answer[0])
+            if is_retry:
+                ozon_retries.remove(retry_key)
+                if authority.resume_rate_limits:
+                    authority.ozon_notice(ozon_retry.RECEIVED_NOTICE)
             if request.operation == "read.ozon.report_info" and isinstance(answer[0], dict):
                 report_pending = answer[0].get("result", {}).get("status") in ("waiting", "processing")
             if authority.resume_rate_limits and (request.operation == "ds_wb_adstats"
@@ -309,8 +354,10 @@ def execute(packet, directory):
         if field_map:
             receipt["metricFields"] = field_map
     trace = {"selectionBy": "chat_agent", "catalogHash": HASH, "catalogSize": len(TEMPLATES),
-             "templates": [{"id": item["template_id"], "connectionId": item["store_id"]} for item in selected],
-             "operations": operations, "rateLimitResponses": len(rate_limits)}
+             "templates": campaign_trace["templates"] + [
+                 {"id": item["template_id"], "connectionId": item["store_id"]} for item in selected],
+             "operations": campaign_trace["operations"] + operations,
+             "rateLimitResponses": campaign_trace["rateLimitResponses"] + rate_limits}
     if row["state"] != "READY":
         code = row.get("error") or row["state"]
         reason = explain(code)["text"]
@@ -318,16 +365,20 @@ def execute(packet, directory):
             reason = "Код валюты в финансовых данных не совпал с подтверждённой валютой магазина."
         elif code == "ACCRUAL_PRODUCT_MONEY":
             reason = "Денежные поля товарной строки начислений Ozon не прошли проверку суммы или валюты."
+        if campaign_reports:
+            return {"ok": True, "campaignReports": campaign_reports, "reportFailure": reason, "trace": trace}
         return {"ok": False, "code": code, "reason": reason, "trace": trace}
     result = json.loads(row["result"])
     if result.get("clarification"):
-        return {"ok": True, "clarification": result["clarification"]["question"], "trace": trace}
+        return {"ok": True, "clarification": result["clarification"]["question"],
+                "campaignReports": campaign_reports, "trace": trace}
     presentation = result.get("chat_presentation") or {}
     guidance = list(dict.fromkeys(note for item in selected
         for note in TEMPLATES[item["template_id"]].get("notes", [])))
-    source_values = formula_inputs(plan, (result.get("data") or {}).get("templates", []), authority.names) if not result.get("failure_code") else []
+    completed = (result.get("data") or {}).get("templates", [])
+    source_values = formula_inputs(plan, completed, authority.names) if not result.get("failure_code") else []
     answer = presentation.get("details") or "\n".join(result.get("pages", []))
-    coverage = advertising.coverage_notes(campaign_coverage, authority.names)
+    coverage = advertising.coverage_notes(plan, completed, authority.names) if not result.get("failure_code") else []
     if coverage:
         answer = "\n".join(coverage) + "\n\n" + answer
     coefficient=None
@@ -340,14 +391,18 @@ def execute(packet, directory):
         if info.get("saved") is not False or info["mode"]!="preview":
             raise Rejected("PARAMETER_PREVIEW_INVALID")
         coefficient={**info,"sku":source["target"]["scope"]["sku"],"store":source["target"]["store_id"]}
-    return {"ok": not bool(result.get("failure_code")), "coefficient":coefficient, "sourceValues": source_values, "guidance": guidance, "answer": answer,
+    if campaign_reports and result.get("failure_code"):
+        return {"ok": True, "campaignReports": campaign_reports,
+                "reportFailure": explain(result["failure_code"])["text"], "trace": trace}
+    return {"ok": not bool(result.get("failure_code")), "coefficient":coefficient, "sourceValues": source_values,
+            "guidance": guidance, "answer": answer, "campaignReports": campaign_reports,
             "code": result.get("failure_code"), "trace": trace}
 
 
 def seller_result(result):
     """Expose confirmed figures and business explanations through the chat tool."""
     if result.get("ok"):
-        return {key: result[key] for key in ("ok", "answer", "clarification", "guidance", "sourceValues") if result.get(key)}
+        return {key: result[key] for key in ("ok", "answer", "clarification", "guidance", "sourceValues", "campaignReports", "reportFailure") if result.get(key)}
     if result.get("retryAt") and result.get("reason"):
         return {"ok": False, "reason": result["reason"], "retryAt": result["retryAt"]}
     from failure_explanations import explain
@@ -373,6 +428,9 @@ def seller_result(result):
         "TEMPLATE_EXECUTION_FAILED": "Рассчитать запрошенный показатель не удалось.",
         "PARAMETER_DELIVERY_SKU_UNALLOCATED": "В начислениях Ozon есть доставка без привязки к товару. Для этого SKU можно ввести сумму вручную.",
         "PARAMETER_ZERO_DENOMINATOR": "За выбранный период нет заказанных единиц для расчёта.",
+        "PARAMETER_REPORT_INPUT": "В прогноз переданы неподдерживаемые параметры.",
+        "PARAMETER_REPORT_SCOPE_UNSUPPORTED": "Этот прогноз строится по одному магазину за выбранный период. Фильтры и сравнение периодов для него недоступны.",
+        "CAMPAIGN_STATUS_SCOPE": "Укажите допустимые статусы рекламных кампаний.",
         "SOURCE_ACCESS": "Для подключения сейчас недоступны запрошенные данные.",
         "WB_ADVERTISING_ACCESS": "Для рекламы Wildberries нужен токен с доступом к категории «Продвижение».",
         "TARIFF_QUOTE_OR_SKU_MISSING": "В текущем каталоге Ozon отсутствует тариф для части товаров или схем доставки из выбранных заказов. Полный прогноз требует этих тарифов.",

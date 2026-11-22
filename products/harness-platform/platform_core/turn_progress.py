@@ -12,6 +12,7 @@ class LiveTurn:
     def __init__(self):
         self.stage="waiting"
         self.text=""
+        self.notices=[]
         self.step=0
         self.done=False
         self.cancel_wait=None
@@ -20,6 +21,12 @@ class LiveTurn:
     def set(self,data):
         if self.done: return
         stage=data.get("stage")
+        if stage=="marketplace_notice":
+            notice=data.get("notice")
+            if isinstance(notice,str) and notice:
+                self.notices=(self.notices+[notice[:500]])[-12:]
+                self.wake()
+            return
         if stage not in STAGES: return
         if self.cancel_wait is not None and stage in {"marketplace_wait","tool"}:
             stage="model_wait"
@@ -107,7 +114,7 @@ def routes(token_for):
             while True:
                 identity.resolve_chat(token,chat)
                 signal=turn.changed
-                yield json.dumps({"stage":turn.stage,"text":turn.text,"step":turn.step,"done":turn.done},ensure_ascii=False)+"\n"
+                yield json.dumps({"stage":turn.stage,"text":turn.text,"step":turn.step,"done":turn.done,"notices":turn.notices},ensure_ascii=False)+"\n"
                 if turn.done: return
                 try: await asyncio.wait_for(signal.wait(),8)
                 except TimeoutError: pass

@@ -119,17 +119,7 @@ class MarketplaceMatrix(unittest.TestCase):
                 raise HTTPError(req.full_url, 429, "rate limited", {"Retry-After": "4"}, None)
             return b'{"result":{"totals":[29],"data":[{"dimensions":[{"id":"2026-11"}],"metrics":[29]}]}}', 200
 
-        from dataclasses import replace
-        from request_recovery import retry_due
-        from repository import Repository
-        reserve = Repository.reserve
-        def fixture_due(repo, row, request, error, safe):
-            return retry_due(repo, row, replace(request, interval=0), error, safe)
-        def fixture_reserve(repo, jid, owner, source, interval, limit):
-            return reserve(repo, jid, owner, source, 0, limit)
-        with patch("http_transport.read_response", side_effect=read), \
-             patch("request_recovery.RATE_LIMIT_RETRY_SECONDS", 0), \
-             patch("request_recovery.retry_due", fixture_due), patch.object(Repository, "reserve", fixture_reserve):
+        with patch("http_transport.read_response", side_effect=read):
             result = worker.execute(self.packet, self.root)
         self.assertTrue(result["ok"], result)
         self.assertGreater(int(time.time() * 1000), original_deadline)
@@ -141,6 +131,21 @@ class MarketplaceMatrix(unittest.TestCase):
             self.assertGreater(row[0], original_deadline + 7000)
             self.assertGreater(row[1], time.time())
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM usage_operations").fetchone()[0], 1)
+
+    def test_ozon_429_wait_and_notice_respect_provider_time(self):
+        from platform_core.marketplace_matrix.ozon_retry import plan
+
+        for indicated, seconds in ((None, 7), (100, 0), (99, 0), (102, 2), (160, 60), (409, 309)):
+            retry = plan(indicated, 100)
+            self.assertEqual((retry.due, retry.seconds, retry.from_header),
+                             (100+seconds, seconds, indicated is not None))
+        self.assertEqual(plan(None, 100).waiting(), "Озон говорит что занят, пробую еще раз")
+        self.assertEqual(plan(160, 100).waiting(),
+                         "Ozon просит подождать 1 минуту. Затем я снова запрошу данные.")
+        for seconds, duration in ((1, "1 секунду"), (2, "2 секунды"), (11, "11 секунд"),
+                                  (21, "21 секунду"), (120, "2 минуты"), (300, "5 минут")):
+            self.assertIn(duration, plan(100 + seconds, 100).waiting())
+        self.assertIn("сразу", plan(100, 100).waiting())
 
     def test_currency_profile_429_wait_rechecks_access_before_resending(self):
         from urllib.error import HTTPError
@@ -212,6 +217,26 @@ class MarketplaceMatrix(unittest.TestCase):
         with self.assertRaises(Rejected), patch("http_transport.read_response") as send:
             worker.execute(self.packet, self.root)
         send.assert_not_called()
+
+    def test_delivery_projection_accepts_the_chat_preview_and_single_store_total(self):
+        from urllib.error import HTTPError
+
+        cid = self.ids["ozon"]
+        self.packet.update(connections=[cid], selections=[{
+            "templateId": "economics.delivery_projection.v1", "connectionId": cid,
+            "input": {"period": {"from": "2026-10-01", "to": "2026-10-01"},
+                      "parameter_mode": "preview", "group_by": "total"},
+        }])
+        def read(req, **options):
+            options["on_dispatch"]()
+            raise HTTPError(req.full_url, 403, "forbidden", {}, None)
+
+        with patch("http_transport.read_response", side_effect=read) as send:
+            worker.execute(self.packet, self.root)
+        send.assert_called()
+        model_input = self.packet["selections"][0]["input"]
+        self.assertEqual(model_input["parameter_mode"], "preview")
+        self.assertEqual(model_input["group_by"], "total")
 
     def test_plugin_coefficients_feed_forecasts_and_fence_changes(self):
         from types import SimpleNamespace
@@ -416,6 +441,99 @@ class MarketplaceMatrix(unittest.TestCase):
             worker.execute(self.packet, self.root)
         send.assert_not_called()
 
+    def test_campaign_inventory_requests_and_returns_only_selected_statuses(self):
+        from urllib.parse import parse_qs, urlsplit
+        from platform_core.marketplace_matrix.plugin import capability
+
+        token = self.identity.login("matrix-seller", "fixture-password")
+        ozon = IntegrationStore(self.identity).save(token, "ozon", "Реклама",
+              {"performance_id": "fixture-id", "performance_secret": "fixture-secret"}, chatId=self.scope.chat_id)["id"]
+        wb = self.ids["wb"]
+        tool = capability([{"id": wb, "provider": "wb", "access": ["Wildberries API"]},
+                           {"id": ozon, "provider": "ozon", "access": ["Ozon Performance"]}])
+        seen = []
+        ozon_states = {"RUNNING": "10", "INACTIVE": "20", "STOPPED": "30", "ARCHIVED": "40"}
+
+        def read(request, **options):
+            options["on_dispatch"]()
+            url = urlsplit(request.full_url)
+            query = parse_qs(url.query)
+            if url.path == "/api/client/token":
+                self.assertEqual(json.loads(request.data)["client_id"], "fixture-id")
+                return b'{"access_token":"fixture-access"}', 200
+            if url.path == "/api/advert/v3/adverts":
+                self.assertEqual(request.get_header("Authorization"), "fixture-wb")
+                wb_states = query["statuses"][0]
+                seen.append(wb_states)
+                if wb_states == "9,11" and "next" not in query:
+                    rows = [{"advertId": 10, "status": 9, "settings": {"name": "Активная"}}]
+                    payload = {"adverts": rows, "next": "page+2"}
+                elif wb_states == "9,11":
+                    self.assertEqual(query["next"], ["page+2"])
+                    payload = {"adverts": [{"advertId": 20, "status": 11, "settings": {"name": "Пауза"}}]}
+                else:
+                    payload = {"adverts": [
+                        {"advertId": 10, "status": 9, "settings": {"name": "Активная"}},
+                        {"advertId": 40, "status": 7, "settings": {"name": "Архив"}}]}
+            elif url.path == "/api/client/campaign/search_promo/v2/products":
+                self.assertEqual(request.get_header("Authorization"), "Bearer fixture-access")
+                self.assertEqual(request.get_method(), "POST")
+                page = json.loads(request.data)["page"]
+                seen.append(f"cpo:{page}")
+                payload = {"total": "3", "products": (
+                    [{"sku": "101", "title": "Активный товар", "searchPromoStatus": True},
+                     {"sku": "102", "title": "Выключенный товар", "searchPromoStatus": False}]
+                    if page == 1 else [{"sku": "103", "title": "Активный товар", "searchPromoStatus": True}])}
+            else:
+                self.assertEqual(url.path, "/api/client/campaign")
+                self.assertEqual(request.get_header("Authorization"), "Bearer fixture-access")
+                seen.append(query.get("state", ["all"])[0])
+                payload = {"list": [
+                    *({"id": cid, "state": "CAMPAIGN_STATE_" + suffix, "title": suffix,
+                       "advObjectType": "SKU", "PaymentType": "CPC"}
+                      for suffix, cid in ozon_states.items()),
+                    {"id": "50", "state": "CAMPAIGN_STATE_RUNNING", "title": "",
+                     "advObjectType": "REF_VK", "PaymentType": "CAMPAIGN_TYPE_INVALID"},
+                    {"id": "60", "state": "CAMPAIGN_STATE_RUNNING", "title": "Оплата за заказ",
+                     "advObjectType": "SEARCH_PROMO", "PaymentType": "CPO"},
+                    *({"id": cid, "state": "CAMPAIGN_STATE_RUNNING", "title": kind, "advObjectType": kind}
+                      for cid, kind in (("61", "BANNER"), ("62", "VIDEO_BANNER"),
+                                        ("63", "REF_BLOGGER"), ("64", "MEDIA_NEW_TYPE")))]}
+            return json.dumps(payload).encode(), 200
+
+        for cid, tid, pause_ids in ((wb, "wb_campaign_inventory", ["10", "20"]),
+                                    (ozon, "ozon_campaign_inventory", ["10", "20", "30"])):
+            for include_pause in (False, True):
+                inputs = {"filters": {"campaign_statuses": ["active", "paused"]}} if include_pause else {}
+                item = {"templateId": tid, "connectionId": cid, "input": inputs}
+                tool.validate({"selections": [item]})
+                self.packet.update(connections=[cid], selections=[item])
+                with (patch("http_transport.read_response", side_effect=read),
+                      patch("platform_core.marketplace_matrix.campaign_inventory.time.sleep")):
+                    result = worker.execute(self.packet, self.root)
+                campaign_report, = worker.seller_result(result)["campaignReports"]
+                self.assertTrue(campaign_report["ok"], campaign_report)
+                expected = list(pause_ids if include_pause else ["10"])
+                if cid == ozon:
+                    expected.extend(("60", "61", "62", "63", "64"))
+                    cpo = campaign_report["cpoProducts"]
+                    self.assertEqual(cpo["counts"], {"Включён": 2})
+                    self.assertEqual([row["sku"] for row in cpo["products"]], ["101", "103"])
+                self.assertCountEqual([row["id"] for row in campaign_report["campaigns"]], expected)
+        item = {"templateId": "ozon_campaign_inventory", "connectionId": ozon,
+                "input": {"filters": {"campaign_statuses": ["all"]}}}
+        tool.validate({"selections": [item]})
+        self.packet.update(connections=[ozon], selections=[item])
+        with (patch("http_transport.read_response", side_effect=read),
+              patch("platform_core.marketplace_matrix.campaign_inventory.time.sleep")):
+            result = worker.execute(self.packet, self.root)
+        report, = worker.seller_result(result)["campaignReports"]
+        self.assertCountEqual([row["id"] for row in report["campaigns"]],
+                              ["10", "20", "30", "40", "60", "61", "62", "63", "64"])
+        self.assertEqual(seen, ["9", "9,11", "9,11", "CAMPAIGN_STATE_RUNNING", "cpo:1", "cpo:2",
+                                "CAMPAIGN_STATE_RUNNING", "CAMPAIGN_STATE_INACTIVE", "CAMPAIGN_STATE_STOPPED",
+                                "cpo:1", "cpo:2", "all", "cpo:1", "cpo:2"])
+
     def test_agent_can_choose_both_order_metrics_on_short_answer(self):
         from platform_core.marketplace_matrix.plugin import capability
         cid = self.ids["ozon"]
@@ -512,6 +630,9 @@ class MarketplaceMatrix(unittest.TestCase):
 
     def test_wb_advertising_keeps_stats_for_returned_campaigns_and_marks_omissions(self):
         import base64
+        from dataclasses import replace
+        from urllib.parse import parse_qs, urlsplit
+        from dataset_pipeline import build_request
 
         token = self.identity.login("matrix-seller", "fixture-password")
         claims = base64.urlsafe_b64encode(b'{"acc":3,"for":"self","t":false}').decode().rstrip("=")
@@ -519,8 +640,22 @@ class MarketplaceMatrix(unittest.TestCase):
         cid = IntegrationStore(self.identity).save(token, "wb", "Реклама WB", {"token": credential},
                                                      chatId=self.scope.chat_id)["id"]
         self.packet.update(connections=[cid], selections=[{
-            "templateId": "wb_active_ads_totals", "connectionId": cid,
-            "input": {"period": {"from": "2026-11-19", "to": "2026-11-19"}}}])
+            "templateId": tid, "connectionId": cid,
+            "input": {"period": {"from": "2026-11-19", "to": "2026-11-19"}}}
+            for tid in ("wb_active_ads", "wb_active_ads_totals", "wb_supported_ads")])
+        campaigns = {"all": 6, "adverts": [
+            {"status": 9, "count": 2, "advert_list": [{"advertId": 10}, {"advertId": 20}]},
+            {"status": 7, "count": 2, "advert_list": [
+                {"advertId": 30, "changeTime": "2026-11-18T20:59:00Z"},
+                {"advertId": 40, "changeTime": "2026-11-18T21:00:00Z"},
+            ]},
+            {"status": 11, "count": 1, "advert_list": [{"advertId": 50}]},
+            {"status": 4, "count": 1, "advert_list": [{"advertId": 60}]},
+        ]}
+        live_row = {"advertId": 10, "views": 100, "clicks": 4, "orders": 2,
+                    "shks": 2, "sum_price": 500, "sum": 80}
+        zero_row = {"advertId": 30, "views": 0, "clicks": 0, "orders": 0,
+                    "shks": 0, "sum_price": 0, "sum": 0}
 
         def read(req, **options):
             options["on_dispatch"]()
@@ -528,16 +663,28 @@ class MarketplaceMatrix(unittest.TestCase):
             if req.host == "finance-api.wildberries.ru":
                 return b'{"currency":"RUB"}', 200
             if "/promotion/count" in req.full_url:
-                return b'{"all":2,"adverts":[{"status":9,"count":2,"advert_list":[{"advertId":10},{"advertId":20}]}]}', 200
-            self.assertIn("ids=10%2C20", req.full_url)
-            return b'[{"advertId":10,"views":100,"clicks":4,"orders":2,"shks":2,"sum_price":500,"sum":80}]', 200
+                return json.dumps(campaigns).encode(), 200
+            requested = parse_qs(urlsplit(req.full_url).query)["ids"][0]
+            if requested == "10,20":
+                return json.dumps([live_row]).encode(), 200
+            self.assertEqual(requested, "10,20,30,40,50")
+            return json.dumps([live_row, zero_row]).encode(), 200
 
-        with patch("http_transport.read_response", side_effect=read):
+        def without_fixture_wait(*args):
+            return replace(build_request(*args), interval=0)
+
+        with (patch("http_transport.read_response", side_effect=read),
+              patch("dataset_pipeline.build_request", side_effect=without_fixture_wait)):
             result = worker.execute(self.packet, self.root)
         self.assertTrue(result["ok"], result)
-        self.assertIn("по 1 из 2", result["answer"])
-        self.assertIn("Полная сумма", result["answer"])
-        self.assertIn("80", result["answer"])
+        answer = result["answer"]
+        self.assertEqual(answer.count("Активные — WB прислал строки по 1 из 2 кампаний."), 3)
+        self.assertEqual(answer.count("На паузе — WB прислал строки по 0 из 1 кампаний."), 1)
+        self.assertIn("Архив до начала периода — 1 кампаний. Строки за период получены по 1 из них.", answer)
+        self.assertIn("Завершённые, кроме архива до периода — WB прислал строки по 0 из 1", answer)
+        self.assertIn("активны 2, на паузе 1, завершены 2, готовы к запуску 1", answer)
+        self.assertIn("| 30 | завершена | 0 |", answer)
+        self.assertIn("| 80 |", answer)
 
     def test_forecast_requires_valid_owner_input_and_the_right_shop_credentials(self):
         from platform_core.marketplace_matrix.forecast_preview import normalise_owner_inputs, unit_cost_lines
@@ -561,6 +708,165 @@ class MarketplaceMatrix(unittest.TestCase):
         for invalid in ({"unit_cost": -1}, {"tax_amount": False}, {"ingredient": 5}):
             with self.assertRaises(ParameterError):
                 normalise_owner_inputs(invalid)
+
+    def test_ozon_tariff_pages_accept_both_count_fields_and_validate_the_full_chain(self):
+        from hashlib import sha256
+
+        from parameter_support import economics_tariffs as tariffs
+
+        scope = {"tenant_id": "tenant", "store_id": "ozon", "provider": "OZON", "currency": "RUB"}
+        observed = "2026-11-22T01:00:00+00:00"
+        commissions = {key: 10 for key in (
+            "sales_percent_fbo", "sales_percent_fbs", "fbo_return_flow_amount", "fbs_return_flow_amount",
+            "fbs_first_mile_min_amount", "fbs_first_mile_max_amount",
+        )}
+
+        def packet(operation, request, payload, receipt):
+            body = json.dumps(payload).encode()
+            return {"operation": operation, "scope": scope, "request": request, "body": body,
+                    "received_at": observed, "receipt_id": receipt, "response_sha256": sha256(body).hexdigest(),
+                    "http": 200}
+
+        def page(pid, cursor, next_cursor, counts):
+            return packet("product_prices_bulk", {"filter": {"visibility": "ALL"}, "cursor": cursor, "limit": 1},
+                          {"items": [{"product_id": pid, "price": {"currency_code": "RUB"}, "acquiring": 1,
+                                     "commissions": commissions}], "cursor": next_cursor, **counts}, str(pid))
+
+        product_page = packet("seller_product_info_list", {"product_id": [1, 2]},
+                              {"items": [{"id": 1, "sku": 11}, {"id": 2, "sku": 22}]}, "products")
+        first = page(1, "", "next", {"total": 2, "total_items": 2})
+
+        def normalize(*pages):
+            return tariffs.normalize(list(pages), [product_page], scope, verify=lambda _: True,
+                                     encode=lambda kind, value: sha256(f"{kind}:{value}".encode()).hexdigest())
+
+        self.assertEqual(len(normalize(first, page(2, "next", "", {"total_items": 2})).data["rows"]), 4)
+        for counts, code in (
+                ({"total": 2, "total_items": 3}, "TARIFF_TOTAL_CHANGED"),
+                ({"total_items": 3}, "TARIFF_TOTAL_CHANGED"),
+                ({"total_items": True}, "TARIFF_RESPONSE_SCHEMA"),
+                ({}, "TARIFF_RESPONSE_SCHEMA")):
+            with self.subTest(counts=counts), self.assertRaisesRegex(tariffs.TariffError, code):
+                normalize(first, page(2, "next", "", counts))
+
+        from platform_core.marketplace_matrix import tariff_cohort
+
+        archived = {"items": [{"id": 2, "sku": 22, "is_archived": True}]}
+        lookup = packet("seller_product_info_list", {"sku": ["22"]}, archived, "targeted-products")
+        price_payload = json.loads(page(2, "", "provider-returned-cursor", {"total_items": 1})["body"])
+        prices = tariff_cohort.prices_request(tariff_cohort.product_ids(archived, ["22"]))
+        filtered = packet("product_prices_bulk", prices, price_payload, "targeted-price")
+
+        def quote(price):
+            return tariffs.normalize([price], [lookup], scope, verify=lambda _: True,
+                                     encode=lambda kind, value: sha256(f"{kind}:{value}".encode()).hexdigest())
+
+        self.assertTrue(quote(filtered).for_cohort(
+            [{"sku": "22", "scheme": "fbo"}], {"from": "2026-10-01", "to": "2026-10-01"}, scope)["complete"])
+        with self.assertRaisesRegex(tariffs.TariffError, "TARIFF_QUOTE_OR_SKU_MISSING"):
+            quote(packet("product_prices_bulk", prices, {"items": [], "cursor": "", "total_items": 0}, "empty"))
+        with self.assertRaisesRegex(tariffs.TariffError, "TARIFF_QUOTE_OR_SKU_MISSING"):
+            tariff_cohort.product_ids({"items": [{"id": 2, "sku": 23}]}, ["22"])
+
+    def test_ozon_packaging_uses_reconciled_signed_cost_once_in_both_scenarios(self):
+        from copy import deepcopy
+        from decimal import Decimal
+        from hashlib import sha256
+        from direct_response import compound_text
+        from parameter_support import economics_cohort as cohort, economics_orders as orders, economics_other as fees
+
+        day = "2026-10-31"
+        as_of = day + "T19:00:00+00:00"
+        scope = {"tenant_id": "tenant", "store_id": "store", "provider": "OZON", "currency": "RUB"}
+        period = {"from": day, "to": day}
+        receipts = {}
+
+        def packet(operation, request, data, receipt_id):
+            body = json.dumps(data).encode()
+            record = {"operation": operation, "request": request, "body": body, "receipt_id": receipt_id,
+                      "scope": scope, "http": 200, "received_at": as_of, "response_sha256": sha256(body).hexdigest()}
+            receipts[receipt_id] = deepcopy(record)
+            return record
+
+        def verify(value):
+            return receipts[value["receipt_id"]] == value
+
+        def encode(kind, value):
+            return sha256(f"{kind}:{value}".encode()).hexdigest()
+
+        dispatch = {"posting_number": "test-posting", "status": "delivered", "created_at": as_of,
+                    "products": [{"sku": sku, "quantity": quantity, "price": "200"}
+                                 for sku, quantity in ((101, 1), (102, 3))]}
+        scheme_packets = [packet(orders.CATALOG["schemes"][scheme]["operation"],
+                                 orders.expected_request(scheme, period, ""),
+                                 {"postings": [dispatch] if scheme == "fbo" else [], "has_next": False, "cursor": ""},
+                                 scheme) for scheme in ("fbo", "fbs")]
+        original = orders.normalize([scheme_packets[0]], [scheme_packets[1]], scope, period,
+                                    verify=verify, encode=encode)
+
+        def snapshot(items, *, omit_last=False):
+            entries, daily = [], []
+            for index, (kind, amount) in enumerate(items):
+                money = {"amount": amount, "currency": "RUB"}
+                entries.append({"type_id": kind, "accrual_date": day, "accrued": money})
+                daily.append({"accrual_id": index + 1, "date": day, "total_amount": money,
+                              "unit_number": "test-posting", "accrued_category": "NON_ITEM",
+                              "non_item_fee": {"type_id": kind, "accrued": money},
+                              "posting": None, "item_fees": None, "container_fees": None})
+            postings = packet("finance_accrual_postings", {"posting_numbers": ["test-posting"]},
+                              {"posting_accruals": [{"posting_number": "test-posting", "accruals": entries}]}, "post")
+            by_day = packet("finance_accrual_by_day", {"date": day, "last_id": ""},
+                            {"accruals": daily[:-1] if omit_last else daily, "last_id": ""}, "day")
+            return fees.normalize([postings], [by_day], original, verify=verify, encode=encode, as_of=as_of)
+
+        common = [(93, "-5")]
+        all_items = common + [(38, "-12"), (38, "2"), (39, "-3"), (39, "1")]
+        baseline, observed = snapshot(common), snapshot(all_items)
+        inputs = observed.line_inputs(original)
+        self.assertEqual(sorted(Decimal(row["packaging"]["amount"]) for row in inputs.values()),
+                         [Decimal("2.5"), Decimal("7.5")])
+        self.assertEqual(sorted(Decimal(row["packing_service"]["amount"]) for row in inputs.values()),
+                         [Decimal("0.5"), Decimal("1.5")])
+        self.assertEqual(sum(Decimal(row["amount"]) for row in inputs.values()), Decimal("5"))
+        with self.assertRaisesRegex(fees.OtherError, "OTHER_SNAPSHOT_MISMATCH"):
+            snapshot(all_items, omit_last=True)
+        with self.assertRaisesRegex(fees.OtherError, "OTHER_UNCLASSIFIED_FEE"):
+            snapshot(common + [(999, "-10")])
+
+        def block(rows):
+            return {"rows": rows, "receipt_hash": "a" * 64, "complete": True, "scope": scope,
+                    "period": period, "observed_at": as_of}
+
+        tariffs = [{"sku": str(sku), "scheme": "fbo", "quote_id": f"quote-{sku}",
+                    "fields": {"commission_percent": "10", "acquiring_per_unit": "1", "return_per_unit": "10",
+                               "processing_min": "0", "processing_max": "0"}}
+                   for sku in (101, 102)]
+        bundle = {"orders": original.for_cohort(period, scope), "tariffs": block(tariffs),
+                  "period_costs": block([{"component": component, "amount": "0", "basis": "FULL_PERIOD"}
+                                         for component in ("storage", "advertising")])}
+        costs = dict.fromkeys(inputs, "50")
+        coefficients = {key: {"loss_rate": "0.25", "delivery_mean": "20"} for key in inputs}
+        owner = {field: {"state": "NOT_PROVIDED", "value": None} for field in ("tax_amount", "own_cost_amount")}
+
+        def report(source):
+            qualified = cohort.qualify(bundle, scope, period, verify=lambda name, data, *_: bundle[name] == data,
+                                       observed_other=source)
+            return cohort.calculate(qualified, costs, coefficients, owner)
+
+        before, after = report(baseline), report(observed)
+        for scenario, result in after["scenarios"].items():
+            totals = result["totals"]
+            old = before["scenarios"][scenario]["totals"]
+            self.assertEqual(totals["other"], old["other"])
+            self.assertEqual(totals["packaging"], "10")
+            self.assertEqual(totals["packing_service"], "2")
+            self.assertEqual(result["per_original_unit"]["packaging"], "2.5")
+            self.assertEqual(result["per_original_unit"]["packing_service"], "0.5")
+            self.assertEqual(Decimal(totals["all_selected_costs"]) - Decimal(old["all_selected_costs"]), 12)
+            self.assertEqual(Decimal(old["remainder_before_owner_inputs"]) -
+                             Decimal(totals["remainder_before_owner_inputs"]), 12)
+        self.assertEqual(compound_text({"economics": after}, {}).count("Материалы для упаковки: 10,00 ₽."), 2)
+        self.assertEqual(compound_text({"economics": after}, {}).count("Услуга упаковки: 2,00 ₽."), 2)
 
     def test_replaying_financial_receipts_reuses_only_the_validated_wire_request(self):
         from read_surface import build, _checked_wire_request

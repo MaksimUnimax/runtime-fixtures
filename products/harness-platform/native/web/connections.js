@@ -241,13 +241,15 @@ window.__ModuleLoader__.load({
           return ()=>a.activityEvents.removeEventListener('saved-images',update);
         },[sessionId]),()=>a.savedIllustrations.get(sessionId));
         const labels={sending:'Отправляю сообщение…',accepted:'Сообщение принято',model:'Модель готовит ответ',
-          thinking:'Модель обдумывает ответ',tool:'Модель запрашивает данные',model_wait:'Модель временно занята. Повторим запрос автоматически',marketplace_wait:'Ждём следующей разрешённой попытки',writing:'Модель отвечает…',failed:'Не удалось завершить запрос'};
+          thinking:'Модель обдумывает ответ',tool:'Запрашиваю данные',model_wait:'Модель временно занята. Повторим запрос автоматически',marketplace_wait:'Жду, когда можно будет повторить запрос',writing:'Модель отвечает…',failed:'Не удалось завершить запрос'};
         if(!view && !saved?.length)return null;
         return h('div',{className:'chat-access'},
           saved?.length>0 && h('section',{'aria-label':'Готовые иллюстрации'},
             h('p',null,'Готовые иллюстрации этого чата'),
             saved.map((url,i)=>h('a',{href:url,key:url,target:'_blank',rel:'noopener'},'Открыть иллюстрацию '+(i+1)))),
           view && h('div',{'data-live-turn':view.stage,className:'chat-live'},
+            view.notices?.length>0 && h('div',{className:'chat-live-text','aria-label':'Ход запроса к Ozon'},
+              view.notices.map((notice,i)=>h('div',{key:i},notice))),
             h('small',{role:'status'},labels[view.stage], ['model','thinking','tool','marketplace_wait','model_wait'].includes(view.stage) &&
               h('span',{className:'thinking-dots','aria-hidden':true},[0,1,2].map(i=>h('span',{key:i},'.')))),view.text && h('div',{className:'chat-live-text'},view.text),
             view.stage==='model_wait' && h('button',{type:'button',onClick:()=>post('/api/chats/'+encodeURIComponent(sessionId)+'/progress/'+encodeURIComponent(view.rid)+'/cancel',{}).catch(e=>setError(e.message))},'Отменить ожидание'),

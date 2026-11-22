@@ -36,7 +36,7 @@ export class LiveTurns {
               const current=this.views.get(id);
               if(!current || current.rid!==rid || current.committed)return;
               if(state.stage!=='waiting'){
-                this.update(id,{...current,stage:state.stage,text:state.text});
+                this.update(id,{...current,stage:state.stage,text:state.text,notices:state.notices});
                 accepted?.();
               }
               if(state.done)return;
