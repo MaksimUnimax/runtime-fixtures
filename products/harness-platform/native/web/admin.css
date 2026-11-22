@@ -11,7 +11,7 @@ button { justify-self:start; color:var(--octo-on-action); background:var(--octo-
 button:hover:not(:disabled) { opacity:.85; }
 p,output { margin:0; } output:empty { display:none; } output { color:#226345; } #problem { color:#9f2931; }
 #charges { padding-left:18px; } #charges details { margin:8px 0; } #charges summary { display:list-item; width:fit-content; }
-@media(prefers-color-scheme:dark) { .admin-mark { filter:brightness(0) invert(1); } output { color:#85ceb0; } #problem { color:#ffa9ae; } }
+:root[data-appearance=dark] .admin-mark {filter:brightness(0) invert(1);} :root[data-appearance=dark] output {color:#85ceb0;} :root[data-appearance=dark] #problem {color:#ffa9ae;}
 
 #default-model[hidden] { display:none; }
 #refresh-models,#default-model { margin-top:14px; }

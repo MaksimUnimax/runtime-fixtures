@@ -4,6 +4,12 @@ window.__ModuleLoader__.load({
     const React=require('react'), h=React.createElement;
     return {inject:['slots','uiWorkspace','sessions','contextMenus'],apply(ctx) {
       const a=window.harnessAccount;
+      ctx.inject(['theme'], scope => {
+        const adopt=()=>scope.theme.setTheme(window.octoTheme.preference());
+        document.addEventListener('octo-theme', adopt);
+        scope.effect(()=>()=>document.removeEventListener('octo-theme', adopt));
+        adopt();
+      });
       const ui=require('@deepseek-ai/dsh-client-ui-primitives');
       const {Sidebar:PluginSidebar,Catalog:PluginCatalog,CatalogSettings}=window.octoPluginMenu(React,ctx,a.api,ui);
       const {Menu,Modal,Button,IconUserOutlineMedium,IconSettingsOutlineMedium,IconChevronRightOutlineRegular,
@@ -245,10 +251,7 @@ window.__ModuleLoader__.load({
             Field('login','Логин',{autoComplete:'username',maxLength:254}),
             Field('password','Пароль',{type:'password',autoComplete:signup?'new-password':'current-password',maxLength:256}),
             
-            signup && h('details',{className:'recovery'},h('summary',null,'Код восстановления'),
-              h('small',null,'Сохраните код, чтобы восстановить доступ.'),
-              Field('recovery','Ваш код',{readOnly:true,value:a.recovery})),
-            h('button',{type:'submit',className:'account-primary'},signup?'Зарегистрироваться и открыть чат':'Войти')),
+            h('button',{type:'submit',className:'account-primary'},signup?'Создать аккаунт':'Войти')),
             h('a',{className:'auth-alternative',href:signup?'/login':'/register'},signup?'Войти в существующий аккаунт':'Создать аккаунт'));
       }
       ctx.slots.inject('settings.launcher',()=>ctx.slots.register({name:'settings.launcher'},AccountLauncher));

@@ -42,7 +42,7 @@ class BrowserSessionTests(TestCase):
         self.assertNotIn("set-cookie", anonymous.headers)
         page = client.get("/login")
         self.assertEqual(page.status_code, 200)
-        self.assertIn('data-panel="login"', page.text)
+        self.assertIn('data-auth-entry="login"', page.text)
         self.assertEqual(page.headers["cache-control"], "no-store")
         response = client.post("/login", data={"login": "account", "password": PASSWORD}, headers={"Origin": origin})
         self.assertEqual((response.status_code, response.headers["location"]), (303, "/app/"))

@@ -80,7 +80,7 @@ def browser_token(connection) -> str:
     return token
 
 
-async def _form_fields(request, keys, max_bytes=8192):
+async def _form_fields(request, keys, max_bytes=8192, *, optional=frozenset()):
     if request.headers.get("content-type", "").partition(";")[0].strip().lower() != "application/x-www-form-urlencoded":
         raise HTTPException(415, "Expected a URL-encoded form")
     data = bytearray()
@@ -90,10 +90,10 @@ async def _form_fields(request, keys, max_bytes=8192):
         data.extend(chunk)
     try:
         fields = dict(parse_qsl(data.decode("ascii"), keep_blank_values=True, strict_parsing=True,
-                                errors="strict", max_num_fields=len(keys)))
+                                errors="strict", max_num_fields=len(keys) + len(optional)))
     except (UnicodeError, ValueError):
         raise HTTPException(400, "Invalid form") from None
-    if fields.keys() != keys:
+    if not keys <= fields.keys() <= keys | optional:
         raise HTTPException(400, "Invalid form")
     return fields
 
@@ -132,14 +132,19 @@ async def _login(request):
     try:
         token = await run_in_threadpool(identity.login, **fields)
     except AuthenticationError:
-        return await page(request, panel="login", error="Не удалось войти. Проверьте логин и пароль.", status=401)
+        message = "Не удалось войти. Проверьте логин и пароль."
+        if request.headers.get("accept") == "application/json":
+            return JSONResponse({"detail":message}, status_code=401, headers=_PRIVATE_HEADERS)
+        return await page(request, panel="login", error=message, status=401)
     if existing:
         try:
             await run_in_threadpool(identity.logout, existing)
         except AuthenticationError:
             pass  # A malformed cookie does not prevent a fresh sign-in.
-    response = _redirect("/app/")
-    clear_guest_cookie(request, response)
+    response = (JSONResponse({"authenticated":True}, headers=_PRIVATE_HEADERS)
+                if request.headers.get("accept") == "application/json" else _redirect("/app/"))
+    if request.headers.get("accept") != "application/json":
+        clear_guest_cookie(request, response)
     _set_cookie(response, secure, token)
     return response
 
@@ -183,7 +188,9 @@ async def _session_status(request):
         if request.query_params.get("menu") == "1":
             login = await run_in_threadpool(identity.account_login, token)
             admin = await run_in_threadpool(identity.is_admin, token)
-            return JSONResponse({"authenticated": True, "login": login, "admin": admin}, headers=_PRIVATE_HEADERS)
+            wallet = await run_in_threadpool(identity.wallet, token, balance_only=True)
+            return JSONResponse({"authenticated": True, "login": login, "admin": admin,
+                                 "available": wallet["available"]}, headers=_PRIVATE_HEADERS)
         await run_in_threadpool(identity.validate_session, token)
     except AuthenticationError:
         authenticated = False

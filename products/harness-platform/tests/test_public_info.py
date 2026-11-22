@@ -46,7 +46,8 @@ class PublicInfoTests(unittest.TestCase):
                 self.assertEqual("320745600093211" in html, name == "index")
                 if name == "index":
                     self.assertIn("741705866660", html.partition("<footer>")[2])
-                    self.assertIn('/payment', [u.path for u in parsed.urls])
+                    self.assertIn('data-buy-coins', html)
+                    self.assertIn('Попробовать бесплатно', html)
                 self.assertNotRegex(html.lower(), "расширени|каталог дополнений|личн[а-я]* кабинет|войти в кабинет|открыть кабинет")
                 pages[route(name)] = parsed
             for address, parsed in pages.items():
@@ -60,4 +61,4 @@ class PublicInfoTests(unittest.TestCase):
                     elif target.startswith("/about/"):
                         self.assertTrue((public / target.lstrip("/")).is_file(), target)
                     else:
-                        self.assertIn(target, ("/", "/register", "/login", "/payment"))
+                        self.assertIn(target, ("/", "/register", "/login", "/admin", "/ui-assets/project/theme.js", "/ui-assets/project/checkout.css", "/ui-assets/project/checkout.js"))

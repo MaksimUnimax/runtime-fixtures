@@ -166,12 +166,12 @@ class GuestRegistrationTests(TestCase):
             html = client.get(path).text
             self.assertNotIn("<b>история</b>", html)
             self.assertEqual([t["text"] for t in client.get(f"/guest/chats/{chat}/events").json()["turns"]], [fields["text"]])
-            code = re.search(r'data-recovery="([\w-]+)"', client.get("/register").text)[1]
-            form = dict(login="form-owner", password=PASSWORD, recovery=code)
+            self.assertNotIn("Код восстановления", client.get("/register").text)
+            form = dict(login="form-owner", password=PASSWORD)
             self.assertEqual(client.post("/register", data=form).status_code, 403)
             busy = client.post("/register", data={**form, "login": "existing"}, headers=HEADERS)
             self.assertEqual(busy.status_code, 409)
-            self.assertIn(code, busy.text)
+            self.assertIn("Этот логин уже занят", busy.text)
             registered = client.post("/register", data=form, headers=HEADERS)
             self.assertEqual((registered.status_code, registered.headers["location"]), (303, path))
             token = client.cookies.get("__Host-harness_session")

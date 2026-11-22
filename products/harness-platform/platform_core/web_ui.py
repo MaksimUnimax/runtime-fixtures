@@ -3,6 +3,10 @@
 import os
 import re
 from pathlib import Path
+from functools import lru_cache
+from html import escape
+
+from deploy.publish_info import CONTENT, PAGES, render_page, styles
 
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
@@ -19,6 +23,31 @@ from .native_ui_entry import browser_entry
 
 _PRODUCT = Path(__file__).resolve().parents[1]
 _PROJECT_UI = _PRODUCT / "native" / "web"
+
+
+@lru_cache(maxsize=len(PAGES))
+def document(name):
+    return render_page(name)
+
+
+async def public_document(request):
+    name = request.path_params.get("name", "index")
+    if name == "styles.css":
+        return Response(styles(), media_type="text/css")
+    if name not in PAGES:
+        raise HTTPException(404)
+    return HTMLResponse(document(name), headers=HEADERS)
+
+
+async def public_asset(request):
+    name = request.path_params["name"]
+    if name in {"guest-chat.js", "public-session.js", "yandex-metrika.js"}:
+        return FileResponse(CONTENT / name, media_type="text/javascript")
+    images = {"octoport-brand.png":"octoport-icon.png", "favicon-contour-v1.png":"octoport-icon.png",
+              "octoport-wordmark.svg":"octoport-wordmark.svg"}
+    if name not in images:
+        raise HTTPException(404)
+    return FileResponse(UI / images[name])
 
 
 async def page(request, *, panel="", error="", status=200):
@@ -51,9 +80,11 @@ async def page(request, *, panel="", error="", status=200):
         has_turns = False
     if chat and chat != own_chat:
         return shell(theme=theme, guest=True, panel="notice", chat=own_chat, account={"hasTurns": has_turns}, error="Чат недоступен", status=404)
-    recovery = await run_in_threadpool(identity.guest_recovery, guest) if panel == "register" else ""
-    response = shell(theme=theme, guest=True, chat=own_chat, panel=panel, recovery=recovery, error=error, status=status,
-                     account={"hasTurns": has_turns})
+    html = document("ask").replace("https://octoport.ru/about/ask", "https://octoport.ru/")
+    if panel or error:
+        html = html.replace('data-auth-entry=""', f'data-auth-entry="{escape(panel, quote=True)}"')
+        html = html.replace('data-auth-error=""', f'data-auth-error="{escape(error, quote=True)}"')
+    response = HTMLResponse(html, status_code=status, headers=HEADERS)
     response.set_cookie(cookie, guest, path="/", max_age=GUEST_LIFETIME, secure=_secure(request),
                         httponly=True, samesite="strict")
     return response
@@ -81,7 +112,7 @@ async def project_asset(request):
         return asset_response(request, static_bytes(UI / name), "image/svg+xml")
     if name in {"octoport-mark.png", "octoport-icon.png"}:
         return FileResponse(UI / name, media_type="image/png")
-    if name not in {"checkout.js", "checkout.css", "bootstrap.js", "start.js", "connections.js","private-input.js", "account.js", "account.css", "appearance.css", "transport.js","live-turn.js", "admin.css", "admin.js"}:
+    if name not in {"theme.js", "checkout.js", "checkout.css", "bootstrap.js", "start.js", "connections.js","private-input.js", "account.js", "account.css", "appearance.css", "transport.js","live-turn.js", "admin.css", "admin.js"}:
         raise HTTPException(404)
     path = _PROJECT_UI / name
     if not path.is_file():
@@ -134,6 +165,8 @@ async def harness_asset(request):
 def web_routes():
     return [
         *checkout_routes(),
+        Route("/about/", public_document), Route("/about/assets/{name}", public_asset),
+        Route("/about/{name}", public_document),
         Route("/favicon.ico", icon),
         Route("/plugins/@deepseek-ai/dsh-client-ui-chat/assets/running-whale@2x-06738fa29b2f.png", icon),
         Route("/", page), Route("/payment", payment), Route("/admin", admin), Route("/ui-assets/modules/{name}.js", module_file), Route("/app/", page), Route("/app/chats/{chat_id}", page),

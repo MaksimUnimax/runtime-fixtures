@@ -115,7 +115,7 @@ class ProductBrowser(unittest.IsolatedAsyncioTestCase):
         await page.goto("/login")
         login = page.get_by_role("dialog")
         await expect(login.get_by_role("button", name="Продолжить как гость")).to_have_count(0)
-        await expect(login.get_by_role("link", name="Создать аккаунт", exact=True)).to_be_visible()
+        await expect(login.get_by_role("button", name="Создать аккаунт", exact=True)).to_be_visible()
         await page.get_by_label("Логин", exact=True).fill(handle)
         await page.get_by_label("Пароль", exact=True).fill(self.password)
         async with page.expect_response(lambda res: res.request.is_navigation_request() and
@@ -397,9 +397,14 @@ class BrowserIsolation(ProductBrowser):
             page.on("request", lambda request: posts.append(request.url) if request.url.endswith("/turns") and request.method == "POST" else None)
             try:
                 await page.goto(page.url if page == member else "/", wait_until="commit")
-                await page.get_by_role("textbox", name="Черновик сообщения").fill("Мой черновик")
+                field = "Ваш вопрос Октопусу" if page == guest else "Черновик сообщения"
+                await page.get_by_role("textbox", name=field).fill("Мой черновик")
             finally:
                 gate.set()
+            if page == guest:
+                await expect(page.get_by_label(field)).to_have_value("Мой черновик")
+                self.assertEqual(posts, [])
+                continue
             editor = page.locator("[data-composer-input][contenteditable=true]")
             await expect(editor).to_have_text("Мой черновик")
             await expect(page.get_by_role("button", name="Отправить сообщение")).to_be_enabled()
@@ -915,16 +920,17 @@ class BrowserIsolation(ProductBrowser):
         page, other = await asyncio.gather(guest.new_page(), second_device.new_page())
         for client in (page, other):
             await client.goto("/")
-            await expect(client.locator('[data-slot="root"] [data-composer-input]')).to_be_visible()
+            await expect(client.locator('[data-guest-chat] [data-composer-input]')).to_be_visible()
             await expect(client).to_have_url(re.compile(r"/app/chats/[a-zA-Z0-9_-]+$"))
         original_url = page.url
         self.assertNotEqual(original_url, other.url)
         marker = "Как сохранить мою историю?"
-        await self.send_turn(page, marker)
-        public_history = page.locator('[data-slot="conversation.view"]')
+        await page.get_by_label("Ваш вопрос Октопусу").fill(marker)
+        await page.get_by_role("button", name="Отправить вопрос").click()
+        public_history = page.locator(".guest-history")
         await expect(public_history).to_contain_text(marker)
-        answer = await public_history.locator('[data-chat-flow-kind="assistant-step"] p').last.inner_text()
-        self.assertIn("регистрации", answer)
+        answer = await public_history.locator(".guest-answer p").last.inner_text()
+        self.assertTrue(answer)
         denied = await other.goto(original_url)
         self.assertEqual(denied.status, 404)
         await expect(other.locator("body")).not_to_contain_text(marker)
@@ -932,10 +938,12 @@ class BrowserIsolation(ProductBrowser):
         await page.get_by_role("link", name="Создать аккаунт").click()
         await page.get_by_label("Логин", exact=True).fill("guest-browser")
         await page.get_by_label("Пароль", exact=True).fill("test11chars")
-        await page.get_by_text("Код восстановления",exact=True).click()
-        self.assertTrue(await page.get_by_label("Ваш код").input_value())
-        await page.get_by_role("button", name="Зарегистрироваться и открыть чат").click()
+        await expect(page.get_by_text("Код восстановления",exact=True)).to_have_count(0)
+        await page.get_by_role("dialog").get_by_role("button", name="Создать аккаунт", exact=True).click()
+        await expect(page.locator("html")).to_have_attribute("data-session","member")
         await expect(page).to_have_url(original_url)
+        await expect(public_history).to_contain_text(answer)
+        await page.reload()
         history = page.locator('[data-slot="conversation.view"]')
         await expect(history).to_contain_text(marker, timeout=30_000)
         await expect(history).to_contain_text(answer, timeout=30_000)

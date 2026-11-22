@@ -15,3 +15,6 @@
 .octo-checkout-pay:disabled { opacity:.55; cursor:default; }
 .octo-checkout [role=status] { margin:8px 0 0; font-size:14px; }
 .octo-checkout [role=status]:empty { display:none; }
+
+.octo-checkout header button { display:grid; place-items:center; flex:none; width:32px; height:32px; padding:0; border:1px solid var(--octo-line,#b3bbc5); border-radius:8px; font-size:0; }
+.octo-checkout header button::before { content:""; width:14px; height:14px; background:linear-gradient(45deg,transparent 44%,currentColor 45% 55%,transparent 56%),linear-gradient(-45deg,transparent 44%,currentColor 45% 55%,transparent 56%); }

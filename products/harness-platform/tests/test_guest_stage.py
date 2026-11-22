@@ -45,7 +45,9 @@ class GuestStageTests(IsolatedAsyncioTestCase):
                         self.assertEqual(result.status_code, 303)
                     page = await client.get(chat)
                     self.assertEqual(page.status_code, 200)
-                    self.assertIn('id="root"', page.text)
+                    self.assertIn('data-guest-chat', page.text)
+                    for asset in ("/about/assets/guest-chat.js", "/about/assets/public-session.js", "/about/styles.css"):
+                        self.assertEqual((await client.get(asset)).status_code, 200, asset)
                     events = await client.get(path.removesuffix("/turns") + "/events")
                     self.assertEqual(sum("Сервис создан для продавцов" in r["answer"]
                                          for r in events.json()["turns"]), 13)

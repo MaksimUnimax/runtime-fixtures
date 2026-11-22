@@ -185,13 +185,19 @@ class RegistrationStore(IdentityStore):
             db.execute("INSERT INTO guest_turns VALUES (?,?,?,?,?)",
                        (chat, request_id, text, answer, int(time() * 1000)))
 
-    def register(self, guest_token, login, password, recovery):
+    def register(self, guest_token, login, password, recovery=None):
         name = _login_name(login)
         secret = _password_bytes(password)
-        digest, recovery_digest = _secret_digest(guest_token), _secret_digest(recovery)
-        # The browser can repeat its original form after a lost response. Each
-        # draft has a server-issued recovery secret. Neither cookie nor recovery is stored in plaintext.
-        signature = hmac.digest(guest_token.encode("ascii"), b"guest-signup-v1:" + recovery_digest, "sha256")
+        digest = _secret_digest(guest_token)
+        if recovery is None:
+            # A password-only signup has no recoverable code. This opaque verifier
+            # binds retries to this browser's HttpOnly guest cookie.
+            recovery_digest = hmac.digest(guest_token.encode("ascii"), b"guest-registration-v2", "sha256")
+            version = b"guest-session-v2:"
+        else:
+            recovery_digest = _secret_digest(recovery)
+            version = b"guest-signup-v1:"
+        signature = hmac.digest(guest_token.encode("ascii"), version + recovery_digest, "sha256")
         session = base64.urlsafe_b64encode(signature).decode().rstrip("=")
         with self._lock:
             prior = self._db.execute("""SELECT a.salt, g.signup_nonce FROM guest_chats g
@@ -202,7 +208,7 @@ class RegistrationStore(IdentityStore):
         # The nonce is private to an unclaimed draft. Identical concurrent
         # forms can hash outside the writer lock and use the same random salt.
         saved_salt, nonce = prior
-        if nonce is not None and not hmac.compare_digest(_recovery_code(guest_token, nonce), recovery):
+        if recovery is not None and nonce is not None and not hmac.compare_digest(_recovery_code(guest_token, nonce), recovery):
             raise AuthenticationError("Invalid registration form")
         salt = saved_salt if nonce is None else nonce[:16]
         candidate = _derive(secret, salt)

@@ -82,7 +82,10 @@
           body:new URLSearchParams({coins:confirmed.count, total:confirmed.total, key})});
         if (r.status === 401) {
           save({...draft, resume:true});
-          location.assign('/login');
+          if (document.querySelector('#public-auth')) {
+            box.close();
+            document.dispatchEvent(new Event('octo-login'));
+          } else { location.assign('/login'); }
           return;
         }
         const data = await r.json().catch(() => ({}));
@@ -111,6 +114,10 @@
     if (!link) return;
     event.preventDefault();
     openCheckout();
+  });
+  document.addEventListener('octo-authenticated', () => {
+    const draft = saved();
+    if (draft.resume) { save({...draft,resume:false}); openCheckout(draft.count); }
   });
   if (location.hash === '#buy-coins') {
     openCheckout(new URLSearchParams(location.search).get('coins') || '100');

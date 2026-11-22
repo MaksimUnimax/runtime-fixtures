@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/ui-assets/project/theme.js"></script>
   <meta name="color-scheme" content="light dark">
   <title>$title · Октопорт</title>
   <meta name="description" content="$description">
@@ -13,24 +14,37 @@
   <link rel="canonical" href="$canonical">
   <link rel="icon" href="/about/assets/favicon-contour-v1.png" type="image/png">
   <link rel="stylesheet" href="/about/styles.css?v=$version">
+  <link rel="stylesheet" href="/ui-assets/project/checkout.css">
+  <script defer src="/ui-assets/project/checkout.js"></script>
   <script defer src="/about/assets/public-session.js?v=$session_version"></script>
-  <script defer src="/about/assets/yandex-metrika.js"></script>
+  $page_scripts
 </head>
-<body class="octo-info" id="top">
-  <noscript><img hidden src="https://mc.yandex.ru/watch/113424299" width="1" height="1" alt=""></noscript>
+<body class="octo-info" id="top" data-page="$page" data-auth-entry="" data-auth-error="">
+  $noscript
   <a class="skip" href="#content">К содержанию</a>
   <div class="layout">
     <aside class="sidebar">
-      <a class="brand" href="/" aria-label="Октопорт — открыть чат"><img alt="" width="24" height="24" src="/about/assets/octoport-brand.png"><img class="octo-wordmark" src="/about/assets/octoport-wordmark.svg?v=689f9cd2" width="112" height="28" alt="octoport"></a>
+      <a class="brand" href="/about/ask" aria-label="Октопорт — открыть чат"><img alt="" width="24" height="24" src="/about/assets/octoport-brand.png"><img class="octo-wordmark" src="/about/assets/octoport-wordmark.svg?v=689f9cd2" width="112" height="28" alt="octoport"></a>
       <nav aria-label="Разделы Октопорта">$navigation</nav>
-      <div class="account"><a data-account href="/">Открыть чат</a><a data-guest href="/login">Войти</a></div>
+      <div class="account">$account_nav</div>
     </aside>
     <div class="workspace">
-      <header class="toolbar"><a class="mobile-brand brand" href="/"><img alt="" width="24" height="24" src="/about/assets/octoport-brand.png"><img class="octo-wordmark" src="/about/assets/octoport-wordmark.svg?v=689f9cd2" width="112" height="28" alt="octoport"></a><span>$label</span><a href="/">В чат →</a></header>
+      <header class="toolbar"><a class="mobile-brand brand" href="/about/ask"><img alt="" width="24" height="24" src="/about/assets/octoport-brand.png"><img class="octo-wordmark" src="/about/assets/octoport-wordmark.svg?v=689f9cd2" width="112" height="28" alt="octoport"></a><span>$label</span><div class="toolbar-actions"><label class="theme-control"><span class="visually-hidden">Тема оформления</span><select aria-label="Тема оформления" data-theme-select><option value="system">Как в системе</option><option value="light">Светлая</option><option value="dark">Тёмная</option></select></label><a class="toolbar-chat" href="/about/ask">В чат →</a></div><div class="mobile-account">$account_nav</div></header>
       <nav class="mobile-nav" aria-label="Разделы Октопорта">$navigation</nav>
       <main id="content">$content</main>
       <footer>$seller<div class="footer-links"><span>© 2026 Октопорт</span><a href="/about/privacy">Конфиденциальность</a><a href="mailto:support@octoport.ru">support@octoport.ru</a></div></footer>
     </div>
   </div>
+  <dialog id="public-auth" aria-labelledby="public-auth-title" class="ym-hide-content">
+    <header><h2 id="public-auth-title">Войти</h2><button type="button" class="octo-auth-close" aria-label="Закрыть"></button></header>
+    <p data-signup-note hidden>При первой регистрации вы получите 10 монет.</p>
+    <form method="post" action="/login">
+      <label>Логин<input name="login" autocomplete="username" maxlength="254" required></label>
+      <label>Пароль<input type="password" name="password" autocomplete="current-password" maxlength="256" required></label>
+      <p data-auth-status role="alert" hidden></p>
+      <button type="submit">Войти</button>
+    </form>
+    <button type="button" data-switch-auth>Создать аккаунт</button>
+  </dialog>
 </body>
 </html>

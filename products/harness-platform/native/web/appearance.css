@@ -20,17 +20,26 @@
   --octo-radius: 8px;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-appearance="light"]) {
     --octo-page: #131519; --octo-rail: #191c21; --octo-panel: #21252b;
     --octo-field: #1c2025; --octo-ink: #f1f3f6; --octo-muted: #bbc2cb;
     --octo-line: #414850; --octo-hover: #2d333a; --octo-active: #39414a;
     --octo-action: #eef0f3; --octo-on-action: #121419; --octo-accent: #a7c4ff;
   }
 }
+:root[data-appearance="dark"] {
+    --octo-page: #131519; --octo-rail: #191c21; --octo-panel: #21252b;
+    --octo-field: #1c2025; --octo-ink: #f1f3f6; --octo-muted: #bbc2cb;
+    --octo-line: #414850; --octo-hover: #2d333a; --octo-active: #39414a;
+    --octo-action: #eef0f3; --octo-on-action: #121419; --octo-accent: #a7c4ff;
+  color-scheme:dark;
+}
+:root[data-appearance="light"] {color-scheme:light;}
 .octo-wordmark { display:block; flex:none; width:112px; height:auto; filter:none; }
 @media (prefers-color-scheme: dark) {
-  .octo-wordmark { filter:invert(1); }
+  :root:not([data-appearance="light"]) .octo-wordmark { filter:invert(1); }
 }
+:root[data-appearance="dark"] .octo-wordmark {filter:invert(1);}
 body[data-mode] .octo-wordmark { filter:none; }
 body[data-mode][data-ds-dark-theme] .octo-wordmark { filter:invert(1); }
 :where(.octo-info, .octo-admin, .account-dialog, .service-settings, .account-actions) {

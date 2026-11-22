@@ -7,7 +7,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from .browser_session import (
-    _cookie_name, _form_fields, _redirect,
+    _cookie_name, _form_fields, _redirect, _PRIVATE_HEADERS,
     _secure, browser_token, clear_guest_cookie, guest_cookie, require_browser_origin,
 )
 from .guest_registration import GUEST_LIFETIME, RegistrationConflict
@@ -27,7 +27,8 @@ async def _account_target(request):
 
 async def start(request):
     require_browser_origin(request)
-    if target := await _account_target(request):
+    public = request.url.path == "/guest/session"
+    if not public and (target := await _account_target(request)):
         return _redirect(target)
     cookie = guest_cookie(request)
     token = request.cookies.get(cookie)
@@ -36,7 +37,10 @@ async def start(request):
         chat = await run_in_threadpool(identity.guest_chat, token)
     except AuthenticationError:
         token, chat = await run_in_threadpool(identity.start_guest)
-    response = _redirect("/register" if request.url.path == "/register/start" else f"/app/chats/{chat}")
+    if public:
+        response = JSONResponse({"chat":chat}, headers=_PRIVATE_HEADERS)
+    else:
+        response = _redirect("/register" if request.url.path == "/register/start" else f"/app/chats/{chat}")
     response.set_cookie(cookie, token, max_age=GUEST_LIFETIME, path="/", secure=_secure(request),
                         httponly=True, samesite="strict")
     return response
@@ -77,21 +81,27 @@ async def register(request):
     identity = request.app.state.identity
     if request.method == "POST":
         require_browser_origin(request)
+    inline = request.headers.get("accept") == "application/json"
     if target := await _account_target(request):
-        return _redirect(target)
+        return JSONResponse({"authenticated":True}, headers=_PRIVATE_HEADERS) if inline else _redirect(target)
     if request.method in {"GET", "HEAD"}:
         return await page(request, panel="register")
-    fields = await _form_fields(request, {"login", "password", "recovery"})
+    fields = await _form_fields(request, {"login", "password"}, optional={"recovery"})
     try:
         session, chat = await run_in_threadpool(identity.register, token, **fields)
-    except RegistrationConflict:
-        return await page(request, panel="register", error="Этот логин уже занят или регистрация завершена. Выберите другой логин или войдите.", status=409)
-    except AuthenticationError:
-        return await page(request, panel="register", error="Сессия регистрации истекла", status=401)
-    except ValueError:
-        return await page(request, panel="register", error="Проверьте логин и длину пароля.", status=400)
+    except (RegistrationConflict,AuthenticationError,ValueError) as exc:
+        if isinstance(exc, RegistrationConflict):
+            status, message = 409, "Этот логин уже занят. Войдите или выберите другой логин."
+        elif isinstance(exc, AuthenticationError):
+            status, message = 401, "Сессия регистрации истекла. Повторите отправку."
+        else:
+            status, message = 400, "Проверьте логин и длину пароля."
+        if inline:
+            return JSONResponse({"detail":message}, status_code=status, headers=_PRIVATE_HEADERS)
+        return await page(request, panel="register", error=message, status=status)
     secure = _secure(request)
-    response = _redirect(f"/app/chats/{chat}")
+    response = (JSONResponse({"authenticated":True}, headers=_PRIVATE_HEADERS) if inline
+                else _redirect(f"/app/chats/{chat}"))
     response.set_cookie(_cookie_name(secure), session, path="/", secure=secure, httponly=True, samesite="strict")
     clear_guest_cookie(request, response)
     return response
@@ -99,6 +109,7 @@ async def register(request):
 
 def guest_routes():
     return [
+        Route("/guest/session", start, methods=["POST"]),
         Route("/guest/start", start, methods=["POST"]),
         Route("/register/start", start, methods=["POST"]),
         Route("/register", register, methods=["GET", "POST"]),

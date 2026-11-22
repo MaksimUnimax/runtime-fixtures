@@ -250,9 +250,7 @@ export async function createTransport(data, initialHistory) {
           if(op.path?.length!==1 || !['set','unset'].includes(op.op) || !validThemeField(key,setting))
             return failure('Неизвестная настройка оформления');
           if(key==='preference') {
-            document.cookie='octoport_theme='+setting+'; Path=/; Max-Age=31536000; SameSite=Lax'
-              +(location.protocol==='https:'?'; Secure':'');
-            document.documentElement.dataset.theme=setting;
+            window.octoTheme.set(setting);
           } else {
             fonts={...fonts,[key]:setting};
             try { localStorage.setItem('octoport.fonts',JSON.stringify(fonts)); } catch {}

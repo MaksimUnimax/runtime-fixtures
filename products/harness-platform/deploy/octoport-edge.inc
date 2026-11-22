@@ -7,7 +7,7 @@ location ^~ /about/ {
     add_header X-Content-Type-Options nosniff always;
     add_header Referrer-Policy strict-origin-when-cross-origin always;
     add_header X-Frame-Options DENY always;
-    add_header Content-Security-Policy "default-src 'none'; script-src 'self' https://mc.yandex.ru https://yastatic.net; style-src 'self' https://fonts.googleapis.com; img-src 'self' data: https://mc.yandex.ru; connect-src https://octoport.ru/api/session/status https://mc.yandex.ru; child-src blob: https://mc.yandex.ru; frame-src blob: https://mc.yandex.ru; font-src 'self' https://fonts.gstatic.com; base-uri 'self'; form-action 'none'; frame-ancestors 'none'; object-src 'none'" always;
+    add_header Content-Security-Policy "default-src 'none'; script-src 'self' https://mc.yandex.ru https://yastatic.net; style-src 'self' https://fonts.googleapis.com; img-src 'self' data: https://mc.yandex.ru; connect-src https://octoport.ru/api/session/status https://octoport.ru/api/coins/quote https://octoport.ru/api/coins/checkout https://octoport.ru/login https://octoport.ru/register https://octoport.ru/guest/ https://mc.yandex.ru; child-src blob: https://mc.yandex.ru; frame-src blob: https://mc.yandex.ru; font-src 'self' https://fonts.gstatic.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'" always;
 }
 location ~ ^/(privacy|support|install|seller-analytics)(?:\.html|/)?$ {
     return 308 /about/$1$is_args$args;
@@ -21,6 +21,10 @@ location = /robots.txt {
 location / {
     location = /api/session/uploadFileBinary {
         client_max_body_size 8m;
+        proxy_pass https://185.219.43.9;
+    }
+    location = /telegram/return {
+        access_log off;
         proxy_pass https://185.219.43.9;
     }
     proxy_pass https://185.219.43.9;

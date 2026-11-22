@@ -78,11 +78,10 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         browser = await driver.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"))
         self.addAsyncCleanup(browser.close)
         page = await browser.new_page(base_url=base)
-        results = await observe_turns(page)
         await page.goto("/")
-        await expect(page.locator('[data-composer-input][contenteditable=true]')).to_be_visible()
+        await expect(page.get_by_label('Ваш вопрос Октопусу')).to_be_visible()
         await expect(page).to_have_url(re.compile(r"/app/chats/[a-zA-Z0-9_-]+$"))
-        await expect(page.get_by_text("С чего начнем?", exact=True)).to_be_visible()
+        await expect(page.get_by_text("Спросите Октопуса", exact=True)).to_be_visible()
         await expect(page.get_by_text("Предварительный просмотр", exact=True)).to_have_count(0)
         self.assertNotIn("harness", (await page.title()).lower())
         original_url = page.url
@@ -96,12 +95,13 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         cases = cases[shift:] + cases[:shift]
         first_question = cases[0][0]
         cases.append(("Напиши стих про Ozon", "Я отвечаю на вопросы о нашем сервисе"))
-        history = page.locator('[data-slot="conversation.view"]')
+        history = page.locator(".guest-history")
         guest_answers = []
         for question, expected in cases:
-            self.assertEqual((await send(page, results, question))['status'], 200)
-            await expect(history.locator('[data-chat-flow-kind="assistant-step"]').last).to_contain_text(expected)
-            guest_answers.append(await history.locator('[data-chat-flow-kind="assistant-step"] p').last.inner_text())
+            await page.get_by_label("Ваш вопрос Октопусу").fill(question)
+            await page.get_by_role("button",name="Отправить вопрос").click()
+            await expect(history.locator(".guest-answer").last).to_contain_text(expected)
+            guest_answers.append(await history.locator(".guest-answer p").last.inner_text())
         evidence = os.environ.get("HARNESS_FAQ_EVIDENCE")
         if evidence and not live:
             Path(evidence).mkdir(parents=True, exist_ok=True)
@@ -115,8 +115,12 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         await page.get_by_role("link", name="Создать аккаунт").click()
         await page.get_by_label("Логин", exact=True).fill("buyer")
         await page.get_by_label("Пароль", exact=True).fill(password)
-        await page.get_by_role("button", name="Зарегистрироваться и открыть чат").click()
+        await page.get_by_role("dialog").get_by_role("button",name="Создать аккаунт",exact=True).click()
+        await expect(page.locator("html")).to_have_attribute("data-session","member")
         await expect(page).to_have_url(original_url)
+        await expect(history).to_contain_text(guest_answers[-1])
+        results = await observe_turns(page)
+        await page.reload()
         conversation = page.locator('[data-slot="conversation.view"]')
         for answer in guest_answers:
             await expect(conversation).to_contain_text(answer, timeout=30_000)
@@ -163,6 +167,7 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         await second.get_by_label("Логин", exact=True).fill("buyer")
         await second.get_by_label("Пароль", exact=True).fill(password)
         await second.get_by_role("dialog").get_by_role("button", name="Войти", exact=True).click()
+        await expect(second).to_have_url(re.compile(r"/app/(?:chats/[a-zA-Z0-9_-]+)?$"), timeout=20_000)
         await second.goto(original_url)
         saved = second.locator('[data-slot="conversation.view"]')
         await expect(saved.locator('[data-chat-flow-kind="user"]')).to_have_count(len(cases) + 1, timeout=30_000)
