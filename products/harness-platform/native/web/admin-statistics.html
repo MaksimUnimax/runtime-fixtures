@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Статистика · Октопорт</title>
+<script src="/ui-assets/project/theme.js"></script>
+<link rel="stylesheet" href="/ui-assets/project/appearance.css">
+<link rel="stylesheet" href="/ui-assets/project/admin.css">
+<script defer src="/ui-assets/project/presence.js"></script>
+</head>
+<body class="octo-admin octo-statistics">
+<main>
+<nav aria-label="Администрирование"><a href="/admin">Администрирование</a><a href="/">В чат</a></nav>
+<h1>Статистика</h1>
+<section aria-labelledby="stats-users">
+  <h2 id="stats-users">Пользователи</h2>
+  <p>$count</p>
+  <form class="stats-search" method="get" action="/admin/statistics" role="search">
+    <label>Поиск по логину<input type="search" name="q" value="$query" maxlength="254"></label>
+    <button type="submit">Найти</button>
+  </form>
+  <div class="stats-table" tabindex="0" aria-label="Статистика по пользователям">
+    <table>
+      <thead><tr><th scope="col">Логин</th><th scope="col">Активное время</th><th scope="col">Токены</th>
+      <th scope="col">Списано, монет</th><th scope="col">Пополнения, монет</th>
+      <th scope="col">Стартовые, монет</th><th scope="col">Баланс, монет</th></tr></thead>
+      <tbody>$rows</tbody>
+    </table>
+  </div>
+  $pagination
+  <p class="stats-hint">Активное время учитывается с запуска статистики. Фоновые вкладки и простой свыше минуты не учитываются.</p>
+</section>
+<section aria-labelledby="stats-bonus">
+  <h2 id="stats-bonus">Бесплатные монеты при регистрации</h2>
+  <form class="stats-search" method="post" action="/admin/statistics">
+    <label>Монеты для нового аккаунта<input required type="number" name="amount" min="0" max="$max_bonus" step="0.000000000001" value="$bonus" inputmode="decimal"></label>
+    <button type="submit">Сохранить</button>
+  </form>
+  <p class="stats-hint">Новая сумма действует для следующих регистраций. Ноль отключает начисление.</p>
+  <p class="stats-message" role="$message_role">$message</p>
+</section>
+</main>
+</body>
+</html>

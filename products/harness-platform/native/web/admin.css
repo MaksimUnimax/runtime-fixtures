@@ -16,3 +16,19 @@ p,output { margin:0; } output:empty { display:none; } output { color:#226345; } 
 #default-model[hidden] { display:none; }
 #refresh-models,#default-model { margin-top:14px; }
 #model-status:not(:empty) { margin-top:10px; }
+
+.octo-statistics main { max-width:1320px; }
+.stats-search { display:flex; flex-wrap:wrap; align-items:end; gap:10px; margin:14px 0; }
+.stats-search label { flex:0 1 330px; }
+.stats-search button { min-height:38px; }
+.stats-table { overflow:auto; border:1px solid var(--octo-line); border-radius:12px; }
+.stats-table table { width:100%; min-width:850px; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+.stats-table th,.stats-table td { padding:11px 12px; text-align:left; vertical-align:top; border-bottom:1px solid var(--octo-line); }
+.stats-table thead { background:var(--octo-field); }
+.stats-table tbody tr:last-child>* { border-bottom:0; }
+.stats-table tbody th { overflow-wrap:anywhere; max-width:200px; }
+.stats-table small,.stats-hint { display:block; color:var(--octo-muted,var(--octo-ink)); }
+.stats-hint,.stats-pagination,.stats-message:not(:empty) { margin-top:12px; }
+.stats-pagination { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+.stats-message[role=alert] { color:#9f2931; }
+:root[data-appearance=dark] .stats-message[role=alert] { color:#ffa9ae; }

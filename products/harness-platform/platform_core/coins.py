@@ -7,8 +7,12 @@ UNIT = 10**12
 MAX_BALANCE = 8_000_000 * UNIT
 PRICING_SCHEMA = """CREATE TABLE IF NOT EXISTS coin_pricing (
         singleton INTEGER PRIMARY KEY CHECK(singleton=1), sale_bps INTEGER NOT NULL CHECK(sale_bps BETWEEN 0 AND 100000))"""
+SIGNUP_SCHEMA = f"""CREATE TABLE IF NOT EXISTS coin_signup_bonus (
+        singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+        amount INTEGER NOT NULL CHECK(amount BETWEEN 0 AND {MAX_BALANCE}))"""
 SCHEMA = (
     PRICING_SCHEMA,
+    SIGNUP_SCHEMA,
     """CREATE TABLE IF NOT EXISTS coin_checkouts (
         id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces, request_key TEXT NOT NULL,
         quantity INTEGER NOT NULL CHECK(quantity>0), total TEXT NOT NULL, provider_id TEXT UNIQUE, url TEXT,
@@ -48,12 +52,13 @@ SCHEMA = (
 )
 
 
-def parse_amount(value):
+def parse_amount(value, *, allow_zero=False):
     if not isinstance(value, str) or not re.fullmatch(r"[0-9]{1,7}(?:\.[0-9]{1,12})?", value):
         raise ValueError("Expected a positive decimal coin amount")
     whole, _, fraction = value.partition(".")
     amount = int(whole) * UNIT + int(fraction.ljust(12, "0"))
-    if not 0 < amount <= MAX_BALANCE:
+    minimum = 0 if allow_zero else 1
+    if not minimum <= amount <= MAX_BALANCE:
         raise ValueError("Coin amount out of range")
     return amount
 
@@ -75,6 +80,28 @@ def rub_rate():
     if not re.fullmatch(r"[0-9]{1,4}(?:\.[0-9]{1,4})?", value) or Decimal(value) <= 0:
         raise ValueError("Invalid RUB/USD rate")
     return int(Decimal(value) * 10000)
+
+
+def signup_bonus(db):
+    row = db.execute("SELECT amount FROM coin_signup_bonus WHERE singleton=1").fetchone()
+    return row[0] if row else 10 * UNIT
+
+
+def set_signup_bonus(db, value):
+    amount = parse_amount(value, allow_zero=True)
+    db.execute("""INSERT INTO coin_signup_bonus(singleton,amount) VALUES(1,?)
+        ON CONFLICT(singleton) DO UPDATE SET amount=excluded.amount""", (amount,))
+
+
+def provider_meters(db, workspace):
+    totals = db.execute("""SELECT CASE WHEN a.rate_version='openrouter-v1' THEN 'OpenRouter' ELSE 'DeepSeek' END,
+            SUM(COALESCE(json_extract(a.usage_json,'$.input_tokens'),0)+COALESCE(json_extract(a.usage_json,'$.cache_creation_input_tokens'),0)),
+            SUM(COALESCE(json_extract(a.usage_json,'$.cache_read_input_tokens'),0)),
+            SUM(COALESCE(json_extract(a.usage_json,'$.output_tokens'),0)), SUM(COALESCE(a.charge,0))
+            FROM coin_attempts a JOIN coin_orders o USING(operation_id) WHERE o.workspace_id=? GROUP BY 1""",
+                        (workspace,))
+    return {label: {"input": inp, "cache": cache, "output": out, "coins": display(cost)}
+            for label, inp, cache, out, cost in totals}
 
 
 def sale_pricing(db):

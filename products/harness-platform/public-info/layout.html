@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="/ui-assets/project/checkout.css">
   <script defer src="/ui-assets/project/checkout.js"></script>
   <script defer src="/about/assets/public-session.js?v=$session_version"></script>
+  <script defer src="/ui-assets/project/presence.js"></script>
   $page_scripts
 </head>
 <body class="octo-info" id="top" data-page="$page" data-auth-entry="" data-auth-error="">
@@ -37,7 +38,7 @@
   </div>
   <dialog id="public-auth" aria-labelledby="public-auth-title" class="ym-hide-content">
     <header><h2 id="public-auth-title">Войти</h2><button type="button" class="octo-auth-close" aria-label="Закрыть"></button></header>
-    <p data-signup-note hidden>При первой регистрации вы получите 10 монет.</p>
+    <p data-signup-note hidden></p>
     <form method="post" action="/login">
       <label>Логин<input name="login" autocomplete="username" maxlength="254" required></label>
       <label data-auth-email hidden>Электронная почта<input type="email" name="email" autocomplete="email" maxlength="254" disabled></label>

@@ -22,6 +22,7 @@ _TOKEN = re.compile(r"[A-Za-z0-9_-]{43}")
 _SCHEMA = (
     PAID_ACCESS_SCHEMA,
     coins.PRICING_SCHEMA,
+    coins.SIGNUP_SCHEMA,
     """CREATE TABLE IF NOT EXISTS identity_accounts (
            actor_id TEXT PRIMARY KEY NOT NULL,
            login TEXT UNIQUE NOT NULL,
@@ -40,6 +41,9 @@ _SCHEMA = (
     """CREATE TABLE IF NOT EXISTS identity_admins (
            actor_id TEXT PRIMARY KEY NOT NULL REFERENCES identity_accounts ON DELETE CASCADE
        )""",
+    """CREATE TABLE IF NOT EXISTS identity_presence (
+           actor_id TEXT PRIMARY KEY REFERENCES identity_accounts ON DELETE CASCADE,
+           seconds INTEGER NOT NULL CHECK(seconds>=0), last_at INTEGER NOT NULL)""",
     "CREATE INDEX IF NOT EXISTS identity_session_expiry ON identity_sessions (expires_at)",
     "CREATE INDEX IF NOT EXISTS identity_session_owner ON identity_sessions (actor_id)",
 )
@@ -108,7 +112,9 @@ class IdentityStore(Store):
             (actor_id, login, workspace_id, salt, password_hash, recovery_digest)
             VALUES (?,?,?,?,?,?)""", (actor, name, workspace, salt, password_hash, recovery_digest))
         ensure_operation_schema(db)
-        coins.grant(db, "signup", actor, workspace, "10", "10 монет за регистрацию")
+        bonus = coins.signup_bonus(db)
+        if bonus:
+            coins.grant(db, "signup", actor, workspace, coins.display(bonus), "Монеты за регистрацию")
 
     def create_account(self, login: str, password: str) -> str:
         """Trusted provisioning. Return the recovery secret once to its owner."""
@@ -273,6 +279,10 @@ class IdentityStore(Store):
             ensure_operation_schema(db)
             coins.grant(db, issuer, key, row[0], amount, reason)
 
+    def public_signup_coins(self):
+        with self._lock:
+            return coins.display(coins.signup_bonus(self._db))
+
     def public_coin_price(self):
         with self._lock:
             return coins.sale_pricing(self._db)["rubPerCoin"]
@@ -332,13 +342,7 @@ class IdentityStore(Store):
                 charges.append(entry)
             meters = {}
             if admin:
-                totals = db.execute("""SELECT CASE WHEN a.rate_version='openrouter-v1' THEN 'OpenRouter' ELSE 'DeepSeek' END,
-                    SUM(COALESCE(json_extract(a.usage_json,'$.input_tokens'),0)+COALESCE(json_extract(a.usage_json,'$.cache_creation_input_tokens'),0)),
-                    SUM(COALESCE(json_extract(a.usage_json,'$.cache_read_input_tokens'),0)),
-                    SUM(COALESCE(json_extract(a.usage_json,'$.output_tokens'),0)), SUM(COALESCE(a.charge,0))
-                    FROM coin_attempts a JOIN coin_orders o USING(operation_id) WHERE o.workspace_id=? GROUP BY 1""",(workspace,))
-                meters = {"providerMeters":{label:{"input":inp,"cache":cache,"output":out,"coins":coins.display(cost)}
-                        for label,inp,cache,out,cost in totals}}
+                meters = {"providerMeters": coins.provider_meters(db, workspace)}
             return {**meters,"available": coins.display(available), "reserved": coins.display(held),
                     "salePrice": coins.sale_pricing(db), "canGrant": admin, "charges": charges}
 
