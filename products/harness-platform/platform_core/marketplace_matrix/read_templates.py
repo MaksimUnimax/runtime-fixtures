@@ -404,6 +404,8 @@ def _read_store(authority, store, card, params, directory, selected_proofs):
     payload, omitted, coverage = _result_sample(data, card.get("sampleRows", {}), card.get("responseTimeZones"))
     result = {"ok": True, "data": payload, "omitted": omitted, "http": receipt["status"],
               "providerMilliseconds": receipt["elapsed_ms"]}
+    if card.get("responseRowCount") and isinstance(data, list):
+        result["rowCount"] = len(data)
     if coverage:
         result["coverage"] = coverage
     if "responseFieldLabels" in card:
