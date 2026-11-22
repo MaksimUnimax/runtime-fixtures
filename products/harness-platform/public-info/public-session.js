@@ -5,6 +5,22 @@
   const alert = auth.querySelector('[role=alert]'), bonus = auth.querySelector('[data-signup-note]');
   const coins = new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2, maximumFractionDigits:2});
   let statusRequest, guestRequest, mode, signupReady = false, posting = false;
+  let signupCoins = '0';
+  function updateSignupNote() {
+    const text = signupCoins === '0' ? '' : 'Бесплатные монеты за первую регистрацию: '+signupCoins.replace('.',',')+'.';
+    bonus.textContent=text;
+    bonus.hidden=mode!=='register'||!text;
+    document.querySelectorAll('[data-signup-bonus]').forEach(note=>{
+      note.textContent=text;
+      note.hidden=!text;
+    });
+  }
+  function loadSignupBonus() {
+    fetch('/api/signup-bonus',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(data=>{
+      if(data){signupCoins=data.coins;updateSignupNote();}
+    }).catch(()=>{});
+  }
+  loadSignupBonus();
   function state(member = false, data = {}) {
     root.dataset.session = member ? 'member' : 'guest';
     document.querySelectorAll('.member-menu').forEach(menu => {menu.open=false;});
@@ -63,7 +79,8 @@
     form.elements.email.closest('label').hidden = !signup;
     form.elements.remember.checked = false;
     signupReady=false;
-    bonus.hidden = !signup;
+    updateSignupNote();
+    if (signup) loadSignupBonus();
     message();
     if (!auth.open) auth.showModal();
     form.elements.login.focus({preventScroll:true});

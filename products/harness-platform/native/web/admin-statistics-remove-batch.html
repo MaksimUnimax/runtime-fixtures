@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Удаление выбранных аккаунтов · Октопорт</title>
+<script src="/ui-assets/project/theme.js"></script>
+<link rel="stylesheet" href="/ui-assets/project/appearance.css">
+<link rel="stylesheet" href="/ui-assets/project/admin.css">
+<script defer src="/ui-assets/project/presence.js"></script>
+</head>
+<body class="octo-admin"><main>
+<nav><a href="$back">К статистике</a></nav>
+<h1>Удаление выбранных аккаунтов</h1>
+<section>
+<p>Выбрано аккаунтов: <strong>$count</strong></p>
+<ul>$accounts</ul>
+<p>Будут удалены аккаунты из списка и их связанные записи в рабочей базе, включая чаты, настройки интеграций, баланс и историю пополнений.</p>
+<p>Отменить удаление через админку нельзя.</p>
+<form class="stats-confirm" method="post" action="$action">
+$inputs
+<input type="hidden" name="action" value="delete">
+<label>Введите УДАЛИТЬ для подтверждения<input name="confirmation" required maxlength="20" autocomplete="off"></label>
+<button type="submit" class="stats-danger">Удалить аккаунты</button>
+</form>
+<p class="stats-message" role="alert">$message</p>
+</section></main></body></html>

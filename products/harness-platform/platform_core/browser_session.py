@@ -80,7 +80,7 @@ def browser_token(connection) -> str:
     return token
 
 
-async def _form_fields(request, keys, max_bytes=8192, *, optional=frozenset()):
+async def _form_pairs(request, *, max_bytes, max_fields):
     if request.headers.get("content-type", "").partition(";")[0].strip().lower() != "application/x-www-form-urlencoded":
         raise HTTPException(415, "Expected a URL-encoded form")
     data = bytearray()
@@ -89,10 +89,14 @@ async def _form_fields(request, keys, max_bytes=8192, *, optional=frozenset()):
             raise HTTPException(413, "Form too large")
         data.extend(chunk)
     try:
-        fields = dict(parse_qsl(data.decode("ascii"), keep_blank_values=True, strict_parsing=True,
-                                errors="strict", max_num_fields=len(keys) + len(optional)))
+        return parse_qsl(data.decode("ascii"), keep_blank_values=True, strict_parsing=True,
+                         errors="strict", max_num_fields=max_fields)
     except (UnicodeError, ValueError):
         raise HTTPException(400, "Invalid form") from None
+
+
+async def _form_fields(request, keys, max_bytes=8192, *, optional=frozenset()):
+    fields = dict(await _form_pairs(request, max_bytes=max_bytes, max_fields=len(keys)+len(optional)))
     if not keys <= fields.keys() <= keys | optional:
         raise HTTPException(400, "Invalid form")
     return fields

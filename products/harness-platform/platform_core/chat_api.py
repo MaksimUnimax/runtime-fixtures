@@ -20,7 +20,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from .account_access import AccountAccess
-from . import access_web
+from . import access_web, admin_statistics
 from .admin_costs import AdminCosts, present_chat
 from .user_plugins import service as user_plugins, illustrations, telegram_routes
 from .browser_session import browser_routes, browser_token
@@ -296,6 +296,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         *browser_routes(),
         *guest_routes(),
         *web_routes(),
+        *admin_statistics.routes(),
         *turn_progress.routes(_token),
         *chat_attachments.routes(_token),
         *chat_connections.routes(_token,_body),

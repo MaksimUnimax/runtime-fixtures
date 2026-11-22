@@ -291,6 +291,16 @@ window.__ModuleLoader__.load({
       function AuthForm({signup, close}) {
         const [busy,setBusy]=React.useState(false);
         const [error,setError]=React.useState(a.error);
+        const [bonus,setBonus]=React.useState('0');
+        React.useEffect(()=>{
+          if (!signup) return;
+          const controller=new AbortController();
+          fetch('/api/signup-bonus',{cache:'no-store',signal:controller.signal})
+            .then(response=>response.ok?response.json():null)
+            .then(data=>{if(data && !controller.signal.aborted)setBonus(data.coins);})
+            .catch(()=>{});
+          return ()=>controller.abort();
+        },[signup]);
         async function submit(event) {
           event.preventDefault();
           if (busy) return;
@@ -327,7 +337,7 @@ window.__ModuleLoader__.load({
         return h(React.Fragment,null,
           h('button',{className:'account-close',type:'button','aria-label':'Закрыть',disabled:busy,onClick:close}),
           h('h2',{id:'dialog-title'},signup?'Создать аккаунт':'Вход в Октопорт'),
-          signup && h('p',null,'За первую регистрацию вы получите 10 монет для работы в Октопорте.'),
+          signup && bonus !== '0' && h('p',null,'Бесплатные монеты за первую регистрацию: '+bonus.replace('.',',')+'.'),
           error && h('p',{role:'alert'},error),
           h('form',{action:signup?'/register':'/login',method:'post',onSubmit:submit},
             Field('login','Логин',{autoComplete:'username',maxLength:254,disabled:busy}),
