@@ -10,14 +10,14 @@ from deploy.publish_info import CONTENT, PAGES, render_page, styles
 
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
+from starlette.exceptions import HTTPException
 from starlette.responses import FileResponse, HTMLResponse, Response
 from starlette.routing import Route
 
 from .checkout import checkout_routes
-from .browser_session import _secure, browser_token, guest_cookie, _redirect
+from .browser_session import browser_token, guest_cookie, _redirect
 from .identity import AuthenticationError, ChatUnavailable
 from .native_web import shell, module_file, HEADERS, UI, static_bytes, asset_response, client_source
-from .guest_registration import GUEST_LIFETIME
 from .native_ui_entry import browser_entry
 
 
@@ -69,25 +69,21 @@ async def page(request, *, panel="", error="", status=200):
             return shell(theme=theme, panel="notice", error="Чат недоступен", account=account, status=404)
         except AuthenticationError:
             pass
-    cookie = guest_cookie(request)
-    guest = request.cookies.get(cookie)
-    try:
-        own_chat, has_turns = await run_in_threadpool(identity.guest_chat_summary, guest)
-    except AuthenticationError:
-        if chat:
+    # Only the same-origin POST initializes the guest. Two simultaneous page loads
+    # must never replace each other's conversation cookie.
+    guest = request.cookies.get(guest_cookie(request))
+    if chat:
+        try:
+            own_chat, has_turns = await run_in_threadpool(identity.guest_chat_summary, guest)
+        except AuthenticationError:
             return shell(theme=theme, guest=True, panel="login", error="Чат недоступен", status=404)
-        guest, own_chat = await run_in_threadpool(identity.start_guest)
-        has_turns = False
-    if chat and chat != own_chat:
-        return shell(theme=theme, guest=True, panel="notice", chat=own_chat, account={"hasTurns": has_turns}, error="Чат недоступен", status=404)
+        if chat != own_chat:
+            return shell(theme=theme, guest=True, panel="notice", chat=own_chat, account={"hasTurns": has_turns}, error="Чат недоступен", status=404)
     html = document("ask").replace("https://octoport.ru/about/ask", "https://octoport.ru/")
     if panel or error:
         html = html.replace('data-auth-entry=""', f'data-auth-entry="{escape(panel, quote=True)}"')
         html = html.replace('data-auth-error=""', f'data-auth-error="{escape(error, quote=True)}"')
-    response = HTMLResponse(html, status_code=status, headers=HEADERS)
-    response.set_cookie(cookie, guest, path="/", max_age=GUEST_LIFETIME, secure=_secure(request),
-                        httponly=True, samesite="strict")
-    return response
+    return HTMLResponse(html, status_code=status, headers=HEADERS)
 
 async def payment(request):
     quantity = request.query_params.get("coins", "100")

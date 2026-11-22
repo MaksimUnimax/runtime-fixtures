@@ -16,14 +16,27 @@
     }
     return pair;
   }
+  async function requestChat(endpoint, options) {
+    if (!id) id=await window.octoGuestSession();
+    const request=chatId=>fetch('/guest/chats/'+encodeURIComponent(chatId)+endpoint, options);
+    const original=id;
+    const response=await request(original);
+    if (response.status!==401 && response.status!==404) return response;
+    id=await window.octoGuestSession();
+    return id===original ? response : request(id);
+  }
   async function page(previous=false) {
     const version=revision;
-    if(!id) id=await window.octoGuestSession();
-    const r=await fetch('/guest/chats/'+encodeURIComponent(id)+'/events'+(previous?'?before='+cursor:''),{cache:'no-store'});
+    const r=await requestChat('/events'+(previous?'?before='+cursor:''),{cache:'no-store'});
     if(!r.ok) throw Error('Не удалось загрузить переписку.');
     const data=await r.json();
     if(version!==revision)return;
-    if (['/','/app/'].includes(location.pathname)) window.history.replaceState(window.history.state,'','/app/chats/'+encodeURIComponent(id));
+    const path=location.pathname;
+    const guestPath='/app/chats/'+encodeURIComponent(id);
+    const guestDeepLink=path.startsWith('/app/chats/') && document.documentElement.dataset.session!=='member';
+    if (path!==guestPath && (path==='/' || path==='/app/' || guestDeepLink)) {
+      window.history.replaceState(window.history.state,'',guestPath);
+    }
     const rows=data.turns.map(turn);
     if(previous) history.prepend(...rows); else history.replaceChildren(...previousConversation,...rows);
     cursor=data.nextBefore;older.hidden=cursor==null;
@@ -46,9 +59,8 @@
     busy=true;button.disabled=true;input.readOnly=true;status.textContent='Октопус отвечает…';
     try {
       await loading;
-      if(!id)id=await window.octoGuestSession();
       if(!pending || pending.text!==text)pending={text,request_id:crypto.randomUUID()};
-      const r=await fetch('/guest/chats/'+encodeURIComponent(id)+'/turns',{
+      const r=await requestChat('/turns',{
         method:'POST',headers:{Accept:'application/json'},body:new URLSearchParams(pending)});
       if(!r.ok) {
         if(r.status===401)id=null;

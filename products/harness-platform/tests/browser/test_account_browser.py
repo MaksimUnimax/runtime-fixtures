@@ -912,6 +912,23 @@ class BrowserIsolation(ProductBrowser):
         await second.reload()
         await expect(second.locator('[data-slot="conversation.view"]')).to_contain_text(followups[1], timeout=30_000)
 
+    async def test_first_guest_tabs_share_one_conversation(self):
+        context = await self.browser.new_context(base_url=self.base_url)
+        self.addAsyncCleanup(context.close)
+        ask, home = await asyncio.gather(context.new_page(), context.new_page())
+        async with ask.expect_response(lambda response: response.url.endswith("/events")) as asking:
+            async with home.expect_response(lambda response: response.url.endswith("/events")) as landing:
+                await asyncio.gather(ask.goto("/about/ask"), home.goto("/"))
+        first, second = await asyncio.gather(asking.value, landing.value)
+        self.assertEqual((first.status, second.status), (200, 200))
+        self.assertEqual(first.url, second.url)
+        await ask.get_by_label("Ваш вопрос Октопусу").fill("Как зарегистрироваться?")
+        await ask.get_by_role("button", name="Отправить вопрос").click()
+        await expect(ask.locator(".guest-answer")).to_contain_text("10 монет")
+        await home.reload()
+        await expect(home.locator(".guest-answer")).to_contain_text("10 монет")
+        await expect(ask).to_have_url(re.compile(r"/about/ask$"))
+
     async def test_guest_registers_and_resumes_the_same_chat(self):
         guest = await self.browser.new_context(base_url=self.base_url)
         second_device = await self.browser.new_context(base_url=self.base_url)

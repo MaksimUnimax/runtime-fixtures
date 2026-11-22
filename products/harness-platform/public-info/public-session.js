@@ -29,11 +29,15 @@
       return false;
     }
   }
-  async function guest() {
+  async function startGuest() {
+    const response = await fetch('/guest/session', {method:'POST', cache:'no-store'});
+    if (!response.ok) throw Error('Не удалось открыть гостевой чат.');
+    return (await response.json()).chat;
+  }
+  function guest() {
     if (!guestRequest) {
-      guestRequest = fetch('/guest/session',{method:'POST',cache:'no-store'})
-        .then(async r => {if (!r.ok) throw Error('Не удалось открыть гостевой чат.'); return (await r.json()).chat;})
-        .finally(() => {guestRequest=null;});
+      const start = navigator.locks ? navigator.locks.request('octoport.guest.session', startGuest) : startGuest();
+      guestRequest = start.finally(() => {guestRequest=null;});
     }
     return guestRequest;
   }
