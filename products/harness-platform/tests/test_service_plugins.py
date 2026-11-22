@@ -78,6 +78,24 @@ class ServicePlugins(unittest.TestCase):
                 self.assertNotIn("perf-secret", str(partial))
                 self.assertNotIn("Реклама", str(partial["availableServices"]))
 
+    def test_separate_wb_permissions_and_no_stale_checks_after_key_change(self):
+        with self.client() as client:
+            form = {"provider":"wb", "name":"Склад", "fields":{"token":"qa-private"}, "chatId":self.chat}
+            cid = client.post("/api/integrations", headers=self.headers, json=form).json()["id"]
+            def answer(request):
+                ok = request.url.host.startswith("statistics-")
+                return httpx.Response(200 if ok else 403,json={"Status":"OK"} if ok else {})
+            with patch.object(client.app.state, "http", httpx.AsyncClient(transport=httpx.MockTransport(answer))):
+                reply = client.post(f"/api/integrations/{cid}/check", headers=self.headers).json()
+                self.assertEqual(reply, {"status":"verified","checks":{"Статистика":"verified","Продвижение":"denied"}})
+            rows = client.get(f"/api/chats/{self.chat}/integrations",headers=self.headers).json()["connections"]
+            self.assertEqual(rows[0]["checks"],reply["checks"])
+            form["fields"]={"token":"replacement-qa"}
+            client.post("/api/integrations", headers=self.headers,json=form).raise_for_status()
+            rows = client.get(f"/api/chats/{self.chat}/integrations",headers=self.headers).json()["connections"]
+            self.assertNotIn("checks",rows[0])
+            self.assertEqual(client.post(f"/api/integrations/{cid}/check",headers=self.other).status_code,404)
+
     @unittest.skipUnless(os.getenv("HARNESS_NODE_MODULES"), "requires native Harness")
     def test_chat_deletion_keeps_other_histories_account_keys_and_receipts(self):
         import sqlite3

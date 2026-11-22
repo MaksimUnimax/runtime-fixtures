@@ -15,6 +15,8 @@ class Plugin:
     operations: tuple = ()
     keywords: str = ""
     setup: tuple = ()
+    # Published event sources that can initiate work without a user message.
+    triggers: tuple = ()
 
 
 WB = Plugin("wildberries", "analytics", "Вайлдберис",
@@ -27,7 +29,7 @@ OZON = Plugin("ozon", "analytics", "Озон",
               "озон заказы выкупы доход остатки реклама продвижение дрр кампании показы клики траты потратил находили покупатели расход бюджет маркетинг")
 ILLUSTRATIONS = Plugin("illustrations","graphics","Иллюстрации","Создаёт изображения по описанию и прикрепляет их к сообщению.","images", (("Создать изображение", "", ""),), "картинка рисунок нарисуй фото")
 TELEGRAM = Plugin("telegram-reports", "documents", "Отчёты в Telegram",
-                  "Личная доставка готовых отчётов этого чата в ваш Telegram.", "telegram", (("Доставить отчёт", "telegram", "Telegram"),), "телега телегу тг прислать отправить доставка мессенджер уведомляй",
+                  "Доставляет готовый отчёт этого чата в ваш Telegram, когда получает событие о его создании.", "telegram", (("Доставить отчёт", "telegram", "Telegram"),), "телега телегу тг прислать отправить доставка мессенджер уведомляй",
                   ("Включите плагин в нужном чате, откройте «Отчёты в Telegram» и нажмите «Получать новые отчёты этого чата».",))
 CATALOG = {plugin.id: plugin for plugin in (WB, OZON, ILLUSTRATIONS, TELEGRAM)}
 CATEGORIES = (

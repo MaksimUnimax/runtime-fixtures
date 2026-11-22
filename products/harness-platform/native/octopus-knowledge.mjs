@@ -81,12 +81,14 @@ export function projectCompletedKnowledge(seed) {
 
 const words = text => new Set(text.toLocaleLowerCase('ru').replaceAll('ё','е')
   .match(/[а-яa-z0-9]+/g)?.filter(w => w.length > 1).map(w => w.slice(0, 5)) ?? []);
-const describe = card => [card.id, card.group, card.title, card.keywords, card.purpose, ...Object.keys(Array.isArray(card.steps) ? {} : card.steps ?? {}),
+const describe = card => [card.id, card.group, card.title, card.keywords, card.purpose, ...(card.triggers ?? []), ...Object.keys(Array.isArray(card.steps) ? {} : card.steps ?? {}),
   ...(card.operations ?? []).flatMap(o => [o.task,o.access])].join(' ');
 
 export function lookup(knowledge, query, page = 1) {
   if (!Number.isSafeInteger(page) || page < 1) return {error:'Укажите номер страницы от 1.'};
   const {cards, states} = knowledge;
+  const triggers = cards.flatMap(card => (card.triggers ?? []).map(event => ({event, plugin:card.id})));
+  const automation = triggers.length ? {triggers:triggers.slice(0,16),total:triggers.length} : {triggers:[], status:'Запуск задач по событию или расписанию пока недоступен.'};
   const terms = words(query);
   const scored = cards.map(card => {
     const vocabulary = words(describe(card));
@@ -96,7 +98,7 @@ export function lookup(knowledge, query, page = 1) {
   const state = card => states[card.id] ?? (card.id.startsWith('integration/')?'не подключено':'не установлено');
   if (!query.trim()) {
     const summaries = scored.slice((page-1)*16,page*16).map(({card}) => ({id:card.id,title:card.title,purpose:card.purpose,state:state(card)}));
-    return {total:scored.length, nextPage:page*16<scored.length?page+1:null, cards:summaries};
+    return {automation,total:scored.length, nextPage:page*16<scored.length?page+1:null, cards:summaries};
   }
   const rows = scored.slice((page-1)*5, page*5).map(r => r.card);
   const byId = new Map(cards.map(card=>[card.id,card]));
@@ -106,7 +108,7 @@ export function lookup(knowledge, query, page = 1) {
       if (byId.has(op.requires)) selected.add(byId.get(op.requires));
     }
   }
-  return {total:scored.length, nextPage:page*5<scored.length?page+1:null,
+  return {automation,total:scored.length, nextPage:page*5<scored.length?page+1:null,
     cards:[...selected].map(({keywords,...card}) => ({...card,state:state(card)}))};
 }
 
@@ -119,7 +121,7 @@ export function directory(cards) {
 export async function registerKnowledge(ctx, load, knowledge) {
   const {defineTool} = await load('dsh-tools');
   ctx.systemPrompt.section({name:'octopus',order:25,interpolate:false,
-    text:'Ты Октопус, осьминог Октопорта. Помогай вести магазины из одного места. Говори от первого лица, понятно. Статус подключения проверь в справке. Учитывай зависимости и выбранный канал. Выполнение подтверждай по результату.'});
+    text:'Ты Октопус, осьминог Октопорта. Помогай вести магазины из одного места. Говори от первого лица, понятно. Статус подключения проверь в справке. В плане проверь каждый шаг. Автозапуск — только по triggers. Канал выбирает пользователь. Выполнение подтверждай по результату.'});
   const {address,tone,detail} = knowledge.style;
   ctx.systemPrompt.context({name:'octopus-settings',order:75,required:true,interpolate:false,
     text:'Стиль: '+[address,tone,detail].join(', ')+'. Опубликовано: '+directory(knowledge.cards)+'.'});
