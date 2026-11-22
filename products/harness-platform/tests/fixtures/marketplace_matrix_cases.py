@@ -694,6 +694,38 @@ class MarketplaceMatrix(unittest.TestCase):
         self.assertTrue(all(len(row["categories"]) == 3 for row in sample["limits"]))
         self.assertEqual([entry["availableRows"] for entry in coverage], [281] * 7)
 
+    def test_read_template_explains_unproven_subject_without_calling_wb(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        packet = {**self.packet, "connections": [self.ids["wb"]], "readTemplate": {
+            "action": "read", "templateId": "read.wb.content_brands", "params": {"query": {"subjectId": 12345}},
+        }}
+        with patch("http_transport.read_response") as outbound:
+            result = read_templates.execute(packet, self.root)
+        outbound.assert_not_called()
+        self.assertEqual(result["reasonSource"], "template")
+        self.assertEqual(result["reason"], "Чтобы показать бренды Wildberries, укажите точный ID предмета.")
+        self.assertIsNone(result["http"])
+
+    def test_read_template_explains_documented_wb_outage_only_on_not_found(self):
+        from io import BytesIO
+        from urllib.error import HTTPError
+
+        from platform_core.marketplace_matrix import read_templates
+
+        url = "https://supplies-api.wildberries.ru/api/v1/warehouses"
+        packet = {**self.packet, "connections": [self.ids["wb"]], "readTemplate": {
+            "action": "read", "templateId": "read.wb.fbw_warehouses", "params": {},
+        }}
+        with patch("http_transport.read_response", side_effect=HTTPError(url, 404, "", {}, BytesIO())):
+            result = read_templates.execute(packet, self.root)
+        self.assertEqual(result["reasonSource"], "template")
+        self.assertEqual(result["reason"], "Wildberries временно отключил выдачу списка складов для поставок на склад Wildberries.")
+        with patch("http_transport.read_response", return_value=(b'[{"ID":1,"name":"Test"}]', 200)):
+            result = read_templates.execute(packet, self.root)
+        self.assertTrue(result["ok"])
+        self.assertNotIn("reason", result)
+
     def test_read_templates_uses_separate_performance_credential(self):
         from platform_core.marketplace_matrix import read_templates
 

@@ -72,6 +72,8 @@ def describe(card):
     description = {k: card[k] for k in ("id", "http", "path", "purpose", "category", "state", "access")}
     if "input" in card:
         description["input"] = card["input"]
+    if "requestGuide" in card:
+        description["requestGuide"] = card["requestGuide"]
     if "responseGuide" in card:
         description["responseGuide"] = card["responseGuide"]
     if card["state"] != "ready":
@@ -318,6 +320,15 @@ def _read_store(authority, store, card, params, directory, selected_proofs):
     return result, calls
 
 
+def _template_failure(card, code, status=None):
+    rules = card.get("errorRules", {})
+    reason = rules.get(code) or (rules.get(f"HTTP_{status}") if status is not None else None)
+    if reason:
+        return {"ok": False, "templateId": card["id"], "http": status,
+                "reason": reason, "reasonSource": "template"}
+    return None
+
+
 def execute(packet, directory):
     from .authority import ChatAuthority
     from .worker import configure_catalogue, log_failure
@@ -340,15 +351,20 @@ def execute(packet, directory):
     if card["state"] != "ready":
         return {"ok": False, "templateId": card["id"], "reason": REASONS[card["state"]]}
     params = args.get("params", {})
-    identifier_provenance(_identifier_params(params), packet["turn"]["question"], [])
-    proofs = configure_catalogue(SimpleNamespace(), {store.id: fields})
     try:
+        identifier_provenance(_identifier_params(params), packet["turn"]["question"], [])
+        proofs = configure_catalogue(SimpleNamespace(), {store.id: fields})
         public, calls = _read_store(authority, store, card, params, directory, proofs)
+    except Rejected as error:
+        if failure := _template_failure(card, error.code):
+            log_failure(card["operation"] or card["id"], error.code, None)
+            return failure
+        raise
     except CallError as error:
         log_failure(card["operation"] or card["id"], error.code, error.retry_at)
         result = {"ok": False, "templateId": card["id"], "http": error.status}
-        if reason := card.get("errorRules", {}).get(error.code):
-            return {**result, "reason": reason, "reasonSource": "template"}
+        if failure := _template_failure(card, error.code, error.status):
+            return failure
         if card.get("errorRules") and error.status in (401, 402, 403):
             return {**result, "requiresTestReview": True}
         return {**result, "reason": explain(error.code)["text"]}
