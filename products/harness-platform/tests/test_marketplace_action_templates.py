@@ -9,9 +9,9 @@ class MarketplaceActionTemplatesTest(unittest.TestCase):
         active = action_templates.catalogue()
         full = action_templates.catalogue(include_reference=True)
         self.assertEqual(Counter(row["profile"] for row in active),
-                         {"seller": 169, "performance": 15, "wb": 106})
+                         {"seller": 175, "performance": 15, "wb": 106})
         self.assertEqual(Counter(row["lifecycle"] for row in full),
-                         {"current": 290, "deprecated": 4, "retired": 7})
+                         {"current": 296, "deprecated": 4, "retired": 7})
         for row in full:
             with self.subTest(template=row["id"]):
                 self.assertTrue(row["hosts"])
@@ -25,6 +25,7 @@ class MarketplaceActionTemplatesTest(unittest.TestCase):
         self.assertEqual({row["http"] for row in rows}, {"PUT", "DELETE"})
         rows = action_templates.catalogue(profile="performance", query="параметры рекламной")
         self.assertEqual([row["http"] for row in rows], ["PATCH"])
+        self.assertEqual(len(action_templates.catalogue(profile="seller", query="/v1/review/first-reviews-collection/")), 6)
 
     def test_action_paths_have_no_ready_read_template(self):
         def route(row):
