@@ -107,9 +107,13 @@ class MarketplaceMatrix(unittest.TestCase):
         from urllib.error import HTTPError
 
         db = Path(self.turn["databasePath"])
-        grant = issue_grant(db, self.scope, source="chat.turn", run_key="matrix-case", ttl_seconds=3)
-        original_deadline = int((time.time() + 2.8) * 1000)
-        self.turn.update(token=grant.token, deadline=original_deadline, resumeRateLimits=True)
+        # Test the three-second grant boundary independently of host load.
+        now = time.time()
+
+        def advance(seconds):
+            nonlocal now
+            now += seconds
+
         self.packet["connections"] = [self.ids["ozon"]]
         self.packet["selections"] = [self.packet["selections"][1]]
         requests = []
@@ -120,17 +124,21 @@ class MarketplaceMatrix(unittest.TestCase):
                 raise HTTPError(req.full_url, 429, "rate limited", {"Retry-After": "4"}, None)
             return b'{"result":{"totals":[29],"data":[{"dimensions":[{"id":"2026-11"}],"metrics":[29]}]}}', 200
 
-        with patch("http_transport.read_response", side_effect=read):
+        with (patch("time.time", side_effect=lambda: now), patch("time.sleep", side_effect=advance),
+              patch("http_transport.read_response", side_effect=read)):
+            grant = issue_grant(db, self.scope, source="chat.turn", run_key="matrix-case", ttl_seconds=3)
+            original_deadline = int((now + 2.8) * 1000)
+            self.turn.update(token=grant.token, deadline=original_deadline, resumeRateLimits=True)
             result = worker.execute(self.packet, self.root)
         self.assertTrue(result["ok"], result)
-        self.assertGreater(int(time.time() * 1000), original_deadline)
+        self.assertGreater(int(now * 1000), original_deadline)
         self.assertEqual(requests, requests[:1] * 3)
         with sqlite3.connect(db) as conn:
             row = conn.execute("""SELECT deadline_ms, expires_at FROM marketplace_retry_windows
                                 JOIN usage_grants USING(token_hash) WHERE token_hash=?""",
                                (sha256(grant.token.encode()).hexdigest(),)).fetchone()
             self.assertGreater(row[0], original_deadline + 7000)
-            self.assertGreater(row[1], time.time())
+            self.assertGreater(row[1], now)
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM usage_operations").fetchone()[0], 1)
 
     def test_ozon_429_wait_and_notice_respect_provider_time(self):
