@@ -145,6 +145,68 @@ def bind_wb_advertising_coverage(files, portable):
             proof["dataset_query_hash"] = digest({"queries": queries, "sources": sources})
 
 
+def bind_wb_advertising_statuses(files, portable):
+    """Keep current campaign status separate from statistics over a period."""
+    sources = json.loads(files["dataset_sources.json"])
+    queries = json.loads(files["dataset_queries.json"])
+    templates = json.loads(files["template_catalog.json"])
+    previous_source = digest(sources)
+    previous_query = digest({"queries": queries, "sources": sources})
+
+    inventory = sources["sources"]["ds_wb_campaigns"]["response"]
+    raw_campaign = inventory["items"]["$fn"][1]["$map"][2]["$map"][2]
+    raw_campaign["changed_at"] = {"$path": ["ad", "changeTime"], "default": None}
+    inventory["map"]["changed_at"] = {"$path": ["row", "changed_at"]}
+    status = {"$path": ["row", "status"]}
+    label = "другой статус"
+    for code, text in ((4, "готова к запуску"), (7, "завершена"), (9, "активна"), (11, "на паузе")):
+        label = {"$if": [{"$fn": ["eq", status, code]}, text, label]}
+    inventory["map"]["status_label"] = label
+
+    active_note = "В этот отчёт входят только кампании со статусом 9 на момент запроса WB. Кампании на паузе, завершённые и готовые к запуску учитываются отдельно."
+    supported_note = "Статус кампании относится к моменту запроса, показатели относятся к запрошенному периоду. Различай активные, приостановленные и завершённые кампании."
+    coverage_note = "Если WB не вернул строку за период, соответствующие метрики остаются неизвестными. Нулевые значения допускаются только по полученным строкам."
+    for key in ("wb_active_ads", "wb_active_ads_totals", "wb_supported_ads"):
+        query = queries["queries"][key]
+        template = templates["templates"][key]
+        stage = next(s for s in query["flows"]["wb"] if s["source"] == "ds_wb_adstats")
+        if key in ("wb_active_ads", "wb_active_ads_totals"):
+            predicate = stage["foreach"]["$map"][0]["$fn"][1]["$map"][0]["$filter"][2]["$fn"]
+            if predicate[-1] != [9, 11]:
+                raise ValueError("Review the active WB campaign selection")
+            predicate[-1] = [9]
+            template["notes"][0] = query["notes"][0] = active_note
+        else:
+            query["columns"].insert(1, {"field": "status_at_request", "label": "статус на момент запроса", "kind": "text"})
+            query["relations"] = [{
+                "id": "classified", "label": "текущий статус кампании",
+                "left": "rows", "right": ["campaigns"], "on": [["key", "key"]],
+                "parent_keys": [], "left_where": True, "capacity": None, "preserve": ["spend", "views", "clicks", "orders"],
+                "fields": {"status_at_request": {"source": "status_label", "unknown": "неизвестно", "unknown_values": []}},
+                "coverage_field": "status_match", "missing": "reject",
+            }]
+            query["output_stage"] = "classified"
+            template["columns"] = deepcopy(query["columns"])
+            template["relations"] = deepcopy(query["relations"])
+            template["output_stage"] = query["output_stage"]
+            template["notes"][0] = query["notes"][0] = supported_note
+        template["notes"][1] = query["notes"][1] = coverage_note
+        step = next(s for s in template["steps"] if s["operation"] == "ds_wb_adstats")
+        step["params"] = deepcopy(stage["foreach"])
+
+    source_hash = digest(sources)
+    query_hash = digest({"queries": queries, "sources": sources})
+    for name, proof in portable.items():
+        if name not in sources["sources"] or proof.get("dataset_source_hash") != previous_source:
+            continue
+        proof["dataset_source_hash"] = source_hash
+        if proof.get("dataset_query_hash") == previous_query:
+            proof["dataset_query_hash"] = query_hash
+    for name, value in (("dataset_sources.json", sources), ("dataset_queries.json", queries),
+                        ("template_catalog.json", templates)):
+        files[name] = json.dumps(value, ensure_ascii=False, indent=2).encode() + b"\n"
+
+
 def patch_runtime(files, filename, old, new):
     source = files[filename].decode()
     if source.count(old) != 1:
@@ -591,6 +653,7 @@ def collect(core, renderer, config):
     bind_table_contracts(portable, config.get("table_capabilities", {}), files)
     bind_dataset_contracts(portable, config.get("dataset_capabilities", {}), files)
     bind_wb_advertising_coverage(files, portable)
+    bind_wb_advertising_statuses(files, portable)
     group_table_requests(files)
     bind_node_runtime(files)
     bind_provider_retry(files)

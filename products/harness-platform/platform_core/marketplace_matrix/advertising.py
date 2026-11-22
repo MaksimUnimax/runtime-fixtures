@@ -87,7 +87,7 @@ def qualify_daily_response(matrix, request, store, data, meta):
 
 
 def coverage_notes(plan, completed, names):
-    """Compare each report's compiled campaign selection with its validated rows."""
+    """Show period coverage for each current campaign state."""
     from dataset_pipeline import CATALOG, stage_tasks
     from template_catalog import TEMPLATES
 
@@ -112,15 +112,45 @@ def coverage_notes(plan, completed, names):
             asked = {str(campaign) for task in stage_tasks(source, store, stage, datasets)
                      for campaign in task["params"]["campaigns"]}
             received = {str(row["campaign_id"]) for row in datasets[stage["id"]]}
-            missing = asked - received
-            if not asked:
-                notes.append(f"{label}: кампаний с выбранными статусами нет.")
-            elif missing:
-                notes.append(
-                    f"{label}: WB прислал показатели по {len(received)} из {len(asked)} запрошенных кампаний. "
-                    f"Данные по {len(missing)} кампаниям отсутствуют. "
-                    "Итоги охватывают только полученные строки. Полная сумма по выбранным кампаниям неизвестна."
-                )
-            else:
-                notes.append(f"{label}: WB прислал показатели по всем {len(asked)} запрошенным кампаниям.")
+            campaigns = datasets["campaigns"]
+            active = {str(row["campaign_id"]) for row in campaigns if row["status"] == 9}
+            paused = {str(row["campaign_id"]) for row in campaigns if row["status"] == 11}
+            archived = {str(row["campaign_id"]) for row in campaigns if row["status"] == 7}
+            ready = sum(row["status"] == 4 for row in campaigns)
+            other = len(campaigns) - len(active | paused | archived) - ready
+            text = [
+                label + ".",
+                f"Статусы на момент запроса WB — активны {len(active)}, на паузе {len(paused)}, "
+                f"завершены {len(archived)}, готовы к запуску {ready}."
+                + (f" Другие статусы — {other}." if other else ""),
+            ]
+            groups = [("Активные", active & asked)]
+            if query_id == "wb_supported_ads":
+                old_archive = {
+                    str(row["campaign_id"]) for row in campaigns
+                    if row["status"] == 7 and changed_before(row.get("changed_at"), first)
+                }
+                groups.extend((("На паузе", paused & asked),
+                               ("Завершённые, кроме архива до периода", (archived - old_archive) & asked)))
+                if old_archive:
+                    text.append(f"Архив до начала периода — {len(old_archive)} кампаний. "
+                                f"Строки за период получены по {len(received & old_archive)} из них.")
+            for status_label, selected in groups:
+                if selected:
+                    text.append(f"{status_label} — WB прислал строки по {len(received & selected)} "
+                                f"из {len(selected)} кампаний.")
+                elif status_label == "Активные":
+                    text.append("Активных кампаний в выборке нет.")
+            if asked - received:
+                text.append("Итоги охватывают полученные строки. По остальным кампаниям статистика отсутствует.")
+            notes.append(" ".join(text))
     return notes
+
+
+def changed_before(value, first):
+    """For terminal statuses, use only a verifiable timestamp with timezone."""
+    try:
+        stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return stamp.tzinfo is not None and stamp.astimezone(ZoneInfo("Europe/Moscow")).date() < date.fromisoformat(first)
+    except (AttributeError, TypeError, ValueError, OverflowError):
+        return False

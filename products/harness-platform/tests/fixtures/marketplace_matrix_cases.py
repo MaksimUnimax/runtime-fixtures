@@ -545,9 +545,14 @@ class MarketplaceMatrix(unittest.TestCase):
             "templateId": tid, "connectionId": cid,
             "input": {"period": {"from": "2026-11-19", "to": "2026-11-19"}}}
             for tid in ("wb_active_ads", "wb_active_ads_totals", "wb_supported_ads")])
-        campaigns = {"all": 4, "adverts": [
+        campaigns = {"all": 6, "adverts": [
             {"status": 9, "count": 2, "advert_list": [{"advertId": 10}, {"advertId": 20}]},
-            {"status": 7, "count": 2, "advert_list": [{"advertId": 30}, {"advertId": 40}]},
+            {"status": 7, "count": 2, "advert_list": [
+                {"advertId": 30, "changeTime": "2026-11-18T20:59:00Z"},
+                {"advertId": 40, "changeTime": "2026-11-18T21:00:00Z"},
+            ]},
+            {"status": 11, "count": 1, "advert_list": [{"advertId": 50}]},
+            {"status": 4, "count": 1, "advert_list": [{"advertId": 60}]},
         ]}
         live_row = {"advertId": 10, "views": 100, "clicks": 4, "orders": 2,
                     "shks": 2, "sum_price": 500, "sum": 80}
@@ -564,7 +569,7 @@ class MarketplaceMatrix(unittest.TestCase):
             requested = parse_qs(urlsplit(req.full_url).query)["ids"][0]
             if requested == "10,20":
                 return json.dumps([live_row]).encode(), 200
-            self.assertEqual(requested, "10,20,30,40")
+            self.assertEqual(requested, "10,20,30,40,50")
             return json.dumps([live_row, zero_row]).encode(), 200
 
         def without_fixture_wait(*args):
@@ -575,11 +580,12 @@ class MarketplaceMatrix(unittest.TestCase):
             result = worker.execute(self.packet, self.root)
         self.assertTrue(result["ok"], result)
         answer = result["answer"]
-        self.assertIn("Статистика активных рекламных кампаний WB: WB прислал показатели по 1 из 2", answer)
-        self.assertIn("Суммарная статистика активных рекламных кампаний WB: WB прислал показатели по 1 из 2", answer)
-        self.assertIn("Статистика кампаний WB поддержанных статусов: WB прислал показатели по 2 из 4", answer)
-        self.assertEqual(answer.count("Полная сумма по выбранным кампаниям неизвестна"), 3)
-        self.assertIn("| 30 | 0 |", answer)
+        self.assertEqual(answer.count("Активные — WB прислал строки по 1 из 2 кампаний."), 3)
+        self.assertEqual(answer.count("На паузе — WB прислал строки по 0 из 1 кампаний."), 1)
+        self.assertIn("Архив до начала периода — 1 кампаний. Строки за период получены по 1 из них.", answer)
+        self.assertIn("Завершённые, кроме архива до периода — WB прислал строки по 0 из 1", answer)
+        self.assertIn("активны 2, на паузе 1, завершены 2, готовы к запуску 1", answer)
+        self.assertIn("| 30 | завершена | 0 |", answer)
         self.assertIn("| 80 |", answer)
 
     def test_forecast_requires_valid_owner_input_and_the_right_shop_credentials(self):
