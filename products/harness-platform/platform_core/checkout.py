@@ -3,6 +3,7 @@ import json
 import os
 import re
 from decimal import Decimal, ROUND_HALF_UP
+from pathlib import Path
 from uuid import uuid4
 from urllib.parse import urlsplit
 
@@ -21,9 +22,56 @@ _ID = re.compile(r"[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}")
 _LIMIT = coins.MAX_BALANCE // coins.UNIT
 
 
+def fiscal_policy():
+    """Never enable checkout before a configured, supported receipt scenario."""
+    if os.getenv("YOOKASSA_RECEIPT_PROVIDER") != "yookassa":
+        return None
+    vat = os.getenv("YOOKASSA_VAT_CODE", "")
+    subject = os.getenv("YOOKASSA_PAYMENT_SUBJECT", "")
+    mode = os.getenv("YOOKASSA_PAYMENT_MODE", "")
+    if (not vat.isascii() or not vat.isdecimal() or str(int(vat or "0")) != vat
+            or not 1 <= int(vat) <= 12 or subject not in {"service", "payment"}
+            or mode not in {"full_prepayment", "full_payment"}):
+        return None
+    return {"vat_code": int(vat), "payment_subject": subject, "payment_mode": mode}
+
+
 def merchant():
-    shop, key = os.getenv("YOOKASSA_SHOP_ID"), os.getenv("YOOKASSA_SECRET_KEY")
-    return (shop, key) if shop and key else None
+    if os.getenv("YOOKASSA_PAYMENTS_ENABLED") != "1" or fiscal_policy() is None:
+        return None
+    shop = os.getenv("YOOKASSA_SHOP_ID", "")
+    directory = os.getenv("CREDENTIALS_DIRECTORY", "")
+    if not re.fullmatch(r"[1-9][0-9]{3,15}", shop) or not directory:
+        return None
+    # systemd LoadCredential: secret never enters Environment= or a shell command.
+    # The initial owner-supplied document may include labels and shop ID.
+    try:
+        with (Path(directory) / "yookassa-config").open("rb") as f:
+            blob = f.read(1025)
+        if len(blob) > 1024:
+            return None
+        lines = [line.strip() for line in blob.decode("utf-8").splitlines()]
+        keys = [line for line in lines if line.startswith("live_")
+                and 30 <= len(line) <= 200 and line.isascii()
+                and not any(ch.isspace() for ch in line)]
+        if len(keys) != 1 or shop not in lines:
+            return None
+        return shop, keys[0]
+    except (OSError, UnicodeError):
+        return None
+
+
+def receipt_data(email, count, total):
+    policy = fiscal_policy()
+    if policy is None:
+        raise HTTPException(503, "Для оплаты необходима настроенная онлайн-касса.")
+    if not isinstance(email, str) or not re.fullmatch(r"[^@\s]{1,64}@[^@\s]{1,190}", email):
+        raise HTTPException(409, "Необходимо указать корректную почту для чека.")
+    return {"customer": {"email": email}, "internet": True,
+            "items": [{"description": f"Пополнение баланса Octoport: {count} монет",
+                       "quantity": 1,
+                       "amount": {"value": total, "currency": "RUB"},
+                       "measure": "piece", **policy}]}
 
 
 def quantity(raw):
@@ -138,9 +186,12 @@ async def checkout(request):
     order, url, status = await run_in_threadpool(order_for, store, token, fields["key"], count, fields["total"])
     if url or status != "pending":
         return response({"url": url, "status":status})
+    customer_email = await run_in_threadpool(store.account_login, token)
+    receipt = receipt_data(customer_email, count, fields["total"])
     payload = {"amount": {"value": fields["total"], "currency": "RUB"}, "capture": True,
                "confirmation": {"type":"redirect", "return_url":"https://octoport.ru/?account=wallet"},
-               "metadata": {"order":order}, "description":f"Октопорт · {count} монет"}
+               "metadata": {"order":order}, "description":f"Октопорт · {count} монет",
+               "receipt": receipt}
     try:
         data = await provider("POST", "", auth, json=payload, headers={"Idempotence-Key":order})
     except RejectedPayment:
