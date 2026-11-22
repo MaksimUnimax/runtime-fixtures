@@ -320,6 +320,7 @@ export async function openWorker(env) {
           compositionModule: env.HARNESS_PLATFORM_COMPOSITION || undefined, scope: req.scope,
           marketplaceTurn: metered && req.grant ? {
             question: req.text, requestId: req.requestId, deadline: req.deadline,
+            attachmentsJournal: journalFile,
             token: req.grant.token, resumeRateLimits: attached.some(connection => ['ozon', 'wb'].includes(connection.provider)),
           } : undefined,
         });

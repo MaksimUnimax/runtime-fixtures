@@ -50,22 +50,31 @@ def _name(value):
     return "".join(c for c in basename if c.isprintable()).strip()[:180] or "Файл"
 
 
-def _stage(journal, scope, name, body):
+def _stage(journal, scope, name, body, request_id=None, check=None):
     initialize(journal)
     file_id = uuid4().hex
     key = scope_key(scope)
     now = int(time.time() * 1000)
     with closing(sqlite3.connect(journal)) as db, db:
         db.execute("BEGIN IMMEDIATE")
+        if check is not None:
+            check()
         if db.execute("SELECT 1 FROM deleted_chat_scopes WHERE scope_key=?", (key,)).fetchone():
             raise ChatUnavailable()
         db.execute("DELETE FROM chat_files WHERE request_id IS NULL AND created_at<?", (now - DRAFT_TTL_MS,))
         used = db.execute("SELECT COALESCE(SUM(bytes),0) FROM chat_files WHERE actor_id=?", (scope.actor_id,)).fetchone()[0]
         if used + len(body) > MAX_ACCOUNT_BYTES:
             raise HTTPException(413, "Достигнут лимит хранения вложений аккаунта.")
-        db.execute("INSERT INTO chat_files(scope_key,actor_id,id,name,bytes,created_at,body) VALUES (?,?,?,?,?,?,?)",
-                   (key, scope.actor_id, file_id, name, len(body), now, bytes(body)))
+        db.execute("INSERT INTO chat_files(scope_key,actor_id,id,name,bytes,created_at,request_id,body) VALUES (?,?,?,?,?,?,?,?)",
+                   (key, scope.actor_id, file_id, name, len(body), now, request_id, bytes(body)))
     return {"receiptId": file_id, "file": {"attachmentId": file_id, "name": name, "bytes": len(body)}}
+
+
+def save_marketplace_document(journal, scope, request_id, name, body, check):
+    if not body or len(body) > MAX_FILE_BYTES:
+        raise HTTPException(413, "Размер документа превышает лимит выдачи через чат.")
+    file = _stage(journal, scope, _name(name), body, request_id, check)["file"]
+    return {**file, "download": "/api/chats/" + quote(scope.chat_id, safe="") + "/files/" + file["attachmentId"]}
 
 
 def _read(journal, scope, file_id):

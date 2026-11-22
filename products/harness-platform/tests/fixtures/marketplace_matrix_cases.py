@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 import tempfile
 import time
@@ -104,11 +105,23 @@ class MarketplaceMatrix(unittest.TestCase):
         import sqlite3
         from hashlib import sha256
         from urllib.error import HTTPError
+        from repository import Repository
 
         db = Path(self.turn["databasePath"])
-        grant = issue_grant(db, self.scope, source="chat.turn", run_key="matrix-case", ttl_seconds=3)
-        original_deadline = int((time.time() + 2.8) * 1000)
-        self.turn.update(token=grant.token, deadline=original_deadline, resumeRateLimits=True)
+        # Test the three-second grant boundary independently of host load.
+        now = time.time()
+        initialize_repository = Repository.__init__
+
+        def clock():
+            return now
+
+        def initialize_with_clock(repository, path):
+            initialize_repository(repository, path, clock=clock)
+
+        def advance(seconds):
+            nonlocal now
+            now += seconds
+
         self.packet["connections"] = [self.ids["ozon"]]
         self.packet["selections"] = [self.packet["selections"][1]]
         requests = []
@@ -119,17 +132,22 @@ class MarketplaceMatrix(unittest.TestCase):
                 raise HTTPError(req.full_url, 429, "rate limited", {"Retry-After": "4"}, None)
             return b'{"result":{"totals":[29],"data":[{"dimensions":[{"id":"2026-11"}],"metrics":[29]}]}}', 200
 
-        with patch("http_transport.read_response", side_effect=read):
+        with (patch("time.time", clock), patch("time.sleep", advance),
+              patch.object(Repository, "__init__", initialize_with_clock),
+              patch("http_transport.read_response", side_effect=read)):
+            grant = issue_grant(db, self.scope, source="chat.turn", run_key="matrix-case", ttl_seconds=3)
+            original_deadline = int((now + 2.8) * 1000)
+            self.turn.update(token=grant.token, deadline=original_deadline, resumeRateLimits=True)
             result = worker.execute(self.packet, self.root)
         self.assertTrue(result["ok"], result)
-        self.assertGreater(int(time.time() * 1000), original_deadline)
+        self.assertGreater(int(now * 1000), original_deadline)
         self.assertEqual(requests, requests[:1] * 3)
         with sqlite3.connect(db) as conn:
             row = conn.execute("""SELECT deadline_ms, expires_at FROM marketplace_retry_windows
                                 JOIN usage_grants USING(token_hash) WHERE token_hash=?""",
                                (sha256(grant.token.encode()).hexdigest(),)).fetchone()
             self.assertGreater(row[0], original_deadline + 7000)
-            self.assertGreater(row[1], time.time())
+            self.assertGreater(row[1], now)
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM usage_operations").fetchone()[0], 1)
 
     def test_ozon_429_wait_and_notice_respect_provider_time(self):
@@ -533,6 +551,1028 @@ class MarketplaceMatrix(unittest.TestCase):
         self.assertEqual(seen, ["9", "9,11", "9,11", "CAMPAIGN_STATE_RUNNING", "cpo:1", "cpo:2",
                                 "CAMPAIGN_STATE_RUNNING", "CAMPAIGN_STATE_INACTIVE", "CAMPAIGN_STATE_STOPPED",
                                 "cpo:1", "cpo:2", "all", "cpo:1", "cpo:2"])
+
+    def test_read_templates_are_scoped_to_read_contracts(self):
+        from platform_core.marketplace_matrix import ozon_report_file, read_templates, wb_documents
+        from platform_core.marketplace_matrix.plugin import read_capability
+        from jsonschema import Draft202012Validator
+        from read_surface import available, method
+
+        cards = read_templates.cards()
+        self.assertEqual(len(cards), 472)
+        ready = [card for card in cards.values() if card["state"] == "ready"]
+        self.assertTrue(ready)
+        for card in ready:
+            if card["id"] == ozon_report_file.INFO:
+                self.assertEqual((card["profile"], card["http"], card["path"]), ("seller", "POST", "/v1/report/info"))
+                continue
+            if card["id"] == wb_documents.QR:
+                self.assertEqual((card["profile"], card["http"], card["path"]), ("wb", "GET", "/api/v3/supplies/{supplyId}/barcode"))
+                continue
+            if card["id"] in wb_documents.DOWNLOADS:
+                self.assertEqual(card["profile"], "wb")
+                self.assertEqual(card["path"], "/api/v1/documents/download" +
+                                 ("/all" if card["id"] == wb_documents.BATCH else ""))
+                self.assertEqual(card["http"], "POST" if card["id"] == wb_documents.BATCH else "GET")
+                continue
+            if "contract" in card:
+                from urllib.parse import urlsplit
+                contract = card["contract"]
+                self.assertIn(urlsplit(contract["url"]).netloc, read_templates.SUPPLEMENTAL_HOSTS[card["profile"]])
+                self.assertEqual(urlsplit(contract["url"]).path, card["path"])
+                self.assertEqual(contract["http"], card["http"])
+                Draft202012Validator.check_schema(contract["schema"])
+                if card["operation"] is None:
+                    continue
+                source = method("wb" if card["profile"] == "wb" else "ozon", card["operation"])
+                self.assertEqual(source["wire_url"], contract["url"])
+                self.assertEqual(source["workflow_role"], "single_read")
+            wb = card["profile"] == "wb"
+            meta = method("wb" if wb else "ozon", card["operation"])
+            self.assertTrue(available(meta), card)
+            self.assertEqual(meta["effect"], "READ")
+            self.assertEqual(meta["method"], card["http"])
+            self.assertEqual(re.sub(r"\{[^{}]+\}", "{}", meta["wire_path"]).rstrip("/"),
+                             re.sub(r"\{[^{}]+\}", "{}", card["path"]).rstrip("/"))
+            self.assertFalse(meta.get("completion"), card)
+        cid = self.ids["wb"]
+        cap = read_capability([{"id": cid, "provider": "wb", "access": ["Wildberries API"]}])
+        self.assertNotIn("tariff_commission", cap.description)
+        self.assertIsNone(read_capability([{"id": "wordstat", "provider": "wordstat", "access": []}]))
+        cap.validate({"action": "find", "connectionId": cid, "query": "api/v1/tariffs/commission"})
+        page = read_templates.discover("/api/v1/tariffs/commission", 0, "wb", {"seller_token"})
+        self.assertEqual(page["templates"][0]["id"], "read.wb.tariff_commission")
+        self.assertLessEqual(len(page["templates"]), read_templates.PAGE_SIZE)
+        explicit = read_templates.discover("GET api/v1/tariffs/commission тариф комиссии", 0, "wb", {"seller_token"})
+        self.assertEqual([card["id"] for card in explicit["templates"]], ["read.wb.tariff_commission"])
+        self.assertFalse(read_templates.discover("/v1/description-category/tree тариф", 0, "wb", {"seller_token"})["templates"])
+        self.assertFalse(read_templates.discover("", 0, "ozon", {"seller_token"})["templates"])
+
+    def test_read_templates_dispatch_and_reject_other_store_or_unproven_ids(self):
+        from platform_core.marketplace_matrix import read_templates
+        from semantics import Rejected
+
+        def execute(profile, cid, alias, params):
+            return read_templates.execute({**self.packet, "connections": [cid], "readTemplate": {
+                "action": "read", "templateId": f"read.{profile}.{alias}", "params": params,
+            }}, self.root)
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            self.assertEqual(request.full_url, "https://common-api.wildberries.ru/api/v1/tariffs/commission")
+            self.assertEqual(request.get_header("Authorization"), "fixture-wb")
+            return b'{"report":[{"commission":17,"file_url":"https://example.com/private"}]}', 200
+
+        with patch("http_transport.read_response", side_effect=fake_read) as request:
+            result = execute("wb", self.ids["wb"], "tariff_commission", {})
+            self.assertEqual(result["data"], {"report": [{"commission": 17}]})
+            self.assertEqual(result["operations"], ["read.wb.tariff_commission"])
+            with self.assertRaises(Rejected):
+                execute("seller", self.ids["wb"], "product_upload_quota", {})
+            with self.assertRaises(Rejected):
+                execute("wb", self.ids["wb"], "fbs_order_statuses", {"body": {"orders": 987654}})
+            request.assert_called_once()
+
+    def test_product_import_status_requires_its_task_id_and_keeps_report_protection(self):
+        from platform_core.marketplace_matrix import read_templates
+        from semantics import Rejected
+
+        task_id = 6101217214
+        self.turn["question"] = f"Проверь статус задачи импорта товара Ozon {task_id}."
+
+        def execute(value):
+            return read_templates.execute({**self.packet, "connections": [self.ids["ozon"]], "readTemplate": {
+                "action": "read", "templateId": "read.seller.product_import_info",
+                "params": {"task_id": value},
+            }}, self.root)
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            self.assertEqual(request.full_url, "https://api-seller.ozon.ru/v1/product/import/info")
+            self.assertEqual(json.loads(request.data), {"task_id": task_id})
+            return b'{"result":{"items":[{"offer_id":"QA-IMPORT-1","status":"imported"}]}}', 200
+
+        with patch("http_transport.read_response", side_effect=fake_read) as transport:
+            with self.assertRaises(Rejected) as caught:
+                execute(task_id + 1)
+            self.assertEqual(caught.exception.code, "READ_IDENTIFIER_NOT_PROVEN")
+            with self.assertRaises(Rejected) as caught:
+                read_templates._identifier_params({"task_id": task_id})
+            self.assertEqual(caught.exception.code, "READ_FILE_PROVENANCE_REQUIRED")
+            transport.assert_not_called()
+            readback = execute(task_id)
+            self.assertTrue(readback["ok"], readback)
+            self.assertEqual(readback["data"]["result"]["items"][0]["status"], "imported")
+            transport.assert_called_once()
+
+    def test_performance_auth_denial_never_dispatches_the_data_query(self):
+        from urllib.error import HTTPError
+        from platform_core.marketplace_matrix import read_templates
+
+        token = self.identity.login("matrix-seller", "fixture-password")
+        connection = IntegrationStore(self.identity).save(
+            token, "ozon", "Реклама", {"performance_id": "fixture-id", "performance_secret": "fixture-secret"},
+            chatId=self.scope.chat_id,
+        )["id"]
+        self.turn["question"] = "Покажи минимальную ставку за заказ для товара SKU 2184234912."
+        packet = {**self.packet, "connections": [connection], "readTemplate": {
+            "action": "read", "templateId": "read.performance.performance_min_bid_by_sku",
+            "params": {"sku": ["2184234912"], "paymentType": "CPO"},
+        }}
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            self.assertEqual(request.full_url, "https://api-performance.ozon.ru/api/client/token")
+            raise HTTPError(request.full_url, 403, "Forbidden", {}, None)
+
+        with patch("http_transport.read_response", side_effect=fake_read) as transport:
+            result = read_templates.execute(packet, self.root)
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["http"], 403)
+        self.assertIn("Авторизация в Ozon Performance отклонена", result["reason"])
+        self.assertIn("Запрос данных не отправлен", result["reason"])
+        transport.assert_called_once()
+
+    def test_supplemental_read_templates_validate_and_dispatch(self):
+        from platform_core.marketplace_matrix import read_templates
+        from semantics import Rejected
+
+        def execute(platform, alias, params):
+            cid = self.ids[platform]
+            return read_templates.execute({**self.packet, "connections": [cid], "readTemplate": {
+                "action": "read", "templateId": alias, "params": params,
+            }}, self.root)
+
+        wb = "read.wb.get_api_advert_v0_daily_limits"
+        ozon = "read.seller.post_v1_analytics_category_comparison"
+        self.turn["question"] = "Проверь лимиты кампаний 12345 и 67890, сравни категории за месяц."
+        self.assertEqual(read_templates.supplemental_route(
+            read_templates.cards()["read.wb.get_api_supplies_v1_drafts_draftid_items"],
+            {"path": {"draftId": "12345"}})[1],
+            "https://supplies-api.wildberries.ru/api/supplies/v1/drafts/12345/items")
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            if request.host == "advert-api.wildberries.ru":
+                self.assertEqual(request.full_url, "https://advert-api.wildberries.ru/api/advert/v0/daily-limits?advertIds=12345%2C67890")
+                self.assertEqual(request.get_header("Authorization"), "fixture-wb")
+            else:
+                self.assertEqual(request.full_url, "https://api-seller.ozon.ru/v1/analytics/category/comparison")
+                self.assertEqual(request.get_header("Api-key"), "fixture-ozon")
+                self.assertEqual(json.loads(request.data), {"period": "MONTH", "sort": "DESC"})
+            return b'{"value":17.50,"downloadUrl":"https://example.com/private","email":"owner@example.com"}', 200
+
+        with patch("http_transport.read_response", side_effect=fake_read) as request:
+            with self.assertRaises(Rejected):
+                execute("wb", wb, {"query": {"advertIds": "12345,00000"}})
+            with self.assertRaises(Rejected):
+                execute("ozon", ozon, {"period": "MONTH", "sort": "DESC", "extra": True})
+            self.assertEqual(execute("wb", wb, {"query": {"advertIds": "12345,67890"}})["data"],
+                             {"value": "17.50", "email": "[REDACTED]"})
+            self.assertEqual(execute("ozon", ozon, {"period": "MONTH", "sort": "DESC"})["http"], 200)
+            self.assertEqual(request.call_count, 2)
+
+    def test_exemplar_status_keeps_business_projection_and_exact_provider_error(self):
+        from io import BytesIO
+        from urllib.error import HTTPError
+        from platform_core.marketplace_matrix import read_templates
+
+        posting = "0239979880-0048-1"
+        self.turn["question"] = f"Проверь статус экземпляров отправления {posting}"
+        target = "read.seller.fbs_posting_product_exemplar_status_v5"
+        packet = {**self.packet, "connections": [self.ids["ozon"]], "readTemplate": {
+            "action": "read", "templateId": target, "params": {"posting_number": posting},
+        }}
+        url = "https://api-seller.ozon.ru/v5/fbs/posting/product/exemplar/status"
+        success = {"result": {"posting_number": posting, "status": "pending", "mark": "TEST-NOT-FOR-MODEL"}}
+        with patch("http_transport.read_response", return_value=(json.dumps(success).encode(), 200)) as request:
+            answer = read_templates.execute(packet, self.root)
+        self.assertEqual(request.call_args.args[0].full_url, url)
+        self.assertEqual(answer["data"]["result"], {"posting_number": posting, "status": "pending"})
+        self.assertTrue(answer["data"]["_read_projection"]["business_only"])
+        from semantics import Rejected
+
+        with patch("read_surface.available", return_value=False), patch("http_transport.read_response") as request:
+            with self.assertRaises(Rejected):
+                read_templates.execute(packet, self.root)
+            request.assert_not_called()
+        for message in ("INVALID_POSTING_STATE", "another validation error"):
+            payload = json.dumps({"code": 3, "message": message}).encode()
+            with self.subTest(message=message), patch("http_transport.read_response", side_effect=HTTPError(
+                    url, 400, "Invalid request", {}, BytesIO(payload))):
+                failure = read_templates.execute(packet, self.root)
+            self.assertFalse(failure["ok"])
+            self.assertEqual(failure.get("reasonSource") == "template", message == "INVALID_POSTING_STATE")
+
+    def test_wb_funnel_history_requires_the_history_period_before_dispatch(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        self.turn["question"] = "Воронка карточки Wildberries 481155639 с 17 по 21 ноября."
+        period = {"start": "2026-11-17", "end": "2026-11-21"}
+        request_body = {"nmIds": [481155639], "selectedPeriod": period, "aggregationLevel": "day"}
+
+        def execute(body):
+            return read_templates.execute({**self.packet, "connections": [self.ids["wb"]],
+                "readTemplate": {"action": "read", "templateId": "read.wb.sales_funnel_history",
+                                 "params": {"body": body}}}, self.root)
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            self.assertEqual(request.get_method(), "POST")
+            self.assertEqual(request.full_url,
+                             "https://seller-analytics-api.wildberries.ru/api/analytics/v3/sales-funnel/products/history")
+            self.assertEqual(json.loads(request.data), request_body)
+            return b'[]', 200
+
+        with patch("http_transport.read_response", side_effect=fake_read) as request:
+            failure = execute({"nmIds": [481155639], "currentPeriod": period})
+            self.assertFalse(failure["ok"])
+            self.assertEqual(failure["reasonSource"], "template")
+            request.assert_not_called()
+            self.assertEqual(execute(request_body)["data"], [])
+            request.assert_called_once()
+
+    def test_read_template_uses_confirmed_subscription_message(self):
+        from io import BytesIO
+        from urllib.error import HTTPError
+
+        from platform_core.marketplace_matrix import read_templates
+
+        cid = self.ids["ozon"]
+        self.turn["question"] = "Покажи пять популярных поисковых запросов Ozon."
+        packet = {**self.packet, "connections": [cid], "readTemplate": {
+            "action": "read", "templateId": "read.seller.marketplace_search_queries_top",
+            "params": {"limit": "5", "offset": "0"},
+        }}
+
+        def denial(message):
+            return HTTPError("https://api-seller.ozon.ru/v1/search-queries/top", 403, "Forbidden", {},
+                             BytesIO(json.dumps({"code": 7, "message": message}).encode()))
+
+        with patch("http_transport.read_response", side_effect=denial("Method available with Premium Pro subscription")):
+            result = read_templates.execute(packet, self.root)
+        self.assertEqual(result["reasonSource"], "template")
+        self.assertEqual(result["reason"], "Для отчёта о популярных поисковых запросах на Ozon нужен Premium Pro.")
+        with patch("http_transport.read_response", side_effect=denial("no access to this method")):
+            result = read_templates.execute(packet, self.root)
+        self.assertTrue(result["requiresTestReview"])
+        self.assertNotIn("reason", result)
+
+    def test_read_template_reports_actual_sample_size_and_tariff_scheme(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        cid = self.ids["wb"]
+        packet = {**self.packet, "connections": [cid], "readTemplate": {
+            "action": "read", "templateId": "read.wb.tariff_commission", "params": {},
+        }}
+        rows = [{"subjectName": "Предмет", "kgvpMarketplace": 38, "paidStorageKgvp": 33.5,
+                 "kgvpSupplier": 35, "parentName": "Категория"} for _ in range(500)]
+        raw = json.dumps({"report": rows}, ensure_ascii=False).encode()
+        with patch("http_transport.read_response", return_value=(raw, 200)):
+            result = read_templates.execute(packet, self.root)
+        report = result["data"]["report"]
+        self.assertFalse(any(item is None for item in report))
+        self.assertLess(len(report), len(rows))
+        self.assertEqual(result["coverage"],
+                         [{"path": "$.report", "availableRows": 500, "returnedRows": len(report)}])
+        self.assertEqual(result["fieldLabels"]["paidStorageKgvp"], "Со склада Wildberries (FBW), %")
+        self.assertIn("DBS", result["fieldLabels"]["kgvpSupplier"])
+
+    def test_read_template_keeps_all_bid_groups_before_sampling_categories(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        card = read_templates.cards()["read.performance.performance_bid_limits"]
+        rows = [{"minBid": 7, "maxBid": 200, "categories": [{"category": "Игрушки", "bid": 8}] * 281}
+                for _ in range(7)]
+        sample, _, coverage = read_templates._result_sample({"limits": rows}, card["sampleRows"])
+        self.assertEqual(len(sample["limits"]), 7)
+        self.assertTrue(all(len(row["categories"]) == 3 for row in sample["limits"]))
+        self.assertEqual([entry["availableRows"] for entry in coverage], [281] * 7)
+
+    def test_read_template_explains_unproven_subject_without_calling_wb(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        packet = {**self.packet, "connections": [self.ids["wb"]], "readTemplate": {
+            "action": "read", "templateId": "read.wb.content_brands", "params": {"query": {"subjectId": 12345}},
+        }}
+        with patch("http_transport.read_response") as outbound:
+            result = read_templates.execute(packet, self.root)
+        outbound.assert_not_called()
+        self.assertEqual(result["reasonSource"], "template")
+        self.assertEqual(result["reason"], "Чтобы показать бренды Wildberries, укажите точный ID предмета.")
+        self.assertIsNone(result["http"])
+
+    def test_read_template_explains_documented_wb_outage_only_on_not_found(self):
+        from io import BytesIO
+        from urllib.error import HTTPError
+
+        from platform_core.marketplace_matrix import read_templates
+
+        url = "https://supplies-api.wildberries.ru/api/v1/warehouses"
+        packet = {**self.packet, "connections": [self.ids["wb"]], "readTemplate": {
+            "action": "read", "templateId": "read.wb.fbw_warehouses", "params": {},
+        }}
+        with patch("http_transport.read_response", side_effect=HTTPError(url, 404, "", {}, BytesIO())):
+            result = read_templates.execute(packet, self.root)
+        self.assertEqual(result["reasonSource"], "template")
+        self.assertEqual(result["reason"], "Wildberries временно отключил выдачу списка складов для поставок на склад Wildberries.")
+        with patch("http_transport.read_response", return_value=(b'[{"ID":1,"name":"Test"}]', 200)):
+            result = read_templates.execute(packet, self.root)
+        self.assertTrue(result["ok"])
+        self.assertNotIn("reason", result)
+
+    def test_read_template_treats_documented_wb_no_content_as_empty_report(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        packet = {**self.packet, "connections": [self.ids["wb"]], "readTemplate": {
+            "action": "read", "templateId": "read.wb.analytics_item_returns",
+            "params": {"query": {"dateFrom": "2026-11-20", "dateTo": "2026-11-21", "status": "archive",
+                                 "limit": 100, "offset": 0}},
+        }}
+        with patch("http_transport.read_response", return_value=(b"", 204)):
+            result = read_templates.execute(packet, self.root)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["http"], 204)
+        self.assertEqual(result["data"], {"count": 0, "report": []})
+
+    def test_read_template_keeps_wb_document_dates_in_moscow(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        card = read_templates.cards()["read.wb.documents_list"]
+        data = {"data": {"documents": [{"creationTime": "2026-11-08T22:15:00.123Z",
+                                       "name": "Документ от 8 ноября"}]}}
+        sample, _, coverage = read_templates._result_sample(
+            data, card["sampleRows"], card["responseTimeZones"],
+        )
+        self.assertEqual(sample["data"]["documents"], [{"creationTime": "2026-11-09T01:15:00.123000+03:00",
+                                                       "name": "Документ от 8 ноября"}])
+        self.assertEqual(coverage, [])
+
+    def test_wb_questions_and_feedbacks_use_exact_calendar_boundaries(self):
+        from urllib.parse import parse_qs, urlsplit
+        from platform_core.marketplace_matrix import read_templates
+        from semantics import Rejected
+
+        def execute(name, params):
+            return read_templates.execute({**self.packet, "connections": [self.ids["wb"]],
+                                           "readTemplate": {"action": "read", "templateId": f"read.wb.{name}",
+                                                            "params": {"query": params}}}, self.root)
+
+        params = {"isAnswered": False, "take": 5, "skip": 0,
+                  "dateFrom": "2026-11-20", "dateTo": "2026-11-21"}
+        for name in ("questions_list", "feedbacks_list"):
+            with self.subTest(name=name), patch("http_transport.read_response", return_value=(b'{"data": {}}', 200)) as outbound:
+                self.assertTrue(execute(name, params)["ok"])
+                self.assertTrue(execute(name, {**params, "dateFrom": 1795122000, "dateTo": 1795294799})["ok"])
+                for call in outbound.call_args_list:
+                    query = parse_qs(urlsplit(call.args[0].full_url).query)
+                    self.assertEqual(query["dateFrom"], ["1795122000"])
+                    self.assertEqual(query["dateTo"], ["1795294799"])
+                with self.assertRaises(Rejected):
+                    execute(name, {**params, "dateFrom": "2026-02-30"})
+                self.assertEqual(outbound.call_count, 2)
+
+        with patch("http_transport.read_response", return_value=(b'{"data": {}}', 200)) as outbound:
+            self.assertTrue(execute("warehouse_measurements", {
+                "limit": 5, "offset": 0, "dateFrom": "2026-11-20", "dateTo": "2026-11-21",
+            })["ok"])
+            query = parse_qs(urlsplit(outbound.call_args.args[0].full_url).query)
+            self.assertEqual(query["dateFrom"], ["2026-11-20T00:00:00+03:00"])
+            self.assertEqual(query["dateTo"], ["2026-11-21T23:59:59+03:00"])
+
+    def test_fbo_cluster_summary_keeps_fulfillment_after_a_large_mixed_warehouse_list(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        sorting = [{"type": "SORTING_CENTER", "name": f"Sorting {i}"} for i in range(100)]
+        one, two, three = [{"type": "FULL_FILLMENT", "name": f"Warehouse {i}"} for i in range(1, 4)]
+        clusters = [
+            {"id": 10, "name": "First", "logistic_clusters": [{"warehouses": sorting + [one]},
+                                                             {"warehouses": [two, three]}]},
+            {"id": 11, "name": "Second", "logistic_clusters": [{"warehouses": sorting}]},
+            {"id": 12, "name": "Third"},
+        ]
+        result = read_templates.fulfillment_clusters({"clusters": clusters})
+        self.assertEqual(result, {"totalClusters": 3, "clusters": [
+            {"id": 10, "name": "First", "firstFulfillmentWarehouses": ["Warehouse 1", "Warehouse 2"],
+             "fulfillmentWarehouseCount": 3},
+            {"id": 11, "name": "Second", "firstFulfillmentWarehouses": [], "fulfillmentWarehouseCount": 0},
+            {"id": 12, "name": "Third"},
+        ]})
+
+    def test_posting_cancellation_details_only_disclose_the_requested_posting(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        target = "12345678-0001-1"
+        params = {"posting_number": target}
+        read = {"action": "read", "templateId": read_templates.POSTING_CANCELLATION_DETAILS, "params": params}
+        packet = {**self.packet, "connections": [self.ids["ozon"]],
+                  "turn": {**self.turn, "question": f"Причина отмены {target}?"},
+                  "readTemplate": read}
+        unrelated = "87654321-0002-1"
+        cancellation = {"cancel_reason": "Ограничение на продажу", "cancellation_initiator": "Ozon"}
+        def returned(number, status):
+            payload = {"result": {"posting_number": number, "status": status, "cancellation": cancellation,
+                                  "customer": {"name": "Private contact"}, "tracking_number": "Private tracking"}}
+            return json.dumps(payload, ensure_ascii=False).encode(), 200
+        with patch("http_transport.read_response", return_value=returned(target, "cancelled")) as outbound:
+            result = read_templates.execute(packet, self.root)
+            self.assertEqual(outbound.call_args.args[0].full_url, "https://api-seller.ozon.ru/v3/posting/fbs/get")
+            self.assertEqual(json.loads(outbound.call_args.args[0].data), params)
+        self.assertEqual(result["data"], {"posting_number": target, "status": "cancelled",
+                                        "reason":"Ограничение на продажу","initiator":"Ozon"})
+        with patch("http_transport.read_response", return_value=returned(target, "delivering")):
+            self.assertEqual(read_templates.execute(packet, self.root)["data"],
+                             {"posting_number": target, "status": "delivering"})
+        with patch("http_transport.read_response", return_value=returned(unrelated, "cancelled")):
+            denied = read_templates.execute(packet, self.root)
+            self.assertNotIn("data", denied)
+            self.assertEqual(denied["reasonSource"], "template")
+
+    def test_digital_posting_filter_and_confirmed_service_seller_denial(self):
+        from io import BytesIO
+        from urllib.error import HTTPError
+        from platform_core.marketplace_matrix import read_templates
+
+        url = "https://api-seller.ozon.ru/v2/posting/digital/list"
+        params = {"limit": 5, "filter": {"since": "2026-11-16T00:00:00Z", "to": "2026-11-22T23:59:59Z"},
+                  "sort_dir": "ASC"}
+        read = {"action": "read", "templateId": "read.seller.posting_digital_list_v2", "params": params}
+        packet = {**self.packet, "connections": [self.ids["ozon"]],
+                  "turn": {**self.turn, "question":"Первая страница цифровых отправлений"},
+                  "readTemplate": read}
+        with patch("http_transport.read_response") as outbound:
+            missing = {**packet, "readTemplate": {**read, "params": {"limit":5}}}
+            self.assertEqual(read_templates.execute(missing,self.root)["reasonSource"],"template")
+            outbound.assert_not_called()
+        rule = "commonService.PostingDigitalList: rpc error: code = PermissionDenied desc = Method can only be used by a service seller"
+        for message, known in ((rule, True), ("Permission denied", False)):
+            body = json.dumps({"code": 7, "message": message}).encode()
+            with self.subTest(known=known), patch("http_transport.read_response", side_effect=HTTPError(
+                    url, 403, "Denied", {}, BytesIO(body))) as outbound:
+                output = read_templates.execute(packet, self.root)
+            request = outbound.call_args.args[0]
+            self.assertEqual(request.full_url,url)
+            self.assertEqual(json.loads(request.data),params)
+            self.assertEqual(output.get("reasonSource") == "template", known)
+            if known:
+                self.assertIn("только продавцам услуг",output["reason"])
+            else:
+                self.assertTrue(output["requiresTestReview"])
+
+    def test_rfbs_return_points_explain_only_confirmed_missing_key_role(self):
+        from io import BytesIO
+        from urllib.error import HTTPError
+        from platform_core.marketplace_matrix import read_templates
+
+        path = "https://api-seller.ozon.ru/v1/warehouse/rfbs/return-point/list"
+        packet = {**self.packet, "connections": [self.ids["ozon"]],
+                  "readTemplate": {"action": "read",
+                                   "templateId": "read.seller.post_v1_warehouse_rfbs_return_point_list",
+                                   "params": {"filters": {"country_code": "RU", "coordinates": {
+                                       "latitude": 55.7558, "longitude": 37.6173}}, "limit": 5}}}
+        for message, known in (("Api-Key is missing a required role for a method", True), ("Permission denied", False)):
+            body = json.dumps({"code": 7, "message": message}).encode()
+            with self.subTest(known=known), patch("http_transport.read_response", side_effect=HTTPError(
+                    path, 403, "Denied", {}, BytesIO(body))) as outbound:
+                result = read_templates.execute(packet, self.root)
+            self.assertEqual(outbound.call_args.args[0].full_url, path)
+            self.assertFalse(result["ok"])
+            self.assertEqual(result.get("reasonSource") == "template", known)
+            if known:
+                self.assertIn("API-ключу Ozon не хватает прав", result["reason"])
+            else:
+                self.assertTrue(result["requiresTestReview"])
+
+    def test_wb_shipping_points_explains_only_confirmed_date_error(self):
+        from io import BytesIO
+        from urllib.error import HTTPError
+        from platform_core.marketplace_matrix import read_templates
+
+        supply = "WB-GI-1234567"
+        packet = {**self.packet, "connections": [self.ids["wb"]],
+                  "turn": {**self.packet["turn"], "question": f"Куда отгрузить поставку {supply}?"},
+                  "readTemplate": {"action": "read",
+                                   "templateId": "read.wb.get_api_marketplace_v3_fbs_supplies_supplyid_shipping_points",
+                                   "params": {"path": {"supplyId": supply},
+                                              "query": {"city": "Москва", "officeType": "sc"}}}}
+        for payload, known in ((b'{"code":"ShippingDtRequired"}', True), (b'{"code":"Other"}', False)):
+            with self.subTest(known=known), patch("http_transport.read_response", side_effect=HTTPError(
+                    "https://marketplace-api.wildberries.ru/", 400, "Invalid request", {}, BytesIO(payload))):
+                result = read_templates.execute(packet, self.root)
+            self.assertEqual(result.get("reasonSource") == "template", known)
+            if known:
+                self.assertIn("плановую дату отгрузки", result["reason"])
+
+    def test_wb_search_report_sends_required_order_without_overriding_explicit_order(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        body = {"currentPeriod": {"start": "2026-11-17", "end": "2026-11-21"}, "positionCluster": "all",
+                "includeSearchTexts": True, "includeSubstitutedSKUs": False, "limit": 5, "offset": 0}
+        default = {"field": "openCard", "mode": "desc"}
+        explicit = {"field": "openCard", "mode": "asc"}
+        for request_body, expected in ((body, default), ({**body, "orderBy": explicit}, explicit)):
+            with self.subTest(order=request_body.get("orderBy")), patch(
+                    "http_transport.read_response", return_value=(b'{"data":{"visibilityInfo":{"openCard":{"current":42}}}}', 200)
+            ) as outbound:
+                reply = read_templates.execute({**self.packet, "connections": [self.ids["wb"]], "readTemplate": {
+                    "action": "read", "templateId": "read.wb.search_report_main", "params": {"body": request_body},
+                }}, self.root)
+            self.assertTrue(reply["ok"])
+            self.assertEqual(json.loads(outbound.call_args.args[0].data), {**body, "orderBy": expected})
+        self.assertNotIn("orderBy", body)
+
+    def test_wb_media_list_defaults_to_active_and_preserves_explicit_status(self):
+        from urllib.parse import parse_qs, urlsplit
+        from platform_core.marketplace_matrix import read_templates
+
+        for query, expected in (({}, ["6"]), ({"status": "all"}, None), ({"status": 8}, ["8"])):
+            with self.subTest(query=query), patch("http_transport.read_response", return_value=(b"", 204)) as outbound:
+                result = read_templates.execute({**self.packet, "connections": [self.ids["wb"]],
+                                                 "readTemplate": {"action": "read", "templateId": "read.wb.media_campaigns",
+                                                                  "params": {"query": query}}}, self.root)
+                self.assertEqual(result["data"], [])
+                url = outbound.call_args.args[0].full_url
+                self.assertEqual(parse_qs(urlsplit(url).query).get("status"), expected)
+
+    def test_wb_acquiring_details_require_report_from_that_stores_list(self):
+        from platform_core.marketplace_matrix import read_templates
+        from platform_core.marketplace_matrix.authority import ChatAuthority
+
+        packet = {**self.packet, "connections": [self.ids["wb"]], "readTemplate": {
+            "action": "read", "templateId": read_templates.WB_ACQUIRING_DETAIL,
+            "params": {"path": {"reportId": "858626798"}, "body": {"limit": 5, "rrdId": 0}},
+        }}
+        revision = ChatAuthority(packet).revision
+        ids = list(read_templates.observed_acquiring_reports([{"reportId": 858626798}]))
+        self.assertEqual(len(ids), 1)
+        with patch("http_transport.read_response", return_value=(b'[]', 200)) as outbound:
+            result = read_templates.execute(packet | {"readEvidence": {"revision": "stale", "ids": ids}}, self.root)
+            self.assertEqual(result["reasonSource"], "template")
+            result = read_templates.execute(packet | {"readEvidence": {"revision": revision, "ids": ["858626798"]}}, self.root)
+            self.assertEqual(result["reasonSource"], "template")
+            sales_packet = {**packet, "readTemplate": {**packet["readTemplate"],
+                                                        "templateId": read_templates.WB_SALES_DETAIL}}
+            result = read_templates.execute(sales_packet | {"readEvidence": {"revision": revision, "ids": ids}}, self.root)
+            self.assertFalse(result["ok"])
+            self.assertEqual(result["reasonSource"], "template")
+            sales_ids = list(read_templates.observed_sales_reports([{"reportId": 858626798}]))
+            self.assertEqual(len(sales_ids), 1)
+            result = read_templates.execute(sales_packet | {"readEvidence": {"revision": "stale", "ids": sales_ids}}, self.root)
+            self.assertFalse(result["ok"])
+            outbound.assert_not_called()
+            result = read_templates.execute(packet | {"readEvidence": {"revision": revision, "ids": ids}}, self.root)
+            self.assertTrue(result["ok"], result)
+            self.assertTrue(outbound.call_args.args[0].full_url.endswith("/acquiring/detailed/858626798"))
+            result = read_templates.execute(sales_packet | {"readEvidence": {"revision": revision, "ids": sales_ids}}, self.root)
+            self.assertTrue(result["ok"])
+            self.assertTrue(outbound.call_args.args[0].full_url.endswith("/sales-reports/detailed/858626798"))
+            self.assertEqual(result["salesDetailPreview"], [])
+
+    def test_wb_files_require_list_proof_and_are_stored_only_in_requesting_chat(self):
+        from base64 import b64encode
+        from io import BytesIO
+        from zipfile import ZipFile
+
+        from platform_core.chat_attachments import _read
+        from platform_core.identity import ChatUnavailable
+        from platform_core.marketplace_matrix import read_templates, wb_documents
+        from platform_core.marketplace_matrix.authority import ChatAuthority
+        from platform_core.storage import Scope
+
+        journal = self.root / "native-chats.sqlite3"
+        archive = BytesIO()
+        with ZipFile(archive, "w") as zip_file:
+            zip_file.writestr("fixture.xlsx", b"fixture")
+        file_content = archive.getvalue()
+        doc = {"serviceName": "act-fixture-123", "extension": "xlsx"}
+        proof = list(wb_documents.observed_documents({"data":{"documents":[{
+            "serviceName":"act-fixture-123", "extensions":["xlsx"],
+        }]}}))
+        body = {"data":{"extension":"zip", "fileName":"fixture.zip", "document":b64encode(file_content).decode()}}
+        packet = {**self.packet, "connections": [self.ids["wb"]],
+                  "turn": {**self.turn, "attachmentsJournal": str(journal)}}
+        revision = ChatAuthority(packet).revision
+        for template, params, method in ((wb_documents.SINGLE, {"query": doc}, "GET"),
+                                         (wb_documents.BATCH, {"body": {"params": [doc]}}, "POST")):
+            with self.subTest(template=template), patch("http_transport.read_response", return_value=(json.dumps(body).encode(), 200)) as outbound:
+                task = {**packet, "readTemplate": {"action": "read", "templateId": template, "params": params}}
+                for evidence in ({}, {"revision": "stale", "ids": proof},
+                                 {"revision": revision, "ids": [wb_documents.proof(doc["serviceName"], "pdf")]}):
+                    rejected = read_templates.execute(task | {"readEvidence": evidence}, self.root)
+                    self.assertEqual(rejected["reasonSource"], "template")
+                outbound.assert_not_called()
+                result = read_templates.execute(task | {"readEvidence": {"revision": revision, "ids": proof}}, self.root)
+                self.assertTrue(result["ok"], result)
+                self.assertEqual(outbound.call_args.args[0].get_method(), method)
+                file = result["data"]["file"]
+                self.assertEqual(file["name"], "fixture.zip")
+                self.assertEqual(file["bytes"], len(file_content))
+                self.assertEqual(file["archiveEntriesByFormat"], {"xlsx": 1})
+                self.assertEqual(_read(journal, self.scope, file["attachmentId"]), ("fixture.zip", file_content))
+                self.assertNotIn(body["data"]["document"], json.dumps(result))
+                with self.assertRaises(ChatUnavailable):
+                    _read(journal, Scope(self.scope.actor_id, self.scope.workspace_id, "another-chat"), file["attachmentId"])
+
+    def test_ozon_report_file_requires_its_stores_list_and_never_sends_credentials_to_file_host(self):
+        from platform_core.chat_attachments import _read
+        from platform_core.marketplace_matrix import ozon_report_file, read_templates
+        from platform_core.marketplace_matrix.authority import ChatAuthority
+
+        journal = self.root / "native-chats.sqlite3"
+        code = "REPORT_fixture_001"
+        packet = {**self.packet, "connections": [self.ids["ozon"]],
+                  "turn": {**self.turn, "attachmentsJournal": str(journal)},
+                  "readTemplate": {"action": "read", "templateId": ozon_report_file.INFO,
+                                   "params": {"code": code, "download": True}}}
+        revision = ChatAuthority(packet).revision
+        proof = list(ozon_report_file.observed_reports({"result": {"reports": [{"code": code}]}}))
+        report = {"code": code, "status": "success", "expires_at": "2100-01-01T00:00:00Z", "report_type": "fixture",
+                  "file": "https://ir.ozone.ru/reports/report.pdf?private=fixture"}
+        pdf = b"%PDF-1.4\nfixture"
+        metadata = lambda: (json.dumps({"result": report}).encode(), 200)
+        with patch("http_transport.read_response", side_effect=[metadata(), (pdf, 200)]) as outbound:
+            for evidence in ({}, {"revision": "stale", "ids": proof}):
+                rejected = read_templates.execute(packet | {"readEvidence": evidence}, self.root)
+                self.assertEqual(rejected["reasonSource"], "template")
+            outbound.assert_not_called()
+            result = read_templates.execute(packet | {"readEvidence": {"revision": revision, "ids": proof}}, self.root)
+            self.assertTrue(result["ok"], result)
+            source, file = [call.args[0] for call in outbound.call_args_list]
+            self.assertEqual(source.get_header("Api-key"), "fixture-ozon")
+            self.assertFalse(file.headers)
+            self.assertNotIn(report["file"], json.dumps(result))
+            self.assertEqual(result["data"]["expires_at"], "2100-01-01T03:00:00+03:00")
+            self.assertEqual(_read(journal, self.scope, result["data"]["file"]["attachmentId"]), ("Ozon_report.pdf", pdf))
+        report["file"] = "https://example.com/reports/report.pdf"
+        with patch("http_transport.read_response", return_value=metadata()) as outbound:
+            result = read_templates.execute(packet | {"readEvidence": {"revision": revision, "ids": proof}}, self.root)
+            self.assertFalse(result["ok"])
+            outbound.assert_called_once()
+
+    def test_wb_supply_qr_distinguishes_proven_open_supply_from_other_conflicts(self):
+        from base64 import b64encode
+        from io import BytesIO
+        from urllib.error import HTTPError
+        from platform_core.chat_attachments import _read
+        from platform_core.marketplace_matrix import read_templates, wb_documents
+        from platform_core.marketplace_matrix.authority import ChatAuthority
+
+        supply = "WB-GI-1234567"
+        journal = self.root / "native-chats.sqlite3"
+        packet = {**self.packet, "connections": [self.ids["wb"]],
+                  "turn": {**self.turn, "attachmentsJournal": str(journal)},
+                  "readTemplate": {"action": "read", "templateId": wb_documents.QR,
+                                   "params": {"path": {"supplyId": supply}}}}
+        revision = ChatAuthority(packet).revision
+        evidence = {"revision": revision, "ids": list(wb_documents.observed_supply({"id": supply}))}
+        png = b"\x89PNG\r\n\x1a\nfixture"
+        data = {"file": b64encode(png).decode(), "barcode": "QR-secret-text"}
+        with patch("http_transport.read_response", return_value=(json.dumps(data).encode(), 200)) as outbound:
+            rejected = read_templates.execute(packet | {"readEvidence": {"revision": revision, "ids": [supply]}}, self.root)
+            self.assertEqual(rejected["reasonSource"], "template")
+            outbound.assert_not_called()
+            result = read_templates.execute(packet | {"readEvidence": evidence}, self.root)
+            self.assertTrue(result["ok"], result)
+            self.assertTrue(outbound.call_args.args[0].full_url.endswith(f"/{supply}/barcode?type=png"))
+            file = result["data"]["file"]
+            self.assertEqual(_read(journal, self.scope, file["attachmentId"]), (f"{supply}_QR.png", png))
+            self.assertNotIn(data["barcode"], json.dumps(result))
+        for code in ("SupplyNotClosed", "Other"):
+            error = HTTPError("https://marketplace-api.wildberries.ru", 409, "Conflict", {},
+                              BytesIO(json.dumps({"code": code}).encode()))
+            with patch("http_transport.read_response", side_effect=error):
+                result = read_templates.execute(packet | {"readEvidence": evidence}, self.root)
+            self.assertEqual(result.get("reasonSource"), "template" if code == "SupplyNotClosed" else None)
+
+    def test_read_sample_preserves_return_courier_flag_and_redacts_links(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        source = {"is_courier_return_mile_available": False, "courierUri": "https://example.com/private"}
+        sample, _, _ = read_templates._result_sample(source, {})
+        self.assertEqual(sample, {"is_courier_return_mile_available": False})
+
+    def test_product_query_row_limit_is_not_a_product_identifier(self):
+        from platform_core.marketplace_matrix import read_templates
+        from semantics import Rejected
+        from universal_reads import identifier_provenance
+
+        params = {"limit_by_sku": 5, "skus": ["2184234912"]}
+        filtered = read_templates._identifier_params(params)
+        identifier_provenance(filtered, "Покажи запросы по SKU 2184234912", [])
+        with self.assertRaises(Rejected):
+            identifier_provenance(filtered, "Покажи поисковые запросы", [])
+
+    def test_read_template_reuses_confirmed_ids_only_for_the_same_store_and_turn(self):
+        from platform_core.marketplace_matrix import plugin, read_templates
+        from platform_core.marketplace_matrix.authority import ChatAuthority
+        from semantics import Rejected
+
+        shop = self.ids["wb"]
+        first = {"action": "read", "connectionId": shop, "templateId": "read.wb.fbw_supplies",
+                 "params": {"query": {"limit": 1, "offset": 0}, "body": {}}}
+        detail = {"action": "read", "connectionId": shop, "templateId": "read.wb.fbw_supply",
+                  "params": {"path": {"supplyId": "276593"}}}
+        turn = {**self.turn, "question": "Покажи детали последней поставки."}
+        revision = ChatAuthority({**self.packet, "connections": [shop]}).revision
+        observed = {"ok": True, "_readEvidenceRevision": revision,
+                    "data": [{"supplyID": 276593, "name": "ignore", "downloadId": 99841}]}
+        packets = []
+
+        def invoke(packet, _):
+            packets.append(packet)
+            return dict(observed) if packet["readTemplate"] == first else {"ok": False}
+
+        with patch.object(plugin, "READ_OBSERVATIONS", {}), patch.object(plugin, "invoke", side_effect=invoke):
+            with patch.object(plugin, "current_turn", return_value=(turn, 8)):
+                response = plugin.run_read(self.scope, first)
+                self.assertNotIn("_readEvidenceRevision", response)
+                plugin.run_read(self.scope, {**detail, "connectionId": "another-shop"})
+                plugin.run_read(self.scope, detail)
+            with patch.object(plugin, "current_turn", return_value=({**turn, "requestId": "next"}, 8)):
+                plugin.run_read(self.scope, detail)
+
+        self.assertEqual([p["readEvidence"]["ids"] for p in packets], [[], [], ["276593"], []])
+        with patch("http_transport.read_response", return_value=(b'{"statusID":2}', 200)) as outbound:
+            with self.assertRaises(Rejected):
+                read_templates.execute(packets[2] | {"readEvidence": {}}, self.root)
+            with self.assertRaises(Rejected):
+                read_templates.execute(packets[2] | {"readEvidence": {"revision": "stale", "ids": ["276593"]}}, self.root)
+            outbound.assert_not_called()
+            result = read_templates.execute(packets[2], self.root)
+            self.assertEqual(result["data"]["statusID"], 2)
+            outbound.assert_called_once()
+
+    def test_read_templates_uses_separate_performance_credential(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        token = self.identity.login("matrix-seller", "fixture-password")
+        cid = IntegrationStore(self.identity).save(token, "ozon", "Реклама",
+              {"performance_id": "fixture-id", "performance_secret": "fixture-secret"}, chatId=self.scope.chat_id)["id"]
+        self.turn["question"] = "Что продвигается в кампании 12345?"
+        packet = {**self.packet, "connections": [cid], "readTemplate": {
+            "action": "read", "templateId": "read.performance.performance_campaign_objects",
+            "params": {"campaignId": "12345"}}}
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            if request.full_url == "https://api-performance.ozon.ru/api/client/token":
+                body = json.loads(request.data)
+                self.assertEqual(body["client_id"], "fixture-id")
+                return b'{"access_token":"fixture-performance-access","expires_in":1800}', 200
+            self.assertEqual(request.full_url, "https://api-performance.ozon.ru/api/client/campaign/12345/objects")
+            self.assertEqual(request.get_header("Authorization"), "Bearer fixture-performance-access")
+            return b'{"list":[{"id":"123456789"}]}', 200
+
+        with patch("http_transport.read_response", side_effect=fake_read):
+            result = read_templates.execute(packet, self.root)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["data"]["list"], [{"id":"123456789"}])
+
+    def test_performance_min_bid_accepts_storefront_and_requires_the_sku(self):
+        from platform_core.marketplace_matrix import read_templates
+        from semantics import Rejected
+
+        token = self.identity.login("matrix-seller", "fixture-password")
+        connection = IntegrationStore(self.identity).save(
+            token, "ozon", "Реклама", {"performance_id": "fixture-id", "performance_secret": "fixture-secret"},
+            chatId=self.scope.chat_id,
+        )["id"]
+        self.turn["question"] = "Покажи рекламную ставку для SKU 2184234912 на российской витрине."
+        params = {"sku": ["2184234912"], "marketplaceId": "MARKETPLACE_ID_RU", "paymentType": "CPO"}
+
+        def execute(parameters):
+            return read_templates.execute({**self.packet, "connections": [connection], "readTemplate": {
+                "action": "read", "templateId": "read.performance.performance_min_bid_by_sku",
+                "params": parameters,
+            }}, self.root)
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            if request.full_url == "https://api-performance.ozon.ru/api/client/token":
+                return b'{"access_token":"fixture-performance-access","expires_in":1800}', 200
+            self.assertEqual(request.full_url, "https://api-performance.ozon.ru/api/client/min/sku")
+            self.assertEqual(json.loads(request.data), params)
+            self.assertEqual(request.get_header("Authorization"), "Bearer fixture-performance-access")
+            return b'{"minBids":[{"sku":"2184234912","bid":0.28}]}', 200
+
+        with patch("http_transport.read_response", side_effect=fake_read) as transport:
+            with self.assertRaises(Rejected) as caught:
+                execute({**params, "sku": ["2184234913"]})
+            self.assertEqual(caught.exception.code, "READ_IDENTIFIER_NOT_PROVEN")
+            transport.assert_not_called()
+            self.assertTrue(execute(params)["ok"])
+            self.assertEqual(transport.call_count, 2)
+
+    def test_prepared_performance_report_lists_only_use_their_scoped_get_routes(self):
+        from urllib.parse import parse_qs, urlsplit
+        from platform_core.marketplace_matrix import read_templates
+        token = self.identity.login("matrix-seller", "fixture-password")
+        cid = IntegrationStore(self.identity).save(token, "ozon", "Реклама",
+              {"performance_id": "fixture-id", "performance_secret": "fixture-secret"}, chatId=self.scope.chat_id)["id"]
+        self.turn["question"] = "Покажи первую страницу готовых рекламных отчётов Ozon."
+        expected = {
+            "performance_statistics_list_api": "/api/client/statistics/externallist",
+            "performance_statistics_list_ui": "/api/client/statistics/list",
+            "performance_vendor_statistics_list": "/api/client/vendors/statistics/list",
+        }
+
+        def execute(operation):
+            return read_templates.execute({**self.packet, "connections": [cid], "readTemplate": {
+                "action": "read", "templateId": f"read.performance.{operation}",
+                "params": {"page": 1, "pageSize": 5},
+            }}, self.root)
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            url = urlsplit(request.full_url)
+            self.assertEqual(url.netloc, "api-performance.ozon.ru")
+            if url.path == "/api/client/token":
+                self.assertEqual(json.loads(request.data)["client_id"], "fixture-id")
+                return b'{"access_token":"fixture-performance-access","expires_in":1800}', 200
+            self.assertEqual(request.get_method(), "GET")
+            self.assertIn(url.path, expected.values())
+            self.assertEqual(parse_qs(url.query), {"page": ["1"], "pageSize": ["5"]})
+            self.assertEqual(request.get_header("Authorization"), "Bearer fixture-performance-access")
+            return b'{"list":[{"state":"OK","link":"https://example.com/private"}]}', 200
+
+        with patch("http_transport.read_response", side_effect=fake_read) as outbound:
+            for operation, path in expected.items():
+                with self.subTest(operation=operation):
+                    result = execute(operation)
+                    self.assertEqual(result["data"], {"list": [{"state": "OK"}]})
+                    self.assertEqual(urlsplit(outbound.call_args.args[0].full_url).path, path)
+            before = outbound.call_count
+            untouched = execute("performance_all_sku_promo_orders_report_create")
+            self.assertFalse(untouched["ok"])
+            self.assertEqual(outbound.call_count, before)
+
+    def test_performance_status_requires_matching_list_evidence_in_current_scope(self):
+        from urllib.parse import parse_qs, urlsplit
+        from platform_core.marketplace_matrix import plugin, read_templates
+        from platform_core.marketplace_matrix.authority import ChatAuthority
+
+        token = self.identity.login("matrix-seller", "fixture-password")
+        cid = IntegrationStore(self.identity).save(token, "ozon", "Реклама",
+              {"performance_id": "fixture-id", "performance_secret": "fixture-secret"}, chatId=self.scope.chat_id)["id"]
+        self.turn["question"] = "Проверь статус первого готового отчёта по внешнему трафику."
+        uid = "12345678-1234-4321-a123-123456789abc"
+        packet = {**self.packet, "connections": [cid]}
+        revision = ChatAuthority(packet).revision
+        ref = "read.performance.performance_vendor_statistics_list"
+        target = {"action": "read", "connectionId": cid,
+                  "templateId": "read.performance.performance_vendor_statistics_status",
+                  "params": {"UUID": uid}}
+        listing = {"action": "read", "connectionId": cid, "templateId": ref, "params": {"page": 1, "pageSize": 1}}
+        seen = []
+
+        def invoke(request, _):
+            seen.append(request)
+            if request["readTemplate"] == listing:
+                return {"ok": True, "_readEvidenceRevision": revision,
+                        "data": {"items": [{"meta": {"UUID": uid}}]}}
+            return {"ok": False}
+
+        with patch.object(plugin, "READ_OBSERVATIONS", {}), patch.object(plugin, "invoke", side_effect=invoke):
+            with patch.object(plugin, "current_turn", return_value=(self.turn, 8)):
+                plugin.run_read(self.scope, listing)
+                plugin.run_read(self.scope, target)
+            with patch.object(plugin, "current_turn", return_value=({**self.turn, "requestId": "elsewhere"}, 8)):
+                plugin.run_read(self.scope, target)
+
+        proof = f"performance-report:vendor:{uid}"
+        self.assertEqual(seen[1]["readEvidence"]["ids"], [proof])
+        self.assertEqual(seen[2]["readEvidence"]["ids"], [])
+        checked = {**packet, "readTemplate": target, "readEvidence": seen[1]["readEvidence"]}
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            if request.full_url == "https://api-performance.ozon.ru/api/client/token":
+                return b'{"access_token":"fixture-performance-access","expires_in":1800}', 200
+            self.assertEqual(request.get_method(), "GET")
+            url = urlsplit(request.full_url)
+            self.assertEqual(url.netloc, "api-performance.ozon.ru")
+            self.assertEqual(url.path, f"/api/client/vendors/statistics/{uid}")
+            self.assertEqual(parse_qs(url.query), {"vendor": ["true"]})
+            self.assertEqual(request.get_header("Authorization"), "Bearer fixture-performance-access")
+            return b'{"state":"OK","link":"https://example.com/private"}', 200
+
+        with patch("http_transport.read_response", side_effect=fake_read) as outbound:
+            for evidence in ({}, {"revision": "stale", "ids": [proof]},
+                             {"revision": revision, "ids": [f"performance-report:statistics:{uid}"]}):
+                rejected = read_templates.execute(checked | {"readEvidence": evidence}, self.root)
+                self.assertEqual(rejected["reasonSource"], "template")
+            outbound.assert_not_called()
+            result = read_templates.execute(checked, self.root)
+            self.assertEqual(result["data"], {"state": "OK"})
+
+    def test_performance_download_requires_current_list_and_ready_status_and_delivers_original(self):
+        from io import BytesIO
+        from urllib.parse import parse_qs, urlsplit
+        from zipfile import ZipFile
+        from platform_core.chat_attachments import _read
+        from platform_core.marketplace_matrix import performance_report_file, plugin, read_templates
+        from platform_core.marketplace_matrix.authority import ChatAuthority
+
+        token = self.identity.login("matrix-seller", "fixture-password")
+        cid = IntegrationStore(self.identity).save(token, "ozon", "Реклама", {
+            "performance_id": "fixture-id", "performance_secret": "fixture-secret",
+        }, chatId=self.scope.chat_id)["id"]
+        uid = "12345678-1234-4321-a123-123456789abc"
+        journal = self.root / "native-chats.sqlite3"
+        turn = {**self.turn, "attachmentsJournal": str(journal), "question": "Скачай готовый отчёт."}
+        packet = {**self.packet, "connections": [cid], "turn": turn}
+        revision = ChatAuthority(packet).revision
+        listing = {"action": "read", "connectionId": cid,
+                   "templateId": "read.performance.performance_statistics_list_api", "params": {"page": 1}}
+        status = {**listing, "templateId": "read.performance.performance_statistics_status", "params": {"UUID": uid}}
+        target = {**status, "templateId": "read.performance.performance_statistics_report_download"}
+        before_ready = []
+
+        def invoke(request, _):
+            args = request["readTemplate"]
+            if args == listing:
+                data = {"items": [{"meta": {"UUID": uid}}]}
+            elif args == status:
+                data = {"UUID": confirmed, "state": status_value}
+            else:
+                before_ready.append(request["readEvidence"])
+                return {"ok": False}
+            return {"ok": True, "data": data, "_readEvidenceRevision": revision}
+
+        with patch.object(plugin, "READ_OBSERVATIONS", {}), patch.object(plugin, "invoke", side_effect=invoke):
+            with patch.object(plugin, "current_turn", return_value=(turn, 8)):
+                plugin.run_read(self.scope, listing)
+                for confirmed, status_value in (("other", "OK"), (uid, "IN_PROGRESS"), (uid, "OK")):
+                    plugin.run_read(self.scope, status)
+                    plugin.run_read(self.scope, target)
+            with patch.object(plugin, "current_turn", return_value=({**turn, "requestId": "different"}, 8)):
+                plugin.run_read(self.scope, target)
+
+        list_proof = f"performance-report:statistics:{uid}"
+        ready_proof = performance_report_file.ready_proof(uid)
+        self.assertEqual([x["ids"] for x in before_ready],
+                         [[list_proof], [list_proof], sorted([list_proof, ready_proof]), []])
+        packet.update(readTemplate=target, readEvidence=before_ready[2])
+        zipped = BytesIO()
+        with ZipFile(zipped, "w") as archive:
+            archive.writestr("campaign.csv", "sku,clicks\n12345,4\n")
+        files = {
+            "application/json": ("json", b'{"campaign":{"report":{"rows":[]}}}'),
+            "application/zip": ("zip", zipped.getvalue()),
+            "text/csv": ("csv", b"; Campaign 42\nsku;clicks;views\n12345;4;100\n"),
+        }
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            if request.full_url == "https://api-performance.ozon.ru/api/client/token":
+                return b'{"access_token":"fixture-performance-access","expires_in":1800}', 200
+            self.assertEqual(request.get_method(), "GET")
+            url = urlsplit(request.full_url)
+            self.assertEqual(url.netloc + url.path, "api-performance.ozon.ru/api/client/statistics/report")
+            self.assertEqual(parse_qs(url.query), {"UUID": [uid]})
+            self.assertEqual(request.get_header("Authorization"), "Bearer fixture-performance-access")
+            options["response_headers"].update({"Content-Type": mime, "Content-Disposition": "attachment"})
+            return body, 200
+
+        with patch("http_transport.read_response", side_effect=fake_read) as outbound:
+            for evidence in (before_ready[0], before_ready[3], {**before_ready[2], "revision": "stale"}):
+                self.assertEqual(read_templates.execute({**packet, "readEvidence": evidence}, self.root)["reasonSource"],
+                                 "template")
+            outbound.assert_not_called()
+            for mime, (extension, body) in files.items():
+                result = read_templates.execute(packet, self.root)
+                self.assertEqual(set(result["data"]), {"file", "format"})
+                self.assertEqual(result["data"]["format"], extension.upper())
+                file = result["data"]["file"]
+                self.assertEqual(_read(journal, self.scope, file["attachmentId"]),
+                                 ("Ozon_Performance." + extension, body))
+            mime, body = "application/json", b"7"
+            self.assertEqual(read_templates.execute(packet, self.root)["reasonSource"], "template")
+
+    def test_realization_report_number_list_reads_the_requested_period(self):
+        from platform_core.marketplace_matrix import read_templates
+        from semantics import Rejected
+
+        params = {"from": "2026-11-01", "to": "2026-11-22"}
+        packet = {**self.packet, "connections": [self.ids["ozon"]], "readTemplate": {
+            "action": "read", "templateId": "read.seller.post_v1_report_finance_realization_list",
+            "params": params}}
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            self.assertEqual(request.full_url, "https://api-seller.ozon.ru/v1/report/finance/realization/list")
+            self.assertEqual(request.get_method(), "POST")
+            self.assertEqual(json.loads(request.data), params)
+            return b'{"reports":[]}', 200
+
+        with patch("http_transport.read_response", side_effect=fake_read) as outbound:
+            with self.assertRaises(Rejected):
+                read_templates.execute({**packet, "readTemplate": {**packet["readTemplate"],
+                    "params": {"from": "2026-11-01"}}}, self.root)
+            outbound.assert_not_called()
+            self.assertEqual(read_templates.execute(packet, self.root)["data"], {"reports": []})
+            outbound.assert_called_once()
 
     def test_agent_can_choose_both_order_metrics_on_short_answer(self):
         from platform_core.marketplace_matrix.plugin import capability
