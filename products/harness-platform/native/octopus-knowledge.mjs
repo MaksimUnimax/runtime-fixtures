@@ -225,7 +225,7 @@ export async function registerKnowledge(ctx, load, knowledge, question = '') {
   const {address,tone,detail} = knowledge.style;
   const hasTriggers = knowledge.cards.some(card => card.triggers?.length);
   ctx.systemPrompt.context({name:'octopus-settings',order:75,required:true,interpolate:false,
-    text:'Стиль: '+[address,tone,detail].join(', ')+'. Опубликовано: '+directory(knowledge.cards)+(hasTriggers ? '. Автозапуск: см. triggers.' : '. Автозапуск и напоминания недоступны.')});
+    text:'Настройки → Октопус. Обращение, тон и подробность: '+[address,tone,detail].join(', ')+'. Опубликовано: '+directory(knowledge.cards)+(hasTriggers ? '. Автозапуск: см. triggers.' : '. Автозапуск и напоминания недоступны.')});
   const {notes,replies} = serviceNotes(knowledge, question);
   const topics = Object.entries(replies).map(([id,r]) => id+' — '+r.topic);
   if (notes.length) ctx.systemPrompt.context({name:'product-status',order:76,required:true,interpolate:false,
