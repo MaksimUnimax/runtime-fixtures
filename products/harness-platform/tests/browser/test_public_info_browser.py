@@ -4,12 +4,42 @@ from tempfile import TemporaryDirectory
 from urllib.parse import urlsplit
 
 from playwright.async_api import expect
-from test_account_browser import ProductBrowser, account_action
+from test_account_browser import ProductBrowser
 
 from deploy.publish_info import PAGES, publish
 
 
 class PublicInfoBrowser(ProductBrowser):
+    async def test_guest_uses_the_public_links_and_auth_buttons_in_the_left_rail(self):
+        context = await self.browser.new_context(base_url=self.base_url)
+        self.addAsyncCleanup(context.close)
+        page = await context.new_page()
+        await page.goto("/about/")
+        public = page.locator(".sidebar nav a")
+        links = await public.evaluate_all("(links) => links.map(link => [link.textContent, link.getAttribute('href')])")
+        for width in (1280, 940, 390):
+            await page.set_viewport_size({"width": width, "height": 857})
+            await page.goto("/about/ask")
+            if width < 768:
+                await page.locator("[data-sidebar-opener]:visible").click()
+            navigation = page.get_by_role("navigation", name="Разделы Октопорта")
+            await expect(navigation).to_be_visible()
+            self.assertEqual(
+                await navigation.locator("a").evaluate_all(
+                    "(links) => links.map(link => [link.textContent, link.getAttribute('href')])"),
+                links,
+            )
+            await expect(navigation.get_by_role("link", name="Задать вопрос")).to_have_attribute("aria-current", "page")
+            await expect(page.locator('[data-row-key^="session:"]:visible')).to_have_count(0)
+            await expect(page.get_by_role("button", name="Меню", exact=True)).to_have_count(0)
+            auth = page.locator(".octo-guest-actions")
+            await expect(auth.get_by_role("button", name="Войти")).to_be_visible()
+            await expect(auth.get_by_role("button", name="Создать аккаунт")).to_be_visible()
+            self.assertGreater((await auth.bounding_box())["y"], 750)
+        await auth.get_by_role("button", name="Создать аккаунт").click()
+        await expect(page.get_by_role("dialog", name="Создать аккаунт")).to_be_visible()
+        await expect(page).to_have_url(self.base_url + "/about/ask")
+
     async def test_ask_opens_the_same_native_workspace_as_the_reference(self):
         page = await self.open_chat("first-browser")
         await expect(page.get_by_role("button", name="Баланс", exact=True)).to_have_text("10,00 монет")
@@ -32,7 +62,11 @@ class PublicInfoBrowser(ProductBrowser):
         await page.get_by_role("button", name="Баланс", exact=True).click()
         await expect(page.get_by_role("dialog")).to_contain_text("Доступно")
         await page.get_by_role("dialog").get_by_role("button", name="Закрыть").click()
-        await account_action(page, "О сервисе")
+        await page.get_by_role("button", name="Меню аккаунта").click()
+        await expect(page.get_by_role("menuitem", name="Настройки")).to_be_visible()
+        await expect(page.get_by_role("menuitem", name="О сервисе")).to_have_count(0)
+        await page.keyboard.press("Escape")
+        await page.get_by_role("navigation", name="Разделы Октопорта").get_by_role("link", name="О сервисе").click()
         await expect(page.locator("h1")).to_contain_text("Управление маркетплейсами")
         await expect(page.locator(".account [data-member-name]")).to_have_text("first-browser")
         await expect(page.locator(".account [data-balance]")).to_have_text("10,00 монет")

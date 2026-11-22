@@ -4,6 +4,9 @@ window.__ModuleLoader__.load({
     const React=require('react'), h=React.createElement;
     return {inject:['slots','uiWorkspace','sessions','contextMenus'],apply(ctx) {
       const a=window.harnessAccount;
+      if (a.guest && matchMedia('(min-width:768px) and (max-width:1023px)').matches) {
+        ctx.inject(['layout'], scope => scope.layout.toggleSidebar());
+      }
       ctx.inject(['theme'], scope => {
         const adopt=()=>scope.theme.setTheme(window.octoTheme.preference());
         document.addEventListener('octo-theme', adopt);
@@ -73,6 +76,20 @@ window.__ModuleLoader__.load({
           h('ellipse',{cx:12,cy:8,rx:8,ry:4}),
           h('path',{d:'M4 8v4c0 2.2 3.6 4 8 4s8-1.8 8-4V8M4 12v4c0 2.2 3.6 4 8 4s8-1.8 8-4v-4'}));
       }
+      const publicLinks=[
+        ['/about/','О сервисе'],
+        ['/about/seller-analytics','Аналитика'],
+        ['/about/install','Подключение магазина'],
+        ['/about/support','Поддержка'],
+        ['/about/privacy','Конфиденциальность'],
+        ['/about/ask','Задать вопрос']
+      ];
+      function SidebarLinks({wide}) {
+        if (!wide) return null;
+        return h('nav',{className:'octo-site-navigation','aria-label':'Разделы Октопорта'},
+          publicLinks.map(([href,label])=>h('a',{key:href,href,
+            'aria-current':a.guest && href==='/about/ask' ? 'page' : undefined},label)));
+      }
       function AccountLauncher({wide,openSettings,settingsShortcut}) {
         React.useEffect(()=>{
           if(openSettingsOnMount && openSettings){openSettingsOnMount=false; openSettings();}
@@ -92,26 +109,21 @@ window.__ModuleLoader__.load({
             {id:'register',label:'Создать аккаунт'}
           ]),
           {id:'settings',label:'Настройки',icon:h(IconSettingsOutlineMedium,{size:16}),shortcut:settingsShortcut},
-          {id:'about',label:'О сервисе'},
-          {id:'analytics',label:'Аналитика'},
-          {id:'install',label:'Подключение магазина'},
-          {id:'support',label:'Поддержка'},
-          {id:'privacy',label:'Конфиденциальность'},
           ...(a.canGrant ? [{id:'admin',label:'Администрирование'}] : []),
           ...(!a.guest ? [{id:'divider',type:'separator'},{id:'logout',label:'Выйти'}] : [])
         ];
         const commands={
           profile:()=>select('profile'),wallet:()=>select('wallet'),
           login:()=>select('login'),register:()=>select('register'),settings:openSettings,
-          about:()=>location.assign('/about/'),analytics:()=>location.assign('/about/seller-analytics'),
-          install:()=>location.assign('/about/install'),support:()=>location.assign('/about/support'),
-          privacy:()=>location.assign('/about/privacy'),admin:()=>location.assign('/admin'),
+          admin:()=>location.assign('/admin'),
           logout:()=>logout.current.requestSubmit()
         };
-        return h('div',{className:'account-actions','data-wide':wide},
-          a.guest && wide && h(React.Fragment,null,
+        if (a.guest && wide) {
+          return h('div',{className:'account-actions octo-guest-actions','data-wide':true},
             h('button',{type:'button',onClick:()=>select('login')},'Войти'),
-            h('button',{type:'button',onClick:()=>select('register')},'Создать аккаунт')),
+            h('button',{type:'button',onClick:()=>select('register')},'Создать аккаунт'));
+        }
+        return h('div',{className:'account-actions','data-wide':wide},
           !a.guest && h('button',{type:'button',className:'balance-action','aria-label':'Баланс','aria-haspopup':'dialog',
             title:balance,onClick:()=>select('wallet')},h(Coin),wide && h('span',{className:'sidebar-coins'},balance)),
           h(Menu,{open,portal:true,autoFocus:true,side:'top',align:'start',
@@ -296,10 +308,12 @@ window.__ModuleLoader__.load({
           h(AuthForm,{key:mode,signup:mode==='register',close}));
       }
       ctx.slots.inject('settings.launcher',()=>ctx.slots.register({name:'settings.launcher'},AccountLauncher));
+      ctx.slots.inject('sidebar.workspaces.afterList',()=>ctx.slots.register({
+        name:'sidebar.workspaces.afterList'
+      },props=>h(React.Fragment,null,
+        !a.guest && h(PluginSidebar,{...props,openCatalog:()=>select('plugins')}),
+        h(SidebarLinks,props))));
       if (!a.guest) {
-        ctx.slots.inject('sidebar.workspaces.afterList',()=>ctx.slots.register({
-          name:'sidebar.workspaces.afterList'
-        },props=>h(PluginSidebar,{...props,openCatalog:()=>select('plugins')})));
         ctx.slots.inject('settings.section',()=>ctx.slots.register({
           name:'settings.section',id:'plugins',order:6,label:()=>'Плагины'
         },CatalogSettings));

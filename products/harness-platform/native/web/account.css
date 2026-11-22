@@ -167,6 +167,53 @@ body[data-ds-dark-theme] .octo-coin { color:#d9b56c; }
 }
 .octo-wallet-topup:hover { background:var(--dsw-alias-button-primary-hover); }
 
+/* The guest has one conversation. The navigation occupies the top of its rail. */
+body[data-mode="guest"] [data-slot="sidebar.workspaces"] > :has(> .octo-workspace-list)
+  > :not(.octo-workspace-list),
+body[data-mode="guest"] .octo-workspace-list > :not([data-slot="sidebar.workspaces.afterList"]) {
+  display:none;
+}
+.octo-site-navigation {
+  display:grid;
+  gap:4px;
+  padding:6px 10px;
+  color:var(--octo-ink);
+}
+.octo-site-navigation a {
+  display:flex;
+  box-sizing:border-box;
+  align-items:center;
+  min-height:36px;
+  padding:6px 12px;
+  border-radius:var(--octo-radius);
+  color:inherit;
+  font:500 14px/20px var(--octo-font);
+  text-decoration:none;
+}
+.octo-site-navigation a[aria-current="page"] {
+  background:var(--octo-panel);
+  box-shadow:inset 0 0 0 1px var(--octo-line);
+}
+.octo-site-navigation a:hover { background:var(--octo-hover); }
+.octo-site-navigation a:focus-visible { outline:2px solid var(--octo-accent); outline-offset:-2px; }
+.account-actions.octo-guest-actions {
+  gap:5px;
+  padding:12px 0 10px;
+  width:auto;
+  margin-inline:10px;
+  border-top:1px solid var(--octo-line);
+}
+.account-actions.octo-guest-actions button {
+  min-height:38px;
+  padding:6px 10px;
+  border:1px solid var(--octo-line);
+  border-radius:var(--octo-radius);
+  color:var(--octo-ink);
+  background:var(--octo-panel);
+  font:500 14px/20px var(--octo-font);
+}
+.account-actions.octo-guest-actions button:hover { background:var(--octo-hover); }
+
 /* Chat and plugin navigation share the available height above the account. */
 .octo-workspace-list:has(> [data-slot="sidebar.workspaces.afterList"] > .octo-plugin-navigation)
   > :not([data-slot="sidebar.workspaces.afterList"]) { flex:0 1 auto; }
