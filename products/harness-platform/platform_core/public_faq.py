@@ -65,6 +65,15 @@ class PublicFAQ:
             specific = [c for c in cards if c["title"].casefold() in text or
                         any(w in text.split() for w in c.get("keywords", "").split())]
             if specific or re.search(r"(?:какие|список|все).*(?:плагин|интеграц)", text):
-                return "В Октопорте доступны " + ". ".join(c["title"] + " — " + c["purpose"]
-                    for c in (specific or cards)) + ". Для подключения войдите в свой аккаунт."
+                selected = specific or cards
+                if not specific:
+                    group = "Интеграции" if "интеграц" in text else "Плагины"
+                    selected = [c for c in cards if c["group"] == group] or cards
+                def detail(card):
+                    steps = card["steps"]
+                    if "подключ" in text:
+                        ordered = steps if isinstance(steps, list) else [s for group in steps.values() for s in group]
+                        return card["title"] + " — " + " ".join(dict.fromkeys(ordered))
+                    return card["title"] + " — " + card["purpose"]
+                return "В Октопорте доступны " + ". ".join(detail(c) for c in selected) + ". Для подключения войдите в свой аккаунт."
         return matches[0] if len(matches) == 1 else fallback

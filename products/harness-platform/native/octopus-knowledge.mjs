@@ -1,14 +1,27 @@
-const reportTools = new Set(['mcp__platform__find_marketplace_reports', 'mcp__platform__marketplace_report', 'octoport_help']);
+const reportTools = new Set(['mcp__platform__find_marketplace_reports', 'mcp__platform__marketplace_report', 'octoport_help', 'octoport_use']);
 
 // Apply this projection at dispatch only. Historical journal sequence numbers,
 // restore checkpoints, and active tool calls remain valid on either transport.
 export function projectCompletedKnowledge(seed) {
   const oldAssistants = new Set(), oldResults = new Set(), oldCalls = new Set();
   const reportTurns = new Set(), idsByTurn = new Map();
+  const activated = new Map();
   for (const {type,data} of seed) {
     if (type !== 'assistant/message') continue;
     for (const block of data.message.content) {
-      if (block.type !== 'tool-call' || !reportTools.has(block.name)) continue;
+      if (block.type !== 'tool-call' || block.name !== 'octoport_use') continue;
+      try {
+        const {action}=JSON.parse(block.arguments);
+        if (typeof action !== 'string') continue;
+        const actions=activated.get(data.turn) ?? new Set();
+        actions.add(action);activated.set(data.turn,actions);
+      } catch { /* Invalid activations open no resource. */ }
+    }
+  }
+  for (const {type,data} of seed) {
+    if (type !== 'assistant/message') continue;
+    for (const block of data.message.content) {
+      if (block.type !== 'tool-call' || !(reportTools.has(block.name) || activated.get(data.turn)?.has(block.name))) continue;
       reportTurns.add(data.turn);
       oldCalls.add(block.id);
       if (block.name.endsWith('__marketplace_report')) {
@@ -68,16 +81,26 @@ export function lookup(knowledge, query, page = 1) {
     const score = Number(query === card.id) * 100 + [...terms].filter(term => vocabulary.has(term)).length;
     return {card, score};
   }).filter(row => !query.trim() || row.score).sort((a,b) => b.score-a.score || a.card.id.localeCompare(b.card.id));
+  if (!query.trim()) {
+    const summaries = scored.slice((page-1)*16,page*16).map(({card}) => ({id:card.id,title:card.title,purpose:card.purpose}));
+    return {total:scored.length, nextPage:page*16<scored.length?page+1:null, cards:summaries};
+  }
   const rows = scored.slice((page-1)*5, page*5).map(r => r.card);
-  const dependencies = new Set(rows.flatMap(card => card.operations?.map(op => op.requires).filter(Boolean) ?? []));
-  const selected = [...new Set([...rows,...cards.filter(c => dependencies.has(c.id))])];
+  const byId = new Map(cards.map(card=>[card.id,card]));
+  const selected = new Set(rows);
+  for (const card of selected) {
+    for (const op of card.operations ?? []) {
+      if (byId.has(op.requires)) selected.add(byId.get(op.requires));
+    }
+  }
   return {total:scored.length, nextPage:page*5<scored.length?page+1:null,
-    cards:selected.map(({keywords,...card}) => ({...card,state:states[card.id] ??
+    cards:[...selected].map(({keywords,...card}) => ({...card,state:states[card.id] ??
       (card.id.startsWith('integration/')?'не подключено':'не установлено')}))};
 }
 
 export function directory(cards) {
-  const titles = cards.map(card => card.title).join(', ');
+  const groups = Map.groupBy(cards, card => card.group);
+  const titles = [...groups].map(([group,items]) => group+': '+items.map(c=>c.title).join(', ')).join('. ');
   return titles.length <= 170 ? titles : [...new Set(cards.map(c => c.group))].sort().slice(0,12).join(', ').slice(0,170);
 }
 
@@ -85,7 +108,7 @@ export async function registerKnowledge(ctx, load, knowledge) {
   const {defineTool} = await load('dsh-tools');
   ctx.systemPrompt.section({name:'octopus',order:25,interpolate:false,
     text:'Ты Октопус, осьминог Октопорта. Ясно говори от первого лица, помогай вести магазины из одного места. '+
-      'Для подбора возможностей и шагов подключения сверь справочник и состояние доступа. Учитывай зависимости. '+
+      'Перечисляй названия из указателя. Для настройки и плана узнай подробности в octoport_help. Учитывай зависимости. '+
       'О выполнении сообщай после подтверждения. Если расписание ещё недоступно, предложи отчёт по запросу.'});
   const {address,tone,detail} = knowledge.style;
   ctx.systemPrompt.context({name:'octopus-settings',order:75,required:true,interpolate:false,

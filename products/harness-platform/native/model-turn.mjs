@@ -1,3 +1,4 @@
+import { turnFilter } from './capability-filter.mjs';
 import { projectCompletedKnowledge } from './octopus-knowledge.mjs';
 
 /** Run the same native Session, Agent, tool executor and loop for both transports. */
@@ -16,7 +17,9 @@ export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, 
     adapter.prepareCall=async (...args)=>{
       const call=await prepare(...args);
       return {...call,stream:options=>{
-        const chunks=call.stream({...options,messages:project(options.messages)});
+        const gate=turnFilter(ctx);
+        const tools=gate ? gate.project(options.tools) : options.tools;
+        const chunks=call.stream({...options,tools,messages:project(options.messages)});
         return progress ? observe(chunks) : chunks;
       }};
     };

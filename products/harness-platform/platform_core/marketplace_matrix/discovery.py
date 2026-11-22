@@ -1,15 +1,8 @@
 """The model discovers report contracts on demand, by metric and permitted shop."""
-import re
-from collections import Counter
-from math import log
 
 from ..catalog import Capability
 from . import plugin
-
-
-def terms(text):
-    return {word[:5] for word in re.findall(r"[а-яa-z0-9]+", text.lower().replace("ё", "е"))
-            if len(word) > 2 and word not in {"для", "или", "магазина", "ozon", "wildberries", "озон"}}
+from ..resource_index import select_page
 
 
 def model_tools(stores):
@@ -23,28 +16,25 @@ def model_tools(stores):
                  "input": {"type": "object"}}, "required": ["connectionId", "templateId"],
                  "additionalProperties": False}
 
-    def find(scope, args):
-        query = terms(args["query"])
-        candidates = [row for row in [*plugin.catalogue(profiles), *plugin.extensions.catalogue(profiles)]
-                      if args["connectionId"] in row["available_stores"]]
-        vocab = [terms(row["purpose"] + " " + row["id"]) for row in candidates]
-        counts = Counter(term for row in vocab for term in row)
-        def score(i):
-            exact = candidates[i]["id"] == args["query"].strip()
-            return 100 * exact + sum(log(1 + len(vocab)/counts[t]) for t in vocab[i] & query)
-        ranked = sorted(range(len(vocab)), key=lambda i: (-score(i), candidates[i]["id"]))
-        ranked = [i for i in ranked if score(i) > 0]
-        offset = args.get("offset", 0)
-        matches = [candidates[i] for i in ranked[offset:offset + 4]]
+    resources = None
+
+    def describe_store(query, cid, offset):
+        nonlocal resources
+        if resources is None:
+            resources = [*plugin.catalogue(profiles), *plugin.extensions.catalogue(profiles)]
+        candidates = [row for row in resources if cid in row["available_stores"]]
+        matches, more = select_page(candidates, query, offset, 5)
         result = {"matches": [{"templateId": row["id"], "purpose": row["purpose"],
                                "inputs": row["input_policy"]} for row in matches],
-                  "nextOffset": offset + 4 if offset + 4 < len(ranked) else None}
+                  "nextOffset": more}
         if matches:
             # Reuse the execution validator's conditional contract, restricted to
             # this shop and page. Do not include the old catalogue prompt.
-            cap = plugin.capability([s for s in stores if s["id"] == args["connectionId"]],
+            cap = plugin.capability([s for s in stores if s["id"] == cid],
                                     {row["id"] for row in matches})
             result["selectionSchema"] = cap.input_schema["properties"]["selections"]["items"]
+            result["selectionSchema"]["properties"].pop("connectionId", None)
+            result["selectionSchema"]["required"].remove("connectionId")
             result["guidance"] = ("Даты from/to включительно. Для текущего состояния period=null. "
                 "Обычно group_by=marketplace. Бери точные исходные суммы из sourceValues. "
                 "Для уточнения периода сохрани магазин и показатель из беседы.")
@@ -63,13 +53,19 @@ def model_tools(stores):
             return {"ok": False, "reason": "Проверьте магазин и параметры выбранного отчёта."}
         return full.handler(scope, args)
 
-    search = Capability("find_marketplace_reports",
-        "Только для получения фактических данных магазина. Найди отчёт по одному показателю на русском и магазину. "
-        "Для двух площадок ищи для каждой. Для справки, настройки и пересказа предыдущих цифр поиск не нужен.",
+    def describe(scope, args):
+        # One response per distinct access profile. Shops with identical rights
+        # can use the same contract; IDs remain scoped to this chat.
+        groups = {}
+        for cid, provider, fields in profiles:
+            groups.setdefault((provider, fields), []).append(cid)
+        return {"groups": [{"connections": members, **describe_store(args["query"], members[0], args.get("offset", 0))}
+                           for members in groups.values()]}
+
+    search = Capability("describe__marketplace_report", "Параметры доступных операций отчётности.",
         {"type": "object", "properties": {"query": {"type": "string", "minLength": 1, "maxLength": 256},
-         "connectionId": store_id, "offset": {"type": "integer", "minimum": 0}},
-         "required": ["query", "connectionId"], "additionalProperties": False}, find)
-    report = Capability("marketplace_report", "Запроси выбранные данные по форме из find_marketplace_reports.",
+         "offset": {"type": "integer", "minimum": 0}}, "required": ["query"], "additionalProperties": False}, describe)
+    report = Capability("marketplace_report", "Получить фактические данные магазинов за запрошенный период.",
         {"type": "object", "properties": {"selections": {"type": "array", "minItems": 1,
         "uniqueItems": True, "items": selection}}, "required": ["selections"], "additionalProperties": False}, run)
     return [search, report]

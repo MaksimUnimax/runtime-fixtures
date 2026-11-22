@@ -67,12 +67,13 @@ def _cards(key):
         cards.append(dict(id="integration/" + provider, title=entry["title"], group="Интеграции",
             keywords=entry.get("keywords", ""), purpose="Подключение " + entry["title"],
             steps={k: guides[k] for k in kinds if k in guides}, screen="/app/#settings-integrations"))
+    published_ids = {c["id"] for c in cards} | {"plugin/" + p["id"] for p in plugins}
     for p in sorted(plugins, key=lambda row: row["id"]):
-        ops = [{"task": task, **({"requires": "integration/" + provider, "access": access} if provider else {})}
+        ops = [{"task": task, **({"requires": (provider if "/" in provider else "integration/" + provider), "access": access} if provider else {})}
                for task, provider, access in p["operations"]]
-        if any(op.get("requires", "").removeprefix("integration/") not in providers
+        if any(op["requires"] not in published_ids
                for op in ops if "requires" in op):
-            raise ValueError("Unknown integration in plugin " + p["id"])
+            raise ValueError("Unpublished dependency in plugin " + p["id"])
         auto = p["provider"] in providers and providers[p["provider"]].get("fields") is not None
         cards.append(dict(id="plugin/" + p["id"], title=p["title"], group="Плагины", purpose=p["description"],
             keywords=p["keywords"], operations=ops, screen="/app/#settings-plugins",
