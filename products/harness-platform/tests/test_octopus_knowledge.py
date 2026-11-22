@@ -55,3 +55,16 @@ class PublishedKnowledge(unittest.TestCase):
                 reset=client.post(url,headers=a,json={**settings["defaults"],"revision":1})
                 self.assertEqual(reset.json()["current"],{**settings["defaults"],"revision":2})
                 self.assertEqual(client.post(url,headers=b,json={**change,"tone":"неизвестно"}).status_code,400)
+
+    def test_compound_request_finds_quantity_and_amount_on_the_real_catalogue(self):
+        from platform_core.marketplace_matrix import plugin
+        from platform_core.resource_index import select_page
+        profiles = (("test","ozon",("seller_api_key","seller_client_id")),)
+        records = [*plugin.catalogue(profiles), *plugin.extensions.catalogue(profiles)]
+        query = "Продажи за вчера по магазину Учебный Ozon: сумма продаж и количество заказов"
+        first, cursor = select_page(records, query, 0, 5)
+        ids = {row["id"] for row in first}
+        self.assertIn("SUMMARY.58", ids)
+        self.assertTrue(ids.intersection({"B05.accrual_seller_amount","B08.finance_sales"}))
+        second, _ = select_page(records, query, cursor, 5)
+        self.assertTrue(ids.isdisjoint(row["id"] for row in second))
