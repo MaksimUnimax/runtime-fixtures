@@ -50,3 +50,11 @@ test('completed tool contracts leave the next request while figures and unrelate
   assert.deepEqual(rows[0].content,[{type:'text',text:'Выкупили 7 штук.'}]);
   assert.deepEqual(rows[1],other);
 });
+
+test('a historical mixed signed batch never leaves an orphan call, signature or tool result',()=>{
+  const calls={id:'mixed',role:'assistant',source:{kind:'model',replayState:{reasoning:'private-template'}},
+    content:[{type:'tool-call',id:'a',name:activate},{type:'tool-call',id:'b',name:'check_access'}]};
+  const messages=[calls,...['a','b'].map(id=>({role:'tool',id:'result-'+id,toolCallId:id,content:[{type:'text',text:'private-template'}]}))];
+  const seed=messages.map(message=>({type:message.role==='tool'?'tool/result':'assistant/message',data:{turn:1,message}}));
+  assert.deepEqual(projectCompletedKnowledge(seed)(messages),[]);
+});

@@ -34,15 +34,21 @@ export function projectCompletedKnowledge(seed) {
       }
     }
   }
+  // A provider signs the complete tool-call batch. A signature for a mixed
+  // batch cannot be attached to a rewritten subset. Omit the settled batch
+  // as a unit, keeping the seller-visible final answer and independent calls.
+  for (const {type,data} of seed) {
+    if (type !== 'assistant/message' || !reportTurns.has(data.turn)) continue;
+    const calls=data.message.content.filter(b=>b.type==='tool-call');
+    if (calls.some(b=>oldCalls.has(b.id))) for (const b of calls) oldCalls.add(b.id);
+  }
   const redact = new Map();
   for (const {type,data} of seed) {
     if (!reportTurns.has(data.turn)) continue;
     if (type === 'tool/result' && oldCalls.has(data.message.toolCallId)) oldResults.add(data.message.id);
     if (type !== 'assistant/message') continue;
     const msg = data.message;
-    // Unrelated historical tool exchanges carry provider-signed replay state.
-    if (msg.content.some(b => b.type === 'tool-call' && !oldCalls.has(b.id)) &&
-        !msg.content.some(b => b.type === 'tool-call' && oldCalls.has(b.id))) continue;
+    if (msg.content.some(b => b.type === 'tool-call' && !oldCalls.has(b.id))) continue;
     oldAssistants.add(msg.id);
     redact.set(msg.id, idsByTurn.get(data.turn) ?? []);
   }
@@ -107,9 +113,7 @@ export function directory(cards) {
 export async function registerKnowledge(ctx, load, knowledge) {
   const {defineTool} = await load('dsh-tools');
   ctx.systemPrompt.section({name:'octopus',order:25,interpolate:false,
-    text:'Ты Октопус, осьминог Октопорта. Ясно говори от первого лица, помогай вести магазины из одного места. '+
-      'Перечисляй названия из указателя. Для настройки и плана узнай подробности в octoport_help. Учитывай зависимости. '+
-      'Предлагай только опубликованные возможности. О выполнении сообщай после подтверждения. Не обещай настроить то, чего нет в каталоге.'});
+    text:'Ты Октопус, осьминог Октопорта. Помогай вести магазины из одного места. Говори от первого лица, понятно. Предлагай только опубликованное, учитывай зависимости. Выполнение подтверждай по результату.'});
   const {address,tone,detail} = knowledge.style;
   ctx.systemPrompt.context({name:'octopus-settings',order:75,required:true,interpolate:false,
     text:'Стиль: '+[address,tone,detail].join(', ')+'. В каталоге: '+directory(knowledge.cards)+'.'});
