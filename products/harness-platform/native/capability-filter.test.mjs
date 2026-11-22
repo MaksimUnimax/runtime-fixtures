@@ -8,6 +8,7 @@ function fixture(restored) {
   const name='mcp__new__audit_inventory';
   const definitions=new Map([[name,{name,description:'Проверить остатки',parameters:{secretSchema:true}}],
     ['describe__'+name,{name:'describe__'+name,description:'private',execute:async()=>({structuredContent:{result:['fixture-contract']}})}],
+    ['tiny_read',{name:'tiny_read',description:'Короткая операция',parameters:{}}],
     ['octoport_help',{name:'octoport_help'}]]);
   const ctx={tools:{definitions:()=>[...definitions.values()],register:t=>definitions.set(t.name,t),
     get:k=>definitions.get(k),guard:f=>ctx.guard=f},systemPrompt:{section(){}}};
@@ -19,6 +20,7 @@ test('future tool contracts are closed until explicitly opened for this turn and
   const {ctx,name,defs,project}=fixture();
   assert.deepEqual(project(),['octoport_help',activate]);
   assert.ok(ctx.guard({name}));
+  assert.ok(ctx.guard({name:"tiny_read"}));
   const tool=defs.get(activate);
   const result=JSON.parse(await tool.execute({action:name,query:'остатки'},{}));
   assert.deepEqual(result,{opened:name,details:['fixture-contract']});

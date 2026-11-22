@@ -44,9 +44,11 @@ def serve(root, phase, image):
                 usage={**usage,'cost':'0.01'}
             return httpx.Response(200,json={'usage':usage,'data':[{'b64_json':base64.b64encode(b'\x89PNG\r\n\x1a\nfixture').decode()}]})
         if phase=='original':
-            if image and not any(m['role']=='tool' for m in data['messages']):
+            if image and not any(m.get('tool_call_id')=='draw-1' for m in data['messages']):
                 call={'id':'draw-1','type':'function','function':{'name':'create_illustration','arguments':'{"prompt":"circle"}'}}
-                return httpx.Response(200,json={'id':'gen-before','usage':usage,'choices':[{'finish_reason':'tool_calls','message':{'role':'assistant','content':'','tool_calls':[call]}}]})
+                if not any(t['function']['name']=='create_illustration' for t in data['tools']):
+                    call={'id':'open-draw','type':'function','function':{'name':'octoport_use','arguments':json.dumps({'action':'create_illustration','query':'circle'})}}
+                return httpx.Response(200,json={'id':'gen-before-'+call['id'],'usage':usage,'choices':[{'finish_reason':'tool_calls','message':{'role':'assistant','content':'','tool_calls':[call]}}]})
             return httpx.Response(429,headers={'Retry-After':'7' if os.getenv('COMPETING') else '3'})
         return httpx.Response(200,json={'id':'gen-resumed','usage':usage,'choices':[{'finish_reason':'stop','message':{'role':'assistant','content':'Работа завершена'}}]})
     direct=bool(os.getenv('DIRECT_IMAGE'))
@@ -182,13 +184,13 @@ class CrashRecovery(unittest.TestCase):
             rows=[json.loads(x) for x in (root/'requests').read_text().splitlines()]
             calls=[r for r in rows if r[1].endswith('/completions')]
             if uncertain:
-                self.assertEqual([(r[0],r[1].split('/')[-1]) for r in rows],[('original','completions'),('original','images')])
+                self.assertEqual([(r[0],r[1].split('/')[-1]) for r in rows],[('original','completions'),('original','completions'),('original','images')])
                 with sqlite3.connect(root/'platform.db') as db:
                     self.assertEqual(db.execute('SELECT count(*) FROM openrouter_waits').fetchone()[0],0)
                     self.assertEqual(db.execute("SELECT charge FROM coin_attempts WHERE period='plugin.illustrations.create_image'").fetchall(),[(None,)])
                 return
             if logout:
-                self.assertEqual([r[0] for r in calls],['original']*(2 if image else 1))
+                self.assertEqual([r[0] for r in calls],['original']*(3 if image else 1))
                 self.assertEqual(sum(r[1].endswith('/images') for r in rows),int(image))
                 with sqlite3.connect(root/'platform.db') as db:
                     self.assertEqual(db.execute('SELECT charge FROM coin_attempts').fetchone()[0],0)
@@ -200,7 +202,7 @@ class CrashRecovery(unittest.TestCase):
                 if direct:
                     self.assertEqual(calls,[])
                 else:
-                    self.assertEqual([r[0] for r in calls],['original','restarted'])
+                    self.assertEqual([r[0] for r in calls],['original','original','restarted'])
                     self.assertIn('draw-1',[m.get('tool_call_id') for m in calls[-1][2]['messages'] if m['role']=='tool'])
                 with sqlite3.connect(root/'platform.db') as db:
                     [charged]=db.execute("SELECT charge,evidence FROM coin_attempts WHERE period='plugin.illustrations.create_image'").fetchall()
@@ -208,13 +210,13 @@ class CrashRecovery(unittest.TestCase):
                     self.assertEqual(charged[1],'openrouter-usd:0.01')
             else:
                 self.assertEqual(calls[-1][2],calls[-2][2])
-                self.assertEqual([r[0] for r in calls],['original']*(2 if image else 1)+['restarted'])
+                self.assertEqual([r[0] for r in calls],['original']*(3 if image else 1)+['restarted'])
                 self.assertEqual(sum(r[1].endswith('/images') for r in rows),int(image))
             messages=json.loads((root/'result').read_text())['messages']
             self.assertEqual([(m['role'],m['text']) for m in messages],[('user','draw fixture' if direct else 'Fixture question'),('assistant','Работа завершена')])
             with sqlite3.connect(root/'platform.db') as db:
                 self.assertEqual(db.execute('SELECT count(*) FROM openrouter_waits').fetchone()[0],0)
-                self.assertEqual(db.execute('SELECT count(*),count(charge) FROM coin_attempts').fetchone(),(3,3) if image else (1,1))
+                self.assertEqual(db.execute('SELECT count(*),count(charge) FROM coin_attempts').fetchone(),(4,4) if image else (1,1))
 
     def test_service_killed_after_image_request_without_receipt_never_resubmits(self):
         self.exercise(True,image_wait=True,uncertain=True)

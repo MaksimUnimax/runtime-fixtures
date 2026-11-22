@@ -169,15 +169,15 @@ class MeteredChatAcceptance(unittest.TestCase):
             first, second, duplicate = [r.json() for r in responses]
             wallet = client.get("/api/wallet", headers=a[0]).json()
             self.assertEqual(len(wallet["charges"]), 1)
-            self.assertEqual(wallet["charges"][0]["coins"], "0.00144")
-            self.assertEqual(len(wallet["charges"][0]["meter"]["attempts"]), 2)
+            self.assertEqual(wallet["charges"][0]["coins"], "0.00216")
+            self.assertEqual(len(wallet["charges"][0]["meter"]["attempts"]), 3)
             self.assertEqual(first, duplicate)
-            self.assertEqual(first["modelUsage"], {"coins":"0.00144","rub":"0.00144","pending":False,
-                "tokens":{"input":20,"cache":0,"output":10},"providers":{"DeepSeek":{"input":20,"cache":0,"output":10}}})
+            self.assertEqual(first["modelUsage"], {"coins":"0.00216","rub":"0.00216","pending":False,
+                "tokens":{"input":30,"cache":0,"output":15},"providers":{"DeepSeek":{"input":30,"cache":0,"output":15}}})
             self.assertEqual(first["text"], "tool result received")
             self.assertEqual(second["text"], "answer to second fixture")
             self.assertNotEqual(first["operationId"], second["operationId"])
-            self.assertEqual(first["modelCost"], {"rub": "0.00144", "usd": "0.000018"})
+            self.assertEqual(first["modelCost"], {"rub": "0.00216", "usd": "0.000027"})
             self.assertEqual(second["modelCost"]["rub"], "0.00072")
             self.assertEqual(post(a, "different").status_code, 409)
             denied = client.post(f"/api/chats/{a[1]}/turns", headers=b[0], json={"requestId": "x", "text": "other"})
@@ -191,7 +191,7 @@ class MeteredChatAcceptance(unittest.TestCase):
         self.assertEqual(report["status"], "complete")
         rows = {r["operation_id"]: r for r in report["attribution"]["operations"]}
         self.assertEqual(len(rows), 2)
-        for user, answer, count, rub in ((a, first, 2, "0.00144"), (b, second, 1, "0.00072")):
+        for user, answer, count, rub in ((a, first, 3, "0.00216"), (b, second, 1, "0.00072")):
             row = rows[answer["operationId"]]
             self.assertEqual((row["workspace_id"], row["unique_attempts"], row["total_rub"]),
                              (user[2].workspace_id, count, rub))
@@ -218,7 +218,7 @@ class MeteredChatAcceptance(unittest.TestCase):
                 ids.append(saved.json()["id"])
                 observed=json.loads(send("attach"+str(index),"inspect connections "+str(index)))
                 self.assertEqual(observed,{"currentStore":True,"boundName":True,"freshUpdate":True,
-                    "active":[index],"allImmediate":True,"secretLeaked":False})
+                    "active":[],"allImmediate":True,"secretLeaked":False})
             for cid in ids:
                 client.post(url+"/integrations",headers=headers,json={"connectionId":cid,"enabled":False}).raise_for_status()
             removed=json.loads(send("revoke","inspect connections removed"))

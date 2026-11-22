@@ -26,10 +26,13 @@ const upstream = http.createServer(async (req, res) => {
   const drawing=request.messages.some(m=>Array.isArray(m.content) && m.content.some(b=>b.type==='text' && b.text==='draw fixture'));
   const imageReceived=request.messages.some(m=>Array.isArray(m.content) && m.content.some(b=>b.type==='tool_result'
     && JSON.stringify(b.content).includes('Изображение готово')));
-  const useTool = drawing ? !imageReceived : prompt === 'tool fixture';
-  const tool = request.tools?.find(t => drawing ? t.name==='create_illustration' : t.name.endsWith('summarize_text'));
   const toolResult = last.find(block => block.type === 'tool_result');
-  if (!drawing && toolResult && (toolResult.is_error || !JSON.stringify(toolResult.content).includes('one two'))) {
+  const opened = toolResult && JSON.stringify(toolResult.content).includes('opened');
+  const useTool = drawing ? !imageReceived : prompt === 'tool fixture' || opened;
+  const targetName = drawing ? 'create_illustration' : 'mcp__platform__summarize_text';
+  const tool = request.tools?.find(t => t.name===targetName) ?? request.tools?.find(t=>t.name==='octoport_use');
+  const activating=tool?.name==='octoport_use';
+  if (!drawing && toolResult && !opened && (toolResult.is_error || !JSON.stringify(toolResult.content).includes('one two'))) {
     res.writeHead(422);
     res.end('Missing expected MCP result');
     return;
@@ -68,8 +71,8 @@ const upstream = http.createServer(async (req, res) => {
     event('content_block_stop',{index:0});
   }
   if (useTool && tool) {
-    event('content_block_start', { index: 0, content_block: { type: 'tool_use', id: 'test-call', name: tool.name, input: {} } });
-    event('content_block_delta', { index: 0, delta: { type: 'input_json_delta', partial_json: drawing ? '{"prompt":"circle"}' : '{"text":"one two"}' } });
+    event('content_block_start', { index: 0, content_block: { type: 'tool_use', id: activating ? 'open-action' : 'test-call', name: tool.name, input: {} } });
+    event('content_block_delta', { index: 0, delta: { type: 'input_json_delta', partial_json: activating ? JSON.stringify({action:targetName,query:drawing?'circle':'text'}) : drawing ? '{"prompt":"circle"}' : '{"text":"one two"}' } });
   } else {
     event('content_block_start', { index, content_block: { type: 'text', text: '' } });
     if (prompt === 'browser fixture') {
