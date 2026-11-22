@@ -15,7 +15,7 @@ from starlette.routing import Route
 
 from . import coins
 from .browser_session import _form_fields, _PRIVATE_HEADERS, browser_token
-from .identity import _principal
+from .identity import _principal, AuthenticationError
 from .operation_grants import ensure_operation_schema
 
 _ID = re.compile(r"[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}")
@@ -91,7 +91,18 @@ def response(data, status=200):
 async def quote(request):
     count = quantity(request.query_params.get("coins", "100"))
     rate = await run_in_threadpool(request.app.state.identity.public_coin_price)
-    return response({"total": price(rate, count), "enabled": bool(merchant())})
+    enabled = bool(merchant())
+    if enabled and os.getenv("YOOKASSA_PILOT_ONLY") == "1":
+        enabled = count == 1 and await is_pilot_admin(request)
+    return response({"total": price(rate, count), "enabled": enabled})
+
+
+async def is_pilot_admin(request):
+    try:
+        token = browser_token(request)
+        return await run_in_threadpool(request.app.state.identity.is_admin, token)
+    except AuthenticationError:
+        return False
 
 
 def order_for(store, token, key, count, total):
@@ -181,6 +192,8 @@ async def checkout(request):
         return response({"detail": "Приём платежей пока недоступен."}, 503)
     fields = await _form_fields(request, {"coins", "total", "key"})
     count = quantity(fields["coins"])
+    if os.getenv("YOOKASSA_PILOT_ONLY") == "1" and (count != 1 or not await is_pilot_admin(request)):
+        raise HTTPException(403, "Контрольное пополнение доступно только администратору на одну монету.")
     if not _ID.fullmatch(fields["key"]):
         raise HTTPException(400, "Некорректный идентификатор заказа.")
     customer_email = await run_in_threadpool(store.account_login, token)
