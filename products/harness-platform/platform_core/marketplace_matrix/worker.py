@@ -234,7 +234,7 @@ def execute(packet, directory):
                       or TEMPLATES[call["template_id"]].get("parameter_report") for call in calls)
 
     rate_limits = 0
-    ozon_retries = {}
+    ozon_retries = set()
 
     class ChatTransport(HTTPTransport):
         def _read_request(self, request, store):
@@ -258,13 +258,12 @@ def execute(packet, directory):
                 raise CallError("MARKETPLACE_OPERATION_REQUIRED")
             context = copy_context()
             retry_key = (request.source, request.operation, fingerprint(request.body))
-            previous = ozon_retries.get(retry_key)
+            is_retry = retry_key in ozon_retries
 
             def guard_dispatch():
                 result = context.run(on_dispatch) if on_dispatch else authority.check()
-                if previous and authority.resume_rate_limits:
-                    number, retry = previous
-                    authority.ozon_notice(retry.sending(number))
+                if is_retry and authority.resume_rate_limits:
+                    authority.ozon_notice(ozon_retry.SENDING_NOTICE)
                 return result
             try:
                 answer = super().execute(request, store, on_dispatch=guard_dispatch)
@@ -281,18 +280,17 @@ def execute(packet, directory):
                 if error.status == 429:
                     rate_limits += 1
                     if store["platform"] == "ozon":
-                        retry = ozon_retry.plan(ozon_retry.endpoint(request.operation), error.retry_at, time.time())
+                        retry = ozon_retry.plan(error.retry_at, time.time())
                         error.ozon_retry = retry
-                        number = previous[0] + 1 if previous else 1
-                        ozon_retries[retry_key] = number, retry
+                        ozon_retries.add(retry_key)
                         from request_recovery import repeat_safe
                         if authority.resume_rate_limits and repeat_safe(request):
-                            authority.ozon_notice(retry.waiting(number))
+                            authority.ozon_notice(retry.waiting())
                 raise
-            if previous:
-                del ozon_retries[retry_key]
+            if is_retry:
+                ozon_retries.remove(retry_key)
                 if authority.resume_rate_limits:
-                    authority.ozon_notice(f"Ozon принял повтор №{previous[0]} ({previous[1].label}).")
+                    authority.ozon_notice(ozon_retry.RECEIVED_NOTICE)
             if request.operation == "read.ozon.report_info" and isinstance(answer[0], dict):
                 report_pending = answer[0].get("result", {}).get("status") in ("waiting", "processing")
             if authority.resume_rate_limits and (request.operation == "ds_wb_adstats"

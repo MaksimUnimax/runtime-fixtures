@@ -1,18 +1,27 @@
 """Ozon rate limits shared by catalogue aliases, scoped reads and seller profiles."""
 from dataclasses import dataclass
 from math import ceil, isfinite
-from urllib.parse import urlsplit
 
 
 DEFAULT_SECONDS = 7
+SENDING_NOTICE = "Запрашиваю данные у Ozon."
+RECEIVED_NOTICE = "Данные от Ozon получены. Продолжаю готовить ответ."
 
 
-def endpoint(operation):
-    if operation.startswith("read.ozon."):
-        from read_surface import method
-        return method("ozon", operation.split(".", 2)[2]).get("wire_url") or ""
-    from http_transport import MATRICES
-    return MATRICES[operation].recipe(operation)["url"]
+def wait_duration(seconds):
+    if seconds % 60 == 0:
+        count, forms = seconds // 60, ("минуту", "минуты", "минут")
+    else:
+        count, forms = seconds, ("секунду", "секунды", "секунд")
+    if 11 <= count % 100 <= 14:
+        form = forms[2]
+    elif count % 10 == 1:
+        form = forms[0]
+    elif 2 <= count % 10 <= 4:
+        form = forms[1]
+    else:
+        form = forms[2]
+    return f"{count} {form}"
 
 
 @dataclass(frozen=True)
@@ -20,25 +29,19 @@ class Retry:
     due: float
     seconds: int
     from_header: bool
-    label: str
 
-    def waiting(self, number):
-        if self.from_header:
-            cause = f"Ozon разрешил повтор через {self.seconds} с."
-        else:
-            cause = f"Срок ожидания не указан. Повторю через {self.seconds} с."
-        return f"Ozon вернул HTTP 429 ({self.label}). {cause} Ожидаю повтор №{number}."
-
-    def sending(self, number):
-        return f"Повтор №{number}. Отправляю запрос в Ozon ({self.label})."
+    def waiting(self):
+        if not self.from_header:
+            return "Озон говорит что занят, пробую еще раз"
+        if not self.seconds:
+            return "Ozon разрешил повторить запрос сразу. Снова запрошу данные."
+        return f"Ozon просит подождать {wait_duration(self.seconds)}. Затем я снова запрошу данные."
 
 
-def plan(url, retry_at, now):
-    # Labels come exclusively from the static method catalogue, never a resolved file URL.
-    label = urlsplit(url).path or "получение файла"
+def plan(retry_at, now):
     if retry_at is not None and isfinite(retry_at):
-        return Retry(max(now, retry_at), max(0, ceil(retry_at - now)), True, label)
-    return Retry(now + DEFAULT_SECONDS, DEFAULT_SECONDS, False, label)
+        return Retry(max(now, retry_at), max(0, ceil(retry_at - now)), True)
+    return Retry(now + DEFAULT_SECONDS, DEFAULT_SECONDS, False)
 
 
 def retry_due(repo, row, request, error):

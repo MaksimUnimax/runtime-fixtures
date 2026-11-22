@@ -132,16 +132,20 @@ class MarketplaceMatrix(unittest.TestCase):
             self.assertGreater(row[1], time.time())
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM usage_operations").fetchone()[0], 1)
 
-    def test_ozon_429_policy_uses_response_for_every_method(self):
-        from platform_core.marketplace_matrix.ozon_retry import plan, endpoint
-        normal = endpoint("ozon_accrual_by_day")
-        analytics = endpoint("ozon_orders")
-        self.assertEqual(endpoint("ozon_table_orders"), analytics)
-        for url in (normal, analytics):
-            for indicated, seconds in ((None, 7), (100, 0), (99, 0), (102, 2), (160, 60), (409, 309)):
-                retry = plan(url, indicated, 100)
-                self.assertEqual((retry.due, retry.seconds, retry.from_header),
-                                 (100+seconds, seconds, indicated is not None))
+    def test_ozon_429_wait_and_notice_respect_provider_time(self):
+        from platform_core.marketplace_matrix.ozon_retry import plan
+
+        for indicated, seconds in ((None, 7), (100, 0), (99, 0), (102, 2), (160, 60), (409, 309)):
+            retry = plan(indicated, 100)
+            self.assertEqual((retry.due, retry.seconds, retry.from_header),
+                             (100+seconds, seconds, indicated is not None))
+        self.assertEqual(plan(None, 100).waiting(), "Озон говорит что занят, пробую еще раз")
+        self.assertEqual(plan(160, 100).waiting(),
+                         "Ozon просит подождать 1 минуту. Затем я снова запрошу данные.")
+        for seconds, duration in ((1, "1 секунду"), (2, "2 секунды"), (11, "11 секунд"),
+                                  (21, "21 секунду"), (120, "2 минуты"), (300, "5 минут")):
+            self.assertIn(duration, plan(100 + seconds, 100).waiting())
+        self.assertIn("сразу", plan(100, 100).waiting())
 
     def test_currency_profile_429_wait_rechecks_access_before_resending(self):
         from urllib.error import HTTPError
