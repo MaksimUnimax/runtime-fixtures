@@ -14,7 +14,7 @@ from urllib.parse import quote, urlencode, urlsplit
 from urllib.request import Request
 from zoneinfo import ZoneInfo
 
-from . import wb_documents
+from . import ozon_report_file, wb_documents
 
 CREDENTIALS = {
     "seller": {"seller_client_id", "seller_api_key"},
@@ -449,6 +449,11 @@ def execute(packet, directory):
                 lambda: wb_documents.download(authority, asdict(store), card, params, packet["turn"], observed), [])
             return {"ok": True, "templateId": card["id"], "http": receipt["status"],
                     "data": {"file": file}, "responseGuide": card["responseGuide"]}
+        if card["id"] == ozon_report_file.INFO:
+            data, receipt = _with_rate_retries(authority, store.platform, card["id"],
+                lambda: ozon_report_file.read(authority, asdict(store), params, packet["turn"], observed), [])
+            return {"ok": True, "templateId": card["id"], "http": receipt["status"],
+                    "data": data, "responseGuide": card["responseGuide"]}
         acquiring_report_id = None
         if card["id"] == WB_ACQUIRING_DETAIL and isinstance(params.get("path"), dict):
             candidate = str(params["path"].get("reportId"))

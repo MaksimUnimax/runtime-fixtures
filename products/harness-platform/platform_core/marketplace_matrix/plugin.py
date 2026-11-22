@@ -11,7 +11,7 @@ from threading import Lock
 import time
 
 from ..catalog import Capability
-from . import campaign_inventory, wb_documents
+from . import campaign_inventory, ozon_report_file, wb_documents
 from . import coefficient_templates as extensions
 from .read_templates import WB_ACQUIRING_LIST, observed_acquiring_reports, observed_ids
 
@@ -214,6 +214,7 @@ def run_read(scope, arguments):
             if revision != actual_revision:
                 known = set()
             observations = {WB_ACQUIRING_LIST: observed_acquiring_reports,
+                            ozon_report_file.LIST: ozon_report_file.observed_reports,
                             wb_documents.LIST: wb_documents.observed_documents}.get(arguments["templateId"], observed_ids)
             for value in observations(result.get("data")):
                 if len(known) >= 512:

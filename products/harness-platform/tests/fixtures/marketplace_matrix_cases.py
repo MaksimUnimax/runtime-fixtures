@@ -536,16 +536,19 @@ class MarketplaceMatrix(unittest.TestCase):
                                 "cpo:1", "cpo:2", "all", "cpo:1", "cpo:2"])
 
     def test_read_templates_are_scoped_to_read_contracts(self):
-        from platform_core.marketplace_matrix import read_templates, wb_documents
+        from platform_core.marketplace_matrix import ozon_report_file, read_templates, wb_documents
         from platform_core.marketplace_matrix.plugin import read_capability
         from jsonschema import Draft202012Validator
         from read_surface import available, method
 
         cards = read_templates.cards()
-        self.assertEqual(len(cards), 470)
+        self.assertEqual(len(cards), 471)
         ready = [card for card in cards.values() if card["state"] == "ready"]
         self.assertTrue(ready)
         for card in ready:
+            if card["id"] == ozon_report_file.INFO:
+                self.assertEqual((card["profile"], card["http"], card["path"]), ("seller", "POST", "/v1/report/info"))
+                continue
             if card["id"] in wb_documents.DOWNLOADS:
                 self.assertEqual(card["profile"], "wb")
                 self.assertEqual(card["path"], "/api/v1/documents/download" +
@@ -896,6 +899,41 @@ class MarketplaceMatrix(unittest.TestCase):
                 self.assertNotIn(body["data"]["document"], json.dumps(result))
                 with self.assertRaises(ChatUnavailable):
                     _read(journal, Scope(self.scope.actor_id, self.scope.workspace_id, "another-chat"), file["attachmentId"])
+
+    def test_ozon_report_file_requires_its_stores_list_and_never_sends_credentials_to_file_host(self):
+        from platform_core.chat_attachments import _read
+        from platform_core.marketplace_matrix import ozon_report_file, read_templates
+        from platform_core.marketplace_matrix.authority import ChatAuthority
+
+        journal = self.root / "native-chats.sqlite3"
+        code = "REPORT_fixture_001"
+        packet = {**self.packet, "connections": [self.ids["ozon"]],
+                  "turn": {**self.turn, "attachmentsJournal": str(journal)},
+                  "readTemplate": {"action": "read", "templateId": ozon_report_file.INFO,
+                                   "params": {"code": code, "download": True}}}
+        revision = ChatAuthority(packet).revision
+        proof = list(ozon_report_file.observed_reports({"result": {"reports": [{"code": code}]}}))
+        report = {"code": code, "status": "success", "expires_at": "2100-01-01T00:00:00Z", "report_type": "fixture",
+                  "file": "https://ir.ozone.ru/reports/report.pdf?private=fixture"}
+        pdf = b"%PDF-1.4\nfixture"
+        metadata = lambda: (json.dumps({"result": report}).encode(), 200)
+        with patch("http_transport.read_response", side_effect=[metadata(), (pdf, 200)]) as outbound:
+            for evidence in ({}, {"revision": "stale", "ids": proof}):
+                rejected = read_templates.execute(packet | {"readEvidence": evidence}, self.root)
+                self.assertEqual(rejected["reasonSource"], "template")
+            outbound.assert_not_called()
+            result = read_templates.execute(packet | {"readEvidence": {"revision": revision, "ids": proof}}, self.root)
+            self.assertTrue(result["ok"], result)
+            source, file = [call.args[0] for call in outbound.call_args_list]
+            self.assertEqual(source.get_header("Api-key"), "fixture-ozon")
+            self.assertFalse(file.headers)
+            self.assertNotIn(report["file"], json.dumps(result))
+            self.assertEqual(_read(journal, self.scope, result["data"]["file"]["attachmentId"]), ("Ozon_report.pdf", pdf))
+        report["file"] = "https://example.com/reports/report.pdf"
+        with patch("http_transport.read_response", return_value=metadata()) as outbound:
+            result = read_templates.execute(packet | {"readEvidence": {"revision": revision, "ids": proof}}, self.root)
+            self.assertFalse(result["ok"])
+            outbound.assert_called_once()
 
     def test_read_template_reuses_confirmed_ids_only_for_the_same_store_and_turn(self):
         from platform_core.marketplace_matrix import plugin, read_templates
