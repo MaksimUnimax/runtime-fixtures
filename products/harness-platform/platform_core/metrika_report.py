@@ -26,6 +26,12 @@ METRICS = (
     ("bounce_percent", "ym:s:bounceRate", "Отказы, %"),
     ("average_seconds", "ym:s:avgVisitDurationSeconds", "Среднее время, с"),
 )
+PAGE_METRICS = (
+    ("pageviews", "ym:pv:pageviews", "Просмотры"),
+    ("visitors", "ym:pv:users", "Посетители"),
+)
+PAGE_DIMENSION = "ym:pv:URLPath"
+PAGE_FILTER = "ym:pv:URLDomain=.('octoport.ru','www.octoport.ru') AND ym:pv:URLPath!~'^/admin(/|$)'"
 
 
 class ReportError(Exception):
@@ -61,18 +67,23 @@ def load_token(path):
 
 
 def get_report(opener, token, counter, start, end, dimensions=None, limit=None, *, attempts=3, timeout=20):
+    is_page_report = dimensions == PAGE_DIMENSION
+    metrics = PAGE_METRICS if is_page_report else METRICS
     params = {
         "ids": counter,
         "date1": start,
         "date2": end,
-        "metrics": ",".join(metric for _, metric, _ in METRICS),
-        "filters": "ym:s:startURLDomain=.('octoport.ru','www.octoport.ru')",
+        "metrics": ",".join(metric for _, metric, _ in metrics),
+        "filters": PAGE_FILTER if is_page_report else "ym:s:startURLDomain=.('octoport.ru','www.octoport.ru')",
         "lang": "ru",
         "accuracy": "full",
     }
     if dimensions:
         params.update(dimensions=dimensions, limit=limit)
-        params["sort"] = dimensions if dimensions == "ym:s:date" else "-ym:s:visits"
+        params["sort"] = {
+            "ym:s:date": "ym:s:date",
+            PAGE_DIMENSION: "-ym:pv:pageviews",
+        }.get(dimensions, "-ym:s:visits")
     url = "https://api-metrika.yandex.net/stat/v1/data?" + urlencode(params)
     for attempt in range(attempts):
         try:
@@ -101,12 +112,16 @@ def get_report(opener, token, counter, start, end, dimensions=None, limit=None, 
         sleep(2 ** attempt)
 
 
-def values(items):
-    if not isinstance(items, list) or len(items) != len(METRICS):
+def values(items, metrics=METRICS):
+    if not isinstance(items, list) or len(items) != len(metrics):
         raise ReportError("В ответе Метрики отсутствует часть показателей.")
     if any(value is not None and type(value) not in (int, float) for value in items):
         raise ReportError("Метрика вернула некорректное значение показателя.")
-    return {key: value for (key, _, _), value in zip(METRICS, items)}
+    return {key: value for (key, _, _), value in zip(metrics, items)}
+
+
+def section_metrics(section):
+    return PAGE_METRICS if section == "pageviews" else METRICS
 
 
 def report(opener, args, token, *, fetch=get_report):
@@ -124,6 +139,7 @@ def report(opener, args, token, *, fetch=get_report):
     if overview.get("sampled"):
         notes.append("Итоги рассчитаны по выборке Метрики.")
     for name, title, dimension, limit in (
+        ("pageviews", "Просмотры по страницам", PAGE_DIMENSION, 100000),
         ("daily", "По дням", "ym:s:date", 10000),
         ("sources", "Источники трафика", "ym:s:lastTrafficSource", args.top),
         ("landing_sections", "Разделы входа", "ym:s:startURLPathLevel1Hash", args.top),
@@ -131,6 +147,7 @@ def report(opener, args, token, *, fetch=get_report):
         if args.report == "summary":
             break
         segment = fetch(opener, token, args.counter, actual_start, actual_end, dimension, limit)
+        metrics = section_metrics(name)
         rows = []
         for row in segment["data"]:
             dimensions = row.get("dimensions") if isinstance(row, dict) else None
@@ -139,15 +156,17 @@ def report(opener, args, token, *, fetch=get_report):
             label = dimensions[0].get("name") if dimensions else None
             if label is not None and not isinstance(label, str):
                 raise ReportError("В отчёте Метрики обнаружена некорректная категория.")
-            rows.append({"name": label or "Не определено", **values(row.get("metrics"))})
+            if name == "pageviews" and (not label or label == "/admin" or label.startswith("/admin/")):
+                continue
+            rows.append({"name": label or "Не определено", **values(row.get("metrics"), metrics)})
         result["sections"][name] = {"title": title, "rows": rows}
         if segment.get("sampled"):
             notes.append(f"{title} — данные рассчитаны по выборке Метрики.")
         if segment.get("contains_sensitive_data"):
             notes.append(f"{title} — Метрика может скрывать строки при малой выборке.")
         total_rows = segment.get("total_rows")
-        if isinstance(total_rows, int) and total_rows > len(rows):
-            notes.append(f"{title} — показано {len(rows)} из {total_rows} строк.")
+        if isinstance(total_rows, int) and total_rows > len(segment["data"]):
+            notes.append(f"{title} — получено {len(segment['data'])} из {total_rows} строк.")
     return result
 
 
@@ -164,15 +183,17 @@ def print_report(result):
     print()
     for key, _, label in METRICS:
         print(f"{label} — {format_value(result['totals'][key])}")
-    for section in result["sections"].values():
+    for name, section in result["sections"].items():
         print(f"\n{section['title']}")
         if not section["rows"]:
             print("Нет доступных строк за период.")
             continue
-        print("Раздел\t" + "\t".join(label for _, _, label in METRICS))
+        metrics = section_metrics(name)
+        label = "Страница" if name == "pageviews" else "Раздел"
+        print(label + "\t" + "\t".join(label for _, _, label in metrics))
         for row in section["rows"]:
             label = " ".join(row["name"].split())
-            print(label + "\t" + "\t".join(format_value(row[key]) for key, _, _ in METRICS))
+            print(label + "\t" + "\t".join(format_value(row[key]) for key, _, _ in metrics))
     for note in result["notes"]:
         print(f"\n{note}")
 

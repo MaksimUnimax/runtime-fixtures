@@ -61,6 +61,13 @@ class AdminVisits(unittest.TestCase):
             params = parse_qs(parsed.query)
             self.assertEqual(parsed.hostname, "api-metrika.yandex.net")
             self.assertEqual(params["ids"], ["114504756"])
+            if params.get("dimensions") == ["ym:pv:URLPath"]:
+                self.assertEqual(params["metrics"], ["ym:pv:pageviews,ym:pv:users"])
+                self.assertIn("ym:pv:URLPath!~'^/admin(/|$)'", params["filters"][0])
+                self.assertGreater(int(params["limit"][0]), 10)
+                pages = ["/", "/about/install", "/login", "/admin", "/admin/private-fixture"]
+                data = [{"dimensions": [{"name": p}], "metrics": [8, 4]} for p in pages]
+                return io.BytesIO(json.dumps({"data": data, "total_rows": len(data)}).encode())
             totals = [24, 16, 31, 2.5, 63.7]
             data = [{"dimensions": [{"name": "<Запрос>"}], "metrics": totals}] if "dimensions" in params else []
             return io.BytesIO(json.dumps({"totals": totals, "data": data}).encode())
@@ -80,6 +87,11 @@ class AdminVisits(unittest.TestCase):
             self.assertIn("<dd>24</dd>", saved.text)
             self.assertIn("&lt;Запрос&gt;", saved.text)
             self.assertIn("Источники трафика", saved.text)
+            self.assertIn("Просмотры по страницам", saved.text)
+            self.assertIn("<th scope='row'>/about/install</th><td>8</td><td>4</td>", saved.text)
+            self.assertIn("<th scope='row'>/login</th><td>8</td><td>4</td>", saved.text)
+            self.assertNotIn("<th scope='row'>/admin</th>", saved.text)
+            self.assertNotIn("/admin/private-fixture", saved.text)
             self.assertNotIn(self.token, saved.text)
             self.assertEqual(stat.S_IMODE(app.state.metrika_token_path.stat().st_mode), 0o600)
             self.assertEqual(app.state.metrika_token_path.read_text().strip(), self.token)
@@ -105,7 +117,7 @@ class AdminVisits(unittest.TestCase):
             self.assertEqual(custom.status_code, 200)
             self.assertIn('<option value="custom" selected>', custom.text)
             self.assertIn("2025-08-11 — 2025-08-18", custom.text)
-            for request in requests[-4:]:
+            for request in requests[-5:]:
                 params = parse_qs(urlsplit(request.full_url).query)
                 self.assertEqual((params["date1"], params["date2"]), (["2025-08-11"], ["2025-08-18"]))
             saved_with_dates = client.post(self.path, params=dates, data={"token": self.token},
@@ -122,5 +134,6 @@ class AdminVisits(unittest.TestCase):
             self.assertEqual(len(requests), previous)
         dimensions = [parse_qs(urlsplit(req.full_url).query).get("dimensions") for req in requests]
         self.assertIn(["ym:s:date"], dimensions)
+        self.assertIn(["ym:pv:URLPath"], dimensions)
         self.assertIn(["ym:s:lastTrafficSource"], dimensions)
         self.assertIn(["ym:s:startURLPathLevel1Hash"], dimensions)

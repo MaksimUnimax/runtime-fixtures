@@ -83,13 +83,15 @@ def render_report(report):
     totals = "".join(f"<div><dt>{label}</dt><dd>{metrika.format_value(report['totals'][key])}</dd></div>"
                      for key, _, label in metrics)
     sections = []
-    columns = "".join(f"<th scope='col'>{label}</th>" for _, _, label in metrics)
     for name, section in report["sections"].items():
+        metrics = metrika.section_metrics(name)
+        columns = "".join(f"<th scope='col'>{label}</th>" for _, _, label in metrics)
         rows = []
         for row in section["rows"]:
             cells = "".join(f"<td>{metrika.format_value(row[key])}</td>" for key, _, _ in metrics)
             rows.append(f"<tr><th scope='row'>{escape(row['name'])}</th>{cells}</tr>")
-        first_column = {"daily": "Дата", "sources": "Источник", "landing_sections": "Раздел"}[name]
+        first_column = {"pageviews": "Страница", "daily": "Дата", "sources": "Источник",
+                        "landing_sections": "Раздел"}[name]
         value = ("<div class='stats-table' tabindex='0' aria-labelledby='visits-" + name + "'><table>"
                  f"<thead><tr><th scope='col'>{first_column}</th>{columns}</tr></thead>"
                  "<tbody>" + "".join(rows) + "</tbody></table></div>") if rows else "<p>Нет данных за этот период.</p>"
