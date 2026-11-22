@@ -46,6 +46,11 @@ class ChatAuthority:
             raise Rejected("PERMISSION_DENIED")
         self.deadline_ms = deadline
 
+    def ozon_notice(self, text):
+        from ..operation_grants import record_marketplace_notice
+        self.check()
+        record_marketplace_notice(self.database_path, self.grant_hash, text)
+
     def wait_for_provider(self, due):
         from semantics import Rejected
 

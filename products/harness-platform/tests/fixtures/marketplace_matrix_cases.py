@@ -119,17 +119,7 @@ class MarketplaceMatrix(unittest.TestCase):
                 raise HTTPError(req.full_url, 429, "rate limited", {"Retry-After": "4"}, None)
             return b'{"result":{"totals":[29],"data":[{"dimensions":[{"id":"2026-11"}],"metrics":[29]}]}}', 200
 
-        from dataclasses import replace
-        from request_recovery import retry_due
-        from repository import Repository
-        reserve = Repository.reserve
-        def fixture_due(repo, row, request, error, safe):
-            return retry_due(repo, row, replace(request, interval=0), error, safe)
-        def fixture_reserve(repo, jid, owner, source, interval, limit):
-            return reserve(repo, jid, owner, source, 0, limit)
-        with patch("http_transport.read_response", side_effect=read), \
-             patch("request_recovery.RATE_LIMIT_RETRY_SECONDS", 0), \
-             patch("request_recovery.retry_due", fixture_due), patch.object(Repository, "reserve", fixture_reserve):
+        with patch("http_transport.read_response", side_effect=read):
             result = worker.execute(self.packet, self.root)
         self.assertTrue(result["ok"], result)
         self.assertGreater(int(time.time() * 1000), original_deadline)
@@ -141,6 +131,17 @@ class MarketplaceMatrix(unittest.TestCase):
             self.assertGreater(row[0], original_deadline + 7000)
             self.assertGreater(row[1], time.time())
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM usage_operations").fetchone()[0], 1)
+
+    def test_ozon_429_policy_uses_response_for_every_method(self):
+        from platform_core.marketplace_matrix.ozon_retry import plan, endpoint
+        normal = endpoint("ozon_accrual_by_day")
+        analytics = endpoint("ozon_orders")
+        self.assertEqual(endpoint("ozon_table_orders"), analytics)
+        for url in (normal, analytics):
+            for indicated, seconds in ((None, 7), (100, 0), (99, 0), (102, 2), (160, 60), (409, 309)):
+                retry = plan(url, indicated, 100)
+                self.assertEqual((retry.due, retry.seconds, retry.from_header),
+                                 (100+seconds, seconds, indicated is not None))
 
     def test_currency_profile_429_wait_rechecks_access_before_resending(self):
         from urllib.error import HTTPError
@@ -482,8 +483,7 @@ class MarketplaceMatrix(unittest.TestCase):
             else:
                 self.assertEqual(url.path, "/api/client/campaign")
                 self.assertEqual(request.get_header("Authorization"), "Bearer fixture-access")
-                state = query["state"][0]
-                seen.append(state)
+                seen.append(query.get("state", ["all"])[0])
                 payload = {"list": [
                     *({"id": cid, "state": "CAMPAIGN_STATE_" + suffix, "title": suffix,
                        "advObjectType": "SKU", "PaymentType": "CPC"}
@@ -491,7 +491,10 @@ class MarketplaceMatrix(unittest.TestCase):
                     {"id": "50", "state": "CAMPAIGN_STATE_RUNNING", "title": "",
                      "advObjectType": "REF_VK", "PaymentType": "CAMPAIGN_TYPE_INVALID"},
                     {"id": "60", "state": "CAMPAIGN_STATE_RUNNING", "title": "Оплата за заказ",
-                     "advObjectType": "SEARCH_PROMO", "PaymentType": "CPO"}]}
+                     "advObjectType": "SEARCH_PROMO", "PaymentType": "CPO"},
+                    *({"id": cid, "state": "CAMPAIGN_STATE_RUNNING", "title": kind, "advObjectType": kind}
+                      for cid, kind in (("61", "BANNER"), ("62", "VIDEO_BANNER"),
+                                        ("63", "REF_BLOGGER"), ("64", "MEDIA_NEW_TYPE")))]}
             return json.dumps(payload).encode(), 200
 
         for cid, tid, pause_ids in ((wb, "wb_campaign_inventory", ["10", "20"]),
@@ -508,14 +511,24 @@ class MarketplaceMatrix(unittest.TestCase):
                 self.assertTrue(campaign_report["ok"], campaign_report)
                 expected = list(pause_ids if include_pause else ["10"])
                 if cid == ozon:
-                    expected.append("60")
+                    expected.extend(("60", "61", "62", "63", "64"))
                     cpo = campaign_report["cpoProducts"]
                     self.assertEqual(cpo["counts"], {"Включён": 2})
                     self.assertEqual([row["sku"] for row in cpo["products"]], ["101", "103"])
                 self.assertCountEqual([row["id"] for row in campaign_report["campaigns"]], expected)
+        item = {"templateId": "ozon_campaign_inventory", "connectionId": ozon,
+                "input": {"filters": {"campaign_statuses": ["all"]}}}
+        tool.validate({"selections": [item]})
+        self.packet.update(connections=[ozon], selections=[item])
+        with (patch("http_transport.read_response", side_effect=read),
+              patch("platform_core.marketplace_matrix.campaign_inventory.time.sleep")):
+            result = worker.execute(self.packet, self.root)
+        report, = worker.seller_result(result)["campaignReports"]
+        self.assertCountEqual([row["id"] for row in report["campaigns"]],
+                              ["10", "20", "30", "40", "60", "61", "62", "63", "64"])
         self.assertEqual(seen, ["9", "9,11", "9,11", "CAMPAIGN_STATE_RUNNING", "cpo:1", "cpo:2",
                                 "CAMPAIGN_STATE_RUNNING", "CAMPAIGN_STATE_INACTIVE", "CAMPAIGN_STATE_STOPPED",
-                                "cpo:1", "cpo:2"])
+                                "cpo:1", "cpo:2", "all", "cpo:1", "cpo:2"])
 
     def test_agent_can_choose_both_order_metrics_on_short_answer(self):
         from platform_core.marketplace_matrix.plugin import capability

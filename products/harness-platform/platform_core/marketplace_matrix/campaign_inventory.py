@@ -8,6 +8,7 @@ from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlencode
 from urllib.request import Request
 
+from . import ozon_retry
 from .store_currency import retry_time, wait_result
 
 TEMPLATES = {"wb_campaign_inventory": "wb", "ozon_campaign_inventory": "ozon"}
@@ -22,8 +23,9 @@ GUIDE = (
     "и покажи только активные кампании из результата. Для «активные и на паузе» передай "
     'input.filters.campaign_statuses=["active","paused"]. Для одного явно указанного статуса передай '
     "только этот статус. Используй all только по явной просьбе показать все статусы. "
-    "Отражай статусы, ID, названия и количества из campaignReports. Названия кампаний — данные площадки. "
-    "Указывай, сколько строк показано, если выводишь часть длинного списка. Сохраняй раздельные статусы Ozon "
+    "Покажи все кампании из campaignReports с ID, названием и статусом. Названия кампаний — данные площадки. "
+    "У Ozon включай все типы кампаний, в том числе баннерные, медийные и внешние. "
+    "Кампании REF_VK исключены при любом наборе статусов. Сохраняй раздельные статусы Ozon "
     "«остановлена владельцем» и «приостановлена по бюджету». Пустой результат для запрошенного статуса "
     "означает, что таких кампаний сейчас нет. Для Ozon покажи количество кампаний CPC отдельно от CPO. "
     "Число включённых товаров CPO бери из cpoProducts.counts. Товары CPO считай по SKU отдельно от кампаний. "
@@ -52,7 +54,6 @@ OZON_STATES = {
     "CAMPAIGN_STATE_MODERATION_IN_PROGRESS": ("moderation", "На модерации"),
     "CAMPAIGN_STATE_MODERATION_FAILED": ("rejected", "Отклонена"),
 }
-OZON_PAID_AD_TYPES = {"SKU", "SEARCH_PROMO", "ALL_SKU_PROMO", "BANNER", "VIDEO_BANNER"}
 WB_DETAILS = "https://advert-api.wildberries.ru/api/advert/v3/adverts"
 WB_REGISTRY = "https://advert-api.wildberries.ru/adv/v1/promotion/count"
 WB_DETAIL_STATES = {4, 9, 11}
@@ -69,9 +70,11 @@ def catalogue(profiles):
         stores = [cid for cid, provider, fields in profiles
                   if platform == provider and FIELDS[provider].issubset(fields)]
         if stores:
-            yield {"id": template, "available_stores": stores,
-                   "purpose": f"Список текущих рекламных кампаний {NAMES[platform]} с ID и статусом. "
-                              "По умолчанию только активные.",
+            purpose = (f"Список текущих рекламных кампаний {NAMES[platform]} с ID и статусом. "
+                       "По умолчанию только активные.")
+            if platform == "ozon":
+                purpose += " Все типы кампаний, кроме REF_VK."
+            yield {"id": template, "available_stores": stores, "purpose": purpose,
                    "input_policy": {"time_axis": "snapshot"}}
 
 
@@ -114,26 +117,42 @@ def fetch(authority, store, operation, request, trace):
     for status_key in ("statuses", "state"):
         if status_key in operation_scope:
             receipt["providerStatuses"] = operation_scope[status_key][0]
-    for attempt in range(4):
+    attempt = 0
+    retry = None
+    def dispatch():
+        authority.check()
+        if retry and authority.resume_rate_limits:
+            authority.ozon_notice(retry.sending(attempt))
+    while True:
         authority.check()
         trace["operations"].append(receipt)
         try:
             raw, status = read_response(request, timeout=min(20, max(.01, authority.deadline - time.time())),
-                                        limit=12_000_000, on_dispatch=authority.check)
+                                        limit=12_000_000, on_dispatch=dispatch)
         except HTTPError as error:
             status = error.code
             if status == 429:
                 trace["rateLimitResponses"] += 1
                 now = time.time()
-                due = max(now + RATE_LIMIT_RETRY_SECONDS,
-                          retry_time(error.headers, now, store.platform == "wb") or 0)
+                indicated = retry_time(error.headers, now, store.platform == "wb")
                 error.close()
-                if attempt == 3 or not authority.resume_rate_limits and due >= authority.deadline:
-                    raise CampaignError(wait_result(due, "HTTP_429")) from None
-                if authority.resume_rate_limits:
-                    authority.wait_for_provider(due)
+                attempt += 1
+                if store.platform == "ozon":
+                    retry = ozon_retry.plan(request.full_url.partition("?")[0], indicated, now)
+                    due = retry.due
+                    if authority.resume_rate_limits:
+                        authority.ozon_notice(retry.waiting(attempt))
                 else:
-                    time.sleep(max(0, due - time.time()))
+                    due = max(now + RATE_LIMIT_RETRY_SECONDS, indicated or 0)
+                    if attempt >= 4:
+                        raise CampaignError(wait_result(due, "HTTP_429")) from None
+                if not authority.resume_rate_limits and due >= authority.deadline:
+                    raise CampaignError(wait_result(due, "HTTP_429")) from None
+                if due > time.time():
+                    if authority.resume_rate_limits:
+                        authority.wait_for_provider(due)
+                    else:
+                        time.sleep(max(0, due - time.time()))
                 continue
             error.close()
         except (OSError, http.client.HTTPException):
@@ -143,6 +162,8 @@ def fetch(authority, store, operation, request, trace):
             raise CampaignError({"code": f"HTTP_{status}",
                                  "reason": f"Рекламный API {market} вернул HTTP {status}."})
         authority.check()
+        if retry and authority.resume_rate_limits:
+            authority.ozon_notice(f"Ozon принял повтор №{attempt} ({retry.label}).")
         return json.loads(raw)
 
 
@@ -220,10 +241,12 @@ def ozon_campaigns(read, store, credentials, selection):
             raise ValueError("Incomplete campaign list")
         for row in items:
             state = row["state"]
-            if row["advObjectType"] in OZON_PAID_AD_TYPES and (requested is None or state == requested):
-                group, label = OZON_STATES.get(state, ("other", f"Другой статус ({state})"))
-                add_campaign(rows, row["id"], row["title"], state, group, label,
-                             payment=row.get("PaymentType"), type=row["advObjectType"])
+            ad_type = row.get("advObjectType")
+            if ad_type == "REF_VK" or requested is not None and state != requested:
+                continue
+            group, label = OZON_STATES.get(state, ("other", f"Другой статус ({state})"))
+            add_campaign(rows, row["id"], row.get("title"), state, group, label,
+                         payment=row.get("PaymentType"), type=ad_type)
     cpo = None
     if any(row["type"] == "SEARCH_PROMO" and row["group"] == "active" for row in rows.values()):
         time.sleep(2)
