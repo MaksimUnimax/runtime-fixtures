@@ -1,7 +1,7 @@
 (() => {
   const chat = document.querySelector('[data-guest-chat]');
-  const transcript = chat.querySelector('.guest-transcript');
   const history = chat.querySelector('[role=log]'), older = chat.querySelector('.guest-older');
+  const transcript = chat.querySelector('.guest-transcript') || history;
   const form = chat.querySelector('form'), input = form.querySelector('textarea');
   const button = form.querySelector('button'), status = chat.querySelector('[role=status]');
   let id, cursor, pending, loading, busy=false, revision=0;
