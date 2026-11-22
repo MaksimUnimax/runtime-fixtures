@@ -633,6 +633,67 @@ class MarketplaceMatrix(unittest.TestCase):
                 execute("wb", self.ids["wb"], "fbs_order_statuses", {"body": {"orders": 987654}})
             request.assert_called_once()
 
+    def test_product_import_status_requires_its_task_id_and_keeps_report_protection(self):
+        from platform_core.marketplace_matrix import read_templates
+        from semantics import Rejected
+
+        task_id = 6101217214
+        self.turn["question"] = f"Проверь статус задачи импорта товара Ozon {task_id}."
+
+        def execute(value):
+            return read_templates.execute({**self.packet, "connections": [self.ids["ozon"]], "readTemplate": {
+                "action": "read", "templateId": "read.seller.product_import_info",
+                "params": {"task_id": value},
+            }}, self.root)
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            self.assertEqual(request.full_url, "https://api-seller.ozon.ru/v1/product/import/info")
+            self.assertEqual(json.loads(request.data), {"task_id": task_id})
+            return b'{"result":{"items":[{"offer_id":"QA-IMPORT-1","status":"imported"}]}}', 200
+
+        with patch("http_transport.read_response", side_effect=fake_read) as transport:
+            with self.assertRaises(Rejected) as caught:
+                execute(task_id + 1)
+            self.assertEqual(caught.exception.code, "READ_IDENTIFIER_NOT_PROVEN")
+            with self.assertRaises(Rejected) as caught:
+                read_templates._identifier_params({"task_id": task_id})
+            self.assertEqual(caught.exception.code, "READ_FILE_PROVENANCE_REQUIRED")
+            transport.assert_not_called()
+            readback = execute(task_id)
+            self.assertTrue(readback["ok"], readback)
+            self.assertEqual(readback["data"]["result"]["items"][0]["status"], "imported")
+            transport.assert_called_once()
+
+    def test_performance_auth_denial_never_dispatches_the_data_query(self):
+        from urllib.error import HTTPError
+        from platform_core.marketplace_matrix import read_templates
+
+        token = self.identity.login("matrix-seller", "fixture-password")
+        connection = IntegrationStore(self.identity).save(
+            token, "ozon", "Реклама", {"performance_id": "fixture-id", "performance_secret": "fixture-secret"},
+            chatId=self.scope.chat_id,
+        )["id"]
+        self.turn["question"] = "Покажи минимальную ставку за заказ для товара SKU 2184234912."
+        packet = {**self.packet, "connections": [connection], "readTemplate": {
+            "action": "read", "templateId": "read.performance.performance_min_bid_by_sku",
+            "params": {"sku": ["2184234912"], "paymentType": "CPO"},
+        }}
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            self.assertEqual(request.full_url, "https://api-performance.ozon.ru/api/client/token")
+            raise HTTPError(request.full_url, 403, "Forbidden", {}, None)
+
+        with patch("http_transport.read_response", side_effect=fake_read) as transport:
+            result = read_templates.execute(packet, self.root)
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["http"], 403)
+        self.assertIn("Авторизация в Ozon Performance отклонена", result["reason"])
+        self.assertIn("Запрос данных не отправлен", result["reason"])
+        transport.assert_called_once()
+
     def test_supplemental_read_templates_validate_and_dispatch(self):
         from platform_core.marketplace_matrix import read_templates
         from semantics import Rejected

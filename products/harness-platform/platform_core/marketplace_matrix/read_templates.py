@@ -114,7 +114,7 @@ def describe(card):
     return description
 
 
-def _identifier_params(params, proven_report_id=None):
+def _identifier_params(params, proven_report_id=None, *, import_status=False):
     """Pass only business identifiers to the existing provenance validator."""
     aliases = {"nm": "nmId", "orders": "orderIds", "adverts": "advertIds",
                "barcode": "barcodeId", "barcodes": "barcodeIds", "subject": "subjectId",
@@ -128,7 +128,7 @@ def _identifier_params(params, proven_report_id=None):
             name = k.lower().replace("_", "").replace("-", "")
             if name == "limitbysku":
                 continue
-            if name in REPORT_KEYS and v:
+            if name in REPORT_KEYS and v and not (import_status and k == "task_id"):
                 if name == "reportid" and str(v) == proven_report_id:
                     continue
                 from semantics import Rejected
@@ -470,6 +470,7 @@ def _pinned_request(store, card, params):
 
 def _read_store(authority, store, card, params, directory, selected_proofs, turn):
     import read_surface
+    from engine import CallError
     from http_transport import HTTPTransport
     from platform_store_credentials import execution
 
@@ -499,7 +500,12 @@ def _read_store(authority, store, card, params, directory, selected_proofs, turn
                        if operation in performance_report_file.FILE_NAMES else None)
             authentication = transport.prepare(request, store)
             if authentication:
-                send(authentication)
+                try:
+                    send(authentication)
+                except CallError as error:
+                    if card["profile"] == "performance" and error.status in (401, 403):
+                        raise CallError("OZON_PERFORMANCE_AUTH_DENIED", status=error.status) from error
+                    raise
             if journal is not None:
                 data, receipt = performance_report_file.receive(authority, journal, turn["requestId"], operation,
                                                               lambda: send(request))
@@ -614,8 +620,10 @@ def execute(packet, directory):
                     and params.get("marketplaceId") in ("MARKETPLACE_ID_RU", "MARKETPLACE_ID_KZ", "MARKETPLACE_ID_BY")):
                 # A storefront code is a documented option, separate from the SKU being read.
                 identifiers = {key: value for key, value in params.items() if key != "marketplaceId"}
-            identifier_provenance(_identifier_params(identifiers, proven_report_id), packet["turn"]["question"],
-                                  [{"data": observed}])
+            provenance = _identifier_params(
+                identifiers, proven_report_id, import_status=card["operation"] == "product_import_info",
+            )
+            identifier_provenance(provenance, packet["turn"]["question"], [{"data": observed}])
         proofs = configure_catalogue(SimpleNamespace(), {store.id: fields})
         try:
             params = _request_params(card, params)
@@ -634,10 +642,14 @@ def execute(packet, directory):
                     "data": empty, "responseGuide": card["responseGuide"]}
         log_failure(card["operation"] or card["id"], error.code, error.retry_at)
         result = {"ok": False, "templateId": card["id"], "http": error.status}
+        if error.code == "OZON_PERFORMANCE_AUTH_DENIED":
+            return {**result, "reason": "Авторизация в Ozon Performance отклонена. Запрос данных не отправлен. Причина отказа не подтверждена."}
         if failure := _template_failure(card, error.code, error.status):
             return failure
         if card.get("errorRules") and error.status in (401, 402, 403):
             return {**result, "requiresTestReview": True}
+        if error.code == "HTTP_403":
+            return {**result, "reason": "Не удалось прочитать данные. Получен отказ в доступе без подтверждённой причины."}
         return {**result, "reason": explain(error.code)["text"]}
     return {**public, "templateId": card["id"], "operations": calls,
             **({"_readEvidenceRevision": authority.revision} if "readEvidence" in packet else {}),
