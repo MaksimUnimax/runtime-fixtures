@@ -652,6 +652,34 @@ class MarketplaceMatrix(unittest.TestCase):
             self.assertEqual(execute("ozon", ozon, {"period": "MONTH", "sort": "DESC"})["http"], 200)
             self.assertEqual(request.call_count, 2)
 
+    def test_wb_funnel_history_requires_the_history_period_before_dispatch(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        self.turn["question"] = "Воронка карточки Wildberries 481155639 с 17 по 21 ноября."
+        period = {"start": "2026-11-17", "end": "2026-11-21"}
+        request_body = {"nmIds": [481155639], "selectedPeriod": period, "aggregationLevel": "day"}
+
+        def execute(body):
+            return read_templates.execute({**self.packet, "connections": [self.ids["wb"]],
+                "readTemplate": {"action": "read", "templateId": "read.wb.sales_funnel_history",
+                                 "params": {"body": body}}}, self.root)
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            self.assertEqual(request.get_method(), "POST")
+            self.assertEqual(request.full_url,
+                             "https://seller-analytics-api.wildberries.ru/api/analytics/v3/sales-funnel/products/history")
+            self.assertEqual(json.loads(request.data), request_body)
+            return b'[]', 200
+
+        with patch("http_transport.read_response", side_effect=fake_read) as request:
+            failure = execute({"nmIds": [481155639], "currentPeriod": period})
+            self.assertFalse(failure["ok"])
+            self.assertEqual(failure["reasonSource"], "template")
+            request.assert_not_called()
+            self.assertEqual(execute(request_body)["data"], [])
+            request.assert_called_once()
+
     def test_read_template_uses_confirmed_subscription_message(self):
         from io import BytesIO
         from urllib.error import HTTPError
