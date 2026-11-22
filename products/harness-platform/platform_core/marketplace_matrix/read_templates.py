@@ -334,7 +334,9 @@ def _request_params(card, params):
         for field, boundary in (("dateFrom", day_time.min), ("dateTo", day_time(23, 59, 59))):
             value = query.get(field)
             if isinstance(value, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
-                query[field] = int(datetime.combine(date.fromisoformat(value), boundary, zone).timestamp())
+                instant = datetime.combine(date.fromisoformat(value), boundary, zone)
+                query[field] = (instant.isoformat() if card.get("requestDateFormat") == "rfc3339"
+                                else int(instant.timestamp()))
     return {**params, "query": query}
 
 

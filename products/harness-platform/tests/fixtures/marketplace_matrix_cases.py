@@ -780,6 +780,14 @@ class MarketplaceMatrix(unittest.TestCase):
                     execute(name, {**params, "dateFrom": "2026-02-30"})
                 self.assertEqual(outbound.call_count, 2)
 
+        with patch("http_transport.read_response", return_value=(b'{"data": {}}', 200)) as outbound:
+            self.assertTrue(execute("warehouse_measurements", {
+                "limit": 5, "offset": 0, "dateFrom": "2026-11-20", "dateTo": "2026-11-21",
+            })["ok"])
+            query = parse_qs(urlsplit(outbound.call_args.args[0].full_url).query)
+            self.assertEqual(query["dateFrom"], ["2026-11-20T00:00:00+03:00"])
+            self.assertEqual(query["dateTo"], ["2026-11-21T23:59:59+03:00"])
+
     def test_wb_shipping_points_explains_only_confirmed_date_error(self):
         from io import BytesIO
         from urllib.error import HTTPError
