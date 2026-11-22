@@ -485,6 +485,23 @@ def _read_store(authority, store, card, params, directory, selected_proofs, turn
     payload, omitted, coverage = _result_sample(data, card.get("sampleRows", {}), card.get("responseTimeZones"))
     result = {"ok": True, "data": payload, "omitted": omitted, "http": receipt["status"],
               "providerMilliseconds": receipt["elapsed_ms"]}
+    if card["operation"] == "description_category_tree":
+        roots = data.get("result") if isinstance(data, dict) else None
+        if isinstance(roots, list):
+            result["rootCategorySummary"] = {
+                "totalCategories": len(roots),
+                "categories": [{key: item[key] for key in ("description_category_id", "category_name", "disabled")
+                                if key in item} for item in roots[:12] if isinstance(item, dict)],
+            }
+    if card["operation"] == "ozon_action_products" and isinstance(data, dict):
+        total = data.get("total")
+        if type(total) is int and total >= 0:
+            result["totalProducts"] = total
+    if card["operation"] == "finance_sales_detail_period" and isinstance(data, list):
+        fields = ("sellerOperName", "quantity", "retailPrice", "currency")
+        result["salesDetailPreview"], _, _ = _result_sample(
+            [{key: item[key] for key in fields if key in item} for item in data[:5] if isinstance(item, dict)], {}
+        )
     if card["operation"] == "fbo_draft_cluster_list":
         cluster_summary = fulfillment_clusters(data)
         if cluster_summary is not None:
