@@ -13,9 +13,11 @@ import time
 from ..catalog import Capability
 from . import campaign_inventory
 from . import coefficient_templates as extensions
+from .read_templates import observed_ids
 
 ROOT = Path(__file__).resolve().parents[2]
 REPORT_LOCK = Lock()
+READ_OBSERVATIONS = {}
 PROFILE_FIELDS = {"Ozon Seller": ("seller_api_key", "seller_client_id"),
                   "Ozon Performance": ("performance_client_id", "performance_client_secret"),
                   "Wildberries API": ("seller_token",)}
@@ -169,7 +171,7 @@ def read_capability(stores):
         "Шаблоны чтения API Ozon и Wildberries. Используй для явно запрошенного метода или если "
         "marketplace_report не даёт именно нужный объект, период, схему или разрез. Сначала find по деловой задаче "
         "или официальному пути. Затем read с точным ID найденной карточки, тем же магазином и подтверждёнными параметрами. "
-        "Если выбранной карточке нужен обязательный идентификатор, которого нет в запросе, уточни его у продавца. "
+        "Идентификатор можно взять из ответа площадки по тому же магазину в этом ходе. Если его там нет и продавец его не указал, уточни. "
         "Поля path/query/body Wildberries передаются отдельными объектами. У Ozon параметры из контракта. "
         "Соблюдай requestGuide и типы параметров карточки. Сам не придумывай идентификаторы, неизвестные параметры уточняй. "
         "Соблюдай responseGuide и fieldLabels. Охват выборки бери из coverage. "
@@ -188,12 +190,28 @@ def run_read(scope, arguments):
         turn, remaining = current_turn()
         if turn is None:
             return remaining
+        connection = arguments["connectionId"]
+        current_scope = (scope.actor_id, scope.workspace_id, scope.chat_id, turn["requestId"],
+                         sha256(turn["token"].encode()).digest())
+        if READ_OBSERVATIONS.get("scope") != current_scope:
+            READ_OBSERVATIONS.clear()
+            READ_OBSERVATIONS["scope"] = current_scope
+            READ_OBSERVATIONS["connections"] = {}
+        source = (connection, arguments.get("templateId", "").split(".", 2)[1]) if arguments["action"] == "read" else None
+        known = READ_OBSERVATIONS["connections"].setdefault(source, set()) if source else set()
         packet = {"actor": scope.actor_id, "workspace": scope.workspace_id, "chat": scope.chat_id,
-                  "connections": [arguments["connectionId"]], "turn": turn, "readTemplate": arguments}
+                  "connections": [connection], "turn": turn, "readTemplate": arguments,
+                  "readEvidence": sorted(known)}
         try:
-            return invoke(packet, None if turn.get("resumeRateLimits") is True else remaining)
+            result = invoke(packet, None if turn.get("resumeRateLimits") is True else remaining)
         except subprocess.TimeoutExpired:
             return {"ok": False, "reason": "Время выполнения запроса истекло."}
+        if arguments["action"] == "read" and result.get("ok") is True:
+            for value in observed_ids(result.get("data")):
+                if len(known) >= 512:
+                    break
+                known.add(value)
+        return result
 
 
 def run(scope, arguments):

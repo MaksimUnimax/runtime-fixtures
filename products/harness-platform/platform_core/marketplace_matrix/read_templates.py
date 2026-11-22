@@ -118,6 +118,20 @@ def _identifier_params(params):
     return params
 
 
+def observed_ids(value, key=""):
+    """Read identifiers from provider data, excluding free text and file references."""
+    if isinstance(value, dict):
+        for name, child in value.items():
+            yield from observed_ids(child, name.lower().replace("_", "").replace("-", ""))
+    elif isinstance(value, list):
+        for child in value:
+            yield from observed_ids(child, key)
+    elif (key not in REPORT_KEYS and
+          (key.endswith(("id", "ids", "sku", "skus")) or key in {"postingnumber", "orderuid"}) and
+          (type(value) is int or isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,100}", value))):
+        yield str(value)
+
+
 def _result_sample(value, row_limits, time_zones=None):
     """Give the model a bounded sample with explicit coverage on every list."""
     omitted = Counter()
@@ -375,7 +389,8 @@ def execute(packet, directory):
         return {"ok": False, "templateId": card["id"], "reason": REASONS[card["state"]]}
     params = args.get("params", {})
     try:
-        identifier_provenance(_identifier_params(params), packet["turn"]["question"], [])
+        identifier_provenance(_identifier_params(params), packet["turn"]["question"],
+                              [{"data": packet.get("readEvidence", [])}])
         proofs = configure_catalogue(SimpleNamespace(), {store.id: fields})
         public, calls = _read_store(authority, store, card, params, directory, proofs)
     except Rejected as error:

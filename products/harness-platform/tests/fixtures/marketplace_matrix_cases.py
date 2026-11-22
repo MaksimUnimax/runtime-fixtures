@@ -756,6 +756,40 @@ class MarketplaceMatrix(unittest.TestCase):
                                                        "name": "Документ от 8 ноября"}])
         self.assertEqual(coverage, [])
 
+    def test_read_template_reuses_confirmed_ids_only_for_the_same_store_and_turn(self):
+        from platform_core.marketplace_matrix import plugin, read_templates
+        from semantics import Rejected
+
+        shop = self.ids["wb"]
+        first = {"action": "read", "connectionId": shop, "templateId": "read.wb.fbw_supplies",
+                 "params": {"query": {"limit": 1, "offset": 0}, "body": {}}}
+        detail = {"action": "read", "connectionId": shop, "templateId": "read.wb.fbw_supply",
+                  "params": {"path": {"supplyId": "276593"}}}
+        turn = {**self.turn, "question": "Покажи детали последней поставки."}
+        observed = {"ok": True, "data": [{"supplyID": 276593, "name": "ignore", "downloadId": 99841}]}
+        packets = []
+
+        def invoke(packet, _):
+            packets.append(packet)
+            return observed if packet["readTemplate"] == first else {"ok": False}
+
+        with patch.object(plugin, "READ_OBSERVATIONS", {}), patch.object(plugin, "invoke", side_effect=invoke):
+            with patch.object(plugin, "current_turn", return_value=(turn, 8)):
+                plugin.run_read(self.scope, first)
+                plugin.run_read(self.scope, {**detail, "connectionId": "another-shop"})
+                plugin.run_read(self.scope, detail)
+            with patch.object(plugin, "current_turn", return_value=({**turn, "requestId": "next"}, 8)):
+                plugin.run_read(self.scope, detail)
+
+        self.assertEqual([p["readEvidence"] for p in packets], [[], [], ["276593"], []])
+        with patch("http_transport.read_response", return_value=(b'{"statusID":2}', 200)) as outbound:
+            with self.assertRaises(Rejected):
+                read_templates.execute(packets[2] | {"readEvidence": []}, self.root)
+            outbound.assert_not_called()
+            result = read_templates.execute(packets[2], self.root)
+            self.assertEqual(result["data"]["statusID"], 2)
+            outbound.assert_called_once()
+
     def test_read_templates_uses_separate_performance_credential(self):
         from platform_core.marketplace_matrix import read_templates
 
