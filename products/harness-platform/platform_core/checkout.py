@@ -183,11 +183,11 @@ async def checkout(request):
     count = quantity(fields["coins"])
     if not _ID.fullmatch(fields["key"]):
         raise HTTPException(400, "Некорректный идентификатор заказа.")
+    customer_email = await run_in_threadpool(store.account_login, token)
+    receipt = receipt_data(customer_email, count, fields["total"])
     order, url, status = await run_in_threadpool(order_for, store, token, fields["key"], count, fields["total"])
     if url or status != "pending":
         return response({"url": url, "status":status})
-    customer_email = await run_in_threadpool(store.account_login, token)
-    receipt = receipt_data(customer_email, count, fields["total"])
     payload = {"amount": {"value": fields["total"], "currency": "RUB"}, "capture": True,
                "confirmation": {"type":"redirect", "return_url":"https://octoport.ru/?account=wallet"},
                "metadata": {"order":order}, "description":f"Октопорт · {count} монет",
