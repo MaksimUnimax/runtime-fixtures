@@ -298,7 +298,7 @@ window.__ModuleLoader__.load({
         const current=selection.getSnapshot().sessionId;
         if(current && !panel){
           const path='/app/chats/'+encodeURIComponent(current);
-          if(location.pathname!==path)history.replaceState(null,'',path);
+          if(location.pathname!==path)history.replaceState(null,'',path+location.hash);
         }
       };
       ctx.effect(()=>selection.subscribe(sync),'account session links');

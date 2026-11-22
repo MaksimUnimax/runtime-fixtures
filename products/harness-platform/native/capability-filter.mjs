@@ -6,6 +6,7 @@ const prefix = 'mcp__platform__';
 const companion = name => name.startsWith(prefix)
   ? prefix+'describe__'+name.slice(prefix.length) : 'describe__'+name;
 const internal = name => name.replace(prefix,'').startsWith('describe__');
+const schemaBytes = t => Buffer.byteLength(JSON.stringify(t.parameters ?? {})+t.description);
 
 export function turnFilter(ctx) { return filters.get(ctx); }
 
@@ -13,6 +14,15 @@ export function installFilter(ctx, defineTool, restored = []) {
   const available = new Map(ctx.tools.definitions().filter(t => !internal(t.name) && t.name !== 'octoport_help')
     .map(t => [t.name, t]));
   if (!available.size) return;
+  const always = new Set(['octoport_help']);
+  // Inline a small, already authorized contract within a fixed total budget.
+  // Any module with deferred resources must pass through explicit activation.
+  let budget=400;
+  for (const [name,tool] of [...available].sort((a,b)=>schemaBytes(a[1])-schemaBytes(b[1]) || a[0].localeCompare(b[0]))) {
+    const size=schemaBytes(tool);
+    if (ctx.tools.get(companion(name)) || size>budget) continue;
+    always.add(name);available.delete(name);budget-=size;
+  }
   const selected = new Set();
   for (const event of restored) {
     if (event.type !== 'tool/result' || event.data.message.isError) continue;
@@ -28,12 +38,13 @@ export function installFilter(ctx, defineTool, restored = []) {
   const filter = {
     project(tools) {
       visible = new Set(selected);
-      return tools?.filter(t => t.name===activate || t.name==='octoport_help' || visible.has(t.name));
+      return tools?.filter(t => t.name===activate || always.has(t.name) || visible.has(t.name));
     },
   };
   filters.set(ctx, filter);
-  ctx.tools.guard(exec => (exec.name===activate || exec.name==='octoport_help' || visible.has(exec.name))
+  ctx.tools.guard(exec => (exec.name===activate || always.has(exec.name) || visible.has(exec.name))
     ? undefined : 'Это действие закрыто для текущего шага.');
+  if (!available.size) return;
   const names = [...available.keys()].sort();
   const menu = names.join(', ').length <= 230 ? names.join(', ') : 'Получите указатель пустым action.';
 
