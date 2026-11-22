@@ -683,6 +683,17 @@ class MarketplaceMatrix(unittest.TestCase):
         self.assertEqual(result["fieldLabels"]["paidStorageKgvp"], "Со склада Wildberries (FBW), %")
         self.assertIn("DBS", result["fieldLabels"]["kgvpSupplier"])
 
+    def test_read_template_keeps_all_bid_groups_before_sampling_categories(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        card = read_templates.cards()["read.performance.performance_bid_limits"]
+        rows = [{"minBid": 7, "maxBid": 200, "categories": [{"category": "Игрушки", "bid": 8}] * 281}
+                for _ in range(7)]
+        sample, _, coverage = read_templates._result_sample({"limits": rows}, card["sampleRows"])
+        self.assertEqual(len(sample["limits"]), 7)
+        self.assertTrue(all(len(row["categories"]) == 3 for row in sample["limits"]))
+        self.assertEqual([entry["availableRows"] for entry in coverage], [281] * 7)
+
     def test_read_templates_uses_separate_performance_credential(self):
         from platform_core.marketplace_matrix import read_templates
 

@@ -103,7 +103,7 @@ def _identifier_params(params):
     return params
 
 
-def _result_sample(value):
+def _result_sample(value, row_limits):
     """Give the model a bounded sample with explicit coverage on every list."""
     omitted = Counter()
     coverage = []
@@ -130,7 +130,8 @@ def _result_sample(value):
             return result
         if isinstance(obj, list):
             selected = []
-            for index, item in enumerate(obj[:50]):
+            limit = row_limits.get(re.sub(r"\[\d+\]", "[]", path), 50)
+            for index, item in enumerate(obj[:limit]):
                 if remaining <= 0 or depth >= 9:
                     break
                 selected.append(sample(item, depth + 1, f"{path}[{index}]"))
@@ -305,7 +306,7 @@ def _read_store(authority, store, card, params, directory, selected_proofs):
                 send(authentication)
             data, receipt = send(request)
     authority.check()
-    payload, omitted, coverage = _result_sample(data)
+    payload, omitted, coverage = _result_sample(data, card.get("sampleRows", {}))
     result = {"ok": True, "data": payload, "omitted": omitted, "http": receipt["status"],
               "providerMilliseconds": receipt["elapsed_ms"]}
     if coverage:
