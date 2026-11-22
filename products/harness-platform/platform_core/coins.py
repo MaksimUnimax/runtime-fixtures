@@ -14,6 +14,11 @@ SCHEMA = (
         quantity INTEGER NOT NULL CHECK(quantity>0), total TEXT NOT NULL, provider_id TEXT UNIQUE, url TEXT,
         status TEXT NOT NULL DEFAULT 'pending', created INTEGER NOT NULL DEFAULT(unixepoch()),
         UNIQUE(workspace_id,request_key))""",
+    """CREATE TABLE IF NOT EXISTS coin_refunds (
+        refund_id TEXT PRIMARY KEY, payment_id TEXT NOT NULL UNIQUE,
+        checkout_id TEXT NOT NULL UNIQUE REFERENCES coin_checkouts,
+        workspace_id TEXT NOT NULL REFERENCES workspaces, amount TEXT NOT NULL,
+        created INTEGER NOT NULL DEFAULT(unixepoch()))""",
     """CREATE TABLE IF NOT EXISTS coin_ruble_orders (
         operation_id TEXT PRIMARY KEY REFERENCES coin_orders ON DELETE CASCADE, fx_e4 INTEGER NOT NULL CHECK(fx_e4>0))""",
     """CREATE TABLE IF NOT EXISTS coin_grants (
