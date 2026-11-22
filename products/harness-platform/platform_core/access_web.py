@@ -66,12 +66,13 @@ def step_page(req, result=None, error="", status=200):
     theme = theme if theme in ("light","dark") else "system"
     policy = "default-src 'none'; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
     tracker = pixel = ""
-    # The authenticator setup page displays a private enrollment key.
-    if stage != "setup":
+    # Keep administrator authenticator setup and confirmation outside analytics.
+    if stage not in {"setup", "totp"}:
         tracker = '<script defer src="/about/assets/yandex-metrika.js?v=114504756"></script>'
         pixel = '<noscript><img hidden src="https://mc.yandex.ru/watch/114504756" width="1" height="1" alt=""></noscript>'
-        policy += ("; script-src 'self' https://mc.yandex.ru https://yastatic.net; "
-                   "img-src https://mc.yandex.ru; connect-src https://mc.yandex.ru")
+        domains = "https://mc.yandex.ru https://mc.yandex.com"
+        policy += (f"; script-src 'self' {domains} https://yastatic.net; "
+                   f"img-src {domains}; connect-src {domains}")
     html = f'''<!doctype html><html lang="ru" data-appearance="{theme}"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>{title} · Октопорт</title>
 <link rel="stylesheet" href="/about/styles.css">{tracker}
