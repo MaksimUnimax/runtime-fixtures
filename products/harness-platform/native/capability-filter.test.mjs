@@ -92,3 +92,10 @@ test('only the opened module receives prior arguments from its own settled calls
   assert.equal(sent.reuse,true);
   assert.deepEqual(JSON.parse(sent.previous),[{metric:'units'}]);
 });
+
+test('the user request follows the latest runtime context on both transports',()=>{
+  const user={role:'user',source:{kind:'user'},content:[{type:'text',text:'Получать здесь.'}]};
+  const context={role:'user',source:{kind:'runtime-context',form:'snapshot'},content:[{type:'text',text:'Сервисы'}]};
+  const assistant={role:'assistant',content:[]};
+  assert.deepEqual(projectCompletedKnowledge([])([user,context,assistant]),[context,user,assistant]);
+});

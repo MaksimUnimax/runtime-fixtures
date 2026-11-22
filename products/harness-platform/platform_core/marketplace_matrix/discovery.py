@@ -36,7 +36,7 @@ def model_tools(stores):
             matches, more = select_page(candidates, query, offset, 5)
         result = {"matches": [{"templateId": row["id"], "purpose": row["purpose"],
                                "inputs": row["input_policy"],
-                               "grouping": ["marketplace"] if row.get("kind") in ("dataset", "event", "information") else ["marketplace", "total"]} for row in matches],
+                               **({"grouping": ["marketplace"]} if row.get("kind") in ("dataset", "event", "information") else {})} for row in matches],
                   "nextOffset": more}
         if prior_ids:
             result["previousSelection"] = {shop: keys for shop, keys in recent.items() if keys}

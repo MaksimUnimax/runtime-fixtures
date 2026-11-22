@@ -61,7 +61,7 @@ export function projectCompletedKnowledge(seed) {
   return messages => {
     const latest = messages.findLast(message => message.source?.kind === 'runtime-context' &&
       message.source.form === 'snapshot');
-    return messages.flatMap(msg => {
+    const projected = messages.flatMap(msg => {
       if (latest && msg !== latest && msg.source?.kind === 'runtime-context' && msg.source.form === 'snapshot') return [];
       if (msg.role === 'tool' && oldResults.has(msg.id)) return [];
       // A progress preamble belongs to the removed tool batch. Keeping it as a
@@ -79,6 +79,14 @@ export function projectCompletedKnowledge(seed) {
       const {replayState, ...source} = msg.source;
       return [{...msg, content, source}];
     });
+    // Harness can append a context update after the user request. For models
+    // reading the final user message as the task, put metadata before that task.
+    const position = projected.indexOf(latest);
+    if (position > 0 && projected[position-1].role === 'user' &&
+        projected[position-1].source?.kind === 'user') {
+      [projected[position-1],projected[position]] = [latest,projected[position-1]];
+    }
+    return projected;
   };
 }
 
@@ -124,7 +132,7 @@ export function directory(cards) {
 export async function registerKnowledge(ctx, load, knowledge) {
   const {defineTool} = await load('dsh-tools');
   ctx.systemPrompt.section({name:'octopus',order:25,interpolate:false,
-    text:'Ты Октопус, осьминог Октопорта. Помогай вести магазины из одного места. Говори от первого лица, понятно. Статус подключения проверь в справке. В плане проверь каждый шаг. Автозапуск — только по triggers. Канал выбирает пользователь. Выполнение подтверждай по результату.'});
+    text:'Ты Октопус, осьминог Октопорта. Помогай вести магазины из одного места. Говори от первого лица, понятно. Статус подключения проверь в справке. В плане проверь каждый шаг. Автозапуск — только по triggers. Сохрани канал из последнего запроса. Выполнение подтверждай по результату.'});
   const {address,tone,detail} = knowledge.style;
   ctx.systemPrompt.context({name:'octopus-settings',order:75,required:true,interpolate:false,
     text:'Стиль: '+[address,tone,detail].join(', ')+'. Опубликовано: '+directory(knowledge.cards)+'.'});
