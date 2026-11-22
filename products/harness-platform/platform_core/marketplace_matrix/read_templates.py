@@ -56,7 +56,7 @@ def discover(query, offset, provider, fields):
     for card in cards().values():
         if not supported(card, provider, fields):
             continue
-        search = " ".join(card[k] for k in ("id", "purpose", "category", "path")).casefold()
+        search = " ".join(card.get(k, "") for k in ("id", "purpose", "category", "path", "searchTerms")).casefold()
         score = sum(len(word) for word in words if word in search)
         if not words or score:
             exact = normalized in (card["id"].casefold(), card["path"].casefold())
@@ -72,6 +72,8 @@ def describe(card):
     description = {k: card[k] for k in ("id", "http", "path", "purpose", "category", "state", "access")}
     if "input" in card:
         description["input"] = card["input"]
+    if "responseGuide" in card:
+        description["responseGuide"] = card["responseGuide"]
     if card["state"] != "ready":
         description["reason"] = REASONS[card["state"]]
     return description
@@ -104,11 +106,12 @@ def _identifier_params(params):
 def _result_sample(value):
     """Give the model a bounded sample with explicit coverage on every list."""
     omitted = Counter()
+    coverage = []
     remaining = 280
     dropped = re.compile(r"link|url|uri|token|secret|authorization|phone|address|recipient|contact|chat_content", re.I)
     signed_url = re.compile(r"https?://\S+[?&](?:signature|token|x-amz-|expires|key)\b", re.I)
 
-    def sample(obj, depth=0):
+    def sample(obj, depth=0, path="$"):
         nonlocal remaining
         remaining -= 1
         if remaining < 0 or depth > 9:
@@ -123,18 +126,26 @@ def _result_sample(value):
                 if remaining <= 0:
                     omitted["nodes"] += 1
                     break
-                result[key] = sample(item, depth + 1)
+                result[key] = sample(item, depth + 1, path+"."+key)
             return result
         if isinstance(obj, list):
-            if len(obj) > 50:
-                omitted["rows"] += len(obj) - 50
-            return [sample(item, depth + 1) for item in obj[:50]]
+            selected = []
+            for index, item in enumerate(obj[:50]):
+                if remaining <= 0 or depth >= 9:
+                    break
+                selected.append(sample(item, depth + 1, f"{path}[{index}]"))
+            if len(selected) < len(obj):
+                omitted["rows"] += len(obj) - len(selected)
+                if len(coverage) < 20:
+                    coverage.append({"path": path, "availableRows": len(obj), "returnedRows": len(selected)})
+            return selected
         if isinstance(obj, str) and (len(obj) > 1000 or signed_url.search(obj)):
             omitted["fields"] += 1
             return None
         return str(obj) if isinstance(obj, Decimal) else obj
 
-    return sample(value), dict(omitted)
+    data = sample(value)
+    return data, dict(omitted), coverage
 
 
 def supplemental_route(card, params):
@@ -294,9 +305,16 @@ def _read_store(authority, store, card, params, directory, selected_proofs):
                 send(authentication)
             data, receipt = send(request)
     authority.check()
-    payload, omitted = _result_sample(data)
-    return {"ok": True, "data": payload, "omitted": omitted, "http": receipt["status"],
-            "providerMilliseconds": receipt["elapsed_ms"]}, calls
+    payload, omitted, coverage = _result_sample(data)
+    result = {"ok": True, "data": payload, "omitted": omitted, "http": receipt["status"],
+              "providerMilliseconds": receipt["elapsed_ms"]}
+    if coverage:
+        result["coverage"] = coverage
+    if "responseFieldLabels" in card:
+        result["fieldLabels"] = card["responseFieldLabels"]
+    if "responseGuide" in card:
+        result["responseGuide"] = card["responseGuide"]
+    return result, calls
 
 
 def execute(packet, directory):
@@ -327,7 +345,11 @@ def execute(packet, directory):
         public, calls = _read_store(authority, store, card, params, directory, proofs)
     except CallError as error:
         log_failure(card["operation"] or card["id"], error.code, error.retry_at)
-        return {"ok": False, "templateId": card["id"], "reason": explain(error.code)["text"],
-                "http": error.status}
+        result = {"ok": False, "templateId": card["id"], "http": error.status}
+        if reason := card.get("errorRules", {}).get(error.code):
+            return {**result, "reason": reason, "reasonSource": "template"}
+        if card.get("errorRules") and error.status in (401, 402, 403):
+            return {**result, "requiresTestReview": True}
+        return {**result, "reason": explain(error.code)["text"]}
     return {**public, "templateId": card["id"], "operations": calls,
             "scope": "Один запрос к площадке. Следующая страница запрашивается по её параметрам."}

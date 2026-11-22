@@ -637,6 +637,52 @@ class MarketplaceMatrix(unittest.TestCase):
             self.assertEqual(execute("ozon", ozon, {"period": "MONTH", "sort": "DESC"})["http"], 200)
             self.assertEqual(request.call_count, 2)
 
+    def test_read_template_uses_confirmed_subscription_message(self):
+        from io import BytesIO
+        from urllib.error import HTTPError
+
+        from platform_core.marketplace_matrix import read_templates
+
+        cid = self.ids["ozon"]
+        self.turn["question"] = "Покажи пять популярных поисковых запросов Ozon."
+        packet = {**self.packet, "connections": [cid], "readTemplate": {
+            "action": "read", "templateId": "read.seller.marketplace_search_queries_top",
+            "params": {"limit": "5", "offset": "0"},
+        }}
+
+        def denial(message):
+            return HTTPError("https://api-seller.ozon.ru/v1/search-queries/top", 403, "Forbidden", {},
+                             BytesIO(json.dumps({"code": 7, "message": message}).encode()))
+
+        with patch("http_transport.read_response", side_effect=denial("Method available with Premium Pro subscription")):
+            result = read_templates.execute(packet, self.root)
+        self.assertEqual(result["reasonSource"], "template")
+        self.assertEqual(result["reason"], "Для отчёта о популярных поисковых запросах на Ozon нужен Premium Pro.")
+        with patch("http_transport.read_response", side_effect=denial("no access to this method")):
+            result = read_templates.execute(packet, self.root)
+        self.assertTrue(result["requiresTestReview"])
+        self.assertNotIn("reason", result)
+
+    def test_read_template_reports_actual_sample_size_and_tariff_scheme(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        cid = self.ids["wb"]
+        packet = {**self.packet, "connections": [cid], "readTemplate": {
+            "action": "read", "templateId": "read.wb.tariff_commission", "params": {},
+        }}
+        rows = [{"subjectName": "Предмет", "kgvpMarketplace": 38, "paidStorageKgvp": 33.5,
+                 "kgvpSupplier": 35, "parentName": "Категория"} for _ in range(500)]
+        raw = json.dumps({"report": rows}, ensure_ascii=False).encode()
+        with patch("http_transport.read_response", return_value=(raw, 200)):
+            result = read_templates.execute(packet, self.root)
+        report = result["data"]["report"]
+        self.assertFalse(any(item is None for item in report))
+        self.assertLess(len(report), len(rows))
+        self.assertEqual(result["coverage"],
+                         [{"path": "$.report", "availableRows": 500, "returnedRows": len(report)}])
+        self.assertEqual(result["fieldLabels"]["paidStorageKgvp"], "Со склада Wildberries (FBW), %")
+        self.assertIn("DBS", result["fieldLabels"]["kgvpSupplier"])
+
     def test_read_templates_uses_separate_performance_credential(self):
         from platform_core.marketplace_matrix import read_templates
 
