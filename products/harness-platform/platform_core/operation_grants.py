@@ -59,6 +59,11 @@ OPERATION_SCHEMA = (
         token_hash TEXT PRIMARY KEY REFERENCES usage_grants ON DELETE CASCADE,
         deadline_ms INTEGER, retry_at_ms INTEGER, session_digest BLOB
     )""",
+    """CREATE TABLE IF NOT EXISTS marketplace_retry_notices (
+        id INTEGER PRIMARY KEY, token_hash TEXT NOT NULL REFERENCES usage_grants ON DELETE CASCADE,
+        notice TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS marketplace_retry_notices_grant ON marketplace_retry_notices(token_hash,id)",
     DIRECT_DEFAULT_SCHEMA,
     """CREATE TABLE IF NOT EXISTS direct_operation_models (
         operation_id TEXT PRIMARY KEY REFERENCES usage_operations ON DELETE CASCADE,
@@ -262,6 +267,11 @@ def set_marketplace_window(database_path, token_hash, previous_ms, deadline_ms, 
                                                 retry_at_ms=excluded.retry_at_ms
         """, (token_hash, deadline_ms, retry_at_ms))
         return deadline_ms
+
+
+def record_marketplace_notice(database_path, token_hash, notice):
+    with _transaction(database_path) as db:
+        db.execute("INSERT INTO marketplace_retry_notices(token_hash,notice) VALUES (?,?)", (token_hash, notice))
 
 
 def marketplace_deadline(database, token_hash, initial_ms):

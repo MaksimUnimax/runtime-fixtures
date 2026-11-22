@@ -14,10 +14,10 @@ from zoneinfo import ZoneInfo
 
 
 from .authority import ChatAuthority
-from . import advertising, campaign_inventory, forecast_preview, store_currency
+from . import advertising, campaign_inventory, forecast_preview, ozon_retry, store_currency
 
 BUNDLE = Path(__file__).with_name("runtime.tar.gz")
-BUNDLE_SHA256 = "7dada78f1d561a75aa53393fdc52a85af8ddf6b085c9a3830b9d50b3a488e068"
+BUNDLE_SHA256 = "b9cb1daec21a7edcf4c6270324d6f9bbac94302b04f07139b2fae68db3fefd5d"
 
 
 def log_failure(operation, code, retry_at=None):
@@ -233,7 +233,8 @@ def execute(packet, directory):
     long_report = any(TEMPLATES[call["template_id"]]["kind"] == "parameter"
                       or TEMPLATES[call["template_id"]].get("parameter_report") for call in calls)
 
-    rate_limits = []
+    rate_limits = 0
+    ozon_retries = {}
 
     class ChatTransport(HTTPTransport):
         def _read_request(self, request, store):
@@ -251,12 +252,20 @@ def execute(packet, directory):
             return super()._scoped_qualification(matrix, request, store)
 
         def execute(self, request, store, *, on_dispatch=None):
-            nonlocal report_pending
+            nonlocal report_pending, rate_limits
             report_pending = False
             if store is None:
                 raise CallError("MARKETPLACE_OPERATION_REQUIRED")
             context = copy_context()
-            guard_dispatch = (lambda: context.run(on_dispatch)) if on_dispatch else None
+            retry_key = (request.source, request.operation, fingerprint(request.body))
+            previous = ozon_retries.get(retry_key)
+
+            def guard_dispatch():
+                result = context.run(on_dispatch) if on_dispatch else authority.check()
+                if previous and authority.resume_rate_limits:
+                    number, retry = previous
+                    authority.ozon_notice(retry.sending(number))
+                return result
             try:
                 answer = super().execute(request, store, on_dispatch=guard_dispatch)
                 if request.operation == "ds_wb_adstats" and answer[0] is None and answer[1]["status"] == 200:
@@ -270,8 +279,20 @@ def execute(packet, directory):
                 if request.operation in ("ds_wb_campaigns", "ds_wb_adstats") and error.status in (401, 403):
                     raise CallError("WB_ADVERTISING_ACCESS", status=error.status) from None
                 if error.status == 429:
-                    rate_limits.append(request.operation)
+                    rate_limits += 1
+                    if store["platform"] == "ozon":
+                        retry = ozon_retry.plan(ozon_retry.endpoint(request.operation), error.retry_at, time.time())
+                        error.ozon_retry = retry
+                        number = previous[0] + 1 if previous else 1
+                        ozon_retries[retry_key] = number, retry
+                        from request_recovery import repeat_safe
+                        if authority.resume_rate_limits and repeat_safe(request):
+                            authority.ozon_notice(retry.waiting(number))
                 raise
+            if previous:
+                del ozon_retries[retry_key]
+                if authority.resume_rate_limits:
+                    authority.ozon_notice(f"Ozon принял повтор №{previous[0]} ({previous[1].label}).")
             if request.operation == "read.ozon.report_info" and isinstance(answer[0], dict):
                 report_pending = answer[0].get("result", {}).get("status") in ("waiting", "processing")
             if authority.resume_rate_limits and (request.operation == "ds_wb_adstats"
@@ -338,7 +359,7 @@ def execute(packet, directory):
              "templates": campaign_trace["templates"] + [
                  {"id": item["template_id"], "connectionId": item["store_id"]} for item in selected],
              "operations": campaign_trace["operations"] + operations,
-             "rateLimitResponses": campaign_trace["rateLimitResponses"] + len(rate_limits)}
+             "rateLimitResponses": campaign_trace["rateLimitResponses"] + rate_limits}
     if row["state"] != "READY":
         code = row.get("error") or row["state"]
         reason = explain(code)["text"]

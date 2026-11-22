@@ -8,6 +8,7 @@ from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlencode
 from urllib.request import Request
 
+from . import ozon_retry
 from .store_currency import retry_time, wait_result
 
 TEMPLATES = {"wb_campaign_inventory": "wb", "ozon_campaign_inventory": "ozon"}
@@ -114,26 +115,42 @@ def fetch(authority, store, operation, request, trace):
     for status_key in ("statuses", "state"):
         if status_key in operation_scope:
             receipt["providerStatuses"] = operation_scope[status_key][0]
-    for attempt in range(4):
+    attempt = 0
+    retry = None
+    def dispatch():
+        authority.check()
+        if retry and authority.resume_rate_limits:
+            authority.ozon_notice(retry.sending(attempt))
+    while True:
         authority.check()
         trace["operations"].append(receipt)
         try:
             raw, status = read_response(request, timeout=min(20, max(.01, authority.deadline - time.time())),
-                                        limit=12_000_000, on_dispatch=authority.check)
+                                        limit=12_000_000, on_dispatch=dispatch)
         except HTTPError as error:
             status = error.code
             if status == 429:
                 trace["rateLimitResponses"] += 1
                 now = time.time()
-                due = max(now + RATE_LIMIT_RETRY_SECONDS,
-                          retry_time(error.headers, now, store.platform == "wb") or 0)
+                indicated = retry_time(error.headers, now, store.platform == "wb")
                 error.close()
-                if attempt == 3 or not authority.resume_rate_limits and due >= authority.deadline:
-                    raise CampaignError(wait_result(due, "HTTP_429")) from None
-                if authority.resume_rate_limits:
-                    authority.wait_for_provider(due)
+                attempt += 1
+                if store.platform == "ozon":
+                    retry = ozon_retry.plan(request.full_url.partition("?")[0], indicated, now)
+                    due = retry.due
+                    if authority.resume_rate_limits:
+                        authority.ozon_notice(retry.waiting(attempt))
                 else:
-                    time.sleep(max(0, due - time.time()))
+                    due = max(now + RATE_LIMIT_RETRY_SECONDS, indicated or 0)
+                    if attempt >= 4:
+                        raise CampaignError(wait_result(due, "HTTP_429")) from None
+                if not authority.resume_rate_limits and due >= authority.deadline:
+                    raise CampaignError(wait_result(due, "HTTP_429")) from None
+                if due > time.time():
+                    if authority.resume_rate_limits:
+                        authority.wait_for_provider(due)
+                    else:
+                        time.sleep(max(0, due - time.time()))
                 continue
             error.close()
         except (OSError, http.client.HTTPException):
@@ -143,6 +160,8 @@ def fetch(authority, store, operation, request, trace):
             raise CampaignError({"code": f"HTTP_{status}",
                                  "reason": f"Рекламный API {market} вернул HTTP {status}."})
         authority.check()
+        if retry and authority.resume_rate_limits:
+            authority.ozon_notice(f"Ozon принял повтор №{attempt} ({retry.label}).")
         return json.loads(raw)
 
 

@@ -68,6 +68,14 @@ def bind_provider_retry(files):
         + end + right).encode()
 
 
+def bind_ozon_retry(files):
+    patch_runtime(files, "request_recovery.py", "    if error.status == 429:\n",
+        "    if error.status == 429 and getattr(error, 'ozon_retry', None) is not None:\n"
+        "        from platform_core.marketplace_matrix.ozon_retry import retry_due as ozon_due\n"
+        "        return ozon_due(repo, row, request, error)\n"
+        "    if error.status == 429:\n")
+
+
 def bind_table_contracts(portable, planner_proofs, files):
     sources = json.loads(files["source_matrix.json"])
     table_hash = digest({"table": json.loads(files["table_catalog.json"]), "source_matrix": sources})
@@ -657,6 +665,7 @@ def collect(core, renderer, config):
     group_table_requests(files)
     bind_node_runtime(files)
     bind_provider_retry(files)
+    bind_ozon_retry(files)
     bind_report_previews(files)
     bind_ozon_posting_money(files)
     bind_read_builder_cache(files)

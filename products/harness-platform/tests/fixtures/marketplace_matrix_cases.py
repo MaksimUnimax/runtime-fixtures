@@ -119,17 +119,7 @@ class MarketplaceMatrix(unittest.TestCase):
                 raise HTTPError(req.full_url, 429, "rate limited", {"Retry-After": "4"}, None)
             return b'{"result":{"totals":[29],"data":[{"dimensions":[{"id":"2026-11"}],"metrics":[29]}]}}', 200
 
-        from dataclasses import replace
-        from request_recovery import retry_due
-        from repository import Repository
-        reserve = Repository.reserve
-        def fixture_due(repo, row, request, error, safe):
-            return retry_due(repo, row, replace(request, interval=0), error, safe)
-        def fixture_reserve(repo, jid, owner, source, interval, limit):
-            return reserve(repo, jid, owner, source, 0, limit)
-        with patch("http_transport.read_response", side_effect=read), \
-             patch("request_recovery.RATE_LIMIT_RETRY_SECONDS", 0), \
-             patch("request_recovery.retry_due", fixture_due), patch.object(Repository, "reserve", fixture_reserve):
+        with patch("http_transport.read_response", side_effect=read):
             result = worker.execute(self.packet, self.root)
         self.assertTrue(result["ok"], result)
         self.assertGreater(int(time.time() * 1000), original_deadline)
@@ -141,6 +131,17 @@ class MarketplaceMatrix(unittest.TestCase):
             self.assertGreater(row[0], original_deadline + 7000)
             self.assertGreater(row[1], time.time())
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM usage_operations").fetchone()[0], 1)
+
+    def test_ozon_429_policy_uses_response_for_every_method(self):
+        from platform_core.marketplace_matrix.ozon_retry import plan, endpoint
+        normal = endpoint("ozon_accrual_by_day")
+        analytics = endpoint("ozon_orders")
+        self.assertEqual(endpoint("ozon_table_orders"), analytics)
+        for url in (normal, analytics):
+            for indicated, seconds in ((None, 7), (100, 0), (99, 0), (102, 2), (160, 60), (409, 309)):
+                retry = plan(url, indicated, 100)
+                self.assertEqual((retry.due, retry.seconds, retry.from_header),
+                                 (100+seconds, seconds, indicated is not None))
 
     def test_currency_profile_429_wait_rechecks_access_before_resending(self):
         from urllib.error import HTTPError

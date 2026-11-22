@@ -104,6 +104,8 @@ export async function openWorker(env) {
       WHERE a.operation_id=o.operation_id) AS used FROM coin_orders o WHERE operation_id=?`);
   const retryWindow = platform?.prepare(
     'SELECT deadline_ms, retry_at_ms FROM marketplace_retry_windows WHERE token_hash=?');
+  const retryNotices = platform?.prepare(
+    'SELECT id,notice FROM marketplace_retry_notices WHERE token_hash=? AND id>? ORDER BY id');
   const firstBatches = db.prepare(`SELECT request_id, action, input FROM native_batches
     WHERE scope_key=? ORDER BY revision LIMIT ?`);
   const byRequest = db.prepare('SELECT * FROM native_batches WHERE scope_key=? AND request_id=?');
@@ -399,11 +401,20 @@ export async function openWorker(env) {
           const controller = new AbortController();
           const followsMarketplace = req.illustrations || !!req.grant.model || req.connections?.some(connection => ['ozon', 'wb'].includes(connection.provider));
           const grantHash = createHash('sha256').update(req.grant.token).digest('hex');
+          let lastNotice = 0;
+          const reportNotices = () => {
+            if (!followsMarketplace) return;
+            for (const {id, notice} of retryNotices.all(grantHash, lastNotice)) {
+              req.progress?.({stage: 'marketplace_notice', notice});
+              lastNotice = id;
+            }
+          };
           let waitUntil = 0;
           let dispatchLease = deadline;
           const watchDeadline = () => {
             const now = Date.now();
             try {
+              reportNotices();
               const retry = followsMarketplace && retryWindow.get(grantHash);
               if (retry && retry.deadline_ms > deadline) {
                 deadline = retry.deadline_ms;
@@ -464,7 +475,7 @@ export async function openWorker(env) {
             gatewayUrl: req.grant.model ? env.HARNESS_ROUTER_LOCAL : env.HARNESS_MODEL_GATEWAY_URL,
             model: req.grant.model || req.grant.directModel || env.HARNESS_CHAT_MODEL,
             reasoningEffort: req.grant.model ? undefined : req.grant.effort,
-            signal: controller.signal });
+            signal: controller.signal }).finally(reportNotices);
         } else {
           const { runOfflineTurn } = await import('./offline-turn.mjs');
           turn = await runOfflineTurn({ ...input, toolUnavailable: () => fail('unavailable') });
