@@ -105,7 +105,9 @@ class TelegramReports(TestCase):
         real_verify=tg.verified_user
         with patch.object(tg,"verified_user",verify),patch.object(tg,"send",AsyncMock(return_value=1)) as sender:
             self.post("/api/telegram/complete",body).raise_for_status()
-            self.assertEqual(sender.await_args.args[1],884)
+            sender.assert_awaited_once_with(
+                CFG, 884, "Проверка доставки прошла успешно. Бот Октопорта готов присылать отчёты в этот чат."
+            )
             self.assertEqual(self.post("/api/telegram/complete",body).status_code,409)
         self.assertFalse(self.client.get(self.url).json()["subscribed"])
         self.post(self.url+"/enable").raise_for_status()

@@ -265,7 +265,7 @@ data-size="large" data-radius="10" data-lang="ru" data-request-access="write" da
             if existing and existing != [(ws,uid,cfg.bot)]:
                 raise HTTPException(409,"Этот аккаунт уже связан. Для замены сначала отключите прежнюю связь.")
         try:
-            await tg.send(cfg, uid, "Октопорт проверяет подключение Telegram к вашему аккаунту.")
+            await tg.send(cfg, uid, "Проверка доставки прошла успешно. Бот Октопорта готов присылать отчёты в этот чат.")
         except tg.DeliveryError:
             raise HTTPException(409,"Доставка в Telegram не подтверждена. Разрешите сообщения и повторите подключение.") from None
         try:
