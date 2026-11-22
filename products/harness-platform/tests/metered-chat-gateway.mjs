@@ -46,7 +46,7 @@ const upstream = http.createServer(async (req, res) => {
     const tools=(request.tools||[]).map(t=>({ids:t.input_schema.properties?.connectionId?.enum ?? t.input_schema.properties?.selections?.items?.properties?.connectionId?.enum, deferred:t.defer_loading}));
     answer=JSON.stringify({
       currentStore:update.includes('Магазин Тест'), boundName:(request.tools||[]).some(t=>t.description.includes('mcp__platform__marketplace_report')),
-      freshUpdate:update.includes('Текущее состояние подключений'), active:tools.filter(t=>t.ids).map(t=>t.ids.length),
+      freshUpdate:update.includes('Текущее состояние подключений') && ['calendarDate','yesterday','dayBeforeYesterday'].every(key=>update.includes(key)), active:tools.filter(t=>t.ids).map(t=>t.ids.length),
       allImmediate:tools.every(t=>!t.deferred), secretLeaked:JSON.stringify(request).includes('private-sentinel')
     });
   }

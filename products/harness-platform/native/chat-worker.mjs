@@ -38,10 +38,16 @@ function registerConnectionContext(ctx, attached, available, guides, filtered) {
       'При неполном результате назови отдельно полученные цифры и то, чего узнать не удалось. Причину сообщай только подтверждённую, простыми словами. '+
       'Не выводи коды ошибок, HTTP-статусы, имена инструментов, шаблонов, полей и адреса API. Не приписывай одну ошибку другим отчётам. '+
       'Не предлагай выбирать валюту для исправления отчёта. Сохранённые ключи и успешная проверка связи не подтверждают все права. Не додумывай подписку, права, причину сбоя или статус доставки.'});
+  const timezone = 'Europe/Moscow';
+  const calendarDate = new Intl.DateTimeFormat('en-CA',{timeZone:timezone}).format(new Date());
+  const relativeDate = days => {
+    const day = new Date(calendarDate+'T12:00:00Z');
+    day.setUTCDate(day.getUTCDate()-days);
+    return day.toISOString().slice(0,10);
+  };
   ctx.systemPrompt.context({name:'chat-connections',order:80,interpolate:false,required:true,
     text:'Текущее состояние подключений этого диалога: '+JSON.stringify({
-      calendarDate: new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Moscow'}).format(new Date()),
-      timezone:'Europe/Moscow', connections:bindings, ...(filtered ? {} : {tools:toolDefinitions.map(tool=>tool.name).sort()}), availableToAttach:available, setupGuides:guides ?? {}
+      calendarDate, yesterday:relativeDate(1), dayBeforeYesterday:relativeDate(2), timezone, connections:bindings, ...(filtered ? {} : {tools:toolDefinitions.map(tool=>tool.name).sort()}), availableToAttach:available, setupGuides:guides ?? {}
     })});
 }
 
