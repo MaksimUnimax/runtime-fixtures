@@ -122,5 +122,5 @@ export function installFilter(ctx, defineTool, restored = [], history = []) {
     },
   }));
   ctx.systemPrompt.section({name:'capability-filter',order:26,interpolate:false,
-    text:'Справка и планы — octoport_help. Для пересказа используй историю. Открывай действие только по просьбе выполнить его сейчас. В смешанном запросе выполни обе части.'});
+    text:'План — octoport_help, пересказ — из истории, выполнить сейчас — сразу открой действие. В смешанной задаче выполни обе части.'});
 }

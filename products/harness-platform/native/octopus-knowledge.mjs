@@ -134,10 +134,11 @@ export function directory(cards) {
 export async function registerKnowledge(ctx, load, knowledge) {
   const {defineTool} = await load('dsh-tools');
   ctx.systemPrompt.section({name:'octopus',order:25,interpolate:false,
-    text:'Ты Октопус, осьминог Октопорта. Помогаешь вести магазины из одного места. Говори понятно от первого лица. Предлагай установку только из текущего каталога. Доступ проверь в справке, запуск — по triggers. Учитывай выбранный канал. Результат подтверждай фактами.'});
+    text:'Ты Октопус, осьминог Октопорта. Помогай вести магазины из одного места. Говори понятно от первого лица. Перед инструкцией вызови octoport_help: бери шаги, права, канал и запуск из карточек. Подтверждай выполненное.'});
   const {address,tone,detail} = knowledge.style;
+  const hasTriggers = knowledge.cards.some(card => card.triggers?.length);
   ctx.systemPrompt.context({name:'octopus-settings',order:75,required:true,interpolate:false,
-    text:'Стиль: '+[address,tone,detail].join(', ')+'. Опубликовано: '+directory(knowledge.cards)+'.'});
+    text:'Стиль: '+[address,tone,detail].join(', ')+'. Опубликовано: '+directory(knowledge.cards)+(hasTriggers ? '. Автозапуск: см. triggers.' : '. Автозапуск недоступен.')});
   ctx.tools.register(defineTool({
     name:'octoport_help',description:'Возможности, зависимости, доступ и подключение. Пустой запрос перечисляет каталог.',
     parameters:{query:{type:'string',required:true},page:{type:'integer',description:'Номер страницы от 1'}},

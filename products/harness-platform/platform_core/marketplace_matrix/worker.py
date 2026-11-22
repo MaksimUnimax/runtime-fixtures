@@ -336,7 +336,9 @@ def execute(packet, directory):
             if authority.resume_rate_limits and report_pending:
                 authority.wait_for_provider(max(row["due"], time.time() + 4))
                 report_pending = False
-            elif pending["code"] == "HTTP_429" and authority.resume_rate_limits:
+            elif authority.resume_rate_limits and pending["code"] in ("HTTP_429", "SOURCE_PACING"):
+                # A compound read can span several permitted source windows. Keep its
+                # operation alive while the scheduler waits for the next permitted call.
                 authority.wait_for_provider(row["due"])
             elif row["due"] >= authority.deadline:
                 return pending
