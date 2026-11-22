@@ -943,6 +943,17 @@ class MarketplaceMatrix(unittest.TestCase):
         sample, _, _ = read_templates._result_sample(source, {})
         self.assertEqual(sample, {"is_courier_return_mile_available": False})
 
+    def test_product_query_row_limit_is_not_a_product_identifier(self):
+        from platform_core.marketplace_matrix import read_templates
+        from semantics import Rejected
+        from universal_reads import identifier_provenance
+
+        params = {"limit_by_sku": 5, "skus": ["2184234912"]}
+        filtered = read_templates._identifier_params(params)
+        identifier_provenance(filtered, "Покажи запросы по SKU 2184234912", [])
+        with self.assertRaises(Rejected):
+            identifier_provenance(filtered, "Покажи поисковые запросы", [])
+
     def test_read_template_reuses_confirmed_ids_only_for_the_same_store_and_turn(self):
         from platform_core.marketplace_matrix import plugin, read_templates
         from platform_core.marketplace_matrix.authority import ChatAuthority

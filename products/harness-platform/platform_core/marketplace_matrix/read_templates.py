@@ -111,6 +111,8 @@ def _identifier_params(params, acquiring_report_id=None):
         result = {}
         for k, v in params.items():
             name = k.lower().replace("_", "").replace("-", "")
+            if name == "limitbysku":
+                continue
             if name in REPORT_KEYS and v:
                 if name == "reportid" and str(v) == acquiring_report_id:
                     continue
