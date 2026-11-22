@@ -605,6 +605,65 @@ class MarketplaceMatrix(unittest.TestCase):
             with self.assertRaises(ParameterError):
                 normalise_owner_inputs(invalid)
 
+    def test_ozon_tariff_pages_accept_both_count_fields_and_validate_the_full_chain(self):
+        from hashlib import sha256
+
+        from parameter_support import economics_tariffs as tariffs
+
+        scope = {"tenant_id": "tenant", "store_id": "ozon", "provider": "OZON", "currency": "RUB"}
+        observed = "2026-11-22T01:00:00+00:00"
+        commissions = {key: 10 for key in (
+            "sales_percent_fbo", "sales_percent_fbs", "fbo_return_flow_amount", "fbs_return_flow_amount",
+            "fbs_first_mile_min_amount", "fbs_first_mile_max_amount",
+        )}
+
+        def packet(operation, request, payload, receipt):
+            body = json.dumps(payload).encode()
+            return {"operation": operation, "scope": scope, "request": request, "body": body,
+                    "received_at": observed, "receipt_id": receipt, "response_sha256": sha256(body).hexdigest(),
+                    "http": 200}
+
+        def page(pid, cursor, next_cursor, counts):
+            return packet("product_prices_bulk", {"filter": {"visibility": "ALL"}, "cursor": cursor, "limit": 1},
+                          {"items": [{"product_id": pid, "price": {"currency_code": "RUB"}, "acquiring": 1,
+                                     "commissions": commissions}], "cursor": next_cursor, **counts}, str(pid))
+
+        product_page = packet("seller_product_info_list", {"product_id": [1, 2]},
+                              {"items": [{"id": 1, "sku": 11}, {"id": 2, "sku": 22}]}, "products")
+        first = page(1, "", "next", {"total": 2, "total_items": 2})
+
+        def normalize(*pages):
+            return tariffs.normalize(list(pages), [product_page], scope, verify=lambda _: True,
+                                     encode=lambda kind, value: sha256(f"{kind}:{value}".encode()).hexdigest())
+
+        self.assertEqual(len(normalize(first, page(2, "next", "", {"total_items": 2})).data["rows"]), 4)
+        for counts, code in (
+                ({"total": 2, "total_items": 3}, "TARIFF_TOTAL_CHANGED"),
+                ({"total_items": 3}, "TARIFF_TOTAL_CHANGED"),
+                ({"total_items": True}, "TARIFF_RESPONSE_SCHEMA"),
+                ({}, "TARIFF_RESPONSE_SCHEMA")):
+            with self.subTest(counts=counts), self.assertRaisesRegex(tariffs.TariffError, code):
+                normalize(first, page(2, "next", "", counts))
+
+        from platform_core.marketplace_matrix import tariff_cohort
+
+        archived = {"items": [{"id": 2, "sku": 22, "is_archived": True}]}
+        lookup = packet("seller_product_info_list", {"sku": ["22"]}, archived, "targeted-products")
+        price_payload = json.loads(page(2, "", "", {"total_items": 1})["body"])
+        prices = tariff_cohort.prices_request(tariff_cohort.product_ids(archived, ["22"]))
+        filtered = packet("product_prices_bulk", prices, price_payload, "targeted-price")
+
+        def quote(price):
+            return tariffs.normalize([price], [lookup], scope, verify=lambda _: True,
+                                     encode=lambda kind, value: sha256(f"{kind}:{value}".encode()).hexdigest())
+
+        self.assertTrue(quote(filtered).for_cohort(
+            [{"sku": "22", "scheme": "fbo"}], {"from": "2026-10-01", "to": "2026-10-01"}, scope)["complete"])
+        with self.assertRaisesRegex(tariffs.TariffError, "TARIFF_QUOTE_OR_SKU_MISSING"):
+            quote(packet("product_prices_bulk", prices, {"items": [], "cursor": "", "total_items": 0}, "empty"))
+        with self.assertRaisesRegex(tariffs.TariffError, "TARIFF_QUOTE_OR_SKU_MISSING"):
+            tariff_cohort.product_ids({"items": [{"id": 2, "sku": 23}]}, ["22"])
+
     def test_ozon_packaging_uses_reconciled_signed_cost_once_in_both_scenarios(self):
         from copy import deepcopy
         from decimal import Decimal

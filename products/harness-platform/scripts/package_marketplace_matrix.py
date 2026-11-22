@@ -231,6 +231,106 @@ def bind_unclassified_ozon_fee_diagnostics(files):
         "        _require_known_fee(kind)\n        entry=")
 
 
+def bind_ozon_tariff_page_totals(files):
+    """Accept Seller API's replacement field without weakening completeness checks."""
+    normalizer = "parameter_support/economics_tariffs.py"
+    patch_runtime(files, normalizer, "def normalize(price_pages,product_pages,target,*,verify,encode):\n",
+        "def price_page_total(data):\n"
+        "    required = {'items', 'cursor'}\n"
+        "    count_fields = {'total', 'total_items'}\n"
+        "    need(type(data) is dict and required <= data.keys() <= required | count_fields\n"
+        "         and type(data['items']) is list and type(data['cursor']) is str, 'TARIFF_RESPONSE_SCHEMA')\n"
+        "    totals = [data[name] for name in count_fields if name in data]\n"
+        "    need(totals and all(type(value) is int and value >= 0 for value in totals), 'TARIFF_RESPONSE_SCHEMA')\n"
+        "    need(len(set(totals)) == 1, 'TARIFF_TOTAL_CHANGED')\n"
+        "    return totals[0]\n\n\n"
+        "def normalize(price_pages,product_pages,target,*,verify,encode):\n")
+    patch_runtime(files, normalizer,
+        "  need(type(data)is dict and {'items','cursor','total'}<=set(data)<={'items','cursor','total','total_items'}\n"
+        "      and type(data['items'])is list and type(data['cursor'])is str and type(data['total'])is int and data['total']>=0,'TARIFF_RESPONSE_SCHEMA')\n"
+        "  if total is None:total=data['total']\n"
+        "  need(data['total']==total and data.get('total_items',total)==total,'TARIFF_TOTAL_CHANGED')\n",
+        "  page_total = price_page_total(data)\n"
+        "  if total is None:total=page_total\n"
+        "  need(page_total==total,'TARIFF_TOTAL_CHANGED')\n")
+    patch_runtime(files, "tariff_source_runtime.py",
+        "                need({'items','cursor','total'}<=set(answer)<={'items','cursor','total','total_items'}and type(answer['items'])is list\n"
+        "                    and type(answer['cursor'])is str and type(answer['total'])is int and answer['total']>=0,'TARIFF_RESPONSE_SCHEMA')\n"
+        "                need(answer.get('total_items',answer['total'])==answer['total'],'TARIFF_TOTAL_CHANGED')\n"
+        "                if state['total']is None:state['total']=answer['total']\n"
+        "                need(state['total']==answer['total'],'TARIFF_TOTAL_CHANGED')\n",
+        "                page_total=source.price_page_total(answer)\n"
+        "                if state['total']is None:state['total']=page_total\n"
+        "                need(state['total']==page_total,'TARIFF_TOTAL_CHANGED')\n")
+
+
+def bind_ozon_cohort_tariffs(files):
+    normalizer = "parameter_support/economics_tariffs.py"
+    patch_runtime(files, normalizer,
+        " need(len(prices)==total,'TARIFF_TOTAL_INCOMPLETE')\n",
+        " need(len(prices)==total,'TARIFF_TOTAL_INCOMPLETE')\n"
+        " if 'product_id' in filters:\n"
+        "  need(set(prices)=={identifier(pid) for pid in filters['product_id']},'TARIFF_QUOTE_OR_SKU_MISSING')\n")
+    patch_runtime(files, normalizer,
+        "  need(type(request)is dict and set(request)=={'product_id'}and type(request['product_id'])is list and request['product_id'],'TARIFF_PRODUCT_REQUEST')\n"
+        "  ids=[identifier(v)for v in request['product_id']];need(len(ids)==len(set(ids)),'TARIFF_PRODUCT_REQUEST')",
+        "  need(type(request)is dict and set(request) in ({'product_id'},{'sku'}),'TARIFF_PRODUCT_REQUEST')\n"
+        "  key = next(iter(request))\n"
+        "  need(type(request[key]) is list and request[key],'TARIFF_PRODUCT_REQUEST')\n"
+        "  ids=[identifier(v)for v in request[key]];need(len(ids)==len(set(ids)),'TARIFF_PRODUCT_REQUEST')")
+    patch_runtime(files, normalizer,
+        "   need(pid in ids and pid not in returned and pid not in products,'TARIFF_MAPPING_CONFLICT')\n"
+        "   returned.add(pid);products[pid]=sku",
+        "   requested = sku if key=='sku' else pid\n"
+        "   need(requested in ids and requested not in returned and pid not in products,'TARIFF_MAPPING_CONFLICT')\n"
+        "   returned.add(requested);products[pid]=sku")
+
+    runtime = "tariff_source_runtime.py"
+    patch_runtime(files, runtime,
+        "from datetime import datetime, timezone\n",
+        "from platform_core.marketplace_matrix import tariff_cohort\n")
+    patch_runtime(files, runtime, "from parameter_source_runtime import _token\nfrom period_cost_source_runtime import _transport_body\n", "")
+    patch_runtime(files, runtime, "import base64, json, secrets", "import base64, secrets")
+    patch_runtime(files, runtime,
+        "# These are the documented per-request capacities, not total report quotas.\n"
+        "PRICE_LIMIT=1000\nPRODUCT_LIMIT=1000\nFILTER={'visibility':'ALL'}\n", "")
+    patch_runtime(files, runtime,
+        "    'wire_encoder':sha256(Path(__import__('period_cost_source_runtime').__file__).read_bytes()).hexdigest(),\n"
+        "    'limits':[PRICE_LIMIT,PRODUCT_LIMIT],'filter':FILTER})",
+        "    'wire_encoder':sha256(Path(__import__('period_cost_source_runtime').__file__).read_bytes()).hexdigest(),\n"
+        "    'cohort_source':sha256(Path(tariff_cohort.__file__).read_bytes()).hexdigest()})")
+    patch_runtime(files, runtime,
+        "        need(type(state)is dict and set(state)=={'phase','cursor','seen_cursors','total','product_ids','mapped',\n"
+        "            'price_pages','product_pages','receipts'},'TARIFF_PROGRESS_INTEGRITY')\n"
+        "        need(state['phase']in('prices','products','ready'),'TARIFF_PROGRESS_INTEGRITY')",
+        "        need(tariff_cohort.open_state(state),'TARIFF_PROGRESS_INTEGRITY')")
+    content = files[runtime].decode()
+    head, controller = content.split("def _request(store,state):\n")
+    _, verifier = controller.split("def _verifier(")
+    verifier, _ = verifier.split("def _normalize(")
+    files[runtime] = (head + "def _verifier(" + verifier
+                      + "from platform_core.marketplace_matrix.tariff_cohort import restore, step\n").encode()
+
+    report = "economics_report_runtime.py"
+    patch_runtime(files, report,
+        "        'tariff_prices':('product_prices_bulk','read_surface',{'visibility':'ALL','pagination':'complete'}),\n"
+        "        'tariff_skus':('seller_product_info_list','read_surface',{'product_id':'verified_price_products'}),",
+        "        'tariff_prices':('product_prices_bulk','read_surface',"
+        "{'visibility':'ALL','pagination':'complete','product_id':'verified_order_products'}),\n"
+        "        'tariff_skus':('seller_product_info_list','read_surface',{'sku':'verified_order_skus'}),")
+    for method in ("step", "restore"):
+        call = f"tariff_source.{method}(worker,row,root,sources['tariffs'],state['tariffs'],authorize=authorize"
+        patch_runtime(files, report, call, call.replace("authorize=", "orders=orders.data['rows'],authorize="))
+    for filename, key, steps_key in (("template_catalog.json", "templates", "steps"),
+                                     ("parameter_support/parameter_report_catalog.json", "reports", "source_steps")):
+        catalog = json.loads(files[filename])
+        steps = catalog[key]["economics.unit_forecast.v1"][steps_key]
+        by_name = {step["id"]: step for step in steps}
+        by_name["tariff_prices"]["params"]["product_id"] = "verified_order_products"
+        by_name["tariff_skus"]["params"] = {"sku": "verified_order_skus"}
+        files[filename] = json.dumps(catalog, ensure_ascii=False, indent=2).encode() + b"\n"
+
+
 def bind_report_previews(files):
     filename = "parameter_report_runtime.py"
     patch_runtime(files, filename,
@@ -498,6 +598,8 @@ def collect(core, renderer, config):
     bind_ozon_coefficient_items(files)
     bind_ozon_packaging_cost(files)
     bind_unclassified_ozon_fee_diagnostics(files)
+    bind_ozon_tariff_page_totals(files)
+    bind_ozon_cohort_tariffs(files)
     files["source_qualifications.json"] = json.dumps(portable, sort_keys=True).encode()
     # Both discovery and selection compilation call the same catalogue hook.
     target = b"def _availability(engine,t,store):\n"
