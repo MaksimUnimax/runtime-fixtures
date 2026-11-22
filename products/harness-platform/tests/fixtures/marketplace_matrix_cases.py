@@ -536,7 +536,7 @@ class MarketplaceMatrix(unittest.TestCase):
                                 "cpo:1", "cpo:2", "all", "cpo:1", "cpo:2"])
 
     def test_read_templates_are_scoped_to_read_contracts(self):
-        from platform_core.marketplace_matrix import read_templates
+        from platform_core.marketplace_matrix import read_templates, wb_documents
         from platform_core.marketplace_matrix.plugin import read_capability
         from jsonschema import Draft202012Validator
         from read_surface import available, method
@@ -546,6 +546,12 @@ class MarketplaceMatrix(unittest.TestCase):
         ready = [card for card in cards.values() if card["state"] == "ready"]
         self.assertTrue(ready)
         for card in ready:
+            if card["id"] in wb_documents.DOWNLOADS:
+                self.assertEqual(card["profile"], "wb")
+                self.assertEqual(card["path"], "/api/v1/documents/download" +
+                                 ("/all" if card["id"] == wb_documents.BATCH else ""))
+                self.assertEqual(card["http"], "POST" if card["id"] == wb_documents.BATCH else "GET")
+                continue
             if "contract" in card:
                 from urllib.parse import urlsplit
                 contract = card["contract"]
@@ -845,6 +851,50 @@ class MarketplaceMatrix(unittest.TestCase):
             result = read_templates.execute(packet | {"readEvidence": {"revision": revision, "ids": ids}}, self.root)
             self.assertTrue(result["ok"], result)
             self.assertTrue(outbound.call_args.args[0].full_url.endswith("/acquiring/detailed/858626798"))
+
+    def test_wb_files_require_list_proof_and_are_stored_only_in_requesting_chat(self):
+        from base64 import b64encode
+        from io import BytesIO
+        from zipfile import ZipFile
+
+        from platform_core.chat_attachments import _read
+        from platform_core.identity import ChatUnavailable
+        from platform_core.marketplace_matrix import read_templates, wb_documents
+        from platform_core.marketplace_matrix.authority import ChatAuthority
+        from platform_core.storage import Scope
+
+        journal = self.root / "native-chats.sqlite3"
+        archive = BytesIO()
+        with ZipFile(archive, "w") as zip_file:
+            zip_file.writestr("fixture.xlsx", b"fixture")
+        file_content = archive.getvalue()
+        doc = {"serviceName": "act-fixture-123", "extension": "xlsx"}
+        proof = list(wb_documents.observed_documents({"data":{"documents":[{
+            "serviceName":"act-fixture-123", "extensions":["xlsx"],
+        }]}}))
+        body = {"data":{"extension":"zip", "fileName":"fixture.zip", "document":b64encode(file_content).decode()}}
+        packet = {**self.packet, "connections": [self.ids["wb"]],
+                  "turn": {**self.turn, "attachmentsJournal": str(journal)}}
+        revision = ChatAuthority(packet).revision
+        for template, params, method in ((wb_documents.SINGLE, {"query": doc}, "GET"),
+                                         (wb_documents.BATCH, {"body": {"params": [doc]}}, "POST")):
+            with self.subTest(template=template), patch("http_transport.read_response", return_value=(json.dumps(body).encode(), 200)) as outbound:
+                task = {**packet, "readTemplate": {"action": "read", "templateId": template, "params": params}}
+                for evidence in ({}, {"revision": "stale", "ids": proof},
+                                 {"revision": revision, "ids": [wb_documents.proof(doc["serviceName"], "pdf")]}):
+                    rejected = read_templates.execute(task | {"readEvidence": evidence}, self.root)
+                    self.assertEqual(rejected["reasonSource"], "template")
+                outbound.assert_not_called()
+                result = read_templates.execute(task | {"readEvidence": {"revision": revision, "ids": proof}}, self.root)
+                self.assertTrue(result["ok"], result)
+                self.assertEqual(outbound.call_args.args[0].get_method(), method)
+                file = result["data"]["file"]
+                self.assertEqual(file["name"], "fixture.zip")
+                self.assertEqual(file["bytes"], len(file_content))
+                self.assertEqual(_read(journal, self.scope, file["attachmentId"]), ("fixture.zip", file_content))
+                self.assertNotIn(body["data"]["document"], json.dumps(result))
+                with self.assertRaises(ChatUnavailable):
+                    _read(journal, Scope(self.scope.actor_id, self.scope.workspace_id, "another-chat"), file["attachmentId"])
 
     def test_read_template_reuses_confirmed_ids_only_for_the_same_store_and_turn(self):
         from platform_core.marketplace_matrix import plugin, read_templates
