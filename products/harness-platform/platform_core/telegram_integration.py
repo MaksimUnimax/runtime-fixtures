@@ -183,9 +183,11 @@ data-size="large" data-radius="10" data-lang="ru" data-request-access="write" da
             # avoids the opaque canvas browsers insert when their color schemes differ.
             style = (":root{color-scheme:only light}html,body{margin:0;background:transparent;overflow:hidden}"
                      "iframe{display:block;border:0;color-scheme:only light;transform-origin:top left}"
-                     "@media(max-width:237px){iframe{transform:scale(.85)}}"
-                     "@media(max-width:202px){iframe{transform:scale(.78)}}"
-                     "@media(max-width:185px){iframe{transform:scale(.72)}}"
+                     "@media(max-width:263px){iframe{transform:scale(.87)}}"
+                     "@media(max-width:231px){iframe{transform:scale(.75)}}"
+                     "@media(max-width:199px){iframe{transform:scale(.67)}}"
+                     "@supports(transform:scale(calc(100vw / 264px))){"
+                     "iframe{transform:scale(min(1,calc(100vw / 264px)))}}"
                      if embedded else
                      "body{margin:0;min-height:100dvh;display:grid;place-items:center;background:#f4f6f9;"
                      "color:#222735;font:15px system-ui}main{padding:28px;border-radius:16px;background:white;"
