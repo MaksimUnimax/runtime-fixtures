@@ -56,6 +56,30 @@ class PublishedKnowledge(unittest.TestCase):
                 self.assertEqual(reset.json()["current"],{**settings["defaults"],"revision":2})
                 self.assertEqual(client.post(url,headers=b,json={**change,"tone":"неизвестно"}).status_code,400)
 
+    def test_chat_knowledge_exposes_only_current_delivery_evidence(self):
+        import sqlite3
+        from types import SimpleNamespace
+        with sqlite3.connect(":memory:") as db:
+            db.executescript("""
+                CREATE TABLE entitlements(workspace_id,plugin_id);
+                CREATE TABLE chat_plugins(workspace_id,chat_id,plugin_id);
+                CREATE TABLE telegram_subscriptions(workspace,chat,status,last_sent);
+                CREATE TABLE octopus_preferences(workspace,address,tone,detail,revision);
+                INSERT INTO chat_plugins VALUES('a','one','telegram-reports');
+                INSERT INTO telegram_subscriptions VALUES('a','one','ready',12345);
+                INSERT INTO telegram_subscriptions VALUES('a','two','ready',67890);
+            """)
+            scope = SimpleNamespace(workspace_id="a", chat_id="one")
+            binding = "plugin/telegram-reports"
+            active = knowledge.snapshot(db, scope, [], {"configured":True,"linked":True})
+            self.assertEqual(active["states"][binding]["lastSent"], "1970-01-01T03:25:45+00:00")
+            self.assertTrue(active["states"][binding]["subscribed"])
+            disabled = knowledge.snapshot(db, scope, [], {"configured":False,"linked":False})
+            self.assertNotIn("lastSent", disabled["states"][binding])
+            self.assertIn("скрыта", disabled["currentSteps"]["integration/telegram"][0])
+            self.assertIn("уже подключён", active["currentSteps"]["integration/telegram"][0])
+            self.assertIn("Последняя отправка", next(c["usage"] for c in active["cards"] if c["id"]==binding))
+
     def test_compound_request_finds_quantity_and_amount_on_the_real_catalogue(self):
         from platform_core.marketplace_matrix import plugin
         from platform_core.resource_index import select_page

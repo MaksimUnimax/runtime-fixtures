@@ -53,48 +53,43 @@ export function installFilter(ctx, defineTool, restored = [], history = []) {
     .map(t => [t.name, t]));
   if (!available.size) return;
   const selected = new Set();
-  for (const event of restored) {
-    if (event.type !== 'tool/result' || event.data.message.isError) continue;
-    const call = restored.find(e => e.type === 'assistant/message' && e.data.message.content.some(
-      b => b.type === 'tool-call' && b.id === event.data.message.toolCallId && b.name === activate));
-    if (!call) continue;
-    try {
-      const record=JSON.parse(event.data.message.content.find(b=>b.type==='text').text);
-      if (available.has(record.opened)) selected.add(record.opened);
-    } catch { /* An unsuccessful activation grants nothing. */ }
+  let intent;
+  function recordHelp(runNow) {
+    if (intent === undefined && typeof runNow === 'boolean') intent = runNow ? 'execute' : 'help';
   }
-  let helpOnly = false;
-  let beganExecution = selected.size > 0;
-  for (const event of restored) {
-    if (event.type !== 'assistant/message') continue;
-    const choice = event.data.message.content.find(b => b.type === 'tool-call' &&
-      (b.name === 'octoport_help' || b.name === activate));
-    if (!choice) continue;
-    if (choice.name === 'octoport_help') {
-      try {
-        const {runNow} = JSON.parse(choice.arguments);
-        helpOnly = runNow === false;
-        beganExecution ||= runNow === true;
+  const activations = new Set();
+  for (const {type,data} of restored) {
+    const msg = data.message;
+    if (type === 'assistant/message') {
+      for (const call of msg.content) {
+        if (call.type !== 'tool-call') continue;
+        if (call.name === activate) activations.add(call.id);
+        if (call.name === 'octoport_help') {
+          try { recordHelp(JSON.parse(call.arguments).runNow); }
+          catch { /* Older journals need not declare an intent. */ }
+        }
       }
-      catch { /* Prior versions did not declare an intent. */ }
-    } else beganExecution = true;
-    break;
+    } else if (type === 'tool/result' && !msg.isError && activations.has(msg.toolCallId) && intent !== 'help') {
+      try {
+        const record = JSON.parse(msg.content.find(b => b.type === 'text').text);
+        if (available.has(record.opened)) {
+          intent = 'execute';
+          selected.add(record.opened);
+        }
+      } catch { /* Menus and invalid results do not open actions. */ }
+    }
   }
   let visible = new Set();
   const filter = {
-    recordHelp(runNow) {
-      if (helpOnly || beganExecution) return;
-      beganExecution = runNow === true;
-      helpOnly = runNow === false;
-    },
+    recordHelp,
     project(tools) {
-      if (helpOnly) return tools?.filter(t => t.name === 'octoport_help');
+      if (intent === 'help') return tools?.filter(t => t.name === 'octoport_help');
       visible = new Set(selected);
       return tools?.filter(t => t.name===activate || t.name==='octoport_help' || visible.has(t.name));
     },
   };
   filters.set(ctx, filter);
-  ctx.tools.guard(exec => (exec.name==='octoport_help' || (!helpOnly && (exec.name===activate || visible.has(exec.name))))
+  ctx.tools.guard(exec => (exec.name==='octoport_help' || (intent !== 'help' && (exec.name===activate || visible.has(exec.name))))
     ? undefined : 'Это действие закрыто для текущего шага.');
   const lastTurn = history.findLast(e => e.type === 'turn/end')?.data.turn;
   if (lastTurn !== undefined) {
@@ -116,11 +111,10 @@ export function installFilter(ctx, defineTool, restored = [], history = []) {
   ctx.tools.register(defineTool({
     name:activate, description:'Открой действие только для выполнения сейчас. '+menu,
     parameters:{action:{type:'string',required:true},query:{type:'string',required:true,
-      description:'Предмет и показатель'},reuse:{type:'boolean',description:'Тот же показатель за другой период'},offset:{type:'integer',description:'Страница'}},
+      description:'Показатель и единицы. Даты и магазины укажи при исполнении.'},reuse:{type:'boolean',description:'Тот же показатель за другой период'},offset:{type:'integer',description:'Страница'}},
     output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
     async execute({action,query,offset=0,reuse=false},exec) {
-      if (helpOnly) return JSON.stringify({error:'В этом ходе выбрана справка.'});
-      beganExecution = true;
+      if (intent === 'help') return JSON.stringify({error:'В этом ходе выбрана справка.'});
       if (!action) {
         if (!Number.isSafeInteger(offset) || offset<0) return JSON.stringify({error:'Неверная страница.'});
         const terms=query.toLocaleLowerCase().split(/\s+/u).filter(Boolean);
@@ -141,11 +135,15 @@ export function installFilter(ctx, defineTool, restored = [], history = []) {
         }
         const response=await provider.execute(args,exec);
         details=response.structuredContent?.result ?? response.content;
+        if (response.isError || details?.ok === false || details?.error)
+          return JSON.stringify({error: 'Описание действия недоступно.'});
       }
+      if (intent === 'help') return JSON.stringify({error:'В этом ходе выбрана справка.'});
+      intent = 'execute';
       selected.add(action);
       return JSON.stringify({opened:action,...(details===undefined?{}:{details})});
     },
   }));
   ctx.systemPrompt.section({name:'capability-filter',order:26,interpolate:false,
-    text:'План — справка. Пересказ — история. Для исполнения сейчас открывай действие.'});
+    text:'Данные сейчас — сразу octoport_use. Для их подготовки runNow=true. План — runNow=false. Пересказ — история.'});
 }

@@ -17,6 +17,8 @@ class Plugin:
     setup: tuple = ()
     # Published event sources that can initiate work without a user message.
     triggers: tuple = ()
+    # What the user can actually inspect in the plugin interface.
+    usage: str = ""
 
 
 WB = Plugin("wildberries", "analytics", "Вайлдберис",
@@ -30,7 +32,10 @@ OZON = Plugin("ozon", "analytics", "Озон",
 ILLUSTRATIONS = Plugin("illustrations","graphics","Иллюстрации","Создаёт изображения по описанию и прикрепляет их к сообщению.","images", (("Создать изображение", "", ""),), "картинка рисунок нарисуй фото")
 TELEGRAM = Plugin("telegram-reports", "documents", "Отчёты в Telegram",
                   "Доставляет готовый отчёт этого чата в ваш Telegram, когда получает событие о его создании.", "telegram", (("Доставить отчёт", "telegram", "Telegram"),), "телега телегу тг прислать отправить доставка мессенджер уведомляй",
-                  ("Включите плагин в нужном чате, откройте «Отчёты в Telegram» и нажмите «Получать новые отчёты этого чата».",))
+                  ("Включите плагин в нужном чате, откройте «Отчёты в Telegram» и нажмите «Получать новые отчёты этого чата».",),
+                  usage="Окно «Отчёты в Telegram» показывает состояние и «Последняя отправка» при наличии подтверждения. "
+                        "Статус unknown — исход попытки неизвестен. lastSent — последняя подтверждённая отправка. "
+                        "По конкретному отчёту проверьте личный чат с ботом. История отправок и уведомления о доставке в чате Октопорта отсутствуют.")
 CATALOG = {plugin.id: plugin for plugin in (WB, OZON, ILLUSTRATIONS, TELEGRAM)}
 CATEGORIES = (
     {"id": "analytics", "title": "Аналитика", "parent": None},

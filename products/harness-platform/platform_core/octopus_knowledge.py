@@ -1,6 +1,7 @@
 """Published product knowledge and account-level communication preferences."""
 from functools import lru_cache
 from dataclasses import asdict
+from datetime import datetime, timezone
 import json
 
 from starlette.exceptions import HTTPException
@@ -65,7 +66,8 @@ def _cards(key):
     for provider, entry in sorted(providers.items()):
         kinds = entry.get("access", ())
         cards.append(dict(id="integration/" + provider, title=entry["title"], group="Интеграции",
-            keywords=entry.get("keywords", ""), purpose="Подключение " + entry["title"],
+            keywords=entry.get("keywords", ""), **({"aliases": entry["aliases"]} if entry.get("aliases") else {}),
+            purpose="Подключение " + entry["title"],
             steps={k: guides[k] for k in kinds if k in guides}, screen="/app/#settings-integrations"))
     published_ids = {c["id"] for c in cards} | {"plugin/" + p["id"] for p in plugins}
     for p in sorted(plugins, key=lambda row: row["id"]):
@@ -76,7 +78,8 @@ def _cards(key):
             raise ValueError("Unpublished dependency in plugin " + p["id"])
         auto = p["provider"] in providers and providers[p["provider"]].get("fields") is not None
         cards.append(dict(id="plugin/" + p["id"], title=p["title"], group="Плагины", purpose=p["description"],
-            keywords=p["keywords"], operations=ops, triggers=p["triggers"], screen="/app/#settings-plugins",
+            keywords=p["keywords"], operations=ops, triggers=p["triggers"],
+            **({"usage": p["usage"]} if p["usage"] else {}), screen="/app/#settings-plugins",
             steps=list(p["setup"]) or ["Подключите магазин в настройках интеграций из нужного чата. Плагин площадки включится автоматически."
                    if auto else "Откройте «Настройки» → «Плагины», установите плагин и включите его в нужном чате."]))
     return cards
@@ -97,11 +100,36 @@ def snapshot(db, scope, rows, telegram):
         states.setdefault("integration/" + row["provider"], []).append(state)
     from .user_plugins.telegram_delivery import PLUGIN
     binding = "plugin/" + PLUGIN
-    if binding in states and telegram and telegram["linked"]:
-        row = db.execute("SELECT status FROM telegram_subscriptions WHERE workspace=? AND chat=?",
-                         (scope.workspace_id, scope.chat_id)).fetchone()
-        states[binding] = {"plugin": states[binding], "subscription": row[0] if row else "не включена"}
+    instructions = {}
+    replies = {}
     if telegram:
+        from .user_plugins.telegram_routes import delivery_state
+        delivery = delivery_state(db, scope.workspace_id, scope.chat_id, binding in states and telegram["linked"])
+        if delivery["lastSent"] is not None:
+            delivery["lastSent"] = datetime.fromtimestamp(delivery["lastSent"], timezone.utc).isoformat()
+        states[binding] = {"plugin": states.get(binding, "не установлен"), "subscribed": delivery["subscribed"]}
+        if delivery["status"]:
+            states[binding]["status"] = delivery["status"]
+        if delivery["lastSent"]:
+            states[binding]["lastSent"] = delivery["lastSent"]
+        if delivery["lastSent"] is None:
+            states[binding]["pastDeliveries"] = "Текущий экран не содержит истории. Возможны и ранее отправленные отчёты."
         states["integration/telegram"] = ("подключён" if telegram["linked"] else
             "можно подключить" if telegram["configured"] else "временно недоступен")
-    return {"cards": published(), "states": states, "style": preferences(db, scope.workspace_id)}
+        if telegram["linked"]:
+            instructions["integration/telegram"] = ["Telegram уже подключён к аккаунту. За доставку отвечают настройки плагина в выбранном чате."]
+        elif not telegram["configured"]:
+            instructions["integration/telegram"] = ["Кнопка подключения скрыта. Бота настраивает администратор Октопорта вне кабинета продавца."]
+            replies["integration/telegram"] = {"topic": "Как сейчас подключить Telegram или начать получать в нём отчёты?",
+                "text": "Сейчас подключить Telegram нельзя. Нужно обратиться к администратору Октопорта, чтобы он настроил бота. После этого в настройках интеграций появится кнопка «Подключить Telegram»."}
+        last = delivery["lastSent"]
+        when = (f"Последняя подтверждённая отправка из этого чата — {last[:10]} в {last[11:16]} UTC."
+                if last else "Сейчас в окне плагина нет времени последней отправки. По этому экрану нельзя определить, уходил ли отчёт раньше.")
+        last_try = {"unknown":"Результат последней попытки неизвестен. Повтор может прислать дубликат.",
+                    "rejected":"Telegram отклонил последнюю попытку.", "limited":"Telegram попросил подождать.",
+                    "sending":"Идёт отправка."}.get(delivery["status"], "")
+        replies[binding] = {"topic":"Как проверить, ушёл ли отчёт в Telegram, и что известно о прошлых отправках?",
+            "text":" ".join(filter(None, (when, last_try,
+                "В окне плагина «Отчёты в Telegram» есть строка «Последняя отправка», когда время подтверждено. Конкретный отчёт можно проверить в личном чате с ботом.")))}
+    return {"cards": published(), "states": states, "currentSteps": instructions, "replies": replies,
+            "style": preferences(db, scope.workspace_id)}

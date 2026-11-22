@@ -94,26 +94,40 @@ export function projectCompletedKnowledge(seed) {
 
 const words = text => new Set(text.toLocaleLowerCase('ru').replaceAll('ё','е')
   .match(/[а-яa-z0-9]+/g)?.filter(w => w.length > 1).map(w => w.slice(0, 5)) ?? []);
-const describe = card => [card.id, card.group, card.title, card.keywords, card.purpose, ...(card.triggers ?? []), ...Object.keys(Array.isArray(card.steps) ? {} : card.steps ?? {}),
-  ...(card.operations ?? []).flatMap(o => [o.task,o.access])].join(' ');
+function matchingCards(cards, query) {
+  const key = query.trim().toLowerCase();
+  const exact = cards.find(card => card.id.toLowerCase() === key);
+  if (exact) return [exact];
+  if (/^[\w-]+\/[\w.-]+$/u.test(key)) return [];
+  const terms = [...words(query)];
+  const rows = cards.map(card => {
+    // Names, operations and aliases describe the subject. Generic prose (e.g.
+    // "Подключение") should not pull unrelated setup guides into a named lookup.
+    const subject = words([card.id.split('/').at(-1), card.title, card.keywords, ...(card.aliases ?? []),
+      ...(card.triggers ?? []), ...(card.operations ?? []).flatMap(op => [op.task, op.access]),
+      ...Object.keys(Array.isArray(card.steps) ? {} : card.steps ?? {})].join(' '));
+    const prose = words(card.purpose+' '+card.group);
+    return {card, subject:terms.filter(word => subject.has(word)).length,
+      general:terms.filter(word => prose.has(word)).length};
+  });
+  const specific = rows.some(row => row.subject);
+  return rows.filter(row => !key || (specific ? row.subject : row.general))
+    .sort((a,b) => b.subject-a.subject || b.general-a.general || a.card.id.localeCompare(b.card.id))
+    .map(row => row.card);
+}
 
 export function lookup(knowledge, query, page = 1) {
   if (!Number.isSafeInteger(page) || page < 1) return {error:'Укажите номер страницы от 1.'};
-  const {cards, states} = knowledge;
+  const {cards, states, currentSteps = {}} = knowledge;
   const triggers = cards.flatMap(card => (card.triggers ?? []).map(event => ({event, plugin:card.id})));
   const automation = triggers.length ? {triggers:triggers.slice(0,16),total:triggers.length} : {triggers:[], status:'Запуск задач по событию или расписанию пока недоступен.'};
-  const terms = words(query);
-  const scored = cards.map(card => {
-    const vocabulary = words(describe(card));
-    const score = Number(query === card.id) * 100 + [...terms].filter(term => vocabulary.has(term)).length;
-    return {card, score};
-  }).filter(row => !query.trim() || row.score).sort((a,b) => b.score-a.score || a.card.id.localeCompare(b.card.id));
+  const scored = matchingCards(cards, query);
   const state = card => states[card.id] ?? (card.id.startsWith('integration/')?'не подключено':'не установлено');
   if (!query.trim()) {
-    const summaries = scored.slice((page-1)*16,page*16).map(({card}) => ({id:card.id,title:card.title,purpose:card.purpose,state:state(card)}));
+    const summaries = scored.slice((page-1)*16,page*16).map(card => ({id:card.id,title:card.title,purpose:card.purpose,state:state(card)}));
     return {automation,total:scored.length, nextPage:page*16<scored.length?page+1:null, cards:summaries};
   }
-  const rows = scored.slice((page-1)*5, page*5).map(r => r.card);
+  const rows = scored.slice((page-1)*5, page*5);
   const byId = new Map(cards.map(card=>[card.id,card]));
   const selected = new Set(rows);
   for (const card of selected) {
@@ -124,7 +138,16 @@ export function lookup(knowledge, query, page = 1) {
   if (!scored.length) return {automation,total:0,nextPage:null,cards:[],
     status:'Совпадений среди опубликованных возможностей нет. Уточни название через полный каталог.'};
   return {automation,total:scored.length, nextPage:page*5<scored.length?page+1:null,
-    cards:[...selected].map(({keywords,...card}) => ({...card,state:state(card)}))};
+    cards:[...selected].map(({keywords,...card}) => {
+      const current = state(card);
+      const detail = {...card,state:current};
+      if (currentSteps[card.id]) detail.steps = currentSteps[card.id];
+      else if (Array.isArray(current) && current.some(row => !row.attached)) {
+        detail.steps = {saved:'Для сохранённого магазина в этом чате откройте «Настройки» → «Интеграции» и включите «Доступ в этом диалоге». Ключи уже сохранены.',
+          newStoreOrNewAccess:card.steps};
+      }
+      return detail;
+    })};
 }
 
 export function directory(cards) {
@@ -133,23 +156,74 @@ export function directory(cards) {
   return titles.length <= 170 ? titles : [...new Set(cards.map(c => c.group))].sort().slice(0,12).join(', ').slice(0,170);
 }
 
-export async function registerKnowledge(ctx, load, knowledge) {
+// Only named product subjects can contribute a short current-state note. This
+// never selects an executable tool, expands setup instructions or reads a store.
+export function serviceNotes(knowledge, question) {
+  const terms = words(question);
+  if (!terms.size) return {notes:[], replies:{}};
+  const names = new Set();
+  for (const card of knowledge.cards) {
+    if (!card.id.startsWith('integration/')) continue;
+    const aliases = words([card.id.split('/').at(-1),card.title,...(card.aliases ?? [])].join(' '));
+    if ([...terms].some(t => aliases.has(t))) names.add(card.id);
+  }
+  const notes = [], replies = {};
+  for (const c of knowledge.cards) {
+    const named = names.has(c.id) || c.operations?.some(op => names.has(op.requires)) ||
+      question.toLowerCase().includes(c.title.toLowerCase()) ||
+      (c.usage && [...words(c.keywords ?? '')].some(term => terms.has(term)));
+    if (!named || (!c.usage && !knowledge.currentSteps?.[c.id])) continue;
+    const note = [c.title,JSON.stringify(knowledge.states[c.id] ?? 'не установлено'),
+      ...(knowledge.currentSteps?.[c.id] ?? []),c.usage].filter(Boolean).join(' · ');
+    if (notes.join(' ').length + note.length > 800) continue;
+    notes.push(note);
+    if (knowledge.replies?.[c.id]) replies[c.id] = knowledge.replies[c.id];
+  }
+  return {notes,replies};
+}
+
+export async function registerKnowledge(ctx, load, knowledge, question = '') {
   const {defineTool} = await load('dsh-tools');
   ctx.systemPrompt.section({name:'octopus',order:25,interpolate:false,
-    text:'Ты Октопус, осьминог Октопорта. Помогай вести магазины из одного места. Говори понятно от первого лица. Перед инструкцией вызови octoport_help: бери шаги, права, канал и запуск из карточек. Подтверждай выполненное.'});
+    text:'Ты Октопус, осьминог Октопорта. От первого лица помогай вести магазины. Инструкции и статус сверяй через octoport_help. Без подтверждения исход неизвестен. Соблюдай стиль до последней фразы.'});
   const {address,tone,detail} = knowledge.style;
   const hasTriggers = knowledge.cards.some(card => card.triggers?.length);
   ctx.systemPrompt.context({name:'octopus-settings',order:75,required:true,interpolate:false,
-    text:'Стиль: '+[address,tone,detail].join(', ')+'. Опубликовано: '+directory(knowledge.cards)+(hasTriggers ? '. Автозапуск: см. triggers.' : '. Автозапуск и напоминания недоступны.')});
+    text:'Стиль: '+[address+(address==='на вы'?' («напишите»)':' («напиши»)'),tone,detail].join(', ')+'. Опубликовано: '+directory(knowledge.cards)+(hasTriggers ? '. Автозапуск: см. triggers.' : '. Автозапуск и напоминания недоступны.')});
+  const {notes,replies} = serviceNotes(knowledge, question);
+  const topics = Object.entries(replies).map(([id,r]) => id+' — '+r.topic);
+  if (notes.length) ctx.systemPrompt.context({name:'product-status',order:76,required:true,interpolate:false,
+    text:notes.join('\n')});
+  if (topics.length) ctx.systemPrompt.section({name:'verified-help',order:82,interpolate:false,
+    text:'Если вопрос целиком относится к одной из тем, единственный ответ — вызов octoport_help с reply равным ID темы, runNow=false. Готовую справку покажет Октопорт. При другом или составном поручении работай обычно.\n'+topics.join('\n')});
   ctx.tools.register(defineTool({
-    name:'octoport_help',description:'Каталог, доступ, инструкции. Пустой запрос — список.',
-    parameters:{query:{type:'string',required:true},runNow:{type:'boolean',required:true,description:'Пользователь просит выполнить действие сейчас?'},page:{type:'integer'}},
+    name:'octoport_help',description:'Справка. Пустой запрос — список.',
+    parameters:{query:{type:'string',required:true},runNow:{type:'boolean',required:true,description:'Цель пользователя — получить данные или выполнить действие сейчас?'},page:{type:'integer'},
+      ...(topics.length ? {reply:{type:'string',required:true,enum:['other',...Object.keys(replies)],description:'Для вопроса по одной теме выбери её ID. Для остальных задач — other.'}} : {})},
     output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
-    execute:async ({query,page,runNow})=>{
+    execute:async ({query,page,runNow,reply})=>{
+      if (reply && !runNow && Object.hasOwn(replies,reply)) {
+        turnFilter(ctx)?.recordHelp(false);
+        return JSON.stringify({verifiedReply:reply});
+      }
       turnFilter(ctx)?.recordHelp(runNow);
       const details=lookup(knowledge,query,page);
       if (runNow) details.next='Для выполнения открой нужное действие через octoport_use.';
       return JSON.stringify(details);
     }
   }));
+}
+
+export function resolvedHelp(messages, replies) {
+  if (!replies) return;
+  const result = messages.at(-1), batch = messages.at(-2);
+  if (result?.role !== 'tool' || result.isError || batch?.role !== 'assistant') return;
+  const calls = batch.content.filter(b => b.type === 'tool-call');
+  if (calls.length !== 1 || calls[0].name !== 'octoport_help' || calls[0].id !== result.toolCallId) return;
+  try {
+    const args = JSON.parse(calls[0].arguments);
+    const record = JSON.parse(result.content.find(b => b.type === 'text').text);
+    if (args.runNow === false && args.reply === record.verifiedReply && Object.hasOwn(replies,args.reply))
+      return replies[args.reply].text;
+  } catch { /* Other calls proceed through the ordinary agent loop. */ }
 }

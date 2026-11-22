@@ -1,8 +1,8 @@
 import { turnFilter } from './capability-filter.mjs';
-import { projectCompletedKnowledge } from './octopus-knowledge.mjs';
+import { projectCompletedKnowledge, resolvedHelp } from './octopus-knowledge.mjs';
 
 /** Run the same native Session, Agent, tool executor and loop for both transports. */
-export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, provider, model, reasoningEffort, adapter, signal, progress, restore, capture }) {
+export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, provider, model, reasoningEffort, adapter, signal, progress, restore, capture, knowledge }) {
   const llm = await load('dsh-llm');
   // The worker supplies a fresh Context with sessions, tools and system prompt.
   for (const name of ['dsh-llm', 'dsh-session-projection', 'dsh-tool-executor-native', 'dsh-agent', 'dsh-agent-loop']) {
@@ -19,7 +19,9 @@ export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, 
       return {...call,stream:options=>{
         const gate=turnFilter(ctx);
         const tools=gate ? gate.project(options.tools) : options.tools;
-        const chunks=call.stream({...options,tools,messages:project(options.messages)});
+        const messages = project(options.messages);
+        const reply = resolvedHelp(messages, knowledge?.replies);
+        const chunks = reply ? localText(reply) : call.stream({...options,tools,messages});
         return progress ? observe(chunks) : chunks;
       }};
     };
@@ -82,4 +84,13 @@ export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, 
   } finally {
     unregister();
   }
+}
+
+// A successful explicit help selection already has the full user-facing answer.
+// The native agent records the same final text for streaming, history and retries.
+async function* localText(text) {
+  yield {type:'block-start',index:0,blockType:'text'};
+  yield {type:'text-delta',index:0,text};
+  yield {type:'block-end',index:0,block:{type:'text',text}};
+  yield {type:'finish',reason:{kind:'stop'}};
 }

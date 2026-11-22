@@ -45,6 +45,7 @@ PROVIDERS["ozon"].update(access=("Ozon Seller", "Ozon Performance"), keywords="�
 PROVIDERS["wb"].update(access=("Wildberries API",), keywords="вб вайлдберриз валберис магазин продажи реклама")
 PROVIDERS["wordstat"].update(access=("Яндекс Вордстат",), keywords="вордстат спрос частотность поиск")
 TELEGRAM = {"title": "Telegram", "auth": "telegram", "access": ("Telegram",),
+            "aliases": ("Телеграм", "телега", "телегу", "ТГ"),
             "keywords": "телега телеграм телегу тг сообщения доставка"}
 KEY_GUIDES.update({
     "Telegram": ["Откройте «Настройки» → «Интеграции» → Telegram.",

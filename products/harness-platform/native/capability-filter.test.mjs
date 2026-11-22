@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {activate,installFilter,turnFilter} from './capability-filter.mjs';
-import {projectCompletedKnowledge} from './octopus-knowledge.mjs';
+import {serviceNotes,resolvedHelp,lookup,projectCompletedKnowledge} from './octopus-knowledge.mjs';
 
 function fixture(restored,history) {
   // Unknown to the filter: the test registers a future module and a private schema provider.
@@ -124,4 +124,66 @@ test('looking up prerequisites for an immediate request keeps actions available'
   const restored=fixture([lookup]);
   turnFilter(restored.ctx).recordHelp(false);
   assert.ok(restored.project().includes(activate));
+});
+
+test('browsing or failing to open an action cannot commit an execution intent', async () => {
+  for (const action of ['', 'unknown']) {
+    const {ctx,defs,project} = fixture();
+    const args = {action,query:'тип'};
+    const result = await defs.get(activate).execute(args,{});
+    turnFilter(ctx).recordHelp(false);
+    assert.deepEqual(project(), ['octoport_help']);
+    const restored = fixture([
+      {type:'assistant/message',data:{message:{content:[{type:'tool-call',name:activate,id:'one',arguments:JSON.stringify(args)}]}}},
+      {type:'tool/result',data:{message:{toolCallId:'one',content:[{type:'text',text:result}]}}},
+      {type:'assistant/message',data:{message:{content:[{type:'tool-call',name:'octoport_help',arguments:'{"runNow":false}'}]}}}
+    ]);
+    assert.deepEqual(restored.project(), ['octoport_help']);
+    assert.ok(restored.ctx.guard({name:activate}));
+  }
+});
+
+test('exact ID, named search, prerequisites and account-specific instructions stay scoped', () => {
+  const cards = [
+    {id:'integration/clock',title:'Часы',purpose:'Подключение часов',group:'Интеграции',steps:{reading:['Ввести ключ.']}},
+    {id:'integration/lamp',title:'Лампа',purpose:'Подключение лампы',group:'Интеграции',steps:{light:['Ввести ключ света.']}},
+    {id:'plugin/watch',title:'Часы на столе',purpose:'Время',group:'Плагины',operations:[{requires:'integration/clock',access:'reading'}]},
+    {id:'plugin/art',title:'Иллюстрации',purpose:'Рисование',group:'Плагины'}
+  ];
+  const k = {cards,states:{'integration/clock':[{attached:false,access:['reading']}]}};
+  const ids = result => result.cards.map(c=>c.id).sort();
+  assert.deepEqual(ids(lookup(k,' PLUGIN/ART ')),['plugin/art']);
+  assert.deepEqual(ids(lookup(k,'plugin/missing')),[]);
+  assert.deepEqual(ids(lookup(k,'Часы подключение')),['integration/clock','plugin/watch']);
+  const selected = lookup(k,'plugin/watch');
+  assert.deepEqual(ids(selected),['integration/clock','plugin/watch']);
+  assert.match(selected.cards.find(c=>c.id==='integration/clock').steps.saved,/Доступ в этом диалоге/);
+  const restricted = lookup({...k,currentSteps:{'integration/clock':['Подключение приостановлено.']}},'integration/clock');
+  assert.deepEqual(restricted.cards[0].steps,['Подключение приостановлено.']);
+  assert.deepEqual(cards[0].steps,{reading:['Ввести ключ.']});
+  assert.equal(lookup(k,'').total,cards.length);
+});
+
+test('named service status is current on the first call without unrelated setup or execution details', () => {
+  const cards = [
+    {id:'integration/clock',title:'Clock',aliases:['Часы'],steps:{new:['SECRET_SETUP']}},
+    {id:'plugin/timer',title:'Таймер',usage:'Последняя сверка отражает подтверждение.',operations:[{requires:'integration/clock'}]}
+  ];
+  const k = {cards,states:{'plugin/timer':'нет записи'},currentSteps:{'integration/clock':['Сервис отключён.']}};
+  assert.deepEqual(serviceNotes(k,'Привет!'),{notes:[],replies:{}});
+  const note=serviceNotes(k,'Как подключить часы?').notes.join(' ');
+  assert.match(note,/Сервис отключён/);
+  assert.match(note,/нет записи/);
+  assert.doesNotMatch(note,/SECRET_SETUP/);
+});
+
+test('only the single selected read-only help topic can finish with server evidence', () => {
+  const call = {type:'tool-call',id:'1',name:'octoport_help',arguments:'{"reply":"clock","runNow":false}'};
+  const batch = {role:'assistant',content:[call]};
+  const result = {role:'tool',toolCallId:'1',content:[{type:'text',text:'{"verifiedReply":"clock"}'}]};
+  const replies = {clock:{text:'Текущее подтверждение'}};
+  assert.equal(resolvedHelp([batch,result],replies),replies.clock.text);
+  assert.equal(resolvedHelp([batch,{...result,isError:true}],replies),undefined);
+  assert.equal(resolvedHelp([{...batch,content:[call,call]},result],replies),undefined);
+  assert.equal(resolvedHelp([batch,result],{}),undefined);
 });
