@@ -267,6 +267,9 @@ def bind_ozon_tariff_page_totals(files):
 def bind_ozon_cohort_tariffs(files):
     normalizer = "parameter_support/economics_tariffs.py"
     patch_runtime(files, normalizer,
+        "  else:need(not next_cursor,'TARIFF_SOURCE_INCOMPLETE')\n",
+        "  else:need(not next_cursor or 'product_id' in filters,'TARIFF_SOURCE_INCOMPLETE')\n")
+    patch_runtime(files, normalizer,
         " need(len(prices)==total,'TARIFF_TOTAL_INCOMPLETE')\n",
         " need(len(prices)==total,'TARIFF_TOTAL_INCOMPLETE')\n"
         " if 'product_id' in filters:\n"

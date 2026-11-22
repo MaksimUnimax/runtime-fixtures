@@ -143,8 +143,8 @@ def step(worker, row, root, desc, packed, *, orders, authorize, save_progress, o
                 expected = set(params["filter"]["product_id"])
                 source.need(all(type(item) is dict for item in answer["items"]), "TARIFF_RESPONSE_SCHEMA")
                 quoted = [source.identifier(item.get("product_id")) for item in answer["items"]]
-                source.need(not answer["cursor"] and actual == len(quoted)
-                            and len(set(quoted)) == len(quoted), "TARIFF_SOURCE_INCOMPLETE")
+                source.need(actual == len(quoted) and len(set(quoted)) == len(quoted),
+                            "TARIFF_SOURCE_INCOMPLETE")
                 source.need(set(quoted) == expected, "TARIFF_QUOTE_OR_SKU_MISSING")
         except source.TariffError as error:
             raise runtime.Rejected(error.code) from None

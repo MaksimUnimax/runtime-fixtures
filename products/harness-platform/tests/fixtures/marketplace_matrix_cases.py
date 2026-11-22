@@ -649,7 +649,7 @@ class MarketplaceMatrix(unittest.TestCase):
 
         archived = {"items": [{"id": 2, "sku": 22, "is_archived": True}]}
         lookup = packet("seller_product_info_list", {"sku": ["22"]}, archived, "targeted-products")
-        price_payload = json.loads(page(2, "", "", {"total_items": 1})["body"])
+        price_payload = json.loads(page(2, "", "provider-returned-cursor", {"total_items": 1})["body"])
         prices = tariff_cohort.prices_request(tariff_cohort.product_ids(archived, ["22"]))
         filtered = packet("product_prices_bulk", prices, price_payload, "targeted-price")
 
