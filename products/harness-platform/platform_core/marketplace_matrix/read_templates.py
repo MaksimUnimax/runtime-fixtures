@@ -261,8 +261,12 @@ def supplemental_send(authority, store, card, route):
         try:
             if known_codes:
                 payload = strict_json(error.read(8192))
-                if isinstance(payload, dict) and isinstance(payload.get("code"), str):
-                    code = known_codes.get(payload["code"], code)
+                if isinstance(payload, dict):
+                    for field in ("code", "detail"):
+                        value = payload.get(field)
+                        if isinstance(value, str) and value in known_codes:
+                            code = known_codes[value]
+                            break
         except (Rejected, ValueError, OSError):
             pass
         finally:
