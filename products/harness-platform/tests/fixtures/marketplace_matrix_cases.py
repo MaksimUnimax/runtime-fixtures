@@ -1002,7 +1002,6 @@ class MarketplaceMatrix(unittest.TestCase):
     def test_wb_acquiring_details_require_report_from_that_stores_list(self):
         from platform_core.marketplace_matrix import read_templates
         from platform_core.marketplace_matrix.authority import ChatAuthority
-        from semantics import Rejected
 
         packet = {**self.packet, "connections": [self.ids["wb"]], "readTemplate": {
             "action": "read", "templateId": read_templates.WB_ACQUIRING_DETAIL,
@@ -1016,13 +1015,23 @@ class MarketplaceMatrix(unittest.TestCase):
             self.assertEqual(result["reasonSource"], "template")
             result = read_templates.execute(packet | {"readEvidence": {"revision": revision, "ids": ["858626798"]}}, self.root)
             self.assertEqual(result["reasonSource"], "template")
-            with self.assertRaises(Rejected):
-                read_templates.execute(packet | {"readEvidence": {"revision": revision, "ids": ids},
-                    "readTemplate": {**packet["readTemplate"], "templateId": "read.wb.finance_sales_detail_report"}}, self.root)
+            sales_packet = {**packet, "readTemplate": {**packet["readTemplate"],
+                                                        "templateId": read_templates.WB_SALES_DETAIL}}
+            result = read_templates.execute(sales_packet | {"readEvidence": {"revision": revision, "ids": ids}}, self.root)
+            self.assertFalse(result["ok"])
+            self.assertEqual(result["reasonSource"], "template")
+            sales_ids = list(read_templates.observed_sales_reports([{"reportId": 858626798}]))
+            self.assertEqual(len(sales_ids), 1)
+            result = read_templates.execute(sales_packet | {"readEvidence": {"revision": "stale", "ids": sales_ids}}, self.root)
+            self.assertFalse(result["ok"])
             outbound.assert_not_called()
             result = read_templates.execute(packet | {"readEvidence": {"revision": revision, "ids": ids}}, self.root)
             self.assertTrue(result["ok"], result)
             self.assertTrue(outbound.call_args.args[0].full_url.endswith("/acquiring/detailed/858626798"))
+            result = read_templates.execute(sales_packet | {"readEvidence": {"revision": revision, "ids": sales_ids}}, self.root)
+            self.assertTrue(result["ok"])
+            self.assertTrue(outbound.call_args.args[0].full_url.endswith("/sales-reports/detailed/858626798"))
+            self.assertEqual(result["salesDetailPreview"], [])
 
     def test_wb_files_require_list_proof_and_are_stored_only_in_requesting_chat(self):
         from base64 import b64encode

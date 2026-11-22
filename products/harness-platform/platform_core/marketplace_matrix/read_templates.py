@@ -50,6 +50,10 @@ POSTING_CANCELLATION_DETAILS = "read.seller.posting_fbs_cancellation_details"
 WB_ACQUIRING_LIST = "read.wb.finance_acquiring_reports"
 WB_ACQUIRING_DETAIL = "read.wb.finance_acquiring_detail_report"
 WB_ACQUIRING_REPORT_PREFIX = "wb-acquiring-report:"
+WB_SALES_PERIOD = "read.wb.finance_sales_detail_period"
+WB_SALES_DETAIL = "read.wb.finance_sales_detail_report"
+WB_SALES_REPORT_PREFIX = "wb-sales-report:"
+WB_REPORT_PREFIXES = {WB_ACQUIRING_DETAIL: WB_ACQUIRING_REPORT_PREFIX, WB_SALES_DETAIL: WB_SALES_REPORT_PREFIX}
 
 
 @lru_cache(maxsize=1)
@@ -110,14 +114,14 @@ def describe(card):
     return description
 
 
-def _identifier_params(params, acquiring_report_id=None):
+def _identifier_params(params, proven_report_id=None):
     """Pass only business identifiers to the existing provenance validator."""
     aliases = {"nm": "nmId", "orders": "orderIds", "adverts": "advertIds",
                "barcode": "barcodeId", "barcodes": "barcodeIds", "subject": "subjectId",
                "supply": "supplyId"}
     names = {"postingnumber", "postingnumbers", "orderuid", "cursor", "next"} | REPORT_KEYS
     if isinstance(params, list):
-        return [_identifier_params(item, acquiring_report_id) for item in params]
+        return [_identifier_params(item, proven_report_id) for item in params]
     if isinstance(params, dict):
         result = {}
         for k, v in params.items():
@@ -125,7 +129,7 @@ def _identifier_params(params, acquiring_report_id=None):
             if name == "limitbysku":
                 continue
             if name in REPORT_KEYS and v:
-                if name == "reportid" and str(v) == acquiring_report_id:
+                if name == "reportid" and str(v) == proven_report_id:
                     continue
                 from semantics import Rejected
                 raise Rejected("READ_FILE_PROVENANCE_REQUIRED")
@@ -133,7 +137,7 @@ def _identifier_params(params, acquiring_report_id=None):
                 key = aliases.get(name, name)
                 result[key] = [item.strip() for item in v.split(",")] if isinstance(v, str) and key.lower().endswith("ids") else v
             elif isinstance(v, (dict, list)):
-                result[k] = _identifier_params(v, acquiring_report_id)
+                result[k] = _identifier_params(v, proven_report_id)
         return result
     return params
 
@@ -152,11 +156,19 @@ def observed_ids(value, key=""):
         yield str(value)
 
 
-def observed_acquiring_reports(data):
+def _observed_wb_reports(data, prefix):
     if isinstance(data, list):
         for row in data:
             if isinstance(row, dict) and type(report_id := row.get("reportId")) is int and report_id > 0:
-                yield WB_ACQUIRING_REPORT_PREFIX + str(report_id)
+                yield prefix + str(report_id)
+
+
+def observed_acquiring_reports(data):
+    return _observed_wb_reports(data, WB_ACQUIRING_REPORT_PREFIX)
+
+
+def observed_sales_reports(data):
+    return _observed_wb_reports(data, WB_SALES_REPORT_PREFIX)
 
 
 def observed_performance_reports(template_id, data):
@@ -500,7 +512,7 @@ def _read_store(authority, store, card, params, directory, selected_proofs, turn
         total = data.get("total")
         if type(total) is int and total >= 0:
             result["totalProducts"] = total
-    if card["operation"] == "finance_sales_detail_period" and isinstance(data, list):
+    if card["operation"] in {"finance_sales_detail_period", "finance_sales_detail_report"} and isinstance(data, list):
         fields = ("sellerOperName", "quantity", "retailPrice", "currency")
         result["salesDetailPreview"], _, _ = _result_sample(
             [{key: item[key] for key in fields if key in item} for item in data[:5] if isinstance(item, dict)], {}
@@ -566,11 +578,12 @@ def execute(packet, directory):
                 lambda: ozon_report_file.read(authority, asdict(store), params, packet["turn"], observed), [])
             return {"ok": True, "templateId": card["id"], "http": receipt["status"],
                     "data": data, "responseGuide": card["responseGuide"]}
-        acquiring_report_id = None
-        if card["id"] == WB_ACQUIRING_DETAIL and isinstance(params.get("path"), dict):
+        proven_report_id = None
+        report_prefix = WB_REPORT_PREFIXES.get(card["id"])
+        if report_prefix and isinstance(params.get("path"), dict):
             candidate = str(params["path"].get("reportId"))
-            if WB_ACQUIRING_REPORT_PREFIX + candidate in observed:
-                acquiring_report_id = candidate
+            if report_prefix + candidate in observed:
+                proven_report_id = candidate
         is_report_file = card["operation"] == performance_report_file.OPERATION
         family = "statistics" if is_report_file else PERFORMANCE_REPORT_STATUSES.get(card["operation"])
         if family:
@@ -582,7 +595,7 @@ def execute(packet, directory):
             if is_report_file and performance_report_file.ready_proof(report_uuid) not in observed:
                 raise Rejected("PERFORMANCE_FILE_STATUS_REQUIRED")
         else:
-            identifier_provenance(_identifier_params(params, acquiring_report_id), packet["turn"]["question"],
+            identifier_provenance(_identifier_params(params, proven_report_id), packet["turn"]["question"],
                                   [{"data": observed}])
         proofs = configure_catalogue(SimpleNamespace(), {store.id: fields})
         try:

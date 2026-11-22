@@ -15,7 +15,8 @@ from ..catalog import Capability
 from . import campaign_inventory, ozon_report_file, performance_report_file, wb_documents
 from . import coefficient_templates as extensions
 from .read_templates import (
-    WB_ACQUIRING_LIST, observed_acquiring_reports, observed_ids, observed_performance_reports,
+    WB_ACQUIRING_LIST, WB_SALES_PERIOD, observed_acquiring_reports, observed_ids,
+    observed_performance_reports, observed_sales_reports,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -218,6 +219,7 @@ def run_read(scope, arguments):
                 known = set()
             data = result.get("data")
             observations = {WB_ACQUIRING_LIST: observed_acquiring_reports,
+                            WB_SALES_PERIOD: observed_sales_reports,
                             ozon_report_file.LIST: ozon_report_file.observed_reports,
                             wb_documents.LIST: wb_documents.observed_documents,
                             wb_documents.SUPPLY_DETAILS: wb_documents.observed_supply}.get(arguments["templateId"])
