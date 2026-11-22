@@ -107,7 +107,6 @@ class Service:
                 db.execute("UPDATE user_plugin_jobs SET state=?,message=? WHERE id=?",(status,message,jid))
         async def read(source,body):
             retry = None
-            number = 0
             while True:
                 guard()
                 provider,version,fields=self.state.integrations.open(token,cid)
@@ -115,15 +114,14 @@ class Service:
                     raise HTTPException(409,"Подключение изменилось.")
                 url = platform.sources()[source]
                 if retry:
-                    progress(retry.sending(number))
+                    progress(ozon_retry.SENDING_NOTICE)
                 resp=await self.state.http.post(url,headers=platform.headers(fields),json=body,timeout=55)
                 if resp.status_code!=429:
                     break
                 if plugin == OZON:
                     now_s = time.time()
-                    retry = ozon_retry.plan(url, store_currency.retry_time(resp.headers, now_s), now_s)
-                    number += 1
-                    progress(retry.waiting(number))
+                    retry = ozon_retry.plan(store_currency.retry_time(resp.headers, now_s), now_s)
+                    progress(retry.waiting())
                     delay = retry.due - now_s
                 else:
                     delay=retry_delay(resp.headers)

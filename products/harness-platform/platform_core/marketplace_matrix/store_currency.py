@@ -79,7 +79,6 @@ def profile_currency(authority, store):
 
     from . import ozon_retry
     previous = None
-    retries = 0
     market = "Wildberries" if store.platform == "wb" else "Ozon"
     prefix = store.platform.upper() + "_SELLER_PROFILE_"
     while True:
@@ -93,7 +92,7 @@ def profile_currency(authority, store):
         def dispatch():
             authority.check()
             if previous and authority.resume_rate_limits:
-                authority.ozon_notice(previous.sending(retries))
+                authority.ozon_notice(ozon_retry.SENDING_NOTICE)
         try:
             body, _ = read_response(req, timeout=min(10, max(.01, authority.deadline-time.time())),
                                     limit=256_000, on_dispatch=dispatch)
@@ -106,11 +105,10 @@ def profile_currency(authority, store):
             indicated = retry_time(error.headers, now, store.platform == "wb")
             error.close()
             if store.platform == "ozon":
-                previous = ozon_retry.plan(PROFILE_URL, indicated, now)
+                previous = ozon_retry.plan(indicated, now)
                 due = previous.due
-                retries += 1
                 if authority.resume_rate_limits:
-                    authority.ozon_notice(previous.waiting(retries))
+                    authority.ozon_notice(previous.waiting())
             else:
                 due = max(now + RATE_LIMIT_RETRY_SECONDS, indicated or 0)
             if authority.resume_rate_limits:
@@ -126,7 +124,7 @@ def profile_currency(authority, store):
                                 "reason": f"Не удалось проверить валюту кабинета {market}."}) from None
         authority.check()
         if previous and authority.resume_rate_limits:
-            authority.ozon_notice(f"Ozon принял повтор №{retries} ({previous.label}).")
+            authority.ozon_notice(ozon_retry.RECEIVED_NOTICE)
         try:
             payload = json.loads(body)
             code = payload["currency"] if store.platform == "wb" else payload["company"]["currency"]

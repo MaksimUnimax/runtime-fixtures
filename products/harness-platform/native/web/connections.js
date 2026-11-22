@@ -241,7 +241,7 @@ window.__ModuleLoader__.load({
           return ()=>a.activityEvents.removeEventListener('saved-images',update);
         },[sessionId]),()=>a.savedIllustrations.get(sessionId));
         const labels={sending:'Отправляю сообщение…',accepted:'Сообщение принято',model:'Модель готовит ответ',
-          thinking:'Модель обдумывает ответ',tool:'Модель запрашивает данные',model_wait:'Модель временно занята. Повторим запрос автоматически',marketplace_wait:'Ждём следующей разрешённой попытки',writing:'Модель отвечает…',failed:'Не удалось завершить запрос'};
+          thinking:'Модель обдумывает ответ',tool:'Запрашиваю данные',model_wait:'Модель временно занята. Повторим запрос автоматически',marketplace_wait:'Жду, когда можно будет повторить запрос',writing:'Модель отвечает…',failed:'Не удалось завершить запрос'};
         if(!view && !saved?.length)return null;
         return h('div',{className:'chat-access'},
           saved?.length>0 && h('section',{'aria-label':'Готовые иллюстрации'},

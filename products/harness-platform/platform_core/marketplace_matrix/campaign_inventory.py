@@ -122,7 +122,7 @@ def fetch(authority, store, operation, request, trace):
     def dispatch():
         authority.check()
         if retry and authority.resume_rate_limits:
-            authority.ozon_notice(retry.sending(attempt))
+            authority.ozon_notice(ozon_retry.SENDING_NOTICE)
     while True:
         authority.check()
         trace["operations"].append(receipt)
@@ -138,10 +138,10 @@ def fetch(authority, store, operation, request, trace):
                 error.close()
                 attempt += 1
                 if store.platform == "ozon":
-                    retry = ozon_retry.plan(request.full_url.partition("?")[0], indicated, now)
+                    retry = ozon_retry.plan(indicated, now)
                     due = retry.due
                     if authority.resume_rate_limits:
-                        authority.ozon_notice(retry.waiting(attempt))
+                        authority.ozon_notice(retry.waiting())
                 else:
                     due = max(now + RATE_LIMIT_RETRY_SECONDS, indicated or 0)
                     if attempt >= 4:
@@ -163,7 +163,7 @@ def fetch(authority, store, operation, request, trace):
                                  "reason": f"Рекламный API {market} вернул HTTP {status}."})
         authority.check()
         if retry and authority.resume_rate_limits:
-            authority.ozon_notice(f"Ozon принял повтор №{attempt} ({retry.label}).")
+            authority.ozon_notice(ozon_retry.RECEIVED_NOTICE)
         return json.loads(raw)
 
 
