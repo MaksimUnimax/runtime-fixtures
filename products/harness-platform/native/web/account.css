@@ -199,7 +199,7 @@ body[data-mode="guest"] .octo-workspace-list > :not([data-slot="sidebar.workspac
 .account-actions.octo-guest-actions {
   gap:5px;
   padding:12px 0 10px;
-  width:auto;
+  width:calc(100% - 20px);
   margin-inline:10px;
   border-top:1px solid var(--octo-line);
 }
