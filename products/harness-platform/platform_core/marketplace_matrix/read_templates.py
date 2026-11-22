@@ -361,6 +361,10 @@ def execute(packet, directory):
             return failure
         raise
     except CallError as error:
+        empty = card.get("emptyResponses", {}).get(str(error.status))
+        if empty is not None:
+            return {"ok": True, "templateId": card["id"], "http": error.status,
+                    "data": empty, "responseGuide": card["responseGuide"]}
         log_failure(card["operation"] or card["id"], error.code, error.retry_at)
         result = {"ok": False, "templateId": card["id"], "http": error.status}
         if failure := _template_failure(card, error.code, error.status):

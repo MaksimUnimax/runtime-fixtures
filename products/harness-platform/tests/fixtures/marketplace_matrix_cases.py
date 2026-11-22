@@ -726,6 +726,20 @@ class MarketplaceMatrix(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertNotIn("reason", result)
 
+    def test_read_template_treats_documented_wb_no_content_as_empty_report(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        packet = {**self.packet, "connections": [self.ids["wb"]], "readTemplate": {
+            "action": "read", "templateId": "read.wb.analytics_item_returns",
+            "params": {"query": {"dateFrom": "2026-11-20", "dateTo": "2026-11-21", "status": "archive",
+                                 "limit": 100, "offset": 0}},
+        }}
+        with patch("http_transport.read_response", return_value=(b"", 204)):
+            result = read_templates.execute(packet, self.root)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["http"], 204)
+        self.assertEqual(result["data"], {"count": 0, "report": []})
+
     def test_read_templates_uses_separate_performance_credential(self):
         from platform_core.marketplace_matrix import read_templates
 
