@@ -96,7 +96,8 @@ class CheckoutTests(unittest.TestCase):
             check = lambda: self.client.post(reconcile, data={"key": self.form["key"]}, headers=HEADERS)
             self.assertEqual(check().json()["status"], "pending")
             self.assertEqual(remote.call_count, 2)
-            event = {"object":{"id":pay_id,"metadata":{"order":order},"status":"succeeded"}}
+            event = {"type":"notification","event":"payment.succeeded",
+                     "object":{"id":pay_id,"metadata":{"order":order},"status":"succeeded"}}
             self.assertEqual(self.client.post("/api/coins/yookassa", json=event).status_code, 200)
             self.assertEqual(self.client.get("/api/wallet/balance").json()["available"], "10")
             state = "succeeded"
@@ -114,3 +115,58 @@ class CheckoutTests(unittest.TestCase):
                 store.create_account("other@example.org", "password")
             self.client.post("/login", data={"login":"other@example.org", "password":"password"}, headers=HEADERS)
             self.assertEqual(check().status_code, 404)
+
+
+    @patch("platform_core.checkout.merchant", return_value=("merchant", "fixture"))
+    def test_verified_full_refund_reverses_credits_and_replay_is_harmless(self, auth):
+        self.signin()
+        payment_id = str(uuid4())
+        refund_id = str(uuid4())
+        order_id = None
+        refunded = False
+        calls = []
+
+        async def provider(method, path, _auth, **kwargs):
+            nonlocal order_id
+            calls.append((method, path, kwargs.get("resource", "payments")))
+            if method == "POST":
+                order_id = kwargs["headers"]["Idempotence-Key"]
+            if kwargs.get("resource") == "refunds":
+                self.assertEqual(path, "/" + refund_id)
+                return {"id":refund_id, "payment_id":payment_id,
+                        "status":"succeeded", "amount":{"value":"3.60","currency":"RUB"}}
+            return {"id":payment_id, "amount":{"value":"3.60","currency":"RUB"},
+                    "refunded_amount":{"value":"3.60" if refunded else "0.00","currency":"RUB"},
+                    "test":False, "recipient":{"account_id":"merchant"},
+                    "metadata":{"order":order_id}, "status":"succeeded", "paid":True}
+
+        with patch("platform_core.checkout.provider", side_effect=provider):
+            self.assertEqual(self.post().json()["status"], "succeeded")
+            self.assertEqual(self.client.get("/api/wallet/balance").json()["available"], "13")
+            refund_notice = {"type":"notification", "event":"refund.succeeded",
+                             "object":{"id":refund_id, "payment_id":payment_id, "status":"succeeded"}}
+            # A malicious or stale refund notice is not trusted without a matching
+            # provider-side fully-refunded amount.
+            self.assertEqual(self.client.post("/api/coins/yookassa", json=refund_notice).status_code, 409)
+            self.assertEqual(self.client.get("/api/wallet/balance").json()["available"], "13")
+            refunded = True
+            for _ in range(2):
+                self.assertEqual(self.client.post("/api/coins/yookassa", json=refund_notice).status_code, 200)
+            self.assertEqual(self.client.get("/api/wallet/balance").json()["available"], "10")
+            with self.client.app.state.identity._lock:
+                db = self.client.app.state.identity._db
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM coin_refunds").fetchone()[0], 1)
+                self.assertEqual(db.execute("SELECT status FROM coin_checkouts").fetchone()[0], "refunded")
+            # A delayed success notification cannot restore revoked coins.
+            success_notice = {"type":"notification", "event":"payment.succeeded",
+                              "object":{"id":payment_id,"metadata":{"order":order_id}}}
+            self.assertEqual(self.client.post("/api/coins/yookassa", json=success_notice).status_code, 200)
+            self.assertEqual(self.client.get("/api/wallet/balance").json()["available"], "10")
+
+    @patch("platform_core.checkout.merchant", return_value=("merchant", "fixture"))
+    def test_live_pilot_is_admin_only_and_one_coin(self, auth):
+        self.signin()
+        with patch.dict(os.environ, {"YOOKASSA_PILOT_ONLY": "1"}):
+            self.assertFalse(self.client.get("/api/coins/quote?coins=3").json()["enabled"])
+            self.assertFalse(self.client.get("/api/coins/quote?coins=1").json()["enabled"])
+            self.assertEqual(self.post().status_code, 403)
