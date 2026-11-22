@@ -1,7 +1,7 @@
 """Read templates from the audited marketplace methods. Discovery is on demand."""
 from collections import Counter
 from dataclasses import asdict
-from datetime import datetime
+from datetime import date, datetime, time as day_time
 from decimal import Decimal
 from functools import lru_cache
 import json
@@ -244,8 +244,18 @@ def supplemental_send(authority, store, card, route):
         raw, status = read_response(request, timeout=25, limit=12000000, on_dispatch=authority.check)
     except HTTPError as error:
         due = retry_time(error.headers, time.time(), card["profile"] == "wb")
-        error.close()
-        raise CallError(f"HTTP_{error.code}", status=error.code, retry_at=due) from None
+        code = f"HTTP_{error.code}"
+        known_codes = card.get("providerErrorCodes", {}).get(str(error.code), {})
+        try:
+            if known_codes:
+                payload = strict_json(error.read(8192))
+                if isinstance(payload, dict) and isinstance(payload.get("code"), str):
+                    code = known_codes.get(payload["code"], code)
+        except (Rejected, ValueError, OSError):
+            pass
+        finally:
+            error.close()
+        raise CallError(code, status=error.code, retry_at=due) from None
     except (URLError, OSError):
         raise CallError("NETWORK_OUTCOME_UNKNOWN", unknown=True) from None
     if len(raw) > 12000000:
@@ -289,6 +299,20 @@ def _with_rate_retries(authority, platform, operation, dispatch, calls):
             else:
                 time.sleep(max(0, due - time.time()))
             retries += 1
+
+
+def _request_dates(card, params):
+    zone_name = card.get("requestDateZone")
+    query = params.get("query")
+    if not zone_name or not isinstance(query, dict):
+        return params
+    zone = ZoneInfo(zone_name)
+    query = dict(query)
+    for field, boundary in (("dateFrom", day_time.min), ("dateTo", day_time(23, 59, 59))):
+        value = query.get(field)
+        if isinstance(value, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+            query[field] = int(datetime.combine(date.fromisoformat(value), boundary, zone).timestamp())
+    return {**params, "query": query}
 
 
 def _pinned_request(store, card, params):
@@ -394,6 +418,10 @@ def execute(packet, directory):
         identifier_provenance(_identifier_params(params), packet["turn"]["question"],
                               [{"data": observed}])
         proofs = configure_catalogue(SimpleNamespace(), {store.id: fields})
+        try:
+            params = _request_dates(card, params)
+        except ValueError as error:
+            raise Rejected("INVALID_OPERATION_PARAMS") from error
         public, calls = _read_store(authority, store, card, params, directory, proofs)
     except Rejected as error:
         if failure := _template_failure(card, error.code):

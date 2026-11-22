@@ -756,6 +756,50 @@ class MarketplaceMatrix(unittest.TestCase):
                                                        "name": "Документ от 8 ноября"}])
         self.assertEqual(coverage, [])
 
+    def test_wb_questions_and_feedbacks_use_exact_calendar_boundaries(self):
+        from urllib.parse import parse_qs, urlsplit
+        from platform_core.marketplace_matrix import read_templates
+        from semantics import Rejected
+
+        def execute(name, params):
+            return read_templates.execute({**self.packet, "connections": [self.ids["wb"]],
+                                           "readTemplate": {"action": "read", "templateId": f"read.wb.{name}",
+                                                            "params": {"query": params}}}, self.root)
+
+        params = {"isAnswered": False, "take": 5, "skip": 0,
+                  "dateFrom": "2026-11-20", "dateTo": "2026-11-21"}
+        for name in ("questions_list", "feedbacks_list"):
+            with self.subTest(name=name), patch("http_transport.read_response", return_value=(b'{"data": {}}', 200)) as outbound:
+                self.assertTrue(execute(name, params)["ok"])
+                self.assertTrue(execute(name, {**params, "dateFrom": 1795122000, "dateTo": 1795294799})["ok"])
+                for call in outbound.call_args_list:
+                    query = parse_qs(urlsplit(call.args[0].full_url).query)
+                    self.assertEqual(query["dateFrom"], ["1795122000"])
+                    self.assertEqual(query["dateTo"], ["1795294799"])
+                with self.assertRaises(Rejected):
+                    execute(name, {**params, "dateFrom": "2026-02-30"})
+                self.assertEqual(outbound.call_count, 2)
+
+    def test_wb_shipping_points_explains_only_confirmed_date_error(self):
+        from io import BytesIO
+        from urllib.error import HTTPError
+        from platform_core.marketplace_matrix import read_templates
+
+        supply = "WB-GI-1234567"
+        packet = {**self.packet, "connections": [self.ids["wb"]],
+                  "turn": {**self.packet["turn"], "question": f"Куда отгрузить поставку {supply}?"},
+                  "readTemplate": {"action": "read",
+                                   "templateId": "read.wb.get_api_marketplace_v3_fbs_supplies_supplyid_shipping_points",
+                                   "params": {"path": {"supplyId": supply},
+                                              "query": {"city": "Москва", "officeType": "sc"}}}}
+        for payload, known in ((b'{"code":"ShippingDtRequired"}', True), (b'{"code":"Other"}', False)):
+            with self.subTest(known=known), patch("http_transport.read_response", side_effect=HTTPError(
+                    "https://marketplace-api.wildberries.ru/", 400, "Invalid request", {}, BytesIO(payload))):
+                result = read_templates.execute(packet, self.root)
+            self.assertEqual(result.get("reasonSource") == "template", known)
+            if known:
+                self.assertIn("плановую дату отгрузки", result["reason"])
+
     def test_read_template_reuses_confirmed_ids_only_for_the_same_store_and_turn(self):
         from platform_core.marketplace_matrix import plugin, read_templates
         from platform_core.marketplace_matrix.authority import ChatAuthority
