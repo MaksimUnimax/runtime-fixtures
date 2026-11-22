@@ -17,7 +17,7 @@ from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Route
 
 from . import coins
-from .browser_session import _form_fields, _redirect, browser_token
+from .browser_session import _form_fields, _form_pairs, _redirect, browser_token
 from .identity import AuthenticationError, _principal, _secret_digest
 from .native_web import HEADERS, UI
 
@@ -142,7 +142,9 @@ def render_user(user, filters):
     paid_rubles = format(user["rubles"], ".2f").replace(".", ",")
     target = statistics_url("/admin/statistics/remove", filters, account=user["actor"])
     remove = f'<a class="stats-remove" href="{escape(target, quote=True)}">Удалить</a>' if user["can_remove"] else "—"
-    return (f'<tr><th scope="row">{login}{role}</th>'
+    selected = (f'<input type="checkbox" name="account" value="{escape(user["actor"], quote=True)}" '
+                f'aria-label="Выбрать {escape(user["login"], quote=True)}">') if user["can_remove"] else "—"
+    return (f'<tr><td class="stats-check">{selected}</td><th scope="row">{login}{role}</th>'
             f'<td>{date_label(user["registered"])}</td><td>{date_label(user["last_at"])}</td>'
             f'<td>{duration(user["seconds"])}</td>'
             f'<td>{meters}</td><td>{spent:f}</td>'
@@ -174,7 +176,8 @@ def filters_from(request):
 
 
 def headers(filters):
-    cells = []
+    cells = ['<th scope="col" class="stats-check"><input type="checkbox" data-stats-select-all '
+             'aria-label="Выбрать все аккаунты на странице"></th>']
     for name, (label, _) in COLUMNS.items():
         active = name == filters["sort"]
         ascending = filters["dir"] == "asc"
@@ -192,7 +195,7 @@ def render_page(data, filters, *, status=200, message=""):
     query = filters["q"]
     path = "/admin/statistics"
     items = "".join(render_user(user, filters) for user in users) or (
-        f'<tr><td colspan="{len(COLUMNS)+1}">Пользователи не найдены.</td></tr>')
+        f'<tr><td colspan="{len(COLUMNS)+2}">Пользователи не найдены.</td></tr>')
 
     def page_link(number, label):
         url = statistics_url(path, filters, page=number)
@@ -212,6 +215,7 @@ def render_page(data, filters, *, status=200, message=""):
         rows=items, headers=headers(filters), pagination=nav, count=count_text,
         query=escape(query, quote=True), page_options=options, sort=filters["sort"],
         direction=filters["dir"], dashboard=escape(statistics_url(path, filters), quote=True),
+        batch=escape(statistics_url("/admin/statistics/remove-batch", filters), quote=True),
         bonus=coins.display(bonus), max_bonus=coins.display(coins.MAX_BALANCE),
         message=escape(message), message_role="alert" if status >= 400 else "status"),
         status_code=status, headers=HEADERS)
@@ -233,6 +237,8 @@ async def dashboard(request):
                 return _redirect(statistics_url("/admin/statistics",filters,saved=1))
         elif request.query_params.get("saved") == "1":
             message = "Стартовые монеты сохранены."
+        elif request.query_params.get("batch_removed", "") in {str(n) for n in range(1,PAGE_SIZES[-1]+1)}:
+            message = "Удалено аккаунтов: " + request.query_params["batch_removed"] + "."
         elif request.query_params.get("removed") == "1":
             message = "Запись пользователя удалена."
         data = await run_in_threadpool(partial(read_statistics, store, token, filters["q"].casefold(),
@@ -244,8 +250,7 @@ async def dashboard(request):
     return render_page(data, filters, status=status, message=message)
 
 
-def target_account(db, token, actor):
-    administrator = require_admin(db, token)
+def target_account(db, administrator, actor):
     row = db.execute("""SELECT a.login,a.workspace_id FROM identity_accounts a
         JOIN workspaces w ON w.workspace_id=a.workspace_id AND w.owner_id=a.actor_id
         WHERE a.actor_id=?""",(actor,)).fetchone()
@@ -258,44 +263,50 @@ def target_account(db, token, actor):
 
 def load_removal(store, token, actor):
     with store._lock:
-        login, _ = target_account(store._db, token, actor)
+        administrator = require_admin(store._db, token)
+        login, _ = target_account(store._db, administrator, actor)
         return login
 
 
 def purge_account(store, token, actor, confirmation):
     with store._write() as db:
-        login, workspace = target_account(db, token, actor)
+        administrator = require_admin(db, token)
+        login, workspace = target_account(db, administrator, actor)
         if confirmation.strip() != login:
             raise ValueError("Введённый логин не совпадает.")
-        tables = {name for name, in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        if db.execute("""SELECT 1 FROM usage_grants g JOIN usage_operations o USING(operation_id)
-                WHERE o.workspace_id=? AND g.expires_at>unixepoch() LIMIT 1""", (workspace,)).fetchone():
-            raise RuntimeError("У аккаунта выполняется запрос. Повторите после завершения.")
-        if "user_plugin_jobs" in tables and db.execute("""SELECT 1 FROM user_plugin_jobs j JOIN chats c
-                ON c.chat_id=j.chat WHERE c.workspace_id=? AND j.state='running' LIMIT 1""",
-                (workspace,)).fetchone():
-            raise RuntimeError("У аккаунта выполняется задача магазина.")
-        if db.execute("""SELECT 1 FROM coin_checkouts WHERE workspace_id=? AND status='pending' LIMIT 1""",
-                      (workspace,)).fetchone():
-            raise RuntimeError("У аккаунта есть незавершённое пополнение. Сначала завершите его сверку.")
-        if db.execute("""SELECT 1 FROM coin_attempts a JOIN coin_orders o USING(operation_id)
-                WHERE o.workspace_id=? AND a.charge IS NULL LIMIT 1""", (workspace,)).fetchone():
-            raise RuntimeError("Списание по одному из запросов ожидает сверки.")
-        # Removing chats also removes illustrations that reference model attempts.
-        # Delete the remaining non-cascading references in dependency order.
-        db.execute("DELETE FROM chats WHERE workspace_id=?", (workspace,))
-        db.execute("""DELETE FROM coin_attempts WHERE operation_id IN (
-                            SELECT operation_id FROM coin_orders WHERE workspace_id=?)""", (workspace,))
-        for table in ("operation_model_efforts", "operation_routes"):
-            if table in tables:
-                db.execute(f"""DELETE FROM {table} WHERE operation_id IN (
-                            SELECT operation_id FROM usage_operations WHERE workspace_id=?)""", (workspace,))
-        for table in ("coin_orders", "coin_checkouts", "coin_grants"):
-            db.execute(f"DELETE FROM {table} WHERE workspace_id=?", (workspace,))
-        for table in ("account_integrations", "model_choice_terms", "model_preferences"):
-            if table in tables:
-                db.execute(f"DELETE FROM {table} WHERE workspace=?", (workspace,))
-        db.execute("DELETE FROM workspaces WHERE workspace_id=? AND owner_id=?", (workspace, actor))
+        purge_workspace(db, actor, workspace)
+
+
+def purge_workspace(db, actor, workspace):
+    tables = {name for name, in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    if db.execute("""SELECT 1 FROM usage_grants g JOIN usage_operations o USING(operation_id)
+            WHERE o.workspace_id=? AND g.expires_at>unixepoch() LIMIT 1""", (workspace,)).fetchone():
+        raise RuntimeError("У аккаунта выполняется запрос. Повторите после завершения.")
+    if "user_plugin_jobs" in tables and db.execute("""SELECT 1 FROM user_plugin_jobs j JOIN chats c
+            ON c.chat_id=j.chat WHERE c.workspace_id=? AND j.state='running' LIMIT 1""",
+            (workspace,)).fetchone():
+        raise RuntimeError("У аккаунта выполняется задача магазина.")
+    if db.execute("""SELECT 1 FROM coin_checkouts WHERE workspace_id=? AND status='pending' LIMIT 1""",
+                  (workspace,)).fetchone():
+        raise RuntimeError("У аккаунта есть незавершённое пополнение. Сначала завершите его сверку.")
+    if db.execute("""SELECT 1 FROM coin_attempts a JOIN coin_orders o USING(operation_id)
+            WHERE o.workspace_id=? AND a.charge IS NULL LIMIT 1""", (workspace,)).fetchone():
+        raise RuntimeError("Списание по одному из запросов ожидает сверки.")
+    # Removing chats also removes illustrations that reference model attempts.
+    # Delete the remaining non-cascading references in dependency order.
+    db.execute("DELETE FROM chats WHERE workspace_id=?", (workspace,))
+    db.execute("""DELETE FROM coin_attempts WHERE operation_id IN (
+                        SELECT operation_id FROM coin_orders WHERE workspace_id=?)""", (workspace,))
+    for table in ("operation_model_efforts", "operation_routes"):
+        if table in tables:
+            db.execute(f"""DELETE FROM {table} WHERE operation_id IN (
+                        SELECT operation_id FROM usage_operations WHERE workspace_id=?)""", (workspace,))
+    for table in ("coin_orders", "coin_checkouts", "coin_grants"):
+        db.execute(f"DELETE FROM {table} WHERE workspace_id=?", (workspace,))
+    for table in ("account_integrations", "model_choice_terms", "model_preferences"):
+        if table in tables:
+            db.execute(f"DELETE FROM {table} WHERE workspace=?", (workspace,))
+    db.execute("DELETE FROM workspaces WHERE workspace_id=? AND owner_id=?", (workspace, actor))
 
 
 async def remove_account(request):
@@ -331,6 +342,83 @@ async def remove_account(request):
         action=escape(action, quote=True), message=escape(message)), status_code=status, headers=HEADERS)
 
 
+def batch_selection(pairs):
+    actors = []
+    fields = {}
+    for name, value in pairs:
+        if name == "account":
+            actors.append(value)
+        elif name in {"action", "confirmation"} and name not in fields:
+            fields[name] = value
+        else:
+            raise HTTPException(400,"Некорректная форма удаления.")
+    action = fields.get("action")
+    if action not in {"review","delete"} or (action == "delete") != ("confirmation" in fields):
+        raise HTTPException(400,"Некорректное действие.")
+    if not actors:
+        raise HTTPException(400,"Выберите аккаунты для удаления.")
+    if (len(actors) > PAGE_SIZES[-1] or len(set(actors)) != len(actors)
+            or any(not actor or len(actor) > 128 for actor in actors)):
+        raise HTTPException(400,"Некорректный список аккаунтов.")
+    return actors, fields
+
+
+def load_batch(store, token, actors):
+    with store._lock:
+        db = store._db
+        administrator = require_admin(db, token)
+        return [target_account(db, administrator, actor)[0] for actor in actors]
+
+
+def purge_batch(store, token, actors):
+    with store._write() as db:
+        administrator = require_admin(db, token)
+        targets = [target_account(db, administrator, actor) for actor in actors]
+        for actor, (login, workspace) in zip(actors, targets):
+            try:
+                purge_workspace(db, actor, workspace)
+            except RuntimeError as error:
+                raise RuntimeError(f"{login} — {error}") from error
+
+
+async def remove_batch(request):
+    token = browser_token(request)
+    store = request.app.state.identity
+    filters = filters_from(request)
+    actors, fields = batch_selection(await _form_pairs(
+        request, max_bytes=8192, max_fields=PAGE_SIZES[-1]+2))
+    message, status = "", 200
+    try:
+        logins = await run_in_threadpool(load_batch, store, token, actors)
+        if fields["action"] == "delete":
+            if fields["confirmation"].strip().casefold() != "удалить":
+                message, status = "Введите слово УДАЛИТЬ для подтверждения.", 400
+            else:
+                try:
+                    await run_in_threadpool(purge_batch, store, token, actors)
+                except RuntimeError as error:
+                    message, status = f"Удаление отменено. {error}", 409
+                except IntegrityError:
+                    message, status = "Удаление отменено. Связанные записи сохранены.", 409
+                else:
+                    return _redirect(statistics_url("/admin/statistics", filters, batch_removed=len(logins)))
+    except AuthenticationError:
+        raise
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from None
+    except PermissionError as error:
+        raise HTTPException(403, str(error)) from None
+
+    path = "/admin/statistics/remove-batch"
+    template = Template((UI / "admin-statistics-remove-batch.html").read_text())
+    inputs = "".join(f'<input type="hidden" name="account" value="{escape(actor, quote=True)}">' for actor in actors)
+    items = "".join(f"<li>{escape(login)}</li>" for login in logins)
+    return HTMLResponse(template.substitute(count=len(logins), accounts=items, inputs=inputs,
+        back=escape(statistics_url("/admin/statistics", filters), quote=True),
+        action=escape(statistics_url(path, filters), quote=True),
+        message=escape(message)), status_code=status, headers=HEADERS)
+
+
 async def public_bonus(request):
     store = request.app.state.identity
     return JSONResponse({"coins": await run_in_threadpool(store.public_signup_coins)})
@@ -357,6 +445,7 @@ def routes():
     return [
         Route("/admin/statistics", dashboard, methods=["GET", "POST"]),
         Route("/admin/statistics/remove", remove_account, methods=["GET", "POST"]),
+        Route("/admin/statistics/remove-batch", remove_batch, methods=["POST"]),
         Route("/api/signup-bonus", public_bonus),
         Route("/api/account/activity", activity, methods=["GET", "POST"]),
     ]

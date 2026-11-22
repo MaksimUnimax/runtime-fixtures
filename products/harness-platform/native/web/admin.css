@@ -34,7 +34,12 @@ p,output { margin:0; } output:empty { display:none; } output { color:#226345; } 
 :root[data-appearance=dark] .stats-message[role=alert] { color:#ffa9ae; }
 
 .stats-table thead a { color:inherit; text-decoration:underline; text-underline-offset:3px; }
-.stats-table td:nth-child(2),.stats-table td:nth-child(3) { white-space:nowrap; }
+.stats-table td:nth-child(3),.stats-table td:nth-child(4) { white-space:nowrap; }
 .stats-search .stats-page-size { flex-basis:145px; } .stats-confirm { margin-top:14px; }
 .stats-remove { color:inherit; text-underline-offset:3px; }
 .stats-danger { background:#a52831; color:white; border-color:#a52831; }
+
+.stats-batch-controls { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+.stats-check { width:45px; }
+.stats-check input[type=checkbox] { width:18px; min-height:18px; height:18px; margin:0; vertical-align:middle; }
+.stats-batch-controls button:disabled { opacity:.55; cursor:default; }

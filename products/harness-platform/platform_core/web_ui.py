@@ -113,7 +113,7 @@ async def project_asset(request):
         return asset_response(request, static_bytes(UI / name), "image/svg+xml")
     if name in {"octoport-mark.png", "octoport-icon.png"}:
         return FileResponse(UI / name, media_type="image/png")
-    if name not in {"theme.js", "checkout.js", "checkout.css", "bootstrap.js", "start.js", "connections.js","private-input.js", "account.js", "account.css", "appearance.css", "transport.js","live-turn.js", "admin.css", "admin.js", "presence.js"}:
+    if name not in {"theme.js", "checkout.js", "checkout.css", "bootstrap.js", "start.js", "connections.js","private-input.js", "account.js", "account.css", "appearance.css", "transport.js","live-turn.js", "admin.css", "admin.js", "presence.js", "admin-statistics.js"}:
         raise HTTPException(404)
     path = _PROJECT_UI / name
     if not path.is_file():

@@ -175,3 +175,50 @@ class Statistics(unittest.TestCase):
             self.assertFalse(db.execute("PRAGMA foreign_key_check").fetchall())
         self.use(self.user)
         self.assertEqual(self.client.get("/api/profile/security").status_code,401)
+
+    def test_batch_removal_reviews_targets_and_rolls_back_the_whole_selection(self):
+        self.store.create_account("batch-second", self.password)
+        self.store.create_account("outside-batch", self.password)
+        with self.store._write() as db:
+            first, second, outside, owner = [db.execute(
+                "SELECT actor_id,workspace_id FROM identity_accounts WHERE login=?", (login,)).fetchone()
+                for login in ("<old-account>","batch-second","outside-batch","administrator")]
+            db.execute("""INSERT INTO coin_checkouts(id,workspace_id,request_key,quantity,total,status)
+                          VALUES('bulk-pending',?,'request',1,'1.20','pending')""",(second[1],))
+        path = "/admin/statistics/remove-batch?limit=20&sort=time&dir=desc"
+        targets = [first[0],second[0]]
+        review = {"action":"review","account":targets}
+        confirmed = {"action":"delete","account":targets,"confirmation":"УДАЛИТЬ"}
+        self.assertEqual(self.post(path,review).status_code,401)
+        self.use(self.user)
+        self.assertEqual(self.post(path,review).status_code,403)
+        self.use(self.owner)
+        view = self.post(path,review)
+        self.assertEqual(view.status_code,200)
+        self.assertIn("<li>&lt;old-account&gt;</li>",view.text)
+        self.assertIn("<li>batch-second</li>",view.text)
+        self.assertNotIn("outside-batch",view.text)
+        self.assertEqual(self.post(path,{"action":"review"}).status_code,400)
+        self.assertEqual(self.post(path,{**review,"account":[first[0],first[0]]}).status_code,400)
+        self.assertEqual(self.post(path,{**confirmed,"account":[first[0],owner[0]]}).status_code,403)
+        self.assertEqual(self.post(path,confirmed,"https://other.test").status_code,403)
+        self.assertEqual(self.post(path,{**confirmed,"confirmation":"wrong"}).status_code,400)
+        failure = self.post(path,confirmed)
+        self.assertEqual(failure.status_code,409)
+        self.assertIn("batch-second",failure.text)
+        with self.store._write() as db:
+            for actor,_ in (first,second,outside,owner):
+                self.assertIsNotNone(db.execute("SELECT 1 FROM identity_accounts WHERE actor_id=?",(actor,)).fetchone())
+            self.assertIsNotNone(db.execute("SELECT 1 FROM coin_grants WHERE workspace_id=?",(first[1],)).fetchone())
+            db.execute("UPDATE coin_checkouts SET status='canceled' WHERE id='bulk-pending'")
+        self.assertEqual(self.post(path,{**confirmed,"account":[first[0],"stale-id"]}).status_code,404)
+        reply = self.post(path,confirmed)
+        self.assertEqual(reply.status_code,303)
+        self.assertIn("batch_removed=2",reply.headers["location"])
+        self.assertIn("limit=20",reply.headers["location"])
+        self.assertIn("sort=time",reply.headers["location"])
+        with self.store._lock:
+            db = self.store._db
+            self.assertEqual(set(db.execute("SELECT actor_id,workspace_id FROM identity_accounts")),{outside,owner})
+            self.assertFalse(db.execute("PRAGMA foreign_key_check").fetchall())
+        self.assertEqual(self.post(path,confirmed).status_code,404)

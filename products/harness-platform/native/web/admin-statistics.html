@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="/ui-assets/project/appearance.css">
 <link rel="stylesheet" href="/ui-assets/project/admin.css">
 <script defer src="/ui-assets/project/presence.js"></script>
+<script defer src="/ui-assets/project/admin-statistics.js"></script>
 </head>
 <body class="octo-admin octo-statistics">
 <main>
@@ -22,12 +23,16 @@
     <input type="hidden" name="sort" value="$sort"><input type="hidden" name="dir" value="$direction">
     <button type="submit">Показать</button>
   </form>
-  <div class="stats-table" tabindex="0" aria-label="Статистика по пользователям">
+  <form id="stats-batch" method="post" action="$batch">
+    <div class="stats-batch-controls"><button type="submit" name="action" value="review" class="stats-danger">Удалить выбранные</button>
+    <output aria-live="polite"></output></div>
+    <div class="stats-table" tabindex="0" aria-label="Статистика по пользователям">
     <table>
       <thead><tr>$headers</tr></thead>
       <tbody>$rows</tbody>
     </table>
-  </div>
+    </div>
+  </form>
   $pagination
   <p class="stats-hint">Активное время учитывается с запуска статистики. Фоновые вкладки и простой свыше минуты не учитываются.</p>
 </section>
