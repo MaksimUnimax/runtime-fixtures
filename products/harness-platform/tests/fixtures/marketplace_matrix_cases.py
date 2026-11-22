@@ -928,6 +928,7 @@ class MarketplaceMatrix(unittest.TestCase):
             self.assertEqual(source.get_header("Api-key"), "fixture-ozon")
             self.assertFalse(file.headers)
             self.assertNotIn(report["file"], json.dumps(result))
+            self.assertEqual(result["data"]["expires_at"], "2100-01-01T03:00:00+03:00")
             self.assertEqual(_read(journal, self.scope, result["data"]["file"]["attachmentId"]), ("Ozon_report.pdf", pdf))
         report["file"] = "https://example.com/reports/report.pdf"
         with patch("http_transport.read_response", return_value=metadata()) as outbound:

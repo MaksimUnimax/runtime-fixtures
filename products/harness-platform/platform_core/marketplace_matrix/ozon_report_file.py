@@ -10,6 +10,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request
 from zipfile import is_zipfile
+from zoneinfo import ZoneInfo
 
 from starlette.exceptions import HTTPException
 
@@ -21,6 +22,7 @@ from .store_currency import retry_time
 LIST = "read.seller.report_list"
 INFO = "read.seller.report_info"
 REPORT_CODE = re.compile(r"[A-Za-z0-9_:-]{1,160}", re.ASCII)
+MOSCOW = ZoneInfo("Europe/Moscow")
 
 
 def proof(code):
@@ -78,6 +80,12 @@ def read(authority, store, params, turn, observed):
             raise ValueError("Unexpected report")
         data = {key: report[key] for key in ("report_type", "status", "created_at", "expires_at")
                 if isinstance(report.get(key), str)}
+        for key in ("created_at", "expires_at"):
+            if key in data and data[key]:
+                instant = datetime.fromisoformat(data[key])
+                if instant.tzinfo is None:
+                    raise ValueError("Unknown report time zone")
+                data[key] = instant.astimezone(MOSCOW).isoformat(timespec="seconds")
     except (AttributeError, KeyError, TypeError, ValueError, Rejected):
         raise CallError("OZON_REPORT_INVALID", status=status) from None
     if download:
