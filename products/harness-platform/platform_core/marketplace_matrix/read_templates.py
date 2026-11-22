@@ -609,7 +609,12 @@ def execute(packet, directory):
             if is_report_file and performance_report_file.ready_proof(report_uuid) not in observed:
                 raise Rejected("PERFORMANCE_FILE_STATUS_REQUIRED")
         else:
-            identifier_provenance(_identifier_params(params, proven_report_id), packet["turn"]["question"],
+            identifiers = params
+            if (card["operation"] == "performance_min_bid_by_sku"
+                    and params.get("marketplaceId") in ("MARKETPLACE_ID_RU", "MARKETPLACE_ID_KZ", "MARKETPLACE_ID_BY")):
+                # A storefront code is a documented option, separate from the SKU being read.
+                identifiers = {key: value for key, value in params.items() if key != "marketplaceId"}
+            identifier_provenance(_identifier_params(identifiers, proven_report_id), packet["turn"]["question"],
                                   [{"data": observed}])
         proofs = configure_catalogue(SimpleNamespace(), {store.id: fields})
         try:

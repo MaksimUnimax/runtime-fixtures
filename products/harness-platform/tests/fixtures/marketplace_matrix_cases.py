@@ -1268,6 +1268,41 @@ class MarketplaceMatrix(unittest.TestCase):
         self.assertTrue(result["ok"], result)
         self.assertEqual(result["data"]["list"], [{"id":"123456789"}])
 
+    def test_performance_min_bid_accepts_storefront_and_requires_the_sku(self):
+        from platform_core.marketplace_matrix import read_templates
+        from semantics import Rejected
+
+        token = self.identity.login("matrix-seller", "fixture-password")
+        connection = IntegrationStore(self.identity).save(
+            token, "ozon", "Реклама", {"performance_id": "fixture-id", "performance_secret": "fixture-secret"},
+            chatId=self.scope.chat_id,
+        )["id"]
+        self.turn["question"] = "Покажи рекламную ставку для SKU 2184234912 на российской витрине."
+        params = {"sku": ["2184234912"], "marketplaceId": "MARKETPLACE_ID_RU", "paymentType": "CPO"}
+
+        def execute(parameters):
+            return read_templates.execute({**self.packet, "connections": [connection], "readTemplate": {
+                "action": "read", "templateId": "read.performance.performance_min_bid_by_sku",
+                "params": parameters,
+            }}, self.root)
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            if request.full_url == "https://api-performance.ozon.ru/api/client/token":
+                return b'{"access_token":"fixture-performance-access","expires_in":1800}', 200
+            self.assertEqual(request.full_url, "https://api-performance.ozon.ru/api/client/min/sku")
+            self.assertEqual(json.loads(request.data), params)
+            self.assertEqual(request.get_header("Authorization"), "Bearer fixture-performance-access")
+            return b'{"minBids":[{"sku":"2184234912","bid":0.28}]}', 200
+
+        with patch("http_transport.read_response", side_effect=fake_read) as transport:
+            with self.assertRaises(Rejected) as caught:
+                execute({**params, "sku": ["2184234913"]})
+            self.assertEqual(caught.exception.code, "READ_IDENTIFIER_NOT_PROVEN")
+            transport.assert_not_called()
+            self.assertTrue(execute(params)["ok"])
+            self.assertEqual(transport.call_count, 2)
+
     def test_prepared_performance_report_lists_only_use_their_scoped_get_routes(self):
         from urllib.parse import parse_qs, urlsplit
         from platform_core.marketplace_matrix import read_templates
