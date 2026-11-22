@@ -10,6 +10,11 @@ from ..chat_attachments import MAX_FILE_BYTES, save_marketplace_document
 from ..storage import Scope
 
 OPERATION = "performance_statistics_report_download"
+FILE_NAMES = {
+    OPERATION: "Ozon_Performance",
+    "performance_media_csv": "Ozon_Media_Campaigns",
+    "performance_campaign_product_csv": "Ozon_CPC_Campaigns",
+}
 FORMATS = {"application/json": "json", "text/csv": "csv", "application/zip": "zip"}
 
 
@@ -26,7 +31,7 @@ def attachment_journal(turn):
     return Path(value)
 
 
-def receive(authority, journal, request_id, dispatch):
+def receive(authority, journal, request_id, operation, dispatch):
     from engine import CallError
     from report_archive import DOCUMENT_SINK
     from semantics import Rejected, strict_json
@@ -72,7 +77,7 @@ def receive(authority, journal, request_id, dispatch):
     pins = authority.pins
     scope = Scope(pins["actor_id"], pins["tenant_id"], pins["chat_id"])
     try:
-        file = save_marketplace_document(journal, scope, request_id, "Ozon_Performance." + extension,
+        file = save_marketplace_document(journal, scope, request_id, FILE_NAMES[operation] + "." + extension,
                                          body, authority.check)
     except HTTPException as error:
         raise CallError("PERFORMANCE_FILE_STORAGE_LIMIT", status=status) from error

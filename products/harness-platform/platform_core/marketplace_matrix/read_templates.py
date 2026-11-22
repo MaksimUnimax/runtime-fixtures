@@ -374,7 +374,7 @@ def _pinned_request(store, card, params):
     platform = store["platform"]
     operation = card["operation"]
     meta = read_surface.method(platform, operation)
-    is_report_file = card["profile"] == "performance" and card["http"] == "GET" and operation == performance_report_file.OPERATION
+    is_report_file = card["profile"] == "performance" and card["http"] == "GET" and operation in performance_report_file.FILE_NAMES
     is_existing_report_read = (
         card["profile"] == "performance" and card["http"] == "GET"
         and (operation in PERFORMANCE_REPORT_LISTS or operation in PERFORMANCE_REPORT_STATUSES or is_report_file)
@@ -423,13 +423,15 @@ def _read_store(authority, store, card, params, directory, selected_proofs, turn
                                           lambda: transport.execute(target, store, on_dispatch=authority.check),
                                           calls)
 
+            operation = card["operation"]
             journal = (performance_report_file.attachment_journal(turn)
-                       if card["operation"] == performance_report_file.OPERATION else None)
+                       if operation in performance_report_file.FILE_NAMES else None)
             authentication = transport.prepare(request, store)
             if authentication:
                 send(authentication)
             if journal is not None:
-                data, receipt = performance_report_file.receive(authority, journal, turn["requestId"], lambda: send(request))
+                data, receipt = performance_report_file.receive(authority, journal, turn["requestId"], operation,
+                                                              lambda: send(request))
                 return {"ok": True, "data": data, "http": receipt["status"],
                         "responseGuide": card["responseGuide"]}, calls
             data, receipt = send(request)
