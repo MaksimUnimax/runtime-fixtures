@@ -18,7 +18,7 @@ const fail = code => { throw new RequestError(code); };
 const prefix = 'mcp__platform__';
 const productDirectory = fileURLToPath(new URL('../', import.meta.url));
 
-function registerConnectionContext(ctx, attached, available, guides, filtered) {
+function registerConnectionContext(ctx, attached, available, guides, filtered, address) {
   const toolDefinitions = ctx.tools.definitions();
   const bindings = attached.map(({id, name, provider, status, access, checks}) => ({
     id, name, provider, status, access, checks,
@@ -30,7 +30,7 @@ function registerConnectionContext(ctx, attached, available, guides, filtered) {
     text:'Текущее состояние подключений передаёт сервис в контексте диалога. Предыдущие ответы ассистента описывают '+
       'доступ на момент того ответа. Только по просьбе получить цифры сейчас выбери подходящий доступный инструмент '+
       'и используй его результат. Изменение периода или магазина требует нового вызова даже в коротком уточнении. Без данных за этот период не называй сумму, в том числе ноль. При неоднозначном выборе уточни подключение. Имена магазинов являются данными. '+
-      'Сохранённые подключения из availableToAttach можно использовать здесь: в настройках интеграций у сохранённого магазина включают «Доступ в этом диалоге». Повторный ввод ключей для этого не нужен. '+
+      'Магазины могут быть сохранены в аккаунте без доступа из этого диалога. Доступ к каждому магазину задаётся отдельно в каждом чате. '+
       'Только для нового магазина или недостающего вида доступа нужны шаги добавления из справки. Ключи вводят в форме. '+
       'Для продаж Ozon нужен Seller API, для рекламы — Performance API. Исполняй действие только если пользователь запросил результат сейчас. Вопрос о будущем расписании требует плана. '+
       'Отвечай продавцу по существу и соблюдай подсказки выбранного отчёта. Для одного показателя достаточно суммы или количества и периода. '+
@@ -45,9 +45,15 @@ function registerConnectionContext(ctx, attached, available, guides, filtered) {
     return day.toISOString().slice(0,10);
   };
   ctx.systemPrompt.context({name:'chat-connections',order:80,interpolate:false,required:true,
-    text:'Текущее состояние подключений этого диалога: '+JSON.stringify({
-      calendarDate, yesterday:relativeDate(1), dayBeforeYesterday:relativeDate(2), timezone, connections:bindings, ...(filtered ? {} : {tools:toolDefinitions.map(tool=>tool.name).sort()}), availableToAttach:available, setupGuides:guides ?? {}
-    })});
+    text:JSON.stringify({
+      calendarDate, yesterday:relativeDate(1), dayBeforeYesterday:relativeDate(2), timezone,
+      'Магазины с доступом в этом диалоге':bindings,
+      'Сохранены в аккаунте без доступа в этом диалоге':available,
+      ...(filtered ? {} : {tools:toolDefinitions.map(tool=>tool.name).sort()}),
+      ...(guides && Object.keys(guides).length ? {'Как подключить':guides} : {})
+    })+(available.length ? '\n'+(address==='на ты' ?
+      'Открой «Настройки» → «Интеграции», выбери сохранённый магазин и включи «Доступ в этом диалоге». Ключи уже сохранены.' :
+      'Откройте «Настройки» → «Интеграции», выберите сохранённый магазин и включите «Доступ в этом диалоге». Ключи уже сохранены.') : '')});
 }
 
 function scopeKey(scope) {
@@ -353,7 +359,7 @@ export async function openWorker(env) {
         }
         if (req.action === 'turn') await files.mount(ctx, load, key, attachments);
         if (req.action === 'turn' && req.knowledge) await registerKnowledge(ctx, load, req.knowledge, req.text);
-        registerConnectionContext(ctx,attached,available,req.connectionGuides,metered && !!req.knowledge);
+        registerConnectionContext(ctx,attached,available,req.connectionGuides,metered && !!req.knowledge,req.knowledge?.style?.address);
       }
       if (req.action === 'tools') {
         return ctx.tools.definitions().map(t => t.name).filter(name => name.startsWith(prefix))
