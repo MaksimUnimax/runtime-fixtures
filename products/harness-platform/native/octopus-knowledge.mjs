@@ -1,3 +1,5 @@
+import {turnFilter} from './capability-filter.mjs';
+
 const reportTools = new Set(['mcp__platform__find_marketplace_reports', 'mcp__platform__marketplace_report', 'octoport_help', 'octoport_use']);
 
 // Apply this projection at dispatch only. Historical journal sequence numbers,
@@ -143,6 +145,9 @@ export async function registerKnowledge(ctx, load, knowledge) {
     name:'octoport_help',description:'Возможности, зависимости, доступ и подключение. Пустой запрос перечисляет каталог.',
     parameters:{query:{type:'string',required:true},page:{type:'integer',description:'Номер страницы от 1'}},
     output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
-    execute:async ({query,page})=>JSON.stringify(lookup(knowledge,query,page))
+    execute:async ({query,page})=>{
+      turnFilter(ctx)?.recordHelp();
+      return JSON.stringify(lookup(knowledge,query,page));
+    }
   }));
 }

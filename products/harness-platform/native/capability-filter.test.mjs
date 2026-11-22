@@ -99,3 +99,18 @@ test('the user request follows the latest runtime context on both transports',()
   const assistant={role:'assistant',content:[]};
   assert.deepEqual(projectCompletedKnowledge([])([user,context,assistant]),[context,user,assistant]);
 });
+
+test('help-first turns keep all action contracts closed, including after recovery', async()=>{
+  const {ctx,name,defs,project}=fixture();
+  turnFilter(ctx).recordHelp();
+  assert.deepEqual(project(),['octoport_help']);
+  assert.ok(ctx.guard({name:activate}));
+  const result=JSON.parse(await defs.get(activate).execute({action:name,query:'учебный пример'},{}));
+  assert.ok(result.error);
+  const help={type:'assistant/message',data:{message:{content:[{type:'tool-call',name:'octoport_help'}]}}};
+  assert.deepEqual(fixture([help]).project(),['octoport_help']);
+  const mixed=fixture();
+  await mixed.defs.get(activate).execute({action:name,query:'данные сейчас'},{});
+  turnFilter(mixed.ctx).recordHelp();
+  assert.ok(mixed.project().includes(name));
+});

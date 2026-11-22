@@ -63,15 +63,25 @@ export function installFilter(ctx, defineTool, restored = [], history = []) {
       if (available.has(record.opened)) selected.add(record.opened);
     } catch { /* An unsuccessful activation grants nothing. */ }
   }
+  let helpOnly = false;
+  for (const event of restored) {
+    if (event.type !== 'assistant/message') continue;
+    const choice = event.data.message.content.find(b => b.type === 'tool-call' &&
+      (b.name === 'octoport_help' || b.name === activate));
+    if (choice) { helpOnly = choice.name === 'octoport_help'; break; }
+  }
+  let beganExecution = selected.size > 0;
   let visible = new Set();
   const filter = {
+    recordHelp() { if (!beganExecution) helpOnly = true; },
     project(tools) {
+      if (helpOnly) return tools?.filter(t => t.name === 'octoport_help');
       visible = new Set(selected);
       return tools?.filter(t => t.name===activate || t.name==='octoport_help' || visible.has(t.name));
     },
   };
   filters.set(ctx, filter);
-  ctx.tools.guard(exec => (exec.name===activate || exec.name==='octoport_help' || visible.has(exec.name))
+  ctx.tools.guard(exec => (exec.name==='octoport_help' || (!helpOnly && (exec.name===activate || visible.has(exec.name))))
     ? undefined : 'Это действие закрыто для текущего шага.');
   const lastTurn = history.findLast(e => e.type === 'turn/end')?.data.turn;
   if (lastTurn !== undefined) {
@@ -96,6 +106,8 @@ export function installFilter(ctx, defineTool, restored = [], history = []) {
       description:'Предмет действия и показатель из беседы'},reuse:{type:'boolean',description:'Тот же показатель за другой период'},offset:{type:'integer',description:'Следующая страница при необходимости'}},
     output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
     async execute({action,query,offset=0,reuse=false},exec) {
+      if (helpOnly) return JSON.stringify({error:'В этом ходе выбрана справка.'});
+      beganExecution = true;
       if (!action) {
         if (!Number.isSafeInteger(offset) || offset<0) return JSON.stringify({error:'Неверная страница.'});
         const terms=query.toLocaleLowerCase().split(/\s+/u).filter(Boolean);
@@ -122,5 +134,5 @@ export function installFilter(ctx, defineTool, restored = [], history = []) {
     },
   }));
   ctx.systemPrompt.section({name:'capability-filter',order:26,interpolate:false,
-    text:'План — octoport_help, пересказ — из истории, выполнить сейчас — сразу открой действие. В смешанной задаче выполни обе части.'});
+    text:'Справка или план — только octoport_help. Пересказ — из истории. Для данных сейчас, в том числе в смешанной задаче, начни с octoport_use.'});
 }
