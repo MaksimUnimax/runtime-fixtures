@@ -25,6 +25,7 @@ from .admin_costs import AdminCosts, present_chat
 from .user_plugins import service as user_plugins, illustrations, telegram_routes
 from .browser_session import browser_routes, browser_token
 from .chat_worker import ChatWorker, WorkerError
+from .user_plugins.timer.routes import routes as timer_routes
 from .user_plugins.telegram_delivery import Delivery as TelegramReports
 from . import integrations, provider_keys, chat_connections, chat_defaults, turn_progress, chat_attachments, telegram_integration
 from .identity import AuthenticationError, ChatUnavailable, _secret_digest
@@ -302,6 +303,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         *chat_connections.routes(_token,_body),
         *telegram_integration.routes(_body),
         *telegram_routes.routes(_body),
+        *timer_routes(_token, _body),
         *user_plugins.routes(_token,_body),
         *illustrations.routes(_token),
         *integrations.routes(_token, _body),
