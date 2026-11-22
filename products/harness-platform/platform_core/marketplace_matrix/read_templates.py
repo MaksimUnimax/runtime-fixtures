@@ -1,6 +1,7 @@
 """Read templates from the audited marketplace methods. Discovery is on demand."""
 from collections import Counter
 from dataclasses import asdict
+from datetime import datetime
 from decimal import Decimal
 from functools import lru_cache
 import json
@@ -11,6 +12,7 @@ import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urlsplit
 from urllib.request import Request
+from zoneinfo import ZoneInfo
 
 CREDENTIALS = {
     "seller": {"seller_client_id", "seller_api_key"},
@@ -105,13 +107,14 @@ def _identifier_params(params):
     return params
 
 
-def _result_sample(value, row_limits):
+def _result_sample(value, row_limits, time_zones=None):
     """Give the model a bounded sample with explicit coverage on every list."""
     omitted = Counter()
     coverage = []
     remaining = 280
     dropped = re.compile(r"link|url|uri|token|secret|authorization|phone|address|recipient|contact|chat_content", re.I)
     signed_url = re.compile(r"https?://\S+[?&](?:signature|token|x-amz-|expires|key)\b", re.I)
+    zones = {path: ZoneInfo(zone) for path, zone in (time_zones or {}).items()}
 
     def sample(obj, depth=0, path="$"):
         nonlocal remaining
@@ -145,6 +148,15 @@ def _result_sample(value, row_limits):
         if isinstance(obj, str) and (len(obj) > 1000 or signed_url.search(obj)):
             omitted["fields"] += 1
             return None
+        if isinstance(obj, str) and zones:
+            zone = zones.get(re.sub(r"\[\d+\]", "[]", path))
+            if zone is not None:
+                try:
+                    instant = datetime.fromisoformat(obj)
+                except ValueError:
+                    return obj
+                if instant.tzinfo is not None:
+                    return instant.astimezone(zone).isoformat()
         return str(obj) if isinstance(obj, Decimal) else obj
 
     data = sample(value)
@@ -308,7 +320,7 @@ def _read_store(authority, store, card, params, directory, selected_proofs):
                 send(authentication)
             data, receipt = send(request)
     authority.check()
-    payload, omitted, coverage = _result_sample(data, card.get("sampleRows", {}))
+    payload, omitted, coverage = _result_sample(data, card.get("sampleRows", {}), card.get("responseTimeZones"))
     result = {"ok": True, "data": payload, "omitted": omitted, "http": receipt["status"],
               "providerMilliseconds": receipt["elapsed_ms"]}
     if coverage:

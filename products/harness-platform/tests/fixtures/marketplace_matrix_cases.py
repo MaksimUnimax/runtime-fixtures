@@ -740,6 +740,19 @@ class MarketplaceMatrix(unittest.TestCase):
         self.assertEqual(result["http"], 204)
         self.assertEqual(result["data"], {"count": 0, "report": []})
 
+    def test_read_template_keeps_wb_document_dates_in_moscow(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        card = read_templates.cards()["read.wb.documents_list"]
+        data = {"data": {"documents": [{"creationTime": "2026-11-08T22:15:00.123Z",
+                                       "name": "Документ от 8 ноября"}]}}
+        sample, _, coverage = read_templates._result_sample(
+            data, card["sampleRows"], card["responseTimeZones"],
+        )
+        self.assertEqual(sample["data"]["documents"], [{"creationTime": "2026-11-09T01:15:00.123000+03:00",
+                                                       "name": "Документ от 8 ноября"}])
+        self.assertEqual(coverage, [])
+
     def test_read_templates_uses_separate_performance_credential(self):
         from platform_core.marketplace_matrix import read_templates
 
