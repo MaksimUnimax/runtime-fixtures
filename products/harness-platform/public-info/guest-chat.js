@@ -1,5 +1,6 @@
 (() => {
   const chat = document.querySelector('[data-guest-chat]');
+  const transcript = chat.querySelector('.guest-transcript');
   const history = chat.querySelector('[role=log]'), older = chat.querySelector('.guest-older');
   const form = chat.querySelector('form'), input = form.querySelector('textarea');
   const button = form.querySelector('button'), status = chat.querySelector('[role=status]');
@@ -11,6 +12,12 @@
       const section=document.createElement('div'), label=document.createElement('strong'), content=document.createElement('p');
       section.className=author==='Вы'?'guest-question':'guest-answer';
       label.textContent=author;
+      if (author==='Октопус') {
+        const icon=document.createElement('span');
+        icon.className='guest-mark';
+        icon.setAttribute('aria-hidden','true');
+        label.prepend(icon);
+      }
       content.textContent=text;
       section.append(label,content);pair.append(section);
     }
@@ -38,10 +45,15 @@
       window.history.replaceState(window.history.state,'',guestPath);
     }
     const rows=data.turns.map(turn);
-    if(previous) history.prepend(...rows); else history.replaceChildren(...previousConversation,...rows);
+    const previousHeight=transcript.scrollHeight;
+    const previousTop=transcript.scrollTop;
+    if (previous) history.prepend(...rows);
+    else history.replaceChildren(...previousConversation,...rows);
     cursor=data.nextBefore;older.hidden=cursor==null;
-    chat.classList.toggle('has-turns',history.childElementCount>0);
-    if(!previous && rows.length) history.lastElementChild.scrollIntoView({block:'nearest'});
+    const hasTurns=history.childElementCount>0;
+    transcript.hidden=!hasTurns;
+    chat.classList.toggle('has-turns',hasTurns);
+    transcript.scrollTop=previous ? previousTop+transcript.scrollHeight-previousHeight : transcript.scrollHeight;
   }
   function initialize() {
     revision++;id=null;cursor=null;pending=null;status.textContent='';
@@ -52,11 +64,15 @@
     try {await page(true);} catch(e){status.textContent=e.message;}
     finally {older.disabled=false;}
   };
+  function updateSendButton() {
+    button.disabled=busy || !input.value.trim();
+  }
+  input.addEventListener('input',updateSendButton);
   form.onsubmit=async event=>{
     event.preventDefault();
     const text=input.value.trim();
     if(!text || busy)return;
-    busy=true;button.disabled=true;input.readOnly=true;status.textContent='Октопус отвечает…';
+    busy=true;updateSendButton();input.readOnly=true;status.textContent='Октопус отвечает…';
     try {
       await loading;
       if(!pending || pending.text!==text)pending={text,request_id:crypto.randomUUID()};
@@ -69,11 +85,12 @@
       await page();
       pending=null;input.value='';status.textContent='';
     } catch(e){status.textContent=e.message;}
-    finally {busy=false;button.disabled=false;input.readOnly=false;input.focus({preventScroll:true});}
+    finally {busy=false;updateSendButton();input.readOnly=false;input.focus({preventScroll:true});}
   };
   input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();form.requestSubmit();}});
   document.addEventListener('octo-authenticated',event=>{
     if(event.detail?.registered){previousConversation=Array.from(history.children);initialize();}
   });
+  updateSendButton();
   initialize();
 })();

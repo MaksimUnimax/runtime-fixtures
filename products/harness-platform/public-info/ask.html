@@ -1,8 +1,22 @@
 <div class="guest-chat" data-guest-chat>
-  <div class="guest-heading"><img src="/about/assets/octoport-brand.png" width="36" height="36" alt=""><h1>Спросите Октопуса</h1></div>
-  <p class="guest-hint">Задайте вопрос о работе Октопорта, подключении магазина или монетах.</p>
-  <button type="button" class="guest-older" hidden>Показать предыдущие сообщения</button>
-  <div class="guest-history ym-hide-content" role="log" aria-label="Переписка с Октопусом" aria-live="polite"></div>
-  <form class="guest-composer"><label class="visually-hidden" for="octopus-question">Ваш вопрос Октопусу</label><textarea data-composer-input id="octopus-question" class="ym-disable-keys" rows="2" maxlength="8192" placeholder="Напишите вопрос Октопусу" required></textarea><button type="submit" aria-label="Отправить вопрос">Отправить</button></form>
-  <p role="status" class="guest-status"></p>
+  <div class="guest-heading">
+    <span class="guest-mark" aria-hidden="true"></span>
+    <h1>С чего начнём?</h1>
+  </div>
+  <div class="guest-transcript" hidden>
+    <button type="button" class="guest-older" hidden>Показать предыдущие сообщения</button>
+    <div class="guest-history ym-hide-content" role="log" aria-label="Переписка с Октопусом" aria-live="polite"></div>
+  </div>
+  <div class="guest-input-area">
+    <form class="guest-composer">
+      <label class="visually-hidden" for="octopus-question">Ваш вопрос Октопусу</label>
+      <textarea data-composer-input id="octopus-question" class="ym-disable-keys" rows="2" maxlength="8192" placeholder="Напишите вопрос Октопусу" required></textarea>
+      <div class="guest-composer-actions">
+        <button class="guest-send" type="submit" aria-label="Отправить вопрос" disabled>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg>
+        </button>
+      </div>
+    </form>
+    <p role="status" class="guest-status"></p>
+  </div>
 </div>

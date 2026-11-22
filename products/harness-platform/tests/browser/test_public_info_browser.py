@@ -10,6 +10,38 @@ from deploy.publish_info import PAGES, publish
 
 
 class PublicInfoBrowser(ProductBrowser):
+    async def test_guest_composer_keeps_its_layout_and_input_at_the_bottom(self):
+        context = await self.browser.new_context(base_url=self.base_url)
+        self.addAsyncCleanup(context.close)
+        page = await context.new_page()
+        await page.goto("/about/ask")
+        editor = page.get_by_label("Ваш вопрос Октопусу")
+        send = page.get_by_role("button", name="Отправить вопрос")
+        heading = page.get_by_role("heading", name="С чего начнём?")
+        for width, height in ((1200, 864), (390, 700), (320, 540)):
+            await page.set_viewport_size({"width": width, "height": height})
+            await expect(heading).to_be_visible()
+            await expect(send).to_be_disabled()
+            await expect(page.locator(".toolbar-chat")).to_be_hidden()
+            self.assertTrue(await page.evaluate(
+                "document.documentElement.scrollWidth <= innerWidth + 1"))
+            self.assertIsNotNone(await send.locator("svg").bounding_box())
+            self.assertGreaterEqual((await send.bounding_box())["width"], 27)
+            self.assertLess((await send.bounding_box())["y"] + (await send.bounding_box())["height"], height)
+        await editor.fill("Как зарегистрироваться?")
+        await expect(send).to_be_enabled()
+        await editor.press("Shift+Enter")
+        await expect(editor).to_have_value("Как зарегистрироваться?\n")
+        await editor.press("Enter")
+        await expect(page.locator(".guest-answer")).to_contain_text("10 монет")
+        await expect(heading).to_be_hidden()
+        await expect(editor).to_be_focused()
+        await expect(send).to_be_disabled()
+        await page.reload()
+        await expect(page.locator(".guest-answer")).to_contain_text("10 монет")
+        await expect(send).to_be_in_viewport()
+        await expect(page.locator("nav:visible").get_by_role("link", name="Задать вопрос")).to_be_visible()
+
     async def test_public_navigation_uses_live_session_and_fits_viewport(self):
         directory = Path(self.enterContext(TemporaryDirectory()))
         source = directory / "source"
