@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Посещения · Октопорт</title>
+<script src="/ui-assets/project/theme.js"></script>
+<link rel="stylesheet" href="/ui-assets/project/appearance.css">
+<link rel="stylesheet" href="/ui-assets/project/admin.css">
+<script src="/session-nav.js"></script>
+</head>
+<body class="octo-admin octo-statistics octo-visits">
+<main>
+  <nav aria-label="Администрирование"><a href="/admin">Администрирование</a><a href="/admin/statistics">Статистика</a><a href="/">В чат</a></nav>
+  <h1>Посещения</h1>
+  <section aria-labelledby="visits-report">
+    <h2 id="visits-report">Отчёт по octoport.ru</h2>
+    <p>Яндекс Метрика · счётчик $counter</p>
+    <form class="stats-search" method="get" action="/admin/visits">
+      <label class="visits-period">Период<select name="period">$period_options</select></label>
+      <button type="submit">Показать</button>
+    </form>
+    <p class="stats-message" role="$role">$message</p>
+  </section>
+  <section aria-labelledby="visits-connection">
+    <h2 id="visits-connection">Подключение Метрики</h2>
+    <p>$connection</p>
+    <form class="stats-search" method="post" action="/admin/visits" autocomplete="off">
+      <label>OAuth-токен<input type="password" name="token" maxlength="2048" spellcheck="false" autocomplete="off" required></label>
+      <button type="submit">Проверить и сохранить</button>
+    </form>
+    <details>
+      <summary>Как получить токен</summary>
+      <ol>
+        <li>Войдите в Яндекс с аккаунтом, у которого есть доступ к счётчику $counter.</li>
+        <li>В <a href="https://oauth.yandex.ru/?dialog=create-client-entry" rel="noreferrer">Яндекс OAuth</a> создайте приложение «Для доступа к API или отладки» и добавьте право <code>metrika:read</code>. Если форма запрашивает Redirect URI, укажите <code>https://oauth.yandex.ru/verification_code</code>.</li>
+        <li>Скопируйте <code>ClientID</code> из приложения и замените <code>ВАШ_CLIENT_ID</code> в адресе <code class="visits-url">https://oauth.yandex.ru/authorize?response_type=token&amp;client_id=ВАШ_CLIENT_ID</code>.</li>
+        <li>Откройте полученный адрес, подтвердите доступ и вставьте токен из Яндекса в поле выше.</li>
+      </ol>
+    </details>
+  </section>
+  $results
+</main>
+</body>
+</html>

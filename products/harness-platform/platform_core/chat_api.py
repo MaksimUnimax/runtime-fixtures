@@ -20,7 +20,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from .account_access import AccountAccess
-from . import access_web, admin_statistics
+from . import access_web, admin_statistics, admin_visits
 from .admin_costs import AdminCosts, present_chat
 from .user_plugins import service as user_plugins, illustrations, telegram_routes
 from .browser_session import browser_routes, browser_token
@@ -101,6 +101,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                 directory = lifecycle.enter_context(TemporaryDirectory())
                 shared_path = Path(directory) / "platform.sqlite3"
             app.state.identity = lifecycle.enter_context(RegistrationStore(shared_path))
+            app.state.metrika_token_path = Path(shared_path).with_name("metrika.oauth")
             app.state.account_access = AccountAccess(app.state.identity)
             app.state.progress = turn_progress.Progress()
             app.state.admin_costs = AdminCosts()
@@ -297,6 +298,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         *guest_routes(),
         *web_routes(),
         *admin_statistics.routes(),
+        *admin_visits.routes(),
         *turn_progress.routes(_token),
         *chat_attachments.routes(_token),
         *chat_connections.routes(_token,_body),

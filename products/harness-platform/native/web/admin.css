@@ -43,3 +43,14 @@ p,output { margin:0; } output:empty { display:none; } output { color:#226345; } 
 .stats-check { width:45px; }
 .stats-check input[type=checkbox] { width:18px; min-height:18px; height:18px; margin:0; vertical-align:middle; }
 .stats-batch-controls button:disabled { opacity:.55; cursor:default; }
+
+.octo-visits main { max-width:1060px; }
+.octo-visits nav { display:flex; flex-wrap:wrap; gap:8px; }
+.octo-visits .stats-table table { min-width:660px; }
+.octo-visits .stats-table tbody th { max-width:240px; }
+.octo-visits .visits-period { flex-basis:220px; }
+.visits-metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(135px,1fr)); gap:12px; margin:14px 0 0; }
+.visits-metrics div { padding:12px; border:1px solid var(--octo-line); border-radius:var(--octo-radius); }
+.visits-metrics dt { font-size:13px; color:var(--octo-muted,var(--octo-ink)); }
+.visits-metrics dd { margin:4px 0 0; font-size:24px; font-weight:600; font-variant-numeric:tabular-nums; }
+.visits-url { overflow-wrap:anywhere; }
