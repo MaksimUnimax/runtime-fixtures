@@ -4,6 +4,21 @@
 <link rel="icon" href="/ui-assets/project/octoport-icon.png" type="image/png"><title>Администрирование · octoport</title><link rel="stylesheet" href="/ui-assets/project/appearance.css"><link rel="stylesheet" href="/ui-assets/project/admin.css">
 <script src="/session-nav.js"></script><script defer src="/ui-assets/project/presence.js"></script><script type="module" src="/ui-assets/project/admin.js"></script></head>
 <body class="octo-admin"><main><nav><a href="/"><img class="admin-mark" src="/ui-assets/project/octoport-mark.png" width="24" height="24" alt=""> <img class="octo-wordmark" src="/ui-assets/project/octoport-wordmark.svg?v=689f9cd2" width="112" height="28" alt="octoport"><span>В чат</span></a> <a href="/admin/statistics">Статистика</a> <a href="/admin/visits">Посещения</a></nav><h1>Администрирование</h1>
+<section aria-labelledby="balance-heading">
+<h2 id="balance-heading">Балансы провайдеров</h2>
+<div class="balance-grid">
+  <div class="balance-card"><h3>DeepSeek</h3><p id="balance-deepseek" class="balance-value">—</p><p id="balance-deepseek-status" class="balance-status">Загрузка…</p></div>
+  <div class="balance-card"><h3>OpenRouter</h3><p id="balance-openrouter" class="balance-value">—</p><p id="balance-openrouter-status" class="balance-status">Загрузка…</p></div>
+</div>
+<div class="balance-controls">
+  <button id="balance-refresh" type="button">Обновить</button>
+  <form id="balance-settings">
+    <label>Интервал, мин<input type="number" name="intervalMinutes" value="60" min="1" max="2147483647" step="1" required disabled></label>
+    <button type="submit" disabled>Сохранить интервал</button>
+  </form>
+</div>
+<p id="balance-message" role="status" aria-live="polite"></p>
+</section>
 <section aria-labelledby="model-heading"><h2 id="model-heading">Модель по умолчанию</h2>
 <p id="current-model" role="status"></p>
 <p>Выбор действует со следующего сообщения для всех пользователей, включая выбравших модель ранее.</p>

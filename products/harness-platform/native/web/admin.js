@@ -54,7 +54,7 @@ function keyStates(state) {
 }
 request('/api/admin/provider-keys').then(keyStates).catch(e=>{document.querySelector('#problem').textContent=e.message;});
 let pending;
-for (const form of document.querySelectorAll('form:not(#default-model)')) form.addEventListener('submit', async event => {
+for (const form of document.querySelectorAll('form:not(#default-model):not(#balance-settings)')) form.addEventListener('submit', async event => {
   event.preventDefault();
   const fields = Object.fromEntries(new FormData(form));
   const button = form.querySelector('button');
@@ -163,3 +163,67 @@ defaultsForm.addEventListener('submit',async event=>{
   finally {busy(false);}
 });
 defaultsRequest('chat-default').then(value=>{if(!activeDefault)showDefault(value);}).catch(e=>{if(!activeDefault)modelStatus.textContent=e.message;});
+
+const balanceForm = document.querySelector('#balance-settings');
+const balanceInterval = balanceForm.elements.intervalMinutes;
+const balanceSave = balanceForm.querySelector('button');
+const balanceRefresh = document.querySelector('#balance-refresh');
+const balanceMessage = document.querySelector('#balance-message');
+let balanceBusy = false, balanceIntervalEdited = false, balancesLoaded = false;
+
+function showBalances(data) {
+  if (!balanceIntervalEdited) balanceInterval.value = data.intervalMinutes;
+  for (const [provider, state] of Object.entries(data.providers)) {
+    const values = state.amounts.map(({amount, currency}) => {
+      const format = new Intl.NumberFormat('ru-RU', {
+        style: 'currency', currency, currencyDisplay: 'code', maximumFractionDigits: 8,
+      });
+      return format.format(Number(amount));
+    });
+    document.querySelector('#balance-' + provider).textContent = values.join(' · ') || '—';
+    const when = state.updatedAt ? new Date(state.updatedAt * 1000).toLocaleString('ru-RU') : '';
+    const status = document.querySelector('#balance-' + provider + '-status');
+    status.textContent = [
+      when ? (state.error ? 'Последние данные на ' : 'Обновлено ') + when : '',
+      state.error,
+    ].filter(Boolean).join(' · ') || 'Ожидает обновления';
+  }
+}
+
+async function loadBalances(action = '', options = undefined) {
+  if (balanceBusy) return;
+  balanceBusy = true;
+  balanceRefresh.disabled = true;
+  balanceSave.disabled = true;
+  if (action) balanceMessage.textContent = action === '/refresh' ? 'Запрашиваем балансы…' : '';
+  try {
+    const state = await request('/api/admin/provider-balances' + action, options);
+    if (action === '/settings') balanceIntervalEdited = false;
+    showBalances(state);
+    balancesLoaded = true;
+    if (action === '/refresh') {
+      balanceMessage.textContent = Object.values(state.providers).some(row => row.error)
+        ? 'Проверьте статус провайдеров.' : 'Балансы обновлены.';
+    } else if (action === '/settings') {
+      balanceMessage.textContent = 'Интервал сохранён.';
+    }
+  } catch (error) {
+    balanceMessage.textContent = error.message;
+  } finally {
+    balanceBusy = false;
+    balanceRefresh.disabled = false;
+    balanceInterval.disabled = balanceSave.disabled = !balancesLoaded;
+  }
+}
+balanceInterval.addEventListener('input', () => { balanceIntervalEdited = true; });
+balanceRefresh.addEventListener('click', () => loadBalances('/refresh', {method:'POST'}));
+balanceForm.addEventListener('submit', event => {
+  event.preventDefault();
+  loadBalances('/settings', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({intervalMinutes:balanceInterval.valueAsNumber}),
+  });
+});
+loadBalances();
+setInterval(() => { if (!document.hidden) loadBalances(); }, 15000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) loadBalances(); });

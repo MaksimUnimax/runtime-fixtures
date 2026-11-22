@@ -55,3 +55,13 @@ p,output { margin:0; } output:empty { display:none; } output { color:#226345; } 
 .visits-metrics dt { font-size:13px; color:var(--octo-muted,var(--octo-ink)); }
 .visits-metrics dd { margin:4px 0 0; font-size:24px; font-weight:600; font-variant-numeric:tabular-nums; }
 .visits-url { overflow-wrap:anywhere; }
+
+.balance-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; }
+.balance-card { padding:12px; border:1px solid var(--octo-line); border-radius:var(--octo-radius); min-width:0; }
+.balance-card h3 { margin:0; font-size:14px; }
+.balance-value { margin:4px 0; font-size:21px; font-weight:600; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.balance-status { color:var(--octo-muted,var(--octo-ink)); font-size:13px; overflow-wrap:anywhere; }
+.balance-controls,.balance-controls form { display:flex; flex-wrap:wrap; align-items:end; gap:10px; }
+.balance-controls { margin-top:14px; }
+.balance-controls input { width:110px; }
+#balance-message:not(:empty) { margin-top:10px; }

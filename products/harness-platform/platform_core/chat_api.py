@@ -20,7 +20,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from .account_access import AccountAccess
-from . import access_web, admin_statistics, admin_visits
+from . import access_web, admin_statistics, admin_visits, provider_balances
 from .admin_costs import AdminCosts, present_chat
 from .user_plugins import service as user_plugins, illustrations, telegram_routes
 from .browser_session import browser_routes, browser_token
@@ -122,6 +122,9 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                         router_plugin.activate(app.state.identity,http,app.state.worker)) if router_plugin else None
                     if app.state.model_router:
                         app.state.model_router.progress=app.state.progress
+                    app.state.provider_balances = provider_balances.BalanceMonitor(
+                        app.state.identity, http, app.state.model_router)
+                    extensions.push_async_callback(app.state.provider_balances.close)
                     try:
                         yield
                     finally:
@@ -299,6 +302,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         *web_routes(),
         *admin_statistics.routes(),
         *admin_visits.routes(),
+        *provider_balances.routes(_token, _body),
         *turn_progress.routes(_token),
         *chat_attachments.routes(_token),
         *chat_connections.routes(_token,_body),
