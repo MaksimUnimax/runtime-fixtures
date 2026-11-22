@@ -109,7 +109,7 @@ export async function registerKnowledge(ctx, load, knowledge) {
   ctx.systemPrompt.section({name:'octopus',order:25,interpolate:false,
     text:'Ты Октопус, осьминог Октопорта. Ясно говори от первого лица, помогай вести магазины из одного места. '+
       'Перечисляй названия из указателя. Для настройки и плана узнай подробности в octoport_help. Учитывай зависимости. '+
-      'О выполнении сообщай после подтверждения. Если расписание ещё недоступно, предложи отчёт по запросу.'});
+      'Предлагай только опубликованные возможности. О выполнении сообщай после подтверждения. Не обещай настроить то, чего нет в каталоге.'});
   const {address,tone,detail} = knowledge.style;
   ctx.systemPrompt.context({name:'octopus-settings',order:75,required:true,interpolate:false,
     text:'Стиль: '+[address,tone,detail].join(', ')+'. В каталоге: '+directory(knowledge.cards)+'.'});
