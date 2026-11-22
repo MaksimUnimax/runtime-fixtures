@@ -205,6 +205,46 @@ async def checkout(request):
     return response({"url":url, "status":status})
 
 
+
+async def reconcile_checkout(request):
+    """Recover a paid checkout after a lost webhook; never issue a new payment."""
+    token = browser_token(request)
+    store = request.app.state.identity
+    await run_in_threadpool(store.validate_session, token)
+    fields = await _form_fields(request, {"key"})
+    key = fields["key"]
+    if not _ID.fullmatch(key):
+        raise HTTPException(400, "Некорректный идентификатор заказа.")
+
+    def find_own_order():
+        with store._lock:
+            _, workspace = _principal(store._db, token)
+            return store._db.execute(
+                """SELECT id,provider_id,status,url FROM coin_checkouts
+                   WHERE workspace_id=? AND request_key=?""",
+                (workspace, key),
+            ).fetchone()
+
+    row = await run_in_threadpool(find_own_order)
+    if row is None:
+        raise HTTPException(404, "Заказ не найден.")
+    order, payment_id, status, url = row
+    if status != "pending":
+        return response({"status": status, "url": None})
+    if not payment_id:
+        # Payment creation may be pending or its outcome uncertain.
+        # Do not create another payment to 'check' its status.
+        return response({"status": "pending", "url": url})
+    auth = merchant()
+    if not auth:
+        return response({"status": "pending", "url": None, "detail": "Проверка оплаты временно недоступна."}, 503)
+    verified = await provider("GET", "/" + payment_id, auth)
+    if verified.get("id") != payment_id:
+        raise HTTPException(502, "Не удалось подтвердить платёж.")
+    status, url = await run_in_threadpool(apply_payment, store, order, verified, auth[0])
+    return response({"status": status, "url": url})
+
+
 async def notification(request):
     auth = merchant()
     if not auth:
@@ -238,4 +278,5 @@ async def notification(request):
 
 def checkout_routes():
     return [Route("/api/coins/quote", quote), Route("/api/coins/checkout", checkout, methods=["POST"]),
+            Route("/api/coins/reconcile", reconcile_checkout, methods=["POST"]),
             Route("/api/coins/yookassa", notification, methods=["POST"])]
