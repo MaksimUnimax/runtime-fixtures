@@ -1,5 +1,6 @@
 """Download proven Wildberries documents into the requesting chat's file store."""
 from base64 import b64decode
+from collections import Counter
 from hashlib import sha256
 from io import BytesIO
 import json
@@ -9,7 +10,7 @@ import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request
-from zipfile import is_zipfile
+from zipfile import BadZipFile, ZipFile, is_zipfile
 
 from starlette.exceptions import HTTPException
 
@@ -25,6 +26,7 @@ DOWNLOADS = {SINGLE, BATCH}
 ORIGIN = "https://documents-api.wildberries.ru"
 FORMAT = re.compile(r"[a-z0-9]{1,10}", re.ASCII)
 SERVICE_NAME = re.compile(r"[A-Za-z0-9_-]{1,180}", re.ASCII)
+DOCUMENT_FORMATS = {"zip", "xlsx", "xls", "pdf", "csv", "xml", "txt", "doc", "docx"}
 
 
 def proof(service_name, extension):
@@ -97,6 +99,7 @@ def download(authority, store, card, params, turn, observed):
         raise CallError("NETWORK_OUTCOME_UNKNOWN", unknown=True) from None
     if len(raw) > encoded_limit:
         raise CallError("WB_DOCUMENT_TOO_LARGE", status=status)
+    entries = None
     try:
         record = strict_json(raw)["data"]
         name, extension, payload = record["fileName"], record["extension"], record["document"]
@@ -105,9 +108,13 @@ def download(authority, store, card, params, turn, observed):
             raise ValueError("Invalid file envelope")
         if extension in {"zip", "xlsx"} and not is_zipfile(BytesIO(body)):
             raise ValueError("Invalid archive")
+        if extension == "zip":
+            with ZipFile(BytesIO(body)) as archive:
+                formats = (Path(item.filename).suffix[1:].casefold() for item in archive.infolist() if not item.is_dir())
+                entries = dict(Counter(value if value in DOCUMENT_FORMATS else "other" for value in formats))
         if extension == "pdf" and not body.startswith(b"%PDF-"):
             raise ValueError("Invalid PDF")
-    except (KeyError, TypeError, ValueError, Rejected):
+    except (BadZipFile, KeyError, TypeError, ValueError, Rejected):
         raise CallError("WB_DOCUMENT_INVALID", status=status) from None
     if len(body) > MAX_FILE_BYTES:
         raise CallError("WB_DOCUMENT_TOO_LARGE", status=status)
@@ -119,4 +126,6 @@ def download(authority, store, card, params, turn, observed):
         file = save_marketplace_document(Path(journal), scope, turn["requestId"], name, body, authority.check)
     except HTTPException as error:
         raise CallError("WB_DOCUMENT_STORAGE_LIMIT", status=status) from error
-    return file, {"status": status, "elapsed_ms": round((time.monotonic() - started) * 1000)}
+    return {**file, **({"archiveEntriesByFormat": entries} if entries is not None else {})}, {
+        "status": status, "elapsed_ms": round((time.monotonic() - started) * 1000),
+    }

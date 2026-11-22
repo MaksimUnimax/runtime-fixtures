@@ -891,6 +891,7 @@ class MarketplaceMatrix(unittest.TestCase):
                 file = result["data"]["file"]
                 self.assertEqual(file["name"], "fixture.zip")
                 self.assertEqual(file["bytes"], len(file_content))
+                self.assertEqual(file["archiveEntriesByFormat"], {"xlsx": 1})
                 self.assertEqual(_read(journal, self.scope, file["attachmentId"]), ("fixture.zip", file_content))
                 self.assertNotIn(body["data"]["document"], json.dumps(result))
                 with self.assertRaises(ChatUnavailable):
