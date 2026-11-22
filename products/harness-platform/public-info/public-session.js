@@ -58,6 +58,10 @@
     form.action = '/'+mode;
     form.elements.password.autocomplete = signup ? 'new-password' : 'current-password';
     form.elements.password.value = '';
+    form.elements.email.disabled = !signup;
+    form.elements.email.required = signup;
+    form.elements.email.closest('label').hidden = !signup;
+    form.elements.remember.checked = false;
     signupReady=false;
     bonus.hidden = !signup;
     message();
@@ -91,6 +95,10 @@
       const data=new URLSearchParams(new FormData(form));
       const r=await fetch(form.action,{method:'POST',body:data,headers:{Accept:'application/json'},cache:'no-store'});
       const result=await r.json();
+      if(r.status===202 && result.next==='/auth/verify') {
+        location.assign(result.next);
+        return;
+      }
       if(!r.ok||!result.authenticated) {
         if(r.status===401)signupReady=false;
         throw Error(result.detail||'Не удалось войти. Проверьте логин и пароль.');

@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 from urllib.parse import urlsplit
 
 from playwright.async_api import expect
-from test_account_browser import ProductBrowser
+from test_account_browser import ProductBrowser, account_action
 
 from deploy.publish_info import PAGES, publish
 
@@ -72,6 +72,38 @@ class PublicInfoBrowser(ProductBrowser):
         await expect(page.locator("h1")).to_contain_text("Управление маркетплейсами")
         await expect(page.locator(".account [data-member-name]")).to_have_text("first-browser")
         await expect(page.locator(".account [data-balance]")).to_have_text("10,00 монет")
+
+    async def test_public_signup_remembers_the_verified_account(self):
+        context = await self.browser.new_context(base_url=self.base_url)
+        self.addAsyncCleanup(context.close)
+        page = await context.new_page()
+        await page.goto("/about/")
+        await page.locator(".sidebar").get_by_role("link", name="Создать аккаунт").click()
+        form = page.get_by_role("dialog")
+        email = "public-signup@example.test"
+        await form.get_by_label("Логин", exact=True).fill("public-signup")
+        await form.get_by_label("Электронная почта", exact=True).fill(email)
+        await form.get_by_label("Пароль", exact=True).fill(self.password)
+        control = form.get_by_label("Запомнить меня", exact=True)
+        await expect(control).not_to_be_checked()
+        await control.check()
+        await form.get_by_role("button", name="Создать аккаунт", exact=True).click()
+        self.assertFalse((await (await page.request.get("/api/session/status")).json())["authenticated"])
+        await self.codes.email(page, email)
+        await expect(page.locator("body")).to_have_attribute("data-mode", "member")
+        self.assertTrue((await (await page.request.get("/api/session/status")).json())["authenticated"])
+        persistent = next(cookie for cookie in await context.cookies() if cookie["name"] == "harness_local_session")
+        self.assertGreater(persistent["expires"], self.codes.clock() + 12 * 3600)
+
+        await account_action(page, "Профиль")
+        profile = page.get_by_role("dialog", name="Профиль")
+        await expect(profile.get_by_role("button", name="Изменить пароль")).to_be_visible()
+        toggle = profile.get_by_label("Запрашивать код из письма при входе")
+        await expect(toggle).to_be_checked()
+        await toggle.uncheck()
+        await profile.get_by_label("Подтвердите изменение текущим паролем").fill(self.password)
+        await profile.get_by_role("button", name="Сохранить", exact=True).click()
+        await expect(profile.get_by_role("status")).to_have_text("Подтверждение входа по почте выключено.")
 
     async def test_public_navigation_uses_live_session_and_fits_viewport(self):
         directory = Path(self.enterContext(TemporaryDirectory()))

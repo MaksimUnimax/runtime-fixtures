@@ -8,6 +8,8 @@ from unittest.mock import AsyncMock, patch
 
 from starlette.testclient import TestClient
 
+from tests.auth_fixture import email_opted_out
+
 from platform_core.chat_api import create_app
 from platform_core.identity import IdentityStore
 
@@ -20,6 +22,7 @@ class RequestBoundaryTests(unittest.TestCase):
                 identity.create_account("owner", "A password for the HTTP test")
             with TestClient(create_app(db, Path(directory) / "history")) as client:
                 credentials = {"login": "owner", "password": "A password for the HTTP test"}
+                email_opted_out(client.app.state.identity, credentials["login"])
                 response = client.post("/api/login", json=credentials)
                 self.assertEqual(response.status_code, 200, response.text)
                 self.assertEqual(response.headers["cache-control"], "no-store")

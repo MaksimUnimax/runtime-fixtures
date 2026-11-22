@@ -5,6 +5,8 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from starlette.testclient import TestClient
+from tests.auth_fixture import email_opted_out
+
 from platform_core.chat_api import create_app
 from platform_core.identity import IdentityStore
 
@@ -23,6 +25,7 @@ class CheckoutTests(unittest.TestCase):
         self.url = "/api/coins/checkout"
 
     def signin(self):
+        email_opted_out(self.client.app.state.identity, "test@example.org")
         self.client.post("/login", data={"login":"TEST@example.org", "password":"password"}, headers=HEADERS)
 
     def post(self, **fields):

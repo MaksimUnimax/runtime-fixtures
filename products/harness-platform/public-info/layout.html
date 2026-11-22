@@ -40,7 +40,9 @@
     <p data-signup-note hidden>При первой регистрации вы получите 10 монет.</p>
     <form method="post" action="/login">
       <label>Логин<input name="login" autocomplete="username" maxlength="254" required></label>
+      <label data-auth-email hidden>Электронная почта<input type="email" name="email" autocomplete="email" maxlength="254" disabled></label>
       <label>Пароль<input type="password" name="password" autocomplete="current-password" maxlength="256" required></label>
+      <label class="octo-remember"><input name="remember" type="checkbox">Запомнить меня</label>
       <p data-auth-status role="alert" hidden></p>
       <button type="submit">Войти</button>
     </form>

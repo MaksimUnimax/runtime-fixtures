@@ -17,6 +17,7 @@ from playwright.async_api import async_playwright, expect
 from platform_core.guest_registration import RegistrationStore
 from platform_core.operation_grants import initialize_grants
 from test_account_browser import open_integrations, running_product
+from tests.auth_fixture import BrowserCodes
 from turn_response import observe_turns
 
 from turn_response import observe_turns
@@ -48,6 +49,7 @@ async def operator(database, command, value, *extra):
 class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
     async def test_guest_message_reaches_paid_model_in_original_chat(self):
         root = Path(self.enterContext(TemporaryDirectory()))
+        codes = BrowserCodes(self, root)
         database, journal = root / "identity.sqlite3", root / "usage.jsonl"
         with RegistrationStore(database):
             initialize_grants(database)
@@ -115,7 +117,10 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         await page.get_by_role("button", name="Создать аккаунт", exact=True).click()
         await page.get_by_label("Логин", exact=True).fill("buyer")
         await page.get_by_label("Пароль", exact=True).fill(password)
+        address_email = "buyer@example.test"
+        await page.get_by_label("Электронная почта", exact=True).fill(address_email)
         await page.get_by_role("dialog").get_by_role("button",name="Создать аккаунт",exact=True).click()
+        await codes.email(page, address_email)
         await expect(page.locator("body")).to_have_attribute("data-mode","member")
         await expect(page).to_have_url(original_url)
         await expect(history).to_contain_text(guest_answers[-1])
@@ -156,17 +161,15 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
             await page.screenshot(path=Path(evidence) / "02-account-chat.png", full_page=True)
 
         await operator(database, "set-role", "admin")
-        await page.reload()
+        await codes.sign_in(page, "buyer", password, address=address_email, admin=True)
+        await page.goto(original_url)
         await expect(page.locator(".model-cost").last).to_contain_text(re.compile(r"\d"), timeout=15_000)
         await operator(database, "set-access", "unpaid")
         self.assertEqual((await send(page, results, "Продолжим работу с магазином?"))['status'], 402)
         await operator(database, "set-role", "user")
 
         second = await browser.new_page(base_url=base)
-        await second.goto("/login")
-        await second.get_by_label("Логин", exact=True).fill("buyer")
-        await second.get_by_label("Пароль", exact=True).fill(password)
-        await second.get_by_role("dialog").get_by_role("button", name="Войти", exact=True).click()
+        await codes.sign_in(second, "buyer", password, address=address_email)
         await expect(second).to_have_url(re.compile(r"/app/(?:chats/[a-zA-Z0-9_-]+)?$"), timeout=20_000)
         await second.goto(original_url)
         saved = second.locator('[data-slot="conversation.view"]')

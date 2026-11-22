@@ -29,9 +29,17 @@ def run_check(archive, day):
             store.create_account("archive-owner", password)
         app = create_app(db, chat_dir, composition_module="report_archive.plugin")
         with TestClient(app) as client:
-            login = client.post("/api/login", json={"login": "archive-owner", "password": password})
+            inbox = {}
+            app.state.account_access.mail = inbox.__setitem__
+            email = "archive-owner@example.test"
+            fields = {"login": "archive-owner", "password": password}
+            login = client.post("/api/login", json=fields)
             login.raise_for_status()
-            token = login.json()["token"]
+            bound = client.post("/api/login/verify", json={"challenge": login.json()["challenge"], "value": email})
+            bound.raise_for_status()
+            verified = client.post("/api/login/verify", json={"challenge": bound.json()["challenge"], "value": inbox[email]})
+            verified.raise_for_status()
+            token = verified.json()["token"]
             headers = {"Authorization": f"Bearer {token}"}
             chat = client.post("/api/chats", headers=headers)
             chat.raise_for_status()

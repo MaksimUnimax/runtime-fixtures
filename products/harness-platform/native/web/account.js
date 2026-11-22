@@ -144,6 +144,46 @@ window.__ModuleLoader__.load({
       function Field(name,title,props={}) {
         return h('label',{key:name},title,h('input',{name,required:true,...props}));
       }
+      function SecurityPreferences() {
+        const [security,setSecurity]=React.useState(null);
+        const [enabled,setEnabled]=React.useState(true);
+        const [busy,setBusy]=React.useState(false);
+        const [message,setMessage]=React.useState('');
+        React.useEffect(()=>{
+          const control=new AbortController();
+          a.api('/api/profile/security',{signal:control.signal}).then(data=>{
+            if(!control.signal.aborted){setSecurity(data);setEnabled(data.enabled);}
+          }).catch(()=>{if(!control.signal.aborted)setMessage('Не удалось загрузить настройки входа.');});
+          return ()=>control.abort();
+        },[]);
+        async function save(event) {
+          event.preventDefault();
+          const form=event.currentTarget;
+          setBusy(true);
+          try {
+            const data=await a.api('/api/profile/security',{method:'POST',body:new URLSearchParams({
+              enabled:String(enabled),current:form.elements.current.value
+            })});
+            setSecurity(data);
+            form.reset();
+            setMessage(data.enabled?'При входе пришлю код на вашу почту.':'Подтверждение входа по почте выключено.');
+          } catch(error) {setMessage(error.message);}
+          finally {setBusy(false);}
+        }
+        return h('section',{className:'octo-security'},
+          h('h3',null,'Подтверждение входа'),
+          security && (security.admin ?
+            h('p',null,'При входе администратора я запрашиваю код из письма и код из приложения.') :
+            security.email ? h('form',{onSubmit:save,className:'octo-password-form'},
+            h('span',null,security.email),
+            h('label',{className:'octo-remember'},h('input',{type:'checkbox',checked:enabled,
+              onChange:event=>setEnabled(event.target.checked),disabled:busy}),'Запрашивать код из письма при входе'),
+            enabled!==security.enabled && h(React.Fragment,null,
+              Field('current','Подтвердите изменение текущим паролем',{type:'password',autoComplete:'current-password',maxLength:256}),
+              h(Button,{type:'submit',variant:'primary',disabled:busy},busy?'Сохраняем…':'Сохранить')))
+            : h('p',null,'Чтобы привязать почту, выйдите из аккаунта и войдите снова.')),
+          message && h('p',{role:'status'},message));
+      }
       function Profile() {
         const [busy,setBusy]=React.useState(false);
         const [message,setMessage]=React.useState(null);
@@ -177,7 +217,8 @@ window.__ModuleLoader__.load({
             Field('password','Новый пароль',{...password,autoComplete:'new-password',disabled:busy}),
             Field('confirmation','Повторите новый пароль',{...password,autoComplete:'new-password',disabled:busy}),
             h(Button,{type:'submit',variant:'primary',disabled:busy},busy?'Сохраняем…':'Изменить пароль')),
-          message && h('p',{role:message.error?'alert':'status'},message.text));
+          message && h('p',{role:message.error?'alert':'status'},message.text),
+          h(SecurityPreferences));
       }
       function Wallet() {
         const [wallet,setWallet]=React.useState(null);
@@ -260,6 +301,10 @@ window.__ModuleLoader__.load({
               method:'POST',headers:{Accept:'application/json'},body:data,cache:'no-store'
             });
             const result=await response.json().catch(()=>({}));
+            if (response.status===202 && result.next==='/auth/verify') {
+              location.assign(result.next);
+              return;
+            }
             if (!response.ok || !result.authenticated) {
               setError(result.detail || 'Не удалось войти. Повторите попытку.');
               return;
@@ -285,7 +330,9 @@ window.__ModuleLoader__.load({
           error && h('p',{role:'alert'},error),
           h('form',{action:signup?'/register':'/login',method:'post',onSubmit:submit},
             Field('login','Логин',{autoComplete:'username',maxLength:254,disabled:busy}),
+            signup && Field('email','Электронная почта',{type:'email',autoComplete:'email',maxLength:254,disabled:busy}),
             Field('password','Пароль',{type:'password',autoComplete:signup?'new-password':'current-password',maxLength:256,disabled:busy}),
+            h('label',{className:'octo-remember'},h('input',{name:'remember',type:'checkbox',disabled:busy}),'Запомнить меня'),
             h('button',{type:'submit',className:'account-primary',disabled:busy},signup?'Создать аккаунт':'Войти')),
           h('button',{type:'button',className:'auth-alternative',disabled:busy,
             onClick:()=>select(signup?'login':'register')},signup?'Войти в существующий аккаунт':'Создать аккаунт'));

@@ -19,6 +19,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
+from .account_access import AccountAccess
+from . import access_web
 from .admin_costs import AdminCosts, present_chat
 from .user_plugins import service as user_plugins, illustrations, telegram_routes
 from .browser_session import browser_routes, browser_token
@@ -99,6 +101,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                 directory = lifecycle.enter_context(TemporaryDirectory())
                 shared_path = Path(directory) / "platform.sqlite3"
             app.state.identity = lifecycle.enter_context(RegistrationStore(shared_path))
+            app.state.account_access = AccountAccess(app.state.identity)
             app.state.progress = turn_progress.Progress()
             app.state.admin_costs = AdminCosts()
             app.state.worker = ChatWorker(shared_path, chat_directory, composition_module)
@@ -124,11 +127,6 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                         await app.state.plugins.close()
                         await app.state.progress.close()
                         await app.state.worker.close()
-
-    async def login(req):
-        data = await _body(req, "login", "password")
-        token = await run_in_threadpool(req.app.state.identity.login, data["login"], data["password"])
-        return JSONResponse({"token": token})
 
     async def logout(req):
         await run_in_threadpool(req.app.state.identity.logout, _token(req))
@@ -314,7 +312,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
         Route("/api/admin/accounts/{login}/wallet", wallet),
         Route("/api/admin/coin-pricing", pricing, methods=["GET", "POST"]),
         Route("/api/admin/coin-grants", credit, methods=["POST"]),
-        Route("/api/login", login, methods=["POST"]),
+        *access_web.routes(),
         Route("/api/logout", logout, methods=["POST"]),
         Route("/api/recover", recover, methods=["POST"]),
         Route("/api/chats", chats, methods=["GET", "POST"]),
