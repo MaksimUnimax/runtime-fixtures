@@ -1188,6 +1188,90 @@ class MarketplaceMatrix(unittest.TestCase):
             result = read_templates.execute(checked, self.root)
             self.assertEqual(result["data"], {"state": "OK"})
 
+    def test_performance_download_requires_current_list_and_ready_status_and_delivers_original(self):
+        from io import BytesIO
+        from urllib.parse import parse_qs, urlsplit
+        from zipfile import ZipFile
+        from platform_core.chat_attachments import _read
+        from platform_core.marketplace_matrix import performance_report_file, plugin, read_templates
+        from platform_core.marketplace_matrix.authority import ChatAuthority
+
+        token = self.identity.login("matrix-seller", "fixture-password")
+        cid = IntegrationStore(self.identity).save(token, "ozon", "Реклама", {
+            "performance_id": "fixture-id", "performance_secret": "fixture-secret",
+        }, chatId=self.scope.chat_id)["id"]
+        uid = "12345678-1234-4321-a123-123456789abc"
+        journal = self.root / "native-chats.sqlite3"
+        turn = {**self.turn, "attachmentsJournal": str(journal), "question": "Скачай готовый отчёт."}
+        packet = {**self.packet, "connections": [cid], "turn": turn}
+        revision = ChatAuthority(packet).revision
+        listing = {"action": "read", "connectionId": cid,
+                   "templateId": "read.performance.performance_statistics_list_api", "params": {"page": 1}}
+        status = {**listing, "templateId": "read.performance.performance_statistics_status", "params": {"UUID": uid}}
+        target = {**status, "templateId": "read.performance.performance_statistics_report_download"}
+        before_ready = []
+
+        def invoke(request, _):
+            args = request["readTemplate"]
+            if args == listing:
+                data = {"items": [{"meta": {"UUID": uid}}]}
+            elif args == status:
+                data = {"UUID": confirmed, "state": status_value}
+            else:
+                before_ready.append(request["readEvidence"])
+                return {"ok": False}
+            return {"ok": True, "data": data, "_readEvidenceRevision": revision}
+
+        with patch.object(plugin, "READ_OBSERVATIONS", {}), patch.object(plugin, "invoke", side_effect=invoke):
+            with patch.object(plugin, "current_turn", return_value=(turn, 8)):
+                plugin.run_read(self.scope, listing)
+                for confirmed, status_value in (("other", "OK"), (uid, "IN_PROGRESS"), (uid, "OK")):
+                    plugin.run_read(self.scope, status)
+                    plugin.run_read(self.scope, target)
+            with patch.object(plugin, "current_turn", return_value=({**turn, "requestId": "different"}, 8)):
+                plugin.run_read(self.scope, target)
+
+        list_proof = f"performance-report:statistics:{uid}"
+        ready_proof = performance_report_file.ready_proof(uid)
+        self.assertEqual([x["ids"] for x in before_ready],
+                         [[list_proof], [list_proof], sorted([list_proof, ready_proof]), []])
+        packet.update(readTemplate=target, readEvidence=before_ready[2])
+        zipped = BytesIO()
+        with ZipFile(zipped, "w") as archive:
+            archive.writestr("campaign.csv", "sku,clicks\n12345,4\n")
+        files = {
+            "application/json": ("json", b'{"campaign":{"report":{"rows":[]}}}'),
+            "application/zip": ("zip", zipped.getvalue()),
+            "text/csv": ("csv", b"; Campaign 42\nsku;clicks;views\n12345;4;100\n"),
+        }
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            if request.full_url == "https://api-performance.ozon.ru/api/client/token":
+                return b'{"access_token":"fixture-performance-access","expires_in":1800}', 200
+            self.assertEqual(request.get_method(), "GET")
+            url = urlsplit(request.full_url)
+            self.assertEqual(url.netloc + url.path, "api-performance.ozon.ru/api/client/statistics/report")
+            self.assertEqual(parse_qs(url.query), {"UUID": [uid]})
+            self.assertEqual(request.get_header("Authorization"), "Bearer fixture-performance-access")
+            options["response_headers"].update({"Content-Type": mime, "Content-Disposition": "attachment"})
+            return body, 200
+
+        with patch("http_transport.read_response", side_effect=fake_read) as outbound:
+            for evidence in (before_ready[0], before_ready[3], {**before_ready[2], "revision": "stale"}):
+                self.assertEqual(read_templates.execute({**packet, "readEvidence": evidence}, self.root)["reasonSource"],
+                                 "template")
+            outbound.assert_not_called()
+            for mime, (extension, body) in files.items():
+                result = read_templates.execute(packet, self.root)
+                self.assertEqual(set(result["data"]), {"file", "format"})
+                self.assertEqual(result["data"]["format"], extension.upper())
+                file = result["data"]["file"]
+                self.assertEqual(_read(journal, self.scope, file["attachmentId"]),
+                                 ("Ozon_Performance." + extension, body))
+            mime, body = "application/json", b"7"
+            self.assertEqual(read_templates.execute(packet, self.root)["reasonSource"], "template")
+
     def test_realization_report_number_list_reads_the_requested_period(self):
         from platform_core.marketplace_matrix import read_templates
         from semantics import Rejected

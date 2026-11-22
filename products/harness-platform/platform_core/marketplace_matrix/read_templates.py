@@ -14,7 +14,7 @@ from urllib.parse import quote, urlencode, urlsplit
 from urllib.request import Request
 from zoneinfo import ZoneInfo
 
-from . import ozon_report_file, wb_documents
+from . import ozon_report_file, performance_report_file, wb_documents
 
 CREDENTIALS = {
     "seller": {"seller_client_id", "seller_api_key"},
@@ -374,13 +374,14 @@ def _pinned_request(store, card, params):
     platform = store["platform"]
     operation = card["operation"]
     meta = read_surface.method(platform, operation)
+    is_report_file = card["profile"] == "performance" and card["http"] == "GET" and operation == performance_report_file.OPERATION
     is_existing_report_read = (
         card["profile"] == "performance" and card["http"] == "GET"
-        and (operation in PERFORMANCE_REPORT_LISTS or operation in PERFORMANCE_REPORT_STATUSES)
+        and (operation in PERFORMANCE_REPORT_LISTS or operation in PERFORMANCE_REPORT_STATUSES or is_report_file)
     )
     if (not read_surface.available(meta) or meta.get("completion")
             or (meta.get("workflow_role") == "explicit_workflow_read_step" and not is_existing_report_read)
-            or meta.get("response_style") == "binary" or meta.get("response_mode") == "binary"
+            or ((meta.get("response_style") == "binary" or meta.get("response_mode") == "binary") and not is_report_file)
             or operation == "notification_check"):
         raise Rejected("SOURCE_ACCESS")
     if operation == "performance_vendor_statistics_status":
@@ -396,7 +397,7 @@ def _pinned_request(store, card, params):
     return request
 
 
-def _read_store(authority, store, card, params, directory, selected_proofs):
+def _read_store(authority, store, card, params, directory, selected_proofs, turn):
     import read_surface
     from http_transport import HTTPTransport
     from platform_store_credentials import execution
@@ -422,9 +423,15 @@ def _read_store(authority, store, card, params, directory, selected_proofs):
                                           lambda: transport.execute(target, store, on_dispatch=authority.check),
                                           calls)
 
+            journal = (performance_report_file.attachment_journal(turn)
+                       if card["operation"] == performance_report_file.OPERATION else None)
             authentication = transport.prepare(request, store)
             if authentication:
                 send(authentication)
+            if journal is not None:
+                data, receipt = performance_report_file.receive(authority, journal, turn["requestId"], lambda: send(request))
+                return {"ok": True, "data": data, "http": receipt["status"],
+                        "responseGuide": card["responseGuide"]}, calls
             data, receipt = send(request)
     authority.check()
     if data is None and str(receipt["status"]) in card.get("emptyResponses", {}):
@@ -475,6 +482,8 @@ def execute(packet, directory):
         return {"ok": False, "templateId": card["id"], "reason": REASONS[card["state"]]}
     params = args.get("params", {})
     try:
+        if card["operation"] == "performance_sku_statistics" and not params.get("campaignIds"):
+            raise Rejected("PERFORMANCE_SKU_CAMPAIGNS_REQUIRED")
         evidence = packet.get("readEvidence", {})
         observed = evidence.get("ids", []) if evidence.get("revision") == authority.revision else []
         if card["id"] in wb_documents.DOWNLOADS:
@@ -492,13 +501,16 @@ def execute(packet, directory):
             candidate = str(params["path"].get("reportId"))
             if WB_ACQUIRING_REPORT_PREFIX + candidate in observed:
                 acquiring_report_id = candidate
-        family = PERFORMANCE_REPORT_STATUSES.get(card["operation"])
+        is_report_file = card["operation"] == performance_report_file.OPERATION
+        family = "statistics" if is_report_file else PERFORMANCE_REPORT_STATUSES.get(card["operation"])
         if family:
             report_uuid = params.get("UUID") if isinstance(params, dict) else None
             if (not isinstance(report_uuid, str) or set(params) != {"UUID"}
                     or not REPORT_UUID.fullmatch(report_uuid)
                     or f"performance-report:{family}:{report_uuid.lower()}" not in observed):
                 raise Rejected("PERFORMANCE_REPORT_PROVENANCE_REQUIRED")
+            if is_report_file and performance_report_file.ready_proof(report_uuid) not in observed:
+                raise Rejected("PERFORMANCE_FILE_STATUS_REQUIRED")
         else:
             identifier_provenance(_identifier_params(params, acquiring_report_id), packet["turn"]["question"],
                                   [{"data": observed}])
@@ -507,7 +519,7 @@ def execute(packet, directory):
             params = _request_params(card, params)
         except ValueError as error:
             raise Rejected("INVALID_OPERATION_PARAMS") from error
-        public, calls = _read_store(authority, store, card, params, directory, proofs)
+        public, calls = _read_store(authority, store, card, params, directory, proofs, packet["turn"])
     except Rejected as error:
         if failure := _template_failure(card, error.code):
             log_failure(card["operation"] or card["id"], error.code, None)

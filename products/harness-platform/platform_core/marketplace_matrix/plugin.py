@@ -12,7 +12,7 @@ from threading import Lock
 import time
 
 from ..catalog import Capability
-from . import campaign_inventory, ozon_report_file, wb_documents
+from . import campaign_inventory, ozon_report_file, performance_report_file, wb_documents
 from . import coefficient_templates as extensions
 from .read_templates import (
     WB_ACQUIRING_LIST, observed_acquiring_reports, observed_ids, observed_performance_reports,
@@ -222,7 +222,14 @@ def run_read(scope, arguments):
                             wb_documents.LIST: wb_documents.observed_documents,
                             wb_documents.SUPPLY_DETAILS: wb_documents.observed_supply}.get(arguments["templateId"])
             scoped_ids = observations(data) if observations else observed_performance_reports(arguments["templateId"], data)
-            values = chain(scoped_ids, observed_ids(data))
+            ready = ()
+            if (arguments["templateId"] == "read.performance.performance_statistics_status"
+                    and isinstance(data, dict) and data.get("state") == "OK"):
+                requested = arguments.get("params", {}).get("UUID")
+                confirmed = data.get("UUID")
+                if isinstance(requested, str) and isinstance(confirmed, str) and requested.lower() == confirmed.lower():
+                    ready = (performance_report_file.ready_proof(requested),)
+            values = chain(scoped_ids, ready, observed_ids(data))
             for value in values:
                 if len(known) >= 512:
                     break
