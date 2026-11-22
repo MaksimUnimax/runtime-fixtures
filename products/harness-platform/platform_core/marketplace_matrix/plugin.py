@@ -11,6 +11,7 @@ from threading import Lock
 import time
 
 from ..catalog import Capability
+from . import campaign_inventory
 from . import coefficient_templates as extensions
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -100,6 +101,12 @@ def capability(stores):
         item.setdefault("allOf", []).append({
             "if":{"properties":{"templateId":{"enum":list(extensions.STORE_LOOKUPS)}}},
             "else":{"required":["input"]}})
+    for template, platform in campaign_inventory.TEMPLATES.items():
+        if any(row["id"] == template for row in rows):
+            item.setdefault("allOf", []).append({
+                "if": {"properties": {"templateId": {"const": template}}},
+                "then": {"properties": {"input": campaign_inventory.input_schema(platform)}},
+            })
     if len(groups) > 1:
         item["anyOf"] = [{"properties": {"templateId": {"enum": [tid for tid, _ in cards]},
                                         "connectionId": {"enum": list(ids)}}}
@@ -125,8 +132,12 @@ def capability(stores):
         "Для прогноза выбери из каталога шаблон прогноза площадки и передай количество в input.plugin_inputs.quantity. Для конкретного товара передай Ozon SKU или артикул WB в input.plugin_inputs.sku. "
         "Коэффициенты из настроек подставляет сервер, передавать их не нужно. "
         "Выводи рассчитанные матрицей значения и следуй guidance выбранного шаблона. "
-        "В рекламном отчёте WB передай охват по статусам из инструмента. Активные кампании имеют текущий статус 9. "
-        "Приостановленные и архивные кампании показывай отдельно. Итоги по полученным строкам нельзя выдавать за итог всех кампаний. "
+        + (campaign_inventory.GUIDE if any(row["id"] in campaign_inventory.TEMPLATES for row in rows) else "") +
+        "Для статистики WB по рекламным кампаниям за период без указания статуса выбери wb_active_ads "
+        "для строк или wb_active_ads_totals для итогов. Статус активной кампании WB — 9. "
+        "Используй расширенный отчёт wb_supported_ads по явной просьбе охватить другие статусы. "
+        "Показывай только запрошенные статусы, указывай охват строк из инструмента, "
+        "и не рассчитывай итоги для группы по сумме всех групп. "
         "Если площадка вернула другую ошибку, передай причину из инструмента понятным языком.\n" + menu, schema, run)
 
 

@@ -436,6 +436,65 @@ class MarketplaceMatrix(unittest.TestCase):
             worker.execute(self.packet, self.root)
         send.assert_not_called()
 
+    def test_campaign_inventory_requests_and_returns_only_selected_statuses(self):
+        from urllib.parse import parse_qs, urlsplit
+        from platform_core.marketplace_matrix.plugin import capability
+
+        token = self.identity.login("matrix-seller", "fixture-password")
+        ozon = IntegrationStore(self.identity).save(token, "ozon", "Реклама",
+              {"performance_id": "fixture-id", "performance_secret": "fixture-secret"}, chatId=self.scope.chat_id)["id"]
+        wb = self.ids["wb"]
+        tool = capability([{"id": wb, "provider": "wb", "access": ["Wildberries API"]},
+                           {"id": ozon, "provider": "ozon", "access": ["Ozon Performance"]}])
+        seen = []
+        ozon_states = {"RUNNING": "10", "INACTIVE": "20", "STOPPED": "30", "ARCHIVED": "40"}
+
+        def read(request, **options):
+            options["on_dispatch"]()
+            url = urlsplit(request.full_url)
+            query = parse_qs(url.query)
+            if url.path == "/api/client/token":
+                self.assertEqual(json.loads(request.data)["client_id"], "fixture-id")
+                return b'{"access_token":"fixture-access"}', 200
+            if url.path == "/api/advert/v3/adverts":
+                self.assertEqual(request.get_header("Authorization"), "fixture-wb")
+                wb_states = query["statuses"][0]
+                seen.append(wb_states)
+                if wb_states == "9,11" and "next" not in query:
+                    rows = [{"advertId": 10, "status": 9, "settings": {"name": "Активная"}}]
+                    payload = {"adverts": rows, "next": "page+2"}
+                elif wb_states == "9,11":
+                    self.assertEqual(query["next"], ["page+2"])
+                    payload = {"adverts": [{"advertId": 20, "status": 11, "settings": {"name": "Пауза"}}]}
+                else:
+                    payload = {"adverts": [
+                        {"advertId": 10, "status": 9, "settings": {"name": "Активная"}},
+                        {"advertId": 40, "status": 7, "settings": {"name": "Архив"}}]}
+            else:
+                self.assertEqual(url.path, "/api/client/campaign")
+                self.assertEqual(request.get_header("Authorization"), "Bearer fixture-access")
+                state = query["state"][0]
+                seen.append(state)
+                payload = {"list": [{"id": cid, "state": "CAMPAIGN_STATE_" + suffix, "title": suffix}
+                                    for suffix, cid in ozon_states.items()]}
+            return json.dumps(payload).encode(), 200
+
+        for cid, tid, pause_ids in ((wb, "wb_campaign_inventory", ["10", "20"]),
+                                    (ozon, "ozon_campaign_inventory", ["10", "20", "30"])):
+            for include_pause in (False, True):
+                inputs = {"filters": {"campaign_statuses": ["active", "paused"]}} if include_pause else {}
+                item = {"templateId": tid, "connectionId": cid, "input": inputs}
+                tool.validate({"selections": [item]})
+                self.packet.update(connections=[cid], selections=[item])
+                with patch("http_transport.read_response", side_effect=read):
+                    result = worker.execute(self.packet, self.root)
+                campaign_report, = worker.seller_result(result)["campaignReports"]
+                self.assertTrue(campaign_report["ok"], campaign_report)
+                self.assertEqual([row["id"] for row in campaign_report["campaigns"]],
+                                 pause_ids if include_pause else ["10"])
+        self.assertEqual(seen, ["9", "9,11", "9,11", "CAMPAIGN_STATE_RUNNING",
+                                "CAMPAIGN_STATE_RUNNING", "CAMPAIGN_STATE_INACTIVE", "CAMPAIGN_STATE_STOPPED"])
+
     def test_agent_can_choose_both_order_metrics_on_short_answer(self):
         from platform_core.marketplace_matrix.plugin import capability
         cid = self.ids["ozon"]

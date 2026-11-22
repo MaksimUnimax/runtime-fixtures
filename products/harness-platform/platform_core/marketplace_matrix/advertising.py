@@ -116,16 +116,14 @@ def coverage_notes(plan, completed, names):
             active = {str(row["campaign_id"]) for row in campaigns if row["status"] == 9}
             paused = {str(row["campaign_id"]) for row in campaigns if row["status"] == 11}
             archived = {str(row["campaign_id"]) for row in campaigns if row["status"] == 7}
-            ready = sum(row["status"] == 4 for row in campaigns)
-            other = len(campaigns) - len(active | paused | archived) - ready
-            text = [
-                label + ".",
-                f"Статусы на момент запроса WB — активны {len(active)}, на паузе {len(paused)}, "
-                f"завершены {len(archived)}, готовы к запуску {ready}."
-                + (f" Другие статусы — {other}." if other else ""),
-            ]
+            text = [label + "."]
             groups = [("Активные", active & asked)]
             if query_id == "wb_supported_ads":
+                ready = sum(row["status"] == 4 for row in campaigns)
+                other = len(campaigns) - len(active | paused | archived) - ready
+                text.append(f"Статусы на момент запроса WB — активны {len(active)}, на паузе {len(paused)}, "
+                            f"завершены {len(archived)}, готовы к запуску {ready}."
+                            + (f" Другие статусы — {other}." if other else ""))
                 old_archive = {
                     str(row["campaign_id"]) for row in campaigns
                     if row["status"] == 7 and changed_before(row.get("changed_at"), first)

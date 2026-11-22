@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 
 
 from .authority import ChatAuthority
-from . import advertising, forecast_preview, store_currency
+from . import advertising, campaign_inventory, forecast_preview, store_currency
 
 BUNDLE = Path(__file__).with_name("runtime.tar.gz")
 BUNDLE_SHA256 = "7dada78f1d561a75aa53393fdc52a85af8ddf6b085c9a3830b9d50b3a488e068"
@@ -99,7 +99,9 @@ def catalogue(profiles):
     fields = {key: set(names) for key, _, names in profiles}
     engine = SimpleNamespace()
     configure_catalogue(engine, fields)
-    return [row for row in discovery(engine, Scope("", "", stores)) if row["available_stores"]]
+    return [row for row in discovery(engine, Scope("", "", stores))
+            if row["available_stores"] and row["id"] not in campaign_inventory.TEMPLATES
+            ] + list(campaign_inventory.catalogue(profiles))
 
 
 def formula_inputs(plan, completed, names):
@@ -174,8 +176,16 @@ def execute(packet, directory):
     fields = {cid: authority.field_names(store) for cid, store in allowed.items()}
     proofs = configure_catalogue(engine, fields, authority)
     calls = []
+    inventories = []
     for index, item in enumerate(packet["selections"], 1):
         tid, cid = item["templateId"], item["connectionId"]
+        if tid in campaign_inventory.TEMPLATES:
+            platform = campaign_inventory.TEMPLATES[tid]
+            store = allowed.get(cid)
+            if not store or store.platform != platform or not campaign_inventory.FIELDS[platform] <= fields[cid]:
+                raise Rejected("SOURCE_ACCESS")
+            inventories.append((tid, store, campaign_inventory.scope_for(platform, item["input"])))
+            continue
         if tid not in TEMPLATES or cid not in allowed or not _availability(engine, TEMPLATES[tid], allowed[cid]):
             raise Rejected("SOURCE_ACCESS")
         inputs = item["input"]
@@ -193,10 +203,22 @@ def execute(packet, directory):
             if inputs.get("group_by") == "total":
                 inputs["group_by"] = "marketplace"
         calls.append({"id": str(index), "template_id": tid, "store_id": cid, "input": inputs})
+    campaign_trace = {"templates": [{"id": tid, "connectionId": store.id, "statuses": selection}
+                                    for tid, store, selection in inventories],
+                      "operations": [], "rateLimitResponses": 0}
+    campaign_reports = [campaign_inventory.report(authority, store, selection, campaign_trace)
+                        for _, store, selection in inventories]
+    if not calls:
+        authority.check()
+        return {"ok": True, "campaignReports": campaign_reports,
+                "trace": {"selectionBy": "chat_agent", **campaign_trace}}
     try:
         store_currency.resolve(authority, calls, allowed, fields)
     except store_currency.ProfileError as error:
         log_failure("store_currency", error.result["code"], error.result.get("retryAt"))
+        if campaign_reports:
+            return {"ok": True, "campaignReports": campaign_reports, "reportFailure": error.result["reason"],
+                    "trace": {"selectionBy": "chat_agent", **campaign_trace}}
         return error.result
     engine.chat_template_selection = {
         "action": "plan", "complete": True, "missing": [], "invocations": calls,
@@ -313,8 +335,10 @@ def execute(packet, directory):
         if field_map:
             receipt["metricFields"] = field_map
     trace = {"selectionBy": "chat_agent", "catalogHash": HASH, "catalogSize": len(TEMPLATES),
-             "templates": [{"id": item["template_id"], "connectionId": item["store_id"]} for item in selected],
-             "operations": operations, "rateLimitResponses": len(rate_limits)}
+             "templates": campaign_trace["templates"] + [
+                 {"id": item["template_id"], "connectionId": item["store_id"]} for item in selected],
+             "operations": campaign_trace["operations"] + operations,
+             "rateLimitResponses": campaign_trace["rateLimitResponses"] + len(rate_limits)}
     if row["state"] != "READY":
         code = row.get("error") or row["state"]
         reason = explain(code)["text"]
@@ -322,10 +346,13 @@ def execute(packet, directory):
             reason = "Код валюты в финансовых данных не совпал с подтверждённой валютой магазина."
         elif code == "ACCRUAL_PRODUCT_MONEY":
             reason = "Денежные поля товарной строки начислений Ozon не прошли проверку суммы или валюты."
+        if campaign_reports:
+            return {"ok": True, "campaignReports": campaign_reports, "reportFailure": reason, "trace": trace}
         return {"ok": False, "code": code, "reason": reason, "trace": trace}
     result = json.loads(row["result"])
     if result.get("clarification"):
-        return {"ok": True, "clarification": result["clarification"]["question"], "trace": trace}
+        return {"ok": True, "clarification": result["clarification"]["question"],
+                "campaignReports": campaign_reports, "trace": trace}
     presentation = result.get("chat_presentation") or {}
     guidance = list(dict.fromkeys(note for item in selected
         for note in TEMPLATES[item["template_id"]].get("notes", [])))
@@ -345,14 +372,18 @@ def execute(packet, directory):
         if info.get("saved") is not False or info["mode"]!="preview":
             raise Rejected("PARAMETER_PREVIEW_INVALID")
         coefficient={**info,"sku":source["target"]["scope"]["sku"],"store":source["target"]["store_id"]}
-    return {"ok": not bool(result.get("failure_code")), "coefficient":coefficient, "sourceValues": source_values, "guidance": guidance, "answer": answer,
+    if campaign_reports and result.get("failure_code"):
+        return {"ok": True, "campaignReports": campaign_reports,
+                "reportFailure": explain(result["failure_code"])["text"], "trace": trace}
+    return {"ok": not bool(result.get("failure_code")), "coefficient":coefficient, "sourceValues": source_values,
+            "guidance": guidance, "answer": answer, "campaignReports": campaign_reports,
             "code": result.get("failure_code"), "trace": trace}
 
 
 def seller_result(result):
     """Expose confirmed figures and business explanations through the chat tool."""
     if result.get("ok"):
-        return {key: result[key] for key in ("ok", "answer", "clarification", "guidance", "sourceValues") if result.get(key)}
+        return {key: result[key] for key in ("ok", "answer", "clarification", "guidance", "sourceValues", "campaignReports", "reportFailure") if result.get(key)}
     if result.get("retryAt") and result.get("reason"):
         return {"ok": False, "reason": result["reason"], "retryAt": result["retryAt"]}
     from failure_explanations import explain
@@ -380,6 +411,7 @@ def seller_result(result):
         "PARAMETER_ZERO_DENOMINATOR": "За выбранный период нет заказанных единиц для расчёта.",
         "PARAMETER_REPORT_INPUT": "В прогноз переданы неподдерживаемые параметры.",
         "PARAMETER_REPORT_SCOPE_UNSUPPORTED": "Этот прогноз строится по одному магазину за выбранный период. Фильтры и сравнение периодов для него недоступны.",
+        "CAMPAIGN_STATUS_SCOPE": "Укажите допустимые статусы рекламных кампаний.",
         "SOURCE_ACCESS": "Для подключения сейчас недоступны запрошенные данные.",
         "WB_ADVERTISING_ACCESS": "Для рекламы Wildberries нужен токен с доступом к категории «Продвижение».",
         "TARIFF_QUOTE_OR_SKU_MISSING": "В текущем каталоге Ozon отсутствует тариф для части товаров или схем доставки из выбранных заказов. Полный прогноз требует этих тарифов.",
