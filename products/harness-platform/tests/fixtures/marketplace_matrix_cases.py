@@ -571,6 +571,9 @@ class MarketplaceMatrix(unittest.TestCase):
         page = read_templates.discover("/api/v1/tariffs/commission", 0, "wb", {"seller_token"})
         self.assertEqual(page["templates"][0]["id"], "read.wb.tariff_commission")
         self.assertLessEqual(len(page["templates"]), read_templates.PAGE_SIZE)
+        explicit = read_templates.discover("GET api/v1/tariffs/commission тариф комиссии", 0, "wb", {"seller_token"})
+        self.assertEqual([card["id"] for card in explicit["templates"]], ["read.wb.tariff_commission"])
+        self.assertFalse(read_templates.discover("/v1/description-category/tree тариф", 0, "wb", {"seller_token"})["templates"])
         self.assertFalse(read_templates.discover("", 0, "ozon", {"seller_token"})["templates"])
 
     def test_read_templates_dispatch_and_reject_other_store_or_unproven_ids(self):

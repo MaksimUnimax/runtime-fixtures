@@ -53,18 +53,29 @@ def supported(card, provider, fields):
 
 def discover(query, offset, provider, fields):
     normalized = query.strip().casefold()
+    refs = {ref.lstrip("/").rstrip(".") for ref in re.findall(
+        r"(?<![\w./])(?:read\.(?:seller|performance|wb)\.[\w-]+|/?(?:api|v\d+)/[a-z0-9_/{}/.-]+)",
+        normalized,
+    )}
+    exact = {
+        card["id"] for card in cards().values()
+        if card["id"].casefold() in refs or card["path"].casefold().lstrip("/") in refs
+    }
     words = {word for word in re.findall(r"\w+", normalized) if len(word) > 2}
     candidates = []
     for card in cards().values():
         if not supported(card, provider, fields):
             continue
+        if exact:
+            if card["id"] in exact:
+                candidates.append((0, card))
+            continue
         search = " ".join(card.get(k, "") for k in ("id", "purpose", "category", "path", "searchTerms")).casefold()
         score = sum(len(word) for word in words if word in search)
         if not words or score:
-            exact = normalized in (card["id"].casefold(), card["path"].casefold())
-            candidates.append((exact, score, card))
-    candidates.sort(key=lambda match: (not match[0], -match[1], match[2]["state"] != "ready", match[2]["id"]))
-    selected = [describe(card) for _, _, card in candidates[offset:offset + PAGE_SIZE]]
+            candidates.append((score, card))
+    candidates.sort(key=lambda match: (-match[0], match[1]["state"] != "ready", match[1]["id"]))
+    selected = [describe(card) for _, card in candidates[offset:offset + PAGE_SIZE]]
     next_offset = offset + PAGE_SIZE
     return {"templates": selected, "total": len(candidates),
             "nextOffset": next_offset if next_offset < len(candidates) else None}
