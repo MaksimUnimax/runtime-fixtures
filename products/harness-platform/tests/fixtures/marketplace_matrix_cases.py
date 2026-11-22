@@ -549,6 +549,9 @@ class MarketplaceMatrix(unittest.TestCase):
             if card["id"] == ozon_report_file.INFO:
                 self.assertEqual((card["profile"], card["http"], card["path"]), ("seller", "POST", "/v1/report/info"))
                 continue
+            if card["id"] == wb_documents.QR:
+                self.assertEqual((card["profile"], card["http"], card["path"]), ("wb", "GET", "/api/v3/supplies/{supplyId}/barcode"))
+                continue
             if card["id"] in wb_documents.DOWNLOADS:
                 self.assertEqual(card["profile"], "wb")
                 self.assertEqual(card["path"], "/api/v1/documents/download" +
@@ -935,6 +938,41 @@ class MarketplaceMatrix(unittest.TestCase):
             result = read_templates.execute(packet | {"readEvidence": {"revision": revision, "ids": proof}}, self.root)
             self.assertFalse(result["ok"])
             outbound.assert_called_once()
+
+    def test_wb_supply_qr_distinguishes_proven_open_supply_from_other_conflicts(self):
+        from base64 import b64encode
+        from io import BytesIO
+        from urllib.error import HTTPError
+        from platform_core.chat_attachments import _read
+        from platform_core.marketplace_matrix import read_templates, wb_documents
+        from platform_core.marketplace_matrix.authority import ChatAuthority
+
+        supply = "WB-GI-1234567"
+        journal = self.root / "native-chats.sqlite3"
+        packet = {**self.packet, "connections": [self.ids["wb"]],
+                  "turn": {**self.turn, "attachmentsJournal": str(journal)},
+                  "readTemplate": {"action": "read", "templateId": wb_documents.QR,
+                                   "params": {"path": {"supplyId": supply}}}}
+        revision = ChatAuthority(packet).revision
+        evidence = {"revision": revision, "ids": list(wb_documents.observed_supply({"id": supply}))}
+        png = b"\x89PNG\r\n\x1a\nfixture"
+        data = {"file": b64encode(png).decode(), "barcode": "QR-secret-text"}
+        with patch("http_transport.read_response", return_value=(json.dumps(data).encode(), 200)) as outbound:
+            rejected = read_templates.execute(packet | {"readEvidence": {"revision": revision, "ids": [supply]}}, self.root)
+            self.assertEqual(rejected["reasonSource"], "template")
+            outbound.assert_not_called()
+            result = read_templates.execute(packet | {"readEvidence": evidence}, self.root)
+            self.assertTrue(result["ok"], result)
+            self.assertTrue(outbound.call_args.args[0].full_url.endswith(f"/{supply}/barcode?type=png"))
+            file = result["data"]["file"]
+            self.assertEqual(_read(journal, self.scope, file["attachmentId"]), (f"{supply}_QR.png", png))
+            self.assertNotIn(data["barcode"], json.dumps(result))
+        for code in ("SupplyNotClosed", "Other"):
+            error = HTTPError("https://marketplace-api.wildberries.ru", 409, "Conflict", {},
+                              BytesIO(json.dumps({"code": code}).encode()))
+            with patch("http_transport.read_response", side_effect=error):
+                result = read_templates.execute(packet | {"readEvidence": evidence}, self.root)
+            self.assertEqual(result.get("reasonSource"), "template" if code == "SupplyNotClosed" else None)
 
     def test_read_sample_preserves_return_courier_flag_and_redacts_links(self):
         from platform_core.marketplace_matrix import read_templates

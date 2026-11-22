@@ -1,6 +1,7 @@
 """Offer the connected chat agent the applicable catalogue and run its selections."""
 from functools import lru_cache
 from hashlib import sha256
+from itertools import chain
 import json
 import os
 from pathlib import Path
@@ -213,10 +214,13 @@ def run_read(scope, arguments):
         if source and result.get("ok") is True and actual_revision:
             if revision != actual_revision:
                 known = set()
+            data = result.get("data")
             observations = {WB_ACQUIRING_LIST: observed_acquiring_reports,
                             ozon_report_file.LIST: ozon_report_file.observed_reports,
-                            wb_documents.LIST: wb_documents.observed_documents}.get(arguments["templateId"], observed_ids)
-            for value in observations(result.get("data")):
+                            wb_documents.LIST: wb_documents.observed_documents,
+                            wb_documents.SUPPLY_DETAILS: wb_documents.observed_supply}.get(arguments["templateId"])
+            values = chain(observations(data), observed_ids(data)) if observations else observed_ids(data)
+            for value in values:
                 if len(known) >= 512:
                     break
                 known.add(value)
