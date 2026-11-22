@@ -65,3 +65,9 @@ p,output { margin:0; } output:empty { display:none; } output { color:#226345; } 
 .balance-controls { margin-top:14px; }
 .balance-controls input { width:110px; }
 #balance-message:not(:empty) { margin-top:10px; }
+.balance-alerts { border-top:1px solid var(--octo-line); padding-top:14px; margin-top:16px; }
+.balance-alerts h3 { margin:0 0 4px; font-size:15px; }
+.balance-alerts form,.balance-telegram-actions { display:flex; flex-wrap:wrap; align-items:end; gap:10px; margin-top:10px; }
+.balance-alerts input { width:132px; }
+#balance-message[role=alert] { color:#9f2931; }
+:root[data-appearance=dark] #balance-message[role=alert] { color:#ffa9ae; }

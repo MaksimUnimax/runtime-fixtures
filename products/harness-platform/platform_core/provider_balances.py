@@ -13,6 +13,7 @@ from starlette.routing import Route
 
 from . import provider_keys
 from .admin_statistics import require_admin
+from .provider_balance_alerts import BalanceAlerts
 
 DEFAULT_MINUTES = 60
 MAX_MINUTES = 2 ** 31 - 1
@@ -45,7 +46,7 @@ def amounts(provider, payload):
 
 
 class BalanceMonitor:
-    def __init__(self, identity, http, router):
+    def __init__(self, identity, http, router, *, telegram=None):
         self.identity, self.http, self.router = identity, http, router
         with identity._write() as db:
             db.execute("""CREATE TABLE IF NOT EXISTS provider_balance_schedule (
@@ -57,10 +58,14 @@ class BalanceMonitor:
         self.refresh_lock = asyncio.Lock()
         self.settings_lock = asyncio.Lock()
         self.wake = asyncio.Event()
+        self.alerts = BalanceAlerts(identity, telegram) if telegram is not None else None
         self.task = asyncio.create_task(self.run())
 
-    def snapshot(self):
-        return {"intervalMinutes": self.minutes, "providers": self.rows.copy()}
+    def snapshot(self, token=None):
+        data = {"intervalMinutes": self.minutes, "providers": self.rows.copy()}
+        if self.alerts is not None and token:
+            data["telegramAlerts"] = self.alerts.snapshot(token, self.rows)
+        return data
 
     def persist_interval(self, token, minutes):
         try:
@@ -104,7 +109,7 @@ class BalanceMonitor:
         except (KeyError, ValueError, TypeError, InvalidOperation):
             return [], "API провайдера вернул неожиданный ответ."
 
-    async def refresh(self):
+    async def refresh(self, *, notify=True):
         previous = self.last_check
         async with self.refresh_lock:
             if previous != self.last_check:
@@ -115,6 +120,8 @@ class BalanceMonitor:
                                        {"amounts": values, "updatedAt": int(time()), "error": None})
             self.last_check = monotonic()
             self.wake.set()
+            if notify and self.alerts is not None:
+                await self.alerts.check(self.rows)
 
     async def run(self):
         while True:
@@ -133,13 +140,15 @@ class BalanceMonitor:
 
 
 def routes(get_token, body):
+    prefix = "/api/admin/provider-balances"
+
     async def handle(request):
         token = get_token(request, allow_cookie=True)
         identity = request.app.state.identity
         if not await run_in_threadpool(identity.is_admin, token):
             raise HTTPException(403, "Требуются права администратора")
         monitor = request.app.state.provider_balances
-        action = request.path_params.get("action")
+        action = request.url.path.removeprefix(prefix).lstrip("/")
         if action == "refresh":
             await monitor.refresh()
             if not await run_in_threadpool(identity.is_admin, token):
@@ -150,9 +159,14 @@ def routes(get_token, body):
             if type(minutes) is not int or not 1 <= minutes <= MAX_MINUTES:
                 raise HTTPException(400, "Введите положительное целое число минут.")
             await monitor.set_interval(token, minutes)
-        elif action:
-            raise HTTPException(404, "Unknown action")
-        return JSONResponse(monitor.snapshot())
+        elif action == "alert-settings":
+            data = await body(request, "thresholdUsd", "cnyPerUsd")
+            await monitor.alerts.save(token, data["thresholdUsd"], data["cnyPerUsd"])
+        elif action == "telegram-test":
+            monitor.alerts.linked_owner(token)
+            await monitor.refresh(notify=False)
+            await monitor.alerts.test(token, monitor.rows.copy())
+        return JSONResponse(monitor.snapshot(token))
 
-    return [Route("/api/admin/provider-balances", handle),
-            Route("/api/admin/provider-balances/{action}", handle, methods=["POST"])]
+    return [Route(prefix, handle), *(Route(f"{prefix}/{action}", handle, methods=["POST"])
+             for action in ("refresh", "settings", "alert-settings", "telegram-test"))]

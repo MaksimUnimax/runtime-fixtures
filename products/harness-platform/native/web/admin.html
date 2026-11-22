@@ -17,6 +17,19 @@
     <button type="submit" disabled>Сохранить интервал</button>
   </form>
 </div>
+<div class="balance-alerts">
+  <h3>Оповещения в Telegram</h3>
+  <p id="balance-telegram-status" class="balance-status">Проверяем подключение…</p>
+  <form id="balance-alert-settings">
+    <label>Порог, USD<input name="thresholdUsd" type="number" min="0.01" step="0.01" value="1.00" required disabled></label>
+    <label>Курс, CNY за 1 USD<input name="cnyPerUsd" type="number" min="0.00000001" step="any" inputmode="decimal" disabled></label>
+    <button type="submit" disabled>Сохранить оповещения</button>
+  </form>
+  <div class="balance-telegram-actions">
+    <button id="balance-telegram-test" type="button">Проверить связь с Telegram</button>
+    <button id="balance-telegram-connect" type="button">Переподключить Telegram</button>
+  </div>
+</div>
 <p id="balance-message" role="status" aria-live="polite"></p>
 </section>
 <section aria-labelledby="model-heading"><h2 id="model-heading">Модель по умолчанию</h2>

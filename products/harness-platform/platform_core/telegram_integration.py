@@ -198,13 +198,16 @@ data-size="large" data-radius="10" data-lang="ru" data-request-access="write" da
         state = req.app.state
         await body(req)
         with state.identity._write() as db:
-            _, ws = _principal(db, token)
+            actor, ws = _principal(db, token)
+            reconnect = req.url.path == "/api/admin/provider-balances/telegram-connect"
+            if reconnect and not db.execute("SELECT 1 FROM identity_admins WHERE actor_id=?", (actor,)).fetchone():
+                raise HTTPException(403, "Требуются права администратора")
             if req.url.path.endswith("/disconnect"):
                 db.execute("DELETE FROM telegram_integration_consents WHERE workspace=?", (ws,))
                 db.execute("DELETE FROM telegram_recipients WHERE workspace=?", (ws,))
                 return JSONResponse({"linked": False})
             cfg = require_config(state)
-            if state.telegram.status(db, ws)["hasBinding"]:
+            if not reconnect and state.telegram.status(db, ws)["hasBinding"]:
                 raise HTTPException(409, "Сначала отключите существующую интеграцию Telegram.")
             challenge = secrets.token_urlsafe(32)
             verifier, nonce = (secrets.token_urlsafe(32), secrets.token_urlsafe(32)) if cfg.secret else ("", "")
@@ -254,7 +257,7 @@ data-size="large" data-radius="10" data-lang="ru" data-request-access="write" da
                 raise HTTPException(409, "Подключение отменено. Начните заново.")
             existing = db.execute("SELECT workspace,recipient,bot FROM telegram_recipients WHERE workspace=? OR (bot=? AND recipient=?)",
                                   (ws,cfg.bot,uid)).fetchall()
-            if existing and existing != [(ws,uid,cfg.bot)]:
+            if any((workspace, recipient) != (ws, uid) for workspace, recipient, _ in existing):
                 raise HTTPException(409,"Этот аккаунт уже связан. Для замены сначала отключите прежнюю связь.")
         try:
             await tg.send(cfg, uid, "Октопорт проверяет подключение Telegram к вашему аккаунту.")
@@ -269,7 +272,8 @@ data-size="large" data-radius="10" data-lang="ru" data-request-access="write" da
                     raise HTTPException(409,"Подключение отменено. Начните заново.")
                 # A late 403 from a previous binding must not revoke a fresh consent, even for the same user.
                 db.execute("""INSERT INTO telegram_recipients(rowid,workspace,bot,recipient) VALUES(?,?,?,?)
-                              ON CONFLICT(workspace) DO NOTHING""", (secrets.randbits(63),ws,cfg.bot,uid))
+                              ON CONFLICT(workspace) DO UPDATE SET bot=excluded.bot,rowid=excluded.rowid
+                              WHERE recipient=excluded.recipient""", (secrets.randbits(63),ws,cfg.bot,uid))
                 if db.execute("SELECT bot,recipient FROM telegram_recipients WHERE workspace=?",
                               (ws,)).fetchone() != (cfg.bot,uid):
                     raise HTTPException(409,"Получатель изменился. Начните заново.")
@@ -278,5 +282,6 @@ data-size="large" data-radius="10" data-lang="ru" data-request-access="write" da
         return JSONResponse({"linked": True})
 
     return [Route(BASE+"/connect", manage, methods=["POST"]), Route(BASE+"/disconnect", manage, methods=["POST"]),
+            Route("/api/admin/provider-balances/telegram-connect", manage, methods=["POST"]),
             Route("/telegram/return", returning), Route("/telegram/return.js", returning),
             Route("/api/telegram/complete", complete, methods=["POST"])]

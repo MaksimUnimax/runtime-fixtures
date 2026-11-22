@@ -24,7 +24,10 @@ function renderCharge(charge) {
 async function request(path, options) {
   const response = await fetch(path, { credentials: 'same-origin', cache: 'no-store', ...options });
   if (response.status === 401) location.assign('/login');
-  if (!response.ok) throw new Error(({403:'Требуются права администратора',404:'Аккаунт не найден',400:'Проверьте введённые данные',409:'Начисление конфликтует с предыдущей операцией'})[response.status] ?? 'Не удалось выполнить операцию');
+  if (!response.ok) {
+    const detail = path.startsWith('/api/admin/provider-balances') ? await response.json().catch(() => null) : null;
+    throw new Error(detail?.error || (({403:'Требуются права администратора',404:'Аккаунт не найден',400:'Проверьте введённые данные',409:'Начисление конфликтует с предыдущей операцией'})[response.status] ?? 'Не удалось выполнить операцию'));
+  }
   return response.json();
 }
 const pricingForm = document.querySelector('#pricing');
@@ -54,7 +57,7 @@ function keyStates(state) {
 }
 request('/api/admin/provider-keys').then(keyStates).catch(e=>{document.querySelector('#problem').textContent=e.message;});
 let pending;
-for (const form of document.querySelectorAll('form:not(#default-model):not(#balance-settings)')) form.addEventListener('submit', async event => {
+for (const form of document.querySelectorAll('form:not(#default-model):not(#balance-settings):not(#balance-alert-settings)')) form.addEventListener('submit', async event => {
   event.preventDefault();
   const fields = Object.fromEntries(new FormData(form));
   const button = form.querySelector('button');
@@ -169,10 +172,32 @@ const balanceInterval = balanceForm.elements.intervalMinutes;
 const balanceSave = balanceForm.querySelector('button');
 const balanceRefresh = document.querySelector('#balance-refresh');
 const balanceMessage = document.querySelector('#balance-message');
+const alertForm = document.querySelector('#balance-alert-settings');
+const threshold = alertForm.elements.thresholdUsd;
+const cnyRate = alertForm.elements.cnyPerUsd;
+const alertSave = alertForm.querySelector('button');
+const telegramTest = document.querySelector('#balance-telegram-test');
+const telegramConnect = document.querySelector('#balance-telegram-connect');
+const telegramStatus = document.querySelector('#balance-telegram-status');
 let balanceBusy = false, balanceIntervalEdited = false, balancesLoaded = false;
+let alertSettingsEdited = false;
+
+function showBalanceMessage(text, error = false) {
+  balanceMessage.setAttribute('role', error ? 'alert' : 'status');
+  balanceMessage.setAttribute('aria-live', error ? 'assertive' : 'polite');
+  balanceMessage.textContent = text;
+}
 
 function showBalances(data) {
   if (!balanceIntervalEdited) balanceInterval.value = data.intervalMinutes;
+  const alerts = data.telegramAlerts;
+  if (!alertSettingsEdited) {
+    threshold.value = alerts.thresholdUsd;
+    cnyRate.value = alerts.cnyPerUsd ?? '';
+  }
+  telegramStatus.textContent = alerts.enabled ? 'Оповещения идут в ваш личный чат с ботом Октопорта.'
+    : alerts.linked ? 'Сохраните настройки, чтобы получать оповещения в Telegram.'
+      : 'Telegram не подключён. Переподключите его здесь.';
   for (const [provider, state] of Object.entries(data.providers)) {
     const values = state.amounts.map(({amount, currency}) => {
       const format = new Intl.NumberFormat('ru-RU', {
@@ -183,9 +208,15 @@ function showBalances(data) {
     document.querySelector('#balance-' + provider).textContent = values.join(' · ') || '—';
     const when = state.updatedAt ? new Date(state.updatedAt * 1000).toLocaleString('ru-RU') : '';
     const status = document.querySelector('#balance-' + provider + '-status');
+    let conversion = '';
+    if (provider === 'deepseek' && !state.error && state.amounts.some(row => row.currency === 'CNY' && Number(row.amount))) {
+      const usd = alerts.usdEquivalents.deepseek;
+      conversion = usd === undefined ? 'Укажите курс CNY за 1 USD для проверки порога.'
+        : 'Для порога ≈ ' + Number(usd).toLocaleString('ru-RU', {maximumFractionDigits:4}) + ' USD';
+    }
     status.textContent = [
       when ? (state.error ? 'Последние данные на ' : 'Обновлено ') + when : '',
-      state.error,
+      state.error, conversion,
     ].filter(Boolean).join(' · ') || 'Ожидает обновления';
   }
 }
@@ -193,26 +224,31 @@ function showBalances(data) {
 async function loadBalances(action = '', options = undefined) {
   if (balanceBusy) return;
   balanceBusy = true;
-  balanceRefresh.disabled = true;
-  balanceSave.disabled = true;
-  if (action) balanceMessage.textContent = action === '/refresh' ? 'Запрашиваем балансы…' : '';
+  for (const button of [balanceRefresh, balanceSave, alertSave, telegramTest, telegramConnect]) button.disabled = true;
+  if (action) showBalanceMessage(action === '/refresh' ? 'Запрашиваем балансы…'
+    : action === '/telegram-test' ? 'Получаем балансы и проверяем Telegram…' : '');
   try {
     const state = await request('/api/admin/provider-balances' + action, options);
     if (action === '/settings') balanceIntervalEdited = false;
+    if (action === '/alert-settings') alertSettingsEdited = false;
     showBalances(state);
     balancesLoaded = true;
     if (action === '/refresh') {
-      balanceMessage.textContent = Object.values(state.providers).some(row => row.error)
-        ? 'Проверьте статус провайдеров.' : 'Балансы обновлены.';
+      showBalanceMessage(Object.values(state.providers).some(row => row.error)
+        ? 'Проверьте статус провайдеров.' : 'Балансы обновлены.');
     } else if (action === '/settings') {
-      balanceMessage.textContent = 'Интервал сохранён.';
+      showBalanceMessage('Интервал сохранён.');
+    } else if (action === '/alert-settings') {
+      showBalanceMessage('Порог и курс сохранены.');
+    } else if (action === '/telegram-test') {
+      showBalanceMessage('Сообщение с балансами отправлено в Telegram.');
     }
   } catch (error) {
-    balanceMessage.textContent = error.message;
+    showBalanceMessage(error.message, true);
   } finally {
     balanceBusy = false;
-    balanceRefresh.disabled = false;
-    balanceInterval.disabled = balanceSave.disabled = !balancesLoaded;
+    for (const button of [balanceRefresh, telegramTest, telegramConnect]) button.disabled = false;
+    for (const control of [balanceInterval, balanceSave, threshold, cnyRate, alertSave]) control.disabled = !balancesLoaded;
   }
 }
 balanceInterval.addEventListener('input', () => { balanceIntervalEdited = true; });
@@ -223,6 +259,53 @@ balanceForm.addEventListener('submit', event => {
     method:'POST', headers:{'Content-Type':'application/json'},
     body:JSON.stringify({intervalMinutes:balanceInterval.valueAsNumber}),
   });
+});
+alertForm.addEventListener('input', () => { alertSettingsEdited = true; });
+alertForm.addEventListener('submit', event => {
+  event.preventDefault();
+  loadBalances('/alert-settings', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({thresholdUsd:threshold.valueAsNumber.toFixed(2), cnyPerUsd:cnyRate.value}),
+  });
+});
+telegramTest.addEventListener('click', () => loadBalances('/telegram-test', {method:'POST'}));
+telegramConnect.addEventListener('click', async () => {
+  const popup = window.open('', 'octoport-telegram-reconnect', 'popup,width=520,height=680');
+  if (!popup) {
+    showBalanceMessage('Разрешите всплывающее окно для подключения Telegram.', true);
+    return;
+  }
+  popup.opener = null;
+  showBalanceMessage('Открываем вход в Telegram…');
+  try {
+    const reply = await request('/api/admin/provider-balances/telegram-connect', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:'{}',
+    });
+    const url = new URL(reply.url, location.origin);
+    const widget = url.origin === location.origin && url.pathname === '/telegram/return' && url.searchParams.get('widget') === '1';
+    if (!widget && !(url.origin === 'https://oauth.telegram.org' && url.pathname === '/auth')) {
+      throw new Error('Не удалось открыть вход в Telegram.');
+    }
+    const state = url.searchParams.get('state');
+    const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('octoport.telegram') : null;
+    const closed = setInterval(() => {
+      if (popup.closed) { clearInterval(closed); channel?.close(); loadBalances(); }
+    }, 1000);
+    if (channel) channel.onmessage = event => {
+      if (event.data?.linked && state && event.data.state === state) {
+        clearInterval(closed);
+        channel.close();
+        popup.close();
+        loadBalances();
+        showBalanceMessage('Telegram переподключён.');
+      }
+    };
+    popup.location.replace(url.href);
+    showBalanceMessage('Подтвердите вход в открывшемся окне Telegram.');
+  } catch (error) {
+    popup.close();
+    showBalanceMessage(error.message, true);
+  }
 });
 loadBalances();
 setInterval(() => { if (!document.hidden) loadBalances(); }, 15000);

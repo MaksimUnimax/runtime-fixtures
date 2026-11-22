@@ -123,7 +123,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                     if app.state.model_router:
                         app.state.model_router.progress=app.state.progress
                     app.state.provider_balances = provider_balances.BalanceMonitor(
-                        app.state.identity, http, app.state.model_router)
+                        app.state.identity, http, app.state.model_router, telegram=app.state.telegram)
                     extensions.push_async_callback(app.state.provider_balances.close)
                     try:
                         yield
