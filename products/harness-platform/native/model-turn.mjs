@@ -2,7 +2,7 @@ import { turnFilter } from './capability-filter.mjs';
 import { projectCompletedKnowledge, resolvedHelp } from './octopus-knowledge.mjs';
 
 /** Run the same native Session, Agent, tool executor and loop for both transports. */
-export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, provider, model, reasoningEffort, adapter, signal, progress, restore, capture, knowledge }) {
+export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, provider, model, reasoningEffort, adapter, signal, progress, restore, capture, knowledge, verifiedReplies }) {
   const llm = await load('dsh-llm');
   // The worker supplies a fresh Context with sessions, tools and system prompt.
   for (const name of ['dsh-llm', 'dsh-session-projection', 'dsh-tool-executor-native', 'dsh-agent', 'dsh-agent-loop']) {
@@ -20,13 +20,13 @@ export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, 
         const gate=turnFilter(ctx);
         const tools=gate ? gate.project(options.tools) : options.tools;
         const messages = project(options.messages);
-        const reply = resolvedHelp(messages, knowledge?.replies);
+        const reply = resolvedHelp(messages, verifiedReplies);
         // A restored DeepSeek session may retain its original system sections.
         // Supply the validated account preference after Harness builds the outbound call.
         const address = knowledge?.style?.address;
         const rule = address === 'на вы' ? 'Только на вы, включая благодарность и прощание. Формы: «напишите», «вы знаете».'
           : address === 'на ты' ? 'Только на ты, включая благодарность и прощание. Формы: «напиши», «ты знаешь».' : '';
-        const system = rule ? [options.system,rule].filter(Boolean).join('\n\n') : options.system;
+        const system = rule ? [options.system,rule+' Заверши ответ на последнем полезном шаге.'].filter(Boolean).join('\n\n') : options.system;
         const chunks = reply ? localText(reply) : call.stream({...options,system,tools,messages});
         return progress ? observe(chunks) : chunks;
       }};

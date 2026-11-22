@@ -77,6 +77,11 @@ class PublishedKnowledge(unittest.TestCase):
             disabled = knowledge.snapshot(db, scope, [], {"configured":False,"linked":False})
             self.assertNotIn("lastSent", disabled["states"][binding])
             self.assertIn("скрыта", disabled["currentSteps"]["integration/telegram"][0])
+            self.assertIn("общего бота", disabled["replies"]["integration/telegram"]["text"])
+            self.assertIn("Продавец сам", disabled["replies"]["integration/telegram"]["text"])
+            ready = knowledge.snapshot(db, scope, [], {"configured": True, "linked": False})
+            self.assertNotIn("администратор", ready["replies"]["integration/telegram"]["text"])
+            self.assertIn("свой аккаунт", ready["replies"]["integration/telegram"]["text"])
             self.assertIn("уже подключён", active["currentSteps"]["integration/telegram"][0])
             self.assertIn("Последняя отправка", next(c["usage"] for c in active["cards"] if c["id"]==binding))
 

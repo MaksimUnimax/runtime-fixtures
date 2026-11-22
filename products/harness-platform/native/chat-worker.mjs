@@ -320,6 +320,7 @@ export async function openWorker(env) {
     let providerRefusal;
     let checkpointContext;
     let seedLength;
+    let verifiedReplies;
     let timer;
     let deadline = req.deadline;
     try {
@@ -358,7 +359,7 @@ export async function openWorker(env) {
           }));
         }
         if (req.action === 'turn') await files.mount(ctx, load, key, attachments);
-        if (req.action === 'turn' && req.knowledge) await registerKnowledge(ctx, load, req.knowledge, req.text);
+        if (req.action === 'turn' && req.knowledge) verifiedReplies = await registerKnowledge(ctx, load, req.knowledge, req.text);
         registerConnectionContext(ctx,attached,available,req.connectionGuides,metered && !!req.knowledge,req.knowledge?.style?.address);
       }
       if (req.action === 'tools') {
@@ -410,7 +411,7 @@ export async function openWorker(env) {
         session.append('user/message', message, { surfaceOp: 'append' });
         events = session.snapshotEvents(seed.length);
       } else {
-        const input = { load, ctx, chatId: key, seed, knowledge:req.knowledge, progress:req.grant?.model ? undefined : req.progress, text: promptText, requestId: req.requestId };
+        const input = { load, ctx, chatId: key, seed, knowledge:req.knowledge, verifiedReplies, progress:req.grant?.model ? undefined : req.progress, text: promptText, requestId: req.requestId };
         let turn;
         if (metered) {
           const runGatewayTurn = req.grant.model ? (await import('./openrouter-turn.mjs')).runRouterTurn

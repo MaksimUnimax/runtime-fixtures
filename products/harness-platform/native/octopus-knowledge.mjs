@@ -135,10 +135,12 @@ export function lookup(knowledge, query, page = 1) {
       if (byId.has(op.requires)) selected.add(byId.get(op.requires));
     }
   }
+  const definitions = page === 1 ? matchedDefinitions(cards,query).map(term=>term.text) : [];
+  if (!scored.length && definitions.length) return {automation,total:0,nextPage:null,cards:[],definitions};
   if (!scored.length) return {automation,total:0,nextPage:null,cards:[],
     status:'Совпадений среди опубликованных возможностей нет. Уточни название через полный каталог.'};
-  return {automation,total:scored.length, nextPage:page*5<scored.length?page+1:null,
-    cards:[...selected].map(({keywords,briefSetup,...card}) => {
+  return {automation,total:scored.length, ...(definitions.length ? {definitions} : {}), nextPage:page*5<scored.length?page+1:null,
+    cards:[...selected].map(({keywords,briefSetup,guideTopic,glossary,...card}) => {
       const current = state(card);
       const detail = {...card,state:current};
       if (currentSteps[card.id]) detail.steps = currentSteps[card.id];
@@ -156,16 +158,33 @@ export function directory(cards) {
   return titles.length <= 170 ? titles : [...new Set(cards.map(c => c.group))].sort().slice(0,12).join(', ').slice(0,170);
 }
 
-// Only named product subjects can contribute a short current-state note. This
-// never selects an executable tool, expands setup instructions or reads a store.
+// Exact glossary names select public prose. Both the catalogue and the question
+// are normalized; a shared term published by two plugins is returned only once.
+const normalize = value => ' '+(value.toLocaleLowerCase('ru').replaceAll('ё','е').match(/[\p{L}\p{N}]+/gu) ?? []).join(' ')+' ';
+function matchedDefinitions(cards, question) {
+  const query = normalize(question);
+  const matched = new Map();
+  for (const card of cards) {
+    for (const term of card.glossary ?? []) {
+      if (term.names.some(name=>query.includes(normalize(name)))) matched.set(term.id ?? term.text,term);
+    }
+  }
+  return [...matched.values()];
+}
+
+// These are public notes and instructions. Only an explicit action opens a tool.
 export function serviceNotes(knowledge, question) {
   const terms = words(question);
   if (!terms.size) return {notes:[], replies:{}};
   const names = new Set();
+  const normalized = normalize(question);
   for (const card of knowledge.cards) {
     if (!card.id.startsWith('integration/')) continue;
-    const aliases = words([card.id.split('/').at(-1),card.title,...(card.aliases ?? [])].join(' '));
-    if ([...terms].some(t => aliases.has(t))) names.add(card.id);
+    const namesForCard = [card.id.split('/').at(-1),card.title,...(card.aliases ?? [])];
+    if (namesForCard.some(name => {
+      const alias = normalize(name).trim();
+      return alias.includes(' ') ? normalized.includes(' '+alias+' ') : terms.has(alias.slice(0,5));
+    })) names.add(card.id);
   }
   const notes = [], replies = {};
   const titleTerms = knowledge.cards.map(card => words(card.title));
@@ -177,6 +196,10 @@ export function serviceNotes(knowledge, question) {
     const named = names.has(c.id) || c.operations?.some(op => names.has(op.requires)) ||
       directName || shortSetup ||
       (c.usage && [...words(c.keywords ?? '')].some(term => terms.has(term)));
+    if (named && c.guideTopic && !knowledge.currentSteps?.[c.id]) {
+      const steps = Object.values(c.steps).flat();
+      replies[c.id] = {topic:c.guideTopic,text:steps.map((step,i)=>(i+1)+'. '+step).join('\n\n')};
+    }
     if (!named || (!c.usage && !shortSetup && !knowledge.currentSteps?.[c.id])) continue;
     const verified = knowledge.replies?.[c.id];
     const note = verified ? c.title+' · '+verified.text : [c.title,JSON.stringify(knowledge.states[c.id] ?? 'не установлено'),
@@ -184,6 +207,13 @@ export function serviceNotes(knowledge, question) {
     if (notes.join(' ').length + note.length > 800) continue;
     notes.push(note);
     if (verified) replies[c.id] = verified;
+  }
+  for (const definition of matchedDefinitions(knowledge.cards,question)) {
+    if (notes.join(' ').length + definition.text.length > 1400) continue;
+    notes.push(definition.text);
+    // An illustrative reference answer cannot substitute for the user's figures.
+    if (definition.id && definition.topic && !/\p{N}/u.test(question))
+      replies['term/'+definition.id] = {topic:definition.topic,text:definition.text};
   }
   return {notes,replies};
 }
@@ -200,8 +230,8 @@ export async function registerKnowledge(ctx, load, knowledge, question = '') {
   const topics = Object.entries(replies).map(([id,r]) => id+' — '+r.topic);
   if (notes.length) ctx.systemPrompt.context({name:'product-status',order:76,required:true,interpolate:false,
     text:notes.join('\n')});
-  if (topics.length) ctx.systemPrompt.section({name:'verified-help',order:82,interpolate:false,
-    text:'Если вопрос целиком относится к одной из тем, единственный ответ — вызов octoport_help с reply равным ID темы, runNow=false. Готовую справку покажет Октопорт. При другом или составном поручении работай обычно.\n'+topics.join('\n')});
+  if (topics.length) ctx.systemPrompt.context({name:'verified-help',order:82,required:true,interpolate:false,
+    text:'Если вопрос целиком относится к одной из тем, единственный ответ — вызов octoport_help с reply равным ID темы, runNow=false. Готовую справку покажет Октопорт. При своих числах, составном вопросе или запросе данных выполняй поручение пользователя.\n'+topics.join('\n')});
   ctx.tools.register(defineTool({
     name:'octoport_help',description:'Справка. Пустой запрос — список.',
     parameters:{query:{type:'string',required:true},runNow:{type:'boolean',required:true,description:'Пользователь просит выполнить поручение сейчас?'},page:{type:'integer'},
@@ -218,6 +248,7 @@ export async function registerKnowledge(ctx, load, knowledge, question = '') {
       return JSON.stringify(details);
     }
   }));
+  return replies;
 }
 
 export function resolvedHelp(messages, replies) {

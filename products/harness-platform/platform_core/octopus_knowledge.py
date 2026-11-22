@@ -67,6 +67,7 @@ def _cards(key):
         kinds = entry.get("access", ())
         cards.append(dict(id="integration/" + provider, title=entry["title"], group="Интеграции",
             keywords=entry.get("keywords", ""), **({"aliases": entry["aliases"]} if entry.get("aliases") else {}),
+            **({"guideTopic": entry["guide_topic"]} if entry.get("guide_topic") else {}),
             purpose="Подключение " + entry["title"],
             steps={k: guides[k] for k in kinds if k in guides}, screen="/app/#settings-integrations"))
     published_ids = {c["id"] for c in cards} | {"plugin/" + p["id"] for p in plugins}
@@ -80,6 +81,7 @@ def _cards(key):
         cards.append(dict(id="plugin/" + p["id"], title=p["title"], group="Плагины", purpose=p["description"],
             keywords=p["keywords"], operations=ops, triggers=p["triggers"],
             **({"usage": p["usage"]} if p["usage"] else {}),
+            **({"glossary": p["glossary"]} if p["glossary"] else {}),
             **({"briefSetup": True} if p["setup"] and len(" ".join(p["setup"])) <= 180 and not p["usage"] else {}),
             screen="/app/#settings-plugins",
             steps=list(p["setup"]) or ["Подключите магазин в настройках интеграций из нужного чата. Плагин площадки включится автоматически."
@@ -120,10 +122,17 @@ def snapshot(db, scope, rows, telegram):
             "можно подключить" if telegram["configured"] else "временно недоступен")
         if telegram["linked"]:
             instructions["integration/telegram"] = ["Telegram уже подключён к аккаунту. За доставку отвечают настройки плагина в выбранном чате."]
-        elif not telegram["configured"]:
-            instructions["integration/telegram"] = ["Кнопка подключения скрыта. Бота настраивает администратор Октопорта вне кабинета продавца."]
-            replies["integration/telegram"] = {"topic": "Как сейчас подключить Telegram или начать получать в нём отчёты?",
-                "text": "Сейчас подключить Telegram нельзя. Нужно обратиться к администратору Октопорта, чтобы он настроил бота. После этого в настройках интеграций появится кнопка «Подключить Telegram»."}
+        else:
+            role_step = ("Продавец сам открывает «Настройки» → «Интеграции» → Telegram, нажимает «Подключить Telegram», "
+                         "выбирает свой аккаунт в Telegram и разрешает боту присылать сообщения. Для доставки отчётов подписка включается отдельно в нужном чате.")
+            if telegram["configured"]:
+                answer = role_step
+            else:
+                answer = ("Сейчас кнопка «Подключить Telegram» скрыта. Сначала администратор Октопорта настраивает общего бота сервиса. "
+                          "Затем появится кнопка. " + role_step)
+            instructions["integration/telegram"] = [answer]
+            replies["integration/telegram"] = {"topic": "Как подключить свой Telegram к Октопорту и кто выполняет каждый шаг?",
+                                              "text": answer}
         last = delivery["lastSent"]
         when = (f"Последняя подтверждённая отправка из этого чата — {last[:10]} в {last[11:16]} UTC."
                 if last else "Сейчас в окне плагина нет времени последней отправки. По этому экрану нельзя определить, уходил ли отчёт раньше.")

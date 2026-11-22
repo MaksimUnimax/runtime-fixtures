@@ -215,3 +215,40 @@ test('the first call gets the same verified state as the service reply', () => {
   assert.deepEqual(notes,['Часы · '+reply.text]);
   assert.equal(replies[id],reply);
 });
+
+test('published glossary terms match exact names, survive catalogue changes and never open tools',()=>{
+  const term = {names:['ДРР','доля рекламных расходов'],text:'Публичное определение без отчёта'};
+  const cards = ['a','b'].map(id=>({id:'plugin/'+id,title:id,group:'Плагины',purpose:'Аналитика',glossary:[term]}));
+  const k = {cards,states:{}};
+  for (const question of ['Поясни ДРР.', 'Доля рекламных расходов?']) {
+    assert.deepEqual(serviceNotes(k,question),{notes:[term.text],replies:{}});
+    assert.deepEqual(lookup(k,question).definitions,[term.text]);
+  }
+  for (const question of ['абвДРР','доля выплат','привет']) assert.deepEqual(serviceNotes(k,question).notes,[]);
+  assert.equal(lookup(k,'plugin/a').cards[0].glossary,undefined);
+  assert.deepEqual(serviceNotes({...k,cards:[]},'ДРР').notes,[]);
+});
+
+test('only a named published setup is offered as a ready reply, and restrictions take precedence',()=>{
+  const k = {states:{},cards:[{id:'integration/clock',title:'Clock',aliases:['Часы'],guideTopic:'Как добавить часы?',
+    steps:{reading:['У часов есть циферблат.','В настройках есть выбор часов.']}}]};
+  const id = k.cards[0].id;
+  assert.deepEqual(serviceNotes(k,'Привет').replies,{});
+  const help=serviceNotes(k,'Нужны часы');
+  assert.equal(help.notes.length,0);
+  assert.match(help.replies[id].text,/1\. У часов/);
+  assert.deepEqual(serviceNotes({...k,currentSteps:{[id]:['Закрыто.']}},'Часы').replies,{});
+});
+
+test('compound aliases require the entire name and fixed examples do not replace supplied figures',()=>{
+  const id='integration/source';
+  const reply={topic:'Как подключить?',text:'Действующий порядок подключения.'};
+  const term={id:'share',names:['Доля'],text:'Значение',topic:'Условный пример'};
+  const k={cards:[{id,title:'Source',aliases:['общий бот'],glossary:[term]}],states:{},currentSteps:{[id]:['Открыть.']},replies:{[id]:reply}};
+  assert.equal(serviceNotes(k,'Общий бот готов?').replies[id],reply);
+  assert.deepEqual(serviceNotes(k,'Общий оборот?').replies,{});
+  assert.equal(serviceNotes(k,'Что такое доля?').replies['term/share'].text,term.text);
+  const own=serviceNotes(k,'Какова доля при 3 из 10?');
+  assert.deepEqual(own.replies,{});
+  assert.deepEqual(own.notes,[term.text]);
+});
