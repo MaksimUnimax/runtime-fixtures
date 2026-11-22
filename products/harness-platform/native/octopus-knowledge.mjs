@@ -190,13 +190,11 @@ export function serviceNotes(knowledge, question) {
 export async function registerKnowledge(ctx, load, knowledge, question = '') {
   const {defineTool} = await load('dsh-tools');
   ctx.systemPrompt.section({name:'octopus',order:25,interpolate:false,
-    text:'Ты Октопус, осьминог Октопорта. От первого лица помогай вести магазины. Инструкции и статус сверяй через octoport_help. Без подтверждения исход неизвестен. Соблюдай стиль до последней фразы.'});
+    text:'Ты Октопус, осьминог Октопорта. От первого лица помогай вести магазины. Инструкции и статус сверяй через octoport_help. Без подтверждения исход неизвестен.'});
   const {address,tone,detail} = knowledge.style;
-  ctx.systemPrompt.section({name:'address',order:81,interpolate:false,
-    text:address==='на вы'?'К собеседнику всегда на вы: «напишите», «посмотрите».':'К собеседнику всегда на ты: «напиши», «посмотри».'});
   const hasTriggers = knowledge.cards.some(card => card.triggers?.length);
   ctx.systemPrompt.context({name:'octopus-settings',order:75,required:true,interpolate:false,
-    text:'Стиль: '+[tone,detail].join(', ')+'. Опубликовано: '+directory(knowledge.cards)+(hasTriggers ? '. Автозапуск: см. triggers.' : '. Автозапуск и напоминания недоступны.')});
+    text:'Стиль: '+[address,tone,detail].join(', ')+'. Опубликовано: '+directory(knowledge.cards)+(hasTriggers ? '. Автозапуск: см. triggers.' : '. Автозапуск и напоминания недоступны.')});
   const {notes,replies} = serviceNotes(knowledge, question);
   const topics = Object.entries(replies).map(([id,r]) => id+' — '+r.topic);
   if (notes.length) ctx.systemPrompt.context({name:'product-status',order:76,required:true,interpolate:false,
@@ -205,7 +203,7 @@ export async function registerKnowledge(ctx, load, knowledge, question = '') {
     text:'Если вопрос целиком относится к одной из тем, единственный ответ — вызов octoport_help с reply равным ID темы, runNow=false. Готовую справку покажет Октопорт. При другом или составном поручении работай обычно.\n'+topics.join('\n')});
   ctx.tools.register(defineTool({
     name:'octoport_help',description:'Справка. Пустой запрос — список.',
-    parameters:{query:{type:'string',required:true},runNow:{type:'boolean',required:true,description:'Цель пользователя — получить данные или выполнить действие сейчас?'},page:{type:'integer'},
+    parameters:{query:{type:'string',required:true},runNow:{type:'boolean',required:true,description:'Пользователь просит выполнить поручение сейчас?'},page:{type:'integer'},
       ...(topics.length ? {reply:{type:'string',required:true,enum:['other',...Object.keys(replies)],description:'Для вопроса по одной теме выбери её ID. Для остальных задач — other.'}} : {})},
     output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
     execute:async ({query,page,runNow,reply})=>{

@@ -21,7 +21,13 @@ export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, 
         const tools=gate ? gate.project(options.tools) : options.tools;
         const messages = project(options.messages);
         const reply = resolvedHelp(messages, knowledge?.replies);
-        const chunks = reply ? localText(reply) : call.stream({...options,tools,messages});
+        // A restored DeepSeek session may retain its original system sections.
+        // Supply the validated account preference after Harness builds the outbound call.
+        const address = knowledge?.style?.address;
+        const rule = address === 'на вы' ? 'Только на вы, включая благодарность и прощание. Формы: «напишите», «вы знаете».'
+          : address === 'на ты' ? 'Только на ты, включая благодарность и прощание. Формы: «напиши», «ты знаешь».' : '';
+        const system = rule ? [options.system,rule].filter(Boolean).join('\n\n') : options.system;
+        const chunks = reply ? localText(reply) : call.stream({...options,system,tools,messages});
         return progress ? observe(chunks) : chunks;
       }};
     };
