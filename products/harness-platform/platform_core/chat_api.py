@@ -25,6 +25,7 @@ from .admin_costs import AdminCosts, present_chat
 from .user_plugins import service as user_plugins, illustrations, telegram_routes
 from .browser_session import browser_routes, browser_token
 from .chat_worker import ChatWorker, WorkerError
+from .user_plugins.timer.dialog import Dialog as TimerDialog
 from .user_plugins.timer.routes import routes as timer_routes
 from .user_plugins.telegram_delivery import Delivery as TelegramReports
 from . import integrations, provider_keys, chat_connections, chat_defaults, turn_progress, chat_attachments, telegram_integration
@@ -122,9 +123,11 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                         router_plugin.activate(app.state.identity,http,app.state.worker)) if router_plugin else None
                     if app.state.model_router:
                         app.state.model_router.progress=app.state.progress
+                    app.state.timers = TimerDialog(app.state)
                     try:
                         yield
                     finally:
+                        await app.state.timers.scheduler.close()
                         await app.state.plugins.close()
                         await app.state.progress.close()
                         await app.state.worker.close()
@@ -196,7 +199,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                 raise HTTPException(400, "Expected an arguments object")
             data["name"] = req.path_params["name"]
         elif action in {"append", "turn"}:
-            data = await _body(req, "requestId", "text", optional=("maxCoins", "attachments") if action == "turn" else ())
+            data = await _body(req, "requestId", "text", optional=("maxCoins", "attachments", "timer", "timeZone") if action == "turn" else ())
             attachments = chat_attachments.validate_ids(data.get("attachments", []))
             if "maxCoins" in data:
                 from .coins import parse_amount
@@ -251,7 +254,15 @@ def create_app(database_path, chat_directory, *, composition_module=None):
             if owner: data["on_progress"]=turn.set
         async def work():
             try:
-                result = await req.app.state.worker.request(scope, action, **data)
+                hint = data.pop("timer",None)
+                zone = data.pop("timeZone",None)
+                if hint is not None and (not isinstance(hint,dict) or set(hint)-{"kind","eventId"}):
+                    raise HTTPException(400,"Некорректный запрос таймера.")
+                timers = req.app.state.timers
+                if action == "turn" and not data.get("attachments") and timers.matches(scope,data["requestId"],data["text"],hint):
+                    result = await timers.answer(scope,token,data["requestId"],data["text"],hint,zone)
+                else:
+                    result = await req.app.state.worker.request(scope, action, **data)
             except WorkerError as exc:
                 if exc.code != "turn_unconfirmed" or exc.operation_id is None:
                     raise

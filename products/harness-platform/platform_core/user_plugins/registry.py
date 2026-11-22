@@ -51,6 +51,16 @@ SCHEMA = (
 )
 
 
+def requires_edit_confirmation(db, workspace, chat, plugin):
+    from .timer.authorization import authorized_occurrence
+    if authorized_occurrence(db,workspace,chat,plugin):
+        return False
+    if not db.execute("SELECT 1 FROM sqlite_schema WHERE name='marketplace_direct_edits'").fetchone():
+        return True
+    return db.execute("""SELECT 1 FROM marketplace_direct_edits
+        WHERE workspace_id=? AND chat_id=? AND plugin_id=?""", (workspace, chat, plugin)).fetchone() is None
+
+
 def attached(db, scope, plugin):
     return db.execute("""SELECT 1 FROM chat_plugins p JOIN workspaces w USING(workspace_id)
         WHERE p.workspace_id=? AND w.owner_id=? AND p.chat_id=? AND p.plugin_id=?""",

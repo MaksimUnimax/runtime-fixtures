@@ -44,6 +44,15 @@ def routes(get_token, body):
             db = identity._db
             scope = scope_for(db, token, chat)
             store.require_plugin(db, scope)
+            if command == "delivery":
+                value=db.execute("""SELECT COALESCE(MAX(r.rowid),0),COUNT(*) FROM timer_runs r
+                    JOIN timer_events e ON e.id=r.event WHERE e.chat=? AND r.chat_delivery='sent'""",(chat,)).fetchone()
+                return JSONResponse({"revision":f"{value[0]}.{value[1]}"})
+            if command == "history":
+                store.event(db,scope,key)
+                rows=db.execute("""SELECT due,started,finished,outcome,message,chat_delivery,telegram_delivery,state
+                    FROM timer_runs WHERE event=? ORDER BY due DESC LIMIT 100""",(key,))
+                return JSONResponse({"runs":[dict(zip(("due","started","finished","outcome","message","chat","telegram","state"),r)) for r in rows]})
             if command == "list":
                 before = req.query_params.get("before")
                 if before is not None:
@@ -73,6 +82,6 @@ def routes(get_token, body):
             return await endpoint(req, command)
         return Route(BASE + suffix, handle, methods=[method])
 
-    return [route("", "list", "GET"), route("/drafts", "start"), route("/drafts/{key}", "draft", "GET"),
+    return [route("", "list", "GET"), route("/delivery","delivery","GET"), route("/events/{key}/history","history","GET"), route("/drafts", "start"), route("/drafts/{key}", "draft", "GET"),
             *(route("/drafts/{key}/" + cmd, cmd) for cmd in ("refine", "cancel", "confirm")),
             *(route("/events/{key}/" + cmd, cmd) for cmd in ("pause", "resume", "delete"))]

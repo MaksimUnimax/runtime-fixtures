@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { modelDispatchStore } from './model-dispatch-store.mjs';
 import { mountPlatformMcp } from './platform-mcp.mjs';
 import { publicEvents } from './public-events.mjs';
+import { appendTimerExchange } from './timer-exchange.mjs';
 import { chatFiles } from './chat-files.mjs';
 
 class RequestError extends Error {}
@@ -249,6 +250,12 @@ export async function openWorker(env) {
       } finally { source.close(); }
       if (!history.length) fail('unavailable');
       await adoptGuestHistory(key, history);
+    }
+    if (req.action === 'timerExchange') {
+      const ctx = new Context();
+      try {
+        return await appendTimerExchange({req,key,ctx,load,mount,dispatch,previous,deleted,all,insert,visible,fail});
+      } finally { await ctx.fiber.dispose(); }
     }
     if (req.action === 'history' || req.action === 'events') {
       const limit = req.limit ?? 30;

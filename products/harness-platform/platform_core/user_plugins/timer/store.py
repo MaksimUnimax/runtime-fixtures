@@ -201,6 +201,9 @@ def change_status(db, scope, key, operation, *, now_us=None):
     elif operation == "pause" and row["status"] == "active":
         db.execute("UPDATE timer_events SET status='paused',next_us=NULL WHERE id=?", (key,))
     elif operation == "resume" and row["status"] == "paused":
+        if db.execute("SELECT 1 FROM sqlite_schema WHERE name='timer_runs'").fetchone() and db.execute(
+                "SELECT 1 FROM timer_runs WHERE event=? AND outcome='unknown' LIMIT 1",(key,)).fetchone():
+            raise HTTPException(409,"Сначала сверьте с площадкой исход незавершённой операции.")
         now = schedule.instant(datetime.now(UTC)) if now_us is None else now_us
         due = schedule.next_after(row["schedule"], now, row["anchor_us"])
         status = "active" if due is not None else "completed"

@@ -451,7 +451,9 @@ def main():
     with open(os.devnull, "w") as sink, redirect_stdout(sink):
         try:
             if "readTemplate" in packet:
-                result = read_templates.execute(packet, root)
+                from ..user_plugins.timer.authorization import matrix_request
+                with matrix_request(packet):
+                    result = read_templates.execute(packet, root)
             elif "profiles" in packet:
                 result = catalogue(packet["profiles"])
             else:
