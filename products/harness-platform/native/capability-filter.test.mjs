@@ -193,3 +193,25 @@ test('a distinctive word from a renamed plugin carries its current short setup',
   assert.match(serviceNotes(k,'Что выбрать в настройках циферблата?').notes.join(' '),/лунное время/);
   assert.deepEqual(serviceNotes(k,'Как дела?').notes,[]);
 });
+
+test('correcting a help selection opens only the menu, live and after recovery', () => {
+  const {ctx,project,name} = fixture();
+  const filter = turnFilter(ctx);
+  filter.recordHelp(false);
+  assert.deepEqual(project(),['octoport_help']);
+  filter.recordHelp(true);
+  assert.ok(project().includes(activate));
+  assert.ok(!project().includes(name));
+  const events = [false,true].map(runNow=>({type:'assistant/message',data:{message:{
+    content:[{type:'tool-call',name:'octoport_help',arguments:JSON.stringify({runNow})}]}}}));
+  assert.deepEqual(fixture(events).project(),project());
+});
+
+test('the first call gets the same verified state as the service reply', () => {
+  const id = 'plugin/clock';
+  const reply = {topic:'Когда сработали часы?',text:'Предыдущая попытка не подтверждена.'};
+  const knowledge = {cards:[{id,title:'Часы',usage:'Общая инструкция'}],states:{[id]:'выключено'},replies:{[id]:reply}};
+  const {notes,replies} = serviceNotes(knowledge,'Что показали часы?');
+  assert.deepEqual(notes,['Часы · '+reply.text]);
+  assert.equal(replies[id],reply);
+});

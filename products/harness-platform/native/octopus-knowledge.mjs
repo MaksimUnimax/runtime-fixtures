@@ -178,11 +178,12 @@ export function serviceNotes(knowledge, question) {
       directName || shortSetup ||
       (c.usage && [...words(c.keywords ?? '')].some(term => terms.has(term)));
     if (!named || (!c.usage && !shortSetup && !knowledge.currentSteps?.[c.id])) continue;
-    const note = [c.title,JSON.stringify(knowledge.states[c.id] ?? 'не установлено'),
+    const verified = knowledge.replies?.[c.id];
+    const note = verified ? c.title+' · '+verified.text : [c.title,JSON.stringify(knowledge.states[c.id] ?? 'не установлено'),
       ...(knowledge.currentSteps?.[c.id] ?? []),shortSetup ? c.steps.join(' ') : '',c.usage].filter(Boolean).join(' · ');
     if (notes.join(' ').length + note.length > 800) continue;
     notes.push(note);
-    if (knowledge.replies?.[c.id]) replies[c.id] = knowledge.replies[c.id];
+    if (verified) replies[c.id] = verified;
   }
   return {notes,replies};
 }

@@ -1,7 +1,7 @@
 import { runNativeTurn } from './model-turn.mjs';
 
 export function project(messages, tools, system, model) {
-  const rows = system ? [{role:'system',content:system}] : [];
+  const rows = [];
   for (const msg of messages) {
     const text = msg.content.filter(b=>b.type==='text').map(b=>b.text).join('\n');
     if (msg.role==='tool') {
@@ -17,6 +17,12 @@ export function project(messages, tools, system, model) {
           ? {reasoning_details:msg.source.replayState.response.reasoning_details} : {})});
     }
   }
+  // Some chat templates keep only one leading system message. Keep the
+  // native instructions together and apply current per-call preferences last.
+  let leading = 0;
+  while (rows[leading]?.role === 'system') leading++;
+  const instructions = [...rows.slice(0,leading).map(row=>row.content),system].filter(Boolean);
+  if (instructions.length) rows.splice(0,leading,{role:'system',content:instructions.join('\n\n')});
   return {messages:rows,...(tools?.length ? {tools:tools.map(({name,description,parameters})=>({
     type:'function',function:{name,description,parameters}
   }))} : {})};

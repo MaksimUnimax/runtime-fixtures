@@ -55,7 +55,8 @@ export function installFilter(ctx, defineTool, restored = [], history = []) {
   const selected = new Set();
   let intent;
   function recordHelp(runNow) {
-    if (intent === undefined && typeof runNow === 'boolean') intent = runNow ? 'execute' : 'help';
+    if (runNow === true) intent = 'execute';
+    else if (runNow === false && intent === undefined) intent = 'help';
   }
   const activations = new Set();
   for (const {type,data} of restored) {
