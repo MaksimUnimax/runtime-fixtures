@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -7,6 +8,7 @@ from uuid import uuid4
 from starlette.testclient import TestClient
 from platform_core.chat_api import create_app
 from platform_core.identity import IdentityStore
+from platform_core.checkout import merchant, receipt_data
 
 ORIGIN = "https://platform.test"
 HEADERS = {"origin": ORIGIN}
@@ -21,12 +23,38 @@ class CheckoutTests(unittest.TestCase):
         self.client = self.enterContext(TestClient(create_app(self.db, Path(temp)/"chat"), base_url=ORIGIN))
         self.form = {"coins":"3", "total":"3.60", "key":str(uuid4())}
         self.url = "/api/coins/checkout"
+        self.enterContext(patch.dict(os.environ, {
+            "YOOKASSA_RECEIPT_PROVIDER": "yookassa",
+            "YOOKASSA_VAT_CODE": "1",
+            "YOOKASSA_PAYMENT_SUBJECT": "service",
+            "YOOKASSA_PAYMENT_MODE": "full_payment",
+        }))
 
     def signin(self):
         self.client.post("/login", data={"login":"TEST@example.org", "password":"password"}, headers=HEADERS)
 
     def post(self, **fields):
         return self.client.post(self.url, data={**self.form, **fields}, headers=HEADERS)
+
+    def test_production_credential_is_fail_closed_and_receipts_validated(self):
+        self.assertIsNone(merchant())
+        self.assertEqual(receipt_data("test@example.org", 3, "3.60")["items"][0]["vat_code"], 1)
+        with TemporaryDirectory() as directory:
+            secret = "live_" + ("X" * 44)
+            (Path(directory) / "yookassa-config").write_text(
+                "Загруженный ключ:\n" + secret + "\nМагазин:\n1538006\n",
+                encoding="utf-8",
+            )
+            with patch.dict(os.environ, {"YOOKASSA_SHOP_ID": "1538006",
+                                         "CREDENTIALS_DIRECTORY": directory,
+                                         "YOOKASSA_PAYMENTS_ENABLED": "1"}):
+                self.assertEqual(merchant(), ("1538006", secret))
+                with patch.dict(os.environ, {"YOOKASSA_RECEIPT_PROVIDER": "off"}):
+                    self.assertIsNone(merchant())
+                with patch.dict(os.environ, {"YOOKASSA_VAT_CODE": "99"}):
+                    self.assertIsNone(merchant())
+                with patch.dict(os.environ, {"YOOKASSA_SHOP_ID": "9999999"}):
+                    self.assertIsNone(merchant())
 
     def test_no_merchant_and_session_boundaries(self):
         with patch("platform_core.checkout.merchant", return_value=None):
@@ -49,6 +77,9 @@ class CheckoutTests(unittest.TestCase):
             if method == "POST":
                 order = kwargs["headers"]["Idempotence-Key"]
                 self.assertEqual(kwargs["json"]["metadata"]["order"], order)
+                receipt = kwargs["json"]["receipt"]
+                self.assertEqual(receipt["items"][0]["amount"]["value"], "3.60")
+                self.assertEqual(receipt["customer"]["email"], "test@example.org")
             else:
                 self.assertEqual(path, "/"+pay_id)
             return {"id":pay_id, "amount":{"value":"3.60","currency":"RUB"}, "test":False,
