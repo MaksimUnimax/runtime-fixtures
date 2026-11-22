@@ -100,3 +100,78 @@ class Statistics(unittest.TestCase):
                          (22, 4*coins.UNIT, 2*coins.UNIT, 10*coins.UNIT, 15*coins.UNIT))
         self.assertEqual(row["rubles"].as_tuple(), Decimal("4.80").as_tuple())
         self.assertEqual(row["meters"]["OpenRouter"], {"input":23,"cache":5,"output":15,"coins":"1"})
+
+    def test_server_sorts_before_pagination_and_default_limit_is_ten(self):
+        page = "/admin/statistics"
+        for number in range(10):
+            self.store.create_account(f"extra-{number:02}", self.password)
+        with self.store._write() as db:
+            for name, seconds, bought, registered, activity in (
+                ("administrator",17,"2",100,800),
+                ("<old-account>",35,"12",300,200),
+                ("extra-09",22,"5",200,500),
+            ):
+                actor, workspace = db.execute(
+                    "SELECT actor_id,workspace_id FROM identity_accounts WHERE login=?", (name,)).fetchone()
+                db.execute("UPDATE identity_registration_dates SET created=? WHERE actor_id=?", (registered,actor))
+                db.execute("INSERT INTO identity_presence VALUES(?,?,?)", (actor,seconds,activity))
+                coins.grant(db,"yookassa",actor,workspace,bought,"Покупка монет")
+            db.execute("UPDATE identity_registration_dates SET created=10 WHERE actor_id NOT IN "
+                       "(SELECT actor_id FROM identity_presence)")
+        self.use(self.owner)
+        first = self.client.get(page,params={"sort":"purchased","dir":"desc"})
+        self.assertEqual(first.text.count('<th scope="row">'),10)
+        self.assertLess(first.text.index("&lt;old-account&gt;"),first.text.index("extra-09"))
+        self.assertIn("Страница 1 из 2",first.text)
+        second = self.client.get(page,params={"sort":"purchased","dir":"desc","page":"2"})
+        self.assertEqual(second.text.count('<th scope="row">'),2)
+        self.assertIn("sort=purchased",second.text)
+        for limit in (20,50,100):
+            self.assertEqual(self.client.get(page,params={"limit":limit}).text.count('<th scope="row">'),12)
+        for sort, first_user in (("registered","<old-account>"),("last_seen","administrator"),
+                                  ("time","<old-account>"),("balance","<old-account>"),("purchased","<old-account>")):
+            rows, *_ = read_statistics(self.store,self.owner,"",1,sort=sort,direction="desc")
+            self.assertEqual(rows[0]["login"],first_user,sort)
+        oldest, *_ = read_statistics(self.store,self.owner,"",1,sort="registered",direction="asc")
+        self.assertEqual(oldest[0]["login"],"extra-00")
+        self.assertEqual(self.client.get(page,params={"limit":1}).status_code,400)
+
+    def test_transactional_removal_checks_identity_and_pending_work(self):
+        scope = self.store.create_user_chat(self.user)
+        with self.store._write() as db:
+            administrator, = db.execute("SELECT actor_id FROM identity_admins").fetchone()
+            db.execute("""INSERT INTO coin_checkouts(id,workspace_id,request_key,quantity,total,status)
+                          VALUES('pending',?,'request',1,'1.20','pending')""",(scope.workspace_id,))
+            db.execute("INSERT INTO usage_operations VALUES('op',?,?,?,'chat.turn','run')",
+                       (scope.actor_id,scope.workspace_id,scope.chat_id))
+            db.execute("""INSERT INTO coin_orders(operation_id,workspace_id,cap,markup,coins_per_usd,closed)
+                          VALUES('op',?,0,0,1,1)""",(scope.workspace_id,))
+            db.execute("""INSERT INTO coin_attempts(attempt_id,operation_id,bound,charge,model,started_ms,rate_version,period)
+                          VALUES('attempt','op',0,0,'fixture',0,'deepseek','fixture')""")
+        own_page = f"/admin/statistics/remove?account={administrator}"
+        target = f"/admin/statistics/remove?account={scope.actor_id}&q=old&limit=20&sort=time&dir=desc"
+        self.use(self.user)
+        self.assertEqual(self.client.get(target).status_code,403)
+        self.use(self.owner)
+        self.assertEqual(self.client.get(own_page).status_code,403)
+        self.assertIn("&lt;old-account&gt;",self.client.get(target).text)
+        self.assertEqual(self.post(target,{"confirmation":"another"}).status_code,400)
+        self.assertEqual(self.post(target,{"confirmation":"<old-account>"}, "https://other.test").status_code,403)
+        self.assertEqual(self.post(target,{"confirmation":"<old-account>"}).status_code,409)
+        with self.store._write() as db:
+            self.assertIsNotNone(db.execute("SELECT 1 FROM identity_accounts WHERE actor_id=?",(scope.actor_id,)).fetchone())
+            db.execute("UPDATE coin_checkouts SET status='canceled' WHERE id='pending'")
+        response = self.post(target,{"confirmation":"<old-account>"})
+        self.assertEqual(response.status_code,303,response.text)
+        for item in ("limit=20","sort=time","dir=desc","removed=1"):
+            self.assertIn(item,response.headers["location"])
+        self.assertEqual(self.post(target,{"confirmation":"<old-account>"}).status_code,404)
+        with self.store._lock:
+            db = self.store._db
+            self.assertIsNone(db.execute("SELECT 1 FROM identity_accounts WHERE actor_id=?",(scope.actor_id,)).fetchone())
+            self.assertIsNone(db.execute("SELECT 1 FROM coin_checkouts WHERE workspace_id=?",(scope.workspace_id,)).fetchone())
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM coin_attempts").fetchone()[0],0)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM identity_admins").fetchone()[0],1)
+            self.assertFalse(db.execute("PRAGMA foreign_key_check").fetchall())
+        self.use(self.user)
+        self.assertEqual(self.client.get("/api/profile/security").status_code,401)

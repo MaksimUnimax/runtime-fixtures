@@ -15,15 +15,16 @@
 <section aria-labelledby="stats-users">
   <h2 id="stats-users">Пользователи</h2>
   <p>$count</p>
+  <p class="stats-message" role="$message_role">$message</p>
   <form class="stats-search" method="get" action="/admin/statistics" role="search">
     <label>Поиск по логину<input type="search" name="q" value="$query" maxlength="254"></label>
-    <button type="submit">Найти</button>
+    <label class="stats-page-size">Строк на странице<select name="limit">$page_options</select></label>
+    <input type="hidden" name="sort" value="$sort"><input type="hidden" name="dir" value="$direction">
+    <button type="submit">Показать</button>
   </form>
   <div class="stats-table" tabindex="0" aria-label="Статистика по пользователям">
     <table>
-      <thead><tr><th scope="col">Логин</th><th scope="col">Активное время</th><th scope="col">Токены</th>
-      <th scope="col">Списано, монет</th><th scope="col">Пополнения, монет</th>
-      <th scope="col">Стартовые, монет</th><th scope="col">Баланс, монет</th></tr></thead>
+      <thead><tr>$headers</tr></thead>
       <tbody>$rows</tbody>
     </table>
   </div>
@@ -32,12 +33,11 @@
 </section>
 <section aria-labelledby="stats-bonus">
   <h2 id="stats-bonus">Бесплатные монеты при регистрации</h2>
-  <form class="stats-search" method="post" action="/admin/statistics">
+  <form class="stats-search" method="post" action="$dashboard">
     <label>Монеты для нового аккаунта<input required type="number" name="amount" min="0" max="$max_bonus" step="0.000000000001" value="$bonus" inputmode="decimal"></label>
     <button type="submit">Сохранить</button>
   </form>
   <p class="stats-hint">Новая сумма действует для следующих регистраций. Ноль отключает начисление.</p>
-  <p class="stats-message" role="$message_role">$message</p>
 </section>
 </main>
 </body>

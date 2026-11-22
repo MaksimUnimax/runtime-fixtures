@@ -41,6 +41,9 @@ _SCHEMA = (
     """CREATE TABLE IF NOT EXISTS identity_admins (
            actor_id TEXT PRIMARY KEY NOT NULL REFERENCES identity_accounts ON DELETE CASCADE
        )""",
+    """CREATE TABLE IF NOT EXISTS identity_registration_dates (
+           actor_id TEXT PRIMARY KEY REFERENCES identity_accounts ON DELETE CASCADE,
+           created INTEGER NOT NULL DEFAULT(unixepoch()))""",
     """CREATE TABLE IF NOT EXISTS identity_presence (
            actor_id TEXT PRIMARY KEY REFERENCES identity_accounts ON DELETE CASCADE,
            seconds INTEGER NOT NULL CHECK(seconds>=0), last_at INTEGER NOT NULL)""",
@@ -112,6 +115,7 @@ class IdentityStore(Store):
             (actor_id, login, workspace_id, salt, password_hash, recovery_digest)
             VALUES (?,?,?,?,?,?)""", (actor, name, workspace, salt, password_hash, recovery_digest))
         ensure_operation_schema(db)
+        db.execute("INSERT INTO identity_registration_dates(actor_id) VALUES(?)", (actor,))
         bonus = coins.signup_bonus(db)
         if bonus:
             coins.grant(db, "signup", actor, workspace, coins.display(bonus), "Монеты за регистрацию")
