@@ -301,17 +301,24 @@ def _with_rate_retries(authority, platform, operation, dispatch, calls):
             retries += 1
 
 
-def _request_dates(card, params):
+def _request_params(card, params):
     zone_name = card.get("requestDateZone")
-    query = params.get("query")
-    if not zone_name or not isinstance(query, dict):
+    active_status = card.get("activeStatusDefault")
+    query = params.get("query", {})
+    if not isinstance(query, dict) or (not zone_name and active_status is None):
         return params
-    zone = ZoneInfo(zone_name)
     query = dict(query)
-    for field, boundary in (("dateFrom", day_time.min), ("dateTo", day_time(23, 59, 59))):
-        value = query.get(field)
-        if isinstance(value, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
-            query[field] = int(datetime.combine(date.fromisoformat(value), boundary, zone).timestamp())
+    if active_status is not None:
+        if query.get("status") == "all":
+            query.pop("status")
+        else:
+            query.setdefault("status", active_status)
+    if zone_name:
+        zone = ZoneInfo(zone_name)
+        for field, boundary in (("dateFrom", day_time.min), ("dateTo", day_time(23, 59, 59))):
+            value = query.get(field)
+            if isinstance(value, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+                query[field] = int(datetime.combine(date.fromisoformat(value), boundary, zone).timestamp())
     return {**params, "query": query}
 
 
@@ -369,6 +376,8 @@ def _read_store(authority, store, card, params, directory, selected_proofs):
                 send(authentication)
             data, receipt = send(request)
     authority.check()
+    if data is None and str(receipt["status"]) in card.get("emptyResponses", {}):
+        data = card["emptyResponses"][str(receipt["status"])]
     payload, omitted, coverage = _result_sample(data, card.get("sampleRows", {}), card.get("responseTimeZones"))
     result = {"ok": True, "data": payload, "omitted": omitted, "http": receipt["status"],
               "providerMilliseconds": receipt["elapsed_ms"]}
@@ -419,7 +428,7 @@ def execute(packet, directory):
                               [{"data": observed}])
         proofs = configure_catalogue(SimpleNamespace(), {store.id: fields})
         try:
-            params = _request_dates(card, params)
+            params = _request_params(card, params)
         except ValueError as error:
             raise Rejected("INVALID_OPERATION_PARAMS") from error
         public, calls = _read_store(authority, store, card, params, directory, proofs)

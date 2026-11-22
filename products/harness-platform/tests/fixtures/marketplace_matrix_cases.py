@@ -800,6 +800,19 @@ class MarketplaceMatrix(unittest.TestCase):
             if known:
                 self.assertIn("плановую дату отгрузки", result["reason"])
 
+    def test_wb_media_list_defaults_to_active_and_preserves_explicit_status(self):
+        from urllib.parse import parse_qs, urlsplit
+        from platform_core.marketplace_matrix import read_templates
+
+        for query, expected in (({}, ["6"]), ({"status": "all"}, None), ({"status": 8}, ["8"])):
+            with self.subTest(query=query), patch("http_transport.read_response", return_value=(b"", 204)) as outbound:
+                result = read_templates.execute({**self.packet, "connections": [self.ids["wb"]],
+                                                 "readTemplate": {"action": "read", "templateId": "read.wb.media_campaigns",
+                                                                  "params": {"query": query}}}, self.root)
+                self.assertEqual(result["data"], [])
+                url = outbound.call_args.args[0].full_url
+                self.assertEqual(parse_qs(urlsplit(url).query).get("status"), expected)
+
     def test_read_template_reuses_confirmed_ids_only_for_the_same_store_and_turn(self):
         from platform_core.marketplace_matrix import plugin, read_templates
         from platform_core.marketplace_matrix.authority import ChatAuthority
