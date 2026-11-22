@@ -125,6 +125,10 @@ class IdentityStore(Store):
         return recovery
 
     def login(self, login: str, password: str) -> str:
+        """Trusted in-process provisioning and fixtures. Public entry points use AccountAccess."""
+        return self.password_action(login, password, None)
+
+    def password_action(self, login, password, action, *, session=None):
         try:
             name, encoded = _login_name(login), _password_bytes(password)
         except ValueError:
@@ -135,7 +139,7 @@ class IdentityStore(Store):
                    FROM identity_accounts WHERE login = ?""",
                 (name,),
             ).fetchone()
-        token = self._session_with_password(row, encoded)
+        token = self._session_with_password(row, encoded, action=action, session=session)
         if token is None:
             raise AuthenticationError("Invalid credentials")
         return token
@@ -157,7 +161,7 @@ class IdentityStore(Store):
             ).fetchone()
         return self._session_with_password(row, encoded, session=token, replacement=replacement)
 
-    def _session_with_password(self, row, encoded, *, session=None, replacement=None):
+    def _session_with_password(self, row, encoded, *, session=None, replacement=None, action=None):
         if row and row[3] >= _MAX_FAILURES and row[4] + _FAILURE_WINDOW > time():
             return None
         # Hash outside the SQLite writer lock. Unknown logins do comparable work.
@@ -171,7 +175,8 @@ class IdentityStore(Store):
             password_hash = _derive(replacement, salt)
         with self._write() as db:
             if session is not None:
-                _principal(db, session)
+                if _principal(db, session)[0] != actor:
+                    raise AuthenticationError("Invalid session")
             now = int(time())
             current = db.execute(
                 "SELECT password_hash, failures, failure_start FROM identity_accounts WHERE actor_id = ?",
@@ -190,16 +195,22 @@ class IdentityStore(Store):
                     (failures + 1, start, actor),
                 )
                 return None
+            expires = now + _SESSION_SECONDS
             if replacement is not None:
+                old_expiry = db.execute("SELECT expires_at FROM identity_sessions WHERE digest=?",
+                                        (_secret_digest(session),)).fetchone()[0]
+                expires = min(expires, old_expiry)
                 db.execute("UPDATE identity_accounts SET salt = ?, password_hash = ? WHERE actor_id = ?",
                            (salt, password_hash, actor))
                 db.execute("DELETE FROM identity_sessions WHERE actor_id = ?", (actor,))
             token = secrets.token_urlsafe(32)
             db.execute("UPDATE identity_accounts SET failures = 0, failure_start = 0 WHERE actor_id = ?", (actor,))
+            if action is not None:
+                return action(db, actor, now)
             db.execute("DELETE FROM identity_sessions WHERE expires_at <= ?", (now,))
             db.execute(
                 "INSERT INTO identity_sessions (digest, actor_id, expires_at) VALUES (?, ?, ?)",
-                (_secret_digest(token), actor, now + _SESSION_SECONDS),
+                (_secret_digest(token), actor, expires),
             )
             return token
 
@@ -348,9 +359,13 @@ class IdentityStore(Store):
             if row is None:
                 raise ValueError("Unknown account")
             if enabled:
-                db.execute("INSERT OR IGNORE INTO identity_admins(actor_id) VALUES (?)", row)
+                changed = db.execute("INSERT OR IGNORE INTO identity_admins(actor_id) VALUES (?)", row)
             else:
-                db.execute("DELETE FROM identity_admins WHERE actor_id=?", row)
+                changed = db.execute("DELETE FROM identity_admins WHERE actor_id=?", row)
+            if changed.rowcount:
+                db.execute("DELETE FROM identity_sessions WHERE actor_id=?", row)
+                if db.execute("SELECT 1 FROM sqlite_master WHERE name='access_pending'").fetchone():
+                    db.execute("DELETE FROM access_pending WHERE actor=?", row)
 
     def unattached_illustrations(self, scope):
         with self._lock:

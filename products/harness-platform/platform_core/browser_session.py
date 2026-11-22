@@ -106,8 +106,8 @@ def _clear_cookie(response, secure):
     response.delete_cookie(_cookie_name(secure), path="/", httponly=True, secure=secure, samesite="strict")
 
 
-def _set_cookie(response, secure, token):
-    response.set_cookie(_cookie_name(secure), token, path="/", secure=secure, httponly=True, samesite="strict")
+def _set_cookie(response, secure, token, max_age=None):
+    response.set_cookie(_cookie_name(secure), token, max_age=max_age, path="/", secure=secure, httponly=True, samesite="strict")
 
 
 async def _login(request):
@@ -128,25 +128,19 @@ async def _login(request):
         return await page(request, panel="login")
 
     require_browser_origin(request)
-    fields = await _form_fields(request, {"login", "password"})
+    from .account_access import AccessError
+    from .access_web import browser_result, inline
+    fields = await _form_fields(request, {"login", "password"}, optional={"remember"})
     try:
-        token = await run_in_threadpool(identity.login, **fields)
-    except AuthenticationError:
-        message = "Не удалось войти. Проверьте логин и пароль."
-        if request.headers.get("accept") == "application/json":
-            return JSONResponse({"detail":message}, status_code=401, headers=_PRIVATE_HEADERS)
-        return await page(request, panel="login", error=message, status=401)
-    if existing:
-        try:
-            await run_in_threadpool(identity.logout, existing)
-        except AuthenticationError:
-            pass  # A malformed cookie does not prevent a fresh sign-in.
-    response = (JSONResponse({"authenticated":True}, headers=_PRIVATE_HEADERS)
-                if request.headers.get("accept") == "application/json" else _redirect("/app/"))
-    if request.headers.get("accept") != "application/json":
-        clear_guest_cookie(request, response)
-    _set_cookie(response, secure, token)
-    return response
+        result = await run_in_threadpool(request.app.state.account_access.login, fields["login"],
+                                          fields["password"], fields.get("remember") == "on")
+    except (AuthenticationError, AccessError) as exc:
+        status = getattr(exc, "status", 401)
+        message = str(exc) if isinstance(exc, AccessError) else "Не удалось войти. Проверьте логин и пароль."
+        if inline(request):
+            return JSONResponse({"detail":message}, status_code=status, headers=_PRIVATE_HEADERS)
+        return await page(request, panel="login", error=message, status=status)
+    return await browser_result(request, result)
 
 
 async def _logout(request):

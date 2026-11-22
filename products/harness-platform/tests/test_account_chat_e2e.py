@@ -10,6 +10,8 @@ from unittest.mock import patch
 
 from starlette.testclient import TestClient
 
+from tests.auth_fixture import email_opted_out
+
 from platform_core.chat_api import create_app
 from platform_core.identity import IdentityStore
 
@@ -33,6 +35,7 @@ class AccountChatAcceptance(unittest.TestCase):
         ))
 
     def login(self, client, handle, password=None):
+        email_opted_out(client.app.state.identity, handle)
         response = client.post("/api/login", json={
             "login": handle, "password": password or self.password,
         })

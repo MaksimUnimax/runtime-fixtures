@@ -78,7 +78,7 @@ class CoinWallet(unittest.TestCase):
             self.assertEqual(record["meter"]["providerUsd"], "0.000009")
             self.assertEqual(record["meter"]["attempts"][0]["usage"]["input_tokens"], 10)
             store.set_admin("owner-a", False)
-            self.assertEqual(c.get(audit, headers=admin).status_code, 403)
+            self.assertEqual(c.get(audit, headers=admin).status_code, 401)
         with self.client() as c:
             self.assertEqual(c.get("/api/wallet",headers=user).json()["available"],"2.99928")
 

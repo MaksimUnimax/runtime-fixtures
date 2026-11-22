@@ -9,6 +9,8 @@ from zipfile import ZipFile
 
 from starlette.testclient import TestClient
 
+from tests.auth_fixture import email_opted_out
+
 from platform_core.chat_api import create_app
 from platform_core.identity import IdentityStore
 from report_archive.plugin import PLUGIN_ID, archive_path
@@ -37,6 +39,7 @@ class ArchiveChatScopeTest(unittest.TestCase):
             return TestClient(create_app(db, journals, composition_module="report_archive.plugin"))
 
         def open_chat(client, account):
+            email_opted_out(client.app.state.identity, account["login"])
             login = client.post("/api/login", json=account)
             self.assertEqual(login.status_code, 200, login.text)
             token = login.json()["token"]

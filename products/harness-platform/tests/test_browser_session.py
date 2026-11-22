@@ -9,6 +9,9 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
+from tests.auth_fixture import email_opted_out
+
+from platform_core.account_access import AccountAccess
 from platform_core.browser_session import browser_routes, browser_token, require_browser_origin
 from platform_core.identity import AuthenticationError
 from platform_core.guest_registration import RegistrationStore
@@ -24,6 +27,8 @@ class BrowserSessionTests(TestCase):
         self.identity.create_account("account", PASSWORD)
         self.app = Starlette(routes=browser_routes() + [Route("/protected", self.protected, methods=["GET", "POST"])])
         self.app.state.identity = self.identity
+        self.app.state.account_access = AccountAccess(self.identity)
+        email_opted_out(self.identity, "account")
 
     async def protected(self, req):
         try:

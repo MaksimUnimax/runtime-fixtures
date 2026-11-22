@@ -164,3 +164,12 @@ html[data-session=member] .account { border-top:0; }
   .mobile-brand img:first-child {width:20px;height:20px;}
   .toolbar-actions {margin-left:auto;}
 }
+
+#public-auth [hidden] {display:none;}
+#public-auth .octo-remember {display:flex;align-items:center;gap:.6rem;cursor:pointer;}
+#public-auth .octo-remember input {width:1.1rem;height:1.1rem;flex:none;}
+.octo-verification {min-height:100dvh;display:grid;place-items:center;padding:16px;}
+.octo-verification #public-auth {position:static;max-width:100%;overflow:auto;}
+.octo-verification form,.octo-verification a {margin-top:1rem;}
+.octo-verification a {display:inline-block;}
+.octo-verification code {overflow-wrap:anywhere;user-select:all;}

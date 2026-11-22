@@ -9,6 +9,8 @@ from unittest.mock import patch
 from openpyxl import Workbook
 from starlette.testclient import TestClient
 
+from tests.auth_fixture import email_opted_out
+
 from platform_core.chat_api import create_app
 from platform_core.identity import IdentityStore
 from platform_core.operation_grants import initialize_grants
@@ -27,6 +29,7 @@ class ChatAttachmentAcceptance(unittest.TestCase):
         app = create_app(database, directory / "chats")
         with TestClient(app) as client:
             def account(login):
+                email_opted_out(client.app.state.identity, login)
                 response = client.post("/api/login", json={"login": login, "password": "Test password 2026"})
                 return {"Authorization": "Bearer " + response.json()["token"]}
 

@@ -378,3 +378,8 @@ body[data-ds-dark-theme] .octo-installed-plugins li[data-active="true"] { --plug
   background:linear-gradient(45deg,transparent 44%,currentColor 45% 55%,transparent 56%),
              linear-gradient(-45deg,transparent 44%,currentColor 45% 55%,transparent 56%);
 }
+
+.octo-security {margin-top:1.5rem;border-top:1px solid var(--dsw-alias-border-primary);}
+.octo-security h3 {font-size:1rem;}
+.octo-password-form label.octo-remember,.account-dialog label.octo-remember {display:flex;align-items:center;gap:.6rem;}
+.octo-password-form .octo-remember input[type=checkbox],.account-dialog .octo-remember input {width:1.1rem;height:1.1rem;min-height:0;flex:none;}

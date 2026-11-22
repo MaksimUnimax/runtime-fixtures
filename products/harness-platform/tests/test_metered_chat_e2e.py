@@ -16,6 +16,8 @@ from unittest.mock import patch
 import httpx
 from starlette.testclient import TestClient
 
+from tests.auth_fixture import service_token
+
 from platform_core.chat_api import create_app
 from platform_core.identity import IdentityStore
 from platform_core.operation_grants import initialize_grants
@@ -63,7 +65,7 @@ class MeteredChatAcceptance(unittest.TestCase):
         return TestClient(create_app(self.db, self.chats, composition_module="examples.reference_plugin"))
 
     def actor(self, client, name):
-        token = client.post("/api/login", json={"login": name, "password": self.password}).json()["token"]
+        token = service_token(client, name, self.password)
         headers = {"Authorization": "Bearer " + token}
         chat = client.post("/api/chats", headers=headers).json()["chatId"]
         with IdentityStore(self.db) as store:
@@ -283,9 +285,11 @@ class MeteredChatAcceptance(unittest.TestCase):
             body = {"requestId": "first", "text": "ordinary"}
             for admin in (False, True):
                 store.set_admin("visitor", admin)
+                headers = {"Authorization": "Bearer " + service_token(client, "visitor", self.password)}
                 self.assertEqual(client.post(url, headers=headers, json=body).status_code, 402)
             self.assertFalse(self.journal.exists())
             store.set_admin("visitor", False)
+            headers = {"Authorization": "Bearer " + service_token(client, "visitor", self.password)}
             store.grant_coins("visitor", "10", "test-credit-visitor", "Acceptance fixture")
             response = client.post(url, headers=headers, json=body)
             self.assertEqual(response.status_code, 200)
@@ -321,6 +325,7 @@ class MeteredChatAcceptance(unittest.TestCase):
             cost = {"rub": "0.00072", "usd": "0.000009"}
             with IdentityStore(self.db) as identity:
                 identity.set_admin("admin", True)
+                headers = {"Authorization": "Bearer " + service_token(client, "admin", self.password)}
             admin = client.get(base + "/messages", headers=headers).json()
             self.assertEqual(admin[-1]["modelCost"], cost)
             self.assertEqual(client.post(base + "/turns", headers=headers, json=body).json(), admin[-1])
@@ -329,6 +334,7 @@ class MeteredChatAcceptance(unittest.TestCase):
             self.assertEqual(client.get(base + "/events", headers=other_headers).status_code, 404)
             with IdentityStore(self.db) as identity:
                 identity.set_admin("admin", False)
+                headers = {"Authorization": "Bearer " + service_token(client, "admin", self.password)}
             ordinary(client.get(base + "/events", headers=headers))
             ordinary(client.post(base + "/turns", headers=headers, json=body))
         self.assertEqual(self.report()["unique_attempts"], 2)

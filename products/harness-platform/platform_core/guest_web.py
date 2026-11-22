@@ -86,11 +86,17 @@ async def register(request):
         return JSONResponse({"authenticated":True}, headers=_PRIVATE_HEADERS) if inline else _redirect(target)
     if request.method in {"GET", "HEAD"}:
         return await page(request, panel="register")
-    fields = await _form_fields(request, {"login", "password"}, optional={"recovery"})
+    from .account_access import AccessError
+    from .access_web import browser_result
+    fields = await _form_fields(request, {"login", "password", "email"}, optional={"recovery", "remember"})
     try:
-        session, chat = await run_in_threadpool(identity.register, token, **fields)
-    except (RegistrationConflict,AuthenticationError,ValueError) as exc:
-        if isinstance(exc, RegistrationConflict):
+        result = await run_in_threadpool(request.app.state.account_access.registration, token, fields["login"],
+            fields["password"], fields["email"], request.client.host if request.client else "local",
+            fields.get("remember") == "on", fields.get("recovery"))
+    except (AccessError,RegistrationConflict,AuthenticationError,ValueError) as exc:
+        if isinstance(exc, AccessError):
+            status, message = exc.status, str(exc)
+        elif isinstance(exc, RegistrationConflict):
             status, message = 409, "Этот логин уже занят. Войдите или выберите другой логин."
         elif isinstance(exc, AuthenticationError):
             status, message = 401, "Сессия регистрации истекла. Повторите отправку."
@@ -99,12 +105,7 @@ async def register(request):
         if inline:
             return JSONResponse({"detail":message}, status_code=status, headers=_PRIVATE_HEADERS)
         return await page(request, panel="register", error=message, status=status)
-    secure = _secure(request)
-    response = (JSONResponse({"authenticated":True}, headers=_PRIVATE_HEADERS) if inline
-                else _redirect(f"/app/chats/{chat}"))
-    response.set_cookie(_cookie_name(secure), session, path="/", secure=secure, httponly=True, samesite="strict")
-    clear_guest_cookie(request, response)
-    return response
+    return await browser_result(request, result)
 
 
 def guest_routes():

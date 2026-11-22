@@ -8,6 +8,8 @@ from unittest.mock import patch
 
 from starlette.testclient import TestClient
 
+from tests.auth_fixture import email_opted_out
+
 from platform_core.chat_api import create_app
 from platform_core.identity import IdentityStore
 
@@ -30,6 +32,7 @@ class WebUiTests(unittest.TestCase):
                     self.assertNotIn("set-cookie", entry.headers)
                 self.assertEqual(browser.get("/admin").status_code, 401)
                 self.assertEqual(browser.get("/api/chats").status_code, 401)
+                email_opted_out(browser.app.state.identity, "seller")
                 auth = browser.post("/login", data={"login": "seller", "password": password},
                                     headers={"Origin": origin})
                 self.assertEqual(auth.headers["location"], "/app/")
@@ -73,6 +76,7 @@ class WebUiTests(unittest.TestCase):
                 auth = {"Authorization":"Bearer " + buyer}
                 self.assertEqual(client.get("/api/wallet/balance", headers=auth).json(), {"available":"10"})
                 with IdentityStore(db) as store:
+                    token = store.login("owner", "test owner password")
                     store.pricing(token, "30", update=True)
                 self.assertEqual(client.get("/api/coins/quote?coins=3").json()["total"], "3.90")
 

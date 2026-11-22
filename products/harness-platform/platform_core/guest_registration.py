@@ -229,16 +229,21 @@ class RegistrationStore(IdentityStore):
                     WHERE digest=? AND actor_id=? AND expires_at>?""", (_secret_digest(session), claimed, now)).fetchone():
                     raise AuthenticationError("Sign in again")
                 return session, chat
-            if db.execute("SELECT 1 FROM identity_accounts WHERE login=?", (name,)).fetchone():
-                raise RegistrationConflict("Login already in use")
-            actor, workspace = uuid4().hex, uuid4().hex
-            db.execute("INSERT INTO workspaces (workspace_id, owner_id) VALUES (?,?)", (workspace, actor))
-            _bind_chat(db, Scope(actor, workspace, chat))
-            self._insert_new_account(db, actor, name, workspace, salt, candidate, recovery_digest)
-            db.execute("UPDATE guest_chats SET claimed_actor=?, signup_nonce=NULL WHERE chat_id=?", (actor, chat))
-            db.execute("INSERT INTO identity_sessions (digest, actor_id, expires_at) VALUES (?,?,?)",
-                       (_secret_digest(session), actor, now + _SESSION_SECONDS))
+            self.claim_signup(db, name, salt, candidate, recovery_digest, chat, session, now + _SESSION_SECONDS)
         return session, chat
+
+    def claim_signup(self, db, name, salt, candidate, recovery_digest, chat, session, expiry):
+        """Claim a live guest and issue its first session in the caller's transaction."""
+        if db.execute("SELECT 1 FROM identity_accounts WHERE login=?", (name,)).fetchone():
+            raise RegistrationConflict("Login already in use")
+        actor, workspace = uuid4().hex, uuid4().hex
+        db.execute("INSERT INTO workspaces (workspace_id, owner_id) VALUES (?,?)", (workspace, actor))
+        _bind_chat(db, Scope(actor, workspace, chat))
+        self._insert_new_account(db, actor, name, workspace, salt, candidate, recovery_digest)
+        db.execute("UPDATE guest_chats SET claimed_actor=?, signup_nonce=NULL WHERE chat_id=?", (actor, chat))
+        db.execute("INSERT INTO identity_sessions (digest, actor_id, expires_at) VALUES (?,?,?)",
+                   (_secret_digest(session), actor, expiry))
+        return actor
 
     def has_claimed_guest_turns(self, scope):
         with self._lock:

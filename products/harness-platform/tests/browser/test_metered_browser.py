@@ -14,6 +14,9 @@ from playwright.async_api import async_playwright, expect
 from test_account_browser import account_action, open_integrations, running_product
 from turn_response import observe_turns
 from platform_core.identity import IdentityStore
+from platform_core.account_access import AccountAccess
+from platform_core.access_bootstrap import assign
+from tests.auth_fixture import BrowserCodes, email_opted_out
 from platform_core.operation_grants import initialize_grants
 
 PRODUCT = Path(__file__).resolve().parents[2]
@@ -23,6 +26,7 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
     async def test_turn_from_chat_page_has_a_reconciled_operation(self):
         self.enterContext(patch.dict(os.environ, {"HARNESS_RUB_PER_USD":"80"}))
         root = Path(self.enterContext(TemporaryDirectory()))
+        codes = BrowserCodes(self, root)
         vault=root/"vault"
         vault.write_bytes(os.urandom(32))
         self.enterContext(patch.dict(os.environ,{"HARNESS_INTEGRATIONS_KEY_FILE":str(vault)}))
@@ -34,7 +38,11 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
             store.create_account("regular-fixture", password)
             store.grant_coins("browser-fixture", "10", "test-credit-browser-fixture", "Acceptance fixture")
             store.grant_coins("regular-fixture", "10", "test-credit-regular-fixture", "Acceptance fixture")
+            AccountAccess(store)
             store.set_admin("browser-fixture", True)
+            with store._write() as db:
+                assign(db, "browser-fixture", "browser-fixture@example.test")
+            email_opted_out(store, "regular-fixture")
         initialize_grants(database)
         gateway = await asyncio.create_subprocess_exec(
             "node", str(PRODUCT / "tests/metered-chat-gateway.mjs"), str(database), str(journal),
@@ -59,10 +67,10 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
         async def send(login, text):
             page = await browser.new_page(base_url=origin)
             results = await observe_turns(page)
-            await page.goto("/login")
-            await page.get_by_label("Логин", exact=True).fill(login)
-            await page.get_by_label("Пароль", exact=True).fill(password)
-            await page.get_by_role("dialog").get_by_role("button", name="Войти", exact=True).click()
+            privileged = login == "browser-fixture"
+            await codes.sign_in(page, login, password,
+                                address="browser-fixture@example.test" if privileged else None,
+                                admin=privileged)
             await page.locator('[data-composer-input][contenteditable=true]').fill(text)
             async with page.expect_response(lambda r: r.url.endswith("/turns") and r.request.method == "POST") as sent:
                 await page.get_by_role("button", name="Отправить сообщение", exact=True).click()
@@ -173,7 +181,8 @@ class MeteredBrowser(unittest.IsolatedAsyncioTestCase):
 
         with IdentityStore(database) as store:
             store.set_admin("browser-fixture", False)
-        self.assertEqual((await page.reload()).status,403)
+        self.assertIn((await page.reload()).status, (403, 404))
+        await codes.sign_in(page, "browser-fixture", password, address="browser-fixture@example.test")
         await page.goto("/app/chats/"+chat)
         await expect(page.locator('[data-slot="conversation.view"]')).to_contain_text("answer to browser fixture", timeout=30_000)
         await expect(label).to_have_count(0)

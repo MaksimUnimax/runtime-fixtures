@@ -29,6 +29,8 @@ class ServicePlugins(unittest.TestCase):
             for name in ("owner","other"):
                 identity.create_account(name,"test-pass")
             identity.grant_coins("owner","50","seed","test grant")
+            from platform_core.account_access import AccountAccess
+            AccountAccess(identity)
             identity.set_admin("owner",True)
             token=identity.login("owner","test-pass")
             self.headers={"Authorization":"Bearer "+token}

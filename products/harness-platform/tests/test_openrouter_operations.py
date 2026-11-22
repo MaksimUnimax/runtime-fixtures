@@ -242,6 +242,8 @@ class RouterOperations(unittest.TestCase):
         self.assertEqual(self.client.get(url+'/wildberries',headers=self.headers).json()['model'],'')
         self.assertEqual(self.client.get('/api/model-settings',headers=self.headers).json()['model'],self.model)
         self.state.identity.set_admin('owner',True)
+        self.token=self.state.identity.login('owner','fixture-password')
+        self.headers={'Authorization':'Bearer '+self.token}
         post('/api/admin/chat-default',{'model':self.model,'effort':'high'})
         post('/api/model-settings',{'model':'direct','revision':1})
         self.assertEqual(self.client.get(image,headers=self.headers).json()['model'],'maker/illustrator-b')
@@ -266,6 +268,8 @@ class RouterOperations(unittest.TestCase):
 
     def test_publication_pins_effort_and_rejects_stale_personal_save(self):
         self.state.identity.set_admin('owner',True)
+        self.token=self.state.identity.login('owner','fixture-password')
+        self.headers={'Authorization':'Bearer '+self.token}
         admin=self.client.post('/api/admin/chat-default',headers=self.headers,json={'model':self.model,'effort':'low'})
         self.assertEqual(admin.status_code,200,admin.text)
         stale=self.client.post('/api/model-settings',headers=self.headers,json={'model':'direct','revision':0})
@@ -300,6 +304,8 @@ class RouterOperations(unittest.TestCase):
     def test_positive_receipt_on_free_tariff_waits_for_review_at_zero_user_cost(self):
         self.reply='price-conflict'
         self.state.identity.set_admin('owner',True)
+        self.token=self.state.identity.login('owner','fixture-password')
+        self.headers={'Authorization':'Bearer '+self.token}
         grant=self.grant()
         self.assertEqual(self.complete(grant).status_code,200)
         revoke_grant(self.path,grant.token)
@@ -345,6 +351,8 @@ class RouterOperations(unittest.TestCase):
 
     def test_admin_health_persists_last_success_and_reports_provider_refusal(self):
         self.state.identity.set_admin('owner',True)
+        self.token=self.state.identity.login('owner','fixture-password')
+        self.headers={'Authorization':'Bearer '+self.token}
         self.complete(self.grant()).raise_for_status()
         def health():
             return self.client.get('/api/admin/provider-keys',headers=self.headers).json()['openrouter']['health']

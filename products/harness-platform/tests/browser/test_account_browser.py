@@ -20,7 +20,9 @@ import uvicorn
 from playwright.async_api import async_playwright, expect
 
 from platform_core.chat_api import create_app
-from platform_core.identity import IdentityStore
+from platform_core.account_access import AccountAccess
+from platform_core.identity import IdentityStore, _SESSION_SECONDS
+from tests.auth_fixture import BrowserCodes, email_opted_out
 
 
 def browser_error(text):
@@ -88,10 +90,13 @@ class ProductBrowser(unittest.IsolatedAsyncioTestCase):
             self.enterContext(patch.dict(os.environ, {"HARNESS_OFFLINE_ADAPTER": self.offline_adapter}))
         scratch = Path(self.enterContext(TemporaryDirectory()))
         self.database = scratch / "identity.sqlite3"
+        self.codes = BrowserCodes(self, scratch)
         self.password = "Ephemeral browser test password"
         with IdentityStore(self.database) as store:
+            AccountAccess(store)
             for handle in ("first-browser", "second-browser"):
                 store.create_account(handle, self.password)
+                email_opted_out(store, handle)
         self.base_url = await self.enterAsyncContext(running_product(self.database, scratch / "journals", composition_module=self.composition))
         playwright = await self.enterAsyncContext(async_playwright())
         self.browser = await playwright.chromium.launch(
@@ -925,6 +930,22 @@ class BrowserIsolation(ProductBrowser):
         await expect(home.locator('[data-chat-flow-kind="assistant-step"]').last).to_contain_text("10 монет")
         await expect(ask).to_have_url(re.compile(r"/about/ask$"))
 
+    async def test_admin_uses_both_codes_and_gets_no_persistent_cookie(self):
+        login = "second-browser"
+        address = login + "@example.test"
+        with IdentityStore(self.database) as store:
+            store.set_admin(login, True)
+        context = await self.browser.new_context(base_url=self.base_url)
+        self.addAsyncCleanup(context.close)
+        page = await context.new_page()
+        await self.codes.sign_in(page, login, self.password, address=address, admin=True, remember=True)
+        await expect(page.locator("body")).to_have_attribute("data-mode", "member")
+        session = next(cookie for cookie in await context.cookies() if cookie["name"] == "harness_local_session")
+        self.assertEqual(session["expires"], -1)
+        await page.request.post("/logout", headers={"Origin": self.base_url}, max_redirects=0)
+        await self.codes.sign_in(page, login, self.password, address=address, admin=True)
+        await expect(page.locator("body")).to_have_attribute("data-mode", "member")
+
     async def test_guest_registers_and_resumes_the_same_chat(self):
         guest = await self.browser.new_context(base_url=self.base_url)
         second_device = await self.browser.new_context(base_url=self.base_url)
@@ -950,11 +971,19 @@ class BrowserIsolation(ProductBrowser):
 
         await page.get_by_role("button", name="Создать аккаунт", exact=True).click()
         await page.get_by_label("Логин", exact=True).fill("guest-browser")
+        address = "guest-browser@example.test"
+        await page.get_by_label("Электронная почта", exact=True).fill(address)
+        remember = page.get_by_role("dialog").get_by_label("Запомнить меня", exact=True)
+        await expect(remember).not_to_be_checked()
+        await remember.check()
         await page.get_by_label("Пароль", exact=True).fill("test11chars")
         await expect(page.get_by_text("Код восстановления",exact=True)).to_have_count(0)
         await page.get_by_role("dialog").get_by_role("button", name="Создать аккаунт", exact=True).click()
+        await self.codes.email(page, address)
         await expect(page.locator("body")).to_have_attribute("data-mode","member")
         await expect(page).to_have_url(original_url)
+        session = next(cookie for cookie in await guest.cookies() if cookie["name"] == "harness_local_session")
+        self.assertGreater(session["expires"], self.codes.clock() + _SESSION_SECONDS)
         await expect(public_history).to_contain_text(answer)
         await page.reload()
         history = page.locator('[data-slot="conversation.view"]')
@@ -973,6 +1002,7 @@ class BrowserIsolation(ProductBrowser):
         await other.get_by_label("Логин", exact=True).fill("guest-browser")
         await other.get_by_label("Пароль", exact=True).fill("test11chars")
         await other.get_by_role("dialog").get_by_role("button", name="Войти", exact=True).click()
+        await self.codes.email(other, address)
         link = other.locator('[data-row-key^="session:"]')
         await expect(link).to_have_count(1)
         await link.click()
