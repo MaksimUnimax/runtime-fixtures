@@ -39,8 +39,8 @@ def render_page(name):
     return Template((CONTENT / "layout.html").read_text()).substitute(
         page=name, label=label, title=title, description=description, canonical="https://octoport.ru" + route(name),
         version=version(styles()), session_version=version((CONTENT / "public-session.js").read_bytes()),
-        page_scripts='<script defer src="/about/assets/yandex-metrika.js"></script>',
-        noscript='<noscript><img hidden src="https://mc.yandex.ru/watch/113424299" width="1" height="1" alt=""></noscript>',
+        page_scripts='<script defer src="/about/assets/yandex-metrika.js?v=114504756" data-analytics="public"></script>',
+        noscript='<noscript><img hidden src="https://mc.yandex.ru/watch/114504756" width="1" height="1" alt=""></noscript>',
         account_nav=(CONTENT / "account-nav.html").read_text(), navigation="\n".join(links),
         content=(CONTENT / f"{name}.html").read_text(),
         seller=(CONTENT / "seller-footer.html").read_text() if name == "index" else "")

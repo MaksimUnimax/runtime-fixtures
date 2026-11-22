@@ -64,13 +64,23 @@ def step_page(req, result=None, error="", status=200):
     resend = ('<form method="post" action="/auth/resend"><button>Отправить код ещё раз</button></form>' if stage == "email" else "")
     theme = req.cookies.get("octoport_theme")
     theme = theme if theme in ("light","dark") else "system"
+    policy = "default-src 'none'; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
+    tracker = pixel = ""
+    # The authenticator setup page displays a private enrollment key.
+    if stage != "setup":
+        tracker = '<script defer src="/about/assets/yandex-metrika.js?v=114504756"></script>'
+        pixel = '<noscript><img hidden src="https://mc.yandex.ru/watch/114504756" width="1" height="1" alt=""></noscript>'
+        policy += ("; script-src 'self' https://mc.yandex.ru https://yastatic.net; "
+                   "img-src https://mc.yandex.ru; connect-src https://mc.yandex.ru")
     html = f'''<!doctype html><html lang="ru" data-appearance="{theme}"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>{title} · Октопорт</title>
-<link rel="stylesheet" href="/about/styles.css"><main class="octo-verification"><section id="public-auth" aria-labelledby="step-title">
+<link rel="stylesheet" href="/about/styles.css">{tracker}
+<body class="ym-hide-content">{pixel}
+<main class="octo-verification"><section id="public-auth" aria-labelledby="step-title">
 <header><h2 id="step-title">{title}</h2></header><p>{body}</p>{key}{message}{form}{resend}
-<a href="/login">Вернуться ко входу</a></section></main></html>'''
-    return HTMLResponse(html, status_code=status, headers={**_PRIVATE_HEADERS, "Referrer-Policy":"same-origin",
-        "Content-Security-Policy":"default-src 'none'; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"})
+<a href="/login">Вернуться ко входу</a></section></main></body></html>'''
+    return HTMLResponse(html, status_code=status,
+        headers={**_PRIVATE_HEADERS, "Referrer-Policy":"same-origin", "Content-Security-Policy":policy})
 
 
 async def verify(req):

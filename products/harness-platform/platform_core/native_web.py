@@ -334,6 +334,13 @@ def shell(*, theme="system", panel="", error="", recovery="", chat="", guest=Fal
                         "mode":"guest" if guest else "member"}.items():
         page = page.replace("@@" + name + "@@", escape(value, quote=True))
     script, digest = initial_script()
-    headers = {**HEADERS, "Content-Security-Policy": HEADERS["Content-Security-Policy"].replace(
-        "script-src 'self';", "script-src 'self' " + digest + ";")}
+    # Only the user-facing shell loads the analytics tag. The admin pages use HEADERS.
+    policy = HEADERS["Content-Security-Policy"].replace(
+        "script-src 'self';", f"script-src 'self' {digest} https://mc.yandex.ru https://yastatic.net;"
+    ).replace(
+        "img-src 'self' data:;", "img-src 'self' data: https://mc.yandex.ru;"
+    ).replace(
+        "connect-src 'self';", "connect-src 'self' https://mc.yandex.ru;"
+    )
+    headers = {**HEADERS, "Content-Security-Policy": policy}
     return HTMLResponse(page.replace("@@bootstrap@@", script), status_code=status, headers=headers)
