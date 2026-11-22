@@ -387,6 +387,9 @@ def _with_rate_retries(authority, platform, operation, dispatch, calls):
 
 
 def _request_params(card, params):
+    body_defaults = card.get("requestBodyDefaults")
+    if body_defaults and isinstance(params.get("body"), dict):
+        params = {**params, "body": {**body_defaults, **params["body"]}}
     zone_name = card.get("requestDateZone")
     active_status = card.get("activeStatusDefault")
     query = params.get("query", {})

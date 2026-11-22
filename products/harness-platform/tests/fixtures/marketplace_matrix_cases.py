@@ -968,6 +968,24 @@ class MarketplaceMatrix(unittest.TestCase):
             if known:
                 self.assertIn("плановую дату отгрузки", result["reason"])
 
+    def test_wb_search_report_sends_required_order_without_overriding_explicit_order(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        body = {"currentPeriod": {"start": "2026-11-17", "end": "2026-11-21"}, "positionCluster": "all",
+                "includeSearchTexts": True, "includeSubstitutedSKUs": False, "limit": 5, "offset": 0}
+        default = {"field": "openCard", "mode": "desc"}
+        explicit = {"field": "openCard", "mode": "asc"}
+        for request_body, expected in ((body, default), ({**body, "orderBy": explicit}, explicit)):
+            with self.subTest(order=request_body.get("orderBy")), patch(
+                    "http_transport.read_response", return_value=(b'{"data":{"visibilityInfo":{"openCard":{"current":42}}}}', 200)
+            ) as outbound:
+                reply = read_templates.execute({**self.packet, "connections": [self.ids["wb"]], "readTemplate": {
+                    "action": "read", "templateId": "read.wb.search_report_main", "params": {"body": request_body},
+                }}, self.root)
+            self.assertTrue(reply["ok"])
+            self.assertEqual(json.loads(outbound.call_args.args[0].data), {**body, "orderBy": expected})
+        self.assertNotIn("orderBy", body)
+
     def test_wb_media_list_defaults_to_active_and_preserves_explicit_status(self):
         from urllib.parse import parse_qs, urlsplit
         from platform_core.marketplace_matrix import read_templates
