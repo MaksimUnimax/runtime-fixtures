@@ -14,7 +14,9 @@ import time
 from ..catalog import Capability
 from . import campaign_inventory, ozon_report_file, wb_documents
 from . import coefficient_templates as extensions
-from .read_templates import WB_ACQUIRING_LIST, observed_acquiring_reports, observed_ids
+from .read_templates import (
+    WB_ACQUIRING_LIST, observed_acquiring_reports, observed_ids, observed_performance_reports,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 REPORT_LOCK = Lock()
@@ -219,7 +221,8 @@ def run_read(scope, arguments):
                             ozon_report_file.LIST: ozon_report_file.observed_reports,
                             wb_documents.LIST: wb_documents.observed_documents,
                             wb_documents.SUPPLY_DETAILS: wb_documents.observed_supply}.get(arguments["templateId"])
-            values = chain(observations(data), observed_ids(data)) if observations else observed_ids(data)
+            scoped_ids = observations(data) if observations else observed_performance_reports(arguments["templateId"], data)
+            values = chain(scoped_ids, observed_ids(data))
             for value in values:
                 if len(known) >= 512:
                     break

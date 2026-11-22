@@ -36,6 +36,16 @@ SUPPLEMENTAL_HOSTS = {
            "marketplace-api.wildberries.ru", "seller-analytics-api.wildberries.ru", "supplies-api.wildberries.ru"},
 }
 REPORT_KEYS = {"uuid", "reportid", "reportcode", "taskid", "downloadid", "fileguid"}
+PERFORMANCE_REPORT_LISTS = {
+    "performance_statistics_list_api": "statistics",
+    "performance_statistics_list_ui": "statistics",
+    "performance_vendor_statistics_list": "vendor",
+}
+PERFORMANCE_REPORT_STATUSES = {
+    "performance_statistics_status": "statistics",
+    "performance_vendor_statistics_status": "vendor",
+}
+REPORT_UUID = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", re.IGNORECASE)
 WB_ACQUIRING_LIST = "read.wb.finance_acquiring_reports"
 WB_ACQUIRING_DETAIL = "read.wb.finance_acquiring_detail_report"
 WB_ACQUIRING_REPORT_PREFIX = "wb-acquiring-report:"
@@ -146,6 +156,18 @@ def observed_acquiring_reports(data):
         for row in data:
             if isinstance(row, dict) and type(report_id := row.get("reportId")) is int and report_id > 0:
                 yield WB_ACQUIRING_REPORT_PREFIX + str(report_id)
+
+
+def observed_performance_reports(template_id, data):
+    provider, _, operation = template_id.partition(".performance.")
+    family = PERFORMANCE_REPORT_LISTS.get(operation) if provider == "read" else None
+    items = data.get("items") if family and isinstance(data, dict) else None
+    if isinstance(items, list):
+        for row in items:
+            meta = row.get("meta") if isinstance(row, dict) else None
+            value = meta.get("UUID") if isinstance(meta, dict) else None
+            if isinstance(value, str) and REPORT_UUID.fullmatch(value):
+                yield f"performance-report:{family}:{value.lower()}"
 
 
 def _result_sample(value, row_limits, time_zones=None):
@@ -352,11 +374,17 @@ def _pinned_request(store, card, params):
     platform = store["platform"]
     operation = card["operation"]
     meta = read_surface.method(platform, operation)
+    is_existing_report_read = (
+        card["profile"] == "performance" and card["http"] == "GET"
+        and (operation in PERFORMANCE_REPORT_LISTS or operation in PERFORMANCE_REPORT_STATUSES)
+    )
     if (not read_surface.available(meta) or meta.get("completion")
-            or meta.get("workflow_role") == "explicit_workflow_read_step"
+            or (meta.get("workflow_role") == "explicit_workflow_read_step" and not is_existing_report_read)
             or meta.get("response_style") == "binary" or meta.get("response_mode") == "binary"
             or operation == "notification_check"):
         raise Rejected("SOURCE_ACCESS")
+    if operation == "performance_vendor_statistics_status":
+        params = {**params, "vendor": True}
     request = read_surface.request_for(store, operation, params)
     route = read_surface.build(platform, operation, params)
     expected = urlsplit(meta["wire_url"])
@@ -464,8 +492,16 @@ def execute(packet, directory):
             candidate = str(params["path"].get("reportId"))
             if WB_ACQUIRING_REPORT_PREFIX + candidate in observed:
                 acquiring_report_id = candidate
-        identifier_provenance(_identifier_params(params, acquiring_report_id), packet["turn"]["question"],
-                              [{"data": observed}])
+        family = PERFORMANCE_REPORT_STATUSES.get(card["operation"])
+        if family:
+            report_uuid = params.get("UUID") if isinstance(params, dict) else None
+            if (not isinstance(report_uuid, str) or set(params) != {"UUID"}
+                    or not REPORT_UUID.fullmatch(report_uuid)
+                    or f"performance-report:{family}:{report_uuid.lower()}" not in observed):
+                raise Rejected("PERFORMANCE_REPORT_PROVENANCE_REQUIRED")
+        else:
+            identifier_provenance(_identifier_params(params, acquiring_report_id), packet["turn"]["question"],
+                                  [{"data": observed}])
         proofs = configure_catalogue(SimpleNamespace(), {store.id: fields})
         try:
             params = _request_params(card, params)

@@ -1086,6 +1086,132 @@ class MarketplaceMatrix(unittest.TestCase):
         self.assertTrue(result["ok"], result)
         self.assertEqual(result["data"]["list"], [{"id":"123456789"}])
 
+    def test_prepared_performance_report_lists_only_use_their_scoped_get_routes(self):
+        from urllib.parse import parse_qs, urlsplit
+        from platform_core.marketplace_matrix import read_templates
+        token = self.identity.login("matrix-seller", "fixture-password")
+        cid = IntegrationStore(self.identity).save(token, "ozon", "Реклама",
+              {"performance_id": "fixture-id", "performance_secret": "fixture-secret"}, chatId=self.scope.chat_id)["id"]
+        self.turn["question"] = "Покажи первую страницу готовых рекламных отчётов Ozon."
+        expected = {
+            "performance_statistics_list_api": "/api/client/statistics/externallist",
+            "performance_statistics_list_ui": "/api/client/statistics/list",
+            "performance_vendor_statistics_list": "/api/client/vendors/statistics/list",
+        }
+
+        def execute(operation):
+            return read_templates.execute({**self.packet, "connections": [cid], "readTemplate": {
+                "action": "read", "templateId": f"read.performance.{operation}",
+                "params": {"page": 1, "pageSize": 5},
+            }}, self.root)
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            url = urlsplit(request.full_url)
+            self.assertEqual(url.netloc, "api-performance.ozon.ru")
+            if url.path == "/api/client/token":
+                self.assertEqual(json.loads(request.data)["client_id"], "fixture-id")
+                return b'{"access_token":"fixture-performance-access","expires_in":1800}', 200
+            self.assertEqual(request.get_method(), "GET")
+            self.assertIn(url.path, expected.values())
+            self.assertEqual(parse_qs(url.query), {"page": ["1"], "pageSize": ["5"]})
+            self.assertEqual(request.get_header("Authorization"), "Bearer fixture-performance-access")
+            return b'{"list":[{"state":"OK","link":"https://example.com/private"}]}', 200
+
+        with patch("http_transport.read_response", side_effect=fake_read) as outbound:
+            for operation, path in expected.items():
+                with self.subTest(operation=operation):
+                    result = execute(operation)
+                    self.assertEqual(result["data"], {"list": [{"state": "OK"}]})
+                    self.assertEqual(urlsplit(outbound.call_args.args[0].full_url).path, path)
+            before = outbound.call_count
+            untouched = execute("performance_all_sku_promo_orders_report_create")
+            self.assertFalse(untouched["ok"])
+            self.assertEqual(outbound.call_count, before)
+
+    def test_performance_status_requires_matching_list_evidence_in_current_scope(self):
+        from urllib.parse import parse_qs, urlsplit
+        from platform_core.marketplace_matrix import plugin, read_templates
+        from platform_core.marketplace_matrix.authority import ChatAuthority
+
+        token = self.identity.login("matrix-seller", "fixture-password")
+        cid = IntegrationStore(self.identity).save(token, "ozon", "Реклама",
+              {"performance_id": "fixture-id", "performance_secret": "fixture-secret"}, chatId=self.scope.chat_id)["id"]
+        self.turn["question"] = "Проверь статус первого готового отчёта по внешнему трафику."
+        uid = "12345678-1234-4321-a123-123456789abc"
+        packet = {**self.packet, "connections": [cid]}
+        revision = ChatAuthority(packet).revision
+        ref = "read.performance.performance_vendor_statistics_list"
+        target = {"action": "read", "connectionId": cid,
+                  "templateId": "read.performance.performance_vendor_statistics_status",
+                  "params": {"UUID": uid}}
+        listing = {"action": "read", "connectionId": cid, "templateId": ref, "params": {"page": 1, "pageSize": 1}}
+        seen = []
+
+        def invoke(request, _):
+            seen.append(request)
+            if request["readTemplate"] == listing:
+                return {"ok": True, "_readEvidenceRevision": revision,
+                        "data": {"items": [{"meta": {"UUID": uid}}]}}
+            return {"ok": False}
+
+        with patch.object(plugin, "READ_OBSERVATIONS", {}), patch.object(plugin, "invoke", side_effect=invoke):
+            with patch.object(plugin, "current_turn", return_value=(self.turn, 8)):
+                plugin.run_read(self.scope, listing)
+                plugin.run_read(self.scope, target)
+            with patch.object(plugin, "current_turn", return_value=({**self.turn, "requestId": "elsewhere"}, 8)):
+                plugin.run_read(self.scope, target)
+
+        proof = f"performance-report:vendor:{uid}"
+        self.assertEqual(seen[1]["readEvidence"]["ids"], [proof])
+        self.assertEqual(seen[2]["readEvidence"]["ids"], [])
+        checked = {**packet, "readTemplate": target, "readEvidence": seen[1]["readEvidence"]}
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            if request.full_url == "https://api-performance.ozon.ru/api/client/token":
+                return b'{"access_token":"fixture-performance-access","expires_in":1800}', 200
+            self.assertEqual(request.get_method(), "GET")
+            url = urlsplit(request.full_url)
+            self.assertEqual(url.netloc, "api-performance.ozon.ru")
+            self.assertEqual(url.path, f"/api/client/vendors/statistics/{uid}")
+            self.assertEqual(parse_qs(url.query), {"vendor": ["true"]})
+            self.assertEqual(request.get_header("Authorization"), "Bearer fixture-performance-access")
+            return b'{"state":"OK","link":"https://example.com/private"}', 200
+
+        with patch("http_transport.read_response", side_effect=fake_read) as outbound:
+            for evidence in ({}, {"revision": "stale", "ids": [proof]},
+                             {"revision": revision, "ids": [f"performance-report:statistics:{uid}"]}):
+                rejected = read_templates.execute(checked | {"readEvidence": evidence}, self.root)
+                self.assertEqual(rejected["reasonSource"], "template")
+            outbound.assert_not_called()
+            result = read_templates.execute(checked, self.root)
+            self.assertEqual(result["data"], {"state": "OK"})
+
+    def test_realization_report_number_list_reads_the_requested_period(self):
+        from platform_core.marketplace_matrix import read_templates
+        from semantics import Rejected
+
+        params = {"from": "2026-11-01", "to": "2026-11-22"}
+        packet = {**self.packet, "connections": [self.ids["ozon"]], "readTemplate": {
+            "action": "read", "templateId": "read.seller.post_v1_report_finance_realization_list",
+            "params": params}}
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            self.assertEqual(request.full_url, "https://api-seller.ozon.ru/v1/report/finance/realization/list")
+            self.assertEqual(request.get_method(), "POST")
+            self.assertEqual(json.loads(request.data), params)
+            return b'{"reports":[]}', 200
+
+        with patch("http_transport.read_response", side_effect=fake_read) as outbound:
+            with self.assertRaises(Rejected):
+                read_templates.execute({**packet, "readTemplate": {**packet["readTemplate"],
+                    "params": {"from": "2026-11-01"}}}, self.root)
+            outbound.assert_not_called()
+            self.assertEqual(read_templates.execute(packet, self.root)["data"], {"reports": []})
+            outbound.assert_called_once()
+
     def test_agent_can_choose_both_order_metrics_on_short_answer(self):
         from platform_core.marketplace_matrix.plugin import capability
         cid = self.ids["ozon"]
