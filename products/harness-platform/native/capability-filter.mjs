@@ -64,21 +64,29 @@ export function installFilter(ctx, defineTool, restored = [], history = []) {
     } catch { /* An unsuccessful activation grants nothing. */ }
   }
   let helpOnly = false;
+  let beganExecution = selected.size > 0;
   for (const event of restored) {
     if (event.type !== 'assistant/message') continue;
     const choice = event.data.message.content.find(b => b.type === 'tool-call' &&
       (b.name === 'octoport_help' || b.name === activate));
     if (!choice) continue;
     if (choice.name === 'octoport_help') {
-      try { helpOnly = JSON.parse(choice.arguments).runNow === false; }
+      try {
+        const {runNow} = JSON.parse(choice.arguments);
+        helpOnly = runNow === false;
+        beganExecution ||= runNow === true;
+      }
       catch { /* Prior versions did not declare an intent. */ }
-    }
+    } else beganExecution = true;
     break;
   }
-  let beganExecution = selected.size > 0;
   let visible = new Set();
   const filter = {
-    recordHelp(runNow) { if (!beganExecution && runNow === false) helpOnly = true; },
+    recordHelp(runNow) {
+      if (helpOnly || beganExecution) return;
+      beganExecution = runNow === true;
+      helpOnly = runNow === false;
+    },
     project(tools) {
       if (helpOnly) return tools?.filter(t => t.name === 'octoport_help');
       visible = new Set(selected);

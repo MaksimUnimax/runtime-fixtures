@@ -118,7 +118,10 @@ test('help-first turns keep all action contracts closed, including after recover
 test('looking up prerequisites for an immediate request keeps actions available', ()=>{
   const {ctx,project}=fixture();
   turnFilter(ctx).recordHelp(true);
+  turnFilter(ctx).recordHelp(false); // A later catalogue lookup still belongs to this execution task.
   assert.ok(project().includes(activate));
   const lookup={type:'assistant/message',data:{message:{content:[{type:'tool-call',name:'octoport_help',arguments:'{"runNow":true}'}]}}};
-  assert.ok(fixture([lookup]).project().includes(activate));
+  const restored=fixture([lookup]);
+  turnFilter(restored.ctx).recordHelp(false);
+  assert.ok(restored.project().includes(activate));
 });
