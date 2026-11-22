@@ -32,7 +32,7 @@ async function api(path, options) {
       403: 'Доступ запрещён', 404: detail.error === 'unavailable' ? 'Действие недоступно' : 'Чат недоступен',
       409: detail.error === 'chat_busy' ? 'Дождитесь завершения запроса в этом чате.' : 'Запрос требует сверки', 413: 'Сообщение слишком длинное',
     };
-    const error = new Error(((path==='/api/profile/password' || path.startsWith('/api/integrations') || path.includes('/plugins') || path==='/api/model-settings') && /[А-Яа-я]/.test(detail.error||'') ? detail.error : null) ?? reason[status] ?? 'Запрос не выполнен (' + status + ')');
+    const error = new Error(((path==='/api/profile/password' || path.startsWith('/api/integrations') || path.includes('/plugins') || path==='/api/model-settings' || path==='/api/octopus/preferences') && /[А-Яа-я]/.test(detail.error||'') ? detail.error : null) ?? reason[status] ?? 'Запрос не выполнен (' + status + ')');
     const providerErrors={
       provider_key:'Сервису нужно обновить ключ OpenRouter. Можно выбрать другую модель.',
       provider_access:'Модель недоступна этому сервису. Выберите другую модель.',

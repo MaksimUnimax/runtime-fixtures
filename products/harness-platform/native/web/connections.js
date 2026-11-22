@@ -261,12 +261,41 @@ window.__ModuleLoader__.load({
       },ChatDock));
       const section=(id,title,order,component)=>ctx.slots.inject('settings.section',()=>ctx.slots.register({
         name:'settings.section',id,order,label:()=>title},component));
+      function Personality() {
+        const [settings,setSettings]=React.useState(null),[draft,setDraft]=React.useState(null);
+        const [busy,setBusy]=React.useState(false),[message,setMessage]=React.useState('');
+        React.useEffect(()=>{
+          const controller=new AbortController();
+          a.api('/api/octopus/preferences',{signal:controller.signal}).then(data=>{
+            if(!controller.signal.aborted){setSettings(data);setDraft(data.current);}
+          }).catch(error=>{if(!controller.signal.aborted)setMessage(error.message);});
+          return ()=>controller.abort();
+        },[]);
+        async function save(values) {
+          setBusy(true);setMessage('');
+          try {
+            const data=await post('/api/octopus/preferences',{...values,revision:settings.current.revision});
+            setSettings(data);setDraft(data.current);setMessage('Готово. Так я отвечу вам уже в следующем сообщении.');
+          } catch(error){setMessage(error.message);} finally{setBusy(false);}
+        }
+        const labels={address:'Обращение',tone:'Тон общения',detail:'Подробность ответов'};
+        return h('section',{className:'service-settings'},h('h2',null,'Октопус'),
+          h('p',null,'Как мне общаться с вами во всех ваших чатах?'),
+          draft && h('form',{onSubmit:e=>{e.preventDefault();save(draft);}},
+            Object.entries(settings.options).map(([key,values])=>h('label',{key},labels[key],
+              h('select',{value:draft[key],disabled:busy,onChange:e=>setDraft({...draft,[key]:e.target.value})},
+                values.map(value=>h('option',{key:value,value},value))))),
+            h('button',{type:'submit',disabled:busy},'Сохранить'),
+            h('button',{type:'button',disabled:busy,onClick:()=>save(settings.defaults)},'Вернуть по умолчанию')),
+          message && h('p',{role:'status'},message));
+      }
       function IntegrationSettings() {
         const selection=ctx.uiWorkspace.selection;
         const id=React.useSyncExternalStore(cb=>selection.subscribe(cb),()=>selection.getSnapshot().sessionId);
         const chat=a.hasChat(id)?id:null;
         return h(Connections,{key:chat,chat});
       }
+      if(!a.guest) section('octopus','Октопус',8,Personality);
       section('integrations','Интеграции',5,IntegrationSettings);
       if(a.modelChoice)section('model-choice','Выбор ИИ',7,Models);
     }};

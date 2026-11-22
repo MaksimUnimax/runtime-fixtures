@@ -1,3 +1,5 @@
+import { projectCompletedKnowledge } from './octopus-knowledge.mjs';
+
 /** Run the same native Session, Agent, tool executor and loop for both transports. */
 export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, provider, model, reasoningEffort, adapter, signal, progress, restore, capture }) {
   const llm = await load('dsh-llm');
@@ -8,11 +10,15 @@ export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, 
     await fiber.await();
     if (fiber._error) throw fiber._error;
   }
-  if (progress) {
+  {
+    const project = projectCompletedKnowledge(seed);
     const prepare=adapter.prepareCall.bind(adapter);
     adapter.prepareCall=async (...args)=>{
       const call=await prepare(...args);
-      return {...call,stream:options=>observe(call.stream(options))};
+      return {...call,stream:options=>{
+        const chunks=call.stream({...options,messages:project(options.messages)});
+        return progress ? observe(chunks) : chunks;
+      }};
     };
     async function* observe(chunks) {
       progress({stage:'model'});

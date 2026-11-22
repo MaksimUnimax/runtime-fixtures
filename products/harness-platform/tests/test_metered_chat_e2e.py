@@ -218,7 +218,7 @@ class MeteredChatAcceptance(unittest.TestCase):
                 ids.append(saved.json()["id"])
                 observed=json.loads(send("attach"+str(index),"inspect connections "+str(index)))
                 self.assertEqual(observed,{"currentStore":True,"boundName":True,"freshUpdate":True,
-                    "active":[index,index],"allImmediate":True,"secretLeaked":False})
+                    "active":[index,index,index],"allImmediate":True,"secretLeaked":False})
             for cid in ids:
                 client.post(url+"/integrations",headers=headers,json={"connectionId":cid,"enabled":False}).raise_for_status()
             removed=json.loads(send("revoke","inspect connections removed"))

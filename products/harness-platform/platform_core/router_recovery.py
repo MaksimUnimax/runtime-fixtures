@@ -165,6 +165,12 @@ class Recovery:
                     scope=Scope(actor,workspace,chat)
                     checkpoint=json.loads(raw)
                     allowed=authorization(db,scope,checkpoint,session)
+                    if allowed:
+                        from . import chat_connections, octopus_knowledge
+                        rows = chat_connections.snapshot(db, scope, describe_saved=True)
+                        telegram = getattr(self.router, "telegram", None)
+                        knowledge = octopus_knowledge.snapshot(db, scope, rows,
+                            telegram.status(db, workspace) if telegram else None)
                 if not allowed:
                     close_rejected(self.router,aid)
                     return
@@ -174,7 +180,7 @@ class Recovery:
                     await self.worker.request(scope,'turn',requestId=rid,text=checkpoint['text'],
                         attachments=checkpoint.get('attachments', []),
                         connections=checkpoint['connections'],illustrations=checkpoint['illustrations'],
-                        availableServices=checkpoint['availableServices'],connectionGuides=checkpoint['connectionGuides'],
+                        availableServices=checkpoint['availableServices'],knowledge=knowledge,connectionGuides={},
                         session_digest=session,on_progress=live.set,restore={**checkpoint,'attempt':aid})
                 except (PermissionError,ValueError):
                     close_rejected(self.router,aid)

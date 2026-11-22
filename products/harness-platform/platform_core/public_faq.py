@@ -52,7 +52,19 @@ class PublicFAQ:
         text = text.removesuffix(" пожалуйста")
         matches = []
         fallback = self._db.execute("SELECT answer FROM public_faq WHERE topic='scope'").fetchone()[0]
-        for answer, patterns in self._db.execute("SELECT answer, patterns FROM public_faq WHERE topic!='scope'"):
+        for topic, answer, patterns in self._db.execute("SELECT topic, answer, patterns FROM public_faq WHERE topic!='scope'"):
             if any(re.fullmatch(pattern, text) for pattern in json.loads(patterns)):
+                if topic == "features":
+                    from .octopus_knowledge import published
+                    titles = ", ".join(card["title"] for card in published())
+                    answer += " Я Октопус. В моём каталоге сейчас есть " + titles + "."
                 matches.append(answer)
+        if not matches and re.search(r"плагин|интеграц|подключить", text):
+            from .octopus_knowledge import published
+            cards = published()
+            specific = [c for c in cards if c["title"].casefold() in text or
+                        any(w in text.split() for w in c.get("keywords", "").split())]
+            if specific or re.search(r"(?:какие|список|все).*(?:плагин|интеграц)", text):
+                return "В Октопорте доступны " + ". ".join(c["title"] + " — " + c["purpose"]
+                    for c in (specific or cards)) + ". Для подключения войдите в свой аккаунт."
         return matches[0] if len(matches) == 1 else fallback

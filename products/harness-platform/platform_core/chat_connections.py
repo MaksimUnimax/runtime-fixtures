@@ -43,13 +43,14 @@ def unseal(ws,provider,cid,blob):
 def snapshot(db,scope,*,describe_saved=False):
     if not _owns_chat(db,scope):
         raise PermissionError("Chat unavailable")
-    rows=db.execute("""SELECT c.id,c.name,c.provider,c.status,g.connection_id IS NOT NULL,c.encrypted
+    rows=db.execute("""SELECT c.id,c.name,c.provider,c.status,g.connection_id IS NOT NULL,c.encrypted,k.checks
         FROM account_integrations c LEFT JOIN chat_integrations g ON g.connection_id=c.id AND g.chat_id=?
+        LEFT JOIN integration_access_checks k ON k.cid=c.id AND k.version=c.version
         WHERE c.workspace=? ORDER BY c.name,c.id""",(scope.chat_id,scope.workspace_id))
     result=[]
     from .user_plugins.registry import CATALOG, attached as has_plugin
     active={p.provider:bool(has_plugin(db,scope,p.id)) for p in CATALOG.values()}
-    for cid,name,provider,status,attached,blob in rows:
+    for cid,name,provider,status,attached,blob,checks in rows:
         attached=attached and active.get(provider,True)
         kinds=[]
         if provider=="ozon" and (attached or describe_saved):
@@ -63,7 +64,7 @@ def snapshot(db,scope,*,describe_saved=False):
             if "performance_secret" in fields: kinds.append("Ozon Performance")
         elif provider in ("wb","wordstat"):
             kinds=["Wildberries API" if provider=="wb" else "Яндекс Вордстат"]
-        result.append(dict(id=cid,name=name,provider=provider,status=status,attached=bool(attached),access=kinds))
+        result.append(dict(id=cid,name=name,provider=provider,status=status,attached=bool(attached),access=kinds,**({"checks":json.loads(checks)} if checks else {})))
     return result
 
 def routes(token_for,body):
@@ -119,8 +120,12 @@ class ChatTools:
           ("wordstat_keywords","Частотность и популярные поисковые фразы Яндекс Вордстат.","wordstat",
              [r for r in entries if r["provider"]=="wordstat"],{"phrase":{"type":"string","minLength":1,"maxLength":200}})]
         from .marketplace_matrix.plugin import capability
-        matrix = capability(entries)
-        result = [matrix] if matrix else []
+        if os.environ.get("HARNESS_REPORT_DISCOVERY") == "1" or os.environ.get("HARNESS_MATRIX_TURN"):
+            from .marketplace_matrix.discovery import model_tools
+            result = model_tools(entries)
+        else:
+            matrix = capability(entries)
+            result = [matrix] if matrix else []
         for name,description,action,allowed,props in specs:
             if not allowed: continue
             properties={"connectionId":{"type":"string","enum":[r["id"] for r in allowed]},**props}

@@ -40,6 +40,23 @@ KEY_GUIDES = {
         "Вставьте значения в «Client ID Performance» и «Client Secret Performance», затем нажмите «Сохранить подключение».",
     ],
 }
+# Public descriptors live alongside the provider's credential contract.
+PROVIDERS["ozon"].update(access=("Ozon Seller", "Ozon Performance"), keywords="озон магазин продажи реклама")
+PROVIDERS["wb"].update(access=("Wildberries API",), keywords="вб вайлдберриз валберис магазин продажи реклама")
+PROVIDERS["wordstat"].update(access=("Яндекс Вордстат",), keywords="вордстат спрос частотность поиск")
+TELEGRAM = {"title": "Telegram", "auth": "telegram", "access": ("Telegram",),
+            "keywords": "телега телеграм телегу тг сообщения доставка"}
+KEY_GUIDES.update({
+    "Telegram": ["Откройте «Настройки» → «Интеграции» → Telegram.",
+                 "Нажмите «Подключить Telegram», выберите свой аккаунт и разрешите сообщения."],
+    "Яндекс Вордстат": ["В настройках интеграций выберите Яндекс Вордстат, введите название и OAuth-токен с доступом к Wordstat и сохраните подключение."],
+})
+
+
+def published_providers(telegram=True):
+    return {**PROVIDERS, **({"telegram": TELEGRAM} if telegram else {})}
+
+
 SECRET_TEXT = re.compile(r'(?i)(?:["\']?(?:api[-_ ]?key|client[-_ ]?secret|performance_secret|oauth[-_ ]?(?:token|токен)|токен|token|ключ)["\']?\s*[:=]\s*["\']?[\w./+=-]{5,}|(?:eyJ[\w-]{8,}\.[\w-]+\.[\w-]+|y0_[\w-]{12,}))')
 SCHEMA = """CREATE TABLE IF NOT EXISTS account_integrations(
     id TEXT PRIMARY KEY, workspace TEXT NOT NULL REFERENCES workspaces(workspace_id),
@@ -66,6 +83,9 @@ class IntegrationStore:
         with identity._write() as db:
             db.execute(SCHEMA)
             db.execute(chat_connections.SCHEMA)
+            db.execute("""CREATE TABLE IF NOT EXISTS integration_access_checks(
+                cid TEXT PRIMARY KEY REFERENCES account_integrations(id) ON DELETE CASCADE,
+                version INTEGER NOT NULL, checks TEXT NOT NULL)""")
             from .user_plugins.registry import install
             install(db)
 
@@ -80,10 +100,9 @@ class IntegrationStore:
             db = self.identity._db
             _, ws = _principal(db, token)
             rows = db.execute("SELECT id,provider,name,status FROM account_integrations WHERE workspace=? ORDER BY name,id", (ws,))
-            result = {"providers": PROVIDERS, "keyGuides": KEY_GUIDES, "connections": [dict(zip(("id","provider","name","status"),row)) for row in rows]}
+            result = {"providers": published_providers(telegram is not None), "keyGuides": KEY_GUIDES, "connections": [dict(zip(("id","provider","name","status"),row)) for row in rows]}
 
             if telegram is not None:
-                result["providers"] = {**PROVIDERS, "telegram": {"title": "Telegram", "auth": "telegram"}}
                 result["telegram"] = telegram.status(db, ws)
             return result
 
@@ -128,12 +147,16 @@ class IntegrationStore:
             aad = json.dumps([ws,provider,cid]).encode()
             return provider, version, json.loads(self._cipher().decrypt(sealed[:12],sealed[12:],aad))
 
-    def status(self, token, cid, version, status):
+    def status(self, token, cid, version, status, checks=None):
         with self.identity._write() as db:
             _, ws = _principal(db, token)
             if not db.execute("UPDATE account_integrations SET status=? WHERE id=? AND workspace=? AND version=?",
                               (status,cid,ws,version)).rowcount:
                 raise HTTPException(409,"Ключи изменились. Повторите проверку.")
+            if checks is not None:
+                db.execute("""INSERT INTO integration_access_checks VALUES(?,?,?)
+                    ON CONFLICT(cid) DO UPDATE SET version=excluded.version,checks=excluded.checks""",
+                    (cid, version, json.dumps(checks)))
 
 async def probe(client, provider, f):
     calls = []
@@ -182,7 +205,7 @@ def routes(get_token, body):
         provider, version, fields = store.open(token,cid)
         results = await probe(req.app.state.http,provider,fields)
         status = "verified" if all(v=="verified" for v in results.values()) else "unconfirmed"
-        store.status(token,cid,version,status)
+        store.status(token,cid,version,status,results)
         return JSONResponse({"status":status,"checks":results})
     async def semantics(req):
         token = get_token(req,allow_cookie=True)

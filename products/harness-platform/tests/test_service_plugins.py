@@ -50,27 +50,31 @@ class ServicePlugins(unittest.TestCase):
                     return dispatch.await_args.kwargs
                 empty = context()
                 self.assertEqual(empty["availableServices"], [])
-                self.assertIn("Wildberries API", empty["connectionGuides"])
-                self.assertIn("Ozon Seller", empty["connectionGuides"])
+                def card(context, provider):
+                    return next(c for c in context["knowledge"]["cards"] if c["id"] == "integration/" + provider)
+                self.assertIn("Wildberries API", card(empty, "wb")["steps"])
+                self.assertIn("Ozon Seller", card(empty, "ozon")["steps"])
+                self.assertFalse(empty.get("connectionGuides"))
                 cid = client.post("/api/integrations", headers=self.headers, json={
                     "provider":"wb", "name":"WB", "fields":{"token":"test-private-token"}
                 }).json()["id"]
                 saved = context()
                 self.assertIn({"provider":"wb", "access":["Wildberries API"]}, saved["availableServices"])
-                self.assertNotIn("Wildberries API", saved["connectionGuides"])
+                self.assertNotIn("name", saved["knowledge"]["states"]["integration/wb"][0])
                 client.post(route + "/integrations", headers=self.headers,
                             json={"connectionId":cid, "enabled":True}).raise_for_status()
                 active = context()
                 self.assertEqual(active["connections"][0]["id"], cid)
-                self.assertNotIn("Wildberries API", active["connectionGuides"])
+                self.assertTrue(active["knowledge"]["states"]["integration/wb"][0]["attached"])
                 self.assertNotIn("test-private-token", str(active))
                 client.post("/api/integrations", headers=self.headers, json={
                     "provider":"ozon", "name":"Реклама", "fields":{"performance_id":"perf-id","performance_secret":"perf-secret"}
                 }).raise_for_status()
                 partial = context()
                 self.assertEqual(partial["availableServices"], [{"provider":"ozon","access":["Ozon Performance"]}])
-                self.assertIn("Ozon Seller", partial["connectionGuides"])
-                self.assertNotIn("Ozon Performance", partial["connectionGuides"])
+                self.assertEqual(set(card(partial, "ozon")["steps"]), {"Ozon Seller", "Ozon Performance"})
+                self.assertEqual(partial["knowledge"]["states"]["integration/ozon"],
+                                 [{"attached": False, "access": ["Ozon Performance"]}])
                 self.assertNotIn("perf-secret", str(partial))
                 self.assertNotIn("Реклама", str(partial["availableServices"]))
 
