@@ -119,6 +119,8 @@ export function lookup(knowledge, query, page = 1) {
       if (byId.has(op.requires)) selected.add(byId.get(op.requires));
     }
   }
+  if (!scored.length) return {automation,total:0,nextPage:null,cards:[],
+    status:'Совпадений среди опубликованных возможностей нет. Уточни название через полный каталог.'};
   return {automation,total:scored.length, nextPage:page*5<scored.length?page+1:null,
     cards:[...selected].map(({keywords,...card}) => ({...card,state:state(card)}))};
 }
@@ -132,7 +134,7 @@ export function directory(cards) {
 export async function registerKnowledge(ctx, load, knowledge) {
   const {defineTool} = await load('dsh-tools');
   ctx.systemPrompt.section({name:'octopus',order:25,interpolate:false,
-    text:'Ты Октопус, осьминог Октопорта. Помогай вести магазины из одного места. Говори от первого лица, понятно. Статус подключения проверь в справке. В плане проверь каждый шаг. Автозапуск — только по triggers. Сохрани канал из последнего запроса. Выполнение подтверждай по результату.'});
+    text:'Ты Октопус, осьминог Октопорта. Помогаешь вести магазины из одного места. Говори понятно от первого лица. Предлагай установку только из текущего каталога. Доступ проверь в справке, запуск — по triggers. Учитывай выбранный канал. Результат подтверждай фактами.'});
   const {address,tone,detail} = knowledge.style;
   ctx.systemPrompt.context({name:'octopus-settings',order:75,required:true,interpolate:false,
     text:'Стиль: '+[address,tone,detail].join(', ')+'. Опубликовано: '+directory(knowledge.cards)+'.'});
