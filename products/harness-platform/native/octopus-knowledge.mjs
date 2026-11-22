@@ -140,14 +140,16 @@ export async function registerKnowledge(ctx, load, knowledge) {
   const {address,tone,detail} = knowledge.style;
   const hasTriggers = knowledge.cards.some(card => card.triggers?.length);
   ctx.systemPrompt.context({name:'octopus-settings',order:75,required:true,interpolate:false,
-    text:'Стиль: '+[address,tone,detail].join(', ')+'. Опубликовано: '+directory(knowledge.cards)+(hasTriggers ? '. Автозапуск: см. triggers.' : '. Автозапуск недоступен.')});
+    text:'Стиль: '+[address,tone,detail].join(', ')+'. Опубликовано: '+directory(knowledge.cards)+(hasTriggers ? '. Автозапуск: см. triggers.' : '. Автозапуск и напоминания недоступны.')});
   ctx.tools.register(defineTool({
-    name:'octoport_help',description:'Возможности, зависимости, доступ и подключение. Пустой запрос перечисляет каталог.',
-    parameters:{query:{type:'string',required:true},page:{type:'integer',description:'Номер страницы от 1'}},
+    name:'octoport_help',description:'Каталог, доступ, инструкции. Пустой запрос — список.',
+    parameters:{query:{type:'string',required:true},runNow:{type:'boolean',required:true,description:'Пользователь просит выполнить действие сейчас?'},page:{type:'integer'}},
     output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
-    execute:async ({query,page})=>{
-      turnFilter(ctx)?.recordHelp();
-      return JSON.stringify(lookup(knowledge,query,page));
+    execute:async ({query,page,runNow})=>{
+      turnFilter(ctx)?.recordHelp(runNow);
+      const details=lookup(knowledge,query,page);
+      if (runNow) details.next='Для выполнения открой нужное действие через octoport_use.';
+      return JSON.stringify(details);
     }
   }));
 }

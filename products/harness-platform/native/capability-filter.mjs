@@ -68,12 +68,17 @@ export function installFilter(ctx, defineTool, restored = [], history = []) {
     if (event.type !== 'assistant/message') continue;
     const choice = event.data.message.content.find(b => b.type === 'tool-call' &&
       (b.name === 'octoport_help' || b.name === activate));
-    if (choice) { helpOnly = choice.name === 'octoport_help'; break; }
+    if (!choice) continue;
+    if (choice.name === 'octoport_help') {
+      try { helpOnly = JSON.parse(choice.arguments).runNow === false; }
+      catch { /* Prior versions did not declare an intent. */ }
+    }
+    break;
   }
   let beganExecution = selected.size > 0;
   let visible = new Set();
   const filter = {
-    recordHelp() { if (!beganExecution) helpOnly = true; },
+    recordHelp(runNow) { if (!beganExecution && runNow === false) helpOnly = true; },
     project(tools) {
       if (helpOnly) return tools?.filter(t => t.name === 'octoport_help');
       visible = new Set(selected);
@@ -103,7 +108,7 @@ export function installFilter(ctx, defineTool, restored = [], history = []) {
   ctx.tools.register(defineTool({
     name:activate, description:'Открой действие только для выполнения сейчас. '+menu,
     parameters:{action:{type:'string',required:true},query:{type:'string',required:true,
-      description:'Предмет действия и показатель из беседы'},reuse:{type:'boolean',description:'Тот же показатель за другой период'},offset:{type:'integer',description:'Следующая страница при необходимости'}},
+      description:'Предмет и показатель'},reuse:{type:'boolean',description:'Тот же показатель за другой период'},offset:{type:'integer',description:'Страница'}},
     output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
     async execute({action,query,offset=0,reuse=false},exec) {
       if (helpOnly) return JSON.stringify({error:'В этом ходе выбрана справка.'});
@@ -134,5 +139,5 @@ export function installFilter(ctx, defineTool, restored = [], history = []) {
     },
   }));
   ctx.systemPrompt.section({name:'capability-filter',order:26,interpolate:false,
-    text:'Справка или план — только octoport_help. Пересказ — из истории. Для данных сейчас, в том числе в смешанной задаче, начни с octoport_use.'});
+    text:'План — справка. Пересказ — история. Для исполнения сейчас открывай действие.'});
 }

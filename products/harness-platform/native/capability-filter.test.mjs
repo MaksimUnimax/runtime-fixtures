@@ -102,15 +102,23 @@ test('the user request follows the latest runtime context on both transports',()
 
 test('help-first turns keep all action contracts closed, including after recovery', async()=>{
   const {ctx,name,defs,project}=fixture();
-  turnFilter(ctx).recordHelp();
+  turnFilter(ctx).recordHelp(false);
   assert.deepEqual(project(),['octoport_help']);
   assert.ok(ctx.guard({name:activate}));
   const result=JSON.parse(await defs.get(activate).execute({action:name,query:'учебный пример'},{}));
   assert.ok(result.error);
-  const help={type:'assistant/message',data:{message:{content:[{type:'tool-call',name:'octoport_help'}]}}};
+  const help={type:'assistant/message',data:{message:{content:[{type:'tool-call',name:'octoport_help',arguments:'{"runNow":false}'}]}}};
   assert.deepEqual(fixture([help]).project(),['octoport_help']);
   const mixed=fixture();
   await mixed.defs.get(activate).execute({action:name,query:'данные сейчас'},{});
-  turnFilter(mixed.ctx).recordHelp();
+  turnFilter(mixed.ctx).recordHelp(false);
   assert.ok(mixed.project().includes(name));
+});
+
+test('looking up prerequisites for an immediate request keeps actions available', ()=>{
+  const {ctx,project}=fixture();
+  turnFilter(ctx).recordHelp(true);
+  assert.ok(project().includes(activate));
+  const lookup={type:'assistant/message',data:{message:{content:[{type:'tool-call',name:'octoport_help',arguments:'{"runNow":true}'}]}}};
+  assert.ok(fixture([lookup]).project().includes(activate));
 });
