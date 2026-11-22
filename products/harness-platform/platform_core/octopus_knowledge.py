@@ -132,6 +132,7 @@ def snapshot(db, scope, rows, telegram):
                     "sending":"Идёт отправка."}.get(delivery["status"], "")
         replies[binding] = {"topic":"Как проверить, ушёл ли отчёт в Telegram, и что известно о прошлых отправках?",
             "text":" ".join(filter(None, (when, last_try,
+                "" if delivery["subscribed"] else "Сейчас подписка выключена. Плагин возобновит отправку только после её включения.",
                 "В окне плагина «Отчёты в Telegram» есть строка «Последняя отправка», когда время подтверждено. Конкретный отчёт можно проверить в личном чате с ботом.")))}
     return {"cards": published(), "states": states, "currentSteps": instructions, "replies": replies,
             "style": preferences(db, scope.workspace_id)}
