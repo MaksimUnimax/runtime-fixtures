@@ -105,10 +105,18 @@ class MarketplaceMatrix(unittest.TestCase):
         import sqlite3
         from hashlib import sha256
         from urllib.error import HTTPError
+        from repository import Repository
 
         db = Path(self.turn["databasePath"])
         # Test the three-second grant boundary independently of host load.
         now = time.time()
+        initialize_repository = Repository.__init__
+
+        def clock():
+            return now
+
+        def initialize_with_clock(repository, path):
+            initialize_repository(repository, path, clock=clock)
 
         def advance(seconds):
             nonlocal now
@@ -124,7 +132,8 @@ class MarketplaceMatrix(unittest.TestCase):
                 raise HTTPError(req.full_url, 429, "rate limited", {"Retry-After": "4"}, None)
             return b'{"result":{"totals":[29],"data":[{"dimensions":[{"id":"2026-11"}],"metrics":[29]}]}}', 200
 
-        with (patch("time.time", side_effect=lambda: now), patch("time.sleep", side_effect=advance),
+        with (patch("time.time", clock), patch("time.sleep", advance),
+              patch.object(Repository, "__init__", initialize_with_clock),
               patch("http_transport.read_response", side_effect=read)):
             grant = issue_grant(db, self.scope, source="chat.turn", run_key="matrix-case", ttl_seconds=3)
             original_deadline = int((now + 2.8) * 1000)
