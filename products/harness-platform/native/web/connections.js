@@ -13,12 +13,13 @@ window.__ModuleLoader__.load({
           h('ol',null,steps.map(step=>h('li',{key:step},step))));
       }
       function TelegramDialog({close,linked}) {
-        const dialog=React.useRef(null),frame=React.useRef(null);
+        const dialog=React.useRef(null),frame=React.useRef(null),heading=React.useRef(null);
         const [attempt,retry]=React.useReducer(n=>n+1,0),[request,setRequest]=React.useState(null);
         const [error,setError]=React.useState(''),[phase,setPhase]=React.useState('loading');
         React.useLayoutEffect(()=>{
           const element=dialog.current;
           element.showModal();
+          heading.current.focus({preventScroll:true});
           function escape(e){
             if(e.key==='Escape'&&element.open){
               e.preventDefault();e.stopImmediatePropagation();close();
@@ -88,16 +89,18 @@ window.__ModuleLoader__.load({
         }
         return h('dialog',{ref:dialog,className:'account-dialog telegram-dialog','aria-labelledby':'telegram-dialog-title',
             onCancel:e=>{e.preventDefault();close();}},
-          h('button',{type:'button',className:'account-close','aria-label':'Закрыть',onClick:close},'×'),
-          h('h2',{id:'telegram-dialog-title'},'Подключить Telegram'),
-          h('p',null,'Выберите свой аккаунт Telegram и разрешите боту Октопорта присылать сообщения.'),
-          error?h(React.Fragment,null,h('p',{role:'alert'},error),
-            h('button',{type:'button',onClick:retry},'Попробовать снова')):
-            h(React.Fragment,null,
-              phase!=='ready'&&h('p',{role:'status'},phase==='checking'?'Проверяем подключение…':'Загружаем Telegram…'),
-              request?.widget&&h('iframe',{ref:frame,title:'Вход через Telegram',className:'telegram-widget-frame',
-                hidden:phase!=='ready',src:request.url,onLoad:loaded,referrerPolicy:'no-referrer'}),
-              request&&!request.widget&&h('a',{href:request.url,target:'_blank',rel:'noopener noreferrer'},'Войти через Telegram')));
+          h('header',{className:'telegram-dialog-header'},
+            h('h2',{id:'telegram-dialog-title',ref:heading,tabIndex:-1},'Подключить Telegram'),
+            h('button',{type:'button',className:'telegram-dialog-close','aria-label':'Закрыть окно Telegram',onClick:close})),
+          h('p',{className:'telegram-dialog-description'},'Разрешите боту Октопорта присылать отчёты в личные сообщения.'),
+          h('div',{className:'telegram-dialog-action'},
+            error?h(React.Fragment,null,h('p',{role:'alert'},error),
+              h('button',{type:'button',onClick:retry},'Попробовать снова')):
+              h(React.Fragment,null,
+                phase!=='ready'&&h('p',{role:'status'},phase==='checking'?'Проверяем подключение…':'Загружаем Telegram…'),
+                request?.widget&&h('iframe',{ref:frame,title:'Вход через Telegram',className:'telegram-widget-frame',
+                  hidden:phase!=='ready',src:request.url,onLoad:loaded,referrerPolicy:'no-referrer'}),
+                request&&!request.widget&&h('a',{href:request.url,target:'_blank',rel:'noopener noreferrer'},'Войти через Telegram'))));
       }
       function Connections({initial={},after,chat}) {
         const [list,setList]=React.useState(null),[provider,setProvider]=React.useState(initial.provider||'');
