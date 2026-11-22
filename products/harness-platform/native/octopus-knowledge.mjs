@@ -3,54 +3,60 @@ const reportTools = new Set(['mcp__platform__find_marketplace_reports', 'mcp__pl
 // Apply this projection at dispatch only. Historical journal sequence numbers,
 // restore checkpoints, and active tool calls remain valid on either transport.
 export function projectCompletedKnowledge(seed) {
-  const oldAssistants = new Set(), oldResults = new Set(), oldCalls = new Set();
-  const reportTurns = new Set(), idsByTurn = new Map();
-  const activated = new Map();
+  const oldAssistants = new Set(), oldResults = new Set();
+  const callsByTurn = new Map(), redact = new Map();
   for (const {type,data} of seed) {
-    if (type !== 'assistant/message') continue;
-    for (const block of data.message.content) {
-      if (block.type !== 'tool-call' || block.name !== 'octoport_use') continue;
-      try {
-        const {action}=JSON.parse(block.arguments);
-        if (typeof action !== 'string') continue;
-        const actions=activated.get(data.turn) ?? new Set();
-        actions.add(action);activated.set(data.turn,actions);
-      } catch { /* Invalid activations open no resource. */ }
+    if (type !== 'assistant/message' && type !== 'tool/result') continue;
+    let turn = callsByTurn.get(data.turn);
+    if (!turn) {
+      turn = {messages: [], results: new Map()};
+      callsByTurn.set(data.turn, turn);
     }
+    if (type === 'tool/result') turn.results.set(data.message.toolCallId, data.message);
+    else turn.messages.push(data.message);
   }
-  for (const {type,data} of seed) {
-    if (type !== 'assistant/message') continue;
-    for (const block of data.message.content) {
-      if (block.type !== 'tool-call' || !(reportTools.has(block.name) || activated.get(data.turn)?.has(block.name))) continue;
-      reportTurns.add(data.turn);
-      oldCalls.add(block.id);
-      if (block.name.endsWith('__marketplace_report')) {
+  for (const {messages, results} of callsByTurn.values()) {
+    const privateActions = new Set(), ids = new Set();
+    let hasPrivateData = false;
+    for (const msg of messages) {
+      for (const call of msg.content) {
+        if (call.type !== 'tool-call') continue;
+        if (call.name === 'octoport_help') hasPrivateData = true;
+        if (call.name !== 'octoport_use') continue;
+        const result = results.get(call.id);
+        if (!result || result.isError) continue;
         try {
-          const selected = JSON.parse(block.arguments).selections;
-          const ids = idsByTurn.get(data.turn) ?? new Set();
-          for (const item of selected) if (typeof item.templateId === 'string') ids.add(item.templateId);
-          idsByTurn.set(data.turn, ids);
-        } catch { /* Protocol validation may have rejected a malformed past call. */ }
+          const record = JSON.parse(result.content.find(b => b.type === 'text').text);
+          if (typeof record.opened === 'string' && Object.hasOwn(record, 'details')) {
+            privateActions.add(record.opened);
+            hasPrivateData = true;
+          }
+        } catch { /* Invalid activation results grant no access. */ }
       }
     }
-  }
-  // A provider signs the complete tool-call batch. A signature for a mixed
-  // batch cannot be attached to a rewritten subset. Omit the settled batch
-  // as a unit, keeping the seller-visible final answer and independent calls.
-  for (const {type,data} of seed) {
-    if (type !== 'assistant/message' || !reportTurns.has(data.turn)) continue;
-    const calls=data.message.content.filter(b=>b.type==='tool-call');
-    if (calls.some(b=>oldCalls.has(b.id))) for (const b of calls) oldCalls.add(b.id);
-  }
-  const redact = new Map();
-  for (const {type,data} of seed) {
-    if (!reportTurns.has(data.turn)) continue;
-    if (type === 'tool/result' && oldCalls.has(data.message.toolCallId)) oldResults.add(data.message.id);
-    if (type !== 'assistant/message') continue;
-    const msg = data.message;
-    if (msg.content.some(b => b.type === 'tool-call' && !oldCalls.has(b.id))) continue;
-    oldAssistants.add(msg.id);
-    redact.set(msg.id, idsByTurn.get(data.turn) ?? []);
+    for (const msg of messages) {
+      const calls = msg.content.filter(b => b.type === 'tool-call');
+      if (!calls.some(call => reportTools.has(call.name) || privateActions.has(call.name))) continue;
+      // The provider signs a whole batch. Keep calls and results paired.
+      oldAssistants.add(msg.id);
+      for (const call of calls) {
+        const result = results.get(call.id);
+        if (result) oldResults.add(result.id);
+        if (call.name !== 'mcp__platform__marketplace_report' &&
+            call.name !== 'mcp__platform__find_marketplace_reports') continue;
+        hasPrivateData = true;
+        try {
+          for (const item of JSON.parse(call.arguments).selections ?? []) {
+            if (typeof item.templateId === 'string') ids.add(item.templateId);
+          }
+        } catch { /* A past invocation may have failed validation. */ }
+      }
+    }
+    if (hasPrivateData) for (const msg of messages) {
+      if (msg.content.some(b => b.type === 'tool-call')) continue;
+      oldAssistants.add(msg.id);
+      redact.set(msg.id, ids);
+    }
   }
   return messages => {
     const latest = messages.findLast(message => message.source?.kind === 'runtime-context' &&
@@ -60,10 +66,10 @@ export function projectCompletedKnowledge(seed) {
       if (msg.role === 'tool' && oldResults.has(msg.id)) return [];
       if (msg.role !== 'assistant' || !oldAssistants.has(msg.id)) return [msg];
       const content = msg.content.filter(block => block.type !== 'reasoning' &&
-        !(block.type === 'tool-call' && oldCalls.has(block.id))).map(block => {
+        block.type !== 'tool-call').map(block => {
           if (block.type !== 'text') return block;
           let text = block.text;
-          for (const id of redact.get(msg.id)) text = text.replaceAll(id,'отчёт');
+          for (const id of redact.get(msg.id) ?? []) text = text.replaceAll(id,'отчёт');
           return {...block, text};
         });
       if (!content.length) return [];
@@ -87,8 +93,9 @@ export function lookup(knowledge, query, page = 1) {
     const score = Number(query === card.id) * 100 + [...terms].filter(term => vocabulary.has(term)).length;
     return {card, score};
   }).filter(row => !query.trim() || row.score).sort((a,b) => b.score-a.score || a.card.id.localeCompare(b.card.id));
+  const state = card => states[card.id] ?? (card.id.startsWith('integration/')?'не подключено':'не установлено');
   if (!query.trim()) {
-    const summaries = scored.slice((page-1)*16,page*16).map(({card}) => ({id:card.id,title:card.title,purpose:card.purpose}));
+    const summaries = scored.slice((page-1)*16,page*16).map(({card}) => ({id:card.id,title:card.title,purpose:card.purpose,state:state(card)}));
     return {total:scored.length, nextPage:page*16<scored.length?page+1:null, cards:summaries};
   }
   const rows = scored.slice((page-1)*5, page*5).map(r => r.card);
@@ -100,8 +107,7 @@ export function lookup(knowledge, query, page = 1) {
     }
   }
   return {total:scored.length, nextPage:page*5<scored.length?page+1:null,
-    cards:[...selected].map(({keywords,...card}) => ({...card,state:states[card.id] ??
-      (card.id.startsWith('integration/')?'не подключено':'не установлено')}))};
+    cards:[...selected].map(({keywords,...card}) => ({...card,state:state(card)}))};
 }
 
 export function directory(cards) {
@@ -113,10 +119,10 @@ export function directory(cards) {
 export async function registerKnowledge(ctx, load, knowledge) {
   const {defineTool} = await load('dsh-tools');
   ctx.systemPrompt.section({name:'octopus',order:25,interpolate:false,
-    text:'Ты Октопус, осьминог Октопорта. Помогай вести магазины из одного места. Говори от первого лица, понятно. Предлагай только опубликованное, учитывай зависимости. Выполнение подтверждай по результату.'});
+    text:'Ты Октопус, осьминог Октопорта. Помогай вести магазины из одного места. Говори от первого лица, понятно. Статус подключения проверь в справке. Предлагай только опубликованное, учитывай зависимости. Выполнение подтверждай по результату.'});
   const {address,tone,detail} = knowledge.style;
   ctx.systemPrompt.context({name:'octopus-settings',order:75,required:true,interpolate:false,
-    text:'Стиль: '+[address,tone,detail].join(', ')+'. В каталоге: '+directory(knowledge.cards)+'.'});
+    text:'Стиль: '+[address,tone,detail].join(', ')+'. Опубликовано: '+directory(knowledge.cards)+'.'});
   ctx.tools.register(defineTool({
     name:'octoport_help',description:'Возможности, зависимости, доступ и подключение. Пустой запрос перечисляет каталог.',
     parameters:{query:{type:'string',required:true},page:{type:'integer',description:'Номер страницы от 1'}},

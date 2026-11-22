@@ -2,10 +2,15 @@
 // same admitted set, including after an interrupted operation is restored.
 const filters = new WeakMap();
 export const activate = 'octoport_use';
-const prefix = 'mcp__platform__';
-const companion = name => name.startsWith(prefix)
-  ? prefix+'describe__'+name.slice(prefix.length) : 'describe__'+name;
-const internal = name => name.replace(prefix,'').startsWith('describe__');
+function splitName(name) {
+  const parts = /^(mcp__.+?__)(.+)$/.exec(name);
+  return parts ? [parts[1], parts[2]] : ['', name];
+}
+function companion(name) {
+  const [prefix, localName] = splitName(name);
+  return prefix + 'describe__' + localName;
+}
+const internal = name => splitName(name)[1].startsWith('describe__');
 
 export function turnFilter(ctx) { return filters.get(ctx); }
 
@@ -34,7 +39,6 @@ export function installFilter(ctx, defineTool, restored = []) {
   filters.set(ctx, filter);
   ctx.tools.guard(exec => (exec.name===activate || exec.name==='octoport_help' || visible.has(exec.name))
     ? undefined : 'Это действие закрыто для текущего шага.');
-  if (!available.size) return;
   const names = [...available.keys()].sort();
   const menu = names.join(', ').length <= 230 ? names.join(', ') : 'Получите указатель пустым action.';
 
@@ -49,7 +53,8 @@ export function installFilter(ctx, defineTool, restored = []) {
         const terms=query.toLocaleLowerCase().split(/\s+/u).filter(Boolean);
         const matches=names.filter(name=>!terms.length || terms.some(term=>
           (name+' '+available.get(name).description.slice(0,140)).toLocaleLowerCase().includes(term)));
-        return JSON.stringify({actions:matches.slice(offset,offset+16),nextOffset:offset+16<matches.length?offset+16:null});
+        const actions = matches.slice(offset,offset+16).map(name => ({name, purpose: available.get(name).description.slice(0,140)}));
+        return JSON.stringify({actions,nextOffset:offset+16<matches.length?offset+16:null});
       }
       if (!available.has(action) || !query.trim() || query.length>256 || !Number.isSafeInteger(offset) || offset<0)
         return JSON.stringify({error:'Выберите доступное действие и укажите его предмет.'});
