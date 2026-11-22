@@ -578,12 +578,15 @@ class MarketplaceMatrix(unittest.TestCase):
             if "contract" in card:
                 from urllib.parse import urlsplit
                 contract = card["contract"]
-                self.assertIsNone(card["operation"])
                 self.assertIn(urlsplit(contract["url"]).netloc, read_templates.SUPPLEMENTAL_HOSTS[card["profile"]])
                 self.assertEqual(urlsplit(contract["url"]).path, card["path"])
                 self.assertEqual(contract["http"], card["http"])
                 Draft202012Validator.check_schema(contract["schema"])
-                continue
+                if card["operation"] is None:
+                    continue
+                source = method("wb" if card["profile"] == "wb" else "ozon", card["operation"])
+                self.assertEqual(source["wire_url"], contract["url"])
+                self.assertEqual(source["workflow_role"], "single_read")
             wb = card["profile"] == "wb"
             meta = method("wb" if wb else "ozon", card["operation"])
             self.assertTrue(available(meta), card)
@@ -668,6 +671,38 @@ class MarketplaceMatrix(unittest.TestCase):
                              {"value": "17.50", "email": "[REDACTED]"})
             self.assertEqual(execute("ozon", ozon, {"period": "MONTH", "sort": "DESC"})["http"], 200)
             self.assertEqual(request.call_count, 2)
+
+    def test_exemplar_status_keeps_business_projection_and_exact_provider_error(self):
+        from io import BytesIO
+        from urllib.error import HTTPError
+        from platform_core.marketplace_matrix import read_templates
+
+        posting = "0239979880-0048-1"
+        self.turn["question"] = f"Проверь статус экземпляров отправления {posting}"
+        target = "read.seller.fbs_posting_product_exemplar_status_v5"
+        packet = {**self.packet, "connections": [self.ids["ozon"]], "readTemplate": {
+            "action": "read", "templateId": target, "params": {"posting_number": posting},
+        }}
+        url = "https://api-seller.ozon.ru/v5/fbs/posting/product/exemplar/status"
+        success = {"result": {"posting_number": posting, "status": "pending", "mark": "TEST-NOT-FOR-MODEL"}}
+        with patch("http_transport.read_response", return_value=(json.dumps(success).encode(), 200)) as request:
+            answer = read_templates.execute(packet, self.root)
+        self.assertEqual(request.call_args.args[0].full_url, url)
+        self.assertEqual(answer["data"]["result"], {"posting_number": posting, "status": "pending"})
+        self.assertTrue(answer["data"]["_read_projection"]["business_only"])
+        from semantics import Rejected
+
+        with patch("read_surface.available", return_value=False), patch("http_transport.read_response") as request:
+            with self.assertRaises(Rejected):
+                read_templates.execute(packet, self.root)
+            request.assert_not_called()
+        for message in ("INVALID_POSTING_STATE", "another validation error"):
+            payload = json.dumps({"code": 3, "message": message}).encode()
+            with self.subTest(message=message), patch("http_transport.read_response", side_effect=HTTPError(
+                    url, 400, "Invalid request", {}, BytesIO(payload))):
+                failure = read_templates.execute(packet, self.root)
+            self.assertFalse(failure["ok"])
+            self.assertEqual(failure.get("reasonSource") == "template", message == "INVALID_POSTING_STATE")
 
     def test_wb_funnel_history_requires_the_history_period_before_dispatch(self):
         from platform_core.marketplace_matrix import read_templates

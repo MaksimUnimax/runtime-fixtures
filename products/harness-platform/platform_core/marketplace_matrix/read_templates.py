@@ -320,11 +320,20 @@ def supplemental_send(authority, store, card, route):
     from engine import CallError
     from http_transport import read_response
     from platform_store_credentials import resolve
-    from read_surface import sanitize
+    import read_surface
     from semantics import Rejected, strict_json
     from .store_currency import retry_time
 
     method, url, body = route
+    operation = card.get("operation")
+    if operation:
+        registered = read_surface.method(store["platform"], operation)
+        if (not read_surface.available(registered) or registered.get("completion")
+                or registered.get("workflow_role") != "single_read"
+                or registered.get("response_style") == "binary" or registered.get("response_mode") == "binary"
+                or operation == "notification_check"
+                or registered["method"] != method or registered["wire_url"] != url):
+            raise Rejected("READ_FIXED_TRANSPORT")
     credentials = resolve(store)
     headers = {"Content-Type": "application/json"}
     if card["profile"] == "wb":
@@ -359,9 +368,14 @@ def supplemental_send(authority, store, card, route):
         raise CallError("RESPONSE_SIZE", status=status)
     try:
         data = strict_json(raw, parse_float=Decimal) if raw else None
-        return sanitize(data), {"status": status, "elapsed_ms": round((time.monotonic() - started) * 1000)}
     except (Rejected, ValueError, RecursionError):
         raise CallError("READ_RESPONSE_SCHEMA", status=status) from None
+    if operation:
+        try:
+            data = read_surface.project_response(store["platform"], operation, data)
+        except Rejected as error:
+            raise CallError(error.code, status=status) from None
+    return read_surface.sanitize(data), {"status": status, "elapsed_ms": round((time.monotonic() - started) * 1000)}
 
 
 def _with_rate_retries(authority, platform, operation, dispatch, calls):
