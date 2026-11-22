@@ -135,10 +135,12 @@ class RejectedPayment(Exception):
     """The provider definitively rejected the creation request."""
 
 
-async def provider(method, path, merchant_auth, **kwargs):
+async def provider(method, path, merchant_auth, *, resource="payments", **kwargs):
+    if resource not in {"payments", "refunds"}:
+        raise ValueError("Unsupported provider resource")
     try:
         async with httpx.AsyncClient(timeout=12, follow_redirects=False) as client:
-            answer = await client.request(method, "https://api.yookassa.ru/v3/payments"+path,
+            answer = await client.request(method, "https://api.yookassa.ru/v3/"+resource+path,
                                           auth=merchant_auth, **kwargs)
         if method == "POST" and answer.status_code in (400, 401, 403):
             raise RejectedPayment()
@@ -258,6 +260,48 @@ async def reconcile_checkout(request):
     return response({"status": status, "url": url})
 
 
+def apply_full_refund(store, order, refund, payment, shop):
+    """Reverse exactly one fully refunded purchase, even if notices repeat."""
+    refund_id = refund.get("id")
+    payment_id = refund.get("payment_id")
+    if (not isinstance(refund_id, str) or not _ID.fullmatch(refund_id)
+            or not isinstance(payment_id, str) or not _ID.fullmatch(payment_id)):
+        raise HTTPException(502, "Некорректный ответ о возврате.")
+
+    with store._write() as db:
+        ensure_operation_schema(db)
+        row = db.execute("""SELECT workspace_id,quantity,total,provider_id,status
+                            FROM coin_checkouts WHERE id=?""", (order,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "Заказ не найден.")
+        workspace, count, total, known_payment, state = row
+        if (known_payment != payment_id or refund.get("status") != "succeeded"
+                or refund.get("amount") != {"value": total, "currency": "RUB"}
+                or payment.get("id") != payment_id
+                or payment.get("metadata", {}).get("order") != order
+                or payment.get("amount") != {"value": total, "currency": "RUB"}
+                or payment.get("refunded_amount") != {"value": total, "currency": "RUB"}
+                or payment.get("recipient", {}).get("account_id") != shop
+                or payment.get("test") is not False or payment.get("status") != "succeeded"):
+            raise HTTPException(409, "Частичный или неподтверждённый возврат требует ручной сверки.")
+        if state == "refunded":
+            previous = db.execute("SELECT refund_id FROM coin_refunds WHERE checkout_id=?", (order,)).fetchone()
+            if previous is None or previous[0] != refund_id:
+                raise HTTPException(409, "Возврат требует проверки.")
+            return
+        if state != "succeeded":
+            raise HTTPException(409, "Платёж ещё не подтверждён.")
+        grant = db.execute("SELECT amount FROM coin_grants WHERE issuer='yookassa' AND key=? AND workspace_id=?",
+                           (payment_id, workspace)).fetchone()
+        if grant is None or grant[0] != count * coins.UNIT:
+            raise HTTPException(409, "Начисление требует проверки.")
+        db.execute("""INSERT INTO coin_refunds(refund_id,payment_id,checkout_id,workspace_id,amount)
+                      VALUES(?,?,?,?,?)""", (refund_id,payment_id,order,workspace,total))
+        db.execute("DELETE FROM coin_grants WHERE issuer='yookassa' AND key=? AND workspace_id=?",
+                   (payment_id, workspace))
+        db.execute("UPDATE coin_checkouts SET status='refunded',url=NULL WHERE id=?", (order,))
+
+
 async def notification(request):
     auth = merchant()
     if not auth:
@@ -268,22 +312,54 @@ async def notification(request):
             return Response(status_code=413)
         raw.extend(chunk)
     try:
-        snapshot = json.loads(raw)["object"]
-        payment, order = snapshot["id"], snapshot["metadata"]["order"]
-        if not _ID.fullmatch(payment) or not _ID.fullmatch(order):
+        envelope = json.loads(raw)
+        if envelope.get("type") != "notification" or not isinstance(envelope.get("object"), dict):
             return Response(status_code=400)
-    except (ValueError, TypeError, KeyError, UnicodeError):
+        event, snapshot = envelope["event"], envelope["object"]
+        if event not in {"payment.succeeded", "payment.canceled", "refund.succeeded"}:
+            return Response(status_code=400)
+        if event == "refund.succeeded":
+            refund_id, payment_id = snapshot["id"], snapshot["payment_id"]
+            if not _ID.fullmatch(refund_id) or not _ID.fullmatch(payment_id):
+                return Response(status_code=400)
+        else:
+            payment_id, order = snapshot["id"], snapshot["metadata"]["order"]
+            if not _ID.fullmatch(payment_id) or not _ID.fullmatch(order):
+                return Response(status_code=400)
+    except (ValueError, TypeError, KeyError, UnicodeError, AttributeError):
         return Response(status_code=400)
     store = request.app.state.identity
+
+    if event == "refund.succeeded":
+        def matching_refund():
+            with store._lock:
+                return store._db.execute(
+                    "SELECT id FROM coin_checkouts WHERE provider_id=?", (payment_id,)).fetchone()
+        match = await run_in_threadpool(matching_refund)
+        if not match:
+            return Response(status_code=200)
+        order = match[0]
+        # Never trust webhook body for monetary effects. Independently retrieve
+        # both the refund and the payment with the merchant's Basic Auth.
+        refund = await provider("GET", "/" + refund_id, auth, resource="refunds")
+        payment = await provider("GET", "/" + payment_id, auth)
+        if refund.get("id") != refund_id or refund.get("payment_id") != payment_id:
+            return Response(status_code=502)
+        if payment.get("id") != payment_id:
+            return Response(status_code=502)
+        # An out-of-order refund event can arrive before the payment event.
+        await run_in_threadpool(apply_payment, store, order, payment, auth[0])
+        await run_in_threadpool(apply_full_refund, store, order, refund, payment, auth[0])
+        return Response(status_code=200)
+
     def known_order():
         with store._lock:
             return store._db.execute("""SELECT 1 FROM coin_checkouts WHERE id=?
-                AND (provider_id IS NULL OR provider_id=?)""", (order, payment)).fetchone()
+                AND (provider_id IS NULL OR provider_id=?)""", (order, payment_id)).fetchone()
     if not await run_in_threadpool(known_order):
         return Response(status_code=200)
-    # The notification itself is only a hint. Credit exclusively from the merchant-authenticated lookup.
-    data = await provider("GET", "/"+payment, auth)
-    if data.get("id") != payment:
+    data = await provider("GET", "/" + payment_id, auth)
+    if data.get("id") != payment_id:
         return Response(status_code=502)
     await run_in_threadpool(apply_payment, store, order, data, auth[0])
     return Response(status_code=200)
