@@ -11,7 +11,8 @@ const upstream = http.createServer(async (req, res) => {
   for await (const chunk of req) chunks.push(chunk);
   const request = JSON.parse(Buffer.concat(chunks));
   const last = request.messages.findLast(message=>message.role==='user').content;
-  const prompt = last.find(block => block.type === 'text')?.text;
+  const prompt = last.find(block => block.type === 'text' &&
+    !block.text.startsWith('Current runtime context.'))?.text;
   if (prompt === 'interrupt fixture') {
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     res.flushHeaders();
