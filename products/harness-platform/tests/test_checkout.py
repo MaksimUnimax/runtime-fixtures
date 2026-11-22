@@ -63,6 +63,8 @@ class CheckoutTests(unittest.TestCase):
             self.signin()
             self.assertEqual(self.post().status_code, 503)
             self.assertEqual(self.client.post(self.url, data=self.form).status_code, 403)
+            self.assertEqual(self.client.post("/api/coins/reconcile",
+                         data={"key": str(uuid4())}, headers=HEADERS).status_code, 404)
             self.assertEqual(self.client.get("/api/wallet/balance").json()["available"], "10")
 
     @patch("platform_core.checkout.merchant", return_value=("merchant", "fixture"))
@@ -90,11 +92,25 @@ class CheckoutTests(unittest.TestCase):
             self.assertEqual(self.post().json()["url"], hosted)
             self.assertEqual(self.post().json()["url"], hosted)
             self.assertEqual(remote.call_count, 1)
+            reconcile = "/api/coins/reconcile"
+            check = lambda: self.client.post(reconcile, data={"key": self.form["key"]}, headers=HEADERS)
+            self.assertEqual(check().json()["status"], "pending")
+            self.assertEqual(remote.call_count, 2)
             event = {"object":{"id":pay_id,"metadata":{"order":order},"status":"succeeded"}}
             self.assertEqual(self.client.post("/api/coins/yookassa", json=event).status_code, 200)
             self.assertEqual(self.client.get("/api/wallet/balance").json()["available"], "10")
             state = "succeeded"
+            # If the notification is lost, the customer can recover the paid order.
+            self.assertEqual(check().json()["status"], "succeeded")
+            self.assertEqual(self.client.get("/api/wallet/balance").json()["available"], "13")
+            before = remote.call_count
+            self.assertEqual(check().json()["status"], "succeeded")
+            self.assertEqual(remote.call_count, before)
             for _ in range(2):
                 self.assertEqual(self.client.post("/api/coins/yookassa", json=event).status_code, 200)
             self.assertEqual(self.client.get("/api/wallet/balance").json()["available"], "13")
             self.assertEqual(self.post().json()["status"], "succeeded")
+            with IdentityStore(self.db) as store:
+                store.create_account("other@example.org", "password")
+            self.client.post("/login", data={"login":"other@example.org", "password":"password"}, headers=HEADERS)
+            self.assertEqual(check().status_code, 404)
