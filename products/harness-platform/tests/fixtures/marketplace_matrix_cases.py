@@ -935,6 +935,13 @@ class MarketplaceMatrix(unittest.TestCase):
             self.assertFalse(result["ok"])
             outbound.assert_called_once()
 
+    def test_read_sample_preserves_return_courier_flag_and_redacts_links(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        source = {"is_courier_return_mile_available": False, "courierUri": "https://example.com/private"}
+        sample, _, _ = read_templates._result_sample(source, {})
+        self.assertEqual(sample, {"is_courier_return_mile_available": False})
+
     def test_read_template_reuses_confirmed_ids_only_for_the_same_store_and_turn(self):
         from platform_core.marketplace_matrix import plugin, read_templates
         from platform_core.marketplace_matrix.authority import ChatAuthority

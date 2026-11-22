@@ -164,7 +164,8 @@ def _result_sample(value, row_limits, time_zones=None):
         if isinstance(obj, dict):
             result = {}
             for key, item in obj.items():
-                if dropped.search(key):
+                courier_availability = key == "is_courier_return_mile_available" and type(item) is bool
+                if dropped.search(key) and not courier_availability:
                     omitted["fields"] += 1
                     continue
                 if remaining <= 0:
