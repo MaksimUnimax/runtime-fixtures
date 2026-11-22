@@ -389,8 +389,10 @@ def execute(packet, directory):
         return {"ok": False, "templateId": card["id"], "reason": REASONS[card["state"]]}
     params = args.get("params", {})
     try:
+        evidence = packet.get("readEvidence", {})
+        observed = evidence.get("ids", []) if evidence.get("revision") == authority.revision else []
         identifier_provenance(_identifier_params(params), packet["turn"]["question"],
-                              [{"data": packet.get("readEvidence", [])}])
+                              [{"data": observed}])
         proofs = configure_catalogue(SimpleNamespace(), {store.id: fields})
         public, calls = _read_store(authority, store, card, params, directory, proofs)
     except Rejected as error:
@@ -411,4 +413,5 @@ def execute(packet, directory):
             return {**result, "requiresTestReview": True}
         return {**result, "reason": explain(error.code)["text"]}
     return {**public, "templateId": card["id"], "operations": calls,
+            **({"_readEvidenceRevision": authority.revision} if "readEvidence" in packet else {}),
             "scope": "Один запрос к площадке. Следующая страница запрашивается по её параметрам."}

@@ -175,6 +175,8 @@ def read_capability(stores):
         "Поля path/query/body Wildberries передаются отдельными объектами. У Ozon параметры из контракта. "
         "Соблюдай requestGuide и типы параметров карточки. Сам не придумывай идентификаторы, неизвестные параметры уточняй. "
         "Соблюдай responseGuide и fieldLabels. Охват выборки бери из coverage. "
+        "При пустой выдаче сообщи, что площадка не вернула записей по заданным условиям. Не выдумывай причину пустого списка. "
+        "Если отчёт вернул часть данных, ограничь вывод этим охватом и не додумывай отсутствующие поля. "
         "Если единственный запрошенный отчёт закончился с reasonSource=template, весь ответ — ровно текст reason. "
         "Для составного запроса передай reason для этой части. Не добавляй рекомендации или выводы о магазине к готовой причине. "
         "Если требуется проверка шаблона, не придумывай причину. Технические детали оставляй в журнале. "
@@ -196,21 +198,26 @@ def run_read(scope, arguments):
         if READ_OBSERVATIONS.get("scope") != current_scope:
             READ_OBSERVATIONS.clear()
             READ_OBSERVATIONS["scope"] = current_scope
-            READ_OBSERVATIONS["connections"] = {}
-        source = (connection, arguments.get("templateId", "").split(".", 2)[1]) if arguments["action"] == "read" else None
-        known = READ_OBSERVATIONS["connections"].setdefault(source, set()) if source else set()
+            READ_OBSERVATIONS["sources"] = {}
+        sources = READ_OBSERVATIONS["sources"]
+        source = (connection, arguments["templateId"].split(".", 2)[1]) if arguments["action"] == "read" else None
+        revision, known = sources.get(source, (None, set()))
         packet = {"actor": scope.actor_id, "workspace": scope.workspace_id, "chat": scope.chat_id,
                   "connections": [connection], "turn": turn, "readTemplate": arguments,
-                  "readEvidence": sorted(known)}
+                  "readEvidence": {"revision": revision, "ids": sorted(known)}}
         try:
             result = invoke(packet, None if turn.get("resumeRateLimits") is True else remaining)
         except subprocess.TimeoutExpired:
             return {"ok": False, "reason": "Время выполнения запроса истекло."}
-        if arguments["action"] == "read" and result.get("ok") is True:
+        actual_revision = result.pop("_readEvidenceRevision", None)
+        if source and result.get("ok") is True and actual_revision:
+            if revision != actual_revision:
+                known = set()
             for value in observed_ids(result.get("data")):
                 if len(known) >= 512:
                     break
                 known.add(value)
+            sources[source] = actual_revision, known
         return result
 
 

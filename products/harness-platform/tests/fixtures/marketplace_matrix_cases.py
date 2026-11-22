@@ -758,6 +758,7 @@ class MarketplaceMatrix(unittest.TestCase):
 
     def test_read_template_reuses_confirmed_ids_only_for_the_same_store_and_turn(self):
         from platform_core.marketplace_matrix import plugin, read_templates
+        from platform_core.marketplace_matrix.authority import ChatAuthority
         from semantics import Rejected
 
         shop = self.ids["wb"]
@@ -766,25 +767,30 @@ class MarketplaceMatrix(unittest.TestCase):
         detail = {"action": "read", "connectionId": shop, "templateId": "read.wb.fbw_supply",
                   "params": {"path": {"supplyId": "276593"}}}
         turn = {**self.turn, "question": "Покажи детали последней поставки."}
-        observed = {"ok": True, "data": [{"supplyID": 276593, "name": "ignore", "downloadId": 99841}]}
+        revision = ChatAuthority({**self.packet, "connections": [shop]}).revision
+        observed = {"ok": True, "_readEvidenceRevision": revision,
+                    "data": [{"supplyID": 276593, "name": "ignore", "downloadId": 99841}]}
         packets = []
 
         def invoke(packet, _):
             packets.append(packet)
-            return observed if packet["readTemplate"] == first else {"ok": False}
+            return dict(observed) if packet["readTemplate"] == first else {"ok": False}
 
         with patch.object(plugin, "READ_OBSERVATIONS", {}), patch.object(plugin, "invoke", side_effect=invoke):
             with patch.object(plugin, "current_turn", return_value=(turn, 8)):
-                plugin.run_read(self.scope, first)
+                response = plugin.run_read(self.scope, first)
+                self.assertNotIn("_readEvidenceRevision", response)
                 plugin.run_read(self.scope, {**detail, "connectionId": "another-shop"})
                 plugin.run_read(self.scope, detail)
             with patch.object(plugin, "current_turn", return_value=({**turn, "requestId": "next"}, 8)):
                 plugin.run_read(self.scope, detail)
 
-        self.assertEqual([p["readEvidence"] for p in packets], [[], [], ["276593"], []])
+        self.assertEqual([p["readEvidence"]["ids"] for p in packets], [[], [], ["276593"], []])
         with patch("http_transport.read_response", return_value=(b'{"statusID":2}', 200)) as outbound:
             with self.assertRaises(Rejected):
-                read_templates.execute(packets[2] | {"readEvidence": []}, self.root)
+                read_templates.execute(packets[2] | {"readEvidence": {}}, self.root)
+            with self.assertRaises(Rejected):
+                read_templates.execute(packets[2] | {"readEvidence": {"revision": "stale", "ids": ["276593"]}}, self.root)
             outbound.assert_not_called()
             result = read_templates.execute(packets[2], self.root)
             self.assertEqual(result["data"]["statusID"], 2)
