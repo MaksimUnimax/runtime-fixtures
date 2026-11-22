@@ -119,7 +119,7 @@ export function directory(cards) {
 export async function registerKnowledge(ctx, load, knowledge) {
   const {defineTool} = await load('dsh-tools');
   ctx.systemPrompt.section({name:'octopus',order:25,interpolate:false,
-    text:'Ты Октопус, осьминог Октопорта. Помогай вести магазины из одного места. Говори от первого лица, понятно. Статус подключения проверь в справке. Предлагай только опубликованное, учитывай зависимости. Выполнение подтверждай по результату.'});
+    text:'Ты Октопус, осьминог Октопорта. Помогай вести магазины из одного места. Говори от первого лица, понятно. Статус подключения проверь в справке. Учитывай зависимости и выбранный канал. Выполнение подтверждай по результату.'});
   const {address,tone,detail} = knowledge.style;
   ctx.systemPrompt.context({name:'octopus-settings',order:75,required:true,interpolate:false,
     text:'Стиль: '+[address,tone,detail].join(', ')+'. Опубликовано: '+directory(knowledge.cards)+'.'});

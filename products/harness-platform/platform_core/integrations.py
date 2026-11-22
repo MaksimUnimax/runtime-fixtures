@@ -168,7 +168,9 @@ async def probe(client, provider, f):
             calls.append(("Performance","POST","https://api-performance.ozon.ru/api/client/token",
                          {"json":{"client_id":f["performance_id"],"client_secret":f["performance_secret"],"grant_type":"client_credentials"}}))
     elif provider == "wb":
-        calls.append(("Статистика","GET","https://statistics-api.wildberries.ru/ping",{"headers":{"Authorization":f["token"]}}))
+        for label, host in (("Статистика", "statistics-api"), ("Продвижение", "advert-api")):
+            calls.append((label, "GET", "https://" + host + ".wildberries.ru/ping",
+                          {"headers": {"Authorization": f["token"]}}))
     else:
         calls.append(("Wordstat","POST","https://api.wordstat.yandex.net/v1/getRegionsTree",{"headers":{"Authorization":"Bearer "+f["token"]},"json":{}}))
     results = {}
@@ -179,6 +181,7 @@ async def probe(client, provider, f):
                 data = reply.json()
                 passed = {"Seller":lambda: isinstance(data.get("roles"),list),
                           "Performance":lambda: bool(data.get("access_token")),
+                          "Продвижение":lambda: data.get("Status",data.get("status"))=="OK",
                           "Статистика":lambda: data.get("Status",data.get("status"))=="OK",
                           "Wordstat":lambda: bool(data) and (isinstance(data,list) or (isinstance(data,dict) and "error" not in data))}
                 results[label] = "verified" if passed[label]() else "unconfirmed"
@@ -204,7 +207,9 @@ def routes(get_token, body):
         store, cid = req.app.state.integrations, req.path_params["cid"]
         provider, version, fields = store.open(token,cid)
         results = await probe(req.app.state.http,provider,fields)
-        status = "verified" if all(v=="verified" for v in results.values()) else "unconfirmed"
+        # WB tokens can deliberately cover just one independent service.
+        valid = any if provider == "wb" else all
+        status = "verified" if valid(v=="verified" for v in results.values()) else "unconfirmed"
         store.status(token,cid,version,status,results)
         return JSONResponse({"status":status,"checks":results})
     async def semantics(req):

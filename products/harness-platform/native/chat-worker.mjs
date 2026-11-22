@@ -349,7 +349,6 @@ export async function openWorker(env) {
         if (req.action === 'turn') await files.mount(ctx, load, key, attachments);
         if (req.action === 'turn' && req.knowledge) await registerKnowledge(ctx, load, req.knowledge);
         registerConnectionContext(ctx,attached,available,req.connectionGuides,metered && !!req.knowledge);
-        if (metered && req.knowledge) installFilter(ctx,(await load('dsh-tools')).defineTool,req.restore?.events);
       }
       if (req.action === 'tools') {
         return ctx.tools.definitions().map(t => t.name).filter(name => name.startsWith(prefix))
@@ -384,6 +383,8 @@ export async function openWorker(env) {
       const rows = all.all(key);
       const seed = rows.flatMap(row => JSON.parse(row.events));
       seedLength=seed.length;
+      if (metered && req.knowledge)
+        installFilter(ctx,(await load('dsh-tools')).defineTool,req.restore?.events,seed);
       const promptText = req.text.trim() || !attachments.length ? req.text : "Разбери приложенные файлы.";
       checkpointContext={baseRevision:rows.length,text:req.text,
         ...(attachments.length ? {attachments:req.attachments} : {}),connections:req.connections||[],

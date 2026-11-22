@@ -14,7 +14,32 @@ const internal = name => splitName(name)[1].startsWith('describe__');
 
 export function turnFilter(ctx) { return filters.get(ctx); }
 
-export function installFilter(ctx, defineTool, restored = []) {
+function previousArguments(seed, name) {
+  const results = new Set();
+  for (const event of seed) {
+    if (event.type === 'tool/result' && !event.data.message.isError)
+      results.add(JSON.stringify([event.data.turn,event.data.message.toolCallId]));
+  }
+  const args = [];
+  let turn;
+  for (let i = seed.length - 1; i >= 0; i--) {
+    const event = seed[i];
+    if (event.type !== 'assistant/message') continue;
+    if (turn !== undefined && turn !== event.data.turn) break;
+    for (const call of event.data.message.content) {
+      if (call.type !== 'tool-call' || call.name !== name ||
+          !results.has(JSON.stringify([event.data.turn,call.id]))) continue;
+      try {
+        const input = JSON.parse(call.arguments);
+        if (call.arguments.length <= 8192 && args.length < 8) args.push(input);
+        turn = event.data.turn;
+      } catch { /* Malformed requests carry no reusable selection. */ }
+    }
+  }
+  return args;
+}
+
+export function installFilter(ctx, defineTool, restored = [], history = []) {
   const available = new Map(ctx.tools.definitions().filter(t => !internal(t.name) && t.name !== 'octoport_help')
     .map(t => [t.name, t]));
   if (!available.size) return;
@@ -45,9 +70,9 @@ export function installFilter(ctx, defineTool, restored = []) {
   ctx.tools.register(defineTool({
     name:activate, description:'Открой действие только для выполнения сейчас. '+menu,
     parameters:{action:{type:'string',required:true},query:{type:'string',required:true,
-      description:'Предмет действия и показатель из беседы'},offset:{type:'integer',description:'Следующая страница при необходимости'}},
+      description:'Предмет действия и показатель из беседы'},reuse:{type:'boolean',description:'Тот же показатель за другой период'},offset:{type:'integer',description:'Следующая страница при необходимости'}},
     output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
-    async execute({action,query,offset=0},exec) {
+    async execute({action,query,offset=0,reuse=false},exec) {
       if (!action) {
         if (!Number.isSafeInteger(offset) || offset<0) return JSON.stringify({error:'Неверная страница.'});
         const terms=query.toLocaleLowerCase().split(/\s+/u).filter(Boolean);
@@ -61,7 +86,12 @@ export function installFilter(ctx, defineTool, restored = []) {
       const provider=ctx.tools.get(companion(action));
       let details;
       if (provider) {
-        const response=await provider.execute({query,offset},exec);
+        const args = {query,offset};
+        if (provider.parameters?.properties?.previous) {
+          args.previous = JSON.stringify(previousArguments(history,action));
+          args.reuse = reuse;
+        }
+        const response=await provider.execute(args,exec);
         details=response.structuredContent?.result ?? response.content;
       }
       selected.add(action);

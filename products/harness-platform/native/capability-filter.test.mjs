@@ -3,7 +3,7 @@ import test from 'node:test';
 import {activate,installFilter,turnFilter} from './capability-filter.mjs';
 import {projectCompletedKnowledge} from './octopus-knowledge.mjs';
 
-function fixture(restored) {
+function fixture(restored,history) {
   // Unknown to the filter: the test registers a future module and a private schema provider.
   const name='mcp__new__audit_inventory';
   const resolver='mcp__new__describe__audit_inventory';
@@ -13,7 +13,7 @@ function fixture(restored) {
     ['octoport_help',{name:'octoport_help'}]]);
   const ctx={tools:{definitions:()=>[...definitions.values()],register:t=>definitions.set(t.name,t),
     get:k=>definitions.get(k),guard:f=>ctx.guard=f},systemPrompt:{section(){}}};
-  installFilter(ctx,t=>t,restored);
+  installFilter(ctx,t=>t,restored,history);
   const project=()=>turnFilter(ctx).project(ctx.tools.definitions()).map(t=>t.name);
   return {ctx,defs:definitions,name,project};
 }
@@ -72,4 +72,23 @@ test('ordinary activation keeps the following historical result and signed final
   ].map(m=>({...m,source:{kind:'model',replayState:{signature:m.id}}}));
   const seed=messages.map(message=>({type:message.role==='tool'?'tool/result':'assistant/message',data:{turn:1,message}}));
   assert.deepEqual(projectCompletedKnowledge(seed)(messages),messages.slice(2));
+});
+
+test('only the opened module receives prior arguments from its own settled calls',async()=>{
+  const name='mcp__new__audit_inventory';
+  const history=[
+    {type:'assistant/message',data:{turn:1,message:{content:[{type:'tool-call',name,id:'ok',arguments:'{"metric":"units"}'}]}}},
+    {type:'tool/result',data:{turn:1,message:{toolCallId:'ok'}}},
+    {type:'assistant/message',data:{turn:2,message:{content:[{type:'tool-call',name,id:'bad',arguments:'{"metric":"failed"}'}]}}},
+    {type:'tool/result',data:{turn:2,message:{toolCallId:'bad',isError:true}}}
+  ];
+  const {defs,project}=fixture([],history);
+  const provider=defs.get('mcp__new__describe__audit_inventory');
+  provider.parameters={properties:{previous:{type:'string'}}};
+  let sent;
+  provider.execute=async (args)=>{sent=args;return {content:[]};};
+  assert.deepEqual(project(),['octoport_help',activate]);
+  await defs.get(activate).execute({action:name,query:'позавчера',reuse:true},{});
+  assert.equal(sent.reuse,true);
+  assert.deepEqual(JSON.parse(sent.previous),[{metric:'units'}]);
 });
