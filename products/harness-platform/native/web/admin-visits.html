@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="/ui-assets/project/appearance.css">
 <link rel="stylesheet" href="/ui-assets/project/admin.css">
 <script src="/session-nav.js"></script>
+<script defer src="/ui-assets/project/admin-visits.js"></script>
 </head>
 <body class="octo-admin octo-statistics octo-visits">
 <main>
@@ -15,8 +16,10 @@
   <section aria-labelledby="visits-report">
     <h2 id="visits-report">Отчёт по octoport.ru</h2>
     <p>Яндекс Метрика · счётчик $counter</p>
-    <form class="stats-search" method="get" action="/admin/visits">
+    <form id="visits-filters" class="stats-search" method="get" action="/admin/visits">
       <label class="visits-period">Период<select name="period">$period_options</select></label>
+      <label class="visits-date">С<input type="date" name="date_from" value="$date_from" max="$date_max"></label>
+      <label class="visits-date">По<input type="date" name="date_to" value="$date_to" max="$date_max"></label>
       <button type="submit">Показать</button>
     </form>
     <p class="stats-message" role="$role">$message</p>
@@ -24,7 +27,7 @@
   <section aria-labelledby="visits-connection">
     <h2 id="visits-connection">Подключение Метрики</h2>
     <p>$connection</p>
-    <form class="stats-search" method="post" action="/admin/visits" autocomplete="off">
+    <form class="stats-search" method="post" action="$token_action" autocomplete="off">
       <label>OAuth-токен<input type="password" name="token" maxlength="2048" spellcheck="false" autocomplete="off" required></label>
       <button type="submit">Проверить и сохранить</button>
     </form>

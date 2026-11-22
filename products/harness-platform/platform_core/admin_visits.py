@@ -2,11 +2,12 @@
 
 import os
 from argparse import Namespace
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from functools import partial
 from html import escape
 from string import Template
 from tempfile import NamedTemporaryFile
+from urllib.parse import urlencode
 from urllib.request import build_opener
 
 from starlette.concurrency import run_in_threadpool
@@ -20,7 +21,27 @@ from .browser_session import _form_fields, _redirect, browser_token
 from .native_web import HEADERS, UI
 
 PATH = "/admin/visits"
-PERIODS = {"1": "Сегодня", "7": "Последние 7 дней", "30": "Последние 30 дней", "90": "Последние 90 дней"}
+PERIODS = {
+    "1": ("Сегодня", 0, 0),
+    "yesterday": ("Вчера", 1, 1),
+    "7": ("7 дней", 6, 0),
+    "30": ("Месяц", 29, 0),
+    "365": ("Год", 364, 0),
+}
+
+
+def ranges_for(today):
+    return {key: (label, (today - timedelta(days=start)).isoformat(),
+                  (today - timedelta(days=end)).isoformat())
+            for key, (label, start, end) in PERIODS.items()}
+
+
+def valid_dates(start, end, today):
+    try:
+        lower, upper = date.fromisoformat(start), date.fromisoformat(end)
+    except ValueError:
+        return False
+    return lower.isoformat() == start and upper.isoformat() == end and lower <= upper <= today
 
 
 def check_admin(identity, session, *, update=None):
@@ -50,10 +71,8 @@ def load_token(path):
         return ""
 
 
-def get_report(token, period, *, summary=False):
-    today = datetime.now(TZ).date()
-    start = today - timedelta(days=int(period) - 1)
-    args = Namespace(date_from=start.isoformat(), date_to=today.isoformat(),
+def get_report(token, start, end, *, summary=False):
+    args = Namespace(date_from=start, date_to=end,
                      counter=metrika.COUNTER, report="summary" if summary else "all", top=10)
     return metrika.report(build_opener(metrika.NoRedirects()), args, metrika.validate_token(token),
                          fetch=partial(metrika.get_report, attempts=1, timeout=5))
@@ -84,16 +103,29 @@ def render_report(report):
     )
 
 
-def render(period, *, configured, report=None, message="", status=200):
-    options = "".join(f'<option value="{value}"{" selected" if value == period else ""}>{label}</option>'
-                      for value, label in PERIODS.items())
+def render(period, ranges, start, end, today, *, configured, report=None, message="", status=200):
+    options = "".join(
+        f'<option value="{value}" data-from="{lower}" data-to="{upper}"'
+        f'{" selected" if value == period else ""}>{label}</option>'
+        for value, (label, lower, upper) in ranges.items()
+    ) + f'<option value="custom"{" selected" if period == "custom" else ""}>Свой период</option>'
+    token_action = escape(PATH + "?" + period_query(period, start, end), quote=True)
     connection = "Токен сохранён." if configured else "Вставьте OAuth-токен, чтобы загрузить статистику."
     html = Template((UI / "admin-visits.html").read_text()).substitute(
         counter=metrika.COUNTER, connection=connection, period_options=options,
+        date_from=escape(start[:10], quote=True), date_to=escape(end[:10], quote=True),
+        date_max=today.isoformat(), token_action=token_action,
         results=render_report(report) if report is not None else "",
         message=escape(message), role="alert" if status >= 400 else "status",
     )
     return HTMLResponse(html, status_code=status, headers=HEADERS)
+
+
+def period_query(period, start, end):
+    query = {"period": period}
+    if period == "custom":
+        query.update(date_from=start, date_to=end)
+    return urlencode(query)
 
 
 async def visits(request):
@@ -101,26 +133,39 @@ async def visits(request):
     identity = request.app.state.identity
     await run_in_threadpool(check_admin, identity, session)
     path = request.app.state.metrika_token_path
-    period = request.query_params.get("period", "7")
-    if period not in PERIODS:
+    today = datetime.now(TZ).date()
+    ranges = ranges_for(today)
+    query = request.query_params
+    period = query.get("period", "custom" if "date_from" in query or "date_to" in query else "7")
+    if period not in ranges and period != "custom":
         period = "7"
     configured = path.is_file()
+    if period == "custom":
+        start, end = query.get("date_from", ""), query.get("date_to", "")
+        if not valid_dates(start, end, today):
+            return render(period, ranges, start[:10], end[:10], today, configured=configured,
+                          message="Укажите обе даты по порядку. Конечная дата должна быть не позднее сегодня.",
+                          status=400)
+    else:
+        _, start, end = ranges[period]
+    show = partial(render, period, ranges, start, end, today)
     try:
         if request.method == "POST":
             fields = await _form_fields(request, {"token"}, max_bytes=8192)
             token = fields["token"].strip()
-            await run_in_threadpool(get_report, token, "1", summary=True)
+            current = today.isoformat()
+            await run_in_threadpool(get_report, token, current, current, summary=True)
             # Check the session again after the network request before changing the saved token.
             await run_in_threadpool(check_admin, identity, session, update=(path, token))
-            return _redirect(PATH + "?saved=1")
+            return _redirect(PATH + "?saved=1&" + period_query(period, start, end))
         token = await run_in_threadpool(load_token, path)
-        report = await run_in_threadpool(get_report, token, period) if token else None
-        message = "Доступ к Метрике проверен." if request.query_params.get("saved") == "1" and report else ""
-        return render(period, configured=bool(token), report=report, message=message)
+        report = await run_in_threadpool(get_report, token, start, end) if token else None
+        message = "Доступ к Метрике проверен." if query.get("saved") == "1" and report else ""
+        return show(configured=bool(token), report=report, message=message)
     except metrika.ReportError as error:
-        return render(period, configured=configured, message=str(error), status=400 if request.method == "POST" else 502)
+        return show(configured=configured, message=str(error), status=400 if request.method == "POST" else 502)
     except (OSError, UnicodeError):
-        return render(period, configured=configured, message="Не удалось прочитать или сохранить токен на сервере.", status=503)
+        return show(configured=configured, message="Не удалось прочитать или сохранить токен на сервере.", status=503)
 
 
 def routes():

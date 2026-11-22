@@ -49,6 +49,7 @@ p,output { margin:0; } output:empty { display:none; } output { color:#226345; } 
 .octo-visits .stats-table table { min-width:660px; }
 .octo-visits .stats-table tbody th { max-width:240px; }
 .octo-visits .visits-period { flex-basis:220px; }
+.octo-visits .visits-date { flex:0 1 155px; }
 .visits-metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(135px,1fr)); gap:12px; margin:14px 0 0; }
 .visits-metrics div { padding:12px; border:1px solid var(--octo-line); border-radius:var(--octo-radius); }
 .visits-metrics dt { font-size:13px; color:var(--octo-muted,var(--octo-ink)); }

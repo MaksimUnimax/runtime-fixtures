@@ -3,6 +3,7 @@ import json
 import stat
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
@@ -37,6 +38,9 @@ class AdminVisits(unittest.TestCase):
         initial = client.get(self.path)
         self.assertEqual(initial.status_code, 200)
         self.assertIn('type="password" name="token"', initial.text)
+        self.assertIn('type="date" name="date_from"', initial.text)
+        self.assertIn('type="date" name="date_to"', initial.text)
+        self.assertEqual(client.get("/ui-assets/project/admin-visits.js").status_code, 200)
         self.assertIn('metrika:read', initial.text)
         self.assertIn('/admin/visits', client.get('/admin').text)
         self.assertIn('/admin/visits', client.get('/admin/statistics').text)
@@ -84,7 +88,38 @@ class AdminVisits(unittest.TestCase):
             replacement = client.post(self.path, data={"token": "invalid_replacement"}, headers=origin)
             self.assertEqual(replacement.status_code, 400)
             self.assertEqual(app.state.metrika_token_path.read_text().strip(), self.token)
-            self.assertIn('<option value="30" selected>', client.get(self.path + "?period=30").text)
+            for period, days, label in (("1", 1, "Сегодня"), ("yesterday", 1, "Вчера"),
+                                        ("7", 7, "7 дней"), ("30", 30, "Месяц"), ("365", 365, "Год")):
+                page = client.get(self.path, params={"period": period})
+                self.assertEqual(page.status_code, 200)
+                self.assertRegex(page.text, f'<option value="{period}" [^>]* selected>{label}</option>')
+                params = parse_qs(urlsplit(requests[-1].full_url).query)
+                self.assertEqual((date.fromisoformat(params["date2"][0]) -
+                                  date.fromisoformat(params["date1"][0])).days + 1, days)
+                if period == "yesterday":
+                    self.assertIn(f'name="date_from" value="{params["date1"][0]}"', page.text)
+                    self.assertIn(f'name="date_to" value="{params["date2"][0]}"', page.text)
+
+            dates = {"period": "custom", "date_from": "2025-08-11", "date_to": "2025-08-18"}
+            custom = client.get(self.path, params=dates)
+            self.assertEqual(custom.status_code, 200)
+            self.assertIn('<option value="custom" selected>', custom.text)
+            self.assertIn("2025-08-11 — 2025-08-18", custom.text)
+            for request in requests[-4:]:
+                params = parse_qs(urlsplit(request.full_url).query)
+                self.assertEqual((params["date1"], params["date2"]), (["2025-08-11"], ["2025-08-18"]))
+            saved_with_dates = client.post(self.path, params=dates, data={"token": self.token},
+                                           headers=origin, follow_redirects=False)
+            self.assertEqual(saved_with_dates.status_code, 303)
+            location = parse_qs(urlsplit(saved_with_dates.headers["location"]).query)
+            self.assertEqual(location["date_from"], ["2025-08-11"])
+            self.assertEqual(location["date_to"], ["2025-08-18"])
+            previous = len(requests)
+            for end in ("", "2025-08-10", "9999-12-31"):
+                page = client.get(self.path, params={**dates, "date_to": end})
+                self.assertEqual(page.status_code, 400)
+                self.assertIn("Укажите обе даты по порядку.", page.text)
+            self.assertEqual(len(requests), previous)
         dimensions = [parse_qs(urlsplit(req.full_url).query).get("dimensions") for req in requests]
         self.assertIn(["ym:s:date"], dimensions)
         self.assertIn(["ym:s:lastTrafficSource"], dimensions)
