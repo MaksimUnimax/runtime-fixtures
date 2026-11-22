@@ -102,6 +102,14 @@ class IdentityStore(Store):
             self.close()
             raise
 
+    @staticmethod
+    def _insert_new_account(db, actor, name, workspace, salt, password_hash, recovery_digest):
+        db.execute("""INSERT INTO identity_accounts
+            (actor_id, login, workspace_id, salt, password_hash, recovery_digest)
+            VALUES (?,?,?,?,?,?)""", (actor, name, workspace, salt, password_hash, recovery_digest))
+        ensure_operation_schema(db)
+        coins.grant(db, "signup", actor, workspace, "10", "10 монет за регистрацию")
+
     def create_account(self, login: str, password: str) -> str:
         """Trusted provisioning. Return the recovery secret once to its owner."""
         name = _login_name(login)
@@ -113,12 +121,7 @@ class IdentityStore(Store):
             if db.execute("SELECT 1 FROM identity_accounts WHERE login = ?", (name,)).fetchone():
                 raise ValueError("Login already exists")
             db.execute("INSERT INTO workspaces (workspace_id, owner_id) VALUES (?, ?)", (workspace, actor))
-            db.execute(
-                """INSERT INTO identity_accounts
-                   (actor_id, login, workspace_id, salt, password_hash, recovery_digest)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (actor, name, workspace, salt, password_hash, _secret_digest(recovery)),
-            )
+            self._insert_new_account(db, actor, name, workspace, salt, password_hash, _secret_digest(recovery))
         return recovery
 
     def login(self, login: str, password: str) -> str:

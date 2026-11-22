@@ -2,17 +2,15 @@
 
 import os
 import re
-from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
-from string import Template
 
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
 from starlette.responses import FileResponse, HTMLResponse, Response
 from starlette.routing import Route
 
-from . import coins
-from .browser_session import _secure, browser_token, guest_cookie
+from .checkout import checkout_routes
+from .browser_session import _secure, browser_token, guest_cookie, _redirect
 from .identity import AuthenticationError, ChatUnavailable
 from .native_web import shell, module_file, HEADERS, UI, static_bytes, asset_response, client_source
 from .guest_registration import GUEST_LIFETIME
@@ -61,21 +59,10 @@ async def page(request, *, panel="", error="", status=200):
     return response
 
 async def payment(request):
-    rate = Decimal(await run_in_threadpool(request.app.state.identity.public_coin_price))
     quantity = request.query_params.get("coins", "100")
-    limit = coins.MAX_BALANCE // coins.UNIT
-    valid = bool(re.fullmatch(r"[1-9][0-9]{0,6}", quantity)) and int(quantity) <= limit
-    if valid:
-        total = (rate * int(quantity)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        result = f"{total:,.2f} ₽".replace(",", " ").replace(".", ",")
-        error = ""
-    else:
-        quantity, result = "", "—"
-        error = f'<p role="alert">Введите целое число монет от 1 до {limit:,}.</p>'.replace(",", " ")
-    template = Template((UI / "payment.html").read_text())
-    return HTMLResponse(template.substitute(price=format(rate, "f").replace(".", ","), coins=quantity,
-                                           maximum=limit, total=result, error=error),
-                        status_code=200 if valid else 400, headers=HEADERS)
+    if not re.fullmatch(r"[1-9][0-9]{0,6}", quantity):
+        quantity = "100"
+    return _redirect(f"/about/?coins={quantity}#buy-coins")
 
 
 async def admin(request):
@@ -94,7 +81,7 @@ async def project_asset(request):
         return asset_response(request, static_bytes(UI / name), "image/svg+xml")
     if name in {"octoport-mark.png", "octoport-icon.png"}:
         return FileResponse(UI / name, media_type="image/png")
-    if name not in {"bootstrap.js", "start.js", "connections.js","private-input.js", "account.js", "account.css", "appearance.css", "transport.js","live-turn.js", "admin.css", "admin.js"}:
+    if name not in {"checkout.js", "checkout.css", "bootstrap.js", "start.js", "connections.js","private-input.js", "account.js", "account.css", "appearance.css", "transport.js","live-turn.js", "admin.css", "admin.js"}:
         raise HTTPException(404)
     path = _PROJECT_UI / name
     if not path.is_file():
@@ -146,6 +133,7 @@ async def harness_asset(request):
 
 def web_routes():
     return [
+        *checkout_routes(),
         Route("/favicon.ico", icon),
         Route("/plugins/@deepseek-ai/dsh-client-ui-chat/assets/running-whale@2x-06738fa29b2f.png", icon),
         Route("/", page), Route("/payment", payment), Route("/admin", admin), Route("/ui-assets/modules/{name}.js", module_file), Route("/app/", page), Route("/app/chats/{chat_id}", page),

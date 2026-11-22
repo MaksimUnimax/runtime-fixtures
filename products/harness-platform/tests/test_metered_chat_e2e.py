@@ -36,7 +36,7 @@ class MeteredChatAcceptance(unittest.TestCase):
             for name in ("owner-a", "owner-b"):
                 store.create_account(name, self.password)
                 store.set_admin(name, True)
-                store.grant_coins(name, "10", "test-credit-" + name, "Acceptance fixture")
+                # New accounts already receive the 10 coins used by these fixtures.
         initialize_grants(self.db)
         gateway = subprocess.Popen(
             ["node", str(PRODUCT / "tests/metered-chat-gateway.mjs"), str(self.db), str(self.journal)],
@@ -277,6 +277,7 @@ class MeteredChatAcceptance(unittest.TestCase):
     def test_payment_and_admin_membership_are_independent(self):
         with self.client() as client, IdentityStore(self.db) as store:
             store.create_account("visitor", self.password)
+            store.set_paid("visitor", False)
             headers, chat, _ = self.actor(client, "visitor")
             url = f"/api/chats/{chat}/turns"
             body = {"requestId": "first", "text": "ordinary"}

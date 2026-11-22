@@ -1,0 +1,17 @@
+.octo-checkout {
+  box-sizing:border-box; width:min(380px,calc(100vw - 32px)); max-height:calc(100dvh - 32px);
+  margin:auto; padding:22px; border:1px solid var(--octo-line,#b3bbc5); border-radius:14px;
+  background:var(--octo-panel,Canvas); color:var(--octo-ink,CanvasText); font:16px/1.5 var(--octo-font,system-ui,sans-serif);
+}
+.octo-checkout::backdrop { background:rgb(10 16 26 / .44); }
+.octo-checkout header,.octo-checkout-total { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.octo-checkout h2 { margin:0; font:600 23px/1.25 var(--octo-font,system-ui,sans-serif); }
+.octo-checkout header button { padding:1px 9px; border:0; background:transparent; color:inherit; font-size:24px; cursor:pointer; }
+.octo-checkout label { display:grid; gap:6px; margin-top:20px; }
+.octo-checkout input { box-sizing:border-box; width:100%; padding:9px 12px; border:1px solid var(--octo-line,#b3bbc5); border-radius:8px; background:var(--octo-field,Canvas); color:inherit; font:inherit; }
+.octo-checkout-total { padding-top:14px; margin:18px 0; border-top:1px solid var(--octo-line,#b3bbc5); }
+.octo-checkout output { font-weight:650; }
+.octo-checkout-pay { width:100%; padding:10px; font:600 15px/1.4 var(--octo-font,system-ui,sans-serif); border:0; border-radius:8px; cursor:pointer; background:var(--octo-action,#171a20); color:var(--octo-on-action,white); }
+.octo-checkout-pay:disabled { opacity:.55; cursor:default; }
+.octo-checkout [role=status] { margin:8px 0 0; font-size:14px; }
+.octo-checkout [role=status]:empty { display:none; }

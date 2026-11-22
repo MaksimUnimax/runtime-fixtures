@@ -228,9 +228,7 @@ class RegistrationStore(IdentityStore):
             actor, workspace = uuid4().hex, uuid4().hex
             db.execute("INSERT INTO workspaces (workspace_id, owner_id) VALUES (?,?)", (workspace, actor))
             _bind_chat(db, Scope(actor, workspace, chat))
-            db.execute("""INSERT INTO identity_accounts
-                (actor_id, login, workspace_id, salt, password_hash, recovery_digest)
-                VALUES (?,?,?,?,?,?)""", (actor, name, workspace, salt, candidate, recovery_digest))
+            self._insert_new_account(db, actor, name, workspace, salt, candidate, recovery_digest)
             db.execute("UPDATE guest_chats SET claimed_actor=?, signup_nonce=NULL WHERE chat_id=?", (actor, chat))
             db.execute("INSERT INTO identity_sessions (digest, actor_id, expires_at) VALUES (?,?,?)",
                        (_secret_digest(session), actor, now + _SESSION_SECONDS))

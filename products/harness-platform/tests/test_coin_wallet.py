@@ -22,6 +22,10 @@ class CoinWallet(unittest.TestCase):
 
         with self.client() as c, IdentityStore(self.db) as store:
             store.create_account("buyer", self.password)
+            # Represent an existing account created before signup credit was introduced.
+            with sqlite3.connect(self.db) as fixture:
+                fixture.execute("""DELETE FROM coin_grants WHERE issuer='signup' AND workspace_id=(
+                    SELECT workspace_id FROM identity_accounts WHERE login='buyer')""")
             admin, _, _ = self.actor(c, "owner-a")
             user, chat, _ = self.actor(c, "buyer")
             wallet = lambda: c.get("/api/wallet", headers=user).json()

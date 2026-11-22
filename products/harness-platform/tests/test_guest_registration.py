@@ -61,6 +61,7 @@ class GuestRegistrationTests(TestCase):
         with ThreadPoolExecutor(max_workers=2) as pool:
             first, second = pool.map(submit, [self.store, other])
         token, saved_chat = first
+        self.assertEqual(self.store.wallet(token, balance_only=True)["available"], "10")
         self.assertEqual(first, second)
         self.assertEqual(saved_chat, chat)
         self.assertEqual(self.store.list_chats(token), [chat])
@@ -82,6 +83,7 @@ class GuestRegistrationTests(TestCase):
             self.store.register(guest, "new", PASSWORD, recovery)
         independent = self.store.login("new", PASSWORD + " revised")
         self.assertEqual(self.store.list_chats(independent), [chat])
+        self.assertEqual(self.store.wallet(independent, balance_only=True)["available"], "10")
 
     def test_locked_worker_journal_keeps_owned_chat_accessible(self):
         guest, chat = self.store.start_guest()

@@ -9,6 +9,11 @@ PRICING_SCHEMA = """CREATE TABLE IF NOT EXISTS coin_pricing (
         singleton INTEGER PRIMARY KEY CHECK(singleton=1), sale_bps INTEGER NOT NULL CHECK(sale_bps BETWEEN 0 AND 100000))"""
 SCHEMA = (
     PRICING_SCHEMA,
+    """CREATE TABLE IF NOT EXISTS coin_checkouts (
+        id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces, request_key TEXT NOT NULL,
+        quantity INTEGER NOT NULL CHECK(quantity>0), total TEXT NOT NULL, provider_id TEXT UNIQUE, url TEXT,
+        status TEXT NOT NULL DEFAULT 'pending', created INTEGER NOT NULL DEFAULT(unixepoch()),
+        UNIQUE(workspace_id,request_key))""",
     """CREATE TABLE IF NOT EXISTS coin_ruble_orders (
         operation_id TEXT PRIMARY KEY REFERENCES coin_orders ON DELETE CASCADE, fx_e4 INTEGER NOT NULL CHECK(fx_e4>0))""",
     """CREATE TABLE IF NOT EXISTS coin_grants (
@@ -126,6 +131,13 @@ def reserve_order(db, workspace, operation, limit=None, *, free=False):
 
 
 
+def unallocated(db, workspace):
+    granted = db.execute("SELECT COALESCE(SUM(amount),0) FROM coin_grants WHERE workspace_id=?", (workspace,)).fetchone()[0]
+    pending = db.execute("""SELECT COALESCE(SUM(quantity),0) FROM coin_checkouts
+                            WHERE workspace_id=? AND status='pending'""", (workspace,)).fetchone()[0]
+    return MAX_BALANCE - granted - pending * UNIT
+
+
 def grant(db, issuer, key, workspace, value, reason):
     amount = parse_amount(value)
     if (not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", key)
@@ -137,8 +149,7 @@ def grant(db, issuer, key, workspace, value, reason):
         if tuple(old) != (workspace, amount, reason):
             raise ValueError("Grant key already used with different parameters")
         return
-    total, = db.execute("SELECT COALESCE(SUM(amount),0) FROM coin_grants WHERE workspace_id=?", (workspace,)).fetchone()
-    if total > MAX_BALANCE - amount:
+    if amount > unallocated(db, workspace):
         raise ValueError("Wallet limit exceeded")
     db.execute("INSERT INTO coin_grants(issuer,key,workspace_id,amount,reason) VALUES(?,?,?,?,?)",
                (issuer, key, workspace, amount, reason))

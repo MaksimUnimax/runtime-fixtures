@@ -9,7 +9,14 @@ window.__ModuleLoader__.load({
       const {Menu,Modal,Button,IconUserOutlineMedium,IconSettingsOutlineMedium,IconChevronRightOutlineRegular,
         IconEllipsisOutlineMedium}=ui;
       const subscribers=new Set();
-      let panel=a.panel;
+      const entry=new URL(location.href);
+      const requested=entry.searchParams.get('account');
+      let openSettingsOnMount=!a.guest && requested==='settings';
+      let panel=a.panel || (!a.guest && ['profile','wallet'].includes(requested) ? requested : '');
+      if (requested) {
+        entry.searchParams.delete('account');
+        history.replaceState(history.state,'',entry);
+      }
       function select(value) {panel=value;for(const listener of subscribers)listener();}
       function usePanel(){return React.useSyncExternalStore(listener=>{subscribers.add(listener);return()=>subscribers.delete(listener);},()=>panel);}
       function Mark({size=24}) {
@@ -61,6 +68,9 @@ window.__ModuleLoader__.load({
           h('path',{d:'M4 8v4c0 2.2 3.6 4 8 4s8-1.8 8-4V8M4 12v4c0 2.2 3.6 4 8 4s8-1.8 8-4v-4'}));
       }
       function AccountLauncher({wide,openSettings,settingsShortcut}) {
+        React.useEffect(()=>{
+          if(openSettingsOnMount && openSettings){openSettingsOnMount=false; openSettings();}
+        },[openSettings]);
         const available=useAvailableCoins();
         const [open,setOpen]=React.useState(false);
         const trigger=React.useRef(null), logout=React.useRef(null);
@@ -162,7 +172,7 @@ window.__ModuleLoader__.load({
         if (!wallet) return h('p',{role:error?'alert':'status'},error || 'Загружаем баланс…');
         return h(React.Fragment,null,
           h('p',{className:'wallet-amount'},h('span',null,'Доступно'),coinAmount.format(wallet.available),h('small',null,' монет')),
-          h('a',{className:'octo-wallet-topup',href:'/payment'},'Пополнить баланс'),
+          h('a',{className:'octo-wallet-topup',href:'#buy-coins','data-buy-coins':''},'Купить монеты'),
           wallet.reserved!=='0' && h('p',null,'Ожидает расчёта · '+coinAmount.format(wallet.reserved)),
           wallet.charges.length>0 && h('div',{className:'wallet-charges'},
             h(Button,{type:'button',variant:'outline','aria-expanded':showCharges,'aria-controls':historyId,
@@ -229,6 +239,7 @@ window.__ModuleLoader__.load({
         const signup=mode==='register';
         return h('dialog',{className:'account-dialog',ref,'aria-labelledby':'dialog-title',onCancel:close},
           closeButton,h('h2',{id:'dialog-title'},signup?'Создать аккаунт':'Вход в octoport'),
+          signup && h('p',null,'За первую регистрацию вы получите 10 монет для работы в Октопорте.'),
           a.error && h('p',{role:'alert'},a.error),
           h('form',{action:signup?'/register':'/login',method:'post'},
             Field('login','Логин',{autoComplete:'username',maxLength:254}),

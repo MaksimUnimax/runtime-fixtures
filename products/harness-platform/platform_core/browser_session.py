@@ -178,7 +178,13 @@ async def _change_password(request):
 
 async def _session_status(request):
     try:
-        await run_in_threadpool(request.app.state.identity.validate_session, browser_token(request))
+        identity = request.app.state.identity
+        token = browser_token(request)
+        if request.query_params.get("menu") == "1":
+            login = await run_in_threadpool(identity.account_login, token)
+            admin = await run_in_threadpool(identity.is_admin, token)
+            return JSONResponse({"authenticated": True, "login": login, "admin": admin}, headers=_PRIVATE_HEADERS)
+        await run_in_threadpool(identity.validate_session, token)
     except AuthenticationError:
         authenticated = False
     else:

@@ -123,13 +123,9 @@ class GuestPaidJourney(unittest.IsolatedAsyncioTestCase):
         await open_integrations(page)
         await expect(page.get_by_role("heading",name="Интеграции")).to_be_visible()
         await page.get_by_role("dialog").get_by_role("button",name="Закрыть").click()
-        self.assertEqual((await send(page, results, QUESTION))['status'], 402)
-        await expect(page.get_by_text("Недостаточно монет",exact=False).first).to_be_visible()
+        balance = await (await page.request.get("/api/wallet/balance")).json()
+        self.assertEqual(balance["available"], "10")
         self.assertFalse(journal.exists() and journal.stat().st_size)
-        with sqlite3.connect(database) as db:
-            self.assertEqual(db.execute("SELECT count(*) FROM usage_operations").fetchone()[0], 0)
-
-        await operator(database, "grant-coins", "10", "--key", "guest-test", "--reason", "Acceptance")
         response = await send(page, results, QUESTION)
         self.assertEqual(response['status'], 200)
         receipt = response['body']

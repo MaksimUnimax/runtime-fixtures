@@ -56,17 +56,18 @@ class WebUiTests(unittest.TestCase):
             app = create_app(db, Path(directory) / "chats")
             with TestClient(app, base_url="https://platform.test") as client:
                 self.assertEqual(client.get("/api/wallet/balance").status_code, 401)
-                quote = client.get("/payment?coins=3")
+                legacy = client.get("/payment?coins=3", follow_redirects=False)
+                self.assertEqual(legacy.headers["location"], "/about/?coins=3#buy-coins")
+                quote = client.get("/api/coins/quote?coins=3")
                 self.assertEqual(quote.status_code, 200)
-                self.assertIn("1,1234 ₽", quote.text)
-                self.assertIn("3,37 ₽", quote.text)
-                self.assertNotIn("741705866660", quote.text)
-                self.assertEqual(client.get("/payment?coins=-1").status_code, 400)
+                self.assertEqual(quote.json()["total"], "3.37")
+                self.assertEqual(set(quote.json()), {"total","enabled"})
+                self.assertEqual(client.get("/api/coins/quote?coins=-1").status_code, 400)
                 auth = {"Authorization":"Bearer " + buyer}
-                self.assertEqual(client.get("/api/wallet/balance", headers=auth).json(), {"available":"0"})
+                self.assertEqual(client.get("/api/wallet/balance", headers=auth).json(), {"available":"10"})
                 with IdentityStore(db) as store:
                     store.pricing(token, "30", update=True)
-                self.assertIn("3,90 ₽", client.get("/payment?coins=3").text)
+                self.assertEqual(client.get("/api/coins/quote?coins=3").json()["total"], "3.90")
 
     def test_ui_assets_only_serve_browser_distribution(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"HARNESS_NODE_MODULES": directory}):
