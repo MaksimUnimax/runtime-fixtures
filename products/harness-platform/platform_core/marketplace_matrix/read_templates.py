@@ -34,6 +34,9 @@ SUPPLEMENTAL_HOSTS = {
            "marketplace-api.wildberries.ru", "seller-analytics-api.wildberries.ru", "supplies-api.wildberries.ru"},
 }
 REPORT_KEYS = {"uuid", "reportid", "reportcode", "taskid", "downloadid", "fileguid"}
+WB_ACQUIRING_LIST = "read.wb.finance_acquiring_reports"
+WB_ACQUIRING_DETAIL = "read.wb.finance_acquiring_detail_report"
+WB_ACQUIRING_REPORT_PREFIX = "wb-acquiring-report:"
 
 
 @lru_cache(maxsize=1)
@@ -94,26 +97,28 @@ def describe(card):
     return description
 
 
-def _identifier_params(params):
+def _identifier_params(params, acquiring_report_id=None):
     """Pass only business identifiers to the existing provenance validator."""
     aliases = {"nm": "nmId", "orders": "orderIds", "adverts": "advertIds",
                "barcode": "barcodeId", "barcodes": "barcodeIds", "subject": "subjectId",
                "supply": "supplyId"}
     names = {"postingnumber", "postingnumbers", "orderuid", "cursor", "next"} | REPORT_KEYS
     if isinstance(params, list):
-        return [_identifier_params(item) for item in params]
+        return [_identifier_params(item, acquiring_report_id) for item in params]
     if isinstance(params, dict):
         result = {}
         for k, v in params.items():
             name = k.lower().replace("_", "").replace("-", "")
             if name in REPORT_KEYS and v:
+                if name == "reportid" and str(v) == acquiring_report_id:
+                    continue
                 from semantics import Rejected
                 raise Rejected("READ_FILE_PROVENANCE_REQUIRED")
             if name in aliases or name in names or name.endswith(("id", "ids", "sku", "skus")):
                 key = aliases.get(name, name)
                 result[key] = [item.strip() for item in v.split(",")] if isinstance(v, str) and key.lower().endswith("ids") else v
             elif isinstance(v, (dict, list)):
-                result[k] = _identifier_params(v)
+                result[k] = _identifier_params(v, acquiring_report_id)
         return result
     return params
 
@@ -130,6 +135,13 @@ def observed_ids(value, key=""):
           (key.endswith(("id", "ids", "sku", "skus")) or key in {"postingnumber", "orderuid"}) and
           (type(value) is int or isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,100}", value))):
         yield str(value)
+
+
+def observed_acquiring_reports(data):
+    if isinstance(data, list):
+        for row in data:
+            if isinstance(row, dict) and type(report_id := row.get("reportId")) is int and report_id > 0:
+                yield WB_ACQUIRING_REPORT_PREFIX + str(report_id)
 
 
 def _result_sample(value, row_limits, time_zones=None):
@@ -424,7 +436,12 @@ def execute(packet, directory):
     try:
         evidence = packet.get("readEvidence", {})
         observed = evidence.get("ids", []) if evidence.get("revision") == authority.revision else []
-        identifier_provenance(_identifier_params(params), packet["turn"]["question"],
+        acquiring_report_id = None
+        if card["id"] == WB_ACQUIRING_DETAIL and isinstance(params.get("path"), dict):
+            candidate = str(params["path"].get("reportId"))
+            if WB_ACQUIRING_REPORT_PREFIX + candidate in observed:
+                acquiring_report_id = candidate
+        identifier_provenance(_identifier_params(params, acquiring_report_id), packet["turn"]["question"],
                               [{"data": observed}])
         proofs = configure_catalogue(SimpleNamespace(), {store.id: fields})
         try:

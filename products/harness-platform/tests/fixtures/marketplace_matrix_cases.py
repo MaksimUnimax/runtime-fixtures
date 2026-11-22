@@ -813,6 +813,31 @@ class MarketplaceMatrix(unittest.TestCase):
                 url = outbound.call_args.args[0].full_url
                 self.assertEqual(parse_qs(urlsplit(url).query).get("status"), expected)
 
+    def test_wb_acquiring_details_require_report_from_that_stores_list(self):
+        from platform_core.marketplace_matrix import read_templates
+        from platform_core.marketplace_matrix.authority import ChatAuthority
+        from semantics import Rejected
+
+        packet = {**self.packet, "connections": [self.ids["wb"]], "readTemplate": {
+            "action": "read", "templateId": read_templates.WB_ACQUIRING_DETAIL,
+            "params": {"path": {"reportId": "858626798"}, "body": {"limit": 5, "rrdId": 0}},
+        }}
+        revision = ChatAuthority(packet).revision
+        ids = list(read_templates.observed_acquiring_reports([{"reportId": 858626798}]))
+        self.assertEqual(len(ids), 1)
+        with patch("http_transport.read_response", return_value=(b'[]', 200)) as outbound:
+            result = read_templates.execute(packet | {"readEvidence": {"revision": "stale", "ids": ids}}, self.root)
+            self.assertEqual(result["reasonSource"], "template")
+            result = read_templates.execute(packet | {"readEvidence": {"revision": revision, "ids": ["858626798"]}}, self.root)
+            self.assertEqual(result["reasonSource"], "template")
+            with self.assertRaises(Rejected):
+                read_templates.execute(packet | {"readEvidence": {"revision": revision, "ids": ids},
+                    "readTemplate": {**packet["readTemplate"], "templateId": "read.wb.finance_sales_detail_report"}}, self.root)
+            outbound.assert_not_called()
+            result = read_templates.execute(packet | {"readEvidence": {"revision": revision, "ids": ids}}, self.root)
+            self.assertTrue(result["ok"], result)
+            self.assertTrue(outbound.call_args.args[0].full_url.endswith("/acquiring/detailed/858626798"))
+
     def test_read_template_reuses_confirmed_ids_only_for_the_same_store_and_turn(self):
         from platform_core.marketplace_matrix import plugin, read_templates
         from platform_core.marketplace_matrix.authority import ChatAuthority

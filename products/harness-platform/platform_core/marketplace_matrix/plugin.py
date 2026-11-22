@@ -13,7 +13,7 @@ import time
 from ..catalog import Capability
 from . import campaign_inventory
 from . import coefficient_templates as extensions
-from .read_templates import observed_ids
+from .read_templates import WB_ACQUIRING_LIST, observed_acquiring_reports, observed_ids
 
 ROOT = Path(__file__).resolve().parents[2]
 REPORT_LOCK = Lock()
@@ -213,7 +213,8 @@ def run_read(scope, arguments):
         if source and result.get("ok") is True and actual_revision:
             if revision != actual_revision:
                 known = set()
-            for value in observed_ids(result.get("data")):
+            observations = observed_acquiring_reports if arguments["templateId"] == WB_ACQUIRING_LIST else observed_ids
+            for value in observations(result.get("data")):
                 if len(known) >= 512:
                     break
                 known.add(value)
