@@ -74,6 +74,7 @@ class Scheduler:
         self.state,self.runtime = state,runtime
         self.wake = asyncio.Event()
         self.tasks = {}
+        self.delivery_task = None
         self.lock = None
         self.loop = asyncio.create_task(self.serve())
 
@@ -81,6 +82,8 @@ class Scheduler:
         self.loop.cancel()
         await asyncio.gather(self.loop,return_exceptions=True)
         jobs = list(self.tasks.values())
+        if self.delivery_task:
+            jobs.append(self.delivery_task)
         for task in jobs:
             task.cancel()
         await asyncio.gather(*jobs,return_exceptions=True)
@@ -110,7 +113,11 @@ class Scheduler:
                        telegram_delivery=CASE WHEN (SELECT json_extract(plan,'$.telegram') FROM timer_events
                        WHERE id=timer_runs.event)=1 THEN 'pending' ELSE 'off' END
                        WHERE state IN ('reading','prepared','writing','dispatching')""",(now_us(),))
+            db.execute("""UPDATE timer_events SET status='completed' WHERE status='active' AND next_us IS NULL
+                       AND EXISTS(SELECT 1 FROM timer_runs r WHERE r.event=timer_events.id
+                         AND r.revision=timer_events.revision AND r.state='done')""")
             db.execute("UPDATE timer_runs SET telegram_delivery='unknown' WHERE telegram_delivery='sending'")
+        self.delivery_task = asyncio.create_task(self.deliver_loop())
         while True:
             self.wake.clear()
             try:
@@ -118,7 +125,9 @@ class Scheduler:
                     materialize(db,now_us())
                     pending = db.execute("""SELECT r.id,w.owner_id,e.workspace,e.chat,r.due FROM timer_runs r
                         JOIN timer_events e ON e.id=r.event JOIN workspaces w ON w.workspace_id=e.workspace
-                        WHERE r.state='queued' ORDER BY r.due LIMIT 64""").fetchall()
+                        WHERE r.state='queued' AND r.id=(SELECT first.id FROM timer_runs first
+                          JOIN timer_events other ON other.id=first.event WHERE other.chat=e.chat AND first.state='queued'
+                          ORDER BY first.due,first.id LIMIT 1) ORDER BY r.due,r.id LIMIT 64""").fetchall()
                 for run,actor,workspace,chat,due in pending:
                     if len(self.tasks)>=6:
                         break
@@ -127,7 +136,6 @@ class Scheduler:
                     task = asyncio.create_task(self.execute(run,Scope(actor,workspace,chat),due))
                     self.tasks[chat] = task
                     task.add_done_callback(lambda done,c=chat:self.done(c,done))
-                await self.deliver()
             except asyncio.CancelledError:
                 raise
             except Exception:
@@ -183,6 +191,10 @@ class Scheduler:
                                        (store.encoded(payload),run))
                     if args is None:
                         outcome,text = "skip",detail
+                        if matched and a.get("stopAtBound") and (adjust := a.get("adjust")):
+                            limit = adjust["min"] if recipe.numeric(adjust["by"]) < 0 else adjust["max"]
+                            if recipe.numeric(recipe.resolve(facts,adjust["current"])) == recipe.numeric(limit):
+                                outcome,text = "goal","Целевое значение уже достигнуто. Изменение не требуется."
                     else:
                         result = await self.runtime.source(scope,grant,key,a["command"],"write",
                                                            "marketplace_read",payload,run)
@@ -230,12 +242,20 @@ class Scheduler:
             if matched is not None and outcome not in ("unknown","error"):
                 db.execute("INSERT OR REPLACE INTO timer_conditions VALUES(?,?,?)",
                            (event["id"],event["revision"],int(matched)))
-            notify = (plan["notify"]=="all" or outcome in ("error","unknown")
+            notify = (event["kind"] == "report" or plan["notify"]=="all" or outcome in ("error","unknown")
                       or plan["notify"]=="changes" and outcome in ("changed","goal")
                       or plan["notify"]=="goal" and outcome=="goal")
             db.execute("""UPDATE timer_runs SET state='done',finished=?,outcome=?,message=?,chat_delivery=?,
                        telegram_delivery=? WHERE id=?""",(now_us(),outcome,text,"pending" if notify else "off",
                        "pending" if notify and plan["telegram"] else "off",run))
+
+    async def deliver_loop(self):
+        while True:
+            try:
+                await self.deliver()
+            except Exception:
+                logging.getLogger(__name__).exception("Timer delivery failed")
+            await asyncio.sleep(.5)
 
     async def deliver(self):
         identity = self.state.identity

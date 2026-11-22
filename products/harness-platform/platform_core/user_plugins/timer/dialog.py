@@ -1,11 +1,13 @@
 """Both the plugin panel and ordinary chat turns enter the same preview/approval conversation."""
 import asyncio
-from datetime import datetime, UTC
+from contextlib import asynccontextmanager
+from datetime import datetime
+import fcntl
+from pathlib import Path
 import hashlib
 import json
 import re
 from weakref import WeakValueDictionary
-from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from starlette.exceptions import HTTPException
@@ -25,7 +27,7 @@ SCHEMA = (
        chat TEXT NOT NULL REFERENCES chats(chat_id) ON DELETE CASCADE, request TEXT NOT NULL,
        input TEXT NOT NULL, answer TEXT, draft TEXT, receipt TEXT, PRIMARY KEY(chat,request))""",
 )
-INTENT = re.compile(r"\b(таймер\w*|по расписанию|напоминай|напомни|ежедневно|ежечасно|еженедельно|по будням|кажд(?:ые|ый|ую|ое)\s+(?:\d+\s+)?(?:секунд|минут|час|день|утро|вечер|недел|понедельник|вторник|сред|четверг|пятниц|суббот|воскресень)|раз в\s+(?:\d+\s+)?(?:секунд|минут|час|день|недел)|(?:завтра|сегодня) в \d+[:.]\d{2})",re.I)
+INTENT = re.compile(r"\b(таймер\w*|по расписанию|напоминай|напомни|ежедневно|ежечасно|еженедельно|по будням|кажд(?:ые|ый|ую|ое)\s+(?:\d+\s+)?(?:секунд|минут|час|день|утро|вечер|недел|понедельник|вторник|сред|четверг|пятниц|суббот|воскресень)|раз в\s+(?:\d+\s+)?(?:секунд|минут|час|день|недел)|(?:завтра|сегодня) в \d+[:.]\d{2}|в \d{1,2}[:.]\d{2}\s+(?:пришли|проверь|разбуди|напомни|запусти|отправь|составь|сделай))",re.I)
 YES = re.compile(r"(?:да|да[, ]+устраивает|всё устраивает|все устраивает|устраивает|подтверждаю|сохрани(?: таймер)?|да[, ]+сохрани|да[, ]+так устраивает|да[, ]+вс[её] устраивает)[.! ]*",re.I)
 
 
@@ -79,9 +81,25 @@ class Dialog:
             replay = db.execute("SELECT 1 FROM timer_exchanges WHERE chat=? AND request=?", (scope.chat_id,rid)).fetchone()
         return bool(hint or replay or active or INTENT.search(text))
 
-    async def answer(self, scope, token, rid, text, hint=None, zone=None):
-        lock = self.locks.setdefault(scope.chat_id,asyncio.Lock())
+    @asynccontextmanager
+    async def exclusive_chat(self, chat):
+        # Preserve request order across app processes as well as across local coroutines.
+        lock = self.locks.setdefault(chat, asyncio.Lock())
+        directory = Path(str(self.state.worker.database_path) + ".timer-dialogs")
+        directory.mkdir(mode=0o700, exist_ok=True)
+        name = hashlib.sha256(chat.encode()).hexdigest()
         async with lock:
+            with (directory / name).open("a") as handle:
+                while True:
+                    try:
+                        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        break
+                    except BlockingIOError:
+                        await asyncio.sleep(0.05)
+                yield
+
+    async def answer(self, scope, token, rid, text, hint=None, zone=None):
+        async with self.exclusive_chat(scope.chat_id):
             identity = self.state.identity
             signature = store.encoded([text,hint])
             with identity._write() as db:
@@ -162,6 +180,7 @@ class Dialog:
                     db.execute("UPDATE timer_exchanges SET answer=? WHERE chat=? AND request=?",(answer,chat,rid))
                     return answer,None,None
                 if draft and shown and re.fullmatch(r"нет[.! ]*",text.strip(),re.I):
+                    db.execute("UPDATE timer_drafts SET receipt=NULL WHERE id=? AND accepted=0",(draft,))
                     db.execute("UPDATE timer_dialogs SET shown=NULL WHERE chat=?",(chat,))
                     return "Что изменить в поручении или в ответе?",None,None
                 if text.strip().casefold().strip(".! ") not in ("готово","включил","включила","протестировать","повтори тест","подключил","подключила"):
@@ -201,6 +220,8 @@ class Dialog:
             rule,plan = choice.get("schedule"),choice.get("plan")
             kind = kind or choice.get("kind")
             recipe.validate(plan,rule,kind)
+            if kind == "report":
+                plan = {**plan, "notify": "all"}
             with identity._lock:
                 db=identity._db
                 if plan["telegram"] and not self.state.telegram.status(db,scope.workspace_id)["linked"]:

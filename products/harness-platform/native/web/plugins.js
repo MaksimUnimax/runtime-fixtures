@@ -247,8 +247,15 @@
                 button('Удалить',()=>act(async()=>{await send(url+'/events/'+e.id+'/delete',{});await load();})))))),
           cursor&&button('Показать ещё',()=>act(()=>load(cursor))),
           history&&h('section',null,h('h3',null,'История запусков'),!history.length&&h('p',null,'Запусков пока нет.'),
-            history.map(r=>h('p',{key:r.due},new Date(r.due/1000).toLocaleString('ru-RU'),' · ',
-             r.message||'В очереди',r.telegram&&r.telegram!=='off'?' · Telegram: '+r.telegram:'')))));
+            history.map(r=>h('section',{key:r.due},
+              h('p',null,'По расписанию — '+moment(r.due)+(r.started?' · Начало — '+moment(r.started):'')),
+              h('p',null,r.message||'В очереди'),
+              r.chat&&h('p',null,'Чат — '+delivery(r.chat)+(r.telegram!=='off'?' · Telegram — '+delivery(r.telegram):'')))))));
+      function moment(us) {return new Date(us/1000).toLocaleString('ru-RU');}
+      function delivery(state) {
+        return ({pending:'ожидает отправки',sending:'отправляется',sent:'доставлено',off:'выключено',
+          unknown:'исход неизвестен',rejected:'доставка отклонена',disconnected:'аккаунт отвязан',blocked:'бот заблокирован'})[state]||state;
+      }
     }
     const panels={timer:Timers,wb:Marketplace,ozon:Marketplace,images:Illustrations,telegram:TelegramReports};
     function useCatalog(url) {

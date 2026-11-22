@@ -20,6 +20,7 @@ PLAN_GUIDE = """Настрой таймер по поручению продав
 schedule: {kind:once,zone,at:ISO с часовым поясом}, {kind:interval,zone,every_us:целое число микросекунд}
 или {kind:calendar,zone,weekdays:[1..7],times:["08:00"]}. Бери часовой пояс пользователя из контекста.
 plan: {steps:[{tool,args}], format:формат итогового ответа, telegram:boolean, notify:all|changes|goal|errors}.
+Для отчёта notify всегда all. Остальные режимы уведомления относятся к условным действиям.
 clock с пустыми args возвращает местное время для напоминания. Для данных магазина используй только штатные
 инструменты и их точные параметры. В относительных датах вместо строки ставь объект {"dayOffset":-1} для вчера.
 Для marketplace_read сначала вызови find_templates со словами запроса и магазином. Затем сохрани точный read.
@@ -163,7 +164,11 @@ class Runtime:
                 facts.append({"localTime":local.isoformat(),"date":local.date().isoformat()})
             else:
                 args = recipe.dates(step["args"],local.date())
-                result = await self.source(scope,grant,key,question,"read",step["tool"],args)
+                try:
+                    result = await self.source(scope,grant,key,question,"read",step["tool"],args)
+                except PlanError as exc:
+                    facts.append({"error":str(exc)})
+                    continue
                 if isinstance(result,dict) and (result.get("ok") is False or result.get("clarification")):
                     facts.append({"error":result.get("reason") or result.get("clarification") or "Данные не подтверждены."})
                 else:

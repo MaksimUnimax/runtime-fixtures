@@ -141,9 +141,15 @@ export async function createTransport(data, initialHistory) {
     balanceEvents:new EventTarget(), canGrant:flags.canGrant, modelChoice:flags.modelChoice, api, changes, live, activityEvents, costs:new Map(), illustrations:new Map(),savedIllustrations:new Map()};
   account.timerChats = new Set();
   account.timerPrompt = async (sessionId,text,timer) => {
-    const response = await call('/api','session/prompt',{args:{sessionId,requestId:crypto.randomUUID(),
-      content:[{type:'text',text}],timer}},new AbortController().signal);
-    if (!response.ok) throw new Error('Не удалось отправить поручение в чат.');
+    const requestId=crypto.randomUUID();
+    try {
+      const response=await call('/api','session/prompt',{args:{sessionId,requestId,
+        content:[{type:'text',text}],timer}},new AbortController().signal);
+      if (!response.ok) throw new Error(response.error?.message||'Не удалось отправить поручение в чат.');
+    } catch (error) {
+      if (!live.views.has(sessionId)) live.update(sessionId,{rid:requestId,stage:'failed',text:error.message,prompt:text});
+      throw error;
+    }
   };
   function recordActivity(id, at) {
     if (!ids.includes(id) || !Number.isSafeInteger(at) || at <= (updated.get(id) ?? 0)) return;

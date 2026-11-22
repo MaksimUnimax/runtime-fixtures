@@ -197,6 +197,10 @@ def cancel(db, scope, key, revision):
 def change_status(db, scope, key, operation, *, now_us=None):
     row = event(db, scope, key)
     if operation == "delete":
+        has_runs = db.execute("SELECT 1 FROM sqlite_schema WHERE name='timer_runs'").fetchone()
+        if has_runs and db.execute("SELECT 1 FROM timer_runs WHERE event=? AND state IN ('writing','dispatching')",
+                                   (key,)).fetchone():
+            raise HTTPException(409,"Дождитесь результата уже начатой операции.")
         db.execute("DELETE FROM timer_events WHERE id=?", (key,))
     elif operation == "pause" and row["status"] == "active":
         db.execute("UPDATE timer_events SET status='paused',next_us=NULL WHERE id=?", (key,))
