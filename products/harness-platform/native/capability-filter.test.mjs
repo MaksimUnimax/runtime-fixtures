@@ -187,3 +187,9 @@ test('only the single selected read-only help topic can finish with server evide
   assert.equal(resolvedHelp([{...batch,content:[call,call]},result],replies),undefined);
   assert.equal(resolvedHelp([batch,result],{}),undefined);
 });
+
+test('a distinctive word from a renamed plugin carries its current short setup', () => {
+  const k={states:{},cards:[{id:'plugin/new',title:'Лунный циферблат',briefSetup:true,steps:['Выберите лунное время.']}]};
+  assert.match(serviceNotes(k,'Что выбрать в настройках циферблата?').notes.join(' '),/лунное время/);
+  assert.deepEqual(serviceNotes(k,'Как дела?').notes,[]);
+});

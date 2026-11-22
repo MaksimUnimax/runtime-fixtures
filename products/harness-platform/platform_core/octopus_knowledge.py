@@ -79,7 +79,9 @@ def _cards(key):
         auto = p["provider"] in providers and providers[p["provider"]].get("fields") is not None
         cards.append(dict(id="plugin/" + p["id"], title=p["title"], group="Плагины", purpose=p["description"],
             keywords=p["keywords"], operations=ops, triggers=p["triggers"],
-            **({"usage": p["usage"]} if p["usage"] else {}), screen="/app/#settings-plugins",
+            **({"usage": p["usage"]} if p["usage"] else {}),
+            **({"briefSetup": True} if p["setup"] and len(" ".join(p["setup"])) <= 180 and not p["usage"] else {}),
+            screen="/app/#settings-plugins",
             steps=list(p["setup"]) or ["Подключите магазин в настройках интеграций из нужного чата. Плагин площадки включится автоматически."
                    if auto else "Откройте «Настройки» → «Плагины», установите плагин и включите его в нужном чате."]))
     return cards

@@ -138,7 +138,7 @@ export function lookup(knowledge, query, page = 1) {
   if (!scored.length) return {automation,total:0,nextPage:null,cards:[],
     status:'Совпадений среди опубликованных возможностей нет. Уточни название через полный каталог.'};
   return {automation,total:scored.length, nextPage:page*5<scored.length?page+1:null,
-    cards:[...selected].map(({keywords,...card}) => {
+    cards:[...selected].map(({keywords,briefSetup,...card}) => {
       const current = state(card);
       const detail = {...card,state:current};
       if (currentSteps[card.id]) detail.steps = currentSteps[card.id];
@@ -168,13 +168,18 @@ export function serviceNotes(knowledge, question) {
     if ([...terms].some(t => aliases.has(t))) names.add(card.id);
   }
   const notes = [], replies = {};
-  for (const c of knowledge.cards) {
+  const titleTerms = knowledge.cards.map(card => words(card.title));
+  const frequency = new Map();
+  for (const title of titleTerms) for (const word of title) frequency.set(word,(frequency.get(word) ?? 0)+1);
+  for (const [index,c] of knowledge.cards.entries()) {
+    const directName = question.toLowerCase().includes(c.title.toLowerCase());
+    const shortSetup = c.briefSetup && (directName || [...titleTerms[index]].some(word => terms.has(word) && frequency.get(word)===1));
     const named = names.has(c.id) || c.operations?.some(op => names.has(op.requires)) ||
-      question.toLowerCase().includes(c.title.toLowerCase()) ||
+      directName || shortSetup ||
       (c.usage && [...words(c.keywords ?? '')].some(term => terms.has(term)));
-    if (!named || (!c.usage && !knowledge.currentSteps?.[c.id])) continue;
+    if (!named || (!c.usage && !shortSetup && !knowledge.currentSteps?.[c.id])) continue;
     const note = [c.title,JSON.stringify(knowledge.states[c.id] ?? 'не установлено'),
-      ...(knowledge.currentSteps?.[c.id] ?? []),c.usage].filter(Boolean).join(' · ');
+      ...(knowledge.currentSteps?.[c.id] ?? []),shortSetup ? c.steps.join(' ') : '',c.usage].filter(Boolean).join(' · ');
     if (notes.join(' ').length + note.length > 800) continue;
     notes.push(note);
     if (knowledge.replies?.[c.id]) replies[c.id] = knowledge.replies[c.id];
@@ -187,9 +192,11 @@ export async function registerKnowledge(ctx, load, knowledge, question = '') {
   ctx.systemPrompt.section({name:'octopus',order:25,interpolate:false,
     text:'Ты Октопус, осьминог Октопорта. От первого лица помогай вести магазины. Инструкции и статус сверяй через octoport_help. Без подтверждения исход неизвестен. Соблюдай стиль до последней фразы.'});
   const {address,tone,detail} = knowledge.style;
+  ctx.systemPrompt.section({name:'address',order:81,interpolate:false,
+    text:address==='на вы'?'К собеседнику всегда на вы: «напишите», «посмотрите».':'К собеседнику всегда на ты: «напиши», «посмотри».'});
   const hasTriggers = knowledge.cards.some(card => card.triggers?.length);
   ctx.systemPrompt.context({name:'octopus-settings',order:75,required:true,interpolate:false,
-    text:'Стиль: '+[address+(address==='на вы'?' («напишите»)':' («напиши»)'),tone,detail].join(', ')+'. Опубликовано: '+directory(knowledge.cards)+(hasTriggers ? '. Автозапуск: см. triggers.' : '. Автозапуск и напоминания недоступны.')});
+    text:'Стиль: '+[tone,detail].join(', ')+'. Опубликовано: '+directory(knowledge.cards)+(hasTriggers ? '. Автозапуск: см. triggers.' : '. Автозапуск и напоминания недоступны.')});
   const {notes,replies} = serviceNotes(knowledge, question);
   const topics = Object.entries(replies).map(([id,r]) => id+' — '+r.topic);
   if (notes.length) ctx.systemPrompt.context({name:'product-status',order:76,required:true,interpolate:false,
