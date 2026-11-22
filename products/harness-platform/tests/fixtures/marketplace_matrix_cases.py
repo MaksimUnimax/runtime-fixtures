@@ -411,7 +411,7 @@ class MarketplaceMatrix(unittest.TestCase):
                                                     chatId=self.scope.chat_id)["id"]
         day = (date.today() - timedelta(days=1)).isoformat()
         self.packet.update(connections=[cid], selections=[{"templateId": template, "connectionId": cid,
-                           "input": {"period": {"from": day, "to": day}, "group_by":"total"}}
+                           "input": {"period": {"from": day, "to": day}, "group_by":"total", "parameter_mode":"preview"}}
                            for template in ("B02.wb_events", "B03.wb_events")])
         reads = []
         def read(request, **options):

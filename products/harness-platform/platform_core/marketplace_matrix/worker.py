@@ -191,6 +191,9 @@ def execute(packet, directory):
         inputs = item["input"]
         if inputs.get("parameter_mode", "preview") != "preview":
             raise Rejected("PERMISSION_DENIED")
+        if "parameter_mode" in inputs and TEMPLATES[tid]["kind"] != "parameter" and not TEMPLATES[tid].get("parameter_report"):
+            inputs = dict(inputs)
+            inputs.pop("parameter_mode")  # Validated read-only default has no meaning to an ordinary report.
         if inputs.get("owner_inputs") and tid != "economics.unit_forecast.v1":
             raise Rejected("ECONOMICS_OWNER_INPUT")
         # Each record belongs to exactly one shop. Event and tabular sources
