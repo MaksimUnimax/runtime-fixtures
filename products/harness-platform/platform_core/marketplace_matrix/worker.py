@@ -193,6 +193,10 @@ def execute(packet, directory):
             raise Rejected("PERMISSION_DENIED")
         if inputs.get("owner_inputs") and tid != "economics.unit_forecast.v1":
             raise Rejected("ECONOMICS_OWNER_INPUT")
+        # Each record belongs to exactly one shop. Event and tabular sources
+        # retain that shop even when the caller requests a combined total.
+        if TEMPLATES[tid]["kind"] in ("dataset", "event", "information") and inputs.get("group_by") == "total":
+            inputs = {**inputs, "group_by": "marketplace"}
         owner_inputs = inputs.get("owner_inputs", {})
         if tid == "economics.unit_forecast.v1" and not {"unit_cost", "unit_cost_by_sku"} & owner_inputs.keys():
             return {"ok": True, "clarification": "Укажите себестоимость в рублях по SKU или общую для всех товаров."}

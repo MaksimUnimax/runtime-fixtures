@@ -35,7 +35,8 @@ def model_tools(stores):
         else:
             matches, more = select_page(candidates, query, offset, 5)
         result = {"matches": [{"templateId": row["id"], "purpose": row["purpose"],
-                               "inputs": row["input_policy"]} for row in matches],
+                               "inputs": row["input_policy"],
+                               "grouping": ["marketplace"] if row.get("kind") in ("dataset", "event", "information") else ["marketplace", "total"]} for row in matches],
                   "nextOffset": more}
         if prior_ids:
             result["previousSelection"] = {shop: keys for shop, keys in recent.items() if keys}
@@ -49,7 +50,7 @@ def model_tools(stores):
             result["selectionSchema"]["properties"].pop("connectionId", None)
             result["selectionSchema"]["required"].remove("connectionId")
             result["guidance"] = ("Даты from/to включительно. Для текущего состояния period=null. "
-                "Обычно group_by=marketplace. Бери точные исходные суммы из sourceValues. "
+                "Для отдельных магазинов пропусти поле group_by. Бери исходные суммы из sourceValues. "
                 "Для уточнения периода сохрани магазин и показатель из беседы.")
             if any(r["id"] in plugin.campaign_inventory.TEMPLATES for r in matches):
                 result["guidance"] += " " + plugin.campaign_inventory.GUIDE

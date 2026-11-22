@@ -17,8 +17,17 @@ export function turnFilter(ctx) { return filters.get(ctx); }
 function previousArguments(seed, name) {
   const results = new Set();
   for (const event of seed) {
-    if (event.type === 'tool/result' && !event.data.message.isError)
-      results.add(JSON.stringify([event.data.turn,event.data.message.toolCallId]));
+    if (event.type !== 'tool/result' || event.data.message.isError) continue;
+    const message = event.data.message;
+    let success = true;
+    for (const block of message.content ?? []) {
+      if (block.type !== 'text') continue;
+      try {
+        const parsed = JSON.parse(block.text);
+        if (parsed?.ok === false || parsed?.result?.ok === false) success = false;
+      } catch { /* Ordinary text tool results have no structured status. */ }
+    }
+    if (success) results.add(JSON.stringify([event.data.turn,message.toolCallId]));
   }
   const args = [];
   let turn;
