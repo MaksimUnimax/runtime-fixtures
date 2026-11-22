@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 
 
 from .authority import ChatAuthority
-from . import advertising, campaign_inventory, forecast_preview, ozon_retry, store_currency
+from . import advertising, campaign_inventory, forecast_preview, ozon_retry, read_templates, store_currency
 
 BUNDLE = Path(__file__).with_name("runtime.tar.gz")
 BUNDLE_SHA256 = "b9cb1daec21a7edcf4c6270324d6f9bbac94302b04f07139b2fae68db3fefd5d"
@@ -450,11 +450,16 @@ def main():
     from semantics import Rejected
     with open(os.devnull, "w") as sink, redirect_stdout(sink):
         try:
-            result = catalogue(packet["profiles"]) if "profiles" in packet else execute(packet, root)
+            if "readTemplate" in packet:
+                result = read_templates.execute(packet, root)
+            elif "profiles" in packet:
+                result = catalogue(packet["profiles"])
+            else:
+                result = execute(packet, root)
         except Rejected as error:
             from failure_explanations import explain
             result = {"ok": False, "code": error.code, "reason": explain(error.code)["text"]}
-    if "profiles" not in packet:
+    if "profiles" not in packet and "readTemplate" not in packet:
         if not result.get("ok"):
             log_failure(",".join(sorted({item["templateId"] for item in packet["selections"]})),
                         result.get("code"), result.get("retryAt"))

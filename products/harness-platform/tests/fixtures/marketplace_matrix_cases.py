@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 import tempfile
 import time
@@ -533,6 +534,134 @@ class MarketplaceMatrix(unittest.TestCase):
         self.assertEqual(seen, ["9", "9,11", "9,11", "CAMPAIGN_STATE_RUNNING", "cpo:1", "cpo:2",
                                 "CAMPAIGN_STATE_RUNNING", "CAMPAIGN_STATE_INACTIVE", "CAMPAIGN_STATE_STOPPED",
                                 "cpo:1", "cpo:2", "all", "cpo:1", "cpo:2"])
+
+    def test_read_templates_are_scoped_to_read_contracts(self):
+        from platform_core.marketplace_matrix import read_templates
+        from platform_core.marketplace_matrix.plugin import read_capability
+        from jsonschema import Draft202012Validator
+        from read_surface import available, method
+
+        cards = read_templates.cards()
+        self.assertEqual(len(cards), 470)
+        ready = [card for card in cards.values() if card["state"] == "ready"]
+        self.assertTrue(ready)
+        for card in ready:
+            if "contract" in card:
+                from urllib.parse import urlsplit
+                contract = card["contract"]
+                self.assertIsNone(card["operation"])
+                self.assertIn(urlsplit(contract["url"]).netloc, read_templates.SUPPLEMENTAL_HOSTS[card["profile"]])
+                self.assertEqual(urlsplit(contract["url"]).path, card["path"])
+                self.assertEqual(contract["http"], card["http"])
+                Draft202012Validator.check_schema(contract["schema"])
+                continue
+            wb = card["profile"] == "wb"
+            meta = method("wb" if wb else "ozon", card["operation"])
+            self.assertTrue(available(meta), card)
+            self.assertEqual(meta["effect"], "READ")
+            self.assertEqual(meta["method"], card["http"])
+            self.assertEqual(re.sub(r"\{[^{}]+\}", "{}", meta["wire_path"]).rstrip("/"),
+                             re.sub(r"\{[^{}]+\}", "{}", card["path"]).rstrip("/"))
+            self.assertFalse(meta.get("completion"), card)
+        cid = self.ids["wb"]
+        cap = read_capability([{"id": cid, "provider": "wb", "access": ["Wildberries API"]}])
+        self.assertNotIn("tariff_commission", cap.description)
+        self.assertIsNone(read_capability([{"id": "wordstat", "provider": "wordstat", "access": []}]))
+        cap.validate({"action": "find", "connectionId": cid, "query": "api/v1/tariffs/commission"})
+        page = read_templates.discover("/api/v1/tariffs/commission", 0, "wb", {"seller_token"})
+        self.assertEqual(page["templates"][0]["id"], "read.wb.tariff_commission")
+        self.assertLessEqual(len(page["templates"]), read_templates.PAGE_SIZE)
+        self.assertFalse(read_templates.discover("", 0, "ozon", {"seller_token"})["templates"])
+
+    def test_read_templates_dispatch_and_reject_other_store_or_unproven_ids(self):
+        from platform_core.marketplace_matrix import read_templates
+        from semantics import Rejected
+
+        def execute(profile, cid, alias, params):
+            return read_templates.execute({**self.packet, "connections": [cid], "readTemplate": {
+                "action": "read", "templateId": f"read.{profile}.{alias}", "params": params,
+            }}, self.root)
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            self.assertEqual(request.full_url, "https://common-api.wildberries.ru/api/v1/tariffs/commission")
+            self.assertEqual(request.get_header("Authorization"), "fixture-wb")
+            return b'{"report":[{"commission":17,"file_url":"https://example.com/private"}]}', 200
+
+        with patch("http_transport.read_response", side_effect=fake_read) as request:
+            result = execute("wb", self.ids["wb"], "tariff_commission", {})
+            self.assertEqual(result["data"], {"report": [{"commission": 17}]})
+            self.assertEqual(result["operations"], ["read.wb.tariff_commission"])
+            with self.assertRaises(Rejected):
+                execute("seller", self.ids["wb"], "product_upload_quota", {})
+            with self.assertRaises(Rejected):
+                execute("wb", self.ids["wb"], "fbs_order_statuses", {"body": {"orders": 987654}})
+            request.assert_called_once()
+
+    def test_supplemental_read_templates_validate_and_dispatch(self):
+        from platform_core.marketplace_matrix import read_templates
+        from semantics import Rejected
+
+        def execute(platform, alias, params):
+            cid = self.ids[platform]
+            return read_templates.execute({**self.packet, "connections": [cid], "readTemplate": {
+                "action": "read", "templateId": alias, "params": params,
+            }}, self.root)
+
+        wb = "read.wb.get_api_advert_v0_daily_limits"
+        ozon = "read.seller.post_v1_analytics_category_comparison"
+        self.turn["question"] = "Проверь лимиты кампаний 12345 и 67890, сравни категории за месяц."
+        self.assertEqual(read_templates.supplemental_route(
+            read_templates.cards()["read.wb.get_api_supplies_v1_drafts_draftid_items"],
+            {"path": {"draftId": "12345"}})[1],
+            "https://supplies-api.wildberries.ru/api/supplies/v1/drafts/12345/items")
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            if request.host == "advert-api.wildberries.ru":
+                self.assertEqual(request.full_url, "https://advert-api.wildberries.ru/api/advert/v0/daily-limits?advertIds=12345%2C67890")
+                self.assertEqual(request.get_header("Authorization"), "fixture-wb")
+            else:
+                self.assertEqual(request.full_url, "https://api-seller.ozon.ru/v1/analytics/category/comparison")
+                self.assertEqual(request.get_header("Api-key"), "fixture-ozon")
+                self.assertEqual(json.loads(request.data), {"period": "MONTH", "sort": "DESC"})
+            return b'{"value":17.50,"downloadUrl":"https://example.com/private","email":"owner@example.com"}', 200
+
+        with patch("http_transport.read_response", side_effect=fake_read) as request:
+            with self.assertRaises(Rejected):
+                execute("wb", wb, {"query": {"advertIds": "12345,00000"}})
+            with self.assertRaises(Rejected):
+                execute("ozon", ozon, {"period": "MONTH", "sort": "DESC", "extra": True})
+            self.assertEqual(execute("wb", wb, {"query": {"advertIds": "12345,67890"}})["data"],
+                             {"value": "17.50", "email": "[REDACTED]"})
+            self.assertEqual(execute("ozon", ozon, {"period": "MONTH", "sort": "DESC"})["http"], 200)
+            self.assertEqual(request.call_count, 2)
+
+    def test_read_templates_uses_separate_performance_credential(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        token = self.identity.login("matrix-seller", "fixture-password")
+        cid = IntegrationStore(self.identity).save(token, "ozon", "Реклама",
+              {"performance_id": "fixture-id", "performance_secret": "fixture-secret"}, chatId=self.scope.chat_id)["id"]
+        self.turn["question"] = "Что продвигается в кампании 12345?"
+        packet = {**self.packet, "connections": [cid], "readTemplate": {
+            "action": "read", "templateId": "read.performance.performance_campaign_objects",
+            "params": {"campaignId": "12345"}}}
+
+        def fake_read(request, **options):
+            options["on_dispatch"]()
+            if request.full_url == "https://api-performance.ozon.ru/api/client/token":
+                body = json.loads(request.data)
+                self.assertEqual(body["client_id"], "fixture-id")
+                return b'{"access_token":"fixture-performance-access","expires_in":1800}', 200
+            self.assertEqual(request.full_url, "https://api-performance.ozon.ru/api/client/campaign/12345/objects")
+            self.assertEqual(request.get_header("Authorization"), "Bearer fixture-performance-access")
+            return b'{"list":[{"id":"123456789"}]}', 200
+
+        with patch("http_transport.read_response", side_effect=fake_read):
+            result = read_templates.execute(packet, self.root)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["data"]["list"], [{"id":"123456789"}])
 
     def test_agent_can_choose_both_order_metrics_on_short_answer(self):
         from platform_core.marketplace_matrix.plugin import capability

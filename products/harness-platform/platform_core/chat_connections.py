@@ -118,9 +118,8 @@ class ChatTools:
           ("check_store_access","Проверить подключение магазина или сервиса сейчас.","check",entries,{}),
           ("wordstat_keywords","Частотность и популярные поисковые фразы Яндекс Вордстат.","wordstat",
              [r for r in entries if r["provider"]=="wordstat"],{"phrase":{"type":"string","minLength":1,"maxLength":200}})]
-        from .marketplace_matrix.plugin import capability
-        matrix = capability(entries)
-        result = [matrix] if matrix else []
+        from .marketplace_matrix.plugin import capability, read_capability
+        result = [tool for tool in (capability(entries), read_capability(entries)) if tool]
         for name,description,action,allowed,props in specs:
             if not allowed: continue
             properties={"connectionId":{"type":"string","enum":[r["id"] for r in allowed]},**props}
