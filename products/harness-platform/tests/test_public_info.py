@@ -58,6 +58,8 @@ class PublicInfoTests(unittest.TestCase):
                     if target in pages:
                         if url.fragment:
                             self.assertIn(url.fragment, pages[target].anchors)
+                    elif target == "/about/ask":
+                        continue  # This route is served by the chat application.
                     elif target.startswith("/about/"):
                         self.assertTrue((public / target.lstrip("/")).is_file(), target)
                     else:

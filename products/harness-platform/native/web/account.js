@@ -93,18 +93,25 @@ window.__ModuleLoader__.load({
           ]),
           {id:'settings',label:'Настройки',icon:h(IconSettingsOutlineMedium,{size:16}),shortcut:settingsShortcut},
           {id:'about',label:'О сервисе'},
+          {id:'analytics',label:'Аналитика'},
+          {id:'install',label:'Подключение магазина'},
+          {id:'support',label:'Поддержка'},
+          {id:'privacy',label:'Конфиденциальность'},
           ...(a.canGrant ? [{id:'admin',label:'Администрирование'}] : []),
           ...(!a.guest ? [{id:'divider',type:'separator'},{id:'logout',label:'Выйти'}] : [])
         ];
         const commands={
           profile:()=>select('profile'),wallet:()=>select('wallet'),
-          login:()=>select('login'),register:()=>location.assign('/register'),settings:openSettings,
-          about:()=>location.assign('/about/'),admin:()=>location.assign('/admin'),logout:()=>logout.current.requestSubmit()
+          login:()=>select('login'),register:()=>select('register'),settings:openSettings,
+          about:()=>location.assign('/about/'),analytics:()=>location.assign('/about/seller-analytics'),
+          install:()=>location.assign('/about/install'),support:()=>location.assign('/about/support'),
+          privacy:()=>location.assign('/about/privacy'),admin:()=>location.assign('/admin'),
+          logout:()=>logout.current.requestSubmit()
         };
         return h('div',{className:'account-actions','data-wide':wide},
           a.guest && wide && h(React.Fragment,null,
             h('button',{type:'button',onClick:()=>select('login')},'Войти'),
-            h('a',{href:'/register'},'Создать аккаунт')),
+            h('button',{type:'button',onClick:()=>select('register')},'Создать аккаунт')),
           !a.guest && h('button',{type:'button',className:'balance-action','aria-label':'Баланс','aria-haspopup':'dialog',
             title:balance,onClick:()=>select('wallet')},h(Coin),wide && h('span',{className:'sidebar-coins'},balance)),
           h(Menu,{open,portal:true,autoFocus:true,side:'top',align:'start',
@@ -227,6 +234,50 @@ window.__ModuleLoader__.load({
             h('button',{type:'button',disabled:busy,onClick:close},'Отмена'),
             h('button',{type:'button',disabled:busy,onClick:remove},'Удалить чат')));
       }
+      function AuthForm({signup, close}) {
+        const [busy,setBusy]=React.useState(false);
+        const [error,setError]=React.useState(a.error);
+        async function submit(event) {
+          event.preventDefault();
+          if (busy) return;
+          setBusy(true);
+          setError('');
+          const data=new URLSearchParams(new FormData(event.currentTarget));
+          try {
+            const response=await fetch(signup?'/register':'/login',{
+              method:'POST',headers:{Accept:'application/json'},body:data,cache:'no-store'
+            });
+            const result=await response.json().catch(()=>({}));
+            if (!response.ok || !result.authenticated) {
+              setError(result.detail || 'Не удалось войти. Повторите попытку.');
+              return;
+            }
+            const path=location.pathname;
+            const askRoute=['/about/ask','/app/ask'].includes(path);
+            if (signup && a.selected && !askRoute) {
+              const chat='/app/chats/'+encodeURIComponent(a.selected);
+              if (path===chat) location.reload();
+              else location.replace(chat);
+            } else if (askRoute) location.reload();
+            else location.replace('/app/');
+          } catch {
+            setError('Связь прервалась. Повторите попытку.');
+          } finally {
+            setBusy(false);
+          }
+        }
+        return h(React.Fragment,null,
+          h('button',{className:'account-close',type:'button','aria-label':'Закрыть',disabled:busy,onClick:close}),
+          h('h2',{id:'dialog-title'},signup?'Создать аккаунт':'Вход в Октопорт'),
+          signup && h('p',null,'За первую регистрацию вы получите 10 монет для работы в Октопорте.'),
+          error && h('p',{role:'alert'},error),
+          h('form',{action:signup?'/register':'/login',method:'post',onSubmit:submit},
+            Field('login','Логин',{autoComplete:'username',maxLength:254,disabled:busy}),
+            Field('password','Пароль',{type:'password',autoComplete:signup?'new-password':'current-password',maxLength:256,disabled:busy}),
+            h('button',{type:'submit',className:'account-primary',disabled:busy},signup?'Создать аккаунт':'Войти')),
+          h('button',{type:'button',className:'auth-alternative',disabled:busy,
+            onClick:()=>select(signup?'login':'register')},signup?'Войти в существующий аккаунт':'Создать аккаунт'));
+      }
       function Dialog() {
         const mode=usePanel(), ref=React.useRef(null);
         React.useEffect(()=>{if(mode && ref.current && !ref.current.open)ref.current.showModal();},[mode]);
@@ -236,23 +287,13 @@ window.__ModuleLoader__.load({
         if(mode==='plugins')return h(PluginCatalog,{close});
         if(mode==='notice') return h('dialog',{className:'account-dialog',ref,onCancel:close},
           h('h2',null,a.error),h('button',{type:'button',onClick:close},'Закрыть'));
-        const closeButton=h('button',{className:'account-close',type:'button','aria-label':'Закрыть',onClick:close},'×');
         if(mode==='wallet' || mode==='profile') {
           const wallet=mode==='wallet', title=wallet?'Баланс':'Профиль';
           return h(Modal,{open:true,title,onClose:close,className:'octo-account-panel',closeLabel:'Закрыть'},
             h('div',{className:wallet?'octo-wallet-body':'octo-profile-body'},wallet?h(Wallet):h(Profile)));
         }
-        const signup=mode==='register';
         return h('dialog',{className:'account-dialog',ref,'aria-labelledby':'dialog-title',onCancel:close},
-          closeButton,h('h2',{id:'dialog-title'},signup?'Создать аккаунт':'Вход в octoport'),
-          signup && h('p',null,'За первую регистрацию вы получите 10 монет для работы в Октопорте.'),
-          a.error && h('p',{role:'alert'},a.error),
-          h('form',{action:signup?'/register':'/login',method:'post'},
-            Field('login','Логин',{autoComplete:'username',maxLength:254}),
-            Field('password','Пароль',{type:'password',autoComplete:signup?'new-password':'current-password',maxLength:256}),
-            
-            h('button',{type:'submit',className:'account-primary'},signup?'Создать аккаунт':'Войти')),
-            h('a',{className:'auth-alternative',href:signup?'/login':'/register'},signup?'Войти в существующий аккаунт':'Создать аккаунт'));
+          h(AuthForm,{key:mode,signup:mode==='register',close}));
       }
       ctx.slots.inject('settings.launcher',()=>ctx.slots.register({name:'settings.launcher'},AccountLauncher));
       if (!a.guest) {
@@ -299,7 +340,7 @@ window.__ModuleLoader__.load({
       const selection=ctx.uiWorkspace.selection;
       const sync=()=>{
         const current=selection.getSnapshot().sessionId;
-        if(current && !panel){
+        if(current && !panel && !(a.guest && ['/about/ask','/app/ask'].includes(location.pathname))){
           const path='/app/chats/'+encodeURIComponent(current);
           if(location.pathname!==path)history.replaceState(null,'',path);
         }

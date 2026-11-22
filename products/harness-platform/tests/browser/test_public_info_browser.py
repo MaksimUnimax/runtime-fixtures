@@ -10,37 +10,32 @@ from deploy.publish_info import PAGES, publish
 
 
 class PublicInfoBrowser(ProductBrowser):
-    async def test_guest_composer_keeps_its_layout_and_input_at_the_bottom(self):
-        context = await self.browser.new_context(base_url=self.base_url)
-        self.addAsyncCleanup(context.close)
-        page = await context.new_page()
-        await page.goto("/about/ask")
-        editor = page.get_by_label("Ваш вопрос Октопусу")
-        send = page.get_by_role("button", name="Отправить вопрос")
-        heading = page.get_by_role("heading", name="С чего начнём?")
-        for width, height in ((1200, 864), (390, 700), (320, 540)):
-            await page.set_viewport_size({"width": width, "height": height})
-            await expect(heading).to_be_visible()
-            await expect(send).to_be_disabled()
-            await expect(page.locator(".toolbar-chat")).to_be_hidden()
-            self.assertTrue(await page.evaluate(
-                "document.documentElement.scrollWidth <= innerWidth + 1"))
-            self.assertIsNotNone(await send.locator("svg").bounding_box())
-            self.assertGreaterEqual((await send.bounding_box())["width"], 27)
-            self.assertLess((await send.bounding_box())["y"] + (await send.bounding_box())["height"], height)
-        await editor.fill("Как зарегистрироваться?")
-        await expect(send).to_be_enabled()
-        await editor.press("Shift+Enter")
-        await expect(editor).to_have_value("Как зарегистрироваться?\n")
-        await editor.press("Enter")
-        await expect(page.locator(".guest-answer")).to_contain_text("10 монет")
-        await expect(heading).to_be_hidden()
-        await expect(editor).to_be_focused()
-        await expect(send).to_be_disabled()
-        await page.reload()
-        await expect(page.locator(".guest-answer")).to_contain_text("10 монет")
-        await expect(send).to_be_in_viewport()
-        await expect(page.locator("nav:visible").get_by_role("link", name="Задать вопрос")).to_be_visible()
+    async def test_ask_opens_the_same_native_workspace_as_the_reference(self):
+        page = await self.open_chat("first-browser")
+        await expect(page.get_by_role("button", name="Баланс", exact=True)).to_have_text("10,00 монет")
+        await page.set_viewport_size({"width": 1280, "height": 857})
+        editor = page.locator('[data-composer-input][contenteditable=true]')
+        await expect(editor).to_be_visible()
+        reference = await editor.bounding_box()
+        original = page.url
+        async with page.expect_response(lambda response: urlsplit(response.url).path == "/about/ask") as handoff:
+            await page.goto("/about/ask")
+        self.assertEqual((await handoff.value).status, 303)
+        await expect(page.locator("body")).to_have_attribute("data-mode", "member")
+        await expect(editor).to_be_visible()
+        await expect(page).to_have_url(original)
+        await expect(page.get_by_role("button", name="Меню аккаунта")).to_have_text("first-browser")
+        await expect(page.get_by_role("button", name="Баланс", exact=True)).to_have_text("10,00 монет")
+        self.assertEqual(await editor.bounding_box(), reference)
+        await expect(page.get_by_role("button", name="Прикрепить файлы")).to_be_visible()
+        await expect(page.locator('[data-row-key^="session:"]')).to_have_count(1)
+        await page.get_by_role("button", name="Баланс", exact=True).click()
+        await expect(page.get_by_role("dialog")).to_contain_text("Доступно")
+        await page.get_by_role("dialog").get_by_role("button", name="Закрыть").click()
+        await account_action(page, "О сервисе")
+        await expect(page.locator("h1")).to_contain_text("Управление маркетплейсами")
+        await expect(page.locator(".account [data-member-name]")).to_have_text("first-browser")
+        await expect(page.locator(".account [data-balance]")).to_have_text("10,00 монет")
 
     async def test_public_navigation_uses_live_session_and_fits_viewport(self):
         directory = Path(self.enterContext(TemporaryDirectory()))
@@ -53,6 +48,9 @@ class PublicInfoBrowser(ProductBrowser):
 
         async def public_file(route):
             path = urlsplit(route.request.url).path.removeprefix("/about/") or "index"
+            if path == "ask":
+                await route.continue_()
+                return
             if path == "assets/yandex-metrika.js":
                 await route.fulfill(content_type="text/javascript", body="")
                 return
@@ -83,8 +81,9 @@ class PublicInfoBrowser(ProductBrowser):
             await expect(page.locator("#beta")).to_be_hidden()
             await expect(page.locator("footer #seller")).to_have_count(int(name == "index"))
         await chat.click()
-        await expect(page.get_by_label("Ваш вопрос Октопусу")).to_be_visible()
-        await expect(page.locator(".sidebar .public-balance")).to_be_visible()
+        await expect(page.locator('[data-composer-input][contenteditable=true]')).to_be_visible()
+        await expect(page.get_by_role("button", name="Баланс", exact=True)).to_be_visible()
+        await page.goto("/about/")
         native = await page.context.new_page()
         await native.goto(self.base_url + "/?account=settings")
         await expect(native.get_by_role("dialog")).to_be_visible()
@@ -133,6 +132,6 @@ class PublicInfoBrowser(ProductBrowser):
         await page.route("**/api/session/status**", lambda route: route.fulfill(status=503, body="{}"))
         await page.goto("/about/")
         await page.locator(".sidebar").get_by_role("link", name="Задать вопрос", exact=True).click()
-        await page.locator(".sidebar .guest-actions").get_by_role("link", name="Войти", exact=True).click()
+        await page.get_by_role("button", name="Войти", exact=True).click()
         await expect(page.get_by_role("dialog").get_by_label("Логин", exact=True)).to_be_visible()
         await expect(page.get_by_role("dialog").get_by_role("button", name="Создать аккаунт")).to_be_visible()

@@ -4,12 +4,10 @@ import os
 import re
 from pathlib import Path
 from functools import lru_cache
-from html import escape
 
 from deploy.publish_info import CONTENT, PAGES, render_page, styles
 
 from starlette.concurrency import run_in_threadpool
-from starlette.exceptions import HTTPException
 from starlette.exceptions import HTTPException
 from starlette.responses import FileResponse, HTMLResponse, Response
 from starlette.routing import Route
@@ -69,21 +67,28 @@ async def page(request, *, panel="", error="", status=200):
             return shell(theme=theme, panel="notice", error="Чат недоступен", account=account, status=404)
         except AuthenticationError:
             pass
-    # Only the same-origin POST initializes the guest. Two simultaneous page loads
-    # must never replace each other's conversation cookie.
     guest = request.cookies.get(guest_cookie(request))
-    if chat:
-        try:
-            own_chat, has_turns = await run_in_threadpool(identity.guest_chat_summary, guest)
-        except AuthenticationError:
+    try:
+        own_chat, has_turns = await run_in_threadpool(identity.guest_chat_summary, guest)
+    except AuthenticationError:
+        if chat:
             return shell(theme=theme, guest=True, panel="login", error="Чат недоступен", status=404)
-        if chat != own_chat:
-            return shell(theme=theme, guest=True, panel="notice", chat=own_chat, account={"hasTurns": has_turns}, error="Чат недоступен", status=404)
-    html = document("ask").replace("https://octoport.ru/about/ask", "https://octoport.ru/")
-    if panel or error:
-        html = html.replace('data-auth-entry=""', f'data-auth-entry="{escape(panel, quote=True)}"')
-        html = html.replace('data-auth-error=""', f'data-auth-error="{escape(error, quote=True)}"')
-    return HTMLResponse(html, status_code=status, headers=HEADERS)
+        # The browser initializes an empty guest once across tabs using /guest/session.
+        own_chat, has_turns = "", False
+    if chat and chat != own_chat:
+        panel, error, status = "notice", "Чат недоступен", 404
+    return shell(theme=theme, guest=True, chat=own_chat, panel=panel, error=error,
+                 status=status, account={"hasTurns": has_turns})
+
+
+async def ask(request):
+    try:
+        token = browser_token(request)
+        await run_in_threadpool(request.app.state.identity.validate_session, token)
+    except AuthenticationError:
+        return await page(request)
+    return _redirect("/app/")
+
 
 async def payment(request):
     quantity = request.query_params.get("coins", "100")
@@ -161,11 +166,12 @@ async def harness_asset(request):
 def web_routes():
     return [
         *checkout_routes(),
-        Route("/about/", public_document), Route("/about/assets/{name}", public_asset),
+        Route("/about/", public_document), Route("/about/ask", ask),
+        Route("/about/assets/{name}", public_asset),
         Route("/about/{name}", public_document),
         Route("/favicon.ico", icon),
         Route("/plugins/@deepseek-ai/dsh-client-ui-chat/assets/running-whale@2x-06738fa29b2f.png", icon),
-        Route("/", page), Route("/payment", payment), Route("/admin", admin), Route("/ui-assets/modules/{name}.js", module_file), Route("/app/", page), Route("/app/chats/{chat_id}", page),
+        Route("/", page), Route("/payment", payment), Route("/admin", admin), Route("/ui-assets/modules/{name}.js", module_file), Route("/app/", page), Route("/app/ask", ask), Route("/app/chats/{chat_id}", page),
         Route("/ui-assets/project/{name}", project_asset),
         Route("/ui-assets/harness/{package}/{asset:path}", harness_asset),
     ]

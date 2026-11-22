@@ -397,14 +397,10 @@ class BrowserIsolation(ProductBrowser):
             page.on("request", lambda request: posts.append(request.url) if request.url.endswith("/turns") and request.method == "POST" else None)
             try:
                 await page.goto(page.url if page == member else "/", wait_until="commit")
-                field = "Ваш вопрос Октопусу" if page == guest else "Черновик сообщения"
+                field = "Черновик сообщения"
                 await page.get_by_role("textbox", name=field).fill("Мой черновик")
             finally:
                 gate.set()
-            if page == guest:
-                await expect(page.get_by_label(field)).to_have_value("Мой черновик")
-                self.assertEqual(posts, [])
-                continue
             editor = page.locator("[data-composer-input][contenteditable=true]")
             await expect(editor).to_have_text("Мой черновик")
             await expect(page.get_by_role("button", name="Отправить сообщение")).to_be_enabled()
@@ -922,11 +918,11 @@ class BrowserIsolation(ProductBrowser):
         first, second = await asyncio.gather(asking.value, landing.value)
         self.assertEqual((first.status, second.status), (200, 200))
         self.assertEqual(first.url, second.url)
-        await ask.get_by_label("Ваш вопрос Октопусу").fill("Как зарегистрироваться?")
-        await ask.get_by_role("button", name="Отправить вопрос").click()
-        await expect(ask.locator(".guest-answer")).to_contain_text("10 монет")
+        await ask.locator('[data-composer-input][contenteditable=true]').fill("Как зарегистрироваться?")
+        await ask.get_by_role("button", name="Отправить сообщение", exact=True).click()
+        await expect(ask.locator('[data-chat-flow-kind="assistant-step"]').last).to_contain_text("10 монет")
         await home.reload()
-        await expect(home.locator(".guest-answer")).to_contain_text("10 монет")
+        await expect(home.locator('[data-chat-flow-kind="assistant-step"]').last).to_contain_text("10 монет")
         await expect(ask).to_have_url(re.compile(r"/about/ask$"))
 
     async def test_guest_registers_and_resumes_the_same_chat(self):
@@ -937,27 +933,27 @@ class BrowserIsolation(ProductBrowser):
         page, other = await asyncio.gather(guest.new_page(), second_device.new_page())
         for client in (page, other):
             await client.goto("/")
-            await expect(client.locator('[data-guest-chat] [data-composer-input]')).to_be_visible()
+            await expect(client.locator('[data-composer-input][contenteditable=true]')).to_be_visible()
             await expect(client).to_have_url(re.compile(r"/app/chats/[a-zA-Z0-9_-]+$"))
         original_url = page.url
         self.assertNotEqual(original_url, other.url)
         marker = "Как сохранить мою историю?"
-        await page.get_by_label("Ваш вопрос Октопусу").fill(marker)
-        await page.get_by_role("button", name="Отправить вопрос").click()
-        public_history = page.locator(".guest-history")
+        await page.locator('[data-composer-input][contenteditable=true]').fill(marker)
+        await page.get_by_role("button", name="Отправить сообщение", exact=True).click()
+        public_history = page.locator('[data-slot="conversation.view"]')
         await expect(public_history).to_contain_text(marker)
-        answer = await public_history.locator(".guest-answer p").last.inner_text()
-        self.assertTrue(answer)
+        answer = await public_history.locator('[data-chat-flow-kind="assistant-step"] p').last.inner_text()
+        self.assertTrue(answer.strip())
         denied = await other.goto(original_url)
         self.assertEqual(denied.status, 404)
         await expect(other.locator("body")).not_to_contain_text(marker)
 
-        await page.get_by_role("link", name="Создать аккаунт").click()
+        await page.get_by_role("button", name="Создать аккаунт", exact=True).click()
         await page.get_by_label("Логин", exact=True).fill("guest-browser")
         await page.get_by_label("Пароль", exact=True).fill("test11chars")
         await expect(page.get_by_text("Код восстановления",exact=True)).to_have_count(0)
         await page.get_by_role("dialog").get_by_role("button", name="Создать аккаунт", exact=True).click()
-        await expect(page.locator("html")).to_have_attribute("data-session","member")
+        await expect(page.locator("body")).to_have_attribute("data-mode","member")
         await expect(page).to_have_url(original_url)
         await expect(public_history).to_contain_text(answer)
         await page.reload()

@@ -20,7 +20,6 @@ PAGES = {
     "install": ("Подключение магазина", "Подключение магазина", "Как подключить Seller API и Performance API Ozon или токен Wildberries через «Настройки» → «Интеграции»."),
     "support": ("Поддержка", "Поддержка Октопорта", "Помощь со входом, подключением магазина и вопросами о работе помощника."),
     "privacy": ("Конфиденциальность", "Конфиденциальность и данные", "Как Октопорт обрабатывает ключи, результаты запросов и историю чатов."),
-    "ask": ("Задать вопрос", "Задать вопрос Октопусу", "Гостевой чат с Октопусом о возможностях сервиса, подключении магазинов и монетах."),
 }
 CONTENT = Path(__file__).resolve().parents[1] / "public-info"
 
@@ -36,13 +35,12 @@ def render_page(name):
     for target, (caption, _, _) in PAGES.items():
         current = ' aria-current="page"' if target == name else ""
         links.append(f'<a href="{route(target)}"{current}>{escape(caption)}</a>')
-    chat = name == "ask"
-    script = ('<script defer src="/about/assets/guest-chat.js?v=' + version((CONTENT / "guest-chat.js").read_bytes()) + '"></script>'
-              if chat else '<script defer src="/about/assets/yandex-metrika.js"></script>')
+    links.append('<a href="/about/ask">Задать вопрос</a>')
     return Template((CONTENT / "layout.html").read_text()).substitute(
         page=name, label=label, title=title, description=description, canonical="https://octoport.ru" + route(name),
         version=version(styles()), session_version=version((CONTENT / "public-session.js").read_bytes()),
-        page_scripts=script, noscript="" if chat else '<noscript><img hidden src="https://mc.yandex.ru/watch/113424299" width="1" height="1" alt=""></noscript>',
+        page_scripts='<script defer src="/about/assets/yandex-metrika.js"></script>',
+        noscript='<noscript><img hidden src="https://mc.yandex.ru/watch/113424299" width="1" height="1" alt=""></noscript>',
         account_nav=(CONTENT / "account-nav.html").read_text(), navigation="\n".join(links),
         content=(CONTENT / f"{name}.html").read_text(),
         seller=(CONTENT / "seller-footer.html").read_text() if name == "index" else "")

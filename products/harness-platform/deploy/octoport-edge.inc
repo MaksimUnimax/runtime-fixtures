@@ -1,5 +1,8 @@
 # Include inside the existing TLS server for octoport.ru.
 location = /about { return 308 /about/$is_args$args; }
+location = /about/ask { rewrite ^ /app/ask last; }
+location = /about/ask/ { return 308 /about/ask$is_args$args; }
+location = /about/ask.html { return 308 /about/ask$is_args$args; }
 location ^~ /about/ {
     root /var/www/octoport-public-info/current;
     index index.html;

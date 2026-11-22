@@ -24,15 +24,19 @@ class WebUiTests(unittest.TestCase):
             app = create_app(database, Path(directory) / "chats")
             origin = "https://platform.test"
             with TestClient(app, base_url=origin, follow_redirects=False) as browser:
-                for route in ("/", "/app/", "/login", "/register"):
+                for route in ("/", "/app/", "/login", "/register", "/about/ask", "/app/ask"):
                     entry = browser.get(route)
-                    self.assertIn("data-guest-chat", entry.text)
+                    self.assertIn('data-mode="guest"', entry.text)
                     self.assertNotIn("set-cookie", entry.headers)
                 self.assertEqual(browser.get("/admin").status_code, 401)
                 self.assertEqual(browser.get("/api/chats").status_code, 401)
                 auth = browser.post("/login", data={"login": "seller", "password": password},
                                     headers={"Origin": origin})
                 self.assertEqual(auth.headers["location"], "/app/")
+                for route in ("/about/ask", "/app/ask"):
+                    handoff = browser.get(route)
+                    self.assertEqual((handoff.status_code, handoff.headers["location"]), (303, "/app/"))
+                    self.assertIn("no-store", handoff.headers["cache-control"])
                 self.assertEqual(browser.post("/api/chats").status_code, 403)
                 self.assertEqual(browser.get("/admin").status_code, 403)
                 chat = browser.post("/api/chats", headers={"Origin": origin}).json()["chatId"]

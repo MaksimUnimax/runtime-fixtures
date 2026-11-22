@@ -8,6 +8,16 @@ try {
   const data = document.body.dataset;
   const guest = data.mode === 'guest';
   const initial = data.account ? JSON.parse(data.account) : {};
+  if (guest && !data.chat) {
+    async function initializeGuest() {
+      const response = await fetch('/guest/session', {method:'POST', cache:'no-store'});
+      if (!response.ok) throw new Error('Не удалось открыть гостевой чат.');
+      return (await response.json()).chat;
+    }
+    data.chat = await (navigator.locks
+      ? navigator.locks.request('octoport.guest.session', initializeGuest)
+      : initializeGuest());
+  }
   const chat = !data.panel && (data.chat || initial.chats?.at(-1));
   const initialHistory = chat ? fetch((guest ? '/guest' : '/api')+'/chats/'+encodeURIComponent(chat)+'/events', {
     credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(60_000)
@@ -80,7 +90,7 @@ try {
       if (composing) return;
       if (draft?.value) {
         const visibleChat = location.pathname.match(/^\/app\/chats\/([^/]+)\/?$/)?.[1];
-        const rootRoute = ['/', '/app/'].includes(location.pathname);
+        const rootRoute = ['/', '/app/', '/about/ask', '/app/ask'].includes(location.pathname);
         const sameChat = visibleChat === chat || (rootRoute && transport.account.selected === chat);
         if (!sameChat || !editor?.isContentEditable) {
           opening.classList.add('draft-recovery');

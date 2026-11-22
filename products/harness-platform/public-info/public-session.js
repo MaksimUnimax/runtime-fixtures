@@ -9,7 +9,12 @@
     root.dataset.session = member ? 'member' : 'guest';
     document.querySelectorAll('.member-menu').forEach(menu => {menu.open=false;});
     document.querySelectorAll('[data-admin]').forEach(link => {link.hidden=!data.admin;});
-    document.querySelectorAll('[data-member-name]').forEach(label => {label.textContent=(data.login || 'Аккаунт').split('@')[0] || 'Аккаунт';});
+    const login = data.login || 'Аккаунт';
+    const name = login.includes('@') ? login.slice(0, login.lastIndexOf('@')) || login : login;
+    document.querySelectorAll('[data-member-name]').forEach(label => {
+      label.textContent = name;
+      label.title = login;
+    });
     document.querySelectorAll('[data-balance]').forEach(label => {
       label.textContent = data.available == null ? '—' : coins.format(data.available)+' монет';
     });
