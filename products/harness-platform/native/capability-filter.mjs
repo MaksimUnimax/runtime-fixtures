@@ -64,6 +64,20 @@ export function installFilter(ctx, defineTool, restored = [], history = []) {
   filters.set(ctx, filter);
   ctx.tools.guard(exec => (exec.name===activate || exec.name==='octoport_help' || visible.has(exec.name))
     ? undefined : 'Это действие закрыто для текущего шага.');
+  const lastTurn = history.findLast(e => e.type === 'turn/end')?.data.turn;
+  if (lastTurn !== undefined) {
+    const previous = new Set();
+    for (const event of history) {
+      if (event.type !== 'assistant/message' || event.data.turn !== lastTurn) continue;
+      for (const b of event.data.message.content) {
+        if (b.type === 'tool-call' && available.has(b.name) && ctx.tools.get(companion(b.name)))
+          previous.add(b.name);
+      }
+    }
+    if (previous.size) ctx.systemPrompt.context({name:'last-action',order:77,interpolate:false,required:true,
+      text:'Прошлый результат получен через '+[...previous].join(', ')+
+        '. Если пользователь меняет условия расчёта, сразу вызови octoport_use с reuse=true, затем получи новые данные. Для пересказа достаточно ответа выше.'});
+  }
   const names = [...available.keys()].sort();
   const menu = names.join(', ').length <= 230 ? names.join(', ') : 'Получите указатель пустым action.';
 

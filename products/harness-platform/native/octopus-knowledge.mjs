@@ -3,7 +3,7 @@ const reportTools = new Set(['mcp__platform__find_marketplace_reports', 'mcp__pl
 // Apply this projection at dispatch only. Historical journal sequence numbers,
 // restore checkpoints, and active tool calls remain valid on either transport.
 export function projectCompletedKnowledge(seed) {
-  const oldAssistants = new Set(), oldResults = new Set();
+  const oldAssistants = new Set(), oldResults = new Set(), settledBatches = new Set();
   const callsByTurn = new Map(), redact = new Map();
   for (const {type,data} of seed) {
     if (type !== 'assistant/message' && type !== 'tool/result') continue;
@@ -38,7 +38,7 @@ export function projectCompletedKnowledge(seed) {
       const calls = msg.content.filter(b => b.type === 'tool-call');
       if (!calls.some(call => reportTools.has(call.name) || privateActions.has(call.name))) continue;
       // The provider signs a whole batch. Keep calls and results paired.
-      oldAssistants.add(msg.id);
+      settledBatches.add(msg.id);
       for (const call of calls) {
         const result = results.get(call.id);
         if (result) oldResults.add(result.id);
@@ -64,6 +64,9 @@ export function projectCompletedKnowledge(seed) {
     return messages.flatMap(msg => {
       if (latest && msg !== latest && msg.source?.kind === 'runtime-context' && msg.source.form === 'snapshot') return [];
       if (msg.role === 'tool' && oldResults.has(msg.id)) return [];
+      // A progress preamble belongs to the removed tool batch. Keeping it as a
+      // standalone assistant reply teaches the model that a promise ends a turn.
+      if (msg.role === 'assistant' && settledBatches.has(msg.id)) return [];
       if (msg.role !== 'assistant' || !oldAssistants.has(msg.id)) return [msg];
       const content = msg.content.filter(block => block.type !== 'reasoning' &&
         block.type !== 'tool-call').map(block => {
