@@ -227,6 +227,28 @@ def _result_sample(value, row_limits, time_zones=None):
     return data, dict(omitted), coverage
 
 
+def fulfillment_clusters(data):
+    """Preserve the first fulfillment locations before sampling nested warehouse lists."""
+    clusters = data.get("clusters") if isinstance(data, dict) else None
+    if not isinstance(clusters, list):
+        return None
+    summary = []
+    for cluster in clusters[:12]:
+        if not isinstance(cluster, dict) or "id" not in cluster or "name" not in cluster:
+            continue
+        row = {"id": cluster["id"], "name": cluster["name"]}
+        groups = cluster.get("logistic_clusters")
+        if isinstance(groups, list) and all(isinstance(group, dict) and isinstance(group.get("warehouses"), list)
+                                            for group in groups):
+            locations = [warehouse["name"] for group in groups for warehouse in group["warehouses"]
+                         if isinstance(warehouse, dict) and warehouse.get("type") == "FULL_FILLMENT"
+                         and isinstance(warehouse.get("name"), str)]
+            row["firstFulfillmentWarehouses"] = locations[:2]
+            row["fulfillmentWarehouseCount"] = len(locations)
+        summary.append(row)
+    return {"totalClusters": len(clusters), "clusters": summary}
+
+
 def supplemental_route(card, params):
     """Compile a separately documented contract to its fixed provider route."""
     from jsonschema import Draft202012Validator
@@ -289,7 +311,7 @@ def supplemental_send(authority, store, card, route):
             if known_codes:
                 payload = strict_json(error.read(8192))
                 if isinstance(payload, dict):
-                    for field in ("code", "detail"):
+                    for field in ("code", "detail", "message"):
                         value = payload.get(field)
                         if isinstance(value, str) and value in known_codes:
                             code = known_codes[value]
@@ -441,6 +463,10 @@ def _read_store(authority, store, card, params, directory, selected_proofs, turn
     payload, omitted, coverage = _result_sample(data, card.get("sampleRows", {}), card.get("responseTimeZones"))
     result = {"ok": True, "data": payload, "omitted": omitted, "http": receipt["status"],
               "providerMilliseconds": receipt["elapsed_ms"]}
+    if card["operation"] == "fbo_draft_cluster_list":
+        cluster_summary = fulfillment_clusters(data)
+        if cluster_summary is not None:
+            result["fulfillmentClusterSummary"] = cluster_summary
     if card.get("responseRowCount") and isinstance(data, list):
         result["rowCount"] = len(data)
     if coverage:

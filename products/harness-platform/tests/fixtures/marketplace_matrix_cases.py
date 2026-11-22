@@ -845,6 +845,49 @@ class MarketplaceMatrix(unittest.TestCase):
             self.assertEqual(query["dateFrom"], ["2026-11-20T00:00:00+03:00"])
             self.assertEqual(query["dateTo"], ["2026-11-21T23:59:59+03:00"])
 
+    def test_fbo_cluster_summary_keeps_fulfillment_after_a_large_mixed_warehouse_list(self):
+        from platform_core.marketplace_matrix import read_templates
+
+        sorting = [{"type": "SORTING_CENTER", "name": f"Sorting {i}"} for i in range(100)]
+        one, two, three = [{"type": "FULL_FILLMENT", "name": f"Warehouse {i}"} for i in range(1, 4)]
+        clusters = [
+            {"id": 10, "name": "First", "logistic_clusters": [{"warehouses": sorting + [one]},
+                                                             {"warehouses": [two, three]}]},
+            {"id": 11, "name": "Second", "logistic_clusters": [{"warehouses": sorting}]},
+            {"id": 12, "name": "Third"},
+        ]
+        result = read_templates.fulfillment_clusters({"clusters": clusters})
+        self.assertEqual(result, {"totalClusters": 3, "clusters": [
+            {"id": 10, "name": "First", "firstFulfillmentWarehouses": ["Warehouse 1", "Warehouse 2"],
+             "fulfillmentWarehouseCount": 3},
+            {"id": 11, "name": "Second", "firstFulfillmentWarehouses": [], "fulfillmentWarehouseCount": 0},
+            {"id": 12, "name": "Third"},
+        ]})
+
+    def test_rfbs_return_points_explain_only_confirmed_missing_key_role(self):
+        from io import BytesIO
+        from urllib.error import HTTPError
+        from platform_core.marketplace_matrix import read_templates
+
+        path = "https://api-seller.ozon.ru/v1/warehouse/rfbs/return-point/list"
+        packet = {**self.packet, "connections": [self.ids["ozon"]],
+                  "readTemplate": {"action": "read",
+                                   "templateId": "read.seller.post_v1_warehouse_rfbs_return_point_list",
+                                   "params": {"filters": {"country_code": "RU", "coordinates": {
+                                       "latitude": 55.7558, "longitude": 37.6173}}, "limit": 5}}}
+        for message, known in (("Api-Key is missing a required role for a method", True), ("Permission denied", False)):
+            body = json.dumps({"code": 7, "message": message}).encode()
+            with self.subTest(known=known), patch("http_transport.read_response", side_effect=HTTPError(
+                    path, 403, "Denied", {}, BytesIO(body))) as outbound:
+                result = read_templates.execute(packet, self.root)
+            self.assertEqual(outbound.call_args.args[0].full_url, path)
+            self.assertFalse(result["ok"])
+            self.assertEqual(result.get("reasonSource") == "template", known)
+            if known:
+                self.assertIn("API-ключу Ozon не хватает прав", result["reason"])
+            else:
+                self.assertTrue(result["requiresTestReview"])
+
     def test_wb_shipping_points_explains_only_confirmed_date_error(self):
         from io import BytesIO
         from urllib.error import HTTPError
