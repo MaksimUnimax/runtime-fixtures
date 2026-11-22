@@ -66,9 +66,10 @@ class PublicInfoBrowser(ProductBrowser):
         await page.get_by_role("dialog").get_by_role("button", name="Закрыть").click()
         await page.get_by_role("button", name="Меню аккаунта").click()
         await expect(page.get_by_role("menuitem", name="Настройки")).to_be_visible()
-        await expect(page.get_by_role("menuitem", name="О сервисе")).to_have_count(0)
-        await page.keyboard.press("Escape")
-        await page.get_by_role("navigation", name="Разделы Октопорта").get_by_role("link", name="О сервисе").click()
+        await expect(page.locator(".octo-site-navigation")).to_have_count(0)
+        for label in ("Аналитика", "Подключение магазина", "Поддержка", "Конфиденциальность", "Задать вопрос"):
+            await expect(page.get_by_role("menuitem", name=label, exact=True)).to_have_count(0)
+        await page.get_by_role("menuitem", name="О сервисе", exact=True).click()
         await expect(page.locator("h1")).to_contain_text("Управление маркетплейсами")
         await expect(page.locator(".account [data-member-name]")).to_have_text("first-browser")
         await expect(page.locator(".account [data-balance]")).to_have_text("10,00 монет")

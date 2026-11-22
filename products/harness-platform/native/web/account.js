@@ -84,11 +84,11 @@ window.__ModuleLoader__.load({
         ['/about/privacy','Конфиденциальность'],
         ['/about/ask','Задать вопрос']
       ];
-      function SidebarLinks({wide}) {
+      function GuestSidebarLinks({wide}) {
         if (!wide) return null;
         return h('nav',{className:'octo-site-navigation','aria-label':'Разделы Октопорта'},
           publicLinks.map(([href,label])=>h('a',{key:href,href,
-            'aria-current':a.guest && href==='/about/ask' ? 'page' : undefined},label)));
+            'aria-current':href==='/about/ask' ? 'page' : undefined},label)));
       }
       function AccountLauncher({wide,openSettings,settingsShortcut}) {
         React.useEffect(()=>{
@@ -109,13 +109,14 @@ window.__ModuleLoader__.load({
             {id:'register',label:'Создать аккаунт'}
           ]),
           {id:'settings',label:'Настройки',icon:h(IconSettingsOutlineMedium,{size:16}),shortcut:settingsShortcut},
+          ...(!a.guest ? [{id:'about',label:publicLinks[0][1]}] : []),
           ...(a.canGrant ? [{id:'admin',label:'Администрирование'}] : []),
           ...(!a.guest ? [{id:'divider',type:'separator'},{id:'logout',label:'Выйти'}] : [])
         ];
         const commands={
           profile:()=>select('profile'),wallet:()=>select('wallet'),
           login:()=>select('login'),register:()=>select('register'),settings:openSettings,
-          admin:()=>location.assign('/admin'),
+          about:()=>location.assign(publicLinks[0][0]),admin:()=>location.assign('/admin'),
           logout:()=>logout.current.requestSubmit()
         };
         if (a.guest && wide) {
@@ -357,9 +358,8 @@ window.__ModuleLoader__.load({
       ctx.slots.inject('settings.launcher',()=>ctx.slots.register({name:'settings.launcher'},AccountLauncher));
       ctx.slots.inject('sidebar.workspaces.afterList',()=>ctx.slots.register({
         name:'sidebar.workspaces.afterList'
-      },props=>h(React.Fragment,null,
-        !a.guest && h(PluginSidebar,{...props,openCatalog:()=>select('plugins')}),
-        h(SidebarLinks,props))));
+      },props=>a.guest ? h(GuestSidebarLinks,props) :
+        h(PluginSidebar,{...props,openCatalog:()=>select('plugins')})));
       if (!a.guest) {
         ctx.slots.inject('settings.section',()=>ctx.slots.register({
           name:'settings.section',id:'plugins',order:6,label:()=>'Плагины'
