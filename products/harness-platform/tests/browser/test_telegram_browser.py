@@ -29,6 +29,8 @@ class TelegramBrowser(ProductBrowser):
             url.searchParams.set('return_to', next.href);
             const frame = document.createElement('iframe');
             frame.src = url.href;
+            frame.width = 238;
+            frame.height = 40;
             widget.after(frame);
             window.addEventListener('message', e => {
                 if (e.source !== frame.contentWindow || e.origin !== 'https://oauth.telegram.org') return;
@@ -80,6 +82,24 @@ class TelegramBrowser(ProductBrowser):
             await expect(modal).to_have_count(0)
             await expect(page).to_have_url(original)
             blocked=False
+            original_viewport = page.viewport_size
+            await page.emulate_media(color_scheme="dark")
+            await page.set_viewport_size({"width":240,"height":560})
+            await page.get_by_role("button",name="Подключить Telegram",exact=True).click()
+            close = modal.get_by_role("button",name="Закрыть окно Telegram",exact=True)
+            box = await close.bounding_box()
+            self.assertGreaterEqual(box["width"],43.5)
+            self.assertGreaterEqual(box["height"],43.5)
+            widget = modal.locator('iframe[title="Вход через Telegram"]')
+            await expect(widget).to_be_visible()
+            await expect(widget).to_have_css("color-scheme","light only")
+            embedded = widget.content_frame.locator("iframe")
+            fits = await embedded.evaluate("(el) => el.getBoundingClientRect().right <= innerWidth")
+            self.assertTrue(fits)
+            await close.click()
+            await expect(modal).to_have_count(0)
+            await expect(page.get_by_role("combobox",name="Сервис")).to_be_visible()
+            await page.set_viewport_size(original_viewport)
             await page.evaluate("window.octoTelegramChatMarker = true")
             await page.get_by_role("button",name="Подключить Telegram",exact=True).click()
             wrapper = page.frame_locator('iframe[title="Вход через Telegram"]')
