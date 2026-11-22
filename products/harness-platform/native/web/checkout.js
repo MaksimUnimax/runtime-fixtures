@@ -91,7 +91,7 @@
           note.textContent = data.detail || 'Не удалось открыть оплату. Повторите попытку.';
           return;
         }
-        if (data.url) { location.assign(data.url); return; }
+        if (data.url) { save({...draft, awaiting:true}); location.assign(data.url); return; }
         note.textContent = data.status === 'succeeded' ? 'Монеты зачислены.' : 'Платёж отменён.';
         save({});
         confirmed = null;
@@ -112,6 +112,30 @@
     event.preventDefault();
     openCheckout();
   });
+  // Hosted checkout may return before the webhook arrives. Recover the same paid
+  // order by account-bound key; never create a second provider payment on return.
+  async function reconcileOnReturn() {
+    const draft = saved();
+    if (!draft.awaiting || !draft.key || document.body.dataset.mode !== 'member') return;
+    try {
+      const r = await fetch('/api/coins/reconcile', {
+        method:'POST', body:new URLSearchParams({key:draft.key}),
+        credentials:'same-origin', cache:'no-store'
+      });
+      if (!r.ok) return;
+      const state = await r.json();
+      if (state.status === 'succeeded' || state.status === 'canceled') {
+        save({});
+        if (state.status === 'succeeded') {
+          // Reload once so the existing wallet component reads the credited funds.
+          location.reload();
+        }
+      }
+    } catch { /* Keep pending order for a later verified retry. */ }
+  }
+  if (new URLSearchParams(location.search).get('account') === 'wallet') {
+    reconcileOnReturn();
+  }
   if (location.hash === '#buy-coins') {
     openCheckout(new URLSearchParams(location.search).get('coins') || '100');
   } else if (document.body.dataset.mode === 'member' && saved().resume) {
