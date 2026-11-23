@@ -1,0 +1,279 @@
+diff --git a/products/harness-platform/native/web/account.css b/products/harness-platform/native/web/account.css
+index 3c425ce..87d4b83 100644
+--- a/products/harness-platform/native/web/account.css
++++ b/products/harness-platform/native/web/account.css
+@@ -41,7 +41,7 @@ html,body,#root{height:100%;margin:0}
+ .account-dialog [role=alert]{color:#bb3845}
+ @media(prefers-color-scheme:dark){.account-dialog{--fg:#edf0f5;--muted:#acb5c5;--line:#434955;--surface:#24272e;--wash:#2f333d;--action:#5278f6}}
+ @media(max-width:480px){.account-dialog{padding:24px}}
+-.service-settings{max-width:46rem;margin:auto;padding:1rem;color:inherit}.service-settings h2{font-size:1.2rem;margin:0 0 1rem}.service-settings label,.service-settings form,.service-settings small{display:block}.service-settings label{margin:.75rem 0}.service-settings input:not([type=radio]),.service-settings select{width:100%;margin-top:.35rem;padding:.5rem .65rem;border:1px solid #cbd0d8;border-radius:.6rem;background:transparent;color:inherit}.service-settings button:not([role=switch]){padding:.4rem .75rem;border:1px solid #bac5d3;border-radius:.55rem}.service-settings summary{cursor:pointer;padding:.55rem 0}.service-settings .service-model{display:flex;align-items:center;gap:.5rem}.service-connection{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin:.75rem 0}.service-connection>div{flex:1}.service-settings small{opacity:.75}
++.service-settings{max-width:46rem;margin:auto;padding:1rem;color:inherit}.service-settings h2{font-size:1.2rem;margin:0 0 1rem}.service-settings label,.service-settings form,.service-settings small{display:block}.service-settings label{margin:.75rem 0}.service-settings input:not([type=radio]),.service-settings select{width:100%;margin-top:.35rem;padding:.5rem .65rem;border:1px solid #cbd0d8;border-radius:.6rem;background:transparent;color:inherit}.service-settings button:not([role=switch]){padding:.4rem .75rem;border:1px solid #bac5d3;border-radius:.55rem}.service-settings summary{cursor:pointer;padding:.55rem 0}.service-settings .service-model{display:flex;align-items:center;gap:.5rem}.service-settings small{opacity:.75}
+ 
+ /* This deployment has no companion right panel. */
+ [data-sidebar-right-expand]{display:none!important}
+@@ -292,6 +292,26 @@ body[data-ds-dark-theme] .octo-installed-plugins li[data-active="true"] { --plug
+ .chat-illustration { display:grid; gap:6px; width:fit-content; max-width:100%; margin:8px 0; }
+ .chat-illustration img { display:block; width:auto; height:auto; max-width:100%; max-height:360px; border-radius:8px; }
+ 
++.service-connection {
++  box-sizing:border-box;
++  display:grid;
++  gap:10px;
++  min-width:0;
++  margin-block:10px;
++  padding:12px 14px;
++  border:1px solid var(--dsw-alias-border-l4,var(--octo-line));
++  border-radius:12px;
++  background:var(--dsw-alias-bg-layer-1,var(--octo-panel));
++}
++.service-connection-header,.service-connection-actions {
++  display:flex;
++  flex-wrap:wrap;
++  align-items:center;
++  gap:6px 8px;
++}
++.service-connection-header { justify-content:space-between; }
++.service-connection-header > div { min-width:0; overflow-wrap:anywhere; }
++.service-connection-actions > button { max-width:100%; white-space:normal; }
+ .service-settings label.service-chat-grant { display:flex; align-items:center; gap:.5rem; margin:0; }
+ 
+ .telegram-dialog {
+diff --git a/products/harness-platform/native/web/connections.js b/products/harness-platform/native/web/connections.js
+index 8a218f0..178a8aa 100644
+--- a/products/harness-platform/native/web/connections.js
++++ b/products/harness-platform/native/web/connections.js
+@@ -145,30 +145,34 @@ window.__ModuleLoader__.load({
+         const select=value=>{setEditing(null);setProvider(value);setFields({});setName('');setMsg('');};
+         return h('section',{'data-private-connection':true,className:'service-settings'},
+           h('h2',null,'Интеграции'),
+-          list?.telegram?.hasBinding&&h('div',{className:'service-connection'},
+-            h('div',null,h('strong',null,'Telegram'),h('small',null,list.telegram.linked?'Подключён к аккаунту':'Требуется повторное подключение')),
+-            h('button',{type:'button',disabled:busy,onClick:()=>act(async()=>{
+-              await post('/api/integrations/telegram/disconnect',{});
+-              await refresh();setMsg('Telegram отключён для всех плагинов аккаунта.');
+-            })},'Отключить Telegram для всех плагинов')),
+-          list?.connections.map(c=>h('div',{key:c.id,className:'service-connection'},
+-            h('div',null,h('strong',null,c.name),h('small',null,list.providers[c.provider].title+' · '+status[c.status])),
+-            h('button',{disabled:busy,onClick:()=>act(async()=>{
+-              const r=await post('/api/integrations/'+c.id+'/check',{});await refresh();
+-              setMsg(Object.entries(r.checks).map(([k,v])=>k+' · '+status[v]).join(' / '));
+-            })},'Проверить'),
+-            h('button',{type:'button',disabled:busy,'aria-label':'Изменить ключи · '+c.name,onClick:()=>{
+-              select(c.provider);setName(c.name);setEditing(c);
+-            }},'Изменить ключи'),
+-            h('button',{type:'button',disabled:busy,'aria-label':'Удалить подключение · '+c.name,
+-              onClick:()=>{setMsg('');setRemoving(c);}},'Удалить подключение'),
+-            grantsUrl&&h('label',{className:'service-chat-grant'},'Доступ в этом диалоге',
+-              h(Switch,{label:'Доступ в этом диалоге · '+c.name,checked:list.attached.has(c.id),disabled:busy,
+-                onChange:enabled=>act(async()=>{
+-                  await post(grantsUrl,{connectionId:c.id,enabled});
+-                  window.dispatchEvent(new Event('harness:grants'));await refresh();
+-                })})),
+-            c.provider==='wordstat' && h('button',{onClick:()=>{setTarget(c.id);setRows([]);}},'Собрать семантику'))),
++          list?.telegram?.hasBinding&&h('section',{className:'service-connection','aria-label':'Telegram'},
++            h('div',{className:'service-connection-header'},
++              h('div',null,h('strong',null,'Telegram'),h('small',null,list.telegram.linked?'Подключён к аккаунту':'Требуется повторное подключение'))),
++            h('div',{className:'service-connection-actions'},
++              h('button',{type:'button',disabled:busy,onClick:()=>act(async()=>{
++                await post('/api/integrations/telegram/disconnect',{});
++                await refresh();setMsg('Telegram отключён для всех плагинов аккаунта.');
++              })},'Отключить Telegram для всех плагинов'))),
++          list?.connections.map(c=>h('section',{key:c.id,className:'service-connection','aria-label':c.name+' · '+list.providers[c.provider].title},
++            h('div',{className:'service-connection-header'},
++              h('div',null,h('strong',null,c.name),h('small',null,list.providers[c.provider].title+' · '+status[c.status])),
++              grantsUrl&&h('label',{className:'service-chat-grant'},'Доступ в этом диалоге',
++                h(Switch,{label:'Доступ в этом диалоге · '+c.name,checked:list.attached.has(c.id),disabled:busy,
++                  onChange:enabled=>act(async()=>{
++                    await post(grantsUrl,{connectionId:c.id,enabled});
++                    window.dispatchEvent(new Event('harness:grants'));await refresh();
++                  })}))),
++            h('div',{className:'service-connection-actions'},
++              h('button',{disabled:busy,onClick:()=>act(async()=>{
++                const r=await post('/api/integrations/'+c.id+'/check',{});await refresh();
++                setMsg(Object.entries(r.checks).map(([k,v])=>k+' · '+status[v]).join(' / '));
++              })},'Проверить'),
++              h('button',{type:'button',disabled:busy,'aria-label':'Изменить ключи · '+c.name,onClick:()=>{
++                select(c.provider);setName(c.name);setEditing(c);
++              }},'Изменить ключи'),
++              h('button',{type:'button',disabled:busy,'aria-label':'Удалить подключение · '+c.name,
++                onClick:()=>{setMsg('');setRemoving(c);}},'Удалить подключение'),
++              c.provider==='wordstat' && h('button',{onClick:()=>{setTarget(c.id);setRows([]);}},'Собрать семантику')))),
+           removing&&h(RemoveConnection,{connection:removing,busy,onCancel:()=>setRemoving(null),onRemove:()=>act(async()=>{
+             const {id,version,name}=removing;
+             try {
+diff --git a/products/harness-platform/platform_core/public_faq.json b/products/harness-platform/platform_core/public_faq.json
+index 829bc41..158ed7b 100644
+--- a/products/harness-platform/platform_core/public_faq.json
++++ b/products/harness-platform/platform_core/public_faq.json
+@@ -4,7 +4,7 @@
+     "patterns": []
+   },
+   "features": {
+-    "answer": "Меня зовут Октопус, я создан для того чтобы взять на себя всю рутинную работу по ведению маркетплейсов вб и озон.",
++    "answer": "Меня зовут Октопус, я создан для того чтобы взять на себя всю рутинную работу по ведению маркетплейсов Wildberries и Ozon.",
+     "patterns": [
+       "что (?:ты |вы )?(?:умеешь|умеете|можешь|можете)(?: делать)?",
+       "что (?:может|умеет|делает) (?:ваш |этот )?(?:сервис|помощник|бот)",
+@@ -22,7 +22,7 @@
+       "почему стоит (?:выбрать ваш сервис|зарегистрироваться)",
+       "что входит в сервис"
+     ],
+-    "previous_answers": ["Сервис создан для продавцов Ozon и Wildberries. В личном кабинете вы можете задавать вопросы о магазине в одном чате и возвращаться к сохранённым ответам. Список доступных функций зависит от подключений. Чтобы начать, нажмите «Создать аккаунт».", "Сервис создан для продавцов Ozon и Wildberries. В чате можно задавать вопросы о магазине и возвращаться к сохранённым ответам. Доступные функции зависят от подключений. Чтобы начать, нажмите «Создать аккаунт».", "Меня зовут Октопус. Я беру на себя рутинную работу с магазинами на Wildberries и Ozon, чтобы у вас оставалось время решать, что продавать и куда вкладывать деньги."]
++    "previous_answers": ["Сервис создан для продавцов Ozon и Wildberries. В личном кабинете вы можете задавать вопросы о магазине в одном чате и возвращаться к сохранённым ответам. Список доступных функций зависит от подключений. Чтобы начать, нажмите «Создать аккаунт».", "Сервис создан для продавцов Ozon и Wildberries. В чате можно задавать вопросы о магазине и возвращаться к сохранённым ответам. Доступные функции зависят от подключений. Чтобы начать, нажмите «Создать аккаунт».", "Меня зовут Октопус. Я беру на себя рутинную работу с магазинами на Wildberries и Ozon, чтобы у вас оставалось время решать, что продавать и куда вкладывать деньги.", "Меня зовут Октопус, я создан для того чтобы взять на себя всю рутинную работу по ведению маркетплейсов вб и озон."]
+   },
+   "signup": {
+     "answer": "Нажмите «Создать аккаунт», введите логин и пароль и подтвердите регистрацию. Страница останется открытой, а на балансе нового аккаунта появятся 10 монет.",
+diff --git a/products/harness-platform/platform_core/public_faq.py b/products/harness-platform/platform_core/public_faq.py
+index 91b7c46..e3c14f0 100644
+--- a/products/harness-platform/platform_core/public_faq.py
++++ b/products/harness-platform/platform_core/public_faq.py
+@@ -67,10 +67,10 @@ class PublicFAQ:
+ 
+ 
+ def _overview(intro, cards):
+-    items = [card["purpose"] for card in cards if card["group"] == "Плагины"]
++    items = [card.get("overview") or card["purpose"] for card in cards if card["group"] == "Плагины"]
+     if not items:
+         return intro + "\n\nСейчас список возможностей обновляется. Могу рассказать, как открыть аккаунт и сколько стоит работа в сервисе."
+-    return (intro + "\n\nВот что вы можете мне поручить.\n\n" + "\n\n".join("• " + item for item in items) +
++    return (intro + "\n\nВот что я могу:\n\n" + "\n\n".join("• " + item for item in items) +
+             "\n\nС чего начнём? Могу подробнее рассказать о любой из этих задач.")
+ 
+ 
+diff --git a/products/harness-platform/platform_core/user_plugins/publication.py b/products/harness-platform/platform_core/user_plugins/publication.py
+index 523acf4..96caa4a 100644
+--- a/products/harness-platform/platform_core/user_plugins/publication.py
++++ b/products/harness-platform/platform_core/user_plugins/publication.py
+@@ -20,7 +20,8 @@ def synchronize(db, cards):
+     db.executemany("""INSERT INTO guest_plugin_help VALUES(?,?,?,?)
+         ON CONFLICT(id) DO UPDATE SET position=excluded.position, detail=excluded.detail, topics=excluded.topics
+         WHERE position<>excluded.position OR detail<>excluded.detail OR topics<>excluded.topics""",
+-        [("plugin/" + p.id, i, p.guest.detail, json.dumps({"topics": p.guest.topics, "qualifiers": p.guest.qualifiers}, ensure_ascii=False))
++        [("plugin/" + p.id, i, p.guest.detail, json.dumps(
++            {"topics": p.guest.topics, "qualifiers": p.guest.qualifiers, "overview": p.guest.overview}, ensure_ascii=False))
+          for i, p in enumerate(CATALOG.values())])
+ 
+ 
+diff --git a/products/harness-platform/platform_core/user_plugins/registry.py b/products/harness-platform/platform_core/user_plugins/registry.py
+index 5c64803..c25bef8 100644
+--- a/products/harness-platform/platform_core/user_plugins/registry.py
++++ b/products/harness-platform/platform_core/user_plugins/registry.py
+@@ -11,6 +11,7 @@ class GuestHelp:
+     detail: str
+     topics: tuple[tuple[str, ...], ...]
+     qualifiers: tuple[tuple[str, ...], ...] = ()
++    overview: str = ""
+ 
+ 
+ @dataclass(frozen=True)
+@@ -60,7 +61,8 @@ WB = Plugin("wildberries", "analytics", "Вайлдберис",
+                 "Покажу, что заказали и выкупили, что вернули и на каких складах осталось мало товара. "
+                 "Выберите период или артикул — сравню продажи с прошлым периодом и покажу, где изменился спрос. "
+                 "В отчёте по Wildberries можно разобрать комиссию и доставку отдельно и увидеть, как возвраты влияют на выручку.",
+-                (("остат",), ("склад",), ("продаж",), ("выкуп",), ("возврат",), ("wildberries",), ("вб",))), glossary=(AD_COST_SHARE,))
++                (("остат",), ("склад",), ("продаж",), ("выкуп",), ("возврат",), ("wildberries",), ("вб",)),
++                overview="Следить за продажами и выкупами на Wildberries, находить склады с низкими остатками и оценивать потери на возвратах."), glossary=(AD_COST_SHARE,))
+ OZON = Plugin("ozon", "analytics", "Озон",
+               "Рассчитать юнит-экономику товара на Ozon и показать, сколько остаётся с продажи после рекламы, комиссии, доставки и ваших расходов.", "ozon",
+               (("Продажи и остатки", "ozon", "Ozon Seller"),
+@@ -69,11 +71,13 @@ OZON = Plugin("ozon", "analytics", "Озон",
+                   "Разберу продажи и расходы на Ozon по товарам. Для юнит-экономики возьму цену продажи, комиссию площадки, "
+                   "логистику, возвраты и рекламу. Себестоимость, налоги и расходы, которых нет в отчёте площадки, вы укажете сами. "
+                   "Покажу, сколько остаётся с одной продажи и какая статья расходов сильнее всего влияет на прибыль.",
+-                  (("юнит",), ("экономик",), ("себестоим",), ("прибыл",), ("расход",), ("комисси",), ("ozon",), ("озон",))), glossary=(AD_COST_SHARE,))
++                  (("юнит",), ("экономик",), ("себестоим",), ("прибыл",), ("расход",), ("комисси",), ("ozon",), ("озон",)),
++                  overview="Ежедневно рассчитывать юнит-экономику, учитывая все расходы."), glossary=(AD_COST_SHARE,))
+ ILLUSTRATIONS = Plugin("illustrations","graphics","Иллюстрации","Подготовить изображение для карточки товара по вашему описанию.","images", (("Создать изображение", "", ""),), "картинка рисунок нарисуй фото",
+     guest=GuestHelp("Опишите товар, фон и то, что покупатель должен заметить первым. Я подготовлю изображение "
+                     "и прикреплю его в чат. Здесь же вы сможете попросить другой ракурс, цвет или композицию.",
+-                    (("изображ",), ("иллюстра",), ("картин",), ("фото",), ("рису",))))
++                    (("изображ",), ("иллюстра",), ("картин",), ("фото",), ("рису",)),
++                    overview="Готовить изображения для карточек товаров по вашему описанию."))
+ TELEGRAM = Plugin("telegram-reports", "documents", "Отчёты в Telegram",
+                   "Присылать готовые отчёты в Telegram, чтобы цифры по магазину были под рукой.", "telegram", (("Доставить отчёт", "telegram", "Telegram"),), "телега телегу тг прислать отправить доставка мессенджер уведомляй",
+                   ("Включите плагин в нужном чате, откройте «Отчёты в Telegram» и нажмите «Получать новые отчёты этого чата».",),
+@@ -92,7 +96,8 @@ TIMER = Plugin(
+         "После вашего подтверждения начну проверки по расписанию и буду оставлять итог в чате.",
+         (("след", "реклам"), ("отслеж", "реклам"), ("провер", "реклам"), ("след",), ("отслеж",), ("монитор",), ("реклам",), ("порог",), ("лимит",),
+          ("автомат",), ("согласован", "измен"), ("таймер",)),
+-        qualifiers=(("кажд", "день"), ("ежеднев",), ("расписан",))),
++        qualifiers=(("кажд", "день"), ("ежеднев",), ("расписан",)),
++        overview="Следить за рекламой, продажами, складами, остатками и выполнять согласованные действия, когда показатель выходит за согласованный порог."),
+     operations=(("Запланировать отчёт в чат", "", ""),
+                 ("Запланировать отчёт в Telegram", "telegram", "Telegram"),
+                 ("Выполнить действие по условию и расписанию", "", "")),
+diff --git a/products/harness-platform/tests/browser/test_account_browser.py b/products/harness-platform/tests/browser/test_account_browser.py
+index 01e7ba6..07e1efe 100644
+--- a/products/harness-platform/tests/browser/test_account_browser.py
++++ b/products/harness-platform/tests/browser/test_account_browser.py
+@@ -991,7 +991,7 @@ class BrowserIsolation(ProductBrowser):
+             await expect(replies).to_have_count(count)
+             await expect(replies.last).to_contain_text("Меня зовут Октопус")
+             return replies.last
+-        description = "Каждый день проверять рекламу"
++        description = "Следить за рекламой, продажами, складами, остатками"
+         await expect(await ask("Что ты умеешь?", 1)).to_contain_text(description)
+         await admin.get_by_role("button", name="Убрать из каталога — Таймер").click()
+         await expect(admin.locator("#catalog-status")).to_contain_text("снят")
+diff --git a/products/harness-platform/tests/test_octopus_knowledge.py b/products/harness-platform/tests/test_octopus_knowledge.py
+index bb44627..95f5b43 100644
+--- a/products/harness-platform/tests/test_octopus_knowledge.py
++++ b/products/harness-platform/tests/test_octopus_knowledge.py
+@@ -39,13 +39,13 @@ class PublishedKnowledge(unittest.TestCase):
+                 self.assertEqual(len(cards),11)
+                 found=next(c for c in cards if c["id"]=="plugin/fixture-timer")
+                 self.assertEqual(found["operations"][0]["requires"],"integration/qa-source")
+-                self.assertIn(CATALOG["timer"].description,answer("Какие есть плагины?"))
++                self.assertIn(CATALOG["timer"].guest.overview,answer("Какие есть плагины?"))
+                 CATALOG[timer.id]=replace(timer,title="Новый таймер",setup=("Включите расписание.",))
+                 start_release()
+                 self.assertIn(timer.guest.detail,answer("Как подключить новый таймер?"))
+             start_release()
+             self.assertNotIn(timer.description,answer("Какие есть плагины?"))
+-            self.assertIn(CATALOG["timer"].description,answer("Какие есть плагины?"))
++            self.assertIn(CATALOG["timer"].guest.overview,answer("Какие есть плагины?"))
+             self.assertEqual(len(knowledge.published()),9)
+ 
+     def test_account_preferences_and_cross_chat(self):
+diff --git a/products/harness-platform/tests/test_plugin_publication.py b/products/harness-platform/tests/test_plugin_publication.py
+index df374a6..c6325f4 100644
+--- a/products/harness-platform/tests/test_plugin_publication.py
++++ b/products/harness-platform/tests/test_plugin_publication.py
+@@ -51,8 +51,12 @@ class PluginPublication(TestCase):
+         for index, text in enumerate(("Что ты умеешь?", "Какие есть плагины?")):
+             answer = ask(index, text)
+             self.assertEqual(answer.count("• "), len(CATALOG))
++            self.assertIn("Вот что я могу:", answer)
++            self.assertIn("• Следить за продажами и выкупами на Wildberries", answer)
++            self.assertIn("• Ежедневно рассчитывать юнит-экономику, учитывая все расходы.", answer)
++            self.assertIn("• Следить за рекламой, продажами, складами, остатками", answer)
+             for item in CATALOG.values():
+-                self.assertIn(item.description, answer)
++                self.assertIn(item.guest.overview or item.description, answer)
+                 self.assertNotIn(item.title + " —", answer)
+                 self.assertNotIn(item.guest.detail, answer)
+             self.assertNotIn("плагин", answer.lower())
+@@ -69,6 +73,8 @@ class PluginPublication(TestCase):
+         for item in CATALOG.values():
+             self.assertIn(item.description, member)
+             self.assertNotIn(item.guest.detail, member + settings)
++            if item.guest.overview:
++                self.assertNotIn(item.guest.overview, member + settings)
+         self.assertNotIn(CATALOG["ozon"].description, ask(3, "Что делает плагин Таймер?"))
+         self.assertIn("Telegram", ask(4, "Какие есть интеграции?"))
+         self.assertEqual(install(admin, "ozon").status_code, 200)
+@@ -79,7 +85,7 @@ class PluginPublication(TestCase):
+         self.assertNotIn("ozon", visible())
+         self.assertNotIn("plugin/ozon", knowledge())
+         self.assertIn("integration/ozon", knowledge())
+-        self.assertNotIn(CATALOG["ozon"].description, ask(5, "Что ты умеешь?"))
++        self.assertNotIn(CATALOG["ozon"].guest.overview, ask(5, "Что ты умеешь?"))
+         self.assertEqual(install(normal, "ozon").status_code, 409)
+         with store._write() as db:
+             db.execute("INSERT INTO account_integrations VALUES(?,?,?,?,?,?,?)",
+@@ -97,4 +103,4 @@ class PluginPublication(TestCase):
+         self.assertEqual(visible(), {"ozon"})
+         self.assertIn("plugin/ozon", knowledge())
+         self.assertEqual(install(normal, "ozon").status_code, 200)
+-        self.assertIn(CATALOG["ozon"].description, ask(7, "Какие есть плагины?"))
++        self.assertIn(CATALOG["ozon"].guest.overview, ask(7, "Какие есть плагины?"))
