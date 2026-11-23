@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 import tempfile
 import unittest
+from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -196,6 +197,7 @@ class ServicePlugins(unittest.TestCase):
             wire="".join("data: "+json.dumps({"id":"gen-test",**packet})+"\n\n" for packet in packets)+"data: [DONE]\n\n"
             return httpx.Response(200,headers={"Content-Type":"text/event-stream"},content=wire)
         with self.client() as client:
+            initial_balance = Decimal(client.get("/api/wallet", headers=self.headers).json()["available"])
             client.post("/api/integrations",headers=self.headers,json={"provider":"ozon","name":"Мой магазин",
                 "fields":{"client_id":"test-client","api_key":"private-fixture-value"},"chatId":self.chat}).raise_for_status()
             router=client.app.state.model_router
@@ -232,7 +234,8 @@ class ServicePlugins(unittest.TestCase):
             self.assertIsNone(client.app.state.worker.router)
             self.assertFalse(client.get(settings,headers=self.headers).json()["enabled"])
             self.assertEqual(client.get("/api/chats/"+self.chat+"/messages",headers=self.headers).json()[-1]["modelUsage"],result["modelUsage"])
-            self.assertEqual(client.get("/api/wallet",headers=self.headers).json()["available"],"49.9992")
+            balance = Decimal(client.get("/api/wallet", headers=self.headers).json()["available"])
+            self.assertEqual(initial_balance - balance, Decimal("0.0008"))
             direct_reply=client.post(route,headers=self.headers,json={"requestId":"direct-after-disable","text":"direct again"})
             self.assertEqual(direct_reply.status_code,200,direct_reply.text)
             self.assertEqual(direct_reply.json()["text"],"answer to direct again")

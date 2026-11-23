@@ -209,7 +209,55 @@
           ['unknown','rejected'].includes(data.status)&&h(Action,{disabled:busy,onClick:()=>act('resume')},'Продолжить со следующего отчёта'),
           data.subscribed&&h(Action,{disabled:busy,onClick:()=>act('pause')},'Остановить доставку из этого чата')));
     }
-    const panels={wb:Marketplace,ozon:Marketplace,images:Illustrations,telegram:TelegramReports};
+    function Timers({url,title,close}) {
+      const [events,setEvents]=React.useState([]),[cursor,setCursor]=React.useState(null);
+      const [form,setForm]=React.useState(null),[text,setText]=React.useState('');
+      const [error,setError]=React.useState(''),[busy,setBusy]=React.useState(false),[history,setHistory]=React.useState(null);
+      const chat=decodeURIComponent(url.split('/')[3]);
+      async function load(after) {
+        const page=await api(url+(after?'?before='+after:''));
+        setEvents(old=>after?[...old,...page.events]:page.events);setCursor(page.nextCursor);
+      }
+      React.useEffect(()=>{load().catch(e=>setError(e.message));},[url]);
+      async function act(fn) {
+        setBusy(true);setError('');
+        try { await fn(); } catch(e) {setError(e.message);} finally {setBusy(false);}
+      }
+      function start(kind,eventId) {setForm({kind,eventId});setText('');setHistory(null);}
+      const button=(label,fn,disabled=false)=>h(Action,{disabled:disabled||busy,onClick:fn},label);
+      const labels={active:'Активен',paused:'На паузе',completed:'Завершён'};
+      return h(Dialog,{label:title,close},
+        error&&h('p',{role:'alert'},error),
+        form?h('form',{onSubmit:e=>{e.preventDefault();if(!text.trim())return;
+          act(async()=>{const sent=window.harnessAccount.timerPrompt(chat,text.trim(),form);close();await sent;})
+        }},h('label',null,form.eventId?'Что изменить?':'Что и когда должен сделать Октопус?',
+          h('textarea',{autoFocus:true,value:text,required:true,onChange:e=>setText(e.target.value)})),
+          h('div',{className:'plugin-buttons'},h(Button,{type:'submit',disabled:busy||!text.trim()},'Протестировать'),
+            button('Назад',()=>setForm(null)))):h(React.Fragment,null,
+          h('div',{className:'plugin-buttons'},button('Создать отчёт',()=>start('report')),
+            button('Создать действие',()=>start('action'))),
+          events.length===0&&h('p',null,'В этом чате пока нет таймеров.'),
+          events.map(e=>h('section',{key:e.id,className:'octo-plugin-row'},
+            h('div',null,h('strong',null,e.instructions[0]),h('p',null,labels[e.status],
+              e.nextAt?' · '+new Date(e.nextAt).toLocaleString('ru-RU',{timeZone:e.schedule.zone})+' · '+e.schedule.zone:''),
+              h('div',{className:'plugin-buttons'},button('Редактировать',()=>start(e.kind,e.id)),
+                e.status!=='completed'&&button(e.status==='paused'?'Возобновить':'На паузу',()=>act(async()=>{
+                  await send(url+'/events/'+e.id+(e.status==='paused'?'/resume':'/pause'),{});await load();})),
+                button('История',()=>act(async()=>setHistory((await api(url+'/events/'+e.id+'/history')).runs))),
+                button('Удалить',()=>act(async()=>{await send(url+'/events/'+e.id+'/delete',{});await load();})))))),
+          cursor&&button('Показать ещё',()=>act(()=>load(cursor))),
+          history&&h('section',null,h('h3',null,'История запусков'),!history.length&&h('p',null,'Запусков пока нет.'),
+            history.map(r=>h('section',{key:r.due},
+              h('p',null,'По расписанию — '+moment(r.due)+(r.started?' · Начало — '+moment(r.started):'')),
+              h('p',null,r.message||'В очереди'),
+              r.chat&&h('p',null,'Чат — '+delivery(r.chat)+(r.telegram!=='off'?' · Telegram — '+delivery(r.telegram):'')))))));
+      function moment(us) {return new Date(us/1000).toLocaleString('ru-RU');}
+      function delivery(state) {
+        return ({pending:'ожидает отправки',sending:'отправляется',sent:'доставлено',off:'выключено',
+          unknown:'исход неизвестен',rejected:'доставка отклонена',disconnected:'аккаунт отвязан',blocked:'бот заблокирован'})[state]||state;
+      }
+    }
+    const panels={timer:Timers,wb:Marketplace,ozon:Marketplace,images:Illustrations,telegram:TelegramReports};
     function useCatalog(url) {
       const [data,setData]=React.useState(null),[error,setError]=React.useState(''),[busy,setBusy]=React.useState(false);
       React.useEffect(()=>{
@@ -276,6 +324,11 @@
       const [panel,setPanel]=React.useState(''),[actions,setActions]=React.useState(''),[remove,setRemove]=React.useState(null);
       const catalogButton=React.useRef(null);
       const installed=(data?.plugins||[]).filter(p=>p.installed);
+      React.useEffect(()=>{
+        if(!chat || !window.harnessAccount.timerChats)return;
+        if(installed.some(p=>p.id==='timer'&&p.enabled)) window.harnessAccount.timerChats.add(chat);
+        else window.harnessAccount.timerChats.delete(chat);
+      },[chat,data]);
       const plugin=installed.find(p=>p.id===panel&&p.enabled);
       function installedRow(p) {
         const Icon=p.provider==='wb'?IconDataOutlineMedium:IconPersonalizationOutlineMedium;

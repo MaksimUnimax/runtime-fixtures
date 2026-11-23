@@ -20,8 +20,11 @@ OZON = Plugin("ozon", "analytics", "Озон",
 ILLUSTRATIONS = Plugin("illustrations","graphics","Иллюстрации","Создаёт изображения по описанию и прикрепляет их к сообщению.","images")
 TELEGRAM = Plugin("telegram-reports", "documents", "Отчёты в Telegram",
                   "Личная доставка готовых отчётов этого чата в ваш Telegram.", "telegram")
-CATALOG = {plugin.id: plugin for plugin in (WB, OZON, ILLUSTRATIONS, TELEGRAM)}
+TIMER = Plugin("timer", "automation", "Таймер",
+               "Отчёты и действия Октопуса по вашему расписанию.", "timer")
+CATALOG = {plugin.id: plugin for plugin in (WB, OZON, ILLUSTRATIONS, TELEGRAM, TIMER)}
 CATEGORIES = (
+    {"id": "automation", "title": "Автоматизация", "parent": None},
     {"id": "analytics", "title": "Аналитика", "parent": None},
     {"id": "advertising", "title": "Реклама", "parent": None},
     {"id": "graphics", "title": "Графика", "parent": None},
@@ -46,6 +49,16 @@ SCHEMA = (
        workspace TEXT NOT NULL REFERENCES workspaces(workspace_id) ON DELETE CASCADE,
        plugin TEXT NOT NULL, model TEXT NOT NULL, effort TEXT NOT NULL, PRIMARY KEY(workspace,plugin))""",
 )
+
+
+def requires_edit_confirmation(db, workspace, chat, plugin):
+    from .timer.authorization import authorized_occurrence
+    if authorized_occurrence(db,workspace,chat,plugin):
+        return False
+    if not db.execute("SELECT 1 FROM sqlite_schema WHERE name='marketplace_direct_edits'").fetchone():
+        return True
+    return db.execute("""SELECT 1 FROM marketplace_direct_edits
+        WHERE workspace_id=? AND chat_id=? AND plugin_id=?""", (workspace, chat, plugin)).fetchone() is None
 
 
 def attached(db, scope, plugin):
@@ -86,6 +99,8 @@ def connect_store(db,scope,cid):
 def install(db):
     from ..storage import Scope
     from .illustrations import SCHEMA as image_schema
+    from .timer.store import initialize as initialize_timers
+    initialize_timers(db)
     db.execute(image_schema)
     db.execute("""CREATE TABLE IF NOT EXISTS plugin_action_models(workspace TEXT NOT NULL REFERENCES workspaces ON DELETE CASCADE,
         plugin TEXT NOT NULL, action TEXT NOT NULL, model TEXT NOT NULL, effort TEXT NOT NULL, free INTEGER NOT NULL,

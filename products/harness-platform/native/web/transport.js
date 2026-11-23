@@ -139,6 +139,18 @@ export async function createTransport(data, initialHistory) {
   };
   const account = {guest, login:flags.login, selected, hasChat:id=>ids.includes(id), panel:data.panel, error:data.error, recovery:data.recovery,
     balanceEvents:new EventTarget(), canGrant:flags.canGrant, modelChoice:flags.modelChoice, api, changes, live, activityEvents, costs:new Map(), illustrations:new Map(),savedIllustrations:new Map()};
+  account.timerChats = new Set();
+  account.timerPrompt = async (sessionId,text,timer) => {
+    const requestId=crypto.randomUUID();
+    try {
+      const response=await call('/api','session/prompt',{args:{sessionId,requestId,
+        content:[{type:'text',text}],timer}},new AbortController().signal);
+      if (!response.ok) throw new Error(response.error?.message||'Не удалось отправить поручение в чат.');
+    } catch (error) {
+      if (!live.views.has(sessionId)) live.update(sessionId,{rid:requestId,stage:'failed',text:error.message,prompt:text});
+      throw error;
+    }
+  };
   function recordActivity(id, at) {
     if (!ids.includes(id) || !Number.isSafeInteger(at) || at <= (updated.get(id) ?? 0)) return;
     updated.set(id, at);
@@ -279,7 +291,7 @@ export async function createTransport(data, initialHistory) {
           const attachments=p.content.filter(part=>part.type==='file').map(part=>part.receiptId);
           if (attachments.length && attachments.some(id=>typeof id!=='string')) throw new Error('Выберите файл заново.');
           if (!attachments.length && await privatePrompt(text,guest,api,id)){ value={accepted:true}; break; }
-          const inputKey = JSON.stringify([text,attachments]);
+          const inputKey = JSON.stringify([text,attachments,p.timer]);
           let turn = pending.get(id);
           if (!turn || turn.inputKey !== inputKey) {
             turn = {inputKey, requestId:p.requestId};
@@ -299,7 +311,7 @@ export async function createTransport(data, initialHistory) {
             try {
               await api(url,guest ? {method:'POST',signal,headers:{Accept:'application/json'},
                   body:new URLSearchParams({text,request_id:turn.requestId})} :
-                {method:'POST',headers:{'Content-Type':'application/json',Accept:'application/x-ndjson'},body:JSON.stringify({requestId:turn.requestId,text,...attachments.length ? {attachments} : {}})});
+                {method:'POST',headers:{'Content-Type':'application/json',Accept:'application/x-ndjson'},body:JSON.stringify({requestId:turn.requestId,text,timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone,...(p.timer ? {timer:p.timer} : {}),...attachments.length ? {attachments} : {}})});
               nonempty.add(id);
               if(!guest){
                 const view=live.views.get(id);
@@ -369,7 +381,16 @@ export async function createTransport(data, initialHistory) {
       if(live.views.get(id)?.committed)live.clear(id,live.views.get(id).rid);
       yield {type:'snapshot',header:{version:3,id,createdAt:0,cwd:'/personal',isSeeded:false},
         cursor:seq,...window,projections:projection(id,seq),assistantStream:{revision:0}};
-      while(!signal.aborted) {
+      let delivered = -1, checking = false;
+      const poll = guest ? null : setInterval(async () => {
+        if (checking || document.hidden || !account.timerChats.has(id)) return;
+        checking = true;
+        try {
+          const update = await api('/api/chats/'+encodeURIComponent(id)+'/plugins/timer/delivery',{signal});
+          if (update.revision !== delivered) { delivered=update.revision; changes.notify(); }
+        } catch {} finally { checking=false; }
+      },4000);
+      try { while(!signal.aborted) {
         await next; if(signal.aborted || !ids.includes(id)) return; next=changes.next(signal);
         window=await page(id,null,signal);
         while(window.hasMore && window.records[0].event.seq>seq+1){
@@ -381,6 +402,7 @@ export async function createTransport(data, initialHistory) {
           live.clear(id,committed.rid);
         for(const record of window.records) if(record.event.seq>seq){seq=record.event.seq;yield record;}
       }
+      } finally { if(poll !== null) clearInterval(poll); }
       return;
     }
     if(endpoint==='$events') yield {type:'ready',clientId:crypto.randomUUID(),host:{home:'/personal'}};
