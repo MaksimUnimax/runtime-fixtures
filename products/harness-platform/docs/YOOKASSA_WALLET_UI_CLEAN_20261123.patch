@@ -1,0 +1,164 @@
+--- a/products/harness-platform/native/web/checkout.js
++++ b/products/harness-platform/native/web/checkout.js
+@@ -72,19 +72,18 @@
+     box.innerHTML = '<header><div class="octo-checkout-heading"><h2 id="checkout-heading">Пополнить баланс</h2><p>Монеты для работы с Octoport</p></div><button type="button" aria-label="Закрыть окно">×</button></header>'
+       + '<form><label>Количество монет<input name="coins" type="number" min="1" max="8000000" step="1" inputmode="numeric" required></label>'
+       + '<p class="octo-checkout-total"><span>К оплате</span><output aria-live="polite">—</output></p>'
+-      + '<button class="octo-checkout-pay" type="submit" disabled>Продолжить к оплате</button><p role="status"></p><p class="octo-checkout-safe">Безопасная оплата через ЮKassa</p></form>';
++      + '<button class="octo-checkout-pay" type="submit" disabled>Перейти к оплате</button><p role="status"></p></form>';
+     const panel = document.createElement('section');
+     panel.className = 'octo-checkout-widget-panel';
+     panel.hidden = true;
+     panel.innerHTML = '<div class="octo-checkout-summary">'
+-      + '<span>Безопасная оплата через ЮKassa</span><strong></strong></div>'
++      + '<span>К оплате</span><strong></strong></div>'
+       + '<div class="octo-checkout-provider" role="region" aria-label="Платёжная форма ЮKassa"></div>'
+       + '<p class="octo-checkout-widget-note" role="status"></p>'
+       + '<div class="octo-checkout-widget-actions">'
+       + '<button type="button" data-widget-back>Назад</button>'
+       + '<button type="button" data-widget-retry hidden>Повторить загрузку</button>'
+-      + '<button type="button" data-widget-check>Проверить оплату</button></div>'
+-      + '<p class="octo-checkout-widget-foot">Платёжные реквизиты обрабатывает ЮKassa. Octoport получает только подтверждённый результат.</p>';
++      + '<button type="button" data-widget-check>Проверить оплату</button></div>';
+     box.append(panel);
+     document.body.append(box);
+     const form = box.querySelector('form'), input = form.elements.coins;
+@@ -185,7 +184,7 @@
+       if (!draft.key || checking) return;
+       checking = true;
+       checkButton.disabled = true;
+-      widgetNote.textContent = 'Проверяем результат оплаты…';
++      widgetNote.textContent = 'Проверяем оплату…';
+       try {
+         const r = await fetch('/api/coins/reconcile', {
+           method:'POST', body:new URLSearchParams({key:draft.key}),
+@@ -210,13 +209,13 @@
+           widgetNote.textContent = 'Платёж отменён или возвращён. Повторного списания нет.';
+           checkButton.hidden = true;
+         } else {
+-          widgetNote.textContent = 'Ожидаем подтверждение ЮKassa. Можно проверить ещё раз.';
++          widgetNote.textContent = 'Ожидаем оплату. Можно проверить ещё раз.';
+           if (retries > 0 && box.open) {
+             pollTimer = setTimeout(() => verifyPayment(retries - 1), 1800);
+           }
+         }
+       } catch {
+-        widgetNote.textContent = 'Не удалось проверить платёж. Попробуйте ещё раз чуть позже.';
++        widgetNote.textContent = 'Пока не удалось проверить оплату. Попробуйте позже.';
+       } finally {
+         checking = false;
+         if (!checkButton.hidden) checkButton.disabled = false;
+@@ -225,7 +224,7 @@
+     checkButton.addEventListener('click', () => verifyPayment());
+     async function showEmbedded(confirmationToken, draft) {
+       if (!/^ct-[A-Za-z0-9-]{8,200}$/.test(confirmationToken)) {
+-        note.textContent = 'ЮKassa не предоставила корректный токен оплаты.';
++        note.textContent = 'Не удалось открыть оплату. Попробуйте ещё раз.';
+         return;
+       }
+       save({...draft, awaiting:true});
+@@ -244,14 +243,13 @@
+       const coinLabel = n % 10 === 1 && n % 100 !== 11 ? 'монета'
+         : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'монеты' : 'монет';
+       summary.textContent = draft.count + ' ' + coinLabel + ' · ' + currency.format(confirmed.total);
+-      widgetNote.textContent = 'Подключаем защищённую форму ЮKassa…';
++      widgetNote.textContent = '';
+       const started = performance.now();
+       let slowdown;
+       try {
+         slowdown = setTimeout(() => {
+-          if (box.open && !panel.hidden && widgetNote.textContent.includes('Подключаем')) {
+-            widgetNote.textContent = 'ЮKassa отвечает медленно. Проверяем подключение…';
+-          }
++          if (box.open && !panel.hidden && retryButton.hidden)
++            widgetNote.textContent = 'Открываем способы оплаты…';
+         }, 3500);
+         await loadWidgetScript();
+         if (!box.open || panel.hidden) return;
+@@ -261,18 +259,18 @@
+           customization: {colors:widgetColors()},
+           error_callback: () => {
+             if (box.open && !panel.hidden)
+-              widgetNote.textContent = 'ЮKassa сообщила об ошибке загрузки. Можно повторить открытие формы.';
++              widgetNote.textContent = 'Не удалось открыть оплату. Попробуйте ещё раз.';
+           }
+         });
+         widget.on('complete', () => {
+           clearTimeout(slowdown);
+           destroyWidget();
+-          widgetNote.textContent = 'Проверяем результат оплаты…';
++          widgetNote.textContent = 'Проверяем оплату…';
+           verifyPayment(6);
+         });
+         await withWidgetDeadline(widget.render(providerHost.id), 11000);
+         if (box.open && widget && !panel.hidden) {
+-          widgetNote.textContent = 'Выберите способ оплаты. Баланс обновится после подтверждения.';
++          widgetNote.textContent = '';
+         }
+       } catch (error) {
+         if (!box.open || panel.hidden) return;
+@@ -281,8 +279,8 @@
+         retryButton.hidden = false;
+         const stalled = error?.message === 'widget_render_timeout' || error?.message === 'widget_script_timeout';
+         widgetNote.textContent = stalled
+-          ? 'ЮKassa не ответила за отведённое время. Нажмите «Повторить загрузку»: новый платёж не создаётся.'
+-          : 'Не удалось загрузить форму ЮKassa. Повторите загрузку — оплата останется в том же заказе.';
++          ? 'Не получилось открыть способы оплаты. Нажмите «Повторить загрузку».'
++          : 'Оплата пока недоступна. Попробуйте ещё раз.';
+         // Intentionally record only the failure category and duration, never a token.
+         console.warn('Octoport payment widget unavailable', {
+           code: /^[a-z_]+$/.test(error?.message || '') ? error.message : 'widget_loading_error',
+--- a/products/harness-platform/native/web/checkout.css
++++ b/products/harness-platform/native/web/checkout.css
+@@ -222,3 +222,26 @@
+   dialog.octo-checkout.octo-checkout-with-widget {width:calc(100vw - 28px);padding:16px;}
+   dialog.octo-checkout .octo-checkout-heading h2 {font-size:19px;}
+ }
++
++/* Wallet UX refinement: no extra focus halo on the amount input. */
++dialog.octo-checkout > form input[type=number],
++dialog.octo-checkout > form input[type=number]:focus,
++dialog.octo-checkout > form input[type=number]:focus-visible {
++  appearance:textfield;
++  -moz-appearance:textfield;
++  outline:none !important;
++  outline-offset:0;
++  box-shadow:none !important;
++  border-color:var(--octo-line,#414850);
++}
++dialog.octo-checkout > form input[type=number]::-webkit-inner-spin-button,
++dialog.octo-checkout > form input[type=number]::-webkit-outer-spin-button {
++  -webkit-appearance:none;
++  margin:0;
++}
++dialog.octo-checkout .octo-checkout-widget-note:empty {
++  display:none;
++}
++dialog.octo-checkout .octo-checkout-widget-panel {
++  row-gap:12px;
++}
+--- a/products/harness-platform/tests/test_checkout.py
++++ b/products/harness-platform/tests/test_checkout.py
+@@ -282,3 +282,22 @@
+         policy = home.headers["content-security-policy"]
+         self.assertIn("connect-src 'self'", policy)
+         self.assertIn("https://kassa.yandex.ru", policy)
++
++
++    def test_wallet_checkout_plain_language_and_clean_amount_focus(self):
++        response = self.client.get("/ui-assets/project/checkout.js")
++        self.assertEqual(response.status_code, 200)
++        script = response.text
++        self.assertIn("Перейти к оплате", script)
++        self.assertIn("<span>К оплате</span>", script)
++        self.assertNotIn("Продолжить к оплате", script)
++        self.assertNotIn("Безопасная оплата через ЮKassa", script)
++        self.assertNotIn("Платёжные реквизиты обрабатывает ЮKassa", script)
++        self.assertNotIn("ЮKassa отвечает медленно", script)
++        self.assertIn("showEmbedded(activeToken, activeDraft)", script)
++        self.assertIn("/api/coins/reconcile", script)
++        css = self.client.get("/ui-assets/project/checkout.css")
++        self.assertEqual(css.status_code, 200)
++        self.assertIn("input[type=number]:focus-visible", css.text)
++        self.assertIn("outline:none !important", css.text)
++        self.assertIn("::-webkit-inner-spin-button", css.text)
