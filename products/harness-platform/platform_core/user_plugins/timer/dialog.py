@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from starlette.exceptions import HTTPException
 
 from ...identity import _secret_digest
-from ..registry import attached, plugin_statuses
+from ..registry import attached
 from . import jobs, recipe, store
 from .recipe import PlanError
 from .runtime import Runtime
@@ -28,34 +28,6 @@ SCHEMA = (
        input TEXT NOT NULL, answer TEXT, draft TEXT, receipt TEXT, PRIMARY KEY(chat,request))""",
 )
 INTENT = re.compile(r"\b(таймер\w*|по расписанию|напоминай|напомни|ежедневно|ежечасно|еженедельно|по будням|кажд(?:ые|ый|ую|ое)\s+(?:\d+\s+)?(?:секунд|минут|час|день|утро|вечер|недел|понедельник|вторник|сред|четверг|пятниц|суббот|воскресень)|раз в\s+(?:\d+\s+)?(?:секунд|минут|час|день|недел)|(?:завтра|сегодня) в \d+[:.]\d{2}|в \d{1,2}[:.]\d{2}\s+(?:пришли|проверь|разбуди|напомни|запусти|отправь|составь|сделай))",re.I)
-OBSERVATION_INTENT = re.compile(
-    r"\b(?:отслежива(?:й(?:те)?|л[аи]?|ть)|следи(?:те|л[аи]?|ть)?|"
-    r"монитор(?:ь(?:те)?|ил[аи]?|ить))\s+(?:за\s+)?"
-    r"(?:мо(?:ю|ей|и|ими)\s+)?"
-    r"(?:реклам|кампани|ставк|доступност|расход|остатк|склад|продаж|цен|бюджет|баланс|"
-    r"заказ|поставк|конкурент|показател|позици|метрик)\w*",
-    re.I,
-)
-COUNTDOWN_INTENT = re.compile(
-    r"\bчерез\s+(?:[\w-]+\s+){0,4}(?:секунд\w*|минут\w*|час\w*|день|дня|дней|недел\w*)"
-    r"\b[ ,]*\s+(?:пришли|проверь|напомни|запусти|отправь|составь|сделай)\b",
-    re.I,
-)
-TIMER_INFO = re.compile(
-    r"\s*(?:что умеет|что такое|зачем нужен|как работает|где найти|как (?:подключить|установить))"
-    r"\s+(?:плагин\s+)?[«\"']?таймер[»\"']?[?!. ]*\s*", re.I,
-)
-
-
-def schedule_intent(text):
-    if TIMER_INFO.fullmatch(text):
-        return False
-    if INTENT.search(text) or COUNTDOWN_INTENT.search(text):
-        return True
-    match = OBSERVATION_INTENT.search(text)
-    return bool(match and not re.search(r"\bне\s+$", text[:match.start()], re.I))
-
-
 YES = re.compile(r"(?:да|да[, ]+устраивает|всё устраивает|все устраивает|устраивает|подтверждаю|сохрани(?: таймер)?|да[, ]+сохрани|да[, ]+так устраивает|да[, ]+вс[её] устраивает)[.! ]*",re.I)
 
 
@@ -107,7 +79,7 @@ class Dialog:
             db = self.state.identity._db
             active = db.execute("SELECT 1 FROM timer_dialogs WHERE chat=?", (scope.chat_id,)).fetchone()
             replay = db.execute("SELECT 1 FROM timer_exchanges WHERE chat=? AND request=?", (scope.chat_id,rid)).fetchone()
-        return bool(hint or replay or active or schedule_intent(text))
+        return bool(hint or replay or active or INTENT.search(text))
 
     @asynccontextmanager
     async def exclusive_chat(self, chat):
@@ -218,12 +190,7 @@ class Dialog:
                     row = store.draft(db,scope,draft)
                     store.refine(db,scope,draft,row["revision"],text)
             if not attached(db,scope,"timer"):
-                timer = next(plugin for plugin in plugin_statuses(db, scope.workspace_id, chat)
-                             if plugin["id"] == "timer")
-                step = ("Откройте меню «Таймера» слева и нажмите «Подключить» в этом чате."
-                        if timer["installed"] else
-                        "Установите «Таймер» в каталоге и нажмите «Подключить» в этом чате.")
-                return f"Для фоновой проверки нужен «Таймер». {step} Затем напишите «Готово». Поручение сохранено.", None, None
+                return "Установите «Таймер» в каталоге плагинов, включите его для этого чата и напишите сюда «Готово». Поручение сохранено.",None,None
             available = [dict(id=i,title=json.loads(title)[0],status=status) for i,title,status in db.execute(
                 "SELECT id,instructions,status FROM timer_events WHERE chat=? AND workspace=?",(chat,scope.workspace_id))]
             old = store.event(db,scope,target) if target else None

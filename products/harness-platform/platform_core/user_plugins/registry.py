@@ -1,5 +1,5 @@
 """Trusted product catalogue. Conversation attachments use the platform's existing grants."""
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 
 from starlette.exceptions import HTTPException
 
@@ -30,16 +30,6 @@ CATEGORIES = (
     {"id": "graphics", "title": "Графика", "parent": None},
     {"id": "documents", "title": "Документы", "parent": None},
 )
-
-
-def plugin_statuses(db, workspace, chat=None):
-    installed = {row[0] for row in db.execute(
-        "SELECT plugin_id FROM entitlements WHERE workspace_id=?", (workspace,))}
-    enabled = {row[0] for row in db.execute(
-        "SELECT plugin_id FROM chat_plugins WHERE workspace_id=? AND chat_id=?", (workspace, chat))}
-    return [{**asdict(plugin), "installed": plugin.id in installed, "enabled": plugin.id in enabled}
-            for plugin in CATALOG.values()]
-
 
 SCHEMA = (
     """CREATE TABLE IF NOT EXISTS user_plugin_stores(

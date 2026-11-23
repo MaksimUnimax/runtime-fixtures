@@ -9,7 +9,6 @@ import time
 
 from ...chat_connections import snapshot
 from ...operation_grants import PaidAccessRequired, issue_grant, revoke_grant
-from ..registry import plugin_statuses
 from . import recipe
 from .recipe import PlanError
 from .store import encoded, require_plugin
@@ -17,11 +16,7 @@ from .store import encoded, require_plugin
 
 PLAN_GUIDE = """Настрой таймер по поручению продавца. Только доступные этому чату инструменты.
 Ответь вызовом timer_plan. Когда не хватает данных, верни question. Не предполагаешь суммы, ставки, единицы,
-магазин, склад, время и права. Если время или периодичность отсутствуют, уточни их. stores — магазины,
-доступные в этом чате, savedToAttach — сохранённые подключения. plugins показывает состояние плагинов чата.
-Если нужный плагин включён, а магазин есть только в savedToAttach, назови точный следующий шаг: открыть
-плагин площадки слева и привязать к этому диалогу сохранённый магазин. Для рекламы Ozon нужен Ozon Performance.
-kind report собирает сведения, action проверяет условие и может изменить объект.
+магазин, склад, время и права. kind report собирает сведения, action проверяет условие и может изменить объект.
 schedule: {kind:once,zone,at:ISO с часовым поясом}, {kind:interval,zone,every_us:целое число микросекунд}
 или {kind:calendar,zone,weekdays:[1..7],times:["08:00"]}. Бери часовой пояс пользователя из контекста.
 plan: {steps:[{tool,args}], format:формат итогового ответа, telegram:boolean, notify:all|changes|goal|errors}.
@@ -130,14 +125,11 @@ class Runtime:
         with self.state.identity._lock:
             db = self.state.identity._db
             require_plugin(db,scope)
-            rows = snapshot(db,scope,describe_saved=True)
-            stores = [{k:r[k] for k in ("id","name","provider","access")} for r in rows if r["attached"]]
-            saved = [{"provider":r["provider"],"access":r["access"]} for r in rows if not r["attached"]]
-            plugins = plugin_statuses(db, scope.workspace_id, scope.chat_id)
+            stores = [{k:r[k] for k in ("id","name","provider","access")} for r in snapshot(db,scope) if r["attached"]]
         catalog = await self.source(scope,grant,key,request[-1],"catalog") if stores else {}
         context = {"currentTime":recipe.local_time(time.time_ns()//1000,{"zone":zone}).isoformat(),
                    "timezone":zone,"request":request,"kind":kind,"oldPlan":old,"stores":stores,"events":events,
-                   "savedToAttach":saved,"plugins":plugins,"tools":catalog}
+                   "tools":catalog}
         specs = [("timer_plan","Готовый план или вопрос пользователю",PLAN_SCHEMA)]
         if "marketplace_read" in catalog:
             specs.append(("find_templates","Найти доступные карты чтения или действий",FIND_SCHEMA))

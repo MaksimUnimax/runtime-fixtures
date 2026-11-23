@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import asdict
 from datetime import date, datetime
 from email.utils import parsedate_to_datetime
 import time
@@ -19,7 +20,6 @@ from .store import adapter, now, values, valid_sku, write_value
 from . import illustrations, model
 from ..marketplace_matrix import ozon_retry, store_currency
 from ..marketplace_matrix import wb_coefficients as wb
-from .registry import plugin_statuses
 from .registry import CATALOG, CATEGORIES, WB, OZON, attached, store_row
 
 JOBS = """CREATE TABLE IF NOT EXISTS user_plugin_jobs(
@@ -180,6 +180,15 @@ class Service:
 def routes(get_token,body):
     base="/api/chats/{chat_id}/plugins"
     path=base+"/{plugin_id}"
+    def snapshot(db, workspace, chat=None):
+        installed = {row[0] for row in db.execute(
+            "SELECT plugin_id FROM entitlements WHERE workspace_id=?", (workspace,))}
+        enabled = {row[0] for row in db.execute(
+            "SELECT plugin_id FROM chat_plugins WHERE workspace_id=? AND chat_id=?", (workspace, chat))}
+        return {"categories": CATEGORIES, "plugins": [
+            {**asdict(p), "installed": p.id in installed, "enabled": p.id in enabled}
+            for p in CATALOG.values()]}
+
     def cancel_jobs(db, tasks, workspace, key, chat=None):
         jobs = db.execute("""UPDATE user_plugin_jobs SET state='failed', message='Плагин отключён.'
             WHERE plugin=? AND state='running' AND chat IN
@@ -217,7 +226,7 @@ def routes(get_token,body):
                     db.execute("DELETE FROM entitlements WHERE workspace_id=? AND plugin_id=?", (workspace, key))
                 if not data[field]:
                     cancel_jobs(db, req.app.state.plugins.tasks, workspace, key, chat)
-            return JSONResponse({"categories": CATEGORIES, "plugins": plugin_statuses(db, workspace, chat)})
+            return JSONResponse(snapshot(db, workspace, chat))
 
     async def settings(req):
         plugin=CATALOG.get(req.path_params["plugin_id"])

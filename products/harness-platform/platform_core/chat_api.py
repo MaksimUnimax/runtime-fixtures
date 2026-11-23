@@ -25,7 +25,6 @@ from .admin_costs import AdminCosts, present_chat
 from .user_plugins import service as user_plugins, illustrations, telegram_routes
 from .browser_session import browser_routes, browser_token
 from .chat_worker import ChatWorker, WorkerError
-from .user_plugins.registry import plugin_statuses
 from .user_plugins.timer.dialog import Dialog as TimerDialog
 from .user_plugins.timer.routes import routes as timer_routes
 from .user_plugins.telegram_delivery import Delivery as TelegramReports
@@ -237,8 +236,6 @@ def create_app(database_path, chat_directory, *, composition_module=None):
             with identity._lock:
                 data["illustrations"]=bool(req.app.state.model_router and user_plugins.attached(identity._db,scope,illustrations.PLUGIN))
                 rows=chat_connections.snapshot(identity._db,scope,describe_saved=(action == "turn"))
-                if action == "turn":
-                    data["pluginStatuses"] = plugin_statuses(identity._db, scope.workspace_id, scope.chat_id)
             data["connections"]=[r for r in rows if r["attached"]]
             data["availableServices"]=[{"provider":r["provider"], "access":r["access"]}
                                        for r in rows if not r["attached"]]

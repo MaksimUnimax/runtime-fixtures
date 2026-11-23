@@ -10,7 +10,7 @@ import time
 from . import chat_connections, coins
 from .operation_grants import active_chat_grant
 from .storage import Scope
-from .user_plugins.registry import attached, ILLUSTRATIONS, plugin_statuses
+from .user_plugins.registry import attached, ILLUSTRATIONS
 from cryptography.exceptions import InvalidTag
 
 SCHEMA = """CREATE TABLE IF NOT EXISTS openrouter_waits (
@@ -165,8 +165,6 @@ class Recovery:
                     scope=Scope(actor,workspace,chat)
                     checkpoint=json.loads(raw)
                     allowed=authorization(db,scope,checkpoint,session)
-                    if allowed:
-                        statuses=plugin_statuses(db,workspace,chat)
                 if not allowed:
                     close_rejected(self.router,aid)
                     return
@@ -177,7 +175,7 @@ class Recovery:
                         attachments=checkpoint.get('attachments', []),
                         connections=checkpoint['connections'],illustrations=checkpoint['illustrations'],
                         availableServices=checkpoint['availableServices'],connectionGuides=checkpoint['connectionGuides'],
-                        pluginStatuses=statuses,session_digest=session,on_progress=live.set,restore={**checkpoint,'attempt':aid})
+                        session_digest=session,on_progress=live.set,restore={**checkpoint,'attempt':aid})
                 except (PermissionError,ValueError):
                     close_rejected(self.router,aid)
                 except Exception as error:
