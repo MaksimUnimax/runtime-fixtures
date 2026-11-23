@@ -1,0 +1,422 @@
+diff --git a/products/harness-platform/docs/GUEST_ASSISTANT.md b/products/harness-platform/docs/GUEST_ASSISTANT.md
+index c0f2dcd..23dd323 100644
+--- a/products/harness-platform/docs/GUEST_ASSISTANT.md
++++ b/products/harness-platform/docs/GUEST_ASSISTANT.md
+@@ -6,7 +6,15 @@
+ | --- | --- |
+ | Что ты умеешь? | Для кого создан сервис, чем полезен личный кабинет и как начать. |
+ | Как зарегистрироваться? | Куда нажать, как выбрать логин и пароль, зачем сохранить код восстановления. Регистрация открывается в диалоге поверх Harness. |
+-| Сколько стоит? | Опубликованный ответ о тарифе. Пока цена не объявлена, бот прямо сообщает об этом. |
++| Сколько стоит твоя работа? | Расход зависит от объёма работы. Октопус сообщает цену монеты при покупке и текущий бонус за первую регистрацию. |
++| Сколько стоит один ответ? | Под выполненным ответом видна фактически списанная сумма. |
++| Сколько стоят 100 монет? А 200? | Октопус умножает количество на действующую цену продажи и округляет итог так же, как форма покупки. Короткое уточнение суммы относится только к переписке этого гостя. |
++| Как оплатить? | «Баланс» → «Купить монеты». Итог и доступность оплаты видны до подтверждения. |
++| Сколько монет дают при регистрации? | Тот же стартовый бонус, который получит новый аккаунт по действующей настройке. |
++| На сколько ответов хватит монет? | Количество зависит от задач. Остаток виден в разделе «Баланс». |
++| Где посмотреть списания? | «Баланс» → «Показать списания». |
++| Монеты после оплаты не пришли | В окне оплаты есть кнопка «Проверить оплату». |
++| Как увеличить продажи? Как уменьшить расходы? | Реплика Октопуса про Дональда Дака и предложение взять на себя рутинную работу. |
+ | Почему денег пришло меньше? | Предложение перейти в личный кабинет для работы со своим магазином. |
+ | Напиши стих про Ozon | «Я отвечаю на вопросы о нашем сервисе для продавцов маркетплейсов. Могу рассказать о возможностях, регистрации и стоимости». |
+ 
+diff --git a/products/harness-platform/platform_core/checkout.py b/products/harness-platform/platform_core/checkout.py
+index cabdfc9..47bfcce 100644
+--- a/products/harness-platform/platform_core/checkout.py
++++ b/products/harness-platform/platform_core/checkout.py
+@@ -2,7 +2,6 @@
+ import json
+ import os
+ import re
+-from decimal import Decimal, ROUND_HALF_UP
+ from pathlib import Path
+ from uuid import uuid4
+ from urllib.parse import urlsplit
+@@ -19,7 +18,6 @@ from .identity import _principal, AuthenticationError
+ from .operation_grants import ensure_operation_schema
+ 
+ _ID = re.compile(r"[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}")
+-_LIMIT = coins.MAX_BALANCE // coins.UNIT
+ 
+ 
+ def fiscal_policy():
+@@ -75,13 +73,10 @@ def receipt_data(email, count, total):
+ 
+ 
+ def quantity(raw):
+-    if not re.fullmatch(r"[1-9][0-9]{0,6}", raw) or int(raw) > _LIMIT:
+-        raise HTTPException(400, "Введите целое количество монет от 1 до 8 000 000.")
+-    return int(raw)
+-
+-
+-def price(rate, count):
+-    return str((Decimal(rate) * count).quantize(Decimal(".01"), rounding=ROUND_HALF_UP))
++    try:
++        return coins.purchase_quantity(raw)
++    except ValueError as error:
++        raise HTTPException(400, str(error)) from None
+ 
+ 
+ def response(data, status=200):
+@@ -94,7 +89,7 @@ async def quote(request):
+     enabled = bool(merchant())
+     if enabled and os.getenv("YOOKASSA_PILOT_ONLY") == "1":
+         enabled = count == 1 and await is_pilot_admin(request)
+-    return response({"total": price(rate, count), "enabled": enabled})
++    return response({"total": coins.purchase_total(rate, count), "enabled": enabled})
+ 
+ 
+ async def is_pilot_admin(request):
+@@ -126,7 +121,7 @@ def order_for(store, token, key, count, total):
+                     "SELECT unixepoch()-?", (created,)).fetchone()[0] >= 23*3600:
+                 raise HTTPException(409, "Срок заказа истёк. Обратитесь в поддержку для сверки.")
+             return order, url, status, confirmation_token
+-        if total != price(coins.sale_pricing(db)["rubPerCoin"], count):
++        if total != coins.purchase_total(coins.sale_pricing(db)["rubPerCoin"], count):
+             raise HTTPException(409, "Стоимость изменилась. Проверьте новую сумму.")
+         if coins.unallocated(db, workspace) < count * coins.UNIT:
+             raise HTTPException(409, "Сумма превышает доступный лимит пополнения.")
+diff --git a/products/harness-platform/platform_core/coins.py b/products/harness-platform/platform_core/coins.py
+index 990a621..5f9cc85 100644
+--- a/products/harness-platform/platform_core/coins.py
++++ b/products/harness-platform/platform_core/coins.py
+@@ -1,7 +1,7 @@
+ """Integer coin accounting shared by the product and the scoped gateway."""
+ import os
+ import re
+-from decimal import Decimal
++from decimal import Decimal, ROUND_HALF_UP
+ 
+ UNIT = 10**12
+ MAX_BALANCE = 8_000_000 * UNIT
+@@ -113,6 +113,16 @@ def provider_meters(db, workspace):
+             for label, inp, cache, out, cost in totals}
+ 
+ 
++def purchase_quantity(raw):
++    if not re.fullmatch(r"[1-9][0-9]{0,6}", raw) or int(raw) > MAX_BALANCE // UNIT:
++        raise ValueError("Введите целое количество монет от 1 до 8 000 000.")
++    return int(raw)
++
++
++def purchase_total(rate, count):
++    return str((Decimal(rate) * count).quantize(Decimal(".01"), rounding=ROUND_HALF_UP))
++
++
+ def sale_pricing(db):
+     row = db.execute("SELECT sale_bps FROM coin_pricing WHERE singleton=1").fetchone()
+     bps = row[0] if row else 2000
+diff --git a/products/harness-platform/platform_core/guest_billing.py b/products/harness-platform/platform_core/guest_billing.py
+new file mode 100644
+index 0000000..8a72dd1
+--- /dev/null
++++ b/products/harness-platform/platform_core/guest_billing.py
+@@ -0,0 +1,62 @@
++"""Local guest pricing answers use the same coin settings and quotes as checkout."""
++import re
++
++from . import coins
++
++# Only a full purchase question in coins is a quote. Sales, delivery and ad costs are separate.
++_NUMBER = r"(?P<count>[+-]?[0-9]+(?: [0-9]{3})*(?:[.,][0-9]+)?)"
++_COINS = r"монет(?:а|ы|у|ок|ки|ка)?"
++_REQUEST = r"(?:(?:а|и|ну|подскажите|скажи|пожалуйста) )*"
++_QUANTITY = _NUMBER + r" " + _COINS
++_PRICE = r"(?:сколько (?:это )?(?:стоит|стоят|стоит купить|будет стоить|будут стоить|будет|выйдет за|я заплачу за)|во сколько (?:обойдется|обойдутся)|почем|цена|стоимость|посчитай(?: стоимость)?|рассчитай(?: стоимость)?)"
++_QUESTIONS = tuple(re.compile(_REQUEST + pattern) for pattern in (
++    _PRICE + r" " + _QUANTITY + r"(?: (?:в рублях|для октопорта))?",
++    _QUANTITY + r"(?: (?:это )?(?:сколько(?: (?:это )?(?:стоит|стоят|рублей|в рублях))?|по какой цене|в рублях))?",
++    r"(?:сколько (?:рублей |денег )?(?:нужно |надо )?(?:заплатить |отдать )?за|купить|хочу купить) " + _QUANTITY,
++))
++_SHORT = re.compile(_REQUEST + _NUMBER)
++
++def coin_label(value):
++    number = coins.display(value)
++    if "." in number:
++        word = "монеты"
++    else:
++        n = int(number)
++        word = ("монет" if 11 <= n % 100 <= 14 else "монета" if n % 10 == 1
++                else "монеты" if 2 <= n % 10 <= 4 else "монет")
++    return number.replace(".", ",") + " " + word
++
++def local_rate(rate):
++    whole, _, fraction = rate.partition(".")
++    return whole + "," + fraction.ljust(2, "0")
++
++def purchase_reply(db, chat, message):
++    text = " ".join(message.casefold().replace("ё", "е").split()).strip("?!.,:; ")
++    text = re.sub(r"\s*[,—:]\s*(?=[а-я])", " ", text).replace("чтоит", "стоит")
++    match = next((m for pattern in _QUESTIONS if (m := pattern.fullmatch(text))), None)
++    if match is None:
++        match = _SHORT.fullmatch(text)
++        if match is None:
++            return None
++        previous = db.execute("SELECT answer FROM guest_turns WHERE chat_id=? ORDER BY rowid DESC LIMIT 1", (chat,)).fetchone()
++        if not previous or "₽" not in previous[0] or "монет" not in previous[0]:
++            return None
++    raw = match["count"].replace(" ", "")
++    try:
++        count = coins.purchase_quantity(raw)
++    except ValueError:
++        return "Для расчёта укажите целое количество монет от 1 до 8 000 000."
++    rate = coins.sale_pricing(db)["rubPerCoin"]
++    total = coins.purchase_total(rate, count).removesuffix(".00").replace(".", ",")
++    return f"{coin_label(count * coins.UNIT)} × {local_rate(rate)} ₽ = {total} ₽."
++
++def fill_terms(db, answer):
++    if "{sale_price}" in answer:
++        answer = answer.replace("{sale_price}", local_rate(coins.sale_pricing(db)["rubPerCoin"]))
++    if "{signup_offer}" in answer:
++        amount = coins.signup_bonus(db)
++        offer = (f"При первой регистрации вы получите стартовый бонус — {coin_label(amount)}. "
++                 "На своих задачах вы сможете оценить, как быстро я расходую монеты."
++                 if amount else "Сейчас стартовый бонус за регистрацию не начисляется.")
++        answer = answer.replace("{signup_offer}", offer)
++    return answer
+diff --git a/products/harness-platform/platform_core/guest_registration.py b/products/harness-platform/platform_core/guest_registration.py
+index 3462321..0d5038b 100644
+--- a/products/harness-platform/platform_core/guest_registration.py
++++ b/products/harness-platform/platform_core/guest_registration.py
+@@ -20,7 +20,8 @@ from .storage import Scope, _bind_chat
+ from .public_faq import PublicFAQ
+ from .octopus_knowledge import published
+ from .user_plugins.publication import guest_cards, synchronize
+-from .coins import PRICING_SCHEMA, sale_pricing
++from .coins import PRICING_SCHEMA
++from .guest_billing import fill_terms, purchase_reply
+ 
+ GUEST_LIFETIME = 24 * 60 * 60
+ GUEST_PAGE_SIZE = 25
+@@ -183,11 +184,11 @@ class RegistrationStore(IdentityStore):
+                 if row[0] != text:
+                     raise RegistrationConflict("Request already used")
+                 return
+-            answer, guest_only = self.faq.reply(text, guest_cards(db))
+-            if "{sale_price}" in answer:
+-                price = sale_pricing(db)["rubPerCoin"]
+-                whole, _, fraction = price.partition(".")
+-                answer = answer.replace("{sale_price}", whole + "," + fraction.ljust(2, "0"))
++            answer = purchase_reply(db, chat, text)
++            guest_only = False
++            if answer is None:
++                answer, guest_only = self.faq.reply(text, guest_cards(db))
++                answer = fill_terms(db, answer)
+             db.execute("INSERT INTO guest_turns VALUES (?,?,?,?,?)",
+                        (chat, request_id, text, answer, int(time() * 1000)))
+             if guest_only:
+diff --git a/products/harness-platform/platform_core/public_faq.json b/products/harness-platform/platform_core/public_faq.json
+index 158ed7b..11d9d50 100644
+--- a/products/harness-platform/platform_core/public_faq.json
++++ b/products/harness-platform/platform_core/public_faq.json
+@@ -25,7 +25,7 @@
+     "previous_answers": ["Сервис создан для продавцов Ozon и Wildberries. В личном кабинете вы можете задавать вопросы о магазине в одном чате и возвращаться к сохранённым ответам. Список доступных функций зависит от подключений. Чтобы начать, нажмите «Создать аккаунт».", "Сервис создан для продавцов Ozon и Wildberries. В чате можно задавать вопросы о магазине и возвращаться к сохранённым ответам. Доступные функции зависят от подключений. Чтобы начать, нажмите «Создать аккаунт».", "Меня зовут Октопус. Я беру на себя рутинную работу с магазинами на Wildberries и Ozon, чтобы у вас оставалось время решать, что продавать и куда вкладывать деньги.", "Меня зовут Октопус, я создан для того чтобы взять на себя всю рутинную работу по ведению маркетплейсов вб и озон."]
+   },
+   "signup": {
+-    "answer": "Нажмите «Создать аккаунт», введите логин и пароль и подтвердите регистрацию. Страница останется открытой, а на балансе нового аккаунта появятся 10 монет.",
++    "answer": "Нажмите «Создать аккаунт», введите логин и пароль и подтвердите регистрацию. {signup_offer}",
+     "patterns": [
+       "(?:(?:как|где) (?:мне |у вас |можно )?)?(?:зарегистрироваться|зарегестрироваться|зарегемтрироваться|зарегаться|зарегистрироватся|зарегиться)(?: в сервисе| у вас)?",
+       "(?:(?:как|где) (?:мне )?)?(?:создать|завести) (?:личный кабинет|аккаунт|учетную запись)(?: у вас)?",
+@@ -38,11 +38,12 @@
+     ],
+     "previous_answers": [
+       "Нажмите «Создать аккаунт», выберите логин и пароль, сохраните код восстановления и подтвердите регистрацию. Этот разговор откроется в вашем личном кабинете.",
+-      "Нажмите «Создать аккаунт», выберите логин и пароль, сохраните код восстановления и подтвердите регистрацию. После регистрации вы сможете продолжить этот разговор в том же чате."
++      "Нажмите «Создать аккаунт», выберите логин и пароль, сохраните код восстановления и подтвердите регистрацию. После регистрации вы сможете продолжить этот разговор в том же чате.",
++      "Нажмите «Создать аккаунт», введите логин и пароль и подтвердите регистрацию. Страница останется открытой, а на балансе нового аккаунта появятся 10 монет."
+     ]
+   },
+   "price": {
+-    "answer": "При покупке 1 монета стоит {sale_price} ₽. При расходе 1 монета покрывает 1 ₽ стоимости запросов.",
++    "answer": "Стоимость зависит от объёма выполненной работы. Я списываю монеты за работу над вашей задачей. Под ответом видно, сколько монет ушло. {signup_offer} При покупке 1 монета стоит {sale_price} ₽.",
+     "patterns": [
+       "(?:а )?(?:сколько|почем) (?:это )?(?:стоит|будет стоить)(?: ваш сервис| сервис| ваша подписка| подписка| пользоваться сервисом| доступ| у вас)?",
+       "(?:какая |какова |какая у вас )?(?:цена|стоимость)(?: подписки| сервиса| доступа| у вас)?",
+@@ -53,7 +54,78 @@
+       "(?:сколько стоит|цена) (?:подписки на сервис|ваш помощник|ваш тариф|подписка на ваш сервис|подписка на сервис)",
+       "(?:а )?сколько стоят (?:ваши услуги|услуги сервиса|тарифы|ваши тарифы)",
+       "какие (?:у вас цены|цены на подписку|условия подписки)",
+-      "сколько платить за (?:подписку|сервис)"
++      "сколько платить за (?:подписку|сервис)",
++      "(?:сколько (?:стоит|будет стоить)|почем) (?:твоя работа|ваша работа|работа октопуса|твоя помощь|твои услуги|помощь октопуса|пользование сервисом|пользоваться октопусом|октопус|это все)",
++      "(?:сколько (?:ты берешь|вы берете)|сколько (?:нужно )?платить)(?: за (?:твою работу|работу|сервис|услуги))?",
++      "(?:какая |какова )?(?:стоимость|цена) (?:твоей работы|вашей работы|твоих услуг|работы октопуса)",
++      "(?:дорого ли|дорого|ты платный|сервис платный или бесплатный|есть ли абонентская плата|нужна ли подписка|есть ли подписка|сколько стоит подписка в месяц|сколько стоит в месяц|сколько платить в месяц)"
++    ],
++    "previous_answers": [
++      "При покупке 1 монета стоит {sale_price} ₽. При расходе 1 монета покрывает 1 ₽ стоимости запросов."
++    ]
++  },
++  "answer_cost": {
++    "answer": "Стоимость ответа зависит от объёма выполненной работы. Для короткого вопроса и для отчёта по нескольким магазинам нужен разный объём обработки. После выполнения задачи я покажу под ответом, сколько монет списано. {signup_offer}",
++    "patterns": [
++      "(?:сколько (?:стоит|будет стоить)|почем) (?:один |одна |один твой |твой |один ваш )?(?:ответ|запрос|отчет|сообщение|задача|одна задача)(?: в (?:чате|монетах|рублях))?",
++      "(?:какая |какова )?(?:цена|стоимость) (?:одного |твоего |одного твоего )?(?:ответа|запроса|отчета|сообщения)",
++      "сколько (?:монет|рублей) (?:стоит|уходит на|списывается за|снимается за|ты тратишь на|ты берешь за|уйдет на) (?:один |твой )?(?:ответ|запрос|отчет|сообщение)",
++      "(?:от чего зависит|как (?:считается|рассчитывается)) (?:цена|стоимость)(?: (?:твоей работы|ответа|запроса|работы|отчета))?",
++      "почему (?:ответы стоят по разному|ответы стоят по разному в монетах|списывается разное количество монет)",
++      "сколько (?:я заплачу|платить|возьмешь|ты берешь) за (?:один )?(?:ответ|запрос|отчет)"
++    ]
++  },
++  "coin_rate": {
++    "answer": "При покупке 1 монета стоит {sale_price} ₽. При списании 1 монета покрывает 1 ₽ стоимости работы. Напишите, сколько монет хотите купить, и я посчитаю сумму в рублях.",
++    "patterns": [
++      "(?:сколько (?:стоит|стоят)|почем) (?:одна |ваши |ваша )?(?:монета|монеты|монетка)(?: в рублях)?",
++      "(?:цена|курс|стоимость) (?:одной )?монеты(?: в рублях)?",
++      "(?:сколько рублей в (?:одной |1 )?монете|что такое монеты|что такое монета|как считаются монеты|чему равна монета|как монеты переводятся в рубли)"
++    ]
++  },
++  "pay": {
++    "answer": "После входа откройте «Баланс» → «Купить монеты», введите количество и проверьте сумму в рублях. Когда оплата доступна, нажмите «Продолжить к оплате» и выберите способ в форме ЮKassa. Монеты появятся на балансе после подтверждения платежа.",
++    "patterns": [
++      "(?:(?:как|где|чем) (?:мне |можно |у вас )?)?(?:оплачивать|оплатить|оплачиват|опалачивать|заплатить|платить)(?: (?:за (?:сервис|работу|ответы|монеты)|работу|сервис|монеты|услуги|подписку|картой|через сбп))?",
++      "(?:(?:как|где) (?:мне |можно )?|хочу )?(?:пополнить (?:баланс|счет|кошелек)|(?:купить|докупить|покупать) монеты)(?: (?:в сервисе|октопорта|картой))?",
++      "(?:как (?:происходит|работает|проходит) оплата|какие (?:есть )?способы оплаты|можно ли (?:заплатить|оплатить)(?: картой| через сбп)?|как внести деньги|как пополнить|как оплатить в рублях|оплата|пополнение баланса)"
++    ]
++  },
++  "trial": {
++    "answer": "{signup_offer} В гостевом чате можно бесплатно задать вопросы о сервисе.",
++    "patterns": [
++      "(?:сколько (?:бесплатных |стартовых |бонусных )?монет (?:вы |мне |я )?(?:даете|дают|дадут|начисляется|начислят|получу|получаешь)(?: (?:бесплатно|при (?:первой )?регистрации|на старте|за регистрацию))?)",
++      "(?:за регистрацию|при (?:первой )?регистрации) сколько (?:бесплатных )?монет (?:дают|дадут|начисляют|я получу)",
++      "сколько монет (?:при (?:первой )?регистрации|за регистрацию|на старте|бесплатно)",
++      "(?:какой |есть ли |какой у вас )?(?:бонус|подарок|стартовый бонус) (?:при (?:первой )?регистрации|за регистрацию|новым пользователям)",
++      "(?:(?:можно(?: ли)?|как|хочу) (?:попробовать бесплатно|бесплатно попробовать)(?: сервис)?|есть ли (?:бесплатные монеты|пробный период|бесплатный пробный период)|регистрация (?:платная|бесплатная)|нужно ли платить (?:за регистрацию|сразу)|гостевой чат (?:платный|бесплатный)|сколько стоит регистрация)"
++    ]
++  },
++  "budget": {
++    "answer": "Одного и того же баланса хватает на разное количество задач. Короткий вопрос и подробный отчёт расходуют разное количество монет. Под каждым платным ответом вы увидите расход, а в разделе «Баланс» — остаток. {signup_offer}",
++    "patterns": [
++      "(?:на сколько|насколько|надолго ли|на сколько (?:ответов|запросов|дней|задач|отчетов)) (?:мне )?хватит (?:[0-9]+ |стартовых |бонусных |бесплатных |этих )?(?:монет|баланса|бонуса)",
++      "сколько (?:ответов|запросов|задач|отчетов) (?:можно (?:сделать|получить)|я (?:получу|смогу сделать)) за [0-9]+ монет",
++      "как быстро (?:ты (?:тратишь|расходуешь|используешь) монеты|закончатся монеты)"
++    ]
++  },
++  "balance": {
++    "answer": "После входа откройте «Баланс» в меню аккаунта. Там виден остаток монет. Нажмите «Показать списания», чтобы посмотреть расход по выполненным запросам.",
++    "patterns": [
++      "(?:(?:как|где) (?:мне )?(?:видно|увидеть|посмотреть|проверить|найти|узнать)) (?:мой |свой )?(?:баланс|остаток(?: монет)?|историю списаний|списания|расход монет|сколько (?:монет )?(?:списано|осталось))",
++      "(?:сколько (?:у меня |мне )?(?:осталось монет|монет осталось)|где мои монеты|мой баланс|где баланс|где посмотреть сколько списали|как узнать сколько монет потрачено)"
++    ]
++  },
++  "payment_status": {
++    "answer": "Монеты зачисляются после подтверждения платежа. Если вы уже оплатили, в том же окне нажмите «Проверить оплату», затем откройте «Баланс».",
++    "patterns": [
++      "(?:когда (?:зачислятся|начислятся|придут|появятся) монеты(?: после оплаты)?|как проверить (?:оплату|платеж)|(?:я )?оплатил[аи]? (?:а |но )?монеты не пришли|(?:оплата прошла |после оплаты )?(?:а )?монеты не (?:пришли|появились|зачислились))"
++    ]
++  },
++  "combined": {
++    "answer": "Стоимость зависит от объёма выполненной работы. При покупке 1 монета стоит {sale_price} ₽. После входа откройте «Баланс» → «Купить монеты». Форма покажет сумму и доступность оплаты. {signup_offer}",
++    "patterns": [
++      "(?:сколько (?:это )?стоит(?: (?:сервис|твоя работа|один ответ))?|какая цена) и как (?:это |его )?(?:оплатить|платить|купить монеты)"
+     ]
+   },
+   "history": {
+@@ -74,6 +146,14 @@
+     ],
+     "previous_answer": "На странице входа введите логин и пароль, которые выбрали при регистрации, и нажмите «Войти». Ваши чаты появятся в личном кабинете."
+   },
++  "business_advice": {
++    "answer": "Если бы я это знал, я был бы богат как Дональд Дак, и не работал бы Менеджером Маркетплейсов. Но я могу взять на себя рутинную работу и освободить вам время для развития вашего бизнеса.",
++    "patterns": [
++      "(?:(?:а )?(?:подскажи |посоветуй )?(?:как|каким образом|что (?:мне )?(?:сделать|делать) чтобы|что (?:мне )?(?:сделать|делать) для того чтобы) (?:мне |можно |нам |быстро )?|хочу )(?:увеличить|повысить|поднять|нарастить|удвоить) (?:свои |мои |наши |мне |объем |объемы |мои общие )?(?:продажи|продаж|выручку|прибыль|оборот|доход|рентабельность|конверсию)(?: (?:магазина|магазинов|в магазине|моего магазина|на маркетплейсах|на маркетплейсе|на озоне|на озон|на вб|на wb|на ozon|на wildberries)(?: и (?:ozon|wildberries|вб|озон))?)?",
++      "(?:(?:подскажи |посоветуй )?(?:как|каким образом|что (?:мне )?(?:сделать|делать) чтобы) (?:мне |можно |нам )?|хочу )(?:уменьшить|сократить|снизить|сокращать|снижать|оптимизировать) (?:мои |наши |свои |общие )?(?:расходы|затраты|издержки)(?: (?:магазина|в магазине|на рекламу|на продвижение|на логистику|на доставку|на маркетплейсах|на вб|на ozon|на wildberries)(?: и (?:ozon|wildberries|вб|озон))?)?",
++      "(?:как (?:мне |нам )?(?:продавать больше|больше продавать|зарабатывать больше|больше зарабатывать|поднять продажи с нуля|раскрутить магазин|развить бизнес|увеличить средний чек|выйти в плюс|тратить меньше)(?: (?:на маркетплейсах|на озоне|на озон|на вб|на ozon|на wildberries))?|что (?:мне )?(?:делать|сделать) чтобы (?:продажи (?:выросли|росли)|расходы (?:уменьшились|снизились)|больше продавать|меньше тратить)|как сделать (?:магазин|бизнес) прибыльным)"
++    ]
++  },
+   "shop": {
+     "answer": "Разбор своего магазина доступен в чате после подключения магазина. Создайте аккаунт и выберите «Настройки» → «Интеграции» в меню аккаунта.",
+     "patterns": [
+diff --git a/products/harness-platform/platform_core/public_faq.py b/products/harness-platform/platform_core/public_faq.py
+index e3c14f0..8e034af 100644
+--- a/products/harness-platform/platform_core/public_faq.py
++++ b/products/harness-platform/platform_core/public_faq.py
+@@ -30,10 +30,12 @@ class PublicFAQ:
+                     if previous is not None
+                 ])
+                 # Merge new expressions into published cards without replacing editorial changes.
+-                row = self._db.execute("SELECT patterns FROM public_faq WHERE topic='features'").fetchone()
+-                merged = list(dict.fromkeys([*json.loads(row[0]), *cards["features"]["patterns"]]))
+-                self._db.execute("UPDATE public_faq SET patterns=? WHERE topic='features' AND patterns<>?",
+-                                 (json.dumps(merged, ensure_ascii=False),json.dumps(merged, ensure_ascii=False)))
++                for topic, existing in self._db.execute("SELECT topic, patterns FROM public_faq").fetchall():
++                    if topic in cards:
++                        merged = list(dict.fromkeys([*json.loads(existing), *cards[topic]["patterns"]]))
++                        updated = json.dumps(merged, ensure_ascii=False)
++                        if updated != existing:
++                            self._db.execute("UPDATE public_faq SET patterns=? WHERE topic=?", (updated, topic))
+             if path is not None:
+                 self._db.close()
+                 self._db = sqlite3.connect(path.resolve().as_uri() + "?mode=ro",
+@@ -53,6 +55,8 @@ class PublicFAQ:
+         text = " ".join(re.findall(r"[^\W_]+", message.casefold().replace("ё", "е")))
+         text = re.sub(r"^(?:(?:здравствуйте|привет|добрый день|подскажите|скажи|пожалуйста) )+", "", text)
+         text = text.removesuffix(" пожалуйста")
++        text = re.sub(r"^(?:а |и )+", "", text)
++        text = re.sub(r"^(?:на )?сколько (?:чтоит|штоит|стоит|стоиит)\b", "сколько стоит", text)
+         matches = []
+         fallback = self._db.execute("SELECT answer FROM public_faq WHERE topic='scope'").fetchone()[0]
+         for topic, answer, patterns in self._db.execute("SELECT topic, answer, patterns FROM public_faq WHERE topic!='scope'"):
+diff --git a/products/harness-platform/tests/test_guest_registration.py b/products/harness-platform/tests/test_guest_registration.py
+index 1af26c7..1078af4 100644
+--- a/products/harness-platform/tests/test_guest_registration.py
++++ b/products/harness-platform/tests/test_guest_registration.py
+@@ -196,6 +196,58 @@ class GuestRegistrationTests(TestCase):
+             store.guest_turn(token, chat, "hi", "Что ты умеешь?")
+             self.assertIn("Меня зовут Октопус", store.guest_history(token, chat)[0]["answer"])
+ 
++    def test_guest_billing_matrix_uses_live_settings_and_local_quotes(self):
++        from platform_core import coins
++
++        guest, chat = self.store.start_guest()
++        def ask(question, key=None):
++            key = key or secrets.token_hex(8)
++            self.store.guest_turn(guest, chat, key, question)
++            return next(t["answer"] for t in self.store.guest_history(guest, chat) if t["requestId"] == key)
++
++        def settings(percent, bonus):
++            with self.store._write() as db:
++                coins.set_sale_pricing(db, percent)
++                coins.set_signup_bonus(db, bonus)
++
++        with patch.object(ChatWorker, "request", side_effect=AssertionError("model call")), \
++                patch("socket.socket.connect", side_effect=AssertionError("external request")):
++            settings("30", "21")
++            for text, expected in (
++                ("Как увеличить продажи?", "богат как Дональд Дак"),
++                ("Как уменьшить расходы?", "освободить вам время для развития вашего бизнеса"),
++                ("Как сократить расходы на рекламу?", "Дональд Дак"),
++                ("Как ты следишь за рекламой?", "Вместе выберем"),
++                ("Сколько чтоит?", "Стоимост"), ("Сколько стоит твоя работа?", "21 монета."),
++                ("Сколько стоит один ответ?", "объёма выполненной работы"),
++                ("За регистрацию сколько монет дают?", "21 монета."),
++                ("Как зарегистрироваться?", "21 монета."), ("Можно попробовать бесплатно?", "21 монета."),
++                ("Сколько стоит монета?", "1,30 ₽"), ("Как оплачивать?", "Купить монеты"),
++                ("Как оплатить картой?", "ЮKassa"), ("Сколько стоит и как оплатить?", "Купить монеты"),
++                ("На сколько ответов хватит 100 монет?", "разное количество задач"),
++                ("Где посмотреть историю списаний?", "Показать списания"),
++                ("Я оплатил, а монеты не пришли", "Проверить оплату"),
++                ("Сколько стоит доставка на Ozon?", "Я отвечаю на вопросы о нашем сервисе"),
++                ("А 200?", "Я отвечаю на вопросы о нашем сервисе")):
++                with self.subTest(question=text):
++                    self.assertIn(expected, ask(text))
++            first = "Сколько стоит 100 монет?"
++            self.assertEqual(ask(first, "quote-100"), "100 монет × 1,30 ₽ = 130 ₽.")
++            self.assertEqual(ask("А 200?"), "200 монет × 1,30 ₽ = 260 ₽.")
++            self.assertEqual(ask("1 000 монет — сколько в рублях?"), "1000 монет × 1,30 ₽ = 1300 ₽.")
++            for raw in ("0", "-1", "0,5", "8000001"):
++                self.assertIn("целое количество", ask(f"Сколько стоят {raw} монет?"))
++            settings("12.5", "1.5")
++            self.assertEqual(ask("Сколько стоят 5 монет?"), "5 монет × 1,125 ₽ = 5,63 ₽.")
++            self.assertEqual(ask(first, "quote-100"), "100 монет × 1,30 ₽ = 130 ₽.")
++            self.assertIn("1,5 монеты", ask("Сколько монет при регистрации?"))
++            settings("0", "0")
++            self.assertIn("не начисляется", ask("Сколько стоит?"))
++            self.assertEqual(ask("Сколько стоит 1 монета?"), "1 монета × 1,00 ₽ = 1 ₽.")
++            with self.store._lock:
++                self.assertEqual(self.store._db.execute("SELECT count(*) FROM coin_checkouts").fetchone()[0], 0)
++
++
+     def test_shared_service_faq_runs_without_credentials_or_external_dispatch(self):
+         self.enterContext(patch.dict(os.environ, {"PATH": os.defpath}, clear=True))
+         dispatch = self.enterContext(patch.object(ChatWorker, "request", new_callable=AsyncMock))
