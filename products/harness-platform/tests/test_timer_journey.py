@@ -94,6 +94,30 @@ class TimerJourney(unittest.TestCase):
             time.sleep(.08)
         self.fail("Timed out waiting for timer worker")
 
+    def test_tracking_request_recognizes_installation_and_retains_original_request(self):
+        from platform_core.user_plugins.timer.dialog import schedule_intent
+
+        request = "мне нужно чтобы ты отслеживал рекламу"
+        self.assertTrue(schedule_intent("Через две минуты пришли отчёт"))
+        self.assertFalse(schedule_intent("Покажи расходы на рекламу за вчера"))
+        self.assertFalse(schedule_intent("Что умеет плагин «Таймер»?"))
+        self.assertFalse(schedule_intent("Не отслеживай рекламу"))
+        self.client.post("/api/plugins", headers=self.headers,
+                         json={"plugin":"timer","installed":True}).raise_for_status()
+        answer = self.turn(request)
+        self.assertIn("Откройте меню «Таймера» слева", answer)
+        self.assertNotIn("Установите", answer)
+        self.assertEqual(self.plans, 0)
+        self.enable()
+        runtime=self.state.timers.runtime
+        self.choice={"question":"Как часто проверять и какую площадку?"}
+        with patch.object(runtime,"model",wraps=runtime.model) as model:
+            self.assertIn("Как часто",self.turn("Готово"))
+        context=json.loads(model.await_args.args[1][0]["content"].rsplit("\n",1)[-1])
+        self.assertEqual(context["request"], [request])
+        self.assertTrue(next(p for p in context["plugins"] if p["id"]=="timer")["enabled"])
+        self.assertEqual(self.events(),[])
+
     def test_chat_only_install_refine_confirm_run_and_restart(self):
         self.choice["plan"]["notify"]="goal"  # Regular reports must reach their chat every time.
         self.assertIn("Установите",self.turn("Каждый час присылай мне местную дату"))

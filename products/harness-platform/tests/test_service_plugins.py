@@ -54,6 +54,12 @@ class ServicePlugins(unittest.TestCase):
                 empty = context()
                 self.assertEqual(empty["availableServices"], [])
                 self.assertIn("Wildberries API", empty["connectionGuides"])
+                self.assertFalse(next(p for p in empty["pluginStatuses"] if p["id"]=="timer")["installed"])
+                for path, data in (("/api/plugins", {"installed":True}), (route+"/plugins", {"enabled":True})):
+                    client.post(path, headers=self.headers, json={"plugin":"ozon",**data}).raise_for_status()
+                without_store = context()
+                self.assertTrue(next(p for p in without_store["pluginStatuses"] if p["id"]=="ozon")["enabled"])
+                self.assertEqual(without_store["connections"],[])
                 self.assertIn("Ozon Seller", empty["connectionGuides"])
                 cid = client.post("/api/integrations", headers=self.headers, json={
                     "provider":"wb", "name":"WB", "fields":{"token":"test-private-token"}
