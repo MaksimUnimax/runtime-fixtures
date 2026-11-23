@@ -1,0 +1,223 @@
+diff --git a/products/harness-platform/docs/PLUGINS.md b/products/harness-platform/docs/PLUGINS.md
+index ce3569f..dbeb880 100644
+--- a/products/harness-platform/docs/PLUGINS.md
++++ b/products/harness-platform/docs/PLUGINS.md
+@@ -66,7 +66,7 @@ const entry = platformMcpEntry({
+ 
+ ## Подключения аккаунта
+ 
+-Дескрипторы в platform_core/integrations.py задают поля и операции. В «Настройки» → «Интеграции» пользователь может нажать «Изменить ключи» у своего сохранённого подключения и ввести только новые значения. Прежние значения скрыты. Идентификатор подключения и привязки к чатам сохраняются. После сохранения кнопка «Проверить» проверяет новый доступ.
++Дескрипторы в platform_core/integrations.py задают поля и операции. В «Настройки» → «Интеграции» пользователь может нажать «Изменить ключи» у своего сохранённого подключения и ввести только новые значения. Прежние значения скрыты. Идентификатор подключения и привязки к чатам сохраняются. После сохранения кнопка «Проверить» проверяет новый доступ. Рядом доступна кнопка «Удалить подключение». После подтверждения Октопорт удаляет ключи, привязки к чатам и локальные настройки выбранного магазина.
+ 
+ Ozon принимает Client-Id / Api-Key продавца и отдельную пару Performance. Wildberries принимает API-токен статистики. Для семантики используется OAuth Яндекс Вордстата с одобренным доступом. Пользователь выбирает название магазина, сохраняет данные и может проверить соединение. Повторное сохранение с теми же сервисом и названием обновляет ключи. У Ozon можно обновить одну пару отдельно.
+ 
+diff --git a/products/harness-platform/native/web/connections.js b/products/harness-platform/native/web/connections.js
+index e19b022..8a218f0 100644
+--- a/products/harness-platform/native/web/connections.js
++++ b/products/harness-platform/native/web/connections.js
+@@ -102,10 +102,26 @@ window.__ModuleLoader__.load({
+                   hidden:phase!=='ready',src:request.url,onLoad:loaded,referrerPolicy:'no-referrer'}),
+                 request&&!request.widget&&h('a',{href:request.url,target:'_blank',rel:'noopener noreferrer'},'Войти через Telegram'))));
+       }
++      function RemoveConnection({connection,busy,onCancel,onRemove}) {
++        const ref=React.useRef(null);
++        React.useLayoutEffect(()=>{
++          const dialog=ref.current;
++          dialog.showModal();
++          return ()=>dialog.close();
++        },[]);
++        return h('dialog',{ref,className:'account-dialog','aria-labelledby':'remove-connection-title',
++            onKeyDown:e=>{if(e.key==='Escape')e.stopPropagation();},
++            onCancel:e=>{e.preventDefault();if(!busy)onCancel();}},
++          h('h2',{id:'remove-connection-title'},'Удалить подключение «'+connection.name+'»?'),
++          h('p',null,'Ключи будут удалены из Октопорта, и все ваши чаты потеряют доступ к этому подключению.'),
++          ['ozon','wb'].includes(connection.provider)&&h('p',null,'Сохранённые в Октопорте настройки и коэффициенты этого магазина также будут удалены.'),
++          h('button',{type:'button',autoFocus:true,disabled:busy,onClick:onCancel},'Отмена'),
++          h('button',{type:'button',disabled:busy,onClick:onRemove},'Удалить подключение'));
++      }
+       function Connections({initial={},after,chat}) {
+         const [list,setList]=React.useState(null),[provider,setProvider]=React.useState(initial.provider||'');
+         const [fields,setFields]=React.useState(initial.fields||{}),[name,setName]=React.useState(initial.name||'');
+-        const [editing,setEditing]=React.useState(null);
++        const [editing,setEditing]=React.useState(null),[removing,setRemoving]=React.useState(null);
+         const editForm=React.useRef(null);
+         React.useEffect(()=>{if(editing)editForm.current?.querySelector('input[type=password]')?.focus();},[editing]);
+         const [msg,setMsg]=React.useState(initial.notice||''),[busy,setBusy]=React.useState(false);
+@@ -144,6 +160,8 @@ window.__ModuleLoader__.load({
+             h('button',{type:'button',disabled:busy,'aria-label':'Изменить ключи · '+c.name,onClick:()=>{
+               select(c.provider);setName(c.name);setEditing(c);
+             }},'Изменить ключи'),
++            h('button',{type:'button',disabled:busy,'aria-label':'Удалить подключение · '+c.name,
++              onClick:()=>{setMsg('');setRemoving(c);}},'Удалить подключение'),
+             grantsUrl&&h('label',{className:'service-chat-grant'},'Доступ в этом диалоге',
+               h(Switch,{label:'Доступ в этом диалоге · '+c.name,checked:list.attached.has(c.id),disabled:busy,
+                 onChange:enabled=>act(async()=>{
+@@ -151,6 +169,20 @@ window.__ModuleLoader__.load({
+                   window.dispatchEvent(new Event('harness:grants'));await refresh();
+                 })})),
+             c.provider==='wordstat' && h('button',{onClick:()=>{setTarget(c.id);setRows([]);}},'Собрать семантику'))),
++          removing&&h(RemoveConnection,{connection:removing,busy,onCancel:()=>setRemoving(null),onRemove:()=>act(async()=>{
++            const {id,version,name}=removing;
++            try {
++              await a.api('/api/integrations/'+encodeURIComponent(id),{method:'DELETE',
++                headers:{'Content-Type':'application/json'},body:JSON.stringify({version})});
++            } catch(error) {
++              setRemoving(null);await refresh();throw error;
++            }
++            setRemoving(null);
++            if(editing?.id===id)select('');
++            if(target===id){setTarget('');setRows([]);setPhrase('');}
++            window.dispatchEvent(new Event('harness:grants'));
++            await refresh();setMsg('Подключение «'+name+'» удалено.');
++          })}),
+           target && h('form',{onSubmit:e=>{e.preventDefault();act(async()=>setRows((await post('/api/integrations/'+target+'/semantics',{phrase})).rows));}},
+             h('label',null,'Поисковая фраза',h('input',{required:true,value:phrase,onChange:e=>setPhrase(e.target.value)})),
+             h('button',{disabled:busy},'Получить запросы'),rows.length>0 && h('ul',null,rows.map(r=>h('li',{key:r.phrase},r.phrase+' · '+r.count)))),
+diff --git a/products/harness-platform/platform_core/integrations.py b/products/harness-platform/platform_core/integrations.py
+index c6208f0..106ed63 100644
+--- a/products/harness-platform/platform_core/integrations.py
++++ b/products/harness-platform/platform_core/integrations.py
+@@ -168,6 +168,22 @@ class IntegrationStore:
+             self._replace_keys(db, workspace, cid, provider, sealed, fields)
+         return {"id":cid, "status":"saved", "version":version + 1}
+ 
++    def remove(self, token, cid, version):
++        if type(version) is not int or version < 1:
++            raise HTTPException(400, "Некорректная версия подключения.")
++        with self.identity._write() as db:
++            _, workspace = _principal(db, token)
++            row = db.execute("SELECT version FROM account_integrations WHERE workspace=? AND id=?",
++                             (workspace, cid)).fetchone()
++            if row is None:
++                raise HTTPException(404, "Подключение не найдено.")
++            if row[0] != version:
++                raise HTTPException(409, "Подключение изменилось. Проверьте его и подтвердите удаление заново.")
++            jobs = db.execute("SELECT id FROM user_plugin_jobs WHERE cid=? AND state='running'", (cid,)).fetchall()
++            # Foreign keys remove this connection's chat grants, checks and local store data.
++            db.execute("DELETE FROM account_integrations WHERE workspace=? AND id=?", (workspace, cid))
++        return [job for job, in jobs]
++
+     def open(self, token, cid):
+         with self.identity._lock:
+             db = self.identity._db
+@@ -239,6 +255,17 @@ def routes(get_token, body):
+         data = await body(req,"version","fields")
+         return JSONResponse(req.app.state.integrations.edit_keys(token, req.path_params["cid"], **data))
+ 
++    async def remove(req):
++        token = get_token(req, allow_cookie=True)
++        data = await body(req, "version")
++        state = req.app.state
++        jobs = state.integrations.remove(token, req.path_params["cid"], data["version"])
++        for job in jobs:
++            task = state.plugins.tasks.get(job)
++            if task is not None:
++                task.cancel()
++        return JSONResponse({"removed": True})
++
+     async def check(req):
+         token = get_token(req,allow_cookie=True)
+         store, cid = req.app.state.integrations, req.path_params["cid"]
+@@ -265,6 +292,7 @@ def routes(get_token, body):
+         except (httpx.HTTPError,KeyError,TypeError,ValueError):
+             raise HTTPException(502,"Wordstat не вернул данные. Проверьте доступ и квоту.") from None
+     return [Route("/api/integrations",collection,methods=["GET","POST"]),
++            Route("/api/integrations/{cid}",remove,methods=["DELETE"]),
+             Route("/api/integrations/{cid}/keys",edit_keys,methods=["POST"]),
+             Route("/api/integrations/{cid}/check",check,methods=["POST"]),
+             Route("/api/integrations/{cid}/semantics",semantics,methods=["POST"])]
+diff --git a/products/harness-platform/platform_core/public_faq.json b/products/harness-platform/platform_core/public_faq.json
+index 3c4ba20..829bc41 100644
+--- a/products/harness-platform/platform_core/public_faq.json
++++ b/products/harness-platform/platform_core/public_faq.json
+@@ -4,7 +4,7 @@
+     "patterns": []
+   },
+   "features": {
+-    "answer": "Меня зовут Октопус. Я беру на себя рутинную работу с магазинами на Wildberries и Ozon, чтобы у вас оставалось время решать, что продавать и куда вкладывать деньги.",
++    "answer": "Меня зовут Октопус, я создан для того чтобы взять на себя всю рутинную работу по ведению маркетплейсов вб и озон.",
+     "patterns": [
+       "что (?:ты |вы )?(?:умеешь|умеете|можешь|можете)(?: делать)?",
+       "что (?:может|умеет|делает) (?:ваш |этот )?(?:сервис|помощник|бот)",
+@@ -22,7 +22,7 @@
+       "почему стоит (?:выбрать ваш сервис|зарегистрироваться)",
+       "что входит в сервис"
+     ],
+-    "previous_answers": ["Сервис создан для продавцов Ozon и Wildberries. В личном кабинете вы можете задавать вопросы о магазине в одном чате и возвращаться к сохранённым ответам. Список доступных функций зависит от подключений. Чтобы начать, нажмите «Создать аккаунт».", "Сервис создан для продавцов Ozon и Wildberries. В чате можно задавать вопросы о магазине и возвращаться к сохранённым ответам. Доступные функции зависят от подключений. Чтобы начать, нажмите «Создать аккаунт»."]
++    "previous_answers": ["Сервис создан для продавцов Ozon и Wildberries. В личном кабинете вы можете задавать вопросы о магазине в одном чате и возвращаться к сохранённым ответам. Список доступных функций зависит от подключений. Чтобы начать, нажмите «Создать аккаунт».", "Сервис создан для продавцов Ozon и Wildberries. В чате можно задавать вопросы о магазине и возвращаться к сохранённым ответам. Доступные функции зависят от подключений. Чтобы начать, нажмите «Создать аккаунт».", "Меня зовут Октопус. Я беру на себя рутинную работу с магазинами на Wildberries и Ozon, чтобы у вас оставалось время решать, что продавать и куда вкладывать деньги."]
+   },
+   "signup": {
+     "answer": "Нажмите «Создать аккаунт», введите логин и пароль и подтвердите регистрацию. Страница останется открытой, а на балансе нового аккаунта появятся 10 монет.",
+diff --git a/products/harness-platform/tests/browser/test_account_browser.py b/products/harness-platform/tests/browser/test_account_browser.py
+index 0aa1af0..01e7ba6 100644
+--- a/products/harness-platform/tests/browser/test_account_browser.py
++++ b/products/harness-platform/tests/browser/test_account_browser.py
+@@ -370,6 +370,18 @@ class BrowserIsolation(ProductBrowser):
+             await expect(secret).to_have_value("")
+             await dialog.get_by_role("button", name="Отмена").click()
+             await expect(secret).to_have_count(0)
++            remove = dialog.get_by_role("button", name="Удалить подключение · Мой Ozon")
++            confirm = page.get_by_role("dialog", name="Удалить подключение «Мой Ozon»?")
++            await remove.click()
++            await expect(confirm).to_be_visible()
++            await confirm.get_by_role("button", name="Отмена").click()
++            await expect(confirm).to_have_count(0)
++            await expect(remove).to_be_visible()
++            await remove.click()
++            await confirm.get_by_role("button", name="Удалить подключение", exact=True).click()
++            await expect(dialog.get_by_role("status")).to_contain_text("Подключение «Мой Ozon» удалено")
++            await expect(remove).to_have_count(0)
++            self.assertEqual((await (await page.request.get("/api/integrations")).json())["connections"], [])
+ 
+     async def test_store_connection_updates_plugin_shortcut_without_reloading(self):
+         key=self.database.parent/"plugin-key"
+diff --git a/products/harness-platform/tests/test_service_plugins.py b/products/harness-platform/tests/test_service_plugins.py
+index 2402742..98c0853 100644
+--- a/products/harness-platform/tests/test_service_plugins.py
++++ b/products/harness-platform/tests/test_service_plugins.py
+@@ -81,6 +81,45 @@ class ServicePlugins(unittest.TestCase):
+                 self.assertNotIn("perf-secret", str(partial))
+                 self.assertNotIn("Реклама", str(partial["availableServices"]))
+ 
++    def test_owner_removes_only_selected_connection_and_all_its_chat_grants(self):
++        with self.client() as client:
++            base = "/api/integrations"
++            token = self.other["Authorization"].split()[1]
++            store = client.app.state.identity
++            chats = [store.create_user_chat(token).chat_id for _ in range(2)]
++            form = {"provider":"ozon", "name":"Один", "fields":{"client_id":"fixture-shop","api_key":"old"}}
++            def create(headers, name):
++                reply = client.post(base, json=form|{"name":name}, headers=headers)
++                reply.raise_for_status()
++                return reply.json()["id"]
++            target, keep, foreign = create(self.other,"Один"), create(self.other,"Два"), create(self.headers,"Один")
++            endpoint = base+"/"+target
++            for chat in chats:
++                with patch.object(client.app.state.plugins, "sync_added"):
++                    client.post("/api/chats/"+chat+"/integrations", headers=self.other,
++                                json={"connectionId":target, "enabled":True}).raise_for_status()
++            client.post(endpoint+"/keys", headers=self.other, json={"version":1,"fields":{"api_key":"new"}}).raise_for_status()
++            def remove(headers, version):
++                return client.request("DELETE",endpoint,headers=headers,json={"version":version})
++            self.assertEqual(remove({},2).status_code,401)
++            self.assertEqual(remove(self.headers,2).status_code,404)
++            self.assertEqual(remove(self.other,1).status_code,409)
++            self.assertEqual(remove(self.other,True).status_code,400)
++            with store._write() as db:
++                db.execute("INSERT INTO integration_access_checks VALUES(?,2,'{}')",(target,))
++                self.assertEqual(db.execute("SELECT count(*) FROM chat_integrations WHERE connection_id=?",(target,)).fetchone()[0],2)
++            self.assertEqual(remove(self.other,2).json(),{"removed":True})
++            self.assertEqual(remove(self.other,2).status_code,404)
++            self.assertEqual(client.post(endpoint+"/check",headers=self.other).status_code,404)
++            for headers, remaining in ((self.other,keep),(self.headers,foreign)):
++                self.assertEqual([c["id"] for c in client.get(base,headers=headers).json()["connections"]], [remaining])
++            with store._lock:
++                for table, field in (("account_integrations","id"),("chat_integrations","connection_id"),
++                                     ("integration_access_checks","cid"),("user_plugin_stores","cid")):
++                    self.assertEqual(store._db.execute(f"SELECT count(*) FROM {table} WHERE {field}=?", (target,)).fetchone()[0],0)
++                for chat in chats:
++                    self.assertTrue(store._db.execute("SELECT 1 FROM chats WHERE chat_id=?", (chat,)).fetchone())
++
+     def test_member_rotates_own_credentials_in_place(self):
+         with self.client() as client:
+             store = client.app.state.integrations
