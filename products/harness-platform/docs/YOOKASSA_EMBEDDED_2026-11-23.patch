@@ -1,0 +1,571 @@
+--- a/products/harness-platform/platform_core/checkout.py
++++ b/products/harness-platform/platform_core/checkout.py
+@@ -116,11 +116,16 @@
+             if (count, total) != (saved_count, saved_total):
+                 raise HTTPException(409, "Сумма заказа изменилась. Проверьте итог.")
+             if status != "pending":
+-                return order, None, status
+-            # YooKassa guarantees idempotency for 24 hours. Never recreate an uncertain charge.
+-            if not url and db.execute("SELECT unixepoch()-?", (created,)).fetchone()[0] >= 23*3600:
++                return order, None, status, None
++            saved_widget = db.execute(
++                "SELECT confirmation_token FROM coin_checkout_widgets WHERE checkout_id=?",
++                (order,)).fetchone()
++            confirmation_token = saved_widget[0] if saved_widget else None
++            # Never create a new provider charge for an uncertain old request.
++            if not url and not confirmation_token and db.execute(
++                    "SELECT unixepoch()-?", (created,)).fetchone()[0] >= 23*3600:
+                 raise HTTPException(409, "Срок заказа истёк. Обратитесь в поддержку для сверки.")
+-            return order, url, status
++            return order, url, status, confirmation_token
+         if total != price(coins.sale_pricing(db)["rubPerCoin"], count):
+             raise HTTPException(409, "Стоимость изменилась. Проверьте новую сумму.")
+         if coins.unallocated(db, workspace) < count * coins.UNIT:
+@@ -128,7 +133,7 @@
+         order = str(uuid4())
+         db.execute("""INSERT INTO coin_checkouts(id,workspace_id,request_key,quantity,total)
+                       VALUES(?,?,?,?,?)""", (order, workspace, key, count, total))
+-        return order, None, "pending"
++        return order, None, "pending", None
+ 
+ 
+ class RejectedPayment(Exception):
+@@ -167,22 +172,43 @@
+             raise HTTPException(502, "Платёж требует сверки.")
+         status = data.get("status")
+         if previous != "pending":
+-            return previous, None
+-        url = None
++            return previous, None, None
++        url, confirmation_token = None, None
+         if status == "succeeded" and data.get("paid") is True:
+             db.execute("UPDATE coin_checkouts SET status='succeeded' WHERE id=?", (order,))
+             coins.grant(db, "yookassa", payment_id, workspace, str(count), "Покупка монет")
++            db.execute("DELETE FROM coin_checkout_widgets WHERE checkout_id=?", (order,))
+         elif status == "canceled":
+             db.execute("UPDATE coin_checkouts SET status='canceled' WHERE id=?", (order,))
++            db.execute("DELETE FROM coin_checkout_widgets WHERE checkout_id=?", (order,))
+         elif status == "pending":
+-            url = data.get("confirmation", {}).get("confirmation_url") or ""
+-            parsed = urlsplit(url)
+-            if parsed.scheme != "https" or parsed.hostname not in {"yoomoney.ru", "yookassa.ru"} or parsed.username or parsed.password:
+-                raise HTTPException(502, "Платёжная ссылка недоступна.")
++            confirmation = data.get("confirmation") or {}
++            saved_widget = db.execute(
++                "SELECT confirmation_token FROM coin_checkout_widgets WHERE checkout_id=?",
++                (order,)).fetchone()
++            if confirmation.get("type") == "embedded":
++                confirmation_token = confirmation.get("confirmation_token") or (
++                    saved_widget[0] if saved_widget else None)
++                if (not isinstance(confirmation_token, str)
++                        or not re.fullmatch(r"ct-[A-Za-z0-9-]{8,200}", confirmation_token)):
++                    raise HTTPException(502, "ЮKassa не предоставила токен встроенной формы.")
++                if saved_widget and saved_widget[0] != confirmation_token:
++                    raise HTTPException(502, "Изменился токен незавершённой оплаты.")
++                db.execute("""INSERT OR IGNORE INTO coin_checkout_widgets
++                    (checkout_id,confirmation_token) VALUES(?,?)""", (order, confirmation_token))
++            elif saved_widget:
++                confirmation_token = saved_widget[0]
++            else:
++                # Continue to support previously created redirect payments.
++                url = confirmation.get("confirmation_url") or ""
++                parsed = urlsplit(url)
++                if (parsed.scheme != "https" or parsed.hostname not in {"yoomoney.ru", "yookassa.ru"}
++                        or parsed.username or parsed.password):
++                    raise HTTPException(502, "Платёжная ссылка недоступна.")
+         else:
+             raise HTTPException(502, "Неизвестный статус платежа.")
+         db.execute("UPDATE coin_checkouts SET provider_id=?,url=? WHERE id=?", (payment_id, url, order))
+-        return status, url
++        return status, url, confirmation_token
+ 
+ 
+ async def checkout(request):
+@@ -200,11 +226,12 @@
+         raise HTTPException(400, "Некорректный идентификатор заказа.")
+     customer_email = await run_in_threadpool(store.account_login, token)
+     receipt = receipt_data(customer_email, count, fields["total"])
+-    order, url, status = await run_in_threadpool(order_for, store, token, fields["key"], count, fields["total"])
+-    if url or status != "pending":
+-        return response({"url": url, "status":status})
++    order, url, status, confirmation_token = await run_in_threadpool(
++        order_for, store, token, fields["key"], count, fields["total"])
++    if url or confirmation_token or status != "pending":
++        return response({"url":url, "status":status, "confirmationToken":confirmation_token})
+     payload = {"amount": {"value": fields["total"], "currency": "RUB"}, "capture": True,
+-               "confirmation": {"type":"redirect", "return_url":"https://octoport.ru/?account=wallet"},
++               "confirmation": {"type":"embedded", "locale":"ru_RU"},
+                "metadata": {"order":order}, "description":f"Октопорт · {count} монет",
+                "receipt": receipt}
+     try:
+@@ -216,8 +243,9 @@
+                               AND provider_id IS NULL AND status='pending'""", (order,))
+         await run_in_threadpool(cancel_rejected)
+         return response({"status":"canceled", "url":None})
+-    status, url = await run_in_threadpool(apply_payment, store, order, data, auth[0])
+-    return response({"url":url, "status":status})
++    status, url, confirmation_token = await run_in_threadpool(
++        apply_payment, store, order, data, auth[0])
++    return response({"url":url, "status":status, "confirmationToken":confirmation_token})
+ 
+ 
+ 
+@@ -256,8 +284,9 @@
+     verified = await provider("GET", "/" + payment_id, auth)
+     if verified.get("id") != payment_id:
+         raise HTTPException(502, "Не удалось подтвердить платёж.")
+-    status, url = await run_in_threadpool(apply_payment, store, order, verified, auth[0])
+-    return response({"status": status, "url": url})
++    status, url, confirmation_token = await run_in_threadpool(
++        apply_payment, store, order, verified, auth[0])
++    return response({"status":status, "url":url, "confirmationToken":confirmation_token})
+ 
+ 
+ def apply_full_refund(store, order, refund, payment, shop):
+
+--- a/products/harness-platform/platform_core/coins.py
++++ b/products/harness-platform/platform_core/coins.py
+@@ -22,6 +22,10 @@
+         refund_id TEXT PRIMARY KEY, payment_id TEXT NOT NULL UNIQUE,
+         checkout_id TEXT NOT NULL UNIQUE REFERENCES coin_checkouts,
+         workspace_id TEXT NOT NULL REFERENCES workspaces, amount TEXT NOT NULL,
++        created INTEGER NOT NULL DEFAULT(unixepoch()))""",
++    """CREATE TABLE IF NOT EXISTS coin_checkout_widgets (
++        checkout_id TEXT PRIMARY KEY NOT NULL REFERENCES coin_checkouts(id) ON DELETE CASCADE,
++        confirmation_token TEXT NOT NULL,
+         created INTEGER NOT NULL DEFAULT(unixepoch()))""",
+     """CREATE TABLE IF NOT EXISTS coin_ruble_orders (
+         operation_id TEXT PRIMARY KEY REFERENCES coin_orders ON DELETE CASCADE, fx_e4 INTEGER NOT NULL CHECK(fx_e4>0))""",
+
+--- a/products/harness-platform/platform_core/native_web.py
++++ b/products/harness-platform/platform_core/native_web.py
+@@ -335,12 +335,27 @@
+         page = page.replace("@@" + name + "@@", escape(value, quote=True))
+     script, digest = initial_script()
+     # Only the user-facing shell loads the analytics tag. The admin pages use HEADERS.
++    # Only the signed-in user shell may load the official YooKassa checkout widget.
++    # The admin screen remains on the base policy without third-party payment scripts.
+     policy = HEADERS["Content-Security-Policy"].replace(
+-        "script-src 'self';", f"script-src 'self' {digest} https://mc.yandex.ru https://mc.yandex.com https://yastatic.net;"
++        "script-src 'self';",
++        f"script-src 'self' {digest} https://mc.yandex.ru https://mc.yandex.com "
++        "https://yastatic.net https://yookassa.ru https://static.yoomoney.ru "
++        "https://yoomoney.ru https://kassa.yandex.ru;"
+     ).replace(
+-        "img-src 'self' data:;", "img-src 'self' data: https://mc.yandex.ru https://mc.yandex.com;"
++        "img-src 'self' data:;",
++        "img-src 'self' data: https://mc.yandex.ru https://mc.yandex.com "
++        "https://yookassa.ru https://*.yookassa.ru https://yoomoney.ru https://*.yoomoney.ru;"
+     ).replace(
+-        "connect-src 'self';", "connect-src 'self' https://mc.yandex.ru https://mc.yandex.com;"
+-    )
++        "connect-src 'self';",
++        "connect-src 'self' https://mc.yandex.ru https://mc.yandex.com "
++        "https://yookassa.ru https://*.yookassa.ru https://yoomoney.ru https://*.yoomoney.ru;"
++    ).replace(
++        "style-src 'self' 'unsafe-inline';",
++        "style-src 'self' 'unsafe-inline' https://static.yoomoney.ru https://yoomoney.ru;"
++    ).replace(
++        "font-src 'self' data:;",
++        "font-src 'self' data: https://static.yoomoney.ru https://yoomoney.ru;"
++    ) + "; frame-src https://yookassa.ru https://*.yookassa.ru https://yoomoney.ru https://*.yoomoney.ru https://kassa.yandex.ru;"
+     headers = {**HEADERS, "Content-Security-Policy": policy}
+     return HTMLResponse(page.replace("@@bootstrap@@", script), status_code=status, headers=headers)
+
+--- a/products/harness-platform/native/web/checkout.js
++++ b/products/harness-platform/native/web/checkout.js
+@@ -2,6 +2,36 @@
+   const currency = new Intl.NumberFormat('ru-RU', {style:'currency', currency:'RUB'});
+   const draftKey = 'octoport-checkout';
+   let dialog;
++  const widgetScriptUrl = 'https://yookassa.ru/checkout-widget/v1/checkout-widget.js';
++  let widgetScriptPromise;
++  function loadWidgetScript() {
++    if (typeof window.YooMoneyCheckoutWidget === 'function') return Promise.resolve();
++    if (!widgetScriptPromise) {
++      widgetScriptPromise = new Promise((resolve, reject) => {
++        const script = document.createElement('script');
++        script.src = widgetScriptUrl;
++        script.async = true;
++        script.onload = () => typeof window.YooMoneyCheckoutWidget === 'function'
++          ? resolve() : reject(Error('Widget unavailable'));
++        script.onerror = () => reject(Error('Widget failed to load'));
++        document.head.appendChild(script);
++      }).catch(error => { widgetScriptPromise = null; throw error; });
++    }
++    return widgetScriptPromise;
++  }
++  function widgetColors() {
++    const theme = getComputedStyle(document.documentElement);
++    const color = (name, fallback) => {
++      const value = theme.getPropertyValue(name).trim();
++      return /^#[0-9a-fA-F]{6}$/.test(value) ? value : fallback;
++    };
++    return {
++      control_primary: color('--octo-action', '#15171C'),
++      background: color('--octo-panel', '#F8F9FB'),
++      text: color('--octo-ink', '#0F1115'),
++      border: color('--octo-line', '#BCC3CD')
++    };
++  }
+   function saved() {
+     try { return JSON.parse(sessionStorage.getItem(draftKey)) || {}; } catch { return {}; }
+   }
+@@ -18,19 +48,41 @@
+       + '<form><label>Количество монет<input name="coins" type="number" min="1" max="8000000" step="1" inputmode="numeric" required></label>'
+       + '<p class="octo-checkout-total">Итого <output aria-live="polite">—</output></p>'
+       + '<button class="octo-checkout-pay" type="submit" disabled>Оплатить</button><p role="status"></p></form>';
++    const panel = document.createElement('section');
++    panel.className = 'octo-checkout-widget-panel';
++    panel.hidden = true;
++    panel.innerHTML = '<div class="octo-checkout-summary">'
++      + '<span>Безопасная оплата через ЮKassa</span><strong></strong></div>'
++      + '<div class="octo-checkout-provider" role="region" aria-label="Платёжная форма ЮKassa"></div>'
++      + '<p class="octo-checkout-widget-note" role="status"></p>'
++      + '<div class="octo-checkout-widget-actions">'
++      + '<button type="button" data-widget-back>Назад</button>'
++      + '<button type="button" data-widget-check>Проверить оплату</button></div>'
++      + '<p class="octo-checkout-widget-foot">Платёжные реквизиты обрабатывает ЮKassa. Octoport получает только подтверждённый результат.</p>';
++    box.append(panel);
+     document.body.append(box);
+     const form = box.querySelector('form'), input = form.elements.coins;
+     const output = box.querySelector('output'), pay = form.querySelector('button'), note = form.querySelector('[role=status]');
+     const launcher = document.activeElement;
+-    input.value = /^[1-9]\d{0,6}$/.test(initial) && Number(initial)<=8000000 ? initial : '100';
+-    let confirmed, timer, current, submitting = false, waitingQuote = false;
+     const initialDraft = saved();
++    const starting = initialDraft.awaiting && initialDraft.count ? initialDraft.count : initial;
++    input.value = /^[1-9]\d{0,6}$/.test(starting) && Number(starting)<=8000000 ? starting : '100';
++    let confirmed, timer, current, submitting = false, waitingQuote = false, pilotAdjusted = false;
++    let widget, pollTimer, checking = false;
++    const providerHost = panel.querySelector('.octo-checkout-provider');
++    const widgetNote = panel.querySelector('.octo-checkout-widget-note');
++    const checkButton = panel.querySelector('[data-widget-check]');
++    const backButton = panel.querySelector('[data-widget-back]');
++    const summary = panel.querySelector('.octo-checkout-summary strong');
++    providerHost.id = 'octo-yoo-checkout-' + crypto.randomUUID();
+     let key = initialDraft.key || crypto.randomUUID();
+     let signature = initialDraft.signature;
+     box.querySelector('header button').onclick = () => box.close();
+     box.addEventListener('close', () => {
+       clearTimeout(timer);
+       current?.abort();
++      clearTimeout(pollTimer);
++      if (widget) { widget.destroy(); widget = null; }
+       box.remove();
+       if (launcher?.isConnected) launcher.focus();
+     }, {once:true});
+@@ -55,6 +107,16 @@
+           const data = await r.json();
+           if (controller.signal.aborted) return;
+           if (!/^\d+\.\d{2}$/.test(data.total) || typeof data.enabled !== 'boolean') throw Error();
++          if (!data.enabled && count === '100' && !pilotAdjusted
++              && !initialDraft.awaiting && document.body.dataset.mode === 'member') {
++            pilotAdjusted = true;
++            const pilot = await fetch('/api/coins/quote?coins=1', {cache:'no-store',signal:controller.signal});
++            if (pilot.ok && (await pilot.json()).enabled) {
++              input.value = '1';
++              refresh();
++              return;
++            }
++          }
+           confirmed = {count, total:data.total};
+           if (signature !== count+':'+data.total) {
+             key = crypto.randomUUID();
+@@ -69,6 +131,111 @@
+       }, 120);
+     }
+     input.addEventListener('input', refresh);
++    function destroyWidget() {
++      if (widget) {
++        try { widget.destroy(); } catch { /* Widget may already have finished. */ }
++        widget = null;
++      }
++      providerHost.replaceChildren();
++    }
++    function leaveWidget() {
++      if (panel.classList.contains('octo-checkout-widget-success')) {
++        box.close();
++        return;
++      }
++      clearTimeout(pollTimer);
++      destroyWidget();
++      panel.hidden = true;
++      form.hidden = false;
++      box.classList.remove('octo-checkout-with-widget');
++      note.textContent = 'Платёж не завершён. При возвращении можно продолжить тот же заказ.';
++      input.disabled = false;
++      pay.disabled = !confirmed;
++    }
++    backButton.addEventListener('click', leaveWidget);
++    async function verifyPayment(retries = 0) {
++      const draft = saved();
++      if (!draft.key || checking) return;
++      checking = true;
++      checkButton.disabled = true;
++      widgetNote.textContent = 'Проверяем результат оплаты…';
++      try {
++        const r = await fetch('/api/coins/reconcile', {
++          method:'POST', body:new URLSearchParams({key:draft.key}),
++          cache:'no-store', credentials:'same-origin'
++        });
++        if (!r.ok) throw Error('Verification unavailable');
++        const data = await r.json();
++        if (data.status === 'succeeded') {
++          clearTimeout(pollTimer);
++          save({});
++          destroyWidget();
++          providerHost.hidden = true;
++          panel.classList.add('octo-checkout-widget-success');
++          widgetNote.textContent = 'Оплата подтверждена. Монеты зачислены на баланс.';
++          backButton.textContent = 'Готово';
++          checkButton.hidden = true;
++          document.dispatchEvent(new Event('octo-wallet-refresh'));
++        } else if (data.status === 'canceled' || data.status === 'refunded') {
++          clearTimeout(pollTimer);
++          save({});
++          destroyWidget();
++          widgetNote.textContent = 'Платёж отменён или возвращён. Повторного списания нет.';
++          checkButton.hidden = true;
++        } else {
++          widgetNote.textContent = 'Ожидаем подтверждение ЮKassa. Можно проверить ещё раз.';
++          if (retries > 0 && box.open) {
++            pollTimer = setTimeout(() => verifyPayment(retries - 1), 1800);
++          }
++        }
++      } catch {
++        widgetNote.textContent = 'Не удалось проверить платёж. Попробуйте ещё раз чуть позже.';
++      } finally {
++        checking = false;
++        if (!checkButton.hidden) checkButton.disabled = false;
++      }
++    }
++    checkButton.addEventListener('click', () => verifyPayment());
++    async function showEmbedded(confirmationToken, draft) {
++      if (!/^ct-[A-Za-z0-9-]{8,200}$/.test(confirmationToken)) {
++        note.textContent = 'ЮKassa не предоставила корректный токен оплаты.';
++        return;
++      }
++      save({...draft, awaiting:true});
++      form.hidden = true;
++      panel.hidden = false;
++      panel.classList.remove('octo-checkout-widget-success');
++      box.classList.add('octo-checkout-with-widget');
++      providerHost.hidden = false;
++      checkButton.hidden = false;
++      checkButton.disabled = false;
++      backButton.textContent = 'Назад';
++      const n = Number(draft.count);
++      const coinLabel = n % 10 === 1 && n % 100 !== 11 ? 'монета'
++        : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'монеты' : 'монет';
++      summary.textContent = draft.count + ' ' + coinLabel + ' · ' + currency.format(confirmed.total);
++      widgetNote.textContent = 'Загружаем защищённую форму…';
++      try {
++        await loadWidgetScript();
++        if (!box.open || panel.hidden) return;
++        widget = new window.YooMoneyCheckoutWidget({
++          confirmation_token: confirmationToken,
++          customization: {colors:widgetColors()},
++          error_callback: () => {
++            widgetNote.textContent = 'ЮKassa не смогла продолжить оплату. Можно вернуться и попробовать ещё раз.';
++          }
++        });
++        widget.on('complete', () => {
++          destroyWidget();
++          widgetNote.textContent = 'Проверяем результат оплаты…';
++          verifyPayment(6);
++        });
++        await widget.render(providerHost.id);
++        if (box.open && widget) widgetNote.textContent = 'Выберите способ оплаты. После подтверждения баланс обновится автоматически.';
++      } catch {
++        widgetNote.textContent = 'Не удалось открыть форму ЮKassa. Закройте окно и попробуйте продолжить заказ.';
++      }
++    }
+     form.addEventListener('submit', async event => {
+       event.preventDefault();
+       if (submitting || pay.disabled || !confirmed || confirmed.count !== input.value) return;
+@@ -94,6 +261,8 @@
+           note.textContent = data.detail || 'Не удалось открыть оплату. Повторите попытку.';
+           return;
+         }
++        if (data.confirmationToken) { await showEmbedded(data.confirmationToken, draft); return; }
++        // Previously created payments may still have a redirect confirmation.
+         if (data.url) { save({...draft, awaiting:true}); location.assign(data.url); return; }
+         note.textContent = data.status === 'succeeded' ? 'Монеты зачислены.' : 'Платёж отменён.';
+         save({});
+
+--- a/products/harness-platform/native/web/checkout.css
++++ b/products/harness-platform/native/web/checkout.css
+@@ -18,3 +18,47 @@
+ 
+ .octo-checkout header button { display:grid; place-items:center; flex:none; width:32px; height:32px; padding:0; border:1px solid var(--octo-line,#b3bbc5); border-radius:8px; font-size:0; }
+ .octo-checkout header button::before { content:""; width:14px; height:14px; background:linear-gradient(45deg,transparent 44%,currentColor 45% 55%,transparent 56%),linear-gradient(-45deg,transparent 44%,currentColor 45% 55%,transparent 56%); }
++
++/* Official YooKassa form inside the existing Octoport wallet dialog. */
++.octo-checkout-with-widget {
++  width:min(530px,calc(100vw - 28px));
++  max-height:calc(100dvh - 28px);
++  overflow-y:auto;
++  padding:clamp(12px,3vw,24px);
++  box-shadow:0 24px 80px rgb(0 0 0 / .22);
++}
++.octo-checkout-widget-panel { display:grid; gap:14px; min-width:0; padding-top:14px; }
++.octo-checkout-widget-panel[hidden], .octo-checkout form[hidden] { display:none !important; }
++.octo-checkout-summary {
++  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap;
++  gap:6px 14px; padding:12px 14px; border:1px solid var(--octo-line,#bcc3cd);
++  background:var(--octo-field,#fff); border-radius:10px;
++  font-size:13px; color:var(--octo-muted,#444c56);
++}
++.octo-checkout-summary strong { font-size:15px; font-weight:650; color:var(--octo-ink,#0f1115); }
++.octo-checkout-provider {
++  box-sizing:border-box; min-width:288px; min-height:260px; width:100%;
++  border-radius:10px; overflow:hidden; background:var(--octo-panel,#f8f9fb);
++}
++.octo-checkout-provider[hidden] { display:none; }
++.octo-checkout-widget-note {
++  margin:0; color:var(--octo-muted,#444c56); font:500 13px/1.5 var(--octo-font,system-ui);
++}
++.octo-checkout-widget-actions { display:flex; gap:10px; justify-content:space-between; flex-wrap:wrap; }
++.octo-checkout-widget-actions button {
++  box-sizing:border-box; min-height:38px; padding:8px 14px; border-radius:8px; cursor:pointer;
++  font:600 13px/1.4 var(--octo-font,system-ui); border:1px solid var(--octo-line,#bcc3cd);
++  background:var(--octo-field,#fff); color:var(--octo-ink,#0f1115);
++}
++.octo-checkout-widget-actions button[data-widget-check] {
++  color:var(--octo-on-action,#fff); background:var(--octo-action,#15171c);
++  border-color:var(--octo-action,#15171c);
++}
++.octo-checkout-widget-actions button[hidden] { display:none; }
++.octo-checkout-widget-actions button:disabled { opacity:.6; cursor:default; }
++.octo-checkout-widget-foot { margin:0; font-size:11px; line-height:1.5; color:var(--octo-muted,#444c56); }
++.octo-checkout-widget-success .octo-checkout-widget-note { font-size:15px; color:var(--octo-ink,#0f1115); }
++@media (max-width:390px) {
++  .octo-checkout-with-widget { width:calc(100vw - 12px); padding:10px; }
++  .octo-checkout-provider { min-width:288px; }
++}
+
+--- a/products/harness-platform/native/web/account.js
++++ b/products/harness-platform/native/web/account.js
+@@ -228,13 +228,19 @@
+         const [error,setError]=React.useState('');
+         React.useEffect(()=>{
+           const controller=new AbortController();
+-          a.api('/api/wallet',{signal:controller.signal}).then(next=>{
+-            if(controller.signal.aborted)return;
+-            setWallet(next);
+-            a.balanceEvents.dispatchEvent(new CustomEvent('balance',{detail:next.available}));
+-          })
+-            .catch(()=>{if(!controller.signal.aborted)setError('Не удалось обновить баланс');});
+-          return ()=>controller.abort();
++          const refreshWallet=()=>{
++            a.api('/api/wallet',{signal:controller.signal}).then(next=>{
++              if(controller.signal.aborted)return;
++              setWallet(next);
++              a.balanceEvents.dispatchEvent(new CustomEvent('balance',{detail:next.available}));
++            }).catch(()=>{if(!controller.signal.aborted)setError('Не удалось обновить баланс');});
++          };
++          refreshWallet();
++          document.addEventListener('octo-wallet-refresh',refreshWallet);
++          return ()=>{
++            controller.abort();
++            document.removeEventListener('octo-wallet-refresh',refreshWallet);
++          };
+         },[]);
+         if (!wallet) return h('p',{role:error?'alert':'status'},error || 'Загружаем баланс…');
+         return h(React.Fragment,null,
+
+--- a/products/harness-platform/tests/test_checkout.py
++++ b/products/harness-platform/tests/test_checkout.py
+@@ -177,3 +177,91 @@
+             self.assertFalse(self.client.get("/api/coins/quote?coins=3").json()["enabled"])
+             self.assertFalse(self.client.get("/api/coins/quote?coins=1").json()["enabled"])
+             self.assertEqual(self.post().status_code, 403)
++
++    @patch("platform_core.checkout.merchant", return_value=("merchant", "fixture"))
++    def test_embedded_widget_confirmation_replay_and_verified_credit(self, auth):
++        self.signin()
++        payment_id = str(uuid4())
++        token = "ct-" + str(uuid4())
++        order_id = None
++        status = "pending"
++        calls = []
++
++        async def provider(method, path, _auth, **kwargs):
++            nonlocal order_id
++            calls.append(method)
++            if method == "POST":
++                order_id = kwargs["headers"]["Idempotence-Key"]
++                self.assertEqual(kwargs["json"]["confirmation"],
++                                 {"type":"embedded","locale":"ru_RU"})
++                self.assertEqual(kwargs["json"]["receipt"]["items"][0]["amount"]["value"], "3.60")
++            else:
++                self.assertEqual(path, "/" + payment_id)
++            return {
++                "id": payment_id, "test": False,
++                "recipient": {"account_id":"merchant"},
++                "metadata": {"order":order_id},
++                "amount": {"value":"3.60","currency":"RUB"},
++                "status": status, "paid": status == "succeeded",
++                "confirmation": {"type":"embedded", "confirmation_token":token} if status=="pending" and method=="POST" else {},
++            }
++
++        with patch("platform_core.checkout.provider", side_effect=provider):
++            result = self.post().json()
++            self.assertEqual(result["status"], "pending")
++            self.assertEqual(result["confirmationToken"], token)
++            self.assertIsNone(result["url"])
++            result2 = self.post().json()
++            self.assertEqual(result2["confirmationToken"], token)
++            self.assertEqual(calls, ["POST"])
++            with self.client.app.state.identity._lock:
++                row = self.client.app.state.identity._db.execute(
++                    "SELECT confirmation_token FROM coin_checkout_widgets"
++                ).fetchone()
++                self.assertEqual(row[0], token)
++            reconcile = self.client.post("/api/coins/reconcile",
++                                         data={"key":self.form["key"]}, headers=HEADERS)
++            self.assertEqual(reconcile.status_code, 200)
++            self.assertEqual(reconcile.json()["confirmationToken"], token)
++            status = "succeeded"
++            verified = self.client.post("/api/coins/reconcile",
++                                        data={"key":self.form["key"]},headers=HEADERS)
++            self.assertEqual(verified.json()["status"], "succeeded")
++            self.assertEqual(self.client.get("/api/wallet/balance").json()["available"], "13")
++            with self.client.app.state.identity._lock:
++                self.assertEqual(self.client.app.state.identity._db.execute(
++                    "SELECT COUNT(*) FROM coin_checkout_widgets").fetchone()[0], 0)
++            self.assertEqual(self.post().json()["status"], "succeeded")
++            self.assertEqual(self.client.get("/api/wallet/balance").json()["available"], "13")
++
++    @patch("platform_core.checkout.merchant", return_value=("merchant", "fixture"))
++    def test_embedded_widget_rejects_missing_provider_confirmation(self, auth):
++        self.signin()
++        async def provider(method, path, _auth, **kwargs):
++            return {
++                "id": str(uuid4()), "test":False,
++                "recipient":{"account_id":"merchant"},
++                "metadata":{"order":kwargs["headers"]["Idempotence-Key"]},
++                "amount":{"value":"3.60","currency":"RUB"},
++                "status":"pending", "paid":False,
++                "confirmation":{"type":"embedded","confirmation_token":"invalid"},
++            }
++        with patch("platform_core.checkout.provider", side_effect=provider):
++            result = self.post()
++            self.assertEqual(result.status_code, 502)
++            self.assertEqual(self.client.get("/api/wallet/balance").json()["available"], "10")
++
++    def test_widget_assets_and_scoped_browser_security_policy(self):
++        response = self.client.get("/")
++        policy = response.headers["content-security-policy"]
++        self.assertIn("https://yookassa.ru", policy)
++        self.assertIn("https://static.yoomoney.ru", policy)
++        self.assertIn("; frame-src https://yookassa.ru", policy)
++        self.assertNotIn("form-action 'self' frame-src", policy)
++        self.assertIn("frame-ancestors 'none'", policy)
++        from platform_core.native_web import HEADERS
++        self.assertNotIn("https://yookassa.ru", HEADERS["Content-Security-Policy"])
++        script = self.client.get("/ui-assets/project/checkout.js")
++        self.assertEqual(script.status_code, 200)
++        self.assertIn("YooMoneyCheckoutWidget", script.text)
++        self.assertIn("confirmationToken", script.text)
