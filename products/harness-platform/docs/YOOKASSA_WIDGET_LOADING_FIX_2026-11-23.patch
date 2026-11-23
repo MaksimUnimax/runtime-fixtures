@@ -1,0 +1,186 @@
+--- a/products/harness-platform/native/web/checkout.js
++++ b/products/harness-platform/native/web/checkout.js
+@@ -11,13 +11,38 @@
+         const script = document.createElement('script');
+         script.src = widgetScriptUrl;
+         script.async = true;
+-        script.onload = () => typeof window.YooMoneyCheckoutWidget === 'function'
+-          ? resolve() : reject(Error('Widget unavailable'));
+-        script.onerror = () => reject(Error('Widget failed to load'));
++        let completed = false;
++        const finish = (error) => {
++          if (completed) return;
++          completed = true;
++          clearTimeout(deadline);
++          script.onload = script.onerror = null;
++          if (error) {
++            script.remove();
++            reject(error);
++          } else resolve();
++        };
++        const deadline = setTimeout(() => finish(Error('widget_script_timeout')), 8000);
++        script.onload = () => finish(typeof window.YooMoneyCheckoutWidget === 'function'
++          ? null : Error('widget_script_missing'));
++        script.onerror = () => finish(Error('widget_script_network'));
+         document.head.appendChild(script);
+       }).catch(error => { widgetScriptPromise = null; throw error; });
+     }
+     return widgetScriptPromise;
++  }
++  async function withWidgetDeadline(operation, timeoutMs) {
++    let timer;
++    try {
++      return await Promise.race([
++        operation,
++        new Promise((_, reject) => {
++          timer = setTimeout(() => reject(Error('widget_render_timeout')), timeoutMs);
++        })
++      ]);
++    } finally {
++      clearTimeout(timer);
++    }
+   }
+   function widgetColors() {
+     const theme = getComputedStyle(document.documentElement);
+@@ -57,6 +82,7 @@
+       + '<p class="octo-checkout-widget-note" role="status"></p>'
+       + '<div class="octo-checkout-widget-actions">'
+       + '<button type="button" data-widget-back>Назад</button>'
++      + '<button type="button" data-widget-retry hidden>Повторить загрузку</button>'
+       + '<button type="button" data-widget-check>Проверить оплату</button></div>'
+       + '<p class="octo-checkout-widget-foot">Платёжные реквизиты обрабатывает ЮKassa. Octoport получает только подтверждённый результат.</p>';
+     box.append(panel);
+@@ -68,10 +94,11 @@
+     const starting = initialDraft.awaiting && initialDraft.count ? initialDraft.count : initial;
+     input.value = /^[1-9]\d{0,6}$/.test(starting) && Number(starting)<=8000000 ? starting : '100';
+     let confirmed, timer, current, submitting = false, waitingQuote = false, pilotAdjusted = false;
+-    let widget, pollTimer, checking = false;
++    let widget, pollTimer, checking = false, activeToken, activeDraft;
+     const providerHost = panel.querySelector('.octo-checkout-provider');
+     const widgetNote = panel.querySelector('.octo-checkout-widget-note');
+     const checkButton = panel.querySelector('[data-widget-check]');
++    const retryButton = panel.querySelector('[data-widget-retry]');
+     const backButton = panel.querySelector('[data-widget-back]');
+     const summary = panel.querySelector('.octo-checkout-summary strong');
+     providerHost.id = 'octo-yoo-checkout-' + crypto.randomUUID();
+@@ -209,33 +236,67 @@
+       providerHost.hidden = false;
+       checkButton.hidden = false;
+       checkButton.disabled = false;
++      retryButton.hidden = true;
+       backButton.textContent = 'Назад';
++      activeToken = confirmationToken;
++      activeDraft = draft;
+       const n = Number(draft.count);
+       const coinLabel = n % 10 === 1 && n % 100 !== 11 ? 'монета'
+         : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'монеты' : 'монет';
+       summary.textContent = draft.count + ' ' + coinLabel + ' · ' + currency.format(confirmed.total);
+-      widgetNote.textContent = 'Загружаем защищённую форму…';
++      widgetNote.textContent = 'Подключаем защищённую форму ЮKassa…';
++      const started = performance.now();
++      let slowdown;
+       try {
++        slowdown = setTimeout(() => {
++          if (box.open && !panel.hidden && widgetNote.textContent.includes('Подключаем')) {
++            widgetNote.textContent = 'ЮKassa отвечает медленно. Проверяем подключение…';
++          }
++        }, 3500);
+         await loadWidgetScript();
+         if (!box.open || panel.hidden) return;
+         widget = new window.YooMoneyCheckoutWidget({
+           confirmation_token: confirmationToken,
++          return_url: 'https://octoport.ru/payment/return',
+           customization: {colors:widgetColors()},
+           error_callback: () => {
+-            widgetNote.textContent = 'ЮKassa не смогла продолжить оплату. Можно вернуться и попробовать ещё раз.';
++            if (box.open && !panel.hidden)
++              widgetNote.textContent = 'ЮKassa сообщила об ошибке загрузки. Можно повторить открытие формы.';
+           }
+         });
+         widget.on('complete', () => {
++          clearTimeout(slowdown);
+           destroyWidget();
+           widgetNote.textContent = 'Проверяем результат оплаты…';
+           verifyPayment(6);
+         });
+-        await widget.render(providerHost.id);
+-        if (box.open && widget) widgetNote.textContent = 'Выберите способ оплаты. После подтверждения баланс обновится автоматически.';
+-      } catch {
+-        widgetNote.textContent = 'Не удалось открыть форму ЮKassa. Закройте окно и попробуйте продолжить заказ.';
+-      }
+-    }
++        await withWidgetDeadline(widget.render(providerHost.id), 11000);
++        if (box.open && widget && !panel.hidden) {
++          widgetNote.textContent = 'Выберите способ оплаты. Баланс обновится после подтверждения.';
++        }
++      } catch (error) {
++        if (!box.open || panel.hidden) return;
++        destroyWidget();
++        providerHost.hidden = true;
++        retryButton.hidden = false;
++        const stalled = error?.message === 'widget_render_timeout' || error?.message === 'widget_script_timeout';
++        widgetNote.textContent = stalled
++          ? 'ЮKassa не ответила за отведённое время. Нажмите «Повторить загрузку»: новый платёж не создаётся.'
++          : 'Не удалось загрузить форму ЮKassa. Повторите загрузку — оплата останется в том же заказе.';
++        // Intentionally record only the failure category and duration, never a token.
++        console.warn('Octoport payment widget unavailable', {
++          code: /^[a-z_]+$/.test(error?.message || '') ? error.message : 'widget_loading_error',
++          durationMs: Math.round(performance.now() - started)
++        });
++      } finally {
++        clearTimeout(slowdown);
++      }
++    }
++    retryButton.addEventListener('click', () => {
++      if (!activeToken || !activeDraft) return;
++      destroyWidget();
++      showEmbedded(activeToken, activeDraft);
++    });
+     form.addEventListener('submit', async event => {
+       event.preventDefault();
+       if (submitting || pay.disabled || !confirmed || confirmed.count !== input.value) return;
+@@ -277,6 +338,9 @@
+     });
+     box.showModal();
+     input.focus({preventScroll:true});
++    // Start downloading the official widget while the user reviews the price.
++    // This does not create a payment or access card details.
++    loadWidgetScript().catch(() => {});
+     refresh();
+   }
+   document.addEventListener('click', event => {
+--- a/products/harness-platform/platform_core/native_web.py
++++ b/products/harness-platform/platform_core/native_web.py
+@@ -349,7 +349,8 @@
+     ).replace(
+         "connect-src 'self';",
+         "connect-src 'self' https://mc.yandex.ru https://mc.yandex.com "
+-        "https://yookassa.ru https://*.yookassa.ru https://yoomoney.ru https://*.yoomoney.ru;"
++        "https://yookassa.ru https://*.yookassa.ru https://yoomoney.ru https://*.yoomoney.ru "
++        "https://kassa.yandex.ru;"
+     ).replace(
+         "style-src 'self' 'unsafe-inline';",
+         "style-src 'self' 'unsafe-inline' https://static.yoomoney.ru https://yoomoney.ru;"
+--- a/products/harness-platform/tests/test_checkout.py
++++ b/products/harness-platform/tests/test_checkout.py
+@@ -265,3 +265,20 @@
+         self.assertEqual(script.status_code, 200)
+         self.assertIn("YooMoneyCheckoutWidget", script.text)
+         self.assertIn("confirmationToken", script.text)
++
++
++    def test_yookassa_widget_has_required_return_url_and_bounded_loader(self):
++        client_code = self.client.get("/ui-assets/project/checkout.js")
++        self.assertEqual(client_code.status_code, 200)
++        script = client_code.text
++        self.assertIn("return_url: 'https://octoport.ru/payment/return'", script)
++        self.assertIn("widget_script_timeout", script)
++        self.assertIn("widget_render_timeout", script)
++        self.assertIn("data-widget-retry", script)
++        self.assertIn("Повторить загрузку", script)
++        self.assertIn("withWidgetDeadline(widget.render(providerHost.id), 11000)", script)
++        self.assertIn("loadWidgetScript().catch(() => {});", script)
++        home = self.client.get("/")
++        policy = home.headers["content-security-policy"]
++        self.assertIn("connect-src 'self'", policy)
++        self.assertIn("https://kassa.yandex.ru", policy)
