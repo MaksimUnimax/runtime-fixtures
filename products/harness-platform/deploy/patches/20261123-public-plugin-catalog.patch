@@ -1,0 +1,697 @@
+diff --git a/products/harness-platform/docs/GUEST_ASSISTANT.md b/products/harness-platform/docs/GUEST_ASSISTANT.md
+index 92967d8..be770d8 100644
+--- a/products/harness-platform/docs/GUEST_ASSISTANT.md
++++ b/products/harness-platform/docs/GUEST_ASSISTANT.md
+@@ -16,7 +16,9 @@
+ 
+ Локальный обработчик нормализует ввод и сопоставляет целую фразу с формулировками справки. Единственное совпадение возвращает текст выбранной карточки. При неизвестной или неоднозначной формулировке из той же базы берётся ответ о границе темы. Упоминание площадки само по себе не выбирает ответ. Запросы о личных показателях ведут к общей информации о кабинете.
+ 
+-Гостевой консультант получает только текст вопроса и путь к базе FAQ. У него нет ключей, подключений к магазинам, доступа к отчётам, вызовов модели или внешних API. Цифры магазина, примеры отчётов и расчёты отсутствуют в публичном каталоге. Публикуемая цена самого сервиса относится к справке. Ссылка на регистрацию доступна независимо от числа ответов.
++При вопросе «Что ты умеешь?» гостевой обработчик дополняет опубликованный ответ списком плагинов с описанием каждого. Интеграции выводятся отдельной группой по запросу. На вопрос об одном плагине обработчик берёт его назначение и, если спрашивают о подключении, шаги настройки из опубликованной карточки.
++
++При запуске сервиса публичные карточки из реестров синхронизируются с таблицей SQLite `product_directory` одной транзакцией. Новый модуль появляется автоматически. Изменения названия и описания обновляют карточку, удалённый из реестра модуль исчезает, а решение администратора о снятии с публикации сохраняется при обновлении и перезапуске. Текущий список читается при каждом гостевом сообщении и каждом ходе Октопуса в аккаунте. Гостевой обработчик получает текст вопроса, опубликованные карточки и доступ на чтение к базе FAQ. У него нет ключей, подключений к магазинам, доступа к отчётам, вызовов модели или внешних API. Цифры магазина, примеры отчётов и расчёты отсутствуют в публичном каталоге. Публикуемая цена самого сервиса относится к справке. Ссылка на регистрацию доступна независимо от числа ответов.
+ 
+ Отдельно от консультанта веб-сервис хранит переписку посетителя под временной cookie, выводит историю страницами и при регистрации привязывает её к созданному аккаунту. Нативный обработчик запускается только после входа, когда владелец обращается к своему чату. В действующем гостевом режиме внешних вызовов нет, поэтому обычные сообщения не расходуют бюджет модели и не обрываются после двенадцатой реплики.
+ 
+diff --git a/products/harness-platform/docs/PLUGIN_FILTER.md b/products/harness-platform/docs/PLUGIN_FILTER.md
+index 068ea7f..f9850d1 100644
+--- a/products/harness-platform/docs/PLUGIN_FILTER.md
++++ b/products/harness-platform/docs/PLUGIN_FILTER.md
+@@ -18,6 +18,8 @@
+ | Ф6 | При двусмысленности Октопус задаёт вопрос о недостающем параметре. Просьба «мне нужно чтобы ты отслеживал рекламу» позволяет распознать фоновое наблюдение без слова «таймер». Если «Таймер» доступен к установке, Октопус предлагает его установить. Если он установлен и выключен в чате, Октопус предлагает включить его здесь. Уже включённые плагины площадок и привязки магазинов учитываются отдельно. Уточняются площадка, показатели, частота и канал доставки, если они неизвестны. При подтверждённом расписании состояние сообщает исполнитель. |
+ | Ф7 | Фильтр работает в общем слое Harness для прямого DeepSeek и OpenRouter, в новых и существующих чатах. Гостю доступна публичная справка. Публичный каталог кэшируется по версии реестра. Частное состояние читается для текущего аккаунта и чата. При росте каталога краткий указатель укладывается в бюджет. Полный список открывается по запросу. |
+ | Ф8 | Поддерживается добавление нового модуля и действия через реестр. Отбор повторно использует контракты и проверку доступа модулей. Общий фильтр применяется к новым действиям без ручного перечисления их названий и шаблонов. |
++| Ф9 | На «Что ты умеешь?» и «Какие есть плагины?» гостевой скрипт возвращает из базы название и описание каждого опубликованного плагина. По названию показывает карточку, по запросу об интеграциях показывает подключения отдельно. Модель и внешние API не вызываются, расход токенов и монет равен нулю. |
++| Ф10 | В разделе «Администрирование → Плагины» администратор может убрать плагин из каталога установки и вернуть его. Снятие сразу закрывает новые установки, в том числе автоматические при подключении магазина. Ранее установленные экземпляры сохраняют настройки и доступ в своих чатах. |
+ 
+ ## Критерии приёмки
+ 
+@@ -30,6 +32,8 @@
+ | 5 | В том же чате запросить вчерашние продажи по WB и Ozon, затем сменить период. Включить неоднозначный вопрос без показателя. | Контрольные суммы по обеим площадкам совпадают с источниками. При смене периода сохраняются ранее выбранные показатель и магазины. При неизвестном показателе Октопус его уточняет. |
+ | 6 | Зарегистрировать новое рабочее действие. Попробовать выполнить его до и после открытия и в следующем ходе. | До открытия схема закрыта, прямой вызов отклоняется. Открытие допускает вызов с нужными правами. Следующий ход снова начинает с закрытой схемой. |
+ | 7 | Повторить сценарии на прямом DeepSeek и OpenRouter со старым и новым чатом. Сравнить у одинаковых задач число вызовов, входные токены, время и списания. | Оба маршрута соблюдают правила отбора. Результаты публикуются с точной версией. Экономия подтверждается фактическими запросами и квитанциями, а целевой бюджет блока краткой справки и настройки на 8 и 128 контрольных карточках составляет до 400 токенов по контрольному токенизатору. |
++| 8 | Вопросы гостя о возможностях, каталоге и одном плагине. | Названия и описания совпадают с записями базы. Обращений к модели и внешним API, токенов и списаний — 0. |
++| 9 | Администратор снимает и возвращает один плагин. Повторить запросы в открытом гостевом и пользовательском чате, запросить новую установку, перезапустить сервис. | Видимость и возможность установки соответствуют решению. Для обычного пользователя изменение публикации запрещено. У прежнего владельца остаётся доступ к установленному экземпляру. |
+ 
+ Приёмка фиксирует точную версию релиза, сценарий, фактический результат и доказательство. Сценарии с данными площадок проходят на тестовых аккаунтах и магазинах. Проверка расходов выполняется парно на одинаковых входных условиях.
+ 
+diff --git a/products/harness-platform/native/web/admin.css b/products/harness-platform/native/web/admin.css
+index fd46939..506a982 100644
+--- a/products/harness-platform/native/web/admin.css
++++ b/products/harness-platform/native/web/admin.css
+@@ -71,3 +71,8 @@ p,output { margin:0; } output:empty { display:none; } output { color:#226345; }
+ .balance-alerts input { width:132px; }
+ #balance-message[role=alert] { color:#9f2931; }
+ :root[data-appearance=dark] #balance-message[role=alert] { color:#ffa9ae; }
++
++#catalog-items { list-style:none; padding:0; margin:12px 0; }
++#catalog-items li { display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:12px 0; border-bottom:1px solid var(--octo-line); }
++#catalog-items li div { flex:1 1 260px; }
++#catalog-items li small { display:block; color:var(--octo-muted,var(--octo-ink)); }
+diff --git a/products/harness-platform/native/web/admin.html b/products/harness-platform/native/web/admin.html
+index e8232c1..11ef7cd 100644
+--- a/products/harness-platform/native/web/admin.html
++++ b/products/harness-platform/native/web/admin.html
+@@ -3,7 +3,7 @@
+ <script src="/ui-assets/project/theme.js"></script>
+ <link rel="icon" href="/ui-assets/project/octoport-icon.png" type="image/png"><title>Администрирование · octoport</title><link rel="stylesheet" href="/ui-assets/project/appearance.css"><link rel="stylesheet" href="/ui-assets/project/admin.css">
+ <script src="/session-nav.js"></script><script defer src="/ui-assets/project/presence.js"></script><script type="module" src="/ui-assets/project/admin.js"></script></head>
+-<body class="octo-admin"><main><nav><a href="/"><img class="admin-mark" src="/ui-assets/project/octoport-mark.png" width="24" height="24" alt=""> <img class="octo-wordmark" src="/ui-assets/project/octoport-wordmark.svg?v=689f9cd2" width="112" height="28" alt="octoport"><span>В чат</span></a> <a href="/admin/statistics">Статистика</a> <a href="/admin/visits">Посещения</a></nav><h1>Администрирование</h1>
++<body class="octo-admin"><main><nav><a href="/"><img class="admin-mark" src="/ui-assets/project/octoport-mark.png" width="24" height="24" alt=""> <img class="octo-wordmark" src="/ui-assets/project/octoport-wordmark.svg?v=689f9cd2" width="112" height="28" alt="octoport"><span>В чат</span></a> <a href="/admin/statistics">Статистика</a> <a href="/admin/visits">Посещения</a> <a href="#plugin-catalog">Плагины</a></nav><h1>Администрирование</h1>
+ <section aria-labelledby="balance-heading">
+ <h2 id="balance-heading">Балансы провайдеров</h2>
+ <div class="balance-grid">
+@@ -32,6 +32,11 @@
+ </div>
+ <p id="balance-message" role="status" aria-live="polite"></p>
+ </section>
++<section id="plugin-catalog" aria-labelledby="plugin-heading">
++<h2 id="plugin-heading">Каталог плагинов</h2>
++<p>Снятый с публикации плагин пропадает из справки и каталога установки. Пользователи, которые его уже установили, сохраняют доступ.</p>
++<ul id="catalog-items"></ul><p id="catalog-status" role="status" aria-live="polite"></p>
++</section>
+ <section aria-labelledby="model-heading"><h2 id="model-heading">Модель по умолчанию</h2>
+ <p id="current-model" role="status"></p>
+ <p>Выбор действует со следующего сообщения для всех пользователей, включая выбравших модель ранее.</p>
+diff --git a/products/harness-platform/native/web/admin.js b/products/harness-platform/native/web/admin.js
+index d8a20a5..da93c6f 100644
+--- a/products/harness-platform/native/web/admin.js
++++ b/products/harness-platform/native/web/admin.js
+@@ -310,3 +310,44 @@ telegramConnect.addEventListener('click', async () => {
+ loadBalances();
+ setInterval(() => { if (!document.hidden) loadBalances(); }, 15000);
+ document.addEventListener('visibilitychange', () => { if (!document.hidden) loadBalances(); });
++
++const catalogItems = document.querySelector('#catalog-items');
++const catalogStatus = document.querySelector('#catalog-status');
++const catalogPath = '/api/admin/plugin-catalog';
++
++function renderPluginCatalog(plugins) {
++  catalogItems.replaceChildren(...plugins.map(plugin => {
++    const row = document.createElement('li');
++    const info = document.createElement('div');
++    const name = document.createElement('strong');
++    const description = document.createElement('p');
++    const state = document.createElement('small');
++    const button = document.createElement('button');
++    name.textContent = plugin.title;
++    description.textContent = plugin.description;
++    state.textContent = plugin.listed ? 'Доступен к установке' : 'Снят с публикации';
++    info.append(name, description, state);
++    button.type = 'button';
++    button.textContent = plugin.listed ? 'Убрать из каталога' : 'Вернуть в каталог';
++    button.setAttribute('aria-label', button.textContent + ' — ' + plugin.title);
++    button.addEventListener('click', async () => {
++      for (const item of catalogItems.querySelectorAll('button')) item.disabled = true;
++      try {
++        const result = await request(catalogPath, {method:'POST', headers:{'Content-Type':'application/json'},
++          body:JSON.stringify({plugin:plugin.id, listed:!plugin.listed})});
++        renderPluginCatalog(result.plugins);
++        catalogStatus.textContent = '«' + plugin.title + (plugin.listed ? '» снят с публикации.' : '» снова доступен к установке.');
++      } catch (error) {
++        catalogStatus.textContent = error.message;
++      } finally {
++        for (const item of catalogItems.querySelectorAll('button')) item.disabled = false;
++      }
++    });
++    row.append(info, button);
++    return row;
++  }));
++  if (!plugins.length) catalogStatus.textContent = 'В реестре пока нет плагинов.';
++}
++request(catalogPath).then(result => renderPluginCatalog(result.plugins)).catch(error => {
++  catalogStatus.textContent = error.message;
++});
+diff --git a/products/harness-platform/platform_core/guest_registration.py b/products/harness-platform/platform_core/guest_registration.py
+index 8492784..94f2c6d 100644
+--- a/products/harness-platform/platform_core/guest_registration.py
++++ b/products/harness-platform/platform_core/guest_registration.py
+@@ -18,6 +18,8 @@ from .identity import (
+ )
+ from .storage import Scope, _bind_chat
+ from .public_faq import PublicFAQ
++from .octopus_knowledge import published
++from .user_plugins.publication import public_cards, synchronize
+ from .coins import PRICING_SCHEMA, sale_pricing
+ 
+ GUEST_LIFETIME = 24 * 60 * 60
+@@ -41,6 +43,7 @@ class RegistrationStore(IdentityStore):
+             self.faq = PublicFAQ(None if str(path) == ":memory:" else Path(str(path) + ".public-faq.sqlite3"))
+             with self._write() as db:
+                 db.execute(PRICING_SCHEMA)
++                synchronize(db, published())
+                 db.execute("""CREATE TABLE IF NOT EXISTS guest_chats (
+                     chat_id TEXT PRIMARY KEY NOT NULL, digest BLOB UNIQUE NOT NULL,
+                     expires_at INTEGER NOT NULL, signup_nonce BLOB,
+@@ -177,7 +180,7 @@ class RegistrationStore(IdentityStore):
+                 if row[0] != text:
+                     raise RegistrationConflict("Request already used")
+                 return
+-            answer = self.faq.answer(text)
++            answer = self.faq.answer(text, public_cards(db))
+             if "{sale_price}" in answer:
+                 price = sale_pricing(db)["rubPerCoin"]
+                 whole, _, fraction = price.partition(".")
+diff --git a/products/harness-platform/platform_core/octopus_knowledge.py b/products/harness-platform/platform_core/octopus_knowledge.py
+index 1fb7a16..be93ec1 100644
+--- a/products/harness-platform/platform_core/octopus_knowledge.py
++++ b/products/harness-platform/platform_core/octopus_knowledge.py
+@@ -11,6 +11,7 @@ from starlette.routing import Route
+ from .identity import _principal
+ from .integrations import KEY_GUIDES, published_providers
+ from .user_plugins.registry import CATALOG
++from .user_plugins.publication import public_cards
+ 
+ OPTIONS = {"address": ["на вы", "на ты"], "tone": ["дружелюбно", "по-деловому"],
+            "detail": ["по существу", "кратко", "подробно"]}
+@@ -80,6 +81,7 @@ def _cards(key):
+         auto = p["provider"] in providers and providers[p["provider"]].get("fields") is not None
+         cards.append(dict(id="plugin/" + p["id"], title=p["title"], group="Плагины", purpose=p["description"],
+             keywords=p["keywords"], operations=ops, triggers=p["triggers"],
++            aliases=list(dict.fromkeys([p["id"], p["provider"], *providers.get(p["provider"], {}).get("aliases", ())])),
+             **({"usage": p["usage"]} if p["usage"] else {}),
+             **({"glossary": p["glossary"]} if p["glossary"] else {}),
+             **({"briefSetup": True} if p["setup"] and len(" ".join(p["setup"])) <= 180 and not p["usage"] else {}),
+@@ -143,5 +145,9 @@ def snapshot(db, scope, rows, telegram):
+             "text":" ".join(filter(None, (when, last_try,
+                 "" if delivery["subscribed"] else "Сейчас подписка выключена. Плагин возобновит отправку только после её включения.",
+                 "В окне плагина «Отчёты в Telegram» есть строка «Последняя отправка», когда время подтверждено. Конкретный отчёт можно проверить в личном чате с ботом.")))}
+-    return {"cards": published(), "states": states, "currentSteps": instructions, "replies": replies,
++    cards = public_cards(db)
++    visible = {card["id"] for card in cards}
++    return {"cards": cards, "states": {k: v for k, v in states.items() if k in visible},
++            "currentSteps": {k: v for k, v in instructions.items() if k in visible},
++            "replies": {k: v for k, v in replies.items() if k in visible},
+             "style": preferences(db, scope.workspace_id)}
+diff --git a/products/harness-platform/platform_core/public_faq.py b/products/harness-platform/platform_core/public_faq.py
+index fd3ab81..09a7a13 100644
+--- a/products/harness-platform/platform_core/public_faq.py
++++ b/products/harness-platform/platform_core/public_faq.py
+@@ -46,7 +46,7 @@ class PublicFAQ:
+     def close(self):
+         self._db.close()
+ 
+-    def answer(self, message):
++    def answer(self, message, cards=()):
+         text = " ".join(re.findall(r"[^\W_]+", message.casefold().replace("ё", "е")))
+         text = re.sub(r"^(?:(?:здравствуйте|привет|добрый день|подскажите|скажи|пожалуйста) )+", "", text)
+         text = text.removesuffix(" пожалуйста")
+@@ -55,25 +55,55 @@ class PublicFAQ:
+         for topic, answer, patterns in self._db.execute("SELECT topic, answer, patterns FROM public_faq WHERE topic!='scope'"):
+             if any(re.fullmatch(pattern, text) for pattern in json.loads(patterns)):
+                 if topic == "features":
+-                    from .octopus_knowledge import published
+-                    titles = ", ".join(card["title"] for card in published())
+-                    answer += " Я Октопус. В моём каталоге сейчас есть " + titles + "."
++                    answer += "\n\n" + _list_cards(cards, "Плагины")
+                 matches.append(answer)
+-        if not matches and re.search(r"плагин|интеграц|подключить", text):
+-            from .octopus_knowledge import published
+-            cards = published()
+-            specific = [c for c in cards if c["title"].casefold() in text or
+-                        any(w in text.split() for w in c.get("keywords", "").split())]
+-            if specific or re.search(r"(?:какие|список|все).*(?:плагин|интеграц)", text):
+-                selected = specific or cards
+-                if not specific:
+-                    group = "Интеграции" if "интеграц" in text else "Плагины"
+-                    selected = [c for c in cards if c["group"] == group] or cards
+-                def detail(card):
+-                    steps = card["steps"]
+-                    if "подключ" in text:
+-                        ordered = steps if isinstance(steps, list) else [s for group in steps.values() for s in group]
+-                        return card["title"] + " — " + " ".join(dict.fromkeys(ordered))
+-                    return card["title"] + " — " + card["purpose"]
+-                return "В Октопорте доступны " + ". ".join(detail(c) for c in selected) + ". Для подключения войдите в свой аккаунт."
+-        return matches[0] if len(matches) == 1 else fallback
++        if matches:
++            return matches[0] if len(matches) == 1 else fallback
++        return _catalog_answer(text, cards) or fallback
++
++
++def _list_cards(cards, group):
++    selected = [card for card in cards if card["group"] == group]
++    if not selected:
++        return "Сейчас нет опубликованных плагинов." if group == "Плагины" else "Сейчас нет опубликованных интеграций."
++    return group + "\n" + "\n\n".join("• " + card["title"] + " — " + card["purpose"] for card in selected)
++
++
++def _catalog_answer(text, cards):
++    plugins = bool(re.search(r"\bплагин\w*\b", text))
++    integrations = bool(re.search(r"\bинтеграц\w*\b", text))
++    groups = {name for name, asked in (("Плагины", plugins), ("Интеграции", integrations)) if asked}
++    candidates = [card for card in cards if not groups or card["group"] in groups]
++    # Match public names as whole phrases. A longer name wins over an overlapping alias.
++    def relevance(card):
++        names = [card["title"], card["id"].split("/")[-1], *card.get("aliases", ())]
++        scored = []
++        for name in names:
++            words = re.findall(r"[^\W_]+", name.casefold().replace("ё", "е"))
++            # Allow the prepositional/genitive case of a consonant-ending Russian name.
++            pattern = r"\s+".join(map(re.escape, words))
++            if words and re.fullmatch(r"[а-я]*[бвгджзклмнпрстфхцчшщ]", words[-1]):
++                pattern += r"(?:а|у|е|ом)?"
++            if words and re.search(r"\b" + pattern + r"\b", text):
++                scored.append((len(words), len(" ".join(words))))
++        return max(scored, default=(0, 0))
++
++    scores = [(relevance(card), card) for card in candidates]
++    best = max((score for score, _ in scores), default=(0, 0))
++    named = [card for score, card in scores if score == best and best != (0, 0)]
++    setup = bool(re.match(r"(?:как |где )?(?:мне )?(?:подключить|установить|настроить)\b", text))
++    about = bool(re.match(r"(?:что (?:такое|делает|умеет|может|за)|как работает|для чего|зачем|расскажи(?:те)? (?:о|об|про)|есть ли|описание|плагин|интеграция)\b", text))
++    catalog = bool(re.fullmatch(r"(?:плагины|интеграции|каталог|список (?:доступных )?(?:плагинов|интеграций))", text)
++                   or groups and re.match(r"(?:каки[ехм]|что (?:ты |вы )?(?:умеешь|умеет|умеют|можешь)|каков|перечисли|список|покажи|все|доступные|каталог|расскажи|что (?:за|есть)|есть ли|опиши|описани|плагин|интеграц)", text))
++    if named and (setup or about or catalog or any(text == c["title"].casefold().replace("ё", "е") for c in named)):
++        lines = []
++        for card in named:
++            steps = card["steps"]
++            ordered = steps if isinstance(steps, list) else [step for group in steps.values() for step in group]
++            lines.append(card["title"] + " — " + card["purpose"] +
++                         (" " + " ".join(dict.fromkeys(ordered)) if setup else ""))
++        return "\n".join(lines)
++    if catalog:
++        return "\n\n".join(_list_cards(cards, group) for group in ("Плагины", "Интеграции")
++                            if group in (groups or {"Плагины"}))
++    return None
+diff --git a/products/harness-platform/platform_core/user_plugins/publication.py b/products/harness-platform/platform_core/user_plugins/publication.py
+new file mode 100644
+index 0000000..b427e24
+--- /dev/null
++++ b/products/harness-platform/platform_core/user_plugins/publication.py
+@@ -0,0 +1,70 @@
++"""Public installation directory shared by guest help, Octopus and account settings."""
++import json
++
++
++def synchronize(db, cards):
++    """Apply the release's manifests atomically, preserving publication decisions."""
++    db.execute("""CREATE TABLE IF NOT EXISTS product_directory(
++        id TEXT PRIMARY KEY, card TEXT NOT NULL, listed INTEGER NOT NULL DEFAULT 1 CHECK(listed IN (0,1)))""")
++    db.executemany("""INSERT INTO product_directory(id, card) VALUES(?,?)
++        ON CONFLICT(id) DO UPDATE SET card=excluded.card WHERE card<>excluded.card""",
++        [(card["id"], json.dumps(card, ensure_ascii=False, sort_keys=True)) for card in cards])
++    db.execute("DELETE FROM product_directory WHERE id NOT IN (SELECT value FROM json_each(?))",
++               (json.dumps([card["id"] for card in cards]),))
++
++
++def public_cards(db):
++    return [json.loads(card) for card, in db.execute(
++        "SELECT card FROM product_directory WHERE listed=1 ORDER BY id")]
++
++
++def listed_plugins(db):
++    return {key.removeprefix("plugin/") for key, in db.execute(
++        "SELECT id FROM product_directory WHERE listed=1 AND id LIKE 'plugin/%'")}
++
++
++def can_obtain(db, workspace, plugin):
++    return bool(db.execute("""SELECT 1 FROM product_directory
++        WHERE id=? AND (listed=1 OR EXISTS(
++            SELECT 1 FROM entitlements WHERE workspace_id=? AND plugin_id=?))""",
++        ("plugin/" + plugin, workspace, plugin)).fetchone())
++
++
++def admin_routes(get_token, body):
++    from starlette.concurrency import run_in_threadpool
++    from starlette.exceptions import HTTPException
++    from starlette.responses import JSONResponse
++    from starlette.routing import Route
++
++    from ..admin_statistics import require_admin
++    from ..identity import AuthenticationError
++
++    def directory(store, token, change):
++        with (store._write() if change is not None else store._lock):
++            db = store._db
++            try:
++                require_admin(db, token)
++            except AuthenticationError:
++                raise
++            except PermissionError:
++                raise HTTPException(403, "Требуются права администратора.") from None
++            if change is not None:
++                key, listed = change["plugin"], change["listed"]
++                if not isinstance(key, str) or type(listed) is not bool:
++                    raise HTTPException(400, "Проверьте плагин и статус публикации.")
++                if not db.execute("UPDATE product_directory SET listed=? WHERE id=?",
++                                  (listed, "plugin/" + key)).rowcount:
++                    raise HTTPException(404, "Плагин отсутствует в реестре.")
++            rows = db.execute("""SELECT substr(id,8), json_extract(card,'$.title'),
++                json_extract(card,'$.purpose'), listed FROM product_directory
++                WHERE id LIKE 'plugin/%' ORDER BY id""")
++            return [{"id": key, "title": title, "description": purpose, "listed": bool(listed)}
++                    for key, title, purpose, listed in rows]
++
++    async def manage(req):
++        token = get_token(req, allow_cookie=True)
++        change = await body(req, "plugin", "listed") if req.method == "POST" else None
++        rows = await run_in_threadpool(directory, req.app.state.identity, token, change)
++        return JSONResponse({"plugins": rows})
++
++    return [Route("/api/admin/plugin-catalog", manage, methods=["GET", "POST"])]
+diff --git a/products/harness-platform/platform_core/user_plugins/registry.py b/products/harness-platform/platform_core/user_plugins/registry.py
+index 5080840..75d9515 100644
+--- a/products/harness-platform/platform_core/user_plugins/registry.py
++++ b/products/harness-platform/platform_core/user_plugins/registry.py
+@@ -3,6 +3,8 @@ from dataclasses import dataclass
+ 
+ from starlette.exceptions import HTTPException
+ 
++from .publication import can_obtain
++
+ 
+ @dataclass(frozen=True)
+ class Plugin:
+@@ -144,7 +146,7 @@ def _connect_plugin_store(db, scope, cid, plugin):
+ def connect_store(db,scope,cid):
+     provider=db.execute("SELECT provider FROM account_integrations WHERE id=? AND workspace=?",(cid,scope.workspace_id)).fetchone()
+     for plugin in CATALOG.values():
+-        if provider==(plugin.provider,):
++        if provider==(plugin.provider,) and can_obtain(db, scope.workspace_id, plugin.id):
+             _connect_plugin_store(db,scope,cid,plugin)
+ 
+ 
+@@ -169,5 +171,6 @@ def install(db):
+             WHERE i.provider=? AND NOT EXISTS(SELECT 1 FROM entitlements e
+               WHERE e.workspace_id=w.workspace_id AND e.plugin_id=?)""",(plugin.provider,plugin.id)).fetchall()
+         for actor,ws,chat,cid in rows:
+-            _connect_plugin_store(db,Scope(actor,ws,chat),cid,plugin)
++            if can_obtain(db, ws, plugin.id):
++                _connect_plugin_store(db,Scope(actor,ws,chat),cid,plugin)
+         db.execute("INSERT INTO user_plugin_migrations VALUES(?)",(plugin.id,))
+diff --git a/products/harness-platform/platform_core/user_plugins/service.py b/products/harness-platform/platform_core/user_plugins/service.py
+index a75ddb2..4cde0da 100644
+--- a/products/harness-platform/platform_core/user_plugins/service.py
++++ b/products/harness-platform/platform_core/user_plugins/service.py
+@@ -20,6 +20,7 @@ from .store import adapter, now, values, valid_sku, write_value
+ from . import illustrations, model
+ from ..marketplace_matrix import ozon_retry, store_currency
+ from ..marketplace_matrix import wb_coefficients as wb
++from .publication import admin_routes, can_obtain, listed_plugins
+ from .registry import CATALOG, CATEGORIES, WB, OZON, attached, requires_edit_confirmation, store_row
+ 
+ JOBS = """CREATE TABLE IF NOT EXISTS user_plugin_jobs(
+@@ -55,7 +56,7 @@ class Service:
+         with self.state.identity._write() as db:
+             scope=scope_for(db,token,chat)
+             row=db.execute("SELECT plugin,catalog_at FROM user_plugin_stores WHERE cid=?",(cid,)).fetchone()
+-            if row and row[1] is None:
++            if row and row[1] is None and row[0] in CATALOG and attached(db,scope,row[0]):
+                 self.begin(db,scope,token,CATALOG[row[0]],cid,"","cards",None,None)
+ 
+     async def close(self):
+@@ -185,9 +186,10 @@ def routes(get_token,body):
+             "SELECT plugin_id FROM entitlements WHERE workspace_id=?", (workspace,))}
+         enabled = {row[0] for row in db.execute(
+             "SELECT plugin_id FROM chat_plugins WHERE workspace_id=? AND chat_id=?", (workspace, chat))}
++        listed = listed_plugins(db)
+         return {"categories": CATEGORIES, "plugins": [
+             {**asdict(p), "installed": p.id in installed, "enabled": p.id in enabled}
+-            for p in CATALOG.values()]}
++            for p in CATALOG.values() if p.id in listed or (chat and p.id in installed)]}
+ 
+     def cancel_jobs(db, tasks, workspace, key, chat=None):
+         jobs = db.execute("""UPDATE user_plugin_jobs SET state='failed', message='Плагин отключён.'
+@@ -211,6 +213,8 @@ def routes(get_token,body):
+                 key = data["plugin"]
+                 if not isinstance(key, str) or key not in CATALOG or type(data[field]) is not bool:
+                     raise HTTPException(400, "Выберите плагин из каталога.")
++                if data[field] and not can_obtain(db, workspace, key):
++                    raise HTTPException(409, "Плагин снят с публикации.")
+                 if chat:
+                     if data[field]:
+                         if not db.execute("SELECT 1 FROM entitlements WHERE workspace_id=? AND plugin_id=?",
+@@ -356,4 +360,4 @@ def routes(get_token,body):
+                     WHERE n=1""",(chat,plugin.id,cid,sku))
+                 result["jobs"]=[dict(zip(("id","metric","state","message"),row)) for row in latest]
+             return JSONResponse(result)
+-    return [Route("/api/plugins",catalog,methods=["GET","POST"]),Route(base,catalog,methods=["GET","POST"]),Route(path,settings),Route(path+"/{action}",settings,methods=["POST"])]
++    return [*admin_routes(get_token,body), Route("/api/plugins",catalog,methods=["GET","POST"]),Route(base,catalog,methods=["GET","POST"]),Route(path,settings),Route(path+"/{action}",settings,methods=["POST"])]
+diff --git a/products/harness-platform/platform_core/user_plugins/timer/bootstrap.py b/products/harness-platform/platform_core/user_plugins/timer/bootstrap.py
+index 3eaa295..09e397e 100644
+--- a/products/harness-platform/platform_core/user_plugins/timer/bootstrap.py
++++ b/products/harness-platform/platform_core/user_plugins/timer/bootstrap.py
+@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+ 
+ from ...operation_grants import active_chat_grant
+ from ...storage import Scope, Store
++from ..publication import can_obtain
+ from ..registry import OZON, WB, attached
+ from .dialog import activation_step
+ from .store import encoded, instruction
+@@ -28,6 +29,8 @@ def start_from_turn(account, scope, request_id, token, text, zone):
+         """, (grant_hash, scope.actor_id, scope.workspace_id, scope.chat_id, request_id)).fetchone()
+         if not allowed:
+             raise PermissionError("Timer setup unavailable")
++        if not can_obtain(db, scope.workspace_id, "timer"):
++            return "«Таймер» снят с публикации."
+         db.execute("""INSERT INTO timer_dialogs(chat,zone,instructions)
+                       VALUES(?,?,?) ON CONFLICT(chat) DO NOTHING""",
+                    (scope.chat_id, zone, encoded([text])))
+diff --git a/products/harness-platform/platform_core/user_plugins/timer/dialog.py b/products/harness-platform/platform_core/user_plugins/timer/dialog.py
+index 51f8f57..6b838e2 100644
+--- a/products/harness-platform/platform_core/user_plugins/timer/dialog.py
++++ b/products/harness-platform/platform_core/user_plugins/timer/dialog.py
+@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+ from starlette.exceptions import HTTPException
+ 
+ from ...identity import _secret_digest
++from ..publication import can_obtain
+ from ..registry import attached
+ from . import jobs, recipe, store
+ from .recipe import PlanError
+@@ -87,6 +88,8 @@ class Dialog:
+             db = self.state.identity._db
+             active = db.execute("SELECT 1 FROM timer_dialogs WHERE chat=?", (scope.chat_id,)).fetchone()
+             replay = db.execute("SELECT 1 FROM timer_exchanges WHERE chat=? AND request=?", (scope.chat_id,rid)).fetchone()
++            if not replay and not can_obtain(db, scope.workspace_id, "timer"):
++                return False
+         question = re.match(r"\s*(?:где|как|что|зачем|какие|какой|можно ли)\b", text, re.I)
+         return bool(hint or replay or active or (not question and INTENT.search(text)))
+ 
+@@ -151,6 +154,8 @@ class Dialog:
+         identity = self.state.identity
+         chat = scope.chat_id
+         with identity._write() as db:
++            if not can_obtain(db, scope.workspace_id, "timer"):
++                raise PlanError("«Таймер» снят с публикации.")
+             ctx = db.execute("SELECT kind,target,zone,instructions,draft,shown FROM timer_dialogs WHERE chat=?",(chat,)).fetchone()
+             if hint or not ctx:
+                 kind,target = (hint.get("kind"),hint.get("eventId")) if hint else (None,None)
+diff --git a/products/harness-platform/public-info/guest-chat.js b/products/harness-platform/public-info/guest-chat.js
+index 0aed9f3..253ad4f 100644
+--- a/products/harness-platform/public-info/guest-chat.js
++++ b/products/harness-platform/public-info/guest-chat.js
+@@ -18,7 +18,10 @@
+         icon.setAttribute('aria-hidden','true');
+         label.prepend(icon);
+       }
+-      content.textContent=text;
++      for (const [index, line] of text.split('\n').entries()) {
++        if (index) content.append(document.createElement('br'));
++        content.append(document.createTextNode(line));
++      }
+       section.append(label,content);pair.append(section);
+     }
+     return pair;
+diff --git a/products/harness-platform/tests/browser/test_account_browser.py b/products/harness-platform/tests/browser/test_account_browser.py
+index 3d2f2a3..4a2f909 100644
+--- a/products/harness-platform/tests/browser/test_account_browser.py
++++ b/products/harness-platform/tests/browser/test_account_browser.py
+@@ -770,6 +770,9 @@ class BrowserIsolation(ProductBrowser):
+                 self.assertEqual(await result.json(), {"words": 2, "normalized": "два слова"})
+ 
+         with patch.dict("platform_core.user_plugins.registry.CATALOG", {future.id: future}):
++            from platform_core.guest_registration import RegistrationStore
++            with RegistrationStore(self.database):
++                pass
+             page = await self.open_chat("first-browser")
+             first = urlsplit(page.url).path.rsplit("/", 1)[-1]
+             await account_action(page, "Настройки")
+@@ -930,6 +933,35 @@ class BrowserIsolation(ProductBrowser):
+         await expect(home.locator('[data-chat-flow-kind="assistant-step"]').last).to_contain_text("10 монет")
+         await expect(ask).to_have_url(re.compile(r"/about/ask$"))
+ 
++    async def test_admin_withdraws_and_restores_plugin_for_open_guest(self):
++        login = "second-browser"
++        with IdentityStore(self.database) as store:
++            store.set_admin(login, True)
++        admin_context = await self.browser.new_context(base_url=self.base_url)
++        guest_context = await self.browser.new_context(base_url=self.base_url)
++        for context in (admin_context, guest_context):
++            self.addAsyncCleanup(context.close)
++        admin, guest = await admin_context.new_page(), await guest_context.new_page()
++        await self.codes.sign_in(admin, login, self.password, address=login+"@example.test", admin=True)
++        await admin.goto("/admin")
++        await admin.get_by_role("link", name="Плагины", exact=True).click()
++        await guest.goto("/")
++        async def ask(text, count):
++            await guest.locator('[data-composer-input][contenteditable=true]').fill(text)
++            await guest.get_by_role("button", name="Отправить сообщение", exact=True).click()
++            replies = guest.locator('[data-chat-flow-kind="assistant-step"]')
++            await expect(replies).to_have_count(count)
++            await expect(replies.last).to_contain_text("Вайлдберис")
++            return replies.last
++        description = "Проверяет, составляет отчёты"
++        await expect(await ask("Что ты умеешь?", 1)).to_contain_text(description)
++        await admin.get_by_role("button", name="Убрать из каталога — Таймер").click()
++        await expect(admin.locator("#catalog-status")).to_contain_text("снят")
++        await expect(await ask("Какие есть плагины?", 2)).not_to_contain_text(description)
++        await admin.get_by_role("button", name="Вернуть в каталог — Таймер").click()
++        await expect(admin.locator("#catalog-status")).to_contain_text("доступен")
++        await expect(await ask("Что ты умеешь?", 3)).to_contain_text(description)
++
+     async def test_admin_uses_both_codes_and_gets_no_persistent_cookie(self):
+         login = "second-browser"
+         address = login + "@example.test"
+diff --git a/products/harness-platform/tests/test_octopus_knowledge.py b/products/harness-platform/tests/test_octopus_knowledge.py
+index 6c2539e..62b5e60 100644
+--- a/products/harness-platform/tests/test_octopus_knowledge.py
++++ b/products/harness-platform/tests/test_octopus_knowledge.py
+@@ -10,7 +10,8 @@ from starlette.testclient import TestClient
+ from platform_core import integrations, octopus_knowledge as knowledge
+ from platform_core.chat_api import create_app
+ from platform_core.identity import IdentityStore
+-from platform_core.public_faq import PublicFAQ
++from platform_core.guest_registration import RegistrationStore
++from platform_core.user_plugins.publication import synchronize
+ from platform_core.user_plugins.registry import CATALOG, Plugin
+ 
+ 
+@@ -20,19 +21,30 @@ class PublishedKnowledge(unittest.TestCase):
+                        (("Создать расписание","qa-source","fixture"),), "каждый день утром",
+                        ("Укажите часовой пояс и нажмите «Сохранить».",))
+         with tempfile.TemporaryDirectory() as d:
+-            faq=PublicFAQ(Path(d)/"faq.db")
+-            self.addCleanup(faq.close)
++            path = Path(d)/"account.db"
++            store = self.enterContext(RegistrationStore(path))
++            guest, chat = store.start_guest()
++            def answer(text):
++                request = str(len(store.guest_history(guest, chat)))
++                store.guest_turn(guest, chat, request, text)
++                return store.guest_history(guest, chat)[-1]["answer"]
++            def start_release():
++                with RegistrationStore(path):
++                    pass
+             with patch.dict(integrations.PROVIDERS, {"qa-source":{"title":"Тестовые часы","access":["fixture"]}}), \
+                     patch.dict(integrations.KEY_GUIDES, {"fixture":["Откройте часы."]}), patch.dict(CATALOG, {timer.id:timer}):
++                start_release()
+                 cards=knowledge.published()
+                 self.assertEqual(len(cards),11)
+                 found=next(c for c in cards if c["id"]=="plugin/fixture-timer")
+                 self.assertEqual(found["operations"][0]["requires"],"integration/qa-source")
+-                self.assertIn("Таймер",faq.answer("Какие есть плагины?"))
++                self.assertIn("Таймер",answer("Какие есть плагины?"))
+                 CATALOG[timer.id]=replace(timer,title="Новый таймер",setup=("Включите расписание.",))
+-                self.assertIn("Включите расписание.",faq.answer("Как подключить новый таймер?"))
+-            self.assertNotIn("новый таймер",faq.answer("Какие есть плагины?").lower())
+-            self.assertIn("Таймер",faq.answer("Какие есть плагины?"))
++                start_release()
++                self.assertIn("Включите расписание.",answer("Как подключить новый таймер?"))
++            start_release()
++            self.assertNotIn("новый таймер",answer("Какие есть плагины?").lower())
++            self.assertIn("Таймер",answer("Какие есть плагины?"))
+             self.assertEqual(len(knowledge.published()),9)
+ 
+     def test_account_preferences_and_cross_chat(self):
+@@ -70,6 +82,7 @@ class PublishedKnowledge(unittest.TestCase):
+                 INSERT INTO telegram_subscriptions VALUES('a','one','ready',12345);
+                 INSERT INTO telegram_subscriptions VALUES('a','two','ready',67890);
+             """)
++            synchronize(db, knowledge.published())
+             scope = SimpleNamespace(workspace_id="a", chat_id="one")
+             binding = "plugin/telegram-reports"
+             active = knowledge.snapshot(db, scope, [], {"configured":True,"linked":True})
+diff --git a/products/harness-platform/tests/test_plugin_publication.py b/products/harness-platform/tests/test_plugin_publication.py
+new file mode 100644
+index 0000000..25324b6
+--- /dev/null
++++ b/products/harness-platform/tests/test_plugin_publication.py
+@@ -0,0 +1,86 @@
++from pathlib import Path
++from tempfile import TemporaryDirectory
++from unittest import TestCase
++from unittest.mock import patch
++
++from starlette.testclient import TestClient
++
++from platform_core.chat_api import create_app
++from platform_core.chat_worker import ChatWorker
++from platform_core.guest_registration import RegistrationStore
++from platform_core.octopus_knowledge import snapshot
++from platform_core.user_plugins.registry import CATALOG, connect_store
++
++
++class PluginPublication(TestCase):
++    def test_hide_and_restore_in_existing_chats(self):
++        root = Path(self.enterContext(TemporaryDirectory()))
++        path = root / "identity.db"
++        client = self.enterContext(TestClient(create_app(path, root / "chats")))
++        store = client.app.state.identity
++        def account(name, admin=False):
++            store.create_account(name, "publication fixture password")
++            if admin:
++                store.set_admin(name, True)
++            token = store.login(name, "publication fixture password")
++            return {"Authorization": "Bearer " + token}, store.create_user_chat(token)
++        admin, owner = account("publisher", True)
++        normal, scope = account("ordinary")
++        catalog = "/api/admin/plugin-catalog"
++        def change(headers, key, listed):
++            return client.post(catalog, headers=headers, json={"plugin":key, "listed":listed})
++        def install(headers, key):
++            return client.post("/api/plugins", headers=headers, json={"plugin":key, "installed":True})
++        def visible():
++            return {p["id"] for p in client.get("/api/plugins", headers=normal).json()["plugins"]}
++        def knowledge():
++            with store._lock:
++                return {c["id"] for c in snapshot(store._db, scope, [], None)["cards"]}
++        guest, chat = store.start_guest()
++        def ask(index, text):
++            with patch.object(ChatWorker, "request", side_effect=AssertionError("model dispatch")), \
++                    patch("socket.socket.connect", side_effect=AssertionError("external API")):
++                store.guest_turn(guest, chat, str(index), text)
++            return store.guest_history(guest, chat)[-1]["answer"]
++
++        self.assertEqual(client.get(catalog).status_code, 401)
++        self.assertEqual(change(normal, "ozon", False).status_code, 403)
++        self.assertEqual(change(admin, "unknown", False).status_code, 404)
++        self.assertEqual(change(admin, "ozon", "false").status_code, 400)
++        self.assertEqual(visible(), set(CATALOG))
++        for index, text in enumerate(("Что ты умеешь?", "Какие есть плагины?")):
++            answer = ask(index, text)
++            self.assertEqual(answer.count("• "), len(CATALOG))
++            for item in CATALOG.values():
++                self.assertIn(item.title + " — " + item.description, answer)
++            self.assertNotIn("Подключение Telegram", answer)
++        self.assertIn(CATALOG["timer"].description, ask(2, "Расскажи о таймере"))
++        self.assertNotIn(CATALOG["ozon"].description, ask(3, "Что делает плагин Таймер?"))
++        self.assertIn("Подключение Telegram", ask(4, "Какие есть интеграции?"))
++        self.assertEqual(install(admin, "ozon").status_code, 200)
++        for _ in range(2):
++            self.assertEqual(change(admin, "ozon", False).status_code, 200)
++        with RegistrationStore(path):
++            pass
++        self.assertNotIn("ozon", visible())
++        self.assertNotIn("plugin/ozon", knowledge())
++        self.assertIn("integration/ozon", knowledge())
++        self.assertNotIn(CATALOG["ozon"].description, ask(5, "Что ты умеешь?"))
++        self.assertEqual(install(normal, "ozon").status_code, 409)
++        with store._write() as db:
++            db.execute("INSERT INTO account_integrations VALUES(?,?,?,?,?,?,?)",
++                       ("test-store",scope.workspace_id,"ozon","Fixture",b"unused",1,"saved"))
++            connect_store(db, scope, "test-store")
++            self.assertFalse(db.execute("SELECT 1 FROM entitlements WHERE workspace_id=?", (scope.workspace_id,)).fetchone())
++        response = client.post(f"/api/chats/{owner.chat_id}/plugins", headers=admin,
++                               json={"plugin":"ozon", "enabled":True})
++        self.assertTrue(next(p for p in response.json()["plugins"] if p["id"]=="ozon")["enabled"])
++        for key in CATALOG:
++            self.assertEqual(change(admin, key, False).status_code, 200)
++        self.assertEqual(visible(), set())
++        self.assertIn("нет опубликованных плагинов", ask(6, "Какие есть плагины?"))
++        self.assertEqual(change(admin, "ozon", True).status_code, 200)
++        self.assertEqual(visible(), {"ozon"})
++        self.assertIn("plugin/ozon", knowledge())
++        self.assertEqual(install(normal, "ozon").status_code, 200)
++        self.assertIn(CATALOG["ozon"].description, ask(7, "Какие есть плагины?"))
