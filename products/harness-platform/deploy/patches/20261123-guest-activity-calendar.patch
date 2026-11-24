@@ -1,0 +1,492 @@
+diff --git a/products/harness-platform/docs/PLUGIN_FILTER.md b/products/harness-platform/docs/PLUGIN_FILTER.md
+index 9d42173..8f85781 100644
+--- a/products/harness-platform/docs/PLUGIN_FILTER.md
++++ b/products/harness-platform/docs/PLUGIN_FILTER.md
+@@ -52,6 +52,12 @@
+ | Истекли 24 часа с создания гостевого чата | Доступ прекращён. Очистка при старте, при создании гостя или каждые 15 минут удаляет неприсвоенный чат с сообщениями и служебным контекстом. При регистрации история переходит в аккаунт, а память фильтра и записи попыток удаляются. |
+ | Прошло 90 календарных дней | Старые дневные суммы удалены. За всё время сохраняется одна суммарная запись без текста и идентификаторов гостей. |
+ 
++### Календарь гостевого чата
++
++На главной странице администрирования между балансами и каталогом плагинов выводятся сообщения гостей, число разных писавших гостевых чатов, вызовы DeepSeek, подтверждённые токены и расходы в рублях и долларах. Периоды включают сегодня, последние 30 дней, отдельную дату и диапазон внутри последних 90 календарных дней (UTC+5). Повтор с тем же идентификатором сообщения и открытие пустого чата счётчики не увеличивают. Один чат, писавший по обе стороны полуночи, считается один раз за диапазон.
++
++Учитываются только суточные суммы и количество совпадений гостей между соседними днями. В статистике нет текста переписок и идентификаторов. При первом запуске учёт восстанавливается по оставшимся сообщениям. Периоды с неполной историей и неподтверждённым расходом обозначаются явно.
++
+ ## Исходные требования
+ 
+ [Поручение владельца от 22 ноября](https://chatgpt.com/c/6b01729b-2e1c-83ea-9988-aae10f6af1bf?messageId=e848a4ca-0866-4b0a-a5ac-280433f688a7) · [«Знания Октопуса, личность и стоимость диалога», K2–K8 и испытания T2–T9](OCTOPUS_KNOWLEDGE.md).
+diff --git a/products/harness-platform/native/web/admin.css b/products/harness-platform/native/web/admin.css
+index 506a982..1152355 100644
+--- a/products/harness-platform/native/web/admin.css
++++ b/products/harness-platform/native/web/admin.css
+@@ -76,3 +76,16 @@ p,output { margin:0; } output:empty { display:none; } output { color:#226345; }
+ #catalog-items li { display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:12px 0; border-bottom:1px solid var(--octo-line); }
+ #catalog-items li div { flex:1 1 260px; }
+ #catalog-items li small { display:block; color:var(--octo-muted,var(--octo-ink)); }
++
++#guest-activity { padding:16px clamp(16px,3vw,24px); }
++#guest-activity header { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:6px 18px; }
++#guest-activity h2 { margin:0; }
++#guest-activity header a { font-size:13px; color:inherit; text-underline-offset:3px; }
++.guest-period { display:flex; align-items:end; gap:8px; flex-wrap:wrap; margin:10px 0; }
++.guest-period label { gap:3px; font-size:12px; }
++.guest-period [hidden] { display:none; }
++.guest-period input,.guest-period select { width:auto; max-width:100%; min-height:32px; padding:4px 8px; }
++#guest-metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,95px),1fr)); gap:6px; margin:0; }
++#guest-metrics dt { font-size:12px; color:var(--octo-muted,var(--octo-ink)); }
++#guest-metrics dd { margin:3px 0 0; min-height:32px; padding:5px 7px; border:1px solid var(--octo-line); border-radius:var(--octo-radius); background:var(--octo-field); font-size:13px; font-weight:600; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
++#guest-coverage:not(:empty) { margin-top:7px; font-size:12px; }
+diff --git a/products/harness-platform/native/web/admin.html b/products/harness-platform/native/web/admin.html
+index 33fdd18..5089d1b 100644
+--- a/products/harness-platform/native/web/admin.html
++++ b/products/harness-platform/native/web/admin.html
+@@ -32,6 +32,23 @@
+ </div>
+ <p id="balance-message" role="status" aria-live="polite"></p>
+ </section>
++<section id="guest-activity" aria-labelledby="guest-activity-heading">
++<header><h2 id="guest-activity-heading">Гостевой чат</h2><a href="/admin/statistics#guest-filter">Лимиты и расходы</a></header>
++<div class="guest-period">
++  <label>Период<select id="guest-period"><option value="today">Сегодня</option><option value="month">30 дней</option><option value="day">Конкретный день</option><option value="range">Диапазон дат</option></select></label>
++  <label id="guest-from-label" hidden><span>Дата</span><input id="guest-from" type="date"></label>
++  <label id="guest-to-label" hidden>По<input id="guest-to" type="date"></label>
++</div>
++<dl id="guest-metrics" aria-live="polite">
++  <div><dt title="Вход, кэш и выход гостевого фильтра DeepSeek">Токены</dt><dd data-guest="tokens"></dd></div>
++  <div><dt>Расход, ₽</dt><dd data-guest="rub"></dd></div>
++  <div><dt>Расход, USD</dt><dd data-guest="usd"></dd></div>
++  <div><dt>Запросы в чат</dt><dd data-guest="messages"></dd></div>
++  <div><dt>Вызовы DeepSeek</dt><dd data-guest="calls"></dd></div>
++  <div><dt title="Разные гостевые чаты, в которых отправили сообщение">Гости</dt><dd data-guest="guests"></dd></div>
++</dl>
++<p id="guest-coverage" class="balance-status" role="status"></p>
++</section>
+ <section id="plugin-catalog" aria-labelledby="plugin-heading">
+ <h2 id="plugin-heading">Каталог плагинов</h2>
+ <p>При снятии с публикации плагин исчезнет из каталога и меню всех пользователей. Доступ к нему во всех чатах прекратится сразу. После возврата в каталог пользователи смогут установить его заново.</p>
+diff --git a/products/harness-platform/native/web/admin.js b/products/harness-platform/native/web/admin.js
+index da93c6f..afa8fe3 100644
+--- a/products/harness-platform/native/web/admin.js
++++ b/products/harness-platform/native/web/admin.js
+@@ -351,3 +351,76 @@ function renderPluginCatalog(plugins) {
+ request(catalogPath).then(result => renderPluginCatalog(result.plugins)).catch(error => {
+   catalogStatus.textContent = error.message;
+ });
++
++const guestPeriod = document.querySelector('#guest-period');
++const guestFrom = document.querySelector('#guest-from');
++const guestTo = document.querySelector('#guest-to');
++const guestFirstLabel = document.querySelector('#guest-from-label');
++const guestLastLabel = document.querySelector('#guest-to-label');
++const guestNotice = document.querySelector('#guest-coverage');
++const guestValues = document.querySelectorAll('[data-guest]');
++const guestNumber = new Intl.NumberFormat('ru-RU',{maximumFractionDigits:9});
++const guestDate = iso => iso.slice(0,10).split('-').reverse().join('.');
++let guestRevision = 0;
++let guestBounds;
++
++function drawGuestValues(data) {
++  for (const field of guestValues) {
++    const key = field.dataset.guest;
++    const value = data?.[key];
++    const partialMoney = data?.unknown > 0 && ['tokens','rub','usd'].includes(key);
++    field.textContent = value == null ? '—' : (partialMoney ? '≥ ' : '') + guestNumber.format(value);
++  }
++}
++
++async function updateGuestMetrics() {
++  const version = ++guestRevision;
++  const mode = guestPeriod.value;
++  const custom = mode === 'day' || mode === 'range';
++  guestFirstLabel.hidden = !custom;
++  guestLastLabel.hidden = mode !== 'range';
++  guestFirstLabel.querySelector('span').textContent = mode === 'range' ? 'С' : 'Дата';
++  const params = new URLSearchParams({period:mode});
++  if (custom) params.set('from',guestFrom.value);
++  if (mode === 'range') params.set('to',guestTo.value);
++  if (custom && (!guestFrom.value || !guestFrom.validity.valid ||
++      (mode === 'range' && (!guestTo.value || !guestTo.validity.valid || guestFrom.value > guestTo.value)))) {
++    drawGuestValues(null);
++    guestNotice.textContent = 'Выберите даты в пределах последних 90 дней. Начало должно быть не позже конца периода.';
++    return;
++  }
++  drawGuestValues(null);
++  guestNotice.textContent = 'Загрузка…';
++  try {
++    const data = await request('/api/admin/guest-activity?' + params);
++    if (version !== guestRevision) return;
++    for (const field of [guestFrom,guestTo]) {
++      field.min = data.earliest;
++      field.max = data.today;
++      if (!field.value) field.value = data.today;
++    }
++    guestBounds = data;
++    drawGuestValues(data);
++    const notes = [];
++    if (data.from !== data.to) notes.push(guestDate(data.from)+' – '+guestDate(data.to)+'.');
++    if (data.messages == null) notes.push('За эти даты нет сохранённых данных о сообщениях и гостях.');
++    else if (data.activityPartial) notes.push('Учёт гостей и сообщений с '+guestDate(data.activityStarted)+' '+data.activityStarted.slice(11,16)+' (UTC+5). Более ранние учтены по сохранившимся чатам.');
++    if (data.costPartial) notes.push('Расходы DeepSeek учитываются с '+guestDate(data.costFrom)+'.');
++    if (data.unknown) notes.push('Вызовы без подтверждённого расхода: '+data.unknown+'.');
++    guestNotice.textContent = notes.join(' ');
++  } catch (error) {
++    if (version !== guestRevision) return;
++    drawGuestValues(null);
++    guestNotice.textContent = 'Не удалось загрузить статистику. '+error.message;
++  }
++}
++guestPeriod.addEventListener('change', () => {
++  if (!guestBounds && ['day','range'].includes(guestPeriod.value)) {
++    const current = new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Qyzylorda'}).format(new Date());
++    if (!guestFrom.value) guestFrom.value = current;
++    if (!guestTo.value) guestTo.value = current;
++  }
++  updateGuestMetrics();
++});
++for (const field of [guestFrom,guestTo]) field.addEventListener('change',updateGuestMetrics);
++updateGuestMetrics();
+diff --git a/products/harness-platform/platform_core/admin_statistics.py b/products/harness-platform/platform_core/admin_statistics.py
+index a8ed8cf..4e571a2 100644
+--- a/products/harness-platform/platform_core/admin_statistics.py
++++ b/products/harness-platform/platform_core/admin_statistics.py
+@@ -448,6 +448,28 @@ async def public_bonus(request):
+     return JSONResponse({"coins": await run_in_threadpool(store.public_signup_coins)})
+ 
+ 
++async def guest_calendar(request):
++    from . import guest_activity, guest_selector
++    token = browser_token(request)
++    store = request.app.state.identity
++    params = request.query_params
++    def read():
++        with store._lock:
++            db = store._db
++            require_admin(db,token)
++            return guest_activity.period_report(db, guest_selector.day(time()), params.get("period","today"),
++                                                params.get("from"), params.get("to"))
++    try:
++        report = await run_in_threadpool(read)
++    except AuthenticationError:
++        raise
++    except PermissionError:
++        raise HTTPException(403,"Требуются права администратора") from None
++    except ValueError as error:
++        raise HTTPException(400,str(error)) from None
++    return JSONResponse(report,headers=HEADERS)
++
++
+ async def activity(request):
+     token = browser_token(request)
+     store = request.app.state.identity
+@@ -471,6 +493,7 @@ def routes():
+         Route("/admin/statistics/guest-filter-limit", dashboard, methods=["POST"]),
+         Route("/admin/statistics/remove", remove_account, methods=["GET", "POST"]),
+         Route("/admin/statistics/remove-batch", remove_batch, methods=["POST"]),
++        Route("/api/admin/guest-activity", guest_calendar),
+         Route("/api/signup-bonus", public_bonus),
+         Route("/api/account/activity", activity, methods=["GET", "POST"]),
+     ]
+diff --git a/products/harness-platform/platform_core/guest_activity.py b/products/harness-platform/platform_core/guest_activity.py
+new file mode 100644
+index 0000000..9041ca1
+--- /dev/null
++++ b/products/harness-platform/platform_core/guest_activity.py
+@@ -0,0 +1,74 @@
++"""Calendar statistics for anonymous guest conversations. No identifiers survive chat expiry here."""
++from datetime import date, datetime, time as clock, timedelta
++from itertools import groupby
++
++from . import guest_selector
++
++
++def record(db, current, previous, messages=1):
++    # A guest session lives 24 hours. A conversation can span two local calendar days.
++    first_today = previous != current
++    overlap = first_today and previous == current - timedelta(days=1)
++    db.execute("""INSERT INTO guest_activity_daily(day,messages,guests,overlap) VALUES(?,?,?,?)
++        ON CONFLICT(day) DO UPDATE SET messages=messages+excluded.messages,
++        guests=guests+excluded.guests, overlap=overlap+excluded.overlap""",
++        (current.isoformat(), messages, int(first_today), int(overlap)))
++
++
++def initialize(db, now):
++    db.execute("""CREATE TABLE IF NOT EXISTS guest_activity_daily(
++        day TEXT PRIMARY KEY, messages INTEGER NOT NULL, guests INTEGER NOT NULL, overlap INTEGER NOT NULL)""")
++    db.execute("""CREATE TABLE IF NOT EXISTS guest_activity_start(
++        singleton INTEGER PRIMARY KEY CHECK(singleton=1), started INTEGER NOT NULL, cost_from TEXT NOT NULL)""")
++    if db.execute("SELECT 1 FROM guest_activity_start").fetchone():
++        return
++    today = guest_selector.day(now)
++    oldest = today - timedelta(days=guest_selector.MEMORY_DAYS-1)
++    boundary = datetime.combine(oldest, clock.min, guest_selector.ZONE)
++    rows = db.execute("""SELECT chat_id,at_ms FROM guest_turns WHERE at_ms>=?
++        ORDER BY chat_id,at_ms""", (int(boundary.timestamp())*1000,))
++    for _, turns in groupby(rows, key=lambda row: row[0]):
++        previous = None
++        for current, batch in groupby(turns, key=lambda row: guest_selector.day(row[1]/1000)):
++            record(db, current, previous, sum(1 for _ in batch))
++            previous = current
++    first_cost = db.execute("SELECT min(day) FROM guest_filter_daily WHERE day!='total'").fetchone()[0]
++    db.execute("INSERT INTO guest_activity_start VALUES(1,?,?)", (now, first_cost or today.isoformat()))
++
++
++def period_report(db, today, period, start=None, end=None):
++    earliest = today - timedelta(days=guest_selector.MEMORY_DAYS-1)
++    if period in ("today", "month") and start is None and end is None:
++        first, last = (today if period=="today" else today-timedelta(days=29)), today
++    elif period in ("day", "range") and start and (period=="range") == (end is not None):
++        try:
++            first = date.fromisoformat(start)
++            last = date.fromisoformat(end) if end is not None else first
++        except ValueError:
++            raise ValueError("Некорректная дата") from None
++        if first.isoformat()!=start or (end is not None and last.isoformat()!=end):
++            raise ValueError("Некорректная дата")
++    else:
++        raise ValueError("Некорректный период")
++    if not earliest <= first <= last <= today:
++        raise ValueError("Выберите даты за последние 90 дней")
++    bounds = first.isoformat(), last.isoformat()
++    began, cost_from = db.execute("SELECT started,cost_from FROM guest_activity_start WHERE singleton=1").fetchone()
++    # Daily guest totals overlap only on adjacent days. Subtract a returning chat only if both days are selected.
++    messages, guests = db.execute("""SELECT COALESCE(SUM(messages),0),
++        COALESCE(SUM(guests - CASE WHEN day>? THEN overlap ELSE 0 END),0)
++        FROM guest_activity_daily WHERE day BETWEEN ? AND ?""", (bounds[0], *bounds)).fetchone()
++    incomplete = first <= guest_selector.day(began)
++    activity_known = bool(messages) or not incomplete or last >= guest_selector.day(began)
++    meter = guest_selector.metric_sums(db, "day BETWEEN ? AND ?", bounds)
++    has_cost = bounds[1] >= cost_from
++    measured = has_cost and (meter["receipts"] > 0 or meter["unknown"] == 0)
++    return {
++        "from":bounds[0], "to":bounds[1], "today":today.isoformat(), "earliest":earliest.isoformat(),
++        "messages":messages if activity_known else None, "guests":guests if activity_known else None,
++        "activityPartial":incomplete, "activityStarted":datetime.fromtimestamp(began,guest_selector.ZONE).isoformat(timespec="minutes"),
++        "costFrom":cost_from, "costPartial":bounds[0]<cost_from,
++        "calls":meter["calls"] if has_cost else None, "unknown":meter["unknown"] if has_cost else None,
++        "tokens":meter["input"]+meter["cache"]+meter["output"] if measured else None,
++        "rub":meter["rub"] if measured else None, "usd":meter["usd"] if measured else None,
++    }
+diff --git a/products/harness-platform/platform_core/guest_registration.py b/products/harness-platform/platform_core/guest_registration.py
+index 1eb0ca6..14e8c04 100644
+--- a/products/harness-platform/platform_core/guest_registration.py
++++ b/products/harness-platform/platform_core/guest_registration.py
+@@ -21,7 +21,7 @@ from .public_faq import PublicFAQ
+ from .octopus_knowledge import published
+ from .user_plugins.publication import synchronize
+ from .coins import PRICING_SCHEMA
+-from . import guest_selector
++from . import guest_activity, guest_selector
+ 
+ GUEST_LIFETIME = 24 * 60 * 60
+ GUEST_PAGE_SIZE = 25
+@@ -60,6 +60,7 @@ class RegistrationStore(IdentityStore):
+                 db.execute("CREATE INDEX IF NOT EXISTS guest_turn_chat ON guest_turns(chat_id)")
+                 for statement in guest_selector.SCHEMA:
+                     db.execute(statement)
++                guest_activity.initialize(db, int(time()))
+                 self._prune(db)
+         except BaseException:
+             self.close()
+diff --git a/products/harness-platform/platform_core/guest_selector.py b/products/harness-platform/platform_core/guest_selector.py
+index cafdbe9..2794cb5 100644
+--- a/products/harness-platform/platform_core/guest_selector.py
++++ b/products/harness-platform/platform_core/guest_selector.py
+@@ -66,6 +66,7 @@ def add(db, date, **values):
+ def prune(db, now):
+     cutoff = (day(now)-timedelta(days=MEMORY_DAYS-1)).isoformat()
+     db.execute("DELETE FROM guest_filter_daily WHERE day!='total' AND day<?",(cutoff,))
++    db.execute("DELETE FROM guest_activity_daily WHERE day<?",(cutoff,))
+ 
+ @asynccontextmanager
+ async def maintenance(store):
+@@ -87,6 +88,14 @@ async def maintenance(store):
+         with suppress(asyncio.CancelledError):
+             await task
+ 
++def metric_sums(db, where, args):
++    sums = ",".join(f"COALESCE(SUM({k}),0)" for k in METRICS)
++    values = dict(zip(METRICS, db.execute(f"SELECT {sums} FROM guest_filter_daily WHERE {where}",args).fetchone()))
++    values["unknown"] = values["calls"]-values["receipts"]-values["rejected"]
++    for k in ("usd","rub"):
++        values[k] = format(Decimal(values[k]).scaleb(-9),'f').rstrip('0').rstrip('.') or "0"
++    return values
++
+ def totals(db):
+     today = day(time())
+     rows = []
+@@ -95,11 +104,7 @@ def totals(db):
+         ("Последние 30 дней","day BETWEEN ? AND ?",((today-timedelta(days=29)).isoformat(),today.isoformat())),
+         ("За всё время","day='total'",()),
+     ):
+-        sums = ",".join(f"COALESCE(SUM({k}),0)" for k in METRICS)
+-        values = dict(zip(METRICS, db.execute(f"SELECT {sums} FROM guest_filter_daily WHERE {where}",args).fetchone()))
+-        values["unknown"] = values["calls"]-values["receipts"]-values["rejected"]
+-        for k in ("usd","rub"):
+-            values[k] = format(Decimal(values[k]).scaleb(-9),'f').rstrip('0').rstrip('.') or "0"
++        values = metric_sums(db, where, args)
+         rows.append((label,values))
+     return rows
+ 
+@@ -164,7 +169,11 @@ def options(faq,cards,question,shown):
+     return labels
+ 
+ def save(db, chat, rid, text, key, answer, detailed, cards):
+-    db.execute("INSERT INTO guest_turns VALUES(?,?,?,?,?)",(chat,rid,text,fill_terms(db,answer),int(time()*1000)))
++    from . import guest_activity
++    now_ms = int(time()*1000)
++    previous = db.execute("SELECT at_ms FROM guest_turns WHERE chat_id=? ORDER BY rowid DESC LIMIT 1", (chat,)).fetchone()
++    guest_activity.record(db, day(now_ms/1000), day(previous[0]/1000) if previous else None)
++    db.execute("INSERT INTO guest_turns VALUES(?,?,?,?,?)",(chat,rid,text,fill_terms(db,answer),now_ms))
+     if detailed:
+         db.execute("INSERT INTO guest_detailed_answers VALUES(?,?)",(chat,rid))
+     shown=card_ids(cards) if key in ("features","clarify") else []
+diff --git a/products/harness-platform/tests/browser/test_account_browser.py b/products/harness-platform/tests/browser/test_account_browser.py
+index 14d1beb..1f3a5b9 100644
+--- a/products/harness-platform/tests/browser/test_account_browser.py
++++ b/products/harness-platform/tests/browser/test_account_browser.py
+@@ -976,6 +976,57 @@ class BrowserIsolation(ProductBrowser):
+         await expect(home.locator('[data-chat-flow-kind="assistant-step"]').last).to_contain_text("10 монет")
+         await expect(ask).to_have_url(re.compile(r"/about/ask$"))
+ 
++    async def test_guest_activity_calendar_and_distinct_sessions(self):
++        login = "second-browser"
++        with IdentityStore(self.database) as store:
++            store.set_admin(login, True)
++        contexts = [await self.browser.new_context(base_url=self.base_url) for _ in range(3)]
++        for context in contexts:
++            self.addAsyncCleanup(context.close)
++        admin, *guests = contexts
++        headers = {"Origin":self.base_url,"Accept":"application/json"}
++        chats = []
++        for idx, guest in enumerate(guests):
++            chat = (await (await guest.request.post("/guest/session",form={},headers=headers)).json())["chat"]
++            chats.append(chat)
++            for rid in (("first","next","next") if idx==0 else ("single",)):
++                result = await guest.request.post("/guest/chats/"+chat+"/turns",
++                    form={"text":"Что ты умеешь?","request_id":rid},headers=headers)
++                self.assertTrue(result.ok)
++        self.assertNotEqual(*chats)
++        self.assertEqual((await guests[0].request.get("/guest/chats/"+chats[1]+"/events")).status,404)
++        self.assertEqual((await guests[1].request.get("/api/admin/guest-activity")).status,401)
++        page = await admin.new_page()
++        await self.codes.sign_in(page,login,self.password,address=login+"@example.test",admin=True)
++        await page.goto("/admin")
++        box = page.locator("#guest-activity")
++        await expect(page.locator("section:has(#balance-heading) + #guest-activity + #plugin-catalog")).to_have_count(1)
++        async def metric(key,expected):
++            await expect(box.locator('[data-guest="'+key+'"]')).to_have_text(expected)
++        await metric("guests","2")
++        await metric("messages","3")
++        await metric("calls","0")
++        await metric("tokens","0")
++        await page.select_option("#guest-period","day")
++        await expect(page.locator("#guest-from")).to_be_visible()
++        await metric("guests","2")
++        today = await page.locator("#guest-from").input_value()
++        await page.select_option("#guest-period","range")
++        await expect(page.locator("#guest-to")).to_be_visible()
++        await metric("messages","3")
++        oldest = await page.locator("#guest-from").get_attribute("min")
++        await page.locator("#guest-from").fill(oldest)
++        await page.locator("#guest-to").fill(oldest)
++        await metric("guests","—")
++        await expect(page.locator("#guest-coverage")).to_contain_text("нет сохранённых данных")
++        await page.select_option("#guest-period","month")
++        await metric("messages","3")
++        await page.set_viewport_size({"width":360,"height":760})
++        self.assertTrue(await box.evaluate("e => e.scrollWidth <= e.clientWidth && e.getBoundingClientRect().right <= innerWidth"))
++        member = await self.open_chat("first-browser")
++        self.assertEqual((await member.request.get("/api/admin/guest-activity")).status,403)
++        self.assertTrue(today)
++
+     async def test_admin_withdraws_and_restores_plugin_for_open_guest(self):
+         login = "second-browser"
+         with IdentityStore(self.database) as store:
+diff --git a/products/harness-platform/tests/test_guest_activity.py b/products/harness-platform/tests/test_guest_activity.py
+new file mode 100644
+index 0000000..fc476dc
+--- /dev/null
++++ b/products/harness-platform/tests/test_guest_activity.py
+@@ -0,0 +1,82 @@
++from datetime import datetime, time as clock, timedelta
++from time import time
++from unittest import TestCase
++from unittest.mock import patch
++
++from platform_core import guest_activity, guest_selector
++from platform_core.guest_registration import RegistrationStore
++
++
++class GuestActivityTests(TestCase):
++    def setUp(self):
++        self.store = self.enterContext(RegistrationStore(":memory:"))
++        self.db = self.store._db
++        self.today = guest_selector.day(time())
++        self.midnight = datetime.combine(self.today, clock.min, guest_selector.ZONE).timestamp()
++
++    def send(self, account, rid, offset):
++        with patch.object(guest_selector, "time", return_value=self.midnight+offset):
++            self.store.guest_turn(*account, rid, "Что ты умеешь?")
++
++    def report(self, mode, start=None, end=None):
++        return guest_activity.period_report(self.db, self.today, mode, start, end)
++
++    def test_separate_guests_replay_midnight_and_claim(self):
++        one, two, empty = [self.store.start_guest() for _ in range(3)]
++        self.send(one, "first", -10)
++        self.send(one, "next", 10)
++        self.send(one, "next", 15)
++        self.send(two, "other", 10)
++        today = self.report("today")
++        yesterday = (self.today-timedelta(days=1)).isoformat()
++        current = self.today.isoformat()
++        period = self.report("range", yesterday, current)
++        self.assertEqual((today["messages"],today["guests"],today["calls"]), (2,2,0))
++        self.assertEqual((period["messages"],period["guests"]), (3,2))
++        other_day = self.report("day", yesterday)
++        self.assertEqual((other_day["guests"],other_day["messages"]), (1,1))
++        self.assertEqual(self.store.guest_history(*empty), [])
++        self.assertEqual(len(self.store.guest_history(*two)),1)
++        self.store.register(one[0],"guest-test","Guest registration test password",self.store.guest_recovery(one[0]))
++        with self.store._write() as db:
++            db.execute("UPDATE guest_chats SET expires_at=0 WHERE chat_id=?",(two[1],))
++            self.store._prune(db)
++        self.assertEqual(self.report("range",yesterday,current),period)
++
++    def test_backfill_once_cost_and_unavailable_history(self):
++        one, two = self.store.start_guest(), self.store.start_guest()
++        self.send(one,"a",-5)
++        self.send(one,"b",4)
++        self.send(two,"c",5)
++        self.db.execute("DELETE FROM guest_activity_start")
++        self.db.execute("DELETE FROM guest_activity_daily")
++        guest_activity.initialize(self.db,int(time()))
++        guest_activity.initialize(self.db,int(time()))
++        today = self.today.isoformat()
++        guest_selector.add(self.db,today,calls=1)
++        self.assertIsNone(self.report("today")["rub"])
++        guest_selector.add(self.db,today,receipts=1,input=30,cache=10,output=5,rub=1234567,usd=101)
++        report = self.report("month")
++        self.assertEqual((report["guests"],report["messages"],report["tokens"],report["rub"],report["usd"]),
++                         (2,3,45,"0.001234567","0.000000101"))
++        self.assertTrue(report["activityPartial"])
++        past = self.report("day",(self.today-timedelta(days=10)).isoformat())
++        self.assertIsNone(past["messages"])
++        self.assertIsNone(past["tokens"])
++        self.db.execute("UPDATE guest_activity_start SET started=?",(self.midnight-3*86400,))
++        self.db.execute("DELETE FROM guest_activity_daily WHERE day=?",(today,))
++        self.assertEqual(self.report("today")["guests"],0)
++        self.assertFalse(self.report("today")["activityPartial"])
++
++    def test_pruning_and_invalid_periods(self):
++        old = self.today-timedelta(days=90)
++        keep = old+timedelta(days=1)
++        for d in (old,keep):
++            guest_activity.record(self.db,d,None)
++        guest_selector.prune(self.db,int(time()))
++        self.assertEqual(self.db.execute("SELECT day FROM guest_activity_daily").fetchall(),[(keep.isoformat(),)])
++        for args in [("day",old.isoformat()),("day","invalid"),("day","2026-11-40"),
++                     ("range",self.today.isoformat(),keep.isoformat()),("day",keep.isoformat(),keep.isoformat()),
++                     ("range",keep.isoformat()),("foo",),("today",keep.isoformat())]:
++            with self.subTest(args=args), self.assertRaises(ValueError):
++                self.report(*args)

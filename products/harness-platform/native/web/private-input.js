@@ -25,10 +25,20 @@ function complete({provider,fields:f}) {
     Boolean(f.client_id)===Boolean(f.api_key) && Boolean(f.performance_id)===Boolean(f.performance_secret);
   return !!provider && !!f.token;
 }
+// Only a standalone connection command is a local UI shortcut. Free-form
+// questions and reporting requests belong to the conversation.
+function asksForConnectionForm(text, provider) {
+  const command = text.trim().replace(/[!.]+$/u,'').match(
+    /^(?:пожалуйста[,\s]+)?(?:подключи(?:ть|те)?|добав(?:ь|ить|ьте)|сохрани(?:ть|те)?|настро(?:ить|й|йте))\s+([^?!.,:;\n]+)$/iu);
+  if (!command) return false;
+  const object = (provider ? command[1].replace(providers[provider], '') : command[1]).trim();
+  if (!object) return Boolean(provider);
+  return /^(?:(?:новый|новую|новое|мой|мою|моё)\s+)?(?:магазин|сервис|интеграцию|подключение)(?:\s+(?:для|к|на))?$/iu.test(object);
+}
+
 export async function privatePrompt(text,guest,api,chatId) {
   const parsed=parsePrivate(text);
-  if(!hint.test(text) && !(/(?:^|[\s,])(?:подключи(?:ть|те)?|добав(?:ь|ить|ьте)|сохрани(?:ть|те)?|настро(?:ить|й|йте))(?=[\s,!?.:]|$)/i.test(text)
-     && (parsed.provider || /(?:ключ|токен|интеграц|магазин|маркет)/i.test(text))))return false;
+  if(!hint.test(text) && !asksForConnectionForm(text,parsed.provider))return false;
   const emit=detail=>window.dispatchEvent(new CustomEvent('harness:connection',{detail:{...detail,chatId}}));
   if(guest){emit({notice:'Войдите в аккаунт, чтобы подключить сервис.'});return true;}
   if(!parsed.provider){emit({newConnection:true,notice:'Выберите сервис. Для Ozon и Wildberries в форме есть инструкция по получению ключей.'});return true;}

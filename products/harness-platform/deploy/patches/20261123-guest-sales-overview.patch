@@ -1,0 +1,28 @@
+diff --git a/products/harness-platform/platform_core/user_plugins/registry.py b/products/harness-platform/platform_core/user_plugins/registry.py
+index c25bef8..2a1c3d4 100644
+--- a/products/harness-platform/platform_core/user_plugins/registry.py
++++ b/products/harness-platform/platform_core/user_plugins/registry.py
+@@ -62,7 +62,7 @@ WB = Plugin("wildberries", "analytics", "Вайлдберис",
+                 "Выберите период или артикул — сравню продажи с прошлым периодом и покажу, где изменился спрос. "
+                 "В отчёте по Wildberries можно разобрать комиссию и доставку отдельно и увидеть, как возвраты влияют на выручку.",
+                 (("остат",), ("склад",), ("продаж",), ("выкуп",), ("возврат",), ("wildberries",), ("вб",)),
+-                overview="Следить за продажами и выкупами на Wildberries, находить склады с низкими остатками и оценивать потери на возвратах."), glossary=(AD_COST_SHARE,))
++                overview="Следить за продажами и выкупами, находить склады с низкими остатками и оценивать потери на возвратах."), glossary=(AD_COST_SHARE,))
+ OZON = Plugin("ozon", "analytics", "Озон",
+               "Рассчитать юнит-экономику товара на Ozon и показать, сколько остаётся с продажи после рекламы, комиссии, доставки и ваших расходов.", "ozon",
+               (("Продажи и остатки", "ozon", "Ozon Seller"),
+diff --git a/products/harness-platform/tests/test_plugin_publication.py b/products/harness-platform/tests/test_plugin_publication.py
+index c6325f4..2f7610b 100644
+--- a/products/harness-platform/tests/test_plugin_publication.py
++++ b/products/harness-platform/tests/test_plugin_publication.py
+@@ -52,7 +52,9 @@ class PluginPublication(TestCase):
+             answer = ask(index, text)
+             self.assertEqual(answer.count("• "), len(CATALOG))
+             self.assertIn("Вот что я могу:", answer)
+-            self.assertIn("• Следить за продажами и выкупами на Wildberries", answer)
++            bullets = [line for line in answer.splitlines() if line.startswith("• ")]
++            self.assertIn("• Следить за продажами и выкупами, находить склады с низкими остатками и оценивать потери на возвратах.", bullets)
++            self.assertFalse(any(brand in line for line in bullets for brand in ("Wildberries", "Ozon")))
+             self.assertIn("• Ежедневно рассчитывать юнит-экономику, учитывая все расходы.", answer)
+             self.assertIn("• Следить за рекламой, продажами, складами, остатками", answer)
+             for item in CATALOG.values():

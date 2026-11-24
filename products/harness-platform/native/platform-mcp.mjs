@@ -5,7 +5,7 @@ import path from 'node:path';
  * other chats access to the same subprocess identity.
  */
 export function platformMcpEntry({
-  pythonExecutable, productDirectory, databasePath, scope, compositionModule, integrationKeyFile, marketplaceTurn,
+  pythonExecutable, productDirectory, databasePath, scope, compositionModule, integrationKeyFile, marketplaceTurn, modelFacing = false,
 }) {
   for (const value of [pythonExecutable, productDirectory, databasePath]) {
     if (typeof value !== 'string' || !path.isAbsolute(value) || value.includes('\0')) {
@@ -41,7 +41,8 @@ export function platformMcpEntry({
         toolCallTimeoutMs: marketplaceTurn.resumeRateLimits ? 2_147_483_647
           : Math.max(1, marketplaceTurn.deadline - Date.now()),
       } : {}),
-      ...((integrationKeyFile || marketplaceTurn) ? { env: {
+      ...((integrationKeyFile || marketplaceTurn || modelFacing) ? { env: {
+        ...(modelFacing ? {HARNESS_REPORT_DISCOVERY:"1"} : {}),
         ...(integrationKeyFile ? { HARNESS_INTEGRATIONS_KEY_FILE: integrationKeyFile } : {}),
         ...(marketplaceTurn ? { HARNESS_MATRIX_TURN: JSON.stringify({ ...marketplaceTurn, databasePath }) } : {}),
       }} : {}),

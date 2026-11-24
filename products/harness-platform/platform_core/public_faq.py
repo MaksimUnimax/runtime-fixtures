@@ -52,7 +52,28 @@ class PublicFAQ:
         text = text.removesuffix(" пожалуйста")
         matches = []
         fallback = self._db.execute("SELECT answer FROM public_faq WHERE topic='scope'").fetchone()[0]
-        for answer, patterns in self._db.execute("SELECT answer, patterns FROM public_faq WHERE topic!='scope'"):
+        for topic, answer, patterns in self._db.execute("SELECT topic, answer, patterns FROM public_faq WHERE topic!='scope'"):
             if any(re.fullmatch(pattern, text) for pattern in json.loads(patterns)):
+                if topic == "features":
+                    from .octopus_knowledge import published
+                    titles = ", ".join(card["title"] for card in published())
+                    answer += " Я Октопус. В моём каталоге сейчас есть " + titles + "."
                 matches.append(answer)
+        if not matches and re.search(r"плагин|интеграц|подключить", text):
+            from .octopus_knowledge import published
+            cards = published()
+            specific = [c for c in cards if c["title"].casefold() in text or
+                        any(w in text.split() for w in c.get("keywords", "").split())]
+            if specific or re.search(r"(?:какие|список|все).*(?:плагин|интеграц)", text):
+                selected = specific or cards
+                if not specific:
+                    group = "Интеграции" if "интеграц" in text else "Плагины"
+                    selected = [c for c in cards if c["group"] == group] or cards
+                def detail(card):
+                    steps = card["steps"]
+                    if "подключ" in text:
+                        ordered = steps if isinstance(steps, list) else [s for group in steps.values() for s in group]
+                        return card["title"] + " — " + " ".join(dict.fromkeys(ordered))
+                    return card["title"] + " — " + card["purpose"]
+                return "В Октопорте доступны " + ". ".join(detail(c) for c in selected) + ". Для подключения войдите в свой аккаунт."
         return matches[0] if len(matches) == 1 else fallback

@@ -179,7 +179,15 @@ data-size="large" data-radius="10" data-lang="ru" data-request-access="write" da
             # Older, already-open clients can still finish their top-level handoff.
             content = button if embedded else ('<main><h1>Подключить Telegram</h1>' + button +
                 '<p><a href="/app/">Вернуться в Октопорт</a></p></main>')
-            style = ("html,body{margin:0;background:transparent}body{display:grid;justify-content:start}iframe{border:0}"
+            # The widget is light and transparent. Using the same color scheme in both frames
+            # avoids the opaque canvas browsers insert when their color schemes differ.
+            style = (":root{color-scheme:only light}html,body{margin:0;background:transparent;overflow:hidden}"
+                     "iframe{display:block;border:0;color-scheme:only light;transform-origin:top left}"
+                     "@media(max-width:263px){iframe{transform:scale(.87)}}"
+                     "@media(max-width:231px){iframe{transform:scale(.75)}}"
+                     "@media(max-width:199px){iframe{transform:scale(.67)}}"
+                     "@supports(transform:scale(calc(100vw / 264px))){"
+                     "iframe{transform:scale(min(1,calc(100vw / 264px)))}}"
                      if embedded else
                      "body{margin:0;min-height:100dvh;display:grid;place-items:center;background:#f4f6f9;"
                      "color:#222735;font:15px system-ui}main{padding:28px;border-radius:16px;background:white;"
@@ -257,7 +265,7 @@ data-size="large" data-radius="10" data-lang="ru" data-request-access="write" da
             if existing and existing != [(ws,uid,cfg.bot)]:
                 raise HTTPException(409,"Этот аккаунт уже связан. Для замены сначала отключите прежнюю связь.")
         try:
-            await tg.send(cfg, uid, "Октопорт проверяет подключение Telegram к вашему аккаунту.")
+            await tg.send(cfg, uid, "Проверка доставки прошла успешно. Бот Октопорта готов присылать отчёты в этот чат.")
         except tg.DeliveryError:
             raise HTTPException(409,"Доставка в Telegram не подтверждена. Разрешите сообщения и повторите подключение.") from None
         try:

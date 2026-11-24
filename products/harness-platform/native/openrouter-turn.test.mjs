@@ -11,3 +11,9 @@ test('tool continuation replays signed model data only to the same model and kee
   assert.equal(project([message],[],null,'maker/b').messages[0].reasoning_details,undefined);
   assert.ok(!JSON.stringify(publicEvents([{type:'assistant/message',data:{message}}])).includes('private-fixture-signature'));
 });
+
+test('the outbound request has one leading system instruction ending with current settings',()=>{
+  const row = (role,text) => ({role,content:[{type:'text',text}]});
+  const out=project([row('system','native'),row('developer','guide'),row('user','hello')],[],'current','x');
+  assert.deepEqual(out.messages,[{role:'system',content:'native\n\nguide\n\ncurrent'},{role:'user',content:'hello'}]);
+});

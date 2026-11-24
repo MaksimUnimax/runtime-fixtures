@@ -1,0 +1,34 @@
+diff --git a/products/harness-platform/platform_core/guest_billing.py b/products/harness-platform/platform_core/guest_billing.py
+index 5f6acaa..ec593bd 100644
+--- a/products/harness-platform/platform_core/guest_billing.py
++++ b/products/harness-platform/platform_core/guest_billing.py
+@@ -55,7 +55,8 @@ def purchase_reply(db, chat, message):
+ def fill_terms(db, answer):
+     if "{checkout_steps}" in answer:
+         if os.getenv("YOOKASSA_PILOT_ONLY") == "1":
+-            steps = "Пополнение находится в разделе «Баланс» → «Купить монеты». Сейчас покупка доступна только администратору в тестовом режиме."
++            steps = ("Сейчас пополнение баланса недоступно. Когда оплата откроется, "
++                     "воспользуйтесь разделом «Баланс» → «Купить монеты».")
+         else:
+             steps = ("После входа откройте «Баланс» → «Купить монеты», укажите количество и нажмите "
+                      "«Продолжить к оплате». Доступные для вашего платежа способы появятся в форме.")
+diff --git a/products/harness-platform/tests/test_guest_registration.py b/products/harness-platform/tests/test_guest_registration.py
+index 5ca2a79..ef13edc 100644
+--- a/products/harness-platform/tests/test_guest_registration.py
++++ b/products/harness-platform/tests/test_guest_registration.py
+@@ -242,6 +242,15 @@ class GuestRegistrationTests(TestCase):
+                 self.assertNotIn("под ответом", reply.lower())
+                 self.assertNotIn("под каждым", reply.lower())
+             self.assertEqual(ask("Сколько стоят 50 монет?"), "50 монет стоят 65 ₽.")
++            for pilot in ("1", "0"):
++                with patch.dict(os.environ, {"YOOKASSA_PILOT_ONLY": pilot}):
++                    reply = ask("Как оплатить?")
++                    self.assertIn("СБП", reply)
++                    self.assertIn("«Баланс» → «Купить монеты»", reply)
++                    self.assertNotIn("администратор", reply)
++                    self.assertNotIn("тестов", reply)
++                    expected = "пополнение баланса недоступно" if pilot == "1" else "Продолжить к оплате"
++                    self.assertIn(expected, reply)
+             first = "Сколько стоит 100 монет?"
+             self.assertEqual(ask(first, "quote-100"), "100 монет стоят 130 ₽.")
+             self.assertEqual(ask("А 200?"), "200 монет стоят 260 ₽.")

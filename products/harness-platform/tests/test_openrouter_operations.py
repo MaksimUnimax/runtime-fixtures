@@ -182,10 +182,13 @@ class RouterOperations(unittest.TestCase):
             if not req.url.path.endswith('/chat/completions'):
                 return self.upstream(req)
             calls.append(req)
-            if len(calls)>1:
+            if len(calls)>2:
                 return httpx.Response(429,headers={'Retry-After':'30'})
             call={'id':'draw','type':'function','function':{'name':'create_illustration','arguments':'{"prompt":"a circle"}'}}
-            return httpx.Response(200,json={'id':'gen-accepted','usage':{'cost':0,'prompt_tokens':10,'completion_tokens':2},
+            if len(calls)==1:
+                self.assertNotIn('create_illustration',[t['function']['name'] for t in json.loads(req.content)['tools']])
+                call={'id':'open','type':'function','function':{'name':'octoport_use','arguments':json.dumps({'action':'create_illustration','query':'circle'})}}
+            return httpx.Response(200,json={'id':'gen-accepted-'+str(len(calls)),'usage':{'cost':0,'prompt_tokens':10,'completion_tokens':2},
                 'choices':[{'finish_reason':'tool_calls','message':{'role':'assistant','content':'','tool_calls':[call]}}]})
         http=httpx.AsyncClient(transport=httpx.MockTransport(upstream))
         self.addCleanup(self.client.portal.call,http.aclose)
@@ -202,7 +205,7 @@ class RouterOperations(unittest.TestCase):
             self.client.post(url+'/progress/cancel-after-tool/cancel',headers=self.headers).raise_for_status()
             self.assertEqual(pending.result(timeout=6).json()['error'],'turn_unconfirmed')
             self.assertEqual(send().json()['error'],'turn_unconfirmed')
-        self.assertEqual((len(calls),self.image_calls),(2,1))
+        self.assertEqual((len(calls),self.image_calls),(3,1))
 
     def test_interrupted_stream_reconciled_once_without_replaying(self):
         self.price='0.000001'
@@ -456,6 +459,10 @@ class RouterOperations(unittest.TestCase):
             payload=json.loads(req.content)
             calls.append(payload)
             if len(calls)==1:
+                delta={'tool_calls':[{'index':0,'type':'function','id':'open','function':{'name':'octoport_use',
+                    'arguments':json.dumps({'action':'create_illustration','query':'circle'})}}]}
+                reason='tool_calls'
+            elif len(calls)==2:
                 delta={'tool_calls':[{'index':0,'type':'function','id':'draw-1','function':{'name':'create_illustration','arguments':'{"prompt":"blue circle"}'}}],
                        'reasoning_details':signature}
                 reason='tool_calls'
@@ -471,8 +478,8 @@ class RouterOperations(unittest.TestCase):
             result=self.client.post(base+'/turns',headers=self.headers,json={'requestId':'signed-roundtrip','text':'Draw a blue circle.'})
         self.assertEqual(result.status_code,200,result.text)
         self.assertEqual(result.json()['text'],'Готово')
-        self.assertEqual(len(calls),2)
-        reply=next(row for row in calls[1]['messages'] if row.get('tool_calls'))
+        self.assertEqual(len(calls),3)
+        reply=next(row for row in calls[2]['messages'] if row.get('tool_calls') and row['tool_calls'][0]['id']=='draw-1')
         self.assertEqual(reply['reasoning_details'],signature)
         self.assertEqual(self.image_calls,1)
         self.assertNotIn('opaque-control',self.client.get(base+'/events',headers=self.headers).text)

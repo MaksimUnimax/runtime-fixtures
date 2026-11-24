@@ -30,6 +30,12 @@ async def latest(state, scope):
         raise HTTPException(503, "История временно занята. Повторите подключение.") from None
 
 
+def delivery_state(db, workspace, chat, linked):
+    sub = db.execute("SELECT status,last_sent FROM telegram_subscriptions WHERE workspace=? AND chat=?",
+                     (workspace, chat)).fetchone() if linked else None
+    return {"subscribed": bool(sub), "status": sub[0] if sub else None, "lastSent": sub[1] if sub else None}
+
+
 def routes(body):
     async def settings(req):
         token = browser_token(req)
@@ -45,10 +51,8 @@ def routes(body):
                 db = state.identity._db
                 scope = require_chat(db, token, chat)
                 account = state.telegram.status(db, scope.workspace_id)
-                sub = db.execute("SELECT status,last_sent FROM telegram_subscriptions WHERE chat=?", (chat,)).fetchone()
-                linked = account["linked"]
-                return JSONResponse({"linked": linked, "configured": account["configured"], "subscribed": bool(linked and sub),
-                                     "status": sub[0] if sub and linked else None, "lastSent": sub[1] if sub and linked else None})
+                return JSONResponse({"linked": account["linked"], "configured": account["configured"],
+                                     **delivery_state(db, scope.workspace_id, chat, account["linked"])})
         with state.identity._write() as db:
             scope = require_chat(db, token, chat)
             if action == "pause":

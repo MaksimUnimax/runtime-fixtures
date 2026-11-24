@@ -1,0 +1,965 @@
+diff --git a/products/harness-platform/docs/GUEST_ASSISTANT.md b/products/harness-platform/docs/GUEST_ASSISTANT.md
+index be770d8..c0f2dcd 100644
+--- a/products/harness-platform/docs/GUEST_ASSISTANT.md
++++ b/products/harness-platform/docs/GUEST_ASSISTANT.md
+@@ -16,7 +16,9 @@
+ 
+ Локальный обработчик нормализует ввод и сопоставляет целую фразу с формулировками справки. Единственное совпадение возвращает текст выбранной карточки. При неизвестной или неоднозначной формулировке из той же базы берётся ответ о границе темы. Упоминание площадки само по себе не выбирает ответ. Запросы о личных показателях ведут к общей информации о кабинете.
+ 
+-При вопросе «Что ты умеешь?» гостевой обработчик дополняет опубликованный ответ списком плагинов с описанием каждого. Интеграции выводятся отдельной группой по запросу. На вопрос об одном плагине обработчик берёт его назначение и, если спрашивают о подключении, шаги настройки из опубликованной карточки.
++На «Что ты умеешь?» Октопус представляется и предлагает задачи, которые продавец может ему поручить. У каждой опубликованной возможности есть короткая формулировка о результате для продавца. Её используют и каталог аккаунта, и гостевой обзор. В гостевом ответе выводится сама возможность без названия плагина. Список подключений доступен по отдельному запросу.
++
++У каждого нового плагина обязательны короткое описание и отдельная подробная гостевая карточка. Разработчик указывает в ней ответ от первого лица и темы, по которым посетитель может спросить об этой задаче. Например, на «А как ты следишь за рекламой?» Октопус объясняет, как вместе выбрать время проверки, показатель, порог и действие, увидеть пробный результат и подтвердить запуск. Карточки хранятся в таблице `guest_plugin_help`. Её читает гостевой скрипт. В контексте моделей DeepSeek и OpenRouter остаётся короткая формулировка. При регистрации полная гостевая переписка остаётся видна человеку. В контексте модели подробный гостевой ответ заменяется краткой отметкой, вопрос пользователя сохраняется.
+ 
+ При запуске сервиса публичные карточки из реестров синхронизируются с таблицей SQLite `product_directory` одной транзакцией. Новый модуль появляется автоматически. Изменения названия и описания обновляют карточку, удалённый из реестра модуль исчезает, а решение администратора о снятии с публикации сохраняется при обновлении и перезапуске. Текущий список читается при каждом гостевом сообщении и каждом ходе Октопуса в аккаунте. Гостевой обработчик получает текст вопроса, опубликованные карточки и доступ на чтение к базе FAQ. У него нет ключей, подключений к магазинам, доступа к отчётам, вызовов модели или внешних API. Цифры магазина, примеры отчётов и расчёты отсутствуют в публичном каталоге. Публикуемая цена самого сервиса относится к справке. Ссылка на регистрацию доступна независимо от числа ответов.
+ 
+diff --git a/products/harness-platform/docs/PLUGINS.md b/products/harness-platform/docs/PLUGINS.md
+index b524e47..ce3569f 100644
+--- a/products/harness-platform/docs/PLUGINS.md
++++ b/products/harness-platform/docs/PLUGINS.md
+@@ -66,7 +66,9 @@ const entry = platformMcpEntry({
+ 
+ ## Подключения аккаунта
+ 
+-Дескрипторы в platform_core/integrations.py задают поля и операции. Ozon принимает Client-Id / Api-Key продавца и отдельную пару Performance. Wildberries принимает API-токен статистики. Для семантики используется OAuth Яндекс Вордстата с одобренным доступом. Пользователь выбирает название магазина, сохраняет данные и может проверить соединение. Повторное сохранение с теми же сервисом и названием обновляет ключи. У Ozon можно обновить одну пару отдельно.
++Дескрипторы в platform_core/integrations.py задают поля и операции. В «Настройки» → «Интеграции» пользователь может нажать «Изменить ключи» у своего сохранённого подключения и ввести только новые значения. Прежние значения скрыты. Идентификатор подключения и привязки к чатам сохраняются. После сохранения кнопка «Проверить» проверяет новый доступ.
++
++Ozon принимает Client-Id / Api-Key продавца и отдельную пару Performance. Wildberries принимает API-токен статистики. Для семантики используется OAuth Яндекс Вордстата с одобренным доступом. Пользователь выбирает название магазина, сохраняет данные и может проверить соединение. Повторное сохранение с теми же сервисом и названием обновляет ключи. У Ozon можно обновить одну пару отдельно.
+ 
+ Пример ввода в чате — «Подключи Ozon, название: Мой магазин, client_id: …, api_key: …». При вставке распознанных реквизитов открывается закрытая форма. При отправке полностью набранной команды обработчик сохраняет подключение и показывает подтверждение. Команда «Подключи Wildberries» сразу открывает ввод токена. Проверка и сбор семантики выполняются через фиксированные HTTPS-адреса адаптера. Состояние «Сохранено» означает успешную зашифрованную запись. «Связь подтверждена» требует ответа официального API. Секреты из списка подключений не возвращаются.
+ 
+diff --git a/products/harness-platform/docs/PLUGIN_FILTER.md b/products/harness-platform/docs/PLUGIN_FILTER.md
+index f9850d1..52b5bb1 100644
+--- a/products/harness-platform/docs/PLUGIN_FILTER.md
++++ b/products/harness-platform/docs/PLUGIN_FILTER.md
+@@ -18,7 +18,7 @@
+ | Ф6 | При двусмысленности Октопус задаёт вопрос о недостающем параметре. Просьба «мне нужно чтобы ты отслеживал рекламу» позволяет распознать фоновое наблюдение без слова «таймер». Если «Таймер» доступен к установке, Октопус предлагает его установить. Если он установлен и выключен в чате, Октопус предлагает включить его здесь. Уже включённые плагины площадок и привязки магазинов учитываются отдельно. Уточняются площадка, показатели, частота и канал доставки, если они неизвестны. При подтверждённом расписании состояние сообщает исполнитель. |
+ | Ф7 | Фильтр работает в общем слое Harness для прямого DeepSeek и OpenRouter, в новых и существующих чатах. Гостю доступна публичная справка. Публичный каталог кэшируется по версии реестра. Частное состояние читается для текущего аккаунта и чата. При росте каталога краткий указатель укладывается в бюджет. Полный список открывается по запросу. |
+ | Ф8 | Поддерживается добавление нового модуля и действия через реестр. Отбор повторно использует контракты и проверку доступа модулей. Общий фильтр применяется к новым действиям без ручного перечисления их названий и шаблонов. |
+-| Ф9 | На «Что ты умеешь?» и «Какие есть плагины?» гостевой скрипт возвращает из базы название и описание каждого опубликованного плагина. По названию показывает карточку, по запросу об интеграциях показывает подключения отдельно. Модель и внешние API не вызываются, расход токенов и монет равен нулю. |
++| Ф9 | На «Что ты умеешь?» и «Какие есть плагины?» гостевой Октопус представляется и рассказывает, что может взять на себя в магазине продавца. Перечень состоит из коротких описаний возможностей опубликованных плагинов без их названий. На вопрос о конкретной задаче локальный скрипт читает подробную гостевую карточку. Оба текста обязательны для новых плагинов. Подробная карточка исключена из контекста обычного Октопуса, в том числе после регистрации гостя. Модель и внешние API не вызываются, расход токенов и монет равен нулю. |
+ | Ф10 | В разделе «Администрирование → Плагины» администратор может убрать плагин из каталога установки и вернуть его. Снятие сразу закрывает новые установки, в том числе автоматические при подключении магазина. Ранее установленные экземпляры сохраняют настройки и доступ в своих чатах. |
+ 
+ ## Критерии приёмки
+@@ -32,7 +32,7 @@
+ | 5 | В том же чате запросить вчерашние продажи по WB и Ozon, затем сменить период. Включить неоднозначный вопрос без показателя. | Контрольные суммы по обеим площадкам совпадают с источниками. При смене периода сохраняются ранее выбранные показатель и магазины. При неизвестном показателе Октопус его уточняет. |
+ | 6 | Зарегистрировать новое рабочее действие. Попробовать выполнить его до и после открытия и в следующем ходе. | До открытия схема закрыта, прямой вызов отклоняется. Открытие допускает вызов с нужными правами. Следующий ход снова начинает с закрытой схемой. |
+ | 7 | Повторить сценарии на прямом DeepSeek и OpenRouter со старым и новым чатом. Сравнить у одинаковых задач число вызовов, входные токены, время и списания. | Оба маршрута соблюдают правила отбора. Результаты публикуются с точной версией. Экономия подтверждается фактическими запросами и квитанциями, а целевой бюджет блока краткой справки и настройки на 8 и 128 контрольных карточках составляет до 400 токенов по контрольному токенизатору. |
+-| 8 | Вопросы гостя о возможностях, каталоге и одном плагине. | Названия и описания совпадают с записями базы. Обращений к модели и внешним API, токенов и списаний — 0. |
++| 8 | Вопросы гостя о возможностях, каталоге и одном плагине. | Обзор содержит короткие возможности из базы. Ответ на «А как ты следишь за рекламой?» объясняет время проверки, условия и согласованные действия. Подробный текст доступен гостю и отсутствует в запросах обычного чата. Обращений к модели и внешним API, токенов и списаний — 0. |
+ | 9 | Администратор снимает и возвращает один плагин. Повторить запросы в открытом гостевом и пользовательском чате, запросить новую установку, перезапустить сервис. | Видимость и возможность установки соответствуют решению. Для обычного пользователя изменение публикации запрещено. У прежнего владельца остаётся доступ к установленному экземпляру. |
+ 
+ Приёмка фиксирует точную версию релиза, сценарий, фактический результат и доказательство. Сценарии с данными площадок проходят на тестовых аккаунтах и магазинах. Проверка расходов выполняется парно на одинаковых входных условиях.
+diff --git a/products/harness-platform/native/chat-worker.mjs b/products/harness-platform/native/chat-worker.mjs
+index a918be0..d27ccc0 100644
+--- a/products/harness-platform/native/chat-worker.mjs
++++ b/products/harness-platform/native/chat-worker.mjs
+@@ -20,6 +20,20 @@ const fail = code => { throw new RequestError(code); };
+ const prefix = 'mcp__platform__';
+ const productDirectory = fileURLToPath(new URL('../', import.meta.url));
+ 
++export function readSeed(rows, action) {
++  return rows.flatMap(row => {
++    const events = JSON.parse(row.events);
++    if (row.action === 'guest' && action === 'turn') {
++      for (const event of events) {
++        const msg = event.data?.message;
++        if (event.type === 'assistant/message' && msg?.source?.model === 'published-guest-detail')
++          msg.content = [{type:'text',text:'Пользователь получил справку по этой возможности до регистрации.'}];
++      }
++    }
++    return events;
++  });
++}
++
+ function registerConnectionContext(ctx, attached, available, guides, filtered, address) {
+   const toolDefinitions = ctx.tools.definitions();
+   const bindings = attached.map(({id, name, provider, status, access, checks}) => ({
+@@ -220,7 +234,7 @@ export async function openWorker(env) {
+       const createdAt = history[0].at;
+       const session = ctx.sessions.create(key, { meta: { createdAt } });
+       let offset = 0;
+-      const batches = history.map(({ text, answer, at }, index) => {
++      const batches = history.map(({ text, answer, at, guestDetail }, index) => {
+         const turn = index + 1;
+         const step = { turn, step: 1 };
+         session.append('turn/start', { turn });
+@@ -229,7 +243,7 @@ export async function openWorker(env) {
+           source: { kind: 'user' }, content: [{ type: 'text', text }],
+         }), { surfaceOp: 'append' });
+         const message = createAssistantMessage({
+-          source: { provider: 'harness-local', model: 'published-help' },
++          source: { provider: 'harness-local', model: guestDetail ? 'published-guest-detail' : 'published-help' },
+           content: [{ type: 'text', text: answer }],
+         });
+         session.append('assistant/message', { ...step, message, stream: [] }, { surfaceOp: 'append' });
+@@ -290,7 +304,9 @@ export async function openWorker(env) {
+       let history;
+       try {
+         const { actorId, workspaceId, chatId } = req.scope;
+-        history = source.prepare(`SELECT t.request_id AS requestId, t.text, t.answer, t.at_ms AS at
++        const detail = source.prepare("SELECT 1 FROM sqlite_schema WHERE name='guest_detailed_answers'").get()
++          ? 'EXISTS(SELECT 1 FROM guest_detailed_answers d WHERE d.chat_id=t.chat_id AND d.request_id=t.request_id)' : '0';
++        history = source.prepare(`SELECT t.request_id AS requestId, t.text, t.answer, t.at_ms AS at, ${detail} AS guestDetail
+           FROM guest_turns t JOIN guest_chats g USING (chat_id)
+           JOIN identity_accounts a ON a.actor_id=g.claimed_actor
+           WHERE a.actor_id=? AND a.workspace_id=? AND g.chat_id=? ORDER BY t.rowid`)
+@@ -439,7 +455,7 @@ export async function openWorker(env) {
+         if (cached) return cached;
+       }
+       const rows = all.all(key);
+-      const seed = rows.flatMap(row => JSON.parse(row.events));
++      const seed = readSeed(rows, req.action);
+       seedLength=seed.length;
+       if (metered && req.knowledge)
+         installFilter(ctx,(await load('dsh-tools')).defineTool,req.restore?.events,seed,req.text);
+diff --git a/products/harness-platform/native/chat-worker.test.mjs b/products/harness-platform/native/chat-worker.test.mjs
+index c52a4ca..c117af1 100644
+--- a/products/harness-platform/native/chat-worker.test.mjs
++++ b/products/harness-platform/native/chat-worker.test.mjs
+@@ -6,7 +6,7 @@ import path from 'node:path';
+ import test from 'node:test';
+ import { DatabaseSync } from 'node:sqlite';
+ import { fileURLToPath } from 'node:url';
+-import { openWorker } from './chat-worker.mjs';
++import { openWorker, readSeed } from './chat-worker.mjs';
+ 
+ const native = { skip: !process.env.HARNESS_NODE_MODULES && 'requires the pinned native Harness' };
+ 
+@@ -88,6 +88,8 @@ test('concurrent first reads import the guest transcript exactly once', native,
+   t.after(() => source.close());
+   source.exec(`CREATE TABLE guest_turns(chat_id,request_id,text,answer,at_ms);
+     CREATE TABLE guest_chats(chat_id,claimed_actor);
++    CREATE TABLE guest_detailed_answers(chat_id,request_id);
++    INSERT INTO guest_detailed_answers VALUES ('claimed-chat','b');
+     CREATE TABLE identity_accounts(actor_id,workspace_id);
+     INSERT INTO guest_chats VALUES ('claimed-chat','owner');
+     INSERT INTO identity_accounts VALUES ('owner','workspace');
+@@ -105,6 +107,14 @@ test('concurrent first reads import the guest transcript exactly once', native,
+     const [first, second] = await Promise.all(workers.map(worker => worker.run(request)));
+     assert.deepEqual(first, second);
+     assert.deepEqual(first.messages.map(m => m.text), ['first', 'help one', 'second', 'help two']);
++    const journal = new DatabaseSync(path.join(directory,'native-chats.sqlite3'), {readOnly:true});
++    const rows = journal.prepare("SELECT action,events FROM native_batches ORDER BY revision").all();
++    journal.close();
++    const projected = readSeed(rows,'turn');
++    assert.equal(JSON.stringify(projected).includes('help two'), false);
++    assert.ok(JSON.stringify(projected).includes('help one'));
++    assert.equal(JSON.stringify(projected).includes('"second"'),true);
++    assert.equal(JSON.stringify(readSeed(rows,'history')).includes('help two'),true);
+     assert.deepEqual(first.events.filter(e => e.type === 'user/message').map(e => e.time), [1000, 1200]);
+     assert.deepEqual(first.events.map(e => e.seq), first.events.map((_, i) => i));
+     assert.deepEqual(await workers[1].run({ scope, action: 'history' }), first.messages);
+diff --git a/products/harness-platform/native/web/connections.js b/products/harness-platform/native/web/connections.js
+index 2a63e31..e19b022 100644
+--- a/products/harness-platform/native/web/connections.js
++++ b/products/harness-platform/native/web/connections.js
+@@ -105,6 +105,9 @@ window.__ModuleLoader__.load({
+       function Connections({initial={},after,chat}) {
+         const [list,setList]=React.useState(null),[provider,setProvider]=React.useState(initial.provider||'');
+         const [fields,setFields]=React.useState(initial.fields||{}),[name,setName]=React.useState(initial.name||'');
++        const [editing,setEditing]=React.useState(null);
++        const editForm=React.useRef(null);
++        React.useEffect(()=>{if(editing)editForm.current?.querySelector('input[type=password]')?.focus();},[editing]);
+         const [msg,setMsg]=React.useState(initial.notice||''),[busy,setBusy]=React.useState(false);
+         const [target,setTarget]=React.useState(''),[phrase,setPhrase]=React.useState(''),[rows,setRows]=React.useState([]);
+         const [telegramOpen,setTelegramOpen]=React.useState(false);
+@@ -123,7 +126,7 @@ window.__ModuleLoader__.load({
+           try {await fn();}catch(e){setMsg(e.message);}finally{setBusy(false);}
+         }
+         const entry=list?.providers[provider];
+-        const select=value=>{setProvider(value);setFields({});setName('');setMsg('');};
++        const select=value=>{setEditing(null);setProvider(value);setFields({});setName('');setMsg('');};
+         return h('section',{'data-private-connection':true,className:'service-settings'},
+           h('h2',null,'Интеграции'),
+           list?.telegram?.hasBinding&&h('div',{className:'service-connection'},
+@@ -138,6 +141,9 @@ window.__ModuleLoader__.load({
+               const r=await post('/api/integrations/'+c.id+'/check',{});await refresh();
+               setMsg(Object.entries(r.checks).map(([k,v])=>k+' · '+status[v]).join(' / '));
+             })},'Проверить'),
++            h('button',{type:'button',disabled:busy,'aria-label':'Изменить ключи · '+c.name,onClick:()=>{
++              select(c.provider);setName(c.name);setEditing(c);
++            }},'Изменить ключи'),
+             grantsUrl&&h('label',{className:'service-chat-grant'},'Доступ в этом диалоге',
+               h(Switch,{label:'Доступ в этом диалоге · '+c.name,checked:list.attached.has(c.id),disabled:busy,
+                 onChange:enabled=>act(async()=>{
+@@ -148,7 +154,7 @@ window.__ModuleLoader__.load({
+           target && h('form',{onSubmit:e=>{e.preventDefault();act(async()=>setRows((await post('/api/integrations/'+target+'/semantics',{phrase})).rows));}},
+             h('label',null,'Поисковая фраза',h('input',{required:true,value:phrase,onChange:e=>setPhrase(e.target.value)})),
+             h('button',{disabled:busy},'Получить запросы'),rows.length>0 && h('ul',null,rows.map(r=>h('li',{key:r.phrase},r.phrase+' · '+r.count)))),
+-          list && h('label',null,'Сервис',h('select',{'aria-label':'Сервис',value:provider,onChange:e=>select(e.target.value)},
++          list && !editing && h('label',null,'Сервис',h('select',{'aria-label':'Сервис',value:provider,onChange:e=>select(e.target.value)},
+             h('option',{value:''},'Выберите сервис'),Object.entries(list.providers).map(([id,p])=>h('option',{key:id,value:id},p.title)))),
+           entry && provider==='wb' && h(KeyGuide,{title:'Как получить токен Wildberries',steps:list.keyGuides['Wildberries API']}),
+           entry && provider==='ozon' && ['Ozon Seller','Ozon Performance'].map(kind=>h(KeyGuide,{
+@@ -157,19 +163,32 @@ window.__ModuleLoader__.load({
+             h('p',null,list.telegram.configured?'Разрешите боту Октопорта писать вам. Подключение будет доступно плагинам этого аккаунта.':'Администратору нужно настроить бота Октопорта.'),
+             list.telegram.configured&&h('button',{type:'button',disabled:busy,onClick:()=>setTelegramOpen(true)},'Подключить Telegram')),
+           telegramOpen&&h(TelegramDialog,{close:()=>setTelegramOpen(false),linked:telegramLinked}),
+-          entry && !entry.auth && h('form',{autoComplete:'off',onSubmit:e=>{e.preventDefault();act(async()=>{
++          entry && !entry.auth && h('form',{ref:editForm,autoComplete:'off',onSubmit:e=>{e.preventDefault();act(async()=>{
++            if(editing){
++              try {
++                await post('/api/integrations/'+encodeURIComponent(editing.id)+'/keys',{version:editing.version,fields});
++              } catch(error) {
++                await refresh();
++                throw error;
++              }
++              select('');await refresh();window.dispatchEvent(new Event('harness:grants'));
++              setMsg('Ключи обновлены. Нажмите «Проверить», чтобы проверить доступ.');return;
++            }
+             await post('/api/integrations',{provider,name:name.trim()||entry.title,fields,...(initial.chatId?{chatId:initial.chatId}:{})});
+             window.dispatchEvent(new Event('harness:grants'));setFields({});setProvider('');setName('');await refresh();
+             const notice=initial.chatId?'Подключение добавлено в этот чат':'Ключи сохранены.';
+             setMsg(notice);after?.(notice);
+           });}},
++            editing?h(React.Fragment,null,h('h3',null,'Изменить ключи · '+editing.name),
++              h('p',null,'Введите только новые значения. Пустые поля сохранят прежние реквизиты.')):
+             h('label',null,'Название подключения',h('input',{maxLength:80,value:name,placeholder:entry.title,onChange:e=>setName(e.target.value)})),
+-            provider==='ozon' && h('small',null,'Введите пару ключей Seller или Performance. Можно подключить оба API.'),
++            !editing && provider==='ozon' && h('small',null,'Введите пару ключей Seller или Performance. Можно подключить оба API.'),
+             Object.entries(entry.fields).map(([k,label])=>h('label',{key:k},label,h('input',{
+               type:'password',required:provider!=='ozon',autoComplete:'off',spellCheck:false,maxLength:8192,value:fields[k]||'',
+               onChange:e=>setFields(old=>{const n={...old};if(e.target.value)n[k]=e.target.value;else delete n[k];return n;})}))),
+-            initial.chatId&&h('p',null,'Если у сервиса есть плагин, он будет установлен и включён в этом диалоге.'),
+-            h('button',{disabled:busy},'Сохранить подключение')),
++            !editing&&initial.chatId&&h('p',null,'Если у сервиса есть плагин, он будет установлен и включён в этом диалоге.'),
++            h('button',{disabled:busy||(editing&&!Object.keys(fields).length)},editing?'Сохранить изменения':'Сохранить подключение'),
++            editing&&h('button',{type:'button',disabled:busy,onClick:()=>select('')},'Отмена')),
+           h('p',{role:'status'},msg));
+       }
+       function Models() {
+diff --git a/products/harness-platform/platform_core/guest_registration.py b/products/harness-platform/platform_core/guest_registration.py
+index 94f2c6d..3462321 100644
+--- a/products/harness-platform/platform_core/guest_registration.py
++++ b/products/harness-platform/platform_core/guest_registration.py
+@@ -19,7 +19,7 @@ from .identity import (
+ from .storage import Scope, _bind_chat
+ from .public_faq import PublicFAQ
+ from .octopus_knowledge import published
+-from .user_plugins.publication import public_cards, synchronize
++from .user_plugins.publication import guest_cards, synchronize
+ from .coins import PRICING_SCHEMA, sale_pricing
+ 
+ GUEST_LIFETIME = 24 * 60 * 60
+@@ -52,6 +52,9 @@ class RegistrationStore(IdentityStore):
+                     chat_id TEXT NOT NULL REFERENCES guest_chats ON DELETE CASCADE,
+                     request_id TEXT NOT NULL, text TEXT NOT NULL, answer TEXT NOT NULL, at_ms INTEGER NOT NULL,
+                     PRIMARY KEY (chat_id, request_id))""")
++                db.execute("""CREATE TABLE IF NOT EXISTS guest_detailed_answers(
++                    chat_id TEXT NOT NULL, request_id TEXT NOT NULL, PRIMARY KEY(chat_id,request_id),
++                    FOREIGN KEY(chat_id,request_id) REFERENCES guest_turns(chat_id,request_id) ON DELETE CASCADE)""")
+                 db.execute("CREATE INDEX IF NOT EXISTS guest_expiry ON guest_chats(expires_at) WHERE claimed_actor IS NULL")
+                 db.execute("CREATE INDEX IF NOT EXISTS guest_turn_chat ON guest_turns(chat_id)")
+                 self._prune(db)
+@@ -180,13 +183,15 @@ class RegistrationStore(IdentityStore):
+                 if row[0] != text:
+                     raise RegistrationConflict("Request already used")
+                 return
+-            answer = self.faq.answer(text, public_cards(db))
++            answer, guest_only = self.faq.reply(text, guest_cards(db))
+             if "{sale_price}" in answer:
+                 price = sale_pricing(db)["rubPerCoin"]
+                 whole, _, fraction = price.partition(".")
+                 answer = answer.replace("{sale_price}", whole + "," + fraction.ljust(2, "0"))
+             db.execute("INSERT INTO guest_turns VALUES (?,?,?,?,?)",
+                        (chat, request_id, text, answer, int(time() * 1000)))
++            if guest_only:
++                db.execute("INSERT INTO guest_detailed_answers VALUES(?,?)", (chat, request_id))
+ 
+     def register(self, guest_token, login, password, recovery=None):
+         name = _login_name(login)
+diff --git a/products/harness-platform/platform_core/integrations.py b/products/harness-platform/platform_core/integrations.py
+index 6073b87..c6208f0 100644
+--- a/products/harness-platform/platform_core/integrations.py
++++ b/products/harness-platform/platform_core/integrations.py
+@@ -30,13 +30,13 @@ KEY_GUIDES = {
+     "Ozon Seller": [
+         "В Ozon Seller откройте настройки магазина, перейдите в «API-ключи» → Seller API и скопируйте Client ID продавца.",
+         "Нажмите «Сгенерировать ключ», укажите название Octoport и выберите права чтения для нужных отчётов. Если планируете менять цены, добавьте право на изменение цен. Сгенерируйте и скопируйте ключ.",
+-        "В Octoport откройте «Настройки» → «Интеграции» и выберите Ozon. Введите название магазина.",
++        "В Octoport откройте «Настройки» → «Интеграции» и выберите Ozon. Для нового магазина введите название, для сохранённого нажмите «Изменить ключи».",
+         "Вставьте Client ID в «Client-Id продавца», ключ в «Api-Key продавца» и нажмите «Сохранить подключение». Доступ настраивается для выбранного диалога.",
+     ],
+     "Ozon Performance": [
+         "В настройках Ozon откройте «API-ключи» → Performance API. Выберите сервисный аккаунт или создайте его.",
+         "Откройте сервисный аккаунт, добавьте новый ключ и скопируйте Client ID и Client Secret.",
+-        "В Octoport откройте «Настройки» → «Интеграции» и выберите Ozon. Для существующего магазина укажите его прежнее название.",
++        "В Octoport откройте «Настройки» → «Интеграции» и выберите Ozon. У сохранённого магазина нажмите «Изменить ключи».",
+         "Вставьте значения в «Client ID Performance» и «Client Secret Performance», затем нажмите «Сохранить подключение».",
+     ],
+ }
+@@ -100,8 +100,8 @@ class IntegrationStore:
+         with self.identity._lock:
+             db = self.identity._db
+             _, ws = _principal(db, token)
+-            rows = db.execute("SELECT id,provider,name,status FROM account_integrations WHERE workspace=? ORDER BY name,id", (ws,))
+-            result = {"providers": published_providers(telegram is not None), "keyGuides": KEY_GUIDES, "connections": [dict(zip(("id","provider","name","status"),row)) for row in rows]}
++            rows = db.execute("SELECT id,provider,name,status,version FROM account_integrations WHERE workspace=? ORDER BY name,id", (ws,))
++            result = {"providers": published_providers(telegram is not None), "keyGuides": KEY_GUIDES, "connections": [dict(zip(("id","provider","name","status","version"),row)) for row in rows]}
+ 
+             if telegram is not None:
+                 result["telegram"] = telegram.status(db, ws)
+@@ -115,28 +115,59 @@ class IntegrationStore:
+         with self.identity._write() as db:
+             _, ws = _principal(db, token)
+             row = db.execute("SELECT id,encrypted FROM account_integrations WHERE workspace=? AND provider=? AND name=?", (ws,provider,name)).fetchone()
+-            cid = row[0] if row else uuid4().hex
+-            aad = json.dumps([ws,provider,cid]).encode()
+-            cipher = self._cipher()
+-            if row and provider == "wb" and fields != json.loads(cipher.decrypt(row[1][:12],row[1][12:],aad)):
+-                db.execute("UPDATE user_plugin_stores SET catalog_at=NULL WHERE cid=?", (cid,))
+-            if row and provider == "ozon":
+-                previous = json.loads(cipher.decrypt(row[1][:12], row[1][12:], aad))
+-                if previous.get("client_id") and fields.get("client_id",previous["client_id"]) != previous["client_id"]:
+-                    raise HTTPException(409, "Этот магазин уже связан с другим Client-Id. Добавьте новый магазин под отдельным названием.")
+-                fields = previous | fields
+-                if any(previous.get(k)!=fields.get(k) for k in ("client_id","api_key")):
+-                    db.execute("UPDATE user_plugin_stores SET catalog_at=NULL WHERE cid=?", (cid,))
+-            nonce = os.urandom(12)
+-            sealed = nonce + cipher.encrypt(nonce,json.dumps(fields).encode(),aad)
+-            db.execute("""INSERT INTO account_integrations VALUES(?,?,?,?,?,1,'saved')
+-                ON CONFLICT(workspace,provider,name) DO UPDATE SET encrypted=excluded.encrypted,
+-                version=version+1,status='saved'""",(cid,ws,provider,name,sealed))
++            if row:
++                cid, sealed = row
++                self._replace_keys(db, ws, cid, provider, sealed, fields)
++            else:
++                cid = uuid4().hex
++                aad = json.dumps([ws,provider,cid]).encode()
++                nonce = os.urandom(12)
++                sealed = nonce + self._cipher().encrypt(nonce,json.dumps(fields).encode(),aad)
++                db.execute("INSERT INTO account_integrations VALUES(?,?,?,?,?,1,'saved')",
++                           (cid,ws,provider,name,sealed))
+             if chatId is not None:
+                 scope=chat_connections.scope_for(db,token,chatId)
+                 chat_connections.attach(db,scope,cid,True)
+         return {"id":cid, "status":"saved"}
+ 
++    def _replace_keys(self, db, workspace, cid, provider, sealed, changes):
++        if not isinstance(changes, dict) or not changes:
++            raise HTTPException(400, "Введите новый ключ.")
++        aad = json.dumps([workspace, provider, cid]).encode()
++        cipher = self._cipher()
++        previous = json.loads(cipher.decrypt(sealed[:12], sealed[12:], aad))
++        try:
++            current = credentials(provider, previous | changes)
++        except ValueError:
++            message = "Проверьте формат нового ключа."
++            if provider == "ozon":
++                message = "Проверьте реквизиты. При первом подключении Ozon API нужны и идентификатор, и ключ."
++            raise HTTPException(400, message) from None
++        if provider == "ozon" and previous.get("client_id") and current["client_id"] != previous["client_id"]:
++            raise HTTPException(409, "Этот магазин уже связан с другим Client-Id. Добавьте новый магазин под отдельным названием.")
++        if (provider == "wb" and current != previous or
++                provider == "ozon" and any(previous.get(k) != current.get(k) for k in ("client_id", "api_key"))):
++            db.execute("UPDATE user_plugin_stores SET catalog_at=NULL WHERE cid=?", (cid,))
++        nonce = os.urandom(12)
++        encrypted = nonce + cipher.encrypt(nonce, json.dumps(current).encode(), aad)
++        db.execute("UPDATE account_integrations SET encrypted=?, version=version+1, status='saved' WHERE workspace=? AND id=?",
++                   (encrypted, workspace, cid))
++
++    def edit_keys(self, token, cid, version, fields):
++        if type(version) is not int or version < 1:
++            raise HTTPException(400, "Некорректная версия подключения.")
++        with self.identity._write() as db:
++            _, workspace = _principal(db, token)
++            row = db.execute("SELECT provider,version,encrypted FROM account_integrations WHERE workspace=? AND id=?",
++                             (workspace, cid)).fetchone()
++            if row is None:
++                raise HTTPException(404, "Подключение не найдено.")
++            provider, current, sealed = row
++            if current != version:
++                raise HTTPException(409, "Ключи уже изменились. Откройте редактирование заново.")
++            self._replace_keys(db, workspace, cid, provider, sealed, fields)
++        return {"id":cid, "status":"saved", "version":version + 1}
++
+     def open(self, token, cid):
+         with self.identity._lock:
+             db = self.identity._db
+@@ -203,6 +234,11 @@ def routes(get_token, body):
+         if data.get("chatId") and data["provider"]=="wb":
+             req.app.state.plugins.sync_added(token,saved["id"],data["chatId"])
+         return JSONResponse(saved)
++    async def edit_keys(req):
++        token = get_token(req,allow_cookie=True)
++        data = await body(req,"version","fields")
++        return JSONResponse(req.app.state.integrations.edit_keys(token, req.path_params["cid"], **data))
++
+     async def check(req):
+         token = get_token(req,allow_cookie=True)
+         store, cid = req.app.state.integrations, req.path_params["cid"]
+@@ -229,5 +265,6 @@ def routes(get_token, body):
+         except (httpx.HTTPError,KeyError,TypeError,ValueError):
+             raise HTTPException(502,"Wordstat не вернул данные. Проверьте доступ и квоту.") from None
+     return [Route("/api/integrations",collection,methods=["GET","POST"]),
++            Route("/api/integrations/{cid}/keys",edit_keys,methods=["POST"]),
+             Route("/api/integrations/{cid}/check",check,methods=["POST"]),
+             Route("/api/integrations/{cid}/semantics",semantics,methods=["POST"])]
+diff --git a/products/harness-platform/platform_core/octopus_knowledge.py b/products/harness-platform/platform_core/octopus_knowledge.py
+index be93ec1..66d89e3 100644
+--- a/products/harness-platform/platform_core/octopus_knowledge.py
++++ b/products/harness-platform/platform_core/octopus_knowledge.py
+@@ -1,6 +1,5 @@
+ """Published product knowledge and account-level communication preferences."""
+ from functools import lru_cache
+-from dataclasses import asdict
+ from datetime import datetime, timezone
+ import json
+ 
+@@ -55,7 +54,7 @@ def published():
+     providers = published_providers()
+     # Cache only public material. Replacing or removing a registered descriptor
+     # changes the key even inside an already running worker.
+-    key = json.dumps([providers, KEY_GUIDES, [asdict(p) for p in CATALOG.values()]],
++    key = json.dumps([providers, KEY_GUIDES, [p.member_card() for p in CATALOG.values()]],
+                      ensure_ascii=False, sort_keys=True)
+     return _cards(key)
+ 
+diff --git a/products/harness-platform/platform_core/public_faq.json b/products/harness-platform/platform_core/public_faq.json
+index 9bf8ce2..3c4ba20 100644
+--- a/products/harness-platform/platform_core/public_faq.json
++++ b/products/harness-platform/platform_core/public_faq.json
+@@ -4,7 +4,7 @@
+     "patterns": []
+   },
+   "features": {
+-    "answer": "Сервис создан для продавцов Ozon и Wildberries. В чате можно задавать вопросы о магазине и возвращаться к сохранённым ответам. Доступные функции зависят от подключений. Чтобы начать, нажмите «Создать аккаунт».",
++    "answer": "Меня зовут Октопус. Я беру на себя рутинную работу с магазинами на Wildberries и Ozon, чтобы у вас оставалось время решать, что продавать и куда вкладывать деньги.",
+     "patterns": [
+       "что (?:ты |вы )?(?:умеешь|умеете|можешь|можете)(?: делать)?",
+       "что (?:может|умеет|делает) (?:ваш |этот )?(?:сервис|помощник|бот)",
+@@ -22,7 +22,7 @@
+       "почему стоит (?:выбрать ваш сервис|зарегистрироваться)",
+       "что входит в сервис"
+     ],
+-    "previous_answer": "Сервис создан для продавцов Ozon и Wildberries. В личном кабинете вы можете задавать вопросы о магазине в одном чате и возвращаться к сохранённым ответам. Список доступных функций зависит от подключений. Чтобы начать, нажмите «Создать аккаунт»."
++    "previous_answers": ["Сервис создан для продавцов Ozon и Wildberries. В личном кабинете вы можете задавать вопросы о магазине в одном чате и возвращаться к сохранённым ответам. Список доступных функций зависит от подключений. Чтобы начать, нажмите «Создать аккаунт».", "Сервис создан для продавцов Ozon и Wildberries. В чате можно задавать вопросы о магазине и возвращаться к сохранённым ответам. Доступные функции зависят от подключений. Чтобы начать, нажмите «Создать аккаунт»."]
+   },
+   "signup": {
+     "answer": "Нажмите «Создать аккаунт», введите логин и пароль и подтвердите регистрацию. Страница останется открытой, а на балансе нового аккаунта появятся 10 монет.",
+diff --git a/products/harness-platform/platform_core/public_faq.py b/products/harness-platform/platform_core/public_faq.py
+index 09a7a13..91b7c46 100644
+--- a/products/harness-platform/platform_core/public_faq.py
++++ b/products/harness-platform/platform_core/public_faq.py
+@@ -47,6 +47,9 @@ class PublicFAQ:
+         self._db.close()
+ 
+     def answer(self, message, cards=()):
++        return self.reply(message, cards)[0]
++
++    def reply(self, message, cards=()):
+         text = " ".join(re.findall(r"[^\W_]+", message.casefold().replace("ё", "е")))
+         text = re.sub(r"^(?:(?:здравствуйте|привет|добрый день|подскажите|скажи|пожалуйста) )+", "", text)
+         text = text.removesuffix(" пожалуйста")
+@@ -55,55 +58,93 @@ class PublicFAQ:
+         for topic, answer, patterns in self._db.execute("SELECT topic, answer, patterns FROM public_faq WHERE topic!='scope'"):
+             if any(re.fullmatch(pattern, text) for pattern in json.loads(patterns)):
+                 if topic == "features":
+-                    answer += "\n\n" + _list_cards(cards, "Плагины")
++                    answer = _overview(answer, cards)
+                 matches.append(answer)
+         if matches:
+-            return matches[0] if len(matches) == 1 else fallback
+-        return _catalog_answer(text, cards) or fallback
++            return (matches[0] if len(matches) == 1 else fallback), False
++        intro = self._db.execute("SELECT answer FROM public_faq WHERE topic='features'").fetchone()[0]
++        return _catalog_reply(text, cards, intro, fallback)
++
++
++def _overview(intro, cards):
++    items = [card["purpose"] for card in cards if card["group"] == "Плагины"]
++    if not items:
++        return intro + "\n\nСейчас список возможностей обновляется. Могу рассказать, как открыть аккаунт и сколько стоит работа в сервисе."
++    return (intro + "\n\nВот что вы можете мне поручить.\n\n" + "\n\n".join("• " + item for item in items) +
++            "\n\nС чего начнём? Могу подробнее рассказать о любой из этих задач.")
+ 
+ 
+-def _list_cards(cards, group):
+-    selected = [card for card in cards if card["group"] == group]
+-    if not selected:
+-        return "Сейчас нет опубликованных плагинов." if group == "Плагины" else "Сейчас нет опубликованных интеграций."
+-    return group + "\n" + "\n\n".join("• " + card["title"] + " — " + card["purpose"] for card in selected)
++def _named(card, text):
++    names = [card["title"], card["id"].split("/")[-1], *card.get("aliases", ())]
++    best = 0
++    for name in names:
++        words = re.findall(r"[^\W_]+", name.casefold().replace("ё", "е"))
++        if not words:
++            continue
++        pattern = r"\s+".join(map(re.escape, words))
++        if re.fullmatch(r"[а-я]*[бвгджзклмнпрстфхцчшщ]", words[-1]):
++            pattern += r"(?:а|у|е|ом)?"
++        if re.search(r"\b" + pattern + r"\b", text):
++            best = max(best, len(" ".join(words)))
++    return best
+ 
+ 
+-def _catalog_answer(text, cards):
+-    plugins = bool(re.search(r"\bплагин\w*\b", text))
+-    integrations = bool(re.search(r"\bинтеграц\w*\b", text))
+-    groups = {name for name, asked in (("Плагины", plugins), ("Интеграции", integrations)) if asked}
+-    candidates = [card for card in cards if not groups or card["group"] in groups]
+-    # Match public names as whole phrases. A longer name wins over an overlapping alias.
+-    def relevance(card):
+-        names = [card["title"], card["id"].split("/")[-1], *card.get("aliases", ())]
+-        scored = []
+-        for name in names:
+-            words = re.findall(r"[^\W_]+", name.casefold().replace("ё", "е"))
+-            # Allow the prepositional/genitive case of a consonant-ending Russian name.
+-            pattern = r"\s+".join(map(re.escape, words))
+-            if words and re.fullmatch(r"[а-я]*[бвгджзклмнпрстфхцчшщ]", words[-1]):
+-                pattern += r"(?:а|у|е|ом)?"
+-            if words and re.search(r"\b" + pattern + r"\b", text):
+-                scored.append((len(words), len(" ".join(words))))
+-        return max(scored, default=(0, 0))
++def _catalog_reply(text, cards, intro, fallback):
++    text = re.sub(r"^(?:а |и |ну )+", "", text)
++    if re.match(r"(?:сколько сто[ия]т|почем)\b", text):
++        return fallback, False
++    asks_plugins = bool(re.search(r"\bплагин", text))
++    asks_connections = bool(re.search(r"\bинтеграц", text))
++    setup = bool(re.match(r"(?:(?:как|где) )?(?:мне )?(?:подключить|установить|настроить)\b", text))
++    question = bool(re.match(r"(?:как|что|каки[ех]|какой|какую|зачем|сколько|куда|когда|можно|можешь|умеешь|умеет|расскажи|покажи|опиши|интересует|для чего|хочу|есть ли|подробнее|следишь|считаешь|ты|плагин\w*|интеграц\w*|каталог|все|доступные|перечисли|список|описани)\b", text))
++    words = text.split()
++    ranked = []
++    qualifying = []
++    for card in cards:
++        plugin = card["group"] == "Плагины"
++        if asks_plugins != asks_connections and plugin != asks_plugins:
++            continue
++        name = _named(card, text)
++        bare = text == card["title"].casefold().replace("ё", "е")
++        if not (question or setup or bare or len(words) <= 2):
++            continue
++        # A topic is a group of required word stems supplied by the module.
++        def matches(group):
++            return all(any(w.startswith(term) for w in words) for term in group)
+ 
+-    scores = [(relevance(card), card) for card in candidates]
+-    best = max((score for score, _ in scores), default=(0, 0))
+-    named = [card for score, card in scores if score == best and best != (0, 0)]
+-    setup = bool(re.match(r"(?:как |где )?(?:мне )?(?:подключить|установить|настроить)\b", text))
+-    about = bool(re.match(r"(?:что (?:такое|делает|умеет|может|за)|как работает|для чего|зачем|расскажи(?:те)? (?:о|об|про)|есть ли|описание|плагин|интеграция)\b", text))
+-    catalog = bool(re.fullmatch(r"(?:плагины|интеграции|каталог|список (?:доступных )?(?:плагинов|интеграций))", text)
+-                   or groups and re.match(r"(?:каки[ехм]|что (?:ты |вы )?(?:умеешь|умеет|умеют|можешь)|каков|перечисли|список|покажи|все|доступные|каталог|расскажи|что (?:за|есть)|есть ли|опиши|описани|плагин|интеграц)", text))
+-    if named and (setup or about or catalog or any(text == c["title"].casefold().replace("ё", "е") for c in named)):
++        if any(matches(group) for group in card.get("qualifiers", ())):
++            qualifying.append(card)
++        score = max((len(group) for group in card.get("topics", ()) if matches(group)), default=0)
++        if name or score:
++            # A delivery/monitoring question can also mention a marketplace as a qualifier.
++            connection_setup = int(setup and not plugin and name > 0 and not asks_plugins)
++            explicit_title = int(" " in card["title"] and name == len(card["title"]))
++            ranked.append(((connection_setup, explicit_title, int(score >= 2), name, score, int(plugin)), card))
++    if ranked:
++        top = max(score for score, _ in ranked)
++        selected = [card for score, card in ranked if score == top]
++        selected.extend(card for card in qualifying if card not in selected)
+         lines = []
+-        for card in named:
+-            steps = card["steps"]
+-            ordered = steps if isinstance(steps, list) else [step for group in steps.values() for step in group]
+-            lines.append(card["title"] + " — " + card["purpose"] +
+-                         (" " + " ".join(dict.fromkeys(ordered)) if setup else ""))
+-        return "\n".join(lines)
+-    if catalog:
+-        return "\n\n".join(_list_cards(cards, group) for group in ("Плагины", "Интеграции")
+-                            if group in (groups or {"Плагины"}))
+-    return None
++        detail = False
++        for card in selected:
++            if card["group"] == "Плагины":
++                lines.append(card["detail"])
++                detail = True
++            elif setup:
++                steps = card["steps"]
++                ordered = steps if isinstance(steps, list) else [s for group in steps.values() for s in group]
++                lines.append(" ".join(dict.fromkeys(ordered)))
++            else:
++                lines.append(card["purpose"])
++        return "\n\n".join(lines), detail
++    if qualifying:
++        return "\n\n".join(card["detail"] for card in qualifying), True
++    if question and (asks_plugins or asks_connections or text == "каталог"):
++        parts = []
++        if asks_plugins or not asks_connections:
++            parts.append(_overview(intro, cards))
++        if asks_connections:
++            entries = [card["title"] for card in cards if card["group"] == "Интеграции"]
++            parts.append("Вы можете подключить " + ", ".join(entries) + "." if entries else "Список подключений пока пуст.")
++        return "\n\n".join(parts), False
++    return fallback, False
+diff --git a/products/harness-platform/platform_core/user_plugins/publication.py b/products/harness-platform/platform_core/user_plugins/publication.py
+index b427e24..523acf4 100644
+--- a/products/harness-platform/platform_core/user_plugins/publication.py
++++ b/products/harness-platform/platform_core/user_plugins/publication.py
+@@ -12,6 +12,24 @@ def synchronize(db, cards):
+     db.execute("DELETE FROM product_directory WHERE id NOT IN (SELECT value FROM json_each(?))",
+                (json.dumps([card["id"] for card in cards]),))
+ 
++    # Guest copy has its own table so no member-side query can serialize it by accident.
++    from .registry import CATALOG
++    db.execute("""CREATE TABLE IF NOT EXISTS guest_plugin_help(
++        id TEXT PRIMARY KEY REFERENCES product_directory(id) ON DELETE CASCADE,
++        position INTEGER NOT NULL, detail TEXT NOT NULL, topics TEXT NOT NULL)""")
++    db.executemany("""INSERT INTO guest_plugin_help VALUES(?,?,?,?)
++        ON CONFLICT(id) DO UPDATE SET position=excluded.position, detail=excluded.detail, topics=excluded.topics
++        WHERE position<>excluded.position OR detail<>excluded.detail OR topics<>excluded.topics""",
++        [("plugin/" + p.id, i, p.guest.detail, json.dumps({"topics": p.guest.topics, "qualifiers": p.guest.qualifiers}, ensure_ascii=False))
++         for i, p in enumerate(CATALOG.values())])
++
++
++def guest_cards(db):
++    rows = db.execute("""SELECT d.card, g.detail, g.topics FROM product_directory d
++        LEFT JOIN guest_plugin_help g USING(id) WHERE d.listed=1 ORDER BY g.position,d.id""")
++    return [dict(json.loads(card), **({"detail": detail, **json.loads(topics)} if detail else {}))
++            for card, detail, topics in rows]
++
+ 
+ def public_cards(db):
+     return [json.loads(card) for card, in db.execute(
+diff --git a/products/harness-platform/platform_core/user_plugins/registry.py b/products/harness-platform/platform_core/user_plugins/registry.py
+index 75d9515..5c64803 100644
+--- a/products/harness-platform/platform_core/user_plugins/registry.py
++++ b/products/harness-platform/platform_core/user_plugins/registry.py
+@@ -1,11 +1,18 @@
+ """Trusted product catalogue. Conversation attachments use the platform's existing grants."""
+-from dataclasses import dataclass
++from dataclasses import dataclass, field, fields
+ 
+ from starlette.exceptions import HTTPException
+ 
+ from .publication import can_obtain
+ 
+ 
++@dataclass(frozen=True)
++class GuestHelp:
++    detail: str
++    topics: tuple[tuple[str, ...], ...]
++    qualifiers: tuple[tuple[str, ...], ...] = ()
++
++
+ @dataclass(frozen=True)
+ class Plugin:
+     id: str
+@@ -13,6 +20,7 @@ class Plugin:
+     title: str
+     description: str
+     provider: str
++    guest: GuestHelp = field(kw_only=True, repr=False)
+     # An operation declares the public integration and access it needs.
+     operations: tuple = ()
+     keywords: str = ""
+@@ -24,6 +32,14 @@ class Plugin:
+     glossary: tuple = ()
+ 
+ 
++    def __post_init__(self):
++        if not self.description.strip() or not self.guest.detail.strip() or self.description.strip() == self.guest.detail.strip():
++            raise ValueError(f"{self.id}: provide a short capability and a separate detailed guest answer")
++
++    def member_card(self):
++        return {item.name: getattr(self, item.name) for item in fields(self) if item.name != "guest"}
++
++
+ # Public business concepts contain no executable report or store identifiers.
+ AD_COST_SHARE = {
+     "id": "ad-cost-share",
+@@ -37,24 +53,46 @@ AD_COST_SHARE = {
+ 
+ 
+ WB = Plugin("wildberries", "analytics", "Вайлдберис",
+-            "Отчёты WB и сохранённые коэффициенты потерь, доставки и комиссии для магазинов и товаров.", "wb",
++            "Проверить продажи и выкупы на Wildberries, найти склады с низкими остатками и оценить потери на возвратах.", "wb",
+             (("Продажи и остатки", "wb", "Wildberries API"),
+              ("Найти и выполнить разрешённое изменение через API", "wb", "Wildberries API"), ("Расходы на рекламу (нужна категория «Продвижение» токена WB)", "wb", "Wildberries API")),
+-            "вб заказы выкупы доход остатки реклама продвижение дрр кампании показы клики траты потратил находили покупатели расход бюджет маркетинг", glossary=(AD_COST_SHARE,))
++            "вб заказы выкупы доход остатки реклама продвижение дрр кампании показы клики траты потратил находили покупатели расход бюджет маркетинг", guest=GuestHelp(
++                "Покажу, что заказали и выкупили, что вернули и на каких складах осталось мало товара. "
++                "Выберите период или артикул — сравню продажи с прошлым периодом и покажу, где изменился спрос. "
++                "В отчёте по Wildberries можно разобрать комиссию и доставку отдельно и увидеть, как возвраты влияют на выручку.",
++                (("остат",), ("склад",), ("продаж",), ("выкуп",), ("возврат",), ("wildberries",), ("вб",))), glossary=(AD_COST_SHARE,))
+ OZON = Plugin("ozon", "analytics", "Озон",
+-              "Отчёты Ozon, доля потерь и стоимость прямой и последней доставки для магазинов и товаров.", "ozon",
++              "Рассчитать юнит-экономику товара на Ozon и показать, сколько остаётся с продажи после рекламы, комиссии, доставки и ваших расходов.", "ozon",
+               (("Продажи и остатки", "ozon", "Ozon Seller"),
+                ("Найти и выполнить разрешённое изменение через API", "ozon", "Ozon Seller"), ("Расходы на рекламу", "ozon", "Ozon Performance")),
+-              "озон заказы выкупы доход остатки реклама продвижение дрр кампании показы клики траты потратил находили покупатели расход бюджет маркетинг", glossary=(AD_COST_SHARE,))
+-ILLUSTRATIONS = Plugin("illustrations","graphics","Иллюстрации","Создаёт изображения по описанию и прикрепляет их к сообщению.","images", (("Создать изображение", "", ""),), "картинка рисунок нарисуй фото")
++              "озон заказы выкупы доход остатки реклама продвижение дрр кампании показы клики траты потратил находили покупатели расход бюджет маркетинг", guest=GuestHelp(
++                  "Разберу продажи и расходы на Ozon по товарам. Для юнит-экономики возьму цену продажи, комиссию площадки, "
++                  "логистику, возвраты и рекламу. Себестоимость, налоги и расходы, которых нет в отчёте площадки, вы укажете сами. "
++                  "Покажу, сколько остаётся с одной продажи и какая статья расходов сильнее всего влияет на прибыль.",
++                  (("юнит",), ("экономик",), ("себестоим",), ("прибыл",), ("расход",), ("комисси",), ("ozon",), ("озон",))), glossary=(AD_COST_SHARE,))
++ILLUSTRATIONS = Plugin("illustrations","graphics","Иллюстрации","Подготовить изображение для карточки товара по вашему описанию.","images", (("Создать изображение", "", ""),), "картинка рисунок нарисуй фото",
++    guest=GuestHelp("Опишите товар, фон и то, что покупатель должен заметить первым. Я подготовлю изображение "
++                    "и прикреплю его в чат. Здесь же вы сможете попросить другой ракурс, цвет или композицию.",
++                    (("изображ",), ("иллюстра",), ("картин",), ("фото",), ("рису",))))
+ TELEGRAM = Plugin("telegram-reports", "documents", "Отчёты в Telegram",
+-                  "Доставляет готовый отчёт этого чата в ваш Telegram, когда получает событие о его создании.", "telegram", (("Доставить отчёт", "telegram", "Telegram"),), "телега телегу тг прислать отправить доставка мессенджер уведомляй",
++                  "Присылать готовые отчёты в Telegram, чтобы цифры по магазину были под рукой.", "telegram", (("Доставить отчёт", "telegram", "Telegram"),), "телега телегу тг прислать отправить доставка мессенджер уведомляй",
+                   ("Включите плагин в нужном чате, откройте «Отчёты в Telegram» и нажмите «Получать новые отчёты этого чата».",),
++                  guest=GuestHelp("Готовый отчёт останется в чате. Если удобнее получать его на телефон, вместе подключим ваш Telegram "
++                                 "и выберем чат, из которого присылать отчёты. Тогда после подготовки очередного отчёта я отправлю его вам в личные сообщения.",
++                                 (("телеграм",), ("telegram",), ("тг",), ("куда", "отчет"), ("куда", "отчёт"))),
+                   usage="Окно «Отчёты в Telegram» показывает состояние и «Последняя отправка» при наличии подтверждения. "
+                         "Статус unknown — исход попытки неизвестен. lastSent — последняя подтверждённая отправка. "
+                         "Без подписки плагин не отправляет даже вручную запрошенный отчёт. Команды для отправки в обход подписки нет. Конкретный отчёт можно проверить в личном чате с ботом. В Октопорте нет истории по каждому отчёту.")
+ TIMER = Plugin(
+-    "timer", "automation", "Таймер", "Проверяет, составляет отчёты и выполняет подтверждённые поручения по расписанию.", "timer",
++    "timer", "automation", "Таймер", "Каждый день проверять рекламу, продажи или склады и выполнять согласованные действия, когда показатель выходит за ваш порог.", "timer",
++    guest=GuestHelp(
++        "Вместе выберем, за чем следить и в какое время проверять. Например, каждое утро в девять я могу сравнивать "
++        "вчерашние расходы на рекламу с вашим лимитом. Вы решаете, на какое изменение реагировать и что делать дальше — "
++        "прислать отчёт или выполнить доступное действие в заданных пределах. Сначала покажу пробный результат. "
++        "После вашего подтверждения начну проверки по расписанию и буду оставлять итог в чате.",
++        (("след", "реклам"), ("отслеж", "реклам"), ("провер", "реклам"), ("след",), ("отслеж",), ("монитор",), ("реклам",), ("порог",), ("лимит",),
++         ("автомат",), ("согласован", "измен"), ("таймер",)),
++        qualifiers=(("кажд", "день"), ("ежеднев",), ("расписан",))),
+     operations=(("Запланировать отчёт в чат", "", ""),
+                 ("Запланировать отчёт в Telegram", "telegram", "Telegram"),
+                 ("Выполнить действие по условию и расписанию", "", "")),
+@@ -64,7 +102,7 @@ TIMER = Plugin(
+     triggers=("Запуск отчёта или условного действия по расписанию",),
+     usage="В активном чате «Таймер» показывает расписание, историю и состояние доставки. Для отчёта только в чат Telegram не требуется.",
+ )
+-CATALOG = {plugin.id: plugin for plugin in (WB, OZON, ILLUSTRATIONS, TELEGRAM, TIMER)}
++CATALOG = {plugin.id: plugin for plugin in (WB, OZON, TIMER, TELEGRAM, ILLUSTRATIONS)}
+ CATEGORIES = (
+     {"id": "automation", "title": "Автоматизация", "parent": None},
+     {"id": "analytics", "title": "Аналитика", "parent": None},
+diff --git a/products/harness-platform/platform_core/user_plugins/service.py b/products/harness-platform/platform_core/user_plugins/service.py
+index 4cde0da..db392dd 100644
+--- a/products/harness-platform/platform_core/user_plugins/service.py
++++ b/products/harness-platform/platform_core/user_plugins/service.py
+@@ -1,5 +1,4 @@
+ import asyncio
+-from dataclasses import asdict
+ from datetime import date, datetime
+ from email.utils import parsedate_to_datetime
+ import time
+@@ -188,7 +187,7 @@ def routes(get_token,body):
+             "SELECT plugin_id FROM chat_plugins WHERE workspace_id=? AND chat_id=?", (workspace, chat))}
+         listed = listed_plugins(db)
+         return {"categories": CATEGORIES, "plugins": [
+-            {**asdict(p), "installed": p.id in installed, "enabled": p.id in enabled}
++            {**p.member_card(), "installed": p.id in installed, "enabled": p.id in enabled}
+             for p in CATALOG.values() if p.id in listed or (chat and p.id in installed)]}
+ 
+     def cancel_jobs(db, tasks, workspace, key, chat=None):
+diff --git a/products/harness-platform/tests/browser/test_account_browser.py b/products/harness-platform/tests/browser/test_account_browser.py
+index 4a2f909..0aa1af0 100644
+--- a/products/harness-platform/tests/browser/test_account_browser.py
++++ b/products/harness-platform/tests/browser/test_account_browser.py
+@@ -346,6 +346,31 @@ class BrowserIsolation(ProductBrowser):
+         await close.click()
+         await expect(dialog).to_have_count(0)
+ 
++    async def test_edit_saved_integration_keys(self):
++        key = self.database.parent/"integration-test-key"
++        key.write_bytes(os.urandom(32))
++        with patch.dict(os.environ, {"HARNESS_INTEGRATIONS_KEY_FILE":str(key)}):
++            page = await self.open_chat("first-browser")
++            form = {"name":"Мой Ozon", "provider":"ozon", "fields":{"api_key":"fixture-old-key", "client_id":"fixture-id"}}
++            original = await page.request.post("/api/integrations", headers={"Origin":self.base_url}, data=form)
++            cid = (await original.json())["id"]
++            await open_integrations(page)
++            dialog = page.get_by_role("dialog")
++            await dialog.get_by_role("button", name="Изменить ключи · Мой Ozon").click()
++            secret = dialog.get_by_label("Api-Key продавца", exact=True)
++            await expect(secret).to_have_value("")
++            await expect(dialog.get_by_role("button", name="Сохранить изменения")).to_be_disabled()
++            await secret.fill("fixture-new-key")
++            await dialog.get_by_role("button", name="Сохранить изменения").click()
++            await expect(dialog.get_by_role("status")).to_contain_text("Ключи обновлены")
++            connections = (await (await page.request.get("/api/integrations")).json())["connections"]
++            self.assertEqual([(c["id"], c["version"]) for c in connections], [(cid, 2)])
++            self.assertNotIn("fixture-new-key", str(connections))
++            await dialog.get_by_role("button", name="Изменить ключи · Мой Ozon").click()
++            await expect(secret).to_have_value("")
++            await dialog.get_by_role("button", name="Отмена").click()
++            await expect(secret).to_have_count(0)
++
+     async def test_store_connection_updates_plugin_shortcut_without_reloading(self):
+         key=self.database.parent/"plugin-key"
+         key.write_bytes(os.urandom(32))
+@@ -756,8 +781,9 @@ class BrowserIsolation(ProductBrowser):
+             await expect(page.locator("body[data-ds-dark-theme]")).to_have_count(int(value != "light"))
+ 
+     async def test_installed_plugin_follows_selected_chat(self):
+-        from platform_core.user_plugins.registry import Plugin
+-        future = Plugin("reference-text", "documents", "Документы для теста", "Новый плагин", "fixture")
++        from platform_core.user_plugins.registry import GuestHelp, Plugin
++        future = Plugin("reference-text", "documents", "Документы для теста", "Новый плагин", "fixture",
++                        guest=GuestHelp("Подготовлю документ по вашему образцу.", (("документ",),)))
+         async def verify_tool(page, chat, enabled):
+             path = f"/api/chats/{chat}/tools"
+             catalogue = await page.request.get(path)
+@@ -951,9 +977,9 @@ class BrowserIsolation(ProductBrowser):
+             await guest.get_by_role("button", name="Отправить сообщение", exact=True).click()
+             replies = guest.locator('[data-chat-flow-kind="assistant-step"]')
+             await expect(replies).to_have_count(count)
+-            await expect(replies.last).to_contain_text("Вайлдберис")
++            await expect(replies.last).to_contain_text("Меня зовут Октопус")
+             return replies.last
+-        description = "Проверяет, составляет отчёты"
++        description = "Каждый день проверять рекламу"
+         await expect(await ask("Что ты умеешь?", 1)).to_contain_text(description)
+         await admin.get_by_role("button", name="Убрать из каталога — Таймер").click()
+         await expect(admin.locator("#catalog-status")).to_contain_text("снят")
+diff --git a/products/harness-platform/tests/test_guest_registration.py b/products/harness-platform/tests/test_guest_registration.py
+index 60a4553..1af26c7 100644
+--- a/products/harness-platform/tests/test_guest_registration.py
++++ b/products/harness-platform/tests/test_guest_registration.py
+@@ -194,7 +194,7 @@ class GuestRegistrationTests(TestCase):
+         with RegistrationStore(":memory:") as store:
+             token, chat = store.start_guest()
+             store.guest_turn(token, chat, "hi", "Что ты умеешь?")
+-            self.assertIn("Сервис создан", store.guest_history(token, chat)[0]["answer"])
++            self.assertIn("Меня зовут Октопус", store.guest_history(token, chat)[0]["answer"])
+ 
+     def test_shared_service_faq_runs_without_credentials_or_external_dispatch(self):
+         self.enterContext(patch.dict(os.environ, {"PATH": os.defpath}, clear=True))
+@@ -206,7 +206,7 @@ class GuestRegistrationTests(TestCase):
+             chats = [path.rsplit("/", 1)[1] for path in paths]
+             self.assertNotEqual(*chats)
+             questions = [
+-                ("Что ты умеешь?", "Сервис создан для продавцов"),
++                ("Что ты умеешь?", "Меня зовут Октопус"),
+                 ("Как зарегистрироваться?", "подтвердите регистрацию"),
+                 ("Сколько стоит?", "При покупке 1 монета стоит 1,20 ₽"),
+                 ("Заказов столько же, почему денег пришло меньше?", "Разбор своего магазина"),
+diff --git a/products/harness-platform/tests/test_octopus_knowledge.py b/products/harness-platform/tests/test_octopus_knowledge.py
+index 62b5e60..bb44627 100644
+--- a/products/harness-platform/tests/test_octopus_knowledge.py
++++ b/products/harness-platform/tests/test_octopus_knowledge.py
+@@ -12,14 +12,15 @@ from platform_core.chat_api import create_app
+ from platform_core.identity import IdentityStore
+ from platform_core.guest_registration import RegistrationStore
+ from platform_core.user_plugins.publication import synchronize
+-from platform_core.user_plugins.registry import CATALOG, Plugin
++from platform_core.user_plugins.registry import CATALOG, GuestHelp, Plugin
+ 
+ 
+ class PublishedKnowledge(unittest.TestCase):
+     def test_publication_update_removal_and_guest(self):
+         timer = Plugin("fixture-timer","analytics","Учебный таймер","Ежедневные отчёты", "qa-source",
+                        (("Создать расписание","qa-source","fixture"),), "каждый день утром",
+-                       ("Укажите часовой пояс и нажмите «Сохранить».",))
++                       ("Укажите часовой пояс и нажмите «Сохранить».",),
++                       guest=GuestHelp("Согласуем время и отправим сводку.", (("сводк",),)))
+         with tempfile.TemporaryDirectory() as d:
+             path = Path(d)/"account.db"
+             store = self.enterContext(RegistrationStore(path))
+@@ -38,13 +39,13 @@ class PublishedKnowledge(unittest.TestCase):
+                 self.assertEqual(len(cards),11)
+                 found=next(c for c in cards if c["id"]=="plugin/fixture-timer")
+                 self.assertEqual(found["operations"][0]["requires"],"integration/qa-source")
+-                self.assertIn("Таймер",answer("Какие есть плагины?"))
++                self.assertIn(CATALOG["timer"].description,answer("Какие есть плагины?"))
+                 CATALOG[timer.id]=replace(timer,title="Новый таймер",setup=("Включите расписание.",))
+                 start_release()
+-                self.assertIn("Включите расписание.",answer("Как подключить новый таймер?"))
++                self.assertIn(timer.guest.detail,answer("Как подключить новый таймер?"))
+             start_release()
+-            self.assertNotIn("новый таймер",answer("Какие есть плагины?").lower())
+-            self.assertIn("Таймер",answer("Какие есть плагины?"))
++            self.assertNotIn(timer.description,answer("Какие есть плагины?"))
++            self.assertIn(CATALOG["timer"].description,answer("Какие есть плагины?"))
+             self.assertEqual(len(knowledge.published()),9)
+ 
+     def test_account_preferences_and_cross_chat(self):
+diff --git a/products/harness-platform/tests/test_plugin_publication.py b/products/harness-platform/tests/test_plugin_publication.py
+index 25324b6..df374a6 100644
+--- a/products/harness-platform/tests/test_plugin_publication.py
++++ b/products/harness-platform/tests/test_plugin_publication.py
+@@ -52,11 +52,25 @@ class PluginPublication(TestCase):
+             answer = ask(index, text)
+             self.assertEqual(answer.count("• "), len(CATALOG))
+             for item in CATALOG.values():
+-                self.assertIn(item.title + " — " + item.description, answer)
++                self.assertIn(item.description, answer)
++                self.assertNotIn(item.title + " —", answer)
++                self.assertNotIn(item.guest.detail, answer)
++            self.assertNotIn("плагин", answer.lower())
+             self.assertNotIn("Подключение Telegram", answer)
+-        self.assertIn(CATALOG["timer"].description, ask(2, "Расскажи о таймере"))
++        self.assertIn(CATALOG["timer"].guest.detail, ask(2, "А как ты следишь за рекламой?"))
++        self.assertIn(CATALOG["ozon"].guest.detail, ask(21, "Как посчитаешь юнит-экономику?"))
++        self.assertIn(CATALOG["telegram-reports"].guest.detail, ask(22, "Как получать отчёты в телеграмме?"))
++        daily = ask(23, "Можешь каждый день считать юнит-экономику?")
++        self.assertIn(CATALOG["ozon"].guest.detail, daily)
++        self.assertIn(CATALOG["timer"].guest.detail, daily)
++        with store._lock:
++            member = str(snapshot(store._db, scope, [], None))
++        settings = str(client.get("/api/plugins", headers=normal).json())
++        for item in CATALOG.values():
++            self.assertIn(item.description, member)
++            self.assertNotIn(item.guest.detail, member + settings)
+         self.assertNotIn(CATALOG["ozon"].description, ask(3, "Что делает плагин Таймер?"))
+-        self.assertIn("Подключение Telegram", ask(4, "Какие есть интеграции?"))
++        self.assertIn("Telegram", ask(4, "Какие есть интеграции?"))
+         self.assertEqual(install(admin, "ozon").status_code, 200)
+         for _ in range(2):
+             self.assertEqual(change(admin, "ozon", False).status_code, 200)
+@@ -78,7 +92,7 @@ class PluginPublication(TestCase):
+         for key in CATALOG:
+             self.assertEqual(change(admin, key, False).status_code, 200)
+         self.assertEqual(visible(), set())
+-        self.assertIn("нет опубликованных плагинов", ask(6, "Какие есть плагины?"))
++        self.assertIn("список возможностей обновляется", ask(6, "Какие есть плагины?"))
+         self.assertEqual(change(admin, "ozon", True).status_code, 200)
+         self.assertEqual(visible(), {"ozon"})
+         self.assertIn("plugin/ozon", knowledge())
+diff --git a/products/harness-platform/tests/test_service_plugins.py b/products/harness-platform/tests/test_service_plugins.py
+index e79f8f7..2402742 100644
+--- a/products/harness-platform/tests/test_service_plugins.py
++++ b/products/harness-platform/tests/test_service_plugins.py
+@@ -81,6 +81,46 @@ class ServicePlugins(unittest.TestCase):
+                 self.assertNotIn("perf-secret", str(partial))
+                 self.assertNotIn("Реклама", str(partial["availableServices"]))
+ 
++    def test_member_rotates_own_credentials_in_place(self):
++        with self.client() as client:
++            store = client.app.state.integrations
++            # The ordinary account owns both the credentials and the existing chat grant.
++            token = self.other["Authorization"].split()[1]
++            chat = client.app.state.identity.create_user_chat(token).chat_id
++            base = "/api/integrations"
++            for provider, original, update in (
++                ("ozon", {"client_id":"seller-1", "api_key":"fixture-old", "performance_id":"ads-1",
++                          "performance_secret":"fixture-private-performance"}, {"api_key":"fixture-new"}),
++                ("wb", {"token":"fixture-wb-old"}, {"token":"fixture-wb-new"}),
++                ("wordstat", {"token":"fixture-ws-old"}, {"token":"fixture-ws-new"}),
++            ):
++                with self.subTest(provider=provider):
++                    data = {"provider":provider, "name":"Fixture " + provider, "fields":original}
++                    cid = client.post(base, json=data, headers=self.other).json()["id"]
++                    # Use the ordinary grant endpoint for a retained connection. WB refresh has an offline fixture.
++                    with patch.object(client.app.state.plugins, "sync_added"):
++                        client.post(f"/api/chats/{chat}/integrations", headers=self.other,
++                                    json={"connectionId":cid, "enabled":True}).raise_for_status()
++                    endpoint = f"{base}/{cid}/keys"
++                    def edit(auth, version, fields):
++                        return client.post(endpoint, headers=auth, json={"version":version, "fields":fields})
++                    self.assertEqual(edit(self.headers, 1, update).status_code, 404)
++                    self.assertEqual(edit(self.other, 1, {}).status_code, 400)
++                    result = edit(self.other, 1, update)
++                    self.assertEqual(result.json(), {"id":cid, "version":2, "status":"saved"})
++                    self.assertEqual(edit(self.other, 1, update).status_code, 409)
++                    self.assertEqual(store.open(token, cid), (provider,2,original|update))
++                    if provider == "ozon":
++                        self.assertEqual(edit(self.other,2,{"client_id":"different-shop"}).status_code,409)
++                        edit(self.other,2,{"performance_secret":"fixture-rotated-performance"}).raise_for_status()
++                        self.assertEqual(store.open(token,cid)[2]["api_key"],update["api_key"])
++                    rows = client.get(base,headers=self.other).json()["connections"]
++                    self.assertEqual(sum(c["id"] == cid for c in rows), 1)
++                    self.assertFalse(set(original.values()) & {str(v) for row in rows for v in row.values()})
++                    with client.app.state.identity._lock:
++                        self.assertTrue(client.app.state.identity._db.execute(
++                            "SELECT 1 FROM chat_integrations WHERE chat_id=? AND connection_id=?", (chat,cid)).fetchone())
++
+     def test_separate_wb_permissions_and_no_stale_checks_after_key_change(self):
+         with self.client() as client:
+             form = {"provider":"wb", "name":"Склад", "fields":{"token":"qa-private"}, "chatId":self.chat}

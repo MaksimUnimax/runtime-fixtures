@@ -37,15 +37,22 @@ def catalogue(profiles):
     return invoke({"profiles": profiles}, 15)
 
 
-def capability(stores):
+def profile_keys(stores):
     profiles = []
     for store in stores:
         if store["provider"] in ("wb", "ozon"):
             fields = tuple(sorted(f for access in store["access"] for f in PROFILE_FIELDS.get(access, ())))
             profiles.append((store["id"], store["provider"], fields))
+    return tuple(sorted(profiles))
+
+
+def capability(stores, selected=None):
+    profiles = profile_keys(stores)
     if not profiles:
         return None
     rows = [*catalogue(tuple(profiles)), *extensions.catalogue(profiles)]
+    if selected is not None:
+        rows = [row for row in rows if row["id"] in selected]
     if not rows:
         return None
     groups = {}
@@ -92,14 +99,14 @@ def capability(stores):
         "required": ["templateId", "connectionId", "input"], "additionalProperties": False}
     if any(row["id"] in extensions.TEMPLATES for row in rows):
         item["properties"]["input"]={"type":"object"}
-        item["allOf"]=[{"if":{"properties":{"templateId":{"enum":list(extensions.TEMPLATES)}}},
+        item["allOf"]=[{"if":{"properties":{"templateId":{"enum":[row["id"] for row in rows if row["id"] in extensions.TEMPLATES]}}},
             "then":{"properties":{"input":{"type":"object","properties":{"plugin_inputs":plugin_inputs},
                                            "additionalProperties":False}}},
             "else":{"properties":{"input":inputs}}}]
     if any(row["id"] in extensions.STORE_LOOKUPS for row in rows):
         item["required"] = ["templateId", "connectionId"]
         item.setdefault("allOf", []).append({
-            "if":{"properties":{"templateId":{"enum":list(extensions.STORE_LOOKUPS)}}},
+            "if":{"properties":{"templateId":{"enum":[row["id"] for row in rows if row["id"] in extensions.STORE_LOOKUPS]}}},
             "else":{"required":["input"]}})
     for template, platform in campaign_inventory.TEMPLATES.items():
         if any(row["id"] == template for row in rows):

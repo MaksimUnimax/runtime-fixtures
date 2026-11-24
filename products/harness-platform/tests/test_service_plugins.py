@@ -50,29 +50,51 @@ class ServicePlugins(unittest.TestCase):
                     return dispatch.await_args.kwargs
                 empty = context()
                 self.assertEqual(empty["availableServices"], [])
-                self.assertIn("Wildberries API", empty["connectionGuides"])
-                self.assertIn("Ozon Seller", empty["connectionGuides"])
+                def card(context, provider):
+                    return next(c for c in context["knowledge"]["cards"] if c["id"] == "integration/" + provider)
+                self.assertIn("Wildberries API", card(empty, "wb")["steps"])
+                self.assertIn("Ozon Seller", card(empty, "ozon")["steps"])
+                self.assertFalse(empty.get("connectionGuides"))
                 cid = client.post("/api/integrations", headers=self.headers, json={
                     "provider":"wb", "name":"WB", "fields":{"token":"test-private-token"}
                 }).json()["id"]
                 saved = context()
                 self.assertIn({"provider":"wb", "access":["Wildberries API"]}, saved["availableServices"])
-                self.assertNotIn("Wildberries API", saved["connectionGuides"])
+                self.assertNotIn("name", saved["knowledge"]["states"]["integration/wb"][0])
                 client.post(route + "/integrations", headers=self.headers,
                             json={"connectionId":cid, "enabled":True}).raise_for_status()
                 active = context()
                 self.assertEqual(active["connections"][0]["id"], cid)
-                self.assertNotIn("Wildberries API", active["connectionGuides"])
+                self.assertTrue(active["knowledge"]["states"]["integration/wb"][0]["attached"])
                 self.assertNotIn("test-private-token", str(active))
                 client.post("/api/integrations", headers=self.headers, json={
                     "provider":"ozon", "name":"Реклама", "fields":{"performance_id":"perf-id","performance_secret":"perf-secret"}
                 }).raise_for_status()
                 partial = context()
                 self.assertEqual(partial["availableServices"], [{"provider":"ozon","access":["Ozon Performance"]}])
-                self.assertIn("Ozon Seller", partial["connectionGuides"])
-                self.assertNotIn("Ozon Performance", partial["connectionGuides"])
+                self.assertEqual(set(card(partial, "ozon")["steps"]), {"Ozon Seller", "Ozon Performance"})
+                self.assertEqual(partial["knowledge"]["states"]["integration/ozon"],
+                                 [{"attached": False, "access": ["Ozon Performance"]}])
                 self.assertNotIn("perf-secret", str(partial))
                 self.assertNotIn("Реклама", str(partial["availableServices"]))
+
+    def test_separate_wb_permissions_and_no_stale_checks_after_key_change(self):
+        with self.client() as client:
+            form = {"provider":"wb", "name":"Склад", "fields":{"token":"qa-private"}, "chatId":self.chat}
+            cid = client.post("/api/integrations", headers=self.headers, json=form).json()["id"]
+            def answer(request):
+                ok = request.url.host.startswith("statistics-")
+                return httpx.Response(200 if ok else 403,json={"Status":"OK"} if ok else {})
+            with patch.object(client.app.state, "http", httpx.AsyncClient(transport=httpx.MockTransport(answer))):
+                reply = client.post(f"/api/integrations/{cid}/check", headers=self.headers).json()
+                self.assertEqual(reply, {"status":"verified","checks":{"Статистика":"verified","Продвижение":"denied"}})
+            rows = client.get(f"/api/chats/{self.chat}/integrations",headers=self.headers).json()["connections"]
+            self.assertEqual(rows[0]["checks"],reply["checks"])
+            form["fields"]={"token":"replacement-qa"}
+            client.post("/api/integrations", headers=self.headers,json=form).raise_for_status()
+            rows = client.get(f"/api/chats/{self.chat}/integrations",headers=self.headers).json()["connections"]
+            self.assertNotIn("checks",rows[0])
+            self.assertEqual(client.post(f"/api/integrations/{cid}/check",headers=self.other).status_code,404)
 
     @unittest.skipUnless(os.getenv("HARNESS_NODE_MODULES"), "requires native Harness")
     def test_chat_deletion_keeps_other_histories_account_keys_and_receipts(self):

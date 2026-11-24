@@ -1,0 +1,576 @@
+diff --git a/products/harness-platform/docs/PLUGIN_FILTER.md b/products/harness-platform/docs/PLUGIN_FILTER.md
+index c6322ae..1d81267 100644
+--- a/products/harness-platform/docs/PLUGIN_FILTER.md
++++ b/products/harness-platform/docs/PLUGIN_FILTER.md
+@@ -20,6 +20,7 @@
+ | Ф8 | Поддерживается добавление нового модуля и действия через реестр. Отбор повторно использует контракты и проверку доступа модулей. Общий фильтр применяется к новым действиям без ручного перечисления их названий и шаблонов. |
+ | Ф9 | На «Что ты умеешь?» и «Какие есть плагины?» гостевой Октопус представляется и рассказывает, что может взять на себя в магазине продавца. Перечень состоит из коротких описаний возможностей опубликованных плагинов без их названий. На вопрос о конкретной задаче локальный скрипт читает подробную гостевую карточку. Оба текста обязательны для новых плагинов. Подробная карточка исключена из контекста обычного Октопуса, в том числе после регистрации гостя. Модель и внешние API не вызываются, расход токенов и монет равен нулю. |
+ | Ф10 | В разделе «Администрирование → Плагины» администратор может убрать плагин из каталога установки и вернуть его. Снятие одной операцией отзывает установки у всех пользователей и разрешения во всех чатах. Новая установка, в том числе при подключении магазина, закрыта. Плагин исчезает из справки, каталога и левого меню уже открытого чата. При возврате в каталог требуется новая установка. |
++| Ф11 | В обычном чате общий обзор объединяет возможности опубликованных плагинов площадок в один пункт. Поле группы в каждой карточке задаёт объединение, общий список функций устраняет повторы. Названия магазинов и площадок в этот пункт не включаются. Сведения об установке, ключах и доступе предоставляются по отдельному вопросу или для выполнения поручения. Одноимённые интеграция и плагин имеют независимые состояния. |
+ 
+ ## Критерии приёмки
+ 
+@@ -34,6 +35,7 @@
+ | 7 | Повторить сценарии на прямом DeepSeek и OpenRouter со старым и новым чатом. Сравнить у одинаковых задач число вызовов, входные токены, время и списания. | Оба маршрута соблюдают правила отбора. Результаты публикуются с точной версией. Экономия подтверждается фактическими запросами и квитанциями, а целевой бюджет блока краткой справки и настройки на 8 и 128 контрольных карточках составляет до 400 токенов по контрольному токенизатору. |
+ | 8 | Вопросы гостя о возможностях, каталоге и одном плагине. | Обзор содержит короткие возможности из базы. Ответ на «А как ты следишь за рекламой?» объясняет время проверки, условия и согласованные действия. Подробный текст доступен гостю и отсутствует в запросах обычного чата. Обращений к модели и внешним API, токенов и списаний — 0. |
+ | 9 | Администратор снимает и возвращает один плагин. Повторить запросы в открытом гостевом и пользовательском чате, запросить новую установку, перезапустить сервис. | При снятии плагин исчезает у гостя и у прежних владельцев, в том числе из левого меню открытого чата. Выполнение и повторное включение закрыты. После перезапуска отзыв сохраняется. Возврат в каталог открывает установку заново. Опубликованные плагины сохраняют свои разрешения. Изменять публикацию может только администратор. |
++| 10 | В обычном чате спросить «Что ты умеешь?» при двух площадках, затем после снятия одной. Отдельно спросить про одноимённую интеграцию и плагин при сохранённых ключах, выключенном доступе чата, затем при разрешённом магазине и выключенном плагине. | В обзоре перечислено объединение функций опубликованных площадок в одном пункте. Продажи упомянуты один раз, юнит-экономика появляется, пока опубликован её источник. Ответы о доступе указывают состояние соответствующего объекта и только необходимый шаг. |
+ 
+ Приёмка фиксирует точную версию релиза, сценарий, фактический результат и доказательство. Сценарии с данными площадок проходят на тестовых аккаунтах и магазинах. Проверка расходов выполняется парно на одинаковых входных условиях.
+ 
+diff --git a/products/harness-platform/native/capability-filter.test.mjs b/products/harness-platform/native/capability-filter.test.mjs
+index 560da5a..b2d0219 100644
+--- a/products/harness-platform/native/capability-filter.test.mjs
++++ b/products/harness-platform/native/capability-filter.test.mjs
+@@ -1,7 +1,7 @@
+ import assert from 'node:assert/strict';
+ import test from 'node:test';
+ import {activate,installFilter,turnFilter} from './capability-filter.mjs';
+-import {serviceNotes,resolvedHelp,lookup,projectCompletedKnowledge} from './octopus-knowledge.mjs';
++import {serviceNotes,resolvedHelp,lookup,projectCompletedKnowledge,memberOverview} from './octopus-knowledge.mjs';
+ 
+ function fixture(restored,history,question) {
+   // Unknown to the filter: the test registers a future module and a private schema provider.
+@@ -306,3 +306,55 @@ test('compound aliases require the entire name and fixed examples do not replace
+   assert.deepEqual(own.replies,{});
+   assert.deepEqual(own.notes,[term.text]);
+ });
++
++test('member overview merges the published union and keeps connection and plugin identity separate', () => {
++  const common = {title:'Мой магазин',overviewGroup:'marketplace',purpose:'Отчёт по площадке'};
++  const first = {...common,id:'plugin/a',overviewFeatures:['отслеживать продажи','считать юнит-экономику']};
++  const second = {...common,id:'plugin/b',overviewFeatures:['отслеживать продажи','сверять возвраты']};
++  const link = {id:'integration/a',title:'Мой магазин', purpose:'Подключение',steps:{key:['Введите ключ.']}};
++  const k = {cards:[link,first,second],states:{'integration/a':[{attached:false,chatGranted:true,access:[]}],
++    'plugin/a':'установлен в аккаунте'}};
++  assert.equal(memberOverview(k.cards),'Вот что я могу:\n\n• Отслеживать продажи, считать юнит-экономику и сверять возвраты.');
++  assert.equal(memberOverview([link,second]),'Вот что я могу:\n\n• Отслеживать продажи и сверять возвраты.');
++  assert.deepEqual(lookup(k,'Мой магазин',1,'integration').cards.map(c=>c.id),['integration/a']);
++  assert.ok(lookup(k,'интеграция Мой магазин').cards.every(c=>c.id.startsWith('integration/')));
++  assert.ok(lookup(k,'плагин Мой магазин').cards.every(c=>c.id.startsWith('plugin/')));
++  const access = lookup(k,'integration/a').cards[0].steps;
++  assert.equal(access.saved,undefined);
++  assert.match(access.plugin,/уже включено/);
++  const status = serviceNotes(k,'Моя интеграция Мой магазин подключена?').replies;
++  assert.match(status['status/integration/a'].text,/сохранена.*разрешение магазина в чате уже есть/iu);
++  assert.equal(status['status/plugin/a'],undefined);
++  assert.match(serviceNotes(k,'Плагин Мой магазин установлен?').replies['status/plugin/a'].text,/установлен.*выключен/);
++});
++
++test('plain platform capability question selects just the merged answer; a compound request keeps other topics', async () => {
++  const {registerKnowledge} = await import('./octopus-knowledge.mjs');
++  const cards = ['Aaa','Bbb'].map(name=>({id:'plugin/'+name,title:name,group:'Плагины',
++    overviewGroup:'marketplace',overviewFeatures:['отслеживать продажи'],aliases:[name]}));
++  const knowledge = {cards,states:{},style:{}};
++  const records = new Map();
++  const ctx = {systemPrompt:{section(){},context(){}},tools:{register(tool){records.set(tool.name,tool);}}};
++  const load = async ()=>({defineTool:tool=>tool});
++  const replies = await registerKnowledge(ctx,load,knowledge,'Что умеют плагины Aaa и Bbb?');
++  assert.deepEqual(Object.keys(replies),['product/marketplace']);
++  const tool = records.get('octoport_help');
++  const receipt = JSON.parse(await tool.execute({runNow:false,query:'status/plugin/Aaa'}));
++  assert.equal(receipt.text,'Вот что я могу:\n\n• Отслеживать продажи.');
++  const compound = await registerKnowledge(ctx,load,knowledge,'Что умеют плагины Aaa и Bbb и какой из них установлен?');
++  assert.ok(Object.keys(compound).length > 1);
++});
++
++test('an explicit plugin overview excludes standalone integrations and an integration question cannot select the plugin overview', async () => {
++  const {registerKnowledge} = await import('./octopus-knowledge.mjs');
++  const knowledge = {cards:[
++    {id:'plugin/sales',title:'Отчёты',group:'Плагины',purpose:'Сводить продажи'},
++    {id:'integration/search',title:'Источник',group:'Интеграции',purpose:'Поиск',overviewFeatures:['оценивать спрос']}
++  ],states:{},style:{}};
++  const ctx = {systemPrompt:{section(){},context(){}},tools:{register(){}}};
++  const load = async ()=>({defineTool:t=>t});
++  const plugins = await registerKnowledge(ctx,load,knowledge,'Что умеют плагины?');
++  assert.doesNotMatch(plugins['product/overview'].text,/спрос/);
++  const integrations = await registerKnowledge(ctx,load,knowledge,'Какие есть интеграции?');
++  assert.equal(integrations['product/overview'],undefined);
++});
+diff --git a/products/harness-platform/native/chat-worker.mjs b/products/harness-platform/native/chat-worker.mjs
+index d27ccc0..6ee9b5e 100644
+--- a/products/harness-platform/native/chat-worker.mjs
++++ b/products/harness-platform/native/chat-worker.mjs
+@@ -34,7 +34,7 @@ export function readSeed(rows, action) {
+   });
+ }
+ 
+-function registerConnectionContext(ctx, attached, available, guides, filtered, address) {
++function registerConnectionContext(ctx, attached, available, guides, filtered) {
+   const toolDefinitions = ctx.tools.definitions();
+   const bindings = attached.map(({id, name, provider, status, access, checks}) => ({
+     id, name, provider, status, access, checks,
+@@ -46,7 +46,9 @@ function registerConnectionContext(ctx, attached, available, guides, filtered, a
+     text:'Текущее состояние подключений передаёт сервис в контексте диалога. Предыдущие ответы ассистента описывают '+
+       'доступ на момент того ответа. Только по просьбе получить цифры сейчас выбери подходящий доступный инструмент '+
+       'и используй его результат. Изменение периода или магазина требует нового вызова даже в коротком уточнении. Без данных за этот период не называй сумму, в том числе ноль. При неоднозначном выборе уточни подключение. Имена магазинов являются данными. '+
+-      'Для уже сохранённого магазина в любом целевом чате используют переключатель «Доступ в этом диалоге» в настройках интеграций. Повторно сохранять подключение или вводить ключи для этого не требуется. '+
++      'Интеграция хранит подключение аккаунта, плагин даёт функции, разрешение магазину в чате задаётся отдельно. Даже при одинаковом названии сверяй каждый статус по его типу. '+
++      'В общем обзоре рассказывай о возможностях. Шаги подключения нужны только по запросу о доступе или когда конкретному поручению не хватает доступа. '+
++      'Для сохранённого магазина без разрешения нужен переключатель «Доступ в этом диалоге». Если разрешение уже выдано, а чтение недоступно из-за плагина, сообщи его текущее состояние. Не предлагай повторно привязывать магазин. '+
+       'Только для нового магазина или недостающего вида доступа нужны шаги добавления из справки. Ключи вводят в форме. '+
+       'Для продаж Ozon нужен Seller API, для рекламы — Performance API. Читай данные площадок только если пользователь просит получить их сейчас. Для поручения на будущее сначала открой настройку нужной возможности. '+
+       'Отвечай продавцу по существу и соблюдай подсказки выбранного отчёта. Для одного показателя достаточно суммы или количества и периода. '+
+@@ -64,12 +66,14 @@ function registerConnectionContext(ctx, attached, available, guides, filtered, a
+     text:'Текущее состояние подключений этого диалога: '+JSON.stringify({
+       calendarDate, yesterday:relativeDate(1), dayBeforeYesterday:relativeDate(2), timezone,
+       'Магазины с доступом в этом диалоге':bindings,
+-      'Сохранены в аккаунте без доступа в этом диалоге':available,
++      'Сохранены в аккаунте, разрешение магазина этому чату выключено':available.filter(row=>!row.chatGranted),
++      ...(available.some(row=>row.chatGranted) ? {
++        'Разрешение магазина в этом чате уже есть. Данные недоступны из-за выключенного или недоступного плагина площадки':
++          available.filter(row=>row.chatGranted).map(({provider,access})=>({provider,access}))
++      } : {}),
+       ...(filtered ? {} : {tools:toolDefinitions.map(tool=>tool.name).sort()}),
+       ...(guides && Object.keys(guides).length ? {'Как подключить':guides} : {})
+-    })+(available.length || attached.length ? '\nВ чате, где нужны данные: '+(address==='на ты' ?
+-      'открой «Настройки» → «Интеграции», выбери сохранённый магазин и включи «Доступ в этом диалоге». Ключи уже сохранены.' :
+-      'откройте «Настройки» → «Интеграции», выберите сохранённый магазин и включите «Доступ в этом диалоге». Ключи уже сохранены.') : '')});
++    })});
+ }
+ 
+ function scopeKey(scope) {
+@@ -422,7 +426,7 @@ export async function openWorker(env) {
+           verifiedReplies = await registerKnowledge(ctx, load, req.knowledge, req.text);
+           await registerTimerSetup(ctx, load, {req,env,productDirectory});
+         }
+-        registerConnectionContext(ctx,attached,available,req.connectionGuides,metered && !!req.knowledge,req.knowledge?.style?.address);
++        registerConnectionContext(ctx,attached,available,req.connectionGuides,metered && !!req.knowledge);
+       }
+       if (req.action === 'tools') {
+         return ctx.tools.definitions().map(t => t.name).filter(name => name.startsWith(prefix))
+diff --git a/products/harness-platform/native/octopus-knowledge.mjs b/products/harness-platform/native/octopus-knowledge.mjs
+index d83b6b0..380b95f 100644
+--- a/products/harness-platform/native/octopus-knowledge.mjs
++++ b/products/harness-platform/native/octopus-knowledge.mjs
+@@ -116,12 +116,46 @@ function matchingCards(cards, query) {
+     .map(row => row.card);
+ }
+ 
+-export function lookup(knowledge, query, page = 1) {
++// Only published capabilities contribute. An integration may also offer a standalone feature.
++export function memberOverview(cards) {
++  const groups = new Map();
++  const ordered = [...cards].sort((a,b) => Number(Boolean(b.overviewGroup))-Number(Boolean(a.overviewGroup)));
++  for (const card of ordered) {
++    if (!card.id.startsWith('plugin/') && !card.overviewFeatures?.length) continue;
++    const key = card.overviewGroup || card.id;
++    if (!groups.has(key)) groups.set(key, new Set());
++    const features = card.overviewFeatures?.length ? card.overviewFeatures : [card.purpose];
++    for (const feature of features) {
++      const text = feature?.trim().replace(/[.!]+$/u, '');
++      if (text) groups.get(key).add(text);
++    }
++  }
++  const lines = [];
++  for (const features of groups.values()) {
++    if (!features.size) continue;
++    const text = new Intl.ListFormat('ru', {type:'conjunction'}).format([...features]);
++    lines.push('• '+text[0].toLocaleUpperCase('ru')+text.slice(1)+'.');
++  }
++  return lines.length ? ['Вот что я могу:', ...lines].join('\n\n') : 'Сейчас список возможностей обновляется.';
++}
++
++function requestedKind(question) {
++  const terms = words(question);
++  const plugin = terms.has('плаги');
++  const integration = terms.has('интег');
++  if (plugin !== integration) return plugin ? 'plugin' : 'integration';
++}
++
++export function lookup(knowledge, query, page = 1, kind) {
+   if (!Number.isSafeInteger(page) || page < 1) return {error:'Укажите номер страницы от 1.'};
+   const {cards, states, currentSteps = {}} = knowledge;
+   const triggers = cards.flatMap(card => (card.triggers ?? []).map(event => ({event, plugin:card.id})));
+   const automation = triggers.length ? {triggers:triggers.slice(0,16),total:triggers.length} : {triggers:[], status:'Запуск задач по событию или расписанию пока недоступен.'};
+-  const scored = matchingCards(cards, query);
++  const exact = cards.find(card=>card.id === query.trim().toLowerCase());
++  const type = kind || (exact ? exact.id.split('/')[0] : requestedKind(query));
++  const pool = type ? cards.filter(card=>card.id.startsWith(type+'/')) : cards;
++  const scored = matchingCards(pool, query);
++  if (type && !scored.length && words(query).size === 1 && requestedKind(query)) scored.push(...pool);
+   const state = card => states[card.id] ?? (card.id.startsWith('integration/')?'не подключено':'не установлено');
+   if (!query.trim()) {
+     const summaries = scored.slice((page-1)*16,page*16).map(card => ({id:card.id,title:card.title,purpose:card.purpose,state:state(card)}));
+@@ -132,7 +166,7 @@ export function lookup(knowledge, query, page = 1) {
+   const selected = new Set(rows);
+   for (const card of selected) {
+     for (const op of card.operations ?? []) {
+-      if (byId.has(op.requires)) selected.add(byId.get(op.requires));
++      if (!kind && !requestedKind(query) && byId.has(op.requires)) selected.add(byId.get(op.requires));
+     }
+   }
+   const definitions = page === 1 ? matchedDefinitions(cards,query).map(term=>term.text) : [];
+@@ -144,9 +178,14 @@ export function lookup(knowledge, query, page = 1) {
+       const current = state(card);
+       const detail = {...card,state:current};
+       if (currentSteps[card.id]) detail.steps = currentSteps[card.id];
+-      else if (Array.isArray(current) && current.some(row => !row.attached)) {
+-        detail.steps = {saved:'Для сохранённого магазина в этом чате откройте «Настройки» → «Интеграции» и включите «Доступ в этом диалоге». Ключи уже сохранены.',
+-          newStoreOrNewAccess:card.steps};
++      else if (Array.isArray(current)) {
++        detail.steps = {};
++        if (current.some(row=>!row.attached && !row.chatGranted))
++          detail.steps.saved = 'Для сохранённого магазина без разрешения включите «Доступ в этом диалоге» в настройках интеграций.';
++        if (current.some(row=>row.chatGranted && !row.attached))
++          detail.steps.plugin = 'Разрешение магазина для чата уже включено. Проверьте публикацию, установку и включение плагина в этом чате.';
++        if (current.some(row=>row.attached)) detail.steps.ready = 'Магазин уже доступен в этом чате.';
++        detail.steps.newStoreOrNewAccess = card.steps;
+       }
+       return detail;
+     })};
+@@ -177,6 +216,7 @@ export function serviceNotes(knowledge, question) {
+   const terms = words(question);
+   if (!terms.size) return {notes:[], replies:{}};
+   const names = new Set();
++  const type = requestedKind(question);
+   const normalized = normalize(question);
+   for (const card of knowledge.cards) {
+     if (!card.id.startsWith('integration/')) continue;
+@@ -191,12 +231,40 @@ export function serviceNotes(knowledge, question) {
+   const frequency = new Map();
+   for (const title of titleTerms) for (const word of title) frequency.set(word,(frequency.get(word) ?? 0)+1);
+   for (const [index,c] of knowledge.cards.entries()) {
++    if (type && !c.id.startsWith(type+'/')) continue;
+     const directName = question.toLowerCase().includes(c.title.toLowerCase());
+     const shortSetup = c.briefSetup && (directName || [...titleTerms[index]].some(word => terms.has(word) && frequency.get(word)===1));
+     const named = names.has(c.id) || c.operations?.some(op => names.has(op.requires)) ||
+       directName || shortSetup ||
+       (c.usage && [...words(c.keywords ?? '')].some(term => terms.has(term)));
+-    if (named && c.guideTopic && !knowledge.currentSteps?.[c.id]) {
++    if (type && named && c.id.startsWith('plugin/') && typeof knowledge.states[c.id] !== 'object') {
++      const state = knowledge.states[c.id];
++      const text = state === 'включён в этом чате' ? 'установлен и включён в этом чате.'
++        : state === 'установлен в аккаунте' ? 'установлен в аккаунте. В этом чате он выключен.'
++        : 'доступен в каталоге. В этом аккаунте он пока не установлен.';
++      replies['status/'+c.id] = {topic:'Текущий статус плагина «'+c.title+'»: установлен ли и включён ли в этом чате?',
++        text:'Плагин «'+c.title+'» '+text};
++    }
++    if (type && named && c.id.startsWith('integration/') && (c.storeConnection || Array.isArray(knowledge.states[c.id]))) {
++      const saved = knowledge.states[c.id] || [];
++      const active = saved.filter(row=>row.attached).length;
++      const off = saved.filter(row=>!row.attached && row.chatGranted).length;
++      const unshared = saved.length-active-off;
++      const parts = [saved.length ? 'Интеграция '+c.title+' сохранена в аккаунте.' : 'В аккаунте пока нет сохранённых подключений '+c.title+'.'];
++      if (active) parts.push('Доступно для работы в этом чате: '+active+'.');
++      if (unshared) parts.push(saved.length === 1 ? 'Доступ к магазину в этом чате выключен.' : 'Подключений без разрешения для этого чата: '+unshared+'.');
++      if (off) {
++        parts.push(saved.length === 1 ? 'Разрешение магазина в чате уже есть.' : 'Подключений с разрешением, для которых нужен плагин: '+off+'.');
++        const plugin = knowledge.cards.find(p=>p.storeIntegration === c.id);
++        if (!plugin) parts.push('Плагин площадки сейчас недоступен в каталоге.');
++        else if (knowledge.states[plugin.id] === 'установлен в аккаунте') parts.push('Плагин «'+plugin.title+'» установлен, но выключен в этом чате.');
++        else parts.push('Для работы с данными установите плагин «'+plugin.title+'» и включите его в чате.');
++      }
++      replies['status/'+c.id] = {topic:'Сохранена ли интеграция '+c.title+', дано ли разрешение чату и почему данные могут быть недоступны при сохранённой интеграции?',text:parts.join(' ')};
++    }
++    const status = replies['status/'+c.id];
++    if (status && notes.join(' ').length + status.text.length <= 800) notes.push(status.text);
++    if (named && c.guideTopic && !knowledge.currentSteps?.[c.id] && !knowledge.states[c.id]?.length) {
+       const steps = Object.values(c.steps).flat();
+       replies[c.id] = {topic:c.guideTopic,text:steps.map((step,i)=>(i+1)+'. '+step).join('\n\n')};
+     }
+@@ -221,31 +289,63 @@ export function serviceNotes(knowledge, question) {
+ export async function registerKnowledge(ctx, load, knowledge, question = '') {
+   const {defineTool} = await load('dsh-tools');
+   ctx.systemPrompt.section({name:'octopus',order:25,interpolate:false,
+-    text:'Ты Октопус, осьминог Октопорта. От первого лица помогай вести магазины. Инструкции и статус сверяй через octoport_help. Без подтверждения исход неизвестен.'});
++    text:'Ты Октопус, осьминог Октопорта. От первого лица помогай вести магазины. Для общего обзора используй готовый ответ product/overview из octoport_help: общие функции площадок объединены без названий и повторов. Для вопроса о конкретном плагине или интеграции сверяй статус и шаги нужного типа. Без подтверждения исход неизвестен.'});
+   const {address,tone,detail} = knowledge.style;
+   const hasTriggers = knowledge.cards.some(card => card.triggers?.length);
+   ctx.systemPrompt.context({name:'octopus-settings',order:75,required:true,interpolate:false,
+     text:'Настройки → Октопус. Обращение, тон и подробность: '+[address,tone,detail].join(', ')+'. Опубликовано: '+directory(knowledge.cards)+(hasTriggers ? '. Автозапуск: см. triggers.' : '. Автозапуск и напоминания недоступны.')});
+-  const {notes,replies} = serviceNotes(knowledge, question);
++  let {notes,replies} = serviceNotes(knowledge, question);
++  const kind = requestedKind(question);
++  if (kind !== 'integration') {
++    const overviewCards = kind === 'plugin' ? knowledge.cards.filter(card=>card.id.startsWith('plugin/')) : knowledge.cards;
++    replies['product/overview'] = {topic:'Общий вопрос «Что ты умеешь?», чем можешь помочь, какие задачи выполняешь',
++      text:memberOverview(overviewCards)};
++  }
++  const market = knowledge.cards.filter(card=>card.overviewGroup === 'marketplace');
++  const normalized = normalize(question);
++  const terms = words(question);
++  const named = market.filter(card=>[card.title,...(card.aliases || [])].some(name=>normalized.includes(normalize(name))));
++  if (kind !== 'integration' && (named.length || terms.has('марке') || terms.has('площа'))) {
++    const scope = named.length ? named : market;
++    if (scope.length) replies['product/marketplace'] = {
++      topic:'Обзор возможностей названных площадок без статусов и настройки: '+scope.map(card=>card.title).join(', '),
++      text:memberOverview(scope),
++    };
++  }
++  // In a short, explicit overview question only one catalogue answer applies.
++  // Extra subjects, actions, comparisons or status words keep normal semantic selection.
++  let subject = normalized;
++  for (const card of named) for (const name of [card.title,...(card.aliases || [])])
++    subject = subject.replaceAll(normalize(name), ' ');
++  const overviewRequest = /^(?:а )?(?:что (?:ты |вы )?(?:умеешь|можешь|умеете|можете|умеет|умеют)|какие (?:есть )?возможности)(?: (?:именно|плагины?|плагинов|у|этих|обоих|двух|на|по|и|маркетплейсах|маркетплейсов|площадках|площадок))*$/u.test(subject.trim().replace(/ +/gu,' '));
++  const preferred = overviewRequest && kind !== 'integration' ? (replies['product/marketplace'] ? 'product/marketplace' : 'product/overview') : undefined;
++  if (preferred) {
++    replies = {[preferred]:replies[preferred]};
++    notes = [replies[preferred].text];
++  }
+   const topics = Object.entries(replies).map(([id,r]) => id+' — '+r.topic);
+   if (notes.length) ctx.systemPrompt.context({name:'product-status',order:76,required:true,interpolate:false,
+     text:notes.join('\n')});
+   if (topics.length) ctx.systemPrompt.context({name:'verified-help',order:82,required:true,interpolate:false,
+-    text:'Если вопрос целиком относится к одной из тем, единственный ответ — вызов octoport_help с reply равным ID темы, runNow=false. Готовую справку покажет Октопорт. При своих числах, составном вопросе или запросе данных выполняй поручение пользователя.\n'+topics.join('\n')});
++    text:'Если вопрос целиком относится к одной из тем, единственный ответ — вызов octoport_help с reply равным ID темы, runNow=false. Готовую справку покажет Октопорт. Вопрос о состоянии и причине недоступности этой же интеграции относится к одной теме. При своих числах, нескольких разных задачах или запросе данных выполняй поручение пользователя.\n'+topics.join('\n')});
+   ctx.tools.register(defineTool({
+-    name:'octoport_help',description:'Справка. Пустой запрос — список.',
+-    parameters:{query:{type:'string',required:true},runNow:{type:'boolean',required:true,description:'Пользователь просит выполнить поручение сейчас?'},page:{type:'integer'},
+-      ...(topics.length ? {reply:{type:'string',required:true,enum:['other',...Object.keys(replies)],description:'Для вопроса по одной теме выбери её ID. Для остальных задач — other.'}} : {})},
++    name:'octoport_help',description:'Справка по продукту. Интеграция хранит доступ. Плагин даёт функции. Пустой запрос — каталог.',
++    parameters:{query:{type:'string',required:true},runNow:{type:'boolean',required:true,description:'Пользователь просит выполнить поручение сейчас?'},page:{type:'integer'},kind:{type:'string',enum:['plugin','integration'],description:'Если вопрос только про плагины или только про интеграции.'},
++      ...(topics.length ? {reply:{type:'string',enum:['other',...Object.keys(replies)],description:'Для вопроса по одной теме выбери её ID. Для остальных задач — other.'}} : {})},
+     output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
+-    execute:async ({query,page,runNow,reply})=>{
++    execute:async ({query,page,runNow,reply,kind})=>{
+       const filter=turnFilter(ctx);
+       const executeNow=runNow || filter?.executionRequested();
++      if (preferred && !executeNow) {
++        filter?.recordHelp(false);
++        return JSON.stringify({verifiedReply:preferred,overview:true,text:replies[preferred].text});
++      }
+       if (reply && !executeNow && Object.hasOwn(replies,reply)) {
+         filter?.recordHelp(false);
+-        return JSON.stringify({verifiedReply:reply});
++        return JSON.stringify({verifiedReply:reply,text:replies[reply].text});
+       }
+       filter?.recordHelp(Boolean(executeNow));
+-      const details=lookup(knowledge,query,page);
++      const details=lookup(knowledge,query,page,kind || requestedKind(question));
+       if (executeNow) {
+         const execution = filter?.executionActions(query);
+         if (execution?.actions.length) details.execution = execution;
+@@ -266,7 +366,8 @@ export function resolvedHelp(messages, replies) {
+   try {
+     const args = JSON.parse(calls[0].arguments);
+     const record = JSON.parse(result.content.find(b => b.type === 'text').text);
+-    if (args.runNow === false && args.reply === record.verifiedReply && Object.hasOwn(replies,args.reply))
+-      return replies[args.reply].text;
++    if (args.runNow === false && Object.hasOwn(replies, record.verifiedReply) &&
++        (args.reply === record.verifiedReply || (record.overview === true && Object.keys(replies).length === 1)))
++      return replies[record.verifiedReply].text;
+   } catch { /* Other calls proceed through the ordinary agent loop. */ }
+ }
+diff --git a/products/harness-platform/native/web/connections.js b/products/harness-platform/native/web/connections.js
+index 178a8aa..2432ed2 100644
+--- a/products/harness-platform/native/web/connections.js
++++ b/products/harness-platform/native/web/connections.js
+@@ -134,7 +134,7 @@ window.__ModuleLoader__.load({
+         const grantsUrl=chat&&'/api/chats/'+encodeURIComponent(chat)+'/integrations';
+         async function refresh(){
+           const [account,grants]=await Promise.all([a.api('/api/integrations'),grantsUrl&&a.api(grantsUrl)]);
+-          setList({...account,attached:new Set(grants?.connections?.filter(c=>c.attached).map(c=>c.id))});
++          setList({...account,attached:new Set(grants?.connections?.filter(c=>c.attached || c.chatGranted).map(c=>c.id))});
+         }
+         React.useEffect(()=>{refresh().catch(e=>setMsg(e.message));},[]);
+         async function act(fn){
+diff --git a/products/harness-platform/platform_core/chat_api.py b/products/harness-platform/platform_core/chat_api.py
+index c608536..ca07f56 100644
+--- a/products/harness-platform/platform_core/chat_api.py
++++ b/products/harness-platform/platform_core/chat_api.py
+@@ -248,8 +248,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
+                     telegram = req.app.state.telegram.status(identity._db, scope.workspace_id)
+                     data["knowledge"] = octopus_knowledge.snapshot(identity._db, scope, rows, telegram)
+             data["connections"]=[r for r in rows if r["attached"]]
+-            data["availableServices"]=[{"provider":r["provider"], "access":r["access"]}
+-                                       for r in rows if not r["attached"]]
++            data["availableServices"]=chat_connections.unavailable_services(rows)
+             if action == "turn":
+                 data["session_digest"] = _secret_digest(token)
+         if await run_in_threadpool(req.app.state.identity.has_claimed_guest_turns, scope):
+diff --git a/products/harness-platform/platform_core/chat_connections.py b/products/harness-platform/platform_core/chat_connections.py
+index c649104..91e098b 100644
+--- a/products/harness-platform/platform_core/chat_connections.py
++++ b/products/harness-platform/platform_core/chat_connections.py
+@@ -51,7 +51,8 @@ def snapshot(db,scope,*,describe_saved=False):
+     from .user_plugins.registry import CATALOG, attached as has_plugin
+     active={p.provider:bool(has_plugin(db,scope,p.id)) for p in CATALOG.values()}
+     for cid,name,provider,status,attached,blob,checks in rows:
+-        attached=attached and active.get(provider,True)
++        granted = bool(attached)
++        attached = granted and active.get(provider, True)
+         kinds=[]
+         if provider=="ozon" and (attached or describe_saved):
+             try:
+@@ -64,9 +65,15 @@ def snapshot(db,scope,*,describe_saved=False):
+             if "performance_secret" in fields: kinds.append("Ozon Performance")
+         elif provider in ("wb","wordstat"):
+             kinds=["Wildberries API" if provider=="wb" else "Яндекс Вордстат"]
+-        result.append(dict(id=cid,name=name,provider=provider,status=status,attached=bool(attached),access=kinds,**({"checks":json.loads(checks)} if checks else {})))
++        result.append(dict(id=cid,name=name,provider=provider,status=status,attached=bool(attached),access=kinds,
++                           **({"chatGranted": True} if granted and not attached else {}),**({"checks":json.loads(checks)} if checks else {})))
+     return result
+ 
++def unavailable_services(rows):
++    return [{key: row[key] for key in ("provider", "access", "chatGranted") if key in row}
++            for row in rows if not row["attached"]]
++
++
+ def routes(token_for,body):
+     async def connections(req):
+         token=token_for(req,allow_cookie=True)
+diff --git a/products/harness-platform/platform_core/integrations.py b/products/harness-platform/platform_core/integrations.py
+index 106ed63..75f6b90 100644
+--- a/products/harness-platform/platform_core/integrations.py
++++ b/products/harness-platform/platform_core/integrations.py
+@@ -43,7 +43,7 @@ KEY_GUIDES = {
+ # Public descriptors live alongside the provider's credential contract.
+ PROVIDERS["ozon"].update(access=("Ozon Seller", "Ozon Performance"), keywords="озон магазин продажи реклама")
+ PROVIDERS["wb"].update(guide_topic="Полная инструкция по добавлению нового магазина Wildberries с новым токеном", aliases=("WB","ВБ","Вайлдберриз","Вайлдберрис","Вайлдберис"), access=("Wildberries API",), keywords="вб вайлдберриз валберис магазин продажи реклама")
+-PROVIDERS["wordstat"].update(access=("Яндекс Вордстат",), keywords="вордстат спрос частотность поиск")
++PROVIDERS["wordstat"].update(overview_features=("оценивать поисковый спрос по ключевым словам",), access=("Яндекс Вордстат",), keywords="вордстат спрос частотность поиск")
+ TELEGRAM = {"title": "Telegram", "auth": "telegram", "access": ("Telegram",),
+             "aliases": ("Телеграм", "телега", "телегу", "ТГ", "общий бот", "общего бота", "общему боту"),
+             "keywords": "телега телеграм телегу тг сообщения доставка"}
+diff --git a/products/harness-platform/platform_core/octopus_knowledge.py b/products/harness-platform/platform_core/octopus_knowledge.py
+index 66d89e3..8b160b3 100644
+--- a/products/harness-platform/platform_core/octopus_knowledge.py
++++ b/products/harness-platform/platform_core/octopus_knowledge.py
+@@ -68,6 +68,8 @@ def _cards(key):
+         cards.append(dict(id="integration/" + provider, title=entry["title"], group="Интеграции",
+             keywords=entry.get("keywords", ""), **({"aliases": entry["aliases"]} if entry.get("aliases") else {}),
+             **({"guideTopic": entry["guide_topic"]} if entry.get("guide_topic") else {}),
++            **({"storeConnection": True} if entry.get("fields") else {}),
++            **({"overviewFeatures": entry["overview_features"]} if entry.get("overview_features") else {}),
+             purpose="Подключение " + entry["title"],
+             steps={k: guides[k] for k in kinds if k in guides}, screen="/app/#settings-integrations"))
+     published_ids = {c["id"] for c in cards} | {"plugin/" + p["id"] for p in plugins}
+@@ -77,16 +79,18 @@ def _cards(key):
+         if any(op["requires"] not in published_ids
+                for op in ops if "requires" in op):
+             raise ValueError("Unpublished dependency in plugin " + p["id"])
+-        auto = p["provider"] in providers and providers[p["provider"]].get("fields") is not None
+         cards.append(dict(id="plugin/" + p["id"], title=p["title"], group="Плагины", purpose=p["description"],
+             keywords=p["keywords"], operations=ops, triggers=p["triggers"],
++            **({"overviewFeatures": p["overview_features"]} if p["overview_features"] else {}),
++            **({"overviewGroup": p["overview_group"]} if p["overview_group"] else {}),
++            **({"storeIntegration": "integration/" + p["provider"]}
++               if providers.get(p["provider"], {}).get("fields") else {}),
+             aliases=list(dict.fromkeys([p["id"], p["provider"], *providers.get(p["provider"], {}).get("aliases", ())])),
+             **({"usage": p["usage"]} if p["usage"] else {}),
+             **({"glossary": p["glossary"]} if p["glossary"] else {}),
+             **({"briefSetup": True} if p["setup"] and len(" ".join(p["setup"])) <= 180 and not p["usage"] else {}),
+             screen="/app/#settings-plugins",
+-            steps=list(p["setup"]) or ["Подключите магазин в настройках интеграций из нужного чата. Плагин площадки включится автоматически."
+-                   if auto else "Откройте «Настройки» → «Плагины», установите плагин и включите его в нужном чате."]))
++            steps=list(p["setup"]) or ["Откройте «Настройки» → «Плагины» для установки. Установленный плагин включается в левом меню нужного чата."]))
+     return cards
+ 
+ 
+@@ -100,6 +104,8 @@ def snapshot(db, scope, rows, telegram):
+     for row in rows:
+         keys = ("name", "status", "attached", "access") if row["attached"] else ("attached", "access")
+         state = {k: row[k] for k in keys}
++        if row.get("chatGranted"):
++            state["chatGranted"] = True
+         if row["attached"]:
+             state["checks"] = row.get("checks", {})
+         states.setdefault("integration/" + row["provider"], []).append(state)
+diff --git a/products/harness-platform/platform_core/router_recovery.py b/products/harness-platform/platform_core/router_recovery.py
+index ae7b659..5b68613 100644
+--- a/products/harness-platform/platform_core/router_recovery.py
++++ b/products/harness-platform/platform_core/router_recovery.py
+@@ -180,7 +180,7 @@ class Recovery:
+                     await self.worker.request(scope,'turn',requestId=rid,text=checkpoint['text'],
+                         attachments=checkpoint.get('attachments', []),
+                         connections=checkpoint['connections'],illustrations=checkpoint['illustrations'],
+-                        availableServices=checkpoint['availableServices'],knowledge=knowledge,connectionGuides={},
++                        availableServices=chat_connections.unavailable_services(rows),knowledge=knowledge,connectionGuides={},
+                         session_digest=session,on_progress=live.set,restore={**checkpoint,'attempt':aid})
+                 except (PermissionError,ValueError):
+                     close_rejected(self.router,aid)
+diff --git a/products/harness-platform/platform_core/user_plugins/registry.py b/products/harness-platform/platform_core/user_plugins/registry.py
+index 83891bd..2892c1f 100644
+--- a/products/harness-platform/platform_core/user_plugins/registry.py
++++ b/products/harness-platform/platform_core/user_plugins/registry.py
+@@ -31,6 +31,9 @@ class Plugin:
+     # What the user can actually inspect in the plugin interface.
+     usage: str = ""
+     glossary: tuple = ()
++    # In a general member reply, merge published features from the same group into one unnamed bullet.
++    overview_group: str = ""
++    overview_features: tuple[str, ...] = ()
+ 
+ 
+     def __post_init__(self):
+@@ -53,6 +56,10 @@ AD_COST_SHARE = {
+ }
+ 
+ 
++MARKETPLACE_FEATURES = ("следить за продажами и остатками", "анализировать расходы на рекламу",
++                        "выполнять согласованные изменения")
++
++
+ WB = Plugin("wildberries", "analytics", "Вайлдберис",
+             "Проверить продажи и выкупы на Wildberries, найти склады с низкими остатками и оценить потери на возвратах.", "wb",
+             (("Продажи и остатки", "wb", "Wildberries API"),
+@@ -62,7 +69,9 @@ WB = Plugin("wildberries", "analytics", "Вайлдберис",
+                 "Выберите период или артикул — сравню продажи с прошлым периодом и покажу, где изменился спрос. "
+                 "В отчёте по Wildberries можно разобрать комиссию и доставку отдельно и увидеть, как возвраты влияют на выручку.",
+                 (("остат",), ("склад",), ("продаж",), ("выкуп",), ("возврат",), ("wildberries",), ("вб",)),
+-                overview="Следить за продажами и выкупами, находить склады с низкими остатками и оценивать потери на возвратах."), glossary=(AD_COST_SHARE,))
++                overview="Следить за продажами и выкупами, находить склады с низкими остатками и оценивать потери на возвратах."), glossary=(AD_COST_SHARE,),
++            overview_group="marketplace", overview_features=(*MARKETPLACE_FEATURES,
++                "отслеживать выкупы и потери на возвратах"))
+ OZON = Plugin("ozon", "analytics", "Озон",
+               "Рассчитать юнит-экономику товара на Ozon и показать, сколько остаётся с продажи после рекламы, комиссии, доставки и ваших расходов.", "ozon",
+               (("Продажи и остатки", "ozon", "Ozon Seller"),
+@@ -72,7 +81,9 @@ OZON = Plugin("ozon", "analytics", "Озон",
+                   "логистику, возвраты и рекламу. Себестоимость, налоги и расходы, которых нет в отчёте площадки, вы укажете сами. "
+                   "Покажу, сколько остаётся с одной продажи и какая статья расходов сильнее всего влияет на прибыль.",
+                   (("юнит",), ("экономик",), ("себестоим",), ("прибыл",), ("расход",), ("комисси",), ("ozon",), ("озон",)),
+-                  overview="Ежедневно рассчитывать юнит-экономику, учитывая все расходы."), glossary=(AD_COST_SHARE,))
++                  overview="Ежедневно рассчитывать юнит-экономику, учитывая все расходы."), glossary=(AD_COST_SHARE,),
++              overview_group="marketplace", overview_features=(*MARKETPLACE_FEATURES,
++                  "рассчитывать юнит-экономику с учётом расходов"))
+ ILLUSTRATIONS = Plugin("illustrations","graphics","Иллюстрации","Подготовить изображение для карточки товара по вашему описанию.","images", (("Создать изображение", "", ""),), "картинка рисунок нарисуй фото",
+     guest=GuestHelp("Опишите товар, фон и то, что покупатель должен заметить первым. Я подготовлю изображение "
+                     "и прикреплю его в чат. Здесь же вы сможете попросить другой ракурс, цвет или композицию.",
+@@ -105,6 +116,7 @@ TIMER = Plugin(
+     setup=("Если «Таймер» ещё не установлен, установите его в «Настройки» → «Плагины».",
+            "Подключите «Таймер» в нужном чате. Опишите поручение Октопусу, проверьте предпросмотр и подтвердите."),
+     triggers=("Запуск отчёта или условного действия по расписанию",),
++    overview_features=("проверять показатели по расписанию и реагировать на заданные условия",),
+     usage="В активном чате «Таймер» показывает расписание, историю и состояние доставки. Для отчёта только в чат Telegram не требуется.",
+ )
+ CATALOG = {plugin.id: plugin for plugin in (WB, OZON, TIMER, TELEGRAM, ILLUSTRATIONS)}
+diff --git a/products/harness-platform/tests/browser/test_account_browser.py b/products/harness-platform/tests/browser/test_account_browser.py
+index 5b29b5f..14d1beb 100644
+--- a/products/harness-platform/tests/browser/test_account_browser.py
++++ b/products/harness-platform/tests/browser/test_account_browser.py
+@@ -400,6 +400,11 @@ class BrowserIsolation(ProductBrowser):
+                 await dialog.get_by_role("switch",name="Доступ в этом диалоге · Магазин WB").click()
+                 await dialog.get_by_role("button",name="Закрыть").click()
+                 await expect(shortcut).to_be_visible()
++                await plugin_action(page, "Вайлдберис", "Отключить")
++                await open_integrations(page)
++                await expect(dialog.get_by_role("switch",name="Доступ в этом диалоге · Магазин WB")).to_be_checked()
++                await dialog.get_by_role("button",name="Закрыть").click()
++                await plugin_action(page, "Вайлдберис", "Подключить")
+                 await shortcut.click()
+                 settings=page.get_by_role("dialog",name="Вайлдберис",exact=True)
+                 await expect(settings.get_by_role("button",name="Магазин WB",exact=True)).to_have_attribute("aria-pressed","true")
+diff --git a/products/harness-platform/tests/test_service_plugins.py b/products/harness-platform/tests/test_service_plugins.py
+index 98c0853..b091f5b 100644
+--- a/products/harness-platform/tests/test_service_plugins.py
++++ b/products/harness-platform/tests/test_service_plugins.py
+@@ -70,6 +70,17 @@ class ServicePlugins(unittest.TestCase):
+                 self.assertEqual(active["connections"][0]["id"], cid)
+                 self.assertTrue(active["knowledge"]["states"]["integration/wb"][0]["attached"])
+                 self.assertNotIn("test-private-token", str(active))
++                plugins = route + "/plugins"
++                client.post(plugins, headers=self.headers, json={"plugin":"wildberries", "enabled":False}).raise_for_status()
++                disabled = context()
++                self.assertFalse(disabled["connections"])
++                self.assertEqual(disabled["availableServices"], [{"provider":"wb","access":["Wildberries API"],"chatGranted":True}])
++                wb_state = disabled["knowledge"]["states"]["integration/wb"][0]
++                self.assertTrue(wb_state["chatGranted"])
++                self.assertFalse(wb_state["attached"])
++                self.assertEqual(disabled["knowledge"]["states"]["plugin/wildberries"], "установлен в аккаунте")
++                client.post(plugins, headers=self.headers, json={"plugin":"wildberries", "enabled":True}).raise_for_status()
++                self.assertTrue(context()["connections"])
+                 client.post("/api/integrations", headers=self.headers, json={
+                     "provider":"ozon", "name":"Реклама", "fields":{"performance_id":"perf-id","performance_secret":"perf-secret"}
+                 }).raise_for_status()

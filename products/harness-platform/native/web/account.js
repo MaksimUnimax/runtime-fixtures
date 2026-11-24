@@ -61,6 +61,17 @@ window.__ModuleLoader__.load({
           h('path',{d:'M4 8v4c0 2.2 3.6 4 8 4s8-1.8 8-4V8M4 12v4c0 2.2 3.6 4 8 4s8-1.8 8-4v-4'}));
       }
       function AccountLauncher({wide,openSettings,settingsShortcut}) {
+        React.useEffect(()=>{
+          if(a.guest)return;
+          const open=()=>{
+            const match=/^#settings-(integrations|plugins|octopus)$/.exec(location.hash);
+            if(!match)return;
+            const settings=ctx.slots.entries('sidebar.settings')[0];
+            if(settings){settings.store.create().actions.openSection(match[1]);history.replaceState(history.state,'',location.pathname+location.search);}
+          };
+          open();window.addEventListener('hashchange',open);
+          return ()=>window.removeEventListener('hashchange',open);
+        },[]);
         const available=useAvailableCoins();
         const [open,setOpen]=React.useState(false);
         const trigger=React.useRef(null), logout=React.useRef(null);
@@ -287,7 +298,7 @@ window.__ModuleLoader__.load({
         const current=selection.getSnapshot().sessionId;
         if(current && !panel){
           const path='/app/chats/'+encodeURIComponent(current);
-          if(location.pathname!==path)history.replaceState(null,'',path);
+          if(location.pathname!==path)history.replaceState(null,'',path+location.hash);
         }
       };
       ctx.effect(()=>selection.subscribe(sync),'account session links');

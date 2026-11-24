@@ -1,5 +1,8 @@
+import { turnFilter } from './capability-filter.mjs';
+import { projectCompletedKnowledge, resolvedHelp } from './octopus-knowledge.mjs';
+
 /** Run the same native Session, Agent, tool executor and loop for both transports. */
-export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, provider, model, reasoningEffort, adapter, signal, progress, restore, capture }) {
+export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, provider, model, reasoningEffort, adapter, signal, progress, restore, capture, knowledge, verifiedReplies }) {
   const llm = await load('dsh-llm');
   // The worker supplies a fresh Context with sessions, tools and system prompt.
   for (const name of ['dsh-llm', 'dsh-session-projection', 'dsh-tool-executor-native', 'dsh-agent', 'dsh-agent-loop']) {
@@ -8,11 +11,25 @@ export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, 
     await fiber.await();
     if (fiber._error) throw fiber._error;
   }
-  if (progress) {
+  {
+    const project = projectCompletedKnowledge(seed);
     const prepare=adapter.prepareCall.bind(adapter);
     adapter.prepareCall=async (...args)=>{
       const call=await prepare(...args);
-      return {...call,stream:options=>observe(call.stream(options))};
+      return {...call,stream:options=>{
+        const gate=turnFilter(ctx);
+        const tools=gate ? gate.project(options.tools) : options.tools;
+        const messages = project(options.messages);
+        const reply = resolvedHelp(messages, verifiedReplies);
+        // A restored DeepSeek session may retain its original system sections.
+        // Supply the validated account preference after Harness builds the outbound call.
+        const address = knowledge?.style?.address;
+        const rule = address === 'на вы' ? 'Только на вы, включая благодарность и прощание. Формы: «напишите», «вы знаете».'
+          : address === 'на ты' ? 'Только на ты, включая благодарность и прощание. Формы: «напиши», «ты знаешь».' : '';
+        const system = rule ? [options.system,rule+' Заверши ответ на последнем полезном шаге.'].filter(Boolean).join('\n\n') : options.system;
+        const chunks = reply ? localText(reply) : call.stream({...options,system,tools,messages});
+        return progress ? observe(chunks) : chunks;
+      }};
     };
     async function* observe(chunks) {
       progress({stage:'model'});
@@ -73,4 +90,13 @@ export async function runNativeTurn({ load, ctx, chatId, seed, text, requestId, 
   } finally {
     unregister();
   }
+}
+
+// A successful explicit help selection already has the full user-facing answer.
+// The native agent records the same final text for streaming, history and retries.
+async function* localText(text) {
+  yield {type:'block-start',index:0,blockType:'text'};
+  yield {type:'text-delta',index:0,text};
+  yield {type:'block-end',index:0,block:{type:'text',text}};
+  yield {type:'finish',reason:{kind:'stop'}};
 }

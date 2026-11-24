@@ -1,0 +1,410 @@
+diff --git a/products/harness-platform/native/web/admin-visits.html b/products/harness-platform/native/web/admin-visits.html
+index b8568ca..a6d2dd5 100644
+--- a/products/harness-platform/native/web/admin-visits.html
++++ b/products/harness-platform/native/web/admin-visits.html
+@@ -7,6 +7,7 @@
+ <link rel="stylesheet" href="/ui-assets/project/appearance.css">
+ <link rel="stylesheet" href="/ui-assets/project/admin.css">
+ <script src="/session-nav.js"></script>
++<script defer src="/ui-assets/project/presence.js"></script>
+ <script defer src="/ui-assets/project/admin-visits.js"></script>
+ </head>
+ <body class="octo-admin octo-statistics octo-visits">
+diff --git a/products/harness-platform/native/web/presence.js b/products/harness-platform/native/web/presence.js
+index f1108c4..2eff98a 100644
+--- a/products/harness-platform/native/web/presence.js
++++ b/products/harness-platform/native/web/presence.js
+@@ -10,6 +10,17 @@
+   let since = null;
+   let session;
+   let enrolling = false;
++  let lastRenewal = -Infinity;
++
++  function renewLogin(event) {
++    if ((event && !event.isTrusted) || !foreground()) return;
++    const now = performance.now();
++    if (now - lastRenewal < sampleMs) return;
++    lastRenewal = now;
++    fetch('/api/session/touch', {
++      method:'POST', credentials:'same-origin', cache:'no-store', keepalive:true
++    }).catch(() => {});
++  }
+ 
+   async function enroll() {
+     if (enrolling || session !== undefined) return;
+@@ -50,17 +61,27 @@
+   for (const event of ['pointerdown', 'pointermove', 'keydown', 'scroll', 'touchstart']) {
+     window.addEventListener(event, interact, {passive: true, capture: true});
+   }
++  for (const event of ['pointerdown', 'keydown', 'wheel', 'touchstart', 'focus', 'pageshow']) {
++    window.addEventListener(event, renewLogin, {passive:true, capture:true});
++  }
+   window.addEventListener('focus', interact);
+   window.addEventListener('blur', () => sample(performance.now(), true));
+   window.addEventListener('pagehide', () => sample(performance.now(), true));
+   window.addEventListener('pageshow', interact);
+   document.addEventListener('visibilitychange', () => {
+     if (document.hidden) sample(performance.now(), true);
+-    else interact();
++    else {
++      interact();
++      renewLogin();
++    }
+   });
+   if (!memberPage) {
+-    new MutationObserver(interact).observe(document.documentElement,{attributeFilter:['data-session']});
++    new MutationObserver(() => {
++      interact();
++      renewLogin();
++    }).observe(document.documentElement,{attributeFilter:['data-session']});
+   }
+   interact();
++  renewLogin();
+   setInterval(() => sample(performance.now()), sampleMs);
+ })();
+diff --git a/products/harness-platform/platform_core/account_access.py b/products/harness-platform/platform_core/account_access.py
+index 2660512..b252519 100644
+--- a/products/harness-platform/platform_core/account_access.py
++++ b/products/harness-platform/platform_core/account_access.py
+@@ -14,9 +14,9 @@ from cryptography.hazmat.primitives.hashes import SHA1
+ from cryptography.hazmat.primitives.twofactor.hotp import HOTP
+ 
+ from .access_mail import deliver
+-from .identity import AuthenticationError, _SESSION_SECONDS, _derive, _password_bytes, _login_name, _secret_digest, _principal
++from .identity import (AuthenticationError, _create_session, _derive, _password_bytes,
++                       _login_name, _secret_digest, _principal)
+ 
+-REMEMBER_SECONDS = 14 * 24 * 60 * 60
+ WINDOW = 600
+ MAX_TRIES = 5
+ SCHEMA = (
+@@ -71,11 +71,8 @@ def budget(db, prefix, key, seconds, limit, now):
+ 
+ 
+ def issue(db, actor, remember, now):
+-    remember = remember and not admin(db, actor)
+-    duration = REMEMBER_SECONDS if remember else _SESSION_SECONDS
+     token = secrets.token_urlsafe(32)
+-    db.execute("DELETE FROM identity_sessions WHERE expires_at<=?", (now,))
+-    db.execute("INSERT INTO identity_sessions VALUES(?,?,?)", (_secret_digest(token), actor, now + duration))
++    duration = _create_session(db, actor, token, now, remember)
+     return {"token": token, "max_age": duration if remember else None}
+ 
+ 
+@@ -254,12 +251,12 @@ class AccountAccess:
+         if actor is None:
+             chat = self.store._active(db, guest)
+             token = self.signup_token(handle, guest)
+-            duration = REMEMBER_SECONDS if state["remember"] else _SESSION_SECONDS
+             recovery = bytes.fromhex(state["recovery"]) if "recovery" in state else hmac.digest(guest.encode(), b"guest-registration-v2", "sha256")
+             if db.execute("SELECT 1 FROM identity_accounts WHERE login=?", (state["login"],)).fetchone():
+                 raise AccessError("Этот логин уже занят. Выберите другой логин.", 409)
+-            actor = self.store.claim_signup(db, state["login"], bytes.fromhex(state["salt"]), bytes.fromhex(state["hash"]),
+-                                           recovery, chat, token, now + duration)
++            actor, duration = self.store.claim_signup(
++                db, state["login"], bytes.fromhex(state["salt"]), bytes.fromhex(state["hash"]),
++                recovery, chat, token, now, remember=state["remember"])
+             db.execute("INSERT INTO access_contacts(actor,email,verified) VALUES(?,?,1)", (actor,address))
+             receipt = {"guest":state["guest"], "chat":chat, "remember":state["remember"]}
+             db.execute("UPDATE access_pending SET stage='registered', state=?,expires=? WHERE id=?",
+diff --git a/products/harness-platform/platform_core/browser_session.py b/products/harness-platform/platform_core/browser_session.py
+index 26b7959..9824d81 100644
+--- a/products/harness-platform/platform_core/browser_session.py
++++ b/products/harness-platform/platform_core/browser_session.py
+@@ -197,6 +197,17 @@ async def _session_status(request):
+     return JSONResponse({"authenticated": authenticated}, headers=_PRIVATE_HEADERS)
+ 
+ 
++async def _touch_session(request):
++    from .chat_api import _token
++    bearer = "authorization" in request.headers
++    token = _token(request, allow_cookie=True)
++    max_age = await run_in_threadpool(request.app.state.identity.touch_session, token)
++    response = Response(status_code=204, headers=_PRIVATE_HEADERS)
++    if max_age is not None and not bearer:
++        _set_cookie(response, _secure(request), token, max_age)
++    return response
++
++
+ async def _navigation_script(_request):
+     return Response(_NAVIGATION_JS, media_type="text/javascript", headers=_PRIVATE_HEADERS)
+ 
+@@ -206,6 +217,7 @@ def browser_routes():
+         Route("/login", _login, methods=["GET", "POST"]),
+         Route("/logout", _logout, methods=["POST"]),
+         Route("/api/session/status", _session_status),
++        Route("/api/session/touch", _touch_session, methods=["POST"]),
+         Route("/api/profile/password", _change_password, methods=["POST"]),
+         Route("/session-nav.js", _navigation_script),
+     ]
+diff --git a/products/harness-platform/platform_core/guest_registration.py b/products/harness-platform/platform_core/guest_registration.py
+index 14e8c04..89e3a48 100644
+--- a/products/harness-platform/platform_core/guest_registration.py
++++ b/products/harness-platform/platform_core/guest_registration.py
+@@ -13,7 +13,7 @@ from time import time
+ from uuid import uuid4
+ 
+ from .identity import (
+-    AuthenticationError, ChatUnavailable, IdentityStore, _SESSION_SECONDS,
++    AuthenticationError, ChatUnavailable, IdentityStore, _create_session,
+     _derive, _login_name, _password_bytes, _principal, _secret_digest,
+ )
+ from .storage import Scope, _bind_chat
+@@ -227,10 +227,10 @@ class RegistrationStore(IdentityStore):
+                     WHERE digest=? AND actor_id=? AND expires_at>?""", (_secret_digest(session), claimed, now)).fetchone():
+                     raise AuthenticationError("Sign in again")
+                 return session, chat
+-            self.claim_signup(db, name, salt, candidate, recovery_digest, chat, session, now + _SESSION_SECONDS)
++            self.claim_signup(db, name, salt, candidate, recovery_digest, chat, session, now)
+         return session, chat
+ 
+-    def claim_signup(self, db, name, salt, candidate, recovery_digest, chat, session, expiry):
++    def claim_signup(self, db, name, salt, candidate, recovery_digest, chat, session, now, *, remember=False):
+         """Claim a live guest and issue its first session in the caller's transaction."""
+         if db.execute("SELECT 1 FROM identity_accounts WHERE login=?", (name,)).fetchone():
+             raise RegistrationConflict("Login already in use")
+@@ -241,9 +241,8 @@ class RegistrationStore(IdentityStore):
+         db.execute("DELETE FROM guest_filter_memory WHERE chat=?", (chat,))
+         db.execute("DELETE FROM guest_filter_attempt WHERE chat=?", (chat,))
+         db.execute("UPDATE guest_chats SET claimed_actor=?, signup_nonce=NULL WHERE chat_id=?", (actor, chat))
+-        db.execute("INSERT INTO identity_sessions (digest, actor_id, expires_at) VALUES (?,?,?)",
+-                   (_secret_digest(session), actor, expiry))
+-        return actor
++        duration = _create_session(db, actor, session, now, remember)
++        return actor, duration
+ 
+     def has_claimed_guest_turns(self, scope):
+         with self._lock:
+diff --git a/products/harness-platform/platform_core/identity.py b/products/harness-platform/platform_core/identity.py
+index f65ba23..5fbf422 100644
+--- a/products/harness-platform/platform_core/identity.py
++++ b/products/harness-platform/platform_core/identity.py
+@@ -16,6 +16,8 @@ from .storage import Scope, Store, _bind_chat, _owns_chat
+ 
+ 
+ _SESSION_SECONDS = 12 * 60 * 60
++_ADMIN_SESSION_SECONDS = 24 * 60 * 60
++REMEMBER_SECONDS = 14 * 24 * 60 * 60
+ _FAILURE_WINDOW = 5 * 60
+ _MAX_FAILURES = 5
+ _TOKEN = re.compile(r"[A-Za-z0-9_-]{43}")
+@@ -38,6 +40,10 @@ _SCHEMA = (
+            actor_id TEXT NOT NULL REFERENCES identity_accounts ON DELETE CASCADE,
+            expires_at INTEGER NOT NULL
+        )""",
++    """CREATE TABLE IF NOT EXISTS identity_session_preferences (
++           digest BLOB PRIMARY KEY NOT NULL REFERENCES identity_sessions ON DELETE CASCADE,
++           remembered INTEGER NOT NULL CHECK(remembered IN (0,1))
++       )""",
+     """CREATE TABLE IF NOT EXISTS identity_admins (
+            actor_id TEXT PRIMARY KEY NOT NULL REFERENCES identity_accounts ON DELETE CASCADE
+        )""",
+@@ -98,6 +104,23 @@ def _principal(db, token: str) -> tuple[str, str]:
+     return row
+ 
+ 
++def _session_duration(db, actor, remember):
++    if db.execute("SELECT 1 FROM identity_admins WHERE actor_id=?", (actor,)).fetchone():
++        return _ADMIN_SESSION_SECONDS
++    return REMEMBER_SECONDS if remember else _SESSION_SECONDS
++
++
++def _create_session(db, actor, token, now, remember=False):
++    digest = _secret_digest(token)
++    duration = _session_duration(db, actor, remember)
++    db.execute("DELETE FROM identity_sessions WHERE expires_at<=?", (now,))
++    db.execute("INSERT INTO identity_sessions(digest,actor_id,expires_at) VALUES(?,?,?)",
++               (digest, actor, now + duration))
++    db.execute("INSERT INTO identity_session_preferences(digest,remembered) VALUES(?,?)",
++               (digest, int(remember)))
++    return duration
++
++
+ class IdentityStore(Store):
+     def __init__(self, path: str | Path):
+         super().__init__(path)
+@@ -205,11 +228,7 @@ class IdentityStore(Store):
+                     (failures + 1, start, actor),
+                 )
+                 return None
+-            expires = now + _SESSION_SECONDS
+             if replacement is not None:
+-                old_expiry = db.execute("SELECT expires_at FROM identity_sessions WHERE digest=?",
+-                                        (_secret_digest(session),)).fetchone()[0]
+-                expires = min(expires, old_expiry)
+                 db.execute("UPDATE identity_accounts SET salt = ?, password_hash = ? WHERE actor_id = ?",
+                            (salt, password_hash, actor))
+                 db.execute("DELETE FROM identity_sessions WHERE actor_id = ?", (actor,))
+@@ -217,13 +236,33 @@ class IdentityStore(Store):
+             db.execute("UPDATE identity_accounts SET failures = 0, failure_start = 0 WHERE actor_id = ?", (actor,))
+             if action is not None:
+                 return action(db, actor, now)
+-            db.execute("DELETE FROM identity_sessions WHERE expires_at <= ?", (now,))
+-            db.execute(
+-                "INSERT INTO identity_sessions (digest, actor_id, expires_at) VALUES (?, ?, ?)",
+-                (_secret_digest(token), actor, expires),
+-            )
++            _create_session(db, actor, token, now)
+             return token
+ 
++    def touch_session(self, token: str) -> int | None:
++        """Renew an active session on explicit activity and return a new persistent cookie age."""
++        with self._write() as db:
++            actor, _ = _principal(db, token)
++            digest = _secret_digest(token)
++            now = int(time())
++            row = db.execute("""SELECT s.expires_at, p.remembered FROM identity_sessions s
++                LEFT JOIN identity_session_preferences p USING(digest)
++                WHERE s.digest=? AND s.expires_at>?""", (digest, now)).fetchone()
++            if row is None:
++                raise AuthenticationError("Invalid session")
++            expires, remembered = row
++            if remembered is None:
++                # Old sessions have no preference in SQLite. Only a remaining lifetime
++                # longer than the old default proves that "Remember me" was checked.
++                remembered = expires - now > _SESSION_SECONDS
++                db.execute("INSERT INTO identity_session_preferences(digest,remembered) VALUES(?,?)",
++                           (digest, int(remembered)))
++            duration = _session_duration(db, actor, remembered)
++            if now + duration <= expires:
++                return None
++            db.execute("UPDATE identity_sessions SET expires_at=? WHERE digest=?", (now + duration, digest))
++            return duration if remembered else None
++
+     def logout(self, token: str) -> None:
+         with self._write() as db:
+             db.execute("DELETE FROM identity_sessions WHERE digest = ?", (_secret_digest(token),))
+diff --git a/products/harness-platform/tests/browser/test_account_browser.py b/products/harness-platform/tests/browser/test_account_browser.py
+index 1f3a5b9..46bde6b 100644
+--- a/products/harness-platform/tests/browser/test_account_browser.py
++++ b/products/harness-platform/tests/browser/test_account_browser.py
+@@ -1071,7 +1071,7 @@ class BrowserIsolation(ProductBrowser):
+         await member.get_by_role("button", name="Плагины", exact=True).click()
+         await expect(catalog.get_by_role("button", name="Установить Таймер")).to_be_visible()
+ 
+-    async def test_admin_uses_both_codes_and_gets_no_persistent_cookie(self):
++    async def test_admin_can_remember_device_only_after_both_codes(self):
+         login = "second-browser"
+         address = login + "@example.test"
+         with IdentityStore(self.database) as store:
+@@ -1082,10 +1082,25 @@ class BrowserIsolation(ProductBrowser):
+         await self.codes.sign_in(page, login, self.password, address=address, admin=True, remember=True)
+         await expect(page.locator("body")).to_have_attribute("data-mode", "member")
+         session = next(cookie for cookie in await context.cookies() if cookie["name"] == "harness_local_session")
+-        self.assertEqual(session["expires"], -1)
++        remaining = session["expires"]-self.codes.clock()
++        self.assertGreater(remaining,23*3600)
++        self.assertLessEqual(remaining,24*3600+1)
++        await page.clock.install()
++        async with page.expect_response(lambda response: response.url.endswith("/api/session/touch")) as touched:
++            await page.goto("/admin/visits")
++        self.assertEqual((await touched.value).status,204)
++        touches = []
++        page.on("request",lambda request: touches.append(request) if request.url.endswith("/api/session/touch") else None)
++        await page.clock.fast_forward(61_000)
++        self.assertEqual(len(touches),0)
++        async with page.expect_response(lambda response: response.url.endswith("/api/session/touch")) as touched:
++            await page.locator("h1").click()
++        self.assertEqual((await touched.value).status,204)
+         await page.request.post("/logout", headers={"Origin": self.base_url}, max_redirects=0)
+         await self.codes.sign_in(page, login, self.password, address=address, admin=True)
+         await expect(page.locator("body")).to_have_attribute("data-mode", "member")
++        session = next(cookie for cookie in await context.cookies() if cookie["name"]=="harness_local_session")
++        self.assertEqual(session["expires"],-1)
+ 
+     async def test_guest_registers_and_resumes_the_same_chat(self):
+         guest = await self.browser.new_context(base_url=self.base_url)
+diff --git a/products/harness-platform/tests/test_account_access.py b/products/harness-platform/tests/test_account_access.py
+index c2b9bd5..951b961 100644
+--- a/products/harness-platform/tests/test_account_access.py
++++ b/products/harness-platform/tests/test_account_access.py
+@@ -13,10 +13,11 @@ from cryptography.hazmat.primitives.twofactor.hotp import HOTP
+ from starlette.testclient import TestClient
+ 
+ from platform_core.access_bootstrap import assign
+-from platform_core.account_access import AccountAccess, AccessError, REMEMBER_SECONDS
++from platform_core.account_access import AccountAccess, AccessError
+ from platform_core.chat_api import create_app
+ from platform_core.guest_registration import RegistrationStore
+-from platform_core.identity import AuthenticationError, _SESSION_SECONDS, _secret_digest
++from platform_core.identity import (AuthenticationError, REMEMBER_SECONDS, _ADMIN_SESSION_SECONDS,
++                                    _SESSION_SECONDS, _secret_digest)
+ 
+ ORIGIN = "https://octo.example"
+ HEADERS = {"origin":ORIGIN}
+@@ -104,7 +105,11 @@ class AccountAccessTest(TestCase):
+         self.assertEqual(sorted(statuses),[200,401])
+         token=futures[statuses.index(200)].result().json()["token"]
+         self.assertTrue(self.store.is_admin(token))
+-        self.assertEqual(self.store._db.execute("SELECT expires_at FROM identity_sessions WHERE digest=?",(_secret_digest(token),)).fetchone()[0],self.now+_SESSION_SECONDS)
++        self.assertEqual(self.store._db.execute("SELECT expires_at FROM identity_sessions WHERE digest=?",(_secret_digest(token),)).fetchone()[0],self.now+_ADMIN_SESSION_SECONDS)
++        with patch("platform_core.identity.time", return_value=self.now+13*3600):
++            refresh = self.client.post("/api/session/touch",headers={"Authorization":"Bearer "+token})
++            self.assertEqual(refresh.status_code,204)
++        self.assertEqual(self.expiry(token),self.now+13*3600+_ADMIN_SESSION_SECONDS)
+         self.assertNotEqual(self.store._db.execute("SELECT seed FROM access_contacts").fetchone()[0],key.encode())
+         with self.assertRaises(AccessError) as denied:
+             self.svc.configure(token,PASSWORD,False)
+@@ -183,6 +188,62 @@ class AccountAccessTest(TestCase):
+         with self.assertRaises(AuthenticationError):
+             self.store.validate_session(token)
+ 
++    def expiry(self, token):
++        return self.store._db.execute("SELECT expires_at FROM identity_sessions WHERE digest=?",
++                                      (_secret_digest(token),)).fetchone()[0]
++
++    def test_activity_slides_session_and_passive_requests_do_not(self):
++        self.signup()
++        token = self.client.cookies["__Host-harness_session"]
++        original = self.expiry(token)
++        self.assertEqual(original, self.now+_SESSION_SECONDS)
++        with patch("platform_core.identity.time", return_value=original-600):
++            self.assertTrue(self.client.get("/api/session/status").json()["authenticated"])
++            self.assertEqual(self.client.get("/api/account/activity").status_code,200)
++            self.assertEqual(self.expiry(token),original)
++            self.assertEqual(self.client.post("/api/session/touch").status_code,403)
++            self.assertEqual(self.expiry(token),original)
++            active = self.post("/api/session/touch")
++            self.assertEqual(active.status_code,204)
++            self.assertNotIn("set-cookie",active.headers)
++        new_deadline = original-600+_SESSION_SECONDS
++        self.assertEqual(self.expiry(token),new_deadline)
++        with patch("platform_core.identity.time", return_value=original+3600):
++            self.assertTrue(self.client.get("/api/session/status").json()["authenticated"])
++        with patch("platform_core.identity.time", return_value=new_deadline):
++            self.assertEqual(self.post("/api/session/touch").status_code,401)
++        self.assertEqual(self.expiry(token),new_deadline)
++
++    def test_remembered_browser_cookie_and_server_expiry_slide_together(self):
++        self.signup(remember=True)
++        token = self.client.cookies["__Host-harness_session"]
++        now = self.now + 13*86400
++        with patch("platform_core.identity.time", return_value=now):
++            updated = self.post("/api/session/touch")
++            self.assertIn(f"Max-Age={REMEMBER_SECONDS}",updated.headers["set-cookie"])
++        self.assertEqual(self.expiry(token),now+REMEMBER_SECONDS)
++        with patch("platform_core.identity.time", return_value=now+86700):
++            self.assertTrue(self.client.get("/api/session/status").json()["authenticated"])
++        self.post("/logout")
++        self.assertEqual(self.client.post("/api/session/touch",
++                         headers={"Authorization":"Bearer "+token}).status_code,401)
++
++    def test_legacy_session_renewal_and_account_isolation(self):
++        self.store.create_account("legacy",PASSWORD)
++        self.store.create_account("second",PASSWORD)
++        token = self.store.login("legacy",PASSWORD)
++        other = self.store.login("second",PASSWORD)
++        with self.store._write() as db:
++            db.execute("DELETE FROM identity_session_preferences")
++        later = self.expiry(token)-600
++        old = self.expiry(other)
++        with patch("platform_core.identity.time",return_value=later):
++            response = self.client.post("/api/session/touch",headers={"Authorization":"Bearer "+token})
++            self.assertEqual(response.status_code,204)
++            self.assertNotIn("set-cookie",response.headers)
++        self.assertEqual(self.expiry(token),later+_SESSION_SECONDS)
++        self.assertEqual(self.expiry(other),old)
++
+     def test_role_promotion_revokes_user_session_and_pending_login(self):
+         self.signup()
+         previous=self.client.cookies["__Host-harness_session"]

@@ -23,9 +23,9 @@ PROVIDERS = {
 KEY_GUIDES = {
     "Wildberries API": [
         "Владелец магазина открывает в профиле WB Partners раздел «Интеграции по API» и нажимает «Создать токен».",
-        "Если Octoport есть в каталоге решений WB, выберите его и создайте сервисный токен. Для подключения вне каталога выберите базовый токен, укажите название Octoport, нужные категории отчётов и доступ «Только чтение». Для заказов и продаж нужна «Статистика».",
-        "Скопируйте токен при создании. В Octoport откройте «Настройки» → «Интеграции» и выберите Wildberries.",
-        "Введите название магазина, вставьте токен в поле «API-токен WB» и нажмите «Сохранить подключение». Доступ настраивается для выбранного диалога.",
+        "Если Octoport есть в каталоге решений WB, для подключения подходит сервисный токен. Для подключения вне каталога подходит базовый токен с названием Octoport, нужными категориями отчётов и доступом «Только чтение». Для заказов и продаж нужна «Статистика», для рекламных кампаний — «Продвижение».",
+        "Токен нужно скопировать при создании. В Октопорте подключение находится в разделе «Настройки» → «Интеграции» → Wildberries.",
+        "В форме нужны название нового магазина и его «API-токен WB». Кнопка «Сохранить подключение» добавит магазин. Доступ к нему задаётся отдельно для каждого чата.",
     ],
     "Ozon Seller": [
         "В Ozon Seller откройте настройки магазина, перейдите в «API-ключи» → Seller API и скопируйте Client ID продавца.",
@@ -40,6 +40,24 @@ KEY_GUIDES = {
         "Вставьте значения в «Client ID Performance» и «Client Secret Performance», затем нажмите «Сохранить подключение».",
     ],
 }
+# Public descriptors live alongside the provider's credential contract.
+PROVIDERS["ozon"].update(access=("Ozon Seller", "Ozon Performance"), keywords="озон магазин продажи реклама")
+PROVIDERS["wb"].update(guide_topic="Полная инструкция по добавлению нового магазина Wildberries с новым токеном", aliases=("WB","ВБ","Вайлдберриз","Вайлдберрис","Вайлдберис"), access=("Wildberries API",), keywords="вб вайлдберриз валберис магазин продажи реклама")
+PROVIDERS["wordstat"].update(access=("Яндекс Вордстат",), keywords="вордстат спрос частотность поиск")
+TELEGRAM = {"title": "Telegram", "auth": "telegram", "access": ("Telegram",),
+            "aliases": ("Телеграм", "телега", "телегу", "ТГ", "общий бот", "общего бота", "общему боту"),
+            "keywords": "телега телеграм телегу тг сообщения доставка"}
+KEY_GUIDES.update({
+    "Telegram": ["Откройте «Настройки» → «Интеграции» → Telegram.",
+                 "Нажмите «Подключить Telegram», выберите свой аккаунт и разрешите сообщения."],
+    "Яндекс Вордстат": ["В настройках интеграций выберите Яндекс Вордстат, введите название и OAuth-токен с доступом к Wordstat и сохраните подключение."],
+})
+
+
+def published_providers(telegram=True):
+    return {**PROVIDERS, **({"telegram": TELEGRAM} if telegram else {})}
+
+
 SECRET_TEXT = re.compile(r'(?i)(?:["\']?(?:api[-_ ]?key|client[-_ ]?secret|performance_secret|oauth[-_ ]?(?:token|токен)|токен|token|ключ)["\']?\s*[:=]\s*["\']?[\w./+=-]{5,}|(?:eyJ[\w-]{8,}\.[\w-]+\.[\w-]+|y0_[\w-]{12,}))')
 SCHEMA = """CREATE TABLE IF NOT EXISTS account_integrations(
     id TEXT PRIMARY KEY, workspace TEXT NOT NULL REFERENCES workspaces(workspace_id),
@@ -66,6 +84,9 @@ class IntegrationStore:
         with identity._write() as db:
             db.execute(SCHEMA)
             db.execute(chat_connections.SCHEMA)
+            db.execute("""CREATE TABLE IF NOT EXISTS integration_access_checks(
+                cid TEXT PRIMARY KEY REFERENCES account_integrations(id) ON DELETE CASCADE,
+                version INTEGER NOT NULL, checks TEXT NOT NULL)""")
             from .user_plugins.registry import install
             install(db)
 
@@ -80,10 +101,9 @@ class IntegrationStore:
             db = self.identity._db
             _, ws = _principal(db, token)
             rows = db.execute("SELECT id,provider,name,status FROM account_integrations WHERE workspace=? ORDER BY name,id", (ws,))
-            result = {"providers": PROVIDERS, "keyGuides": KEY_GUIDES, "connections": [dict(zip(("id","provider","name","status"),row)) for row in rows]}
+            result = {"providers": published_providers(telegram is not None), "keyGuides": KEY_GUIDES, "connections": [dict(zip(("id","provider","name","status"),row)) for row in rows]}
 
             if telegram is not None:
-                result["providers"] = {**PROVIDERS, "telegram": {"title": "Telegram", "auth": "telegram"}}
                 result["telegram"] = telegram.status(db, ws)
             return result
 
@@ -128,12 +148,16 @@ class IntegrationStore:
             aad = json.dumps([ws,provider,cid]).encode()
             return provider, version, json.loads(self._cipher().decrypt(sealed[:12],sealed[12:],aad))
 
-    def status(self, token, cid, version, status):
+    def status(self, token, cid, version, status, checks=None):
         with self.identity._write() as db:
             _, ws = _principal(db, token)
             if not db.execute("UPDATE account_integrations SET status=? WHERE id=? AND workspace=? AND version=?",
                               (status,cid,ws,version)).rowcount:
                 raise HTTPException(409,"Ключи изменились. Повторите проверку.")
+            if checks is not None:
+                db.execute("""INSERT INTO integration_access_checks VALUES(?,?,?)
+                    ON CONFLICT(cid) DO UPDATE SET version=excluded.version,checks=excluded.checks""",
+                    (cid, version, json.dumps(checks)))
 
 async def probe(client, provider, f):
     calls = []
@@ -145,7 +169,9 @@ async def probe(client, provider, f):
             calls.append(("Performance","POST","https://api-performance.ozon.ru/api/client/token",
                          {"json":{"client_id":f["performance_id"],"client_secret":f["performance_secret"],"grant_type":"client_credentials"}}))
     elif provider == "wb":
-        calls.append(("Статистика","GET","https://statistics-api.wildberries.ru/ping",{"headers":{"Authorization":f["token"]}}))
+        for label, host in (("Статистика", "statistics-api"), ("Продвижение", "advert-api")):
+            calls.append((label, "GET", "https://" + host + ".wildberries.ru/ping",
+                          {"headers": {"Authorization": f["token"]}}))
     else:
         calls.append(("Wordstat","POST","https://api.wordstat.yandex.net/v1/getRegionsTree",{"headers":{"Authorization":"Bearer "+f["token"]},"json":{}}))
     results = {}
@@ -156,6 +182,7 @@ async def probe(client, provider, f):
                 data = reply.json()
                 passed = {"Seller":lambda: isinstance(data.get("roles"),list),
                           "Performance":lambda: bool(data.get("access_token")),
+                          "Продвижение":lambda: data.get("Status",data.get("status"))=="OK",
                           "Статистика":lambda: data.get("Status",data.get("status"))=="OK",
                           "Wordstat":lambda: bool(data) and (isinstance(data,list) or (isinstance(data,dict) and "error" not in data))}
                 results[label] = "verified" if passed[label]() else "unconfirmed"
@@ -181,8 +208,10 @@ def routes(get_token, body):
         store, cid = req.app.state.integrations, req.path_params["cid"]
         provider, version, fields = store.open(token,cid)
         results = await probe(req.app.state.http,provider,fields)
-        status = "verified" if all(v=="verified" for v in results.values()) else "unconfirmed"
-        store.status(token,cid,version,status)
+        # WB tokens can deliberately cover just one independent service.
+        valid = any if provider == "wb" else all
+        status = "verified" if valid(v=="verified" for v in results.values()) else "unconfirmed"
+        store.status(token,cid,version,status,results)
         return JSONResponse({"status":status,"checks":results})
     async def semantics(req):
         token = get_token(req,allow_cookie=True)

@@ -19,6 +19,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
+from . import octopus_knowledge
 from .admin_costs import AdminCosts, present_chat
 from .user_plugins import service as user_plugins, illustrations, telegram_routes
 from .browser_session import browser_routes, browser_token
@@ -106,6 +107,8 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                 with app.state.identity._write() as db:
                     db.execute(DIRECT_DEFAULT_SCHEMA)
             app.state.integrations = integrations.IntegrationStore(app.state.identity)
+            with app.state.identity._write() as db:
+                db.execute(octopus_knowledge.SCHEMA)
             app.state.plugins = user_plugins.Service(app.state)
             async with httpx.AsyncClient(timeout=10, trust_env=False, follow_redirects=False,
                     limits=httpx.Limits(max_connections=64,max_keepalive_connections=16)) as http:
@@ -118,6 +121,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
                         router_plugin.activate(app.state.identity,http,app.state.worker)) if router_plugin else None
                     if app.state.model_router:
                         app.state.model_router.progress=app.state.progress
+                        app.state.model_router.telegram = app.state.telegram
                     try:
                         yield
                     finally:
@@ -234,16 +238,14 @@ def create_app(database_path, chat_directory, *, composition_module=None):
             with identity._lock:
                 data["illustrations"]=bool(req.app.state.model_router and user_plugins.attached(identity._db,scope,illustrations.PLUGIN))
                 rows=chat_connections.snapshot(identity._db,scope,describe_saved=(action == "turn"))
+                if action == "turn":
+                    telegram = req.app.state.telegram.status(identity._db, scope.workspace_id)
+                    data["knowledge"] = octopus_knowledge.snapshot(identity._db, scope, rows, telegram)
             data["connections"]=[r for r in rows if r["attached"]]
             data["availableServices"]=[{"provider":r["provider"], "access":r["access"]}
                                        for r in rows if not r["attached"]]
             if action == "turn":
                 data["session_digest"] = _secret_digest(token)
-                saved_access = {kind for row in rows for kind in row["access"]}
-                data["connectionGuides"] = {
-                    kind: steps for kind, steps in integrations.KEY_GUIDES.items()
-                    if kind not in saved_access
-                }
         if await run_in_threadpool(req.app.state.identity.has_claimed_guest_turns, scope):
             data["claimedGuest"] = True
         turn,owner=(None,False)
@@ -296,6 +298,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
 
     return Starlette(lifespan=lifespan, middleware=[Middleware(PrivateResponses)], routes=[
         *browser_routes(),
+        *octopus_knowledge.routes(_token, _body),
         *guest_routes(),
         *web_routes(),
         *turn_progress.routes(_token),

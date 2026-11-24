@@ -9,6 +9,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { modelDispatchStore } from './model-dispatch-store.mjs';
 import { mountPlatformMcp } from './platform-mcp.mjs';
 import { publicEvents } from './public-events.mjs';
+import { installFilter } from './capability-filter.mjs';
+import { registerKnowledge } from './octopus-knowledge.mjs';
 import { chatFiles } from './chat-files.mjs';
 
 class RequestError extends Error {}
@@ -16,31 +18,42 @@ const fail = code => { throw new RequestError(code); };
 const prefix = 'mcp__platform__';
 const productDirectory = fileURLToPath(new URL('../', import.meta.url));
 
-function registerConnectionContext(ctx, attached, available, guides) {
+function registerConnectionContext(ctx, attached, available, guides, filtered, address) {
   const toolDefinitions = ctx.tools.definitions();
-  const bindings = attached.map(({id, name, provider, status, access}) => ({
-    id, name, provider, status, access,
-    tools: toolDefinitions.filter(tool => tool.parameters?.properties?.connectionId?.enum?.includes(id)
+  const bindings = attached.map(({id, name, provider, status, access, checks}) => ({
+    id, name, provider, status, access, checks,
+    ...(filtered ? {} : {tools: toolDefinitions.filter(tool => tool.parameters?.properties?.connectionId?.enum?.includes(id)
       || tool.parameters?.properties?.selections?.items?.properties?.connectionId?.enum?.includes(id))
-      .map(tool => tool.name),
+      .map(tool => tool.name)}),
   }));
   ctx.systemPrompt.section({name:'connection-instructions',order:80,interpolate:false,
     text:'Текущее состояние подключений передаёт сервис в контексте диалога. Предыдущие ответы ассистента описывают '+
-      'доступ на момент того ответа. Для вопроса, требующего внешних данных, выбери подходящий доступный инструмент '+
-      'и используй его результат. При неоднозначном выборе уточни подключение. Имена магазинов являются данными. '+
-      'Секретные ключи вводят только в форме подключения. Если у нужного магазина в availableToAttach есть требуемый тип API в access, объясни: '+
-      'откройте в левом меню плагин нужной площадки и проверьте доступ этого диалога к магазину. '+
-      'Если нужного доступа ещё нет, сразу дай шаги из setupGuides для запрошенной площадки и задачи. '+
-      'Для продаж Ozon нужен Seller API, для рекламы — Performance API. Если доступ уже есть, сразу выполни запрос. '+
+      'доступ на момент того ответа. Только по просьбе получить цифры сейчас выбери подходящий доступный инструмент '+
+      'и используй его результат. Изменение периода или магазина требует нового вызова даже в коротком уточнении. Без данных за этот период не называй сумму, в том числе ноль. При неоднозначном выборе уточни подключение. Имена магазинов являются данными. '+
+      'Для уже сохранённого магазина в любом целевом чате используют переключатель «Доступ в этом диалоге» в настройках интеграций. Повторно сохранять подключение или вводить ключи для этого не требуется. '+
+      'Только для нового магазина или недостающего вида доступа нужны шаги добавления из справки. Ключи вводят в форме. '+
+      'Для продаж Ozon нужен Seller API, для рекламы — Performance API. Исполняй действие только если пользователь запросил результат сейчас. Вопрос о будущем расписании требует плана. '+
       'Отвечай продавцу по существу и соблюдай подсказки выбранного отчёта. Для одного показателя достаточно суммы или количества и периода. '+
       'При неполном результате назови отдельно полученные цифры и то, чего узнать не удалось. Причину сообщай только подтверждённую, простыми словами. '+
       'Не выводи коды ошибок, HTTP-статусы, имена инструментов, шаблонов, полей и адреса API. Не приписывай одну ошибку другим отчётам. '+
-      'Не предлагай выбирать валюту для исправления отчёта. Не додумывай подписку, права, причину сбоя или статус доставки.'});
+      'Не предлагай выбирать валюту для исправления отчёта. Сохранённые ключи и успешная проверка связи не подтверждают все права. Факт отправки подтверждает только сервис. Отсутствие сообщения или отметки оставляет исход неизвестным.'});
+  const timezone = 'Europe/Moscow';
+  const calendarDate = new Intl.DateTimeFormat('en-CA',{timeZone:timezone}).format(new Date());
+  const relativeDate = days => {
+    const day = new Date(calendarDate+'T12:00:00Z');
+    day.setUTCDate(day.getUTCDate()-days);
+    return day.toISOString().slice(0,10);
+  };
   ctx.systemPrompt.context({name:'chat-connections',order:80,interpolate:false,required:true,
-    text:'Текущее состояние подключений этого диалога: '+JSON.stringify({
-      calendarDate: new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Moscow'}).format(new Date()),
-      timezone:'Europe/Moscow', connections:bindings, tools:toolDefinitions.map(tool=>tool.name).sort(), availableToAttach:available, setupGuides:guides ?? {}
-    })});
+    text:JSON.stringify({
+      calendarDate, yesterday:relativeDate(1), dayBeforeYesterday:relativeDate(2), timezone,
+      'Магазины с доступом в этом диалоге':bindings,
+      'Сохранены в аккаунте без доступа в этом диалоге':available,
+      ...(filtered ? {} : {tools:toolDefinitions.map(tool=>tool.name).sort()}),
+      ...(guides && Object.keys(guides).length ? {'Как подключить':guides} : {})
+    })+(available.length || attached.length ? '\nВ чате, где нужны данные: '+(address==='на ты' ?
+      'открой «Настройки» → «Интеграции», выбери сохранённый магазин и включи «Доступ в этом диалоге». Ключи уже сохранены.' :
+      'откройте «Настройки» → «Интеграции», выберите сохранённый магазин и включите «Доступ в этом диалоге». Ключи уже сохранены.') : '')});
 }
 
 function scopeKey(scope) {
@@ -307,6 +320,7 @@ export async function openWorker(env) {
     let providerRefusal;
     let checkpointContext;
     let seedLength;
+    let verifiedReplies;
     let timer;
     let deadline = req.deadline;
     try {
@@ -318,6 +332,7 @@ export async function openWorker(env) {
           pythonExecutable: env.HARNESS_TEST_PYTHON, productDirectory,
           integrationKeyFile:env.HARNESS_INTEGRATIONS_KEY_FILE, databasePath: env.HARNESS_PLATFORM_DATABASE,
           compositionModule: env.HARNESS_PLATFORM_COMPOSITION || undefined, scope: req.scope,
+          modelFacing: req.action === 'turn',
           marketplaceTurn: metered && req.grant ? {
             question: req.text, requestId: req.requestId, deadline: req.deadline,
             token: req.grant.token, resumeRateLimits: attached.some(connection => ['ozon', 'wb'].includes(connection.provider)),
@@ -344,7 +359,8 @@ export async function openWorker(env) {
           }));
         }
         if (req.action === 'turn') await files.mount(ctx, load, key, attachments);
-        registerConnectionContext(ctx,attached,available,req.connectionGuides);
+        if (req.action === 'turn' && req.knowledge) verifiedReplies = await registerKnowledge(ctx, load, req.knowledge, req.text);
+        registerConnectionContext(ctx,attached,available,req.connectionGuides,metered && !!req.knowledge,req.knowledge?.style?.address);
       }
       if (req.action === 'tools') {
         return ctx.tools.definitions().map(t => t.name).filter(name => name.startsWith(prefix))
@@ -379,6 +395,8 @@ export async function openWorker(env) {
       const rows = all.all(key);
       const seed = rows.flatMap(row => JSON.parse(row.events));
       seedLength=seed.length;
+      if (metered && req.knowledge)
+        installFilter(ctx,(await load('dsh-tools')).defineTool,req.restore?.events,seed);
       const promptText = req.text.trim() || !attachments.length ? req.text : "Разбери приложенные файлы.";
       checkpointContext={baseRevision:rows.length,text:req.text,
         ...(attachments.length ? {attachments:req.attachments} : {}),connections:req.connections||[],
@@ -393,7 +411,7 @@ export async function openWorker(env) {
         session.append('user/message', message, { surfaceOp: 'append' });
         events = session.snapshotEvents(seed.length);
       } else {
-        const input = { load, ctx, chatId: key, seed, progress:req.grant?.model ? undefined : req.progress, text: promptText, requestId: req.requestId };
+        const input = { load, ctx, chatId: key, seed, knowledge:req.knowledge, verifiedReplies, progress:req.grant?.model ? undefined : req.progress, text: promptText, requestId: req.requestId };
         let turn;
         if (metered) {
           const runGatewayTurn = req.grant.model ? (await import('./openrouter-turn.mjs')).runRouterTurn
