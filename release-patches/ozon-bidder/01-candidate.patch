@@ -1,0 +1,2243 @@
+diff --git a/products/harness-platform/native/capability-filter.mjs b/products/harness-platform/native/capability-filter.mjs
+index cce8215..4bd92d2 100644
+--- a/products/harness-platform/native/capability-filter.mjs
++++ b/products/harness-platform/native/capability-filter.mjs
+@@ -182,7 +182,7 @@ export function installFilter(ctx, defineTool, restored = [], history = [], ques
+     for (const event of history) {
+       if (event.type !== 'assistant/message' || event.data.turn !== lastTurn) continue;
+       for (const b of event.data.message.content) {
+-        if (b.type === 'tool-call' && available.has(b.name) && ctx.tools.get(companion(b.name)))
++        if (b.type === 'tool-call' && available.has(b.name) && ctx.tools.get(companion(b.name))?.parameters?.properties?.previous)
+           previous.add(b.name);
+       }
+     }
+diff --git a/products/harness-platform/native/web/bidder.js b/products/harness-platform/native/web/bidder.js
+new file mode 100644
+index 0000000..0a824df
+--- /dev/null
++++ b/products/harness-platform/native/web/bidder.js
+@@ -0,0 +1,110 @@
++// Rendered by the installed-plugin menu. The chat and settings share server drafts.
++window.octoBidderPanel = function (React, {Dialog, Action, Fold, api, send}) {
++  const h=React.createElement, {useState,useEffect}=React;
++  const initial=()=>({name:'',strategy:'N1',target:'',budget:'',reserve:'0',growth:false,step:'10',band:'2',
++    mode:'observe',interval:15,windowDays:7,changeHours:24,minStock:1,minMargin:'0',timezone:'Europe/Moscow',
++    days:[0,1,2,3,4,5,6],start:'00:00',end:'23:59:59',telegram:false,experiment:false,objective:'profit',campaigns:[]});
++  const blank=()=>({all:false,categories:[],include:[],exclude:[],search:[]});
++  const toggle=(list,key)=>list.includes(key)?list.filter(x=>x!==key):[...list,key];
++  const states={active:'Работает',draft:'Черновик',paused:'На паузе',stopped:'Остановлен'};
++  const names=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
++  return function Bidder({url,close,title}) {
++    const [home,setHome]=useState(null),[cid,setCid]=useState(''),[cfg,setCfg]=useState(initial);
++    const [pick,setPick]=useState(blank),[query,setQuery]=useState(''),[offset,setOffset]=useState(0);
++    const [page,setPage]=useState(null),[edit,setEdit]=useState(null),[preview,setPreview]=useState(null);
++    const [campaignText,setCampaignText]=useState('');
++    const [history,setHistory]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);
++    const [slice,setSlice]=useState(0),[open,setOpen]=useState(false),[pickTab,setPickTab]=useState('Все товары');
++    const call=(op,args={})=>send(url,{op,args});
++    async function refresh(){setHome(await api(url));}
++    useEffect(()=>{let alive=true;api(url).then(v=>{if(alive)setHome(v);}).catch(e=>{if(alive)setError(e.message);});return()=>{alive=false;};},[url]);
++    useEffect(()=>{
++      let alive=true;
++      setPage(null);
++      if(cid)call('catalog',{cid,query,offset}).then(v=>{if(alive)setPage(v);}).catch(e=>{if(alive)setError(e.message);});
++      return()=>{alive=false;};
++    },[cid,query,offset,url]);
++    function change(key,value){setCfg(c=>({...c,[key]:value}));setPreview(null);}
++    function selection(key,value){setPick(p=>({...p,[key]:value}));setPreview(null);}
++    function reset(id=''){setCampaignText('');setCid(id);setCfg(initial());setPick(blank());setQuery('');setOffset(0);setEdit(null);setPreview(null);setHistory(null);setSlice(0);setError('');}
++    async function act(fn){
++      setBusy(true);setError('');
++      try {await fn();} catch(e){setError(e.message);} finally{setBusy(false);}
++    }
++    const btn=(label,fn,disabled=false)=>h(Action,{disabled:busy||disabled,onClick:()=>act(fn)},label);
++    const field=(label,key,type='text',props={})=>h('label',null,label,h('input',{type,value:cfg[key]??'',
++      onChange:e=>change(key,props.integer?Number(e.target.value):e.target.value),...Object.fromEntries(Object.entries(props).filter(([k])=>k!=='integer'))}));
++    const flag=(label,checked,fn)=>h('label',null,h('input',{type:'checkbox',checked,onChange:e=>fn(e.target.checked)}),label);
++    const dropdown=(label,value,opts,onChange)=>h('label',null,label,h('select',{value,onChange:e=>onChange(e.target.value)},
++      opts.map(([id,label])=>h('option',{value:id,key:id},label))));
++    async function openRule(id){
++      const r=await call('get',{id});
++      reset(r.cid);setCfg(r.config);setCampaignText(r.config.campaigns.join(', '));setPick({...blank(),include:r.skus});setEdit(r);setOpen(true);
++      if(r.state==='draft')setPreview(r);
++    }
++    async function applyPlan(){
++      const r=await call('preview',{cid,catalogRevision:page.revision,selection:pick,config:cfg,
++        ...(edit?{id:edit.id,revision:edit.revision}:{})});
++      setEdit(r);setPreview(r);setSlice(0);await refresh();
++    }
++    async function confirmed(){
++      await call('confirm',{id:preview.id,revision:preview.revision,receipt:preview.receipt});
++      reset();setOpen(false);await refresh();
++    }
++    const fields=home&&h(React.Fragment,null,
++      field('Название','name'),dropdown('Магазин',cid,[['','Выберите магазин'],...home.stores.map(s=>[s.id,s.name])],
++        id=>{if(edit)reset(id);else{setCid(id);setPick(blank());setPage(null);setPreview(null);setOffset(0);}setOpen(true);}),
++      !home.stores.length&&h('p',null,'Подключите магазин в разделе «Интеграции» и разрешите доступ в этом чате.'),
++      dropdown('Цель',cfg.strategy,Object.entries(home.goals),v=>change('strategy',v)),
++      ['N1','N2','N3'].includes(cfg.strategy)&&field({N1:'Из каждых 100 ₽ заказов тратить на рекламу до, ₽',N2:'Оставлять из каждых 100 ₽ выручки, ₽',N3:'Оставлять с одного выкупленного товара, ₽'}[cfg.strategy],'target','number',{min:0,step:'0.01'}),
++      cfg.strategy==='N6'&&dropdown('Что увеличить',cfg.objective,[['profit','Общую прибыль'],['sales','Количество выкупов']],v=>change('objective',v)),
++      field('Недельный бюджет всей рекламы, ₽','budget','number',{min:'0.01',step:'0.01'}),
++      flag('Разрешить увеличение рекламы в пределах бюджета',cfg.growth,v=>change('growth',v)),
++      h(Fold,{label:'Дополнительные ограничения'},field('Резерв, ₽','reserve','number'),
++        field('Шаг изменения, %','step','number'),field('Допустимое отклонение, процентных пунктов','band','number'),
++        field('Минимальный остаток товара','minStock','number',{integer:true}),field('Минимальная маржа, %','minMargin','number'),
++        field('Максимальное значение рекламного параметра','parameterMax','number'),
++        flag('Разрешить ограниченный эксперимент',cfg.experiment,v=>change('experiment',v)),
++        h('label',null,'Номера управляемых кампаний через запятую',h('input',{value:campaignText,onChange:e=>{setCampaignText(e.target.value);change('campaigns',e.target.value.split(',').map(v=>v.trim()).filter(Boolean));}}))),
++      h(Fold,{label:'Расписание и уведомления'},field('Частота проверок, минуты','interval','number',{integer:true}),
++        field('Период анализа, закрытые дни','windowDays','number',{integer:true}),
++        field('Между изменениями, часы','changeHours','number',{integer:true}),field('Часовой пояс','timezone'),
++        h('div',null,names.map((name,i)=>h('span',{key:name},flag(name,cfg.days.includes(i),()=>change('days',toggle(cfg.days,i)))))),
++        field('Начало','start','time'),field('Окончание','end','time'),
++        flag('Присылать уведомления в мой Telegram',cfg.telegram,v=>change('telegram',v))),
++      dropdown('Режим',cfg.mode,[['observe','Наблюдение'],['auto','Автоматическое управление']],v=>change('mode',v)));
++    const products=page&&h('section',null,h('h3',null,'Товары'),h('p',null,'Биддер запомнит выбранные товары. Новые товары можно будет добавить вручную.'),
++      dropdown('Способ выбора',pickTab,['Все товары','Категории','Отдельные товары'].map(v=>[v,v]),setPickTab),
++      pickTab==='Все товары'&&flag('Выбрать все текущие товары',pick.all,v=>selection('all',v)),
++      pickTab==='Категории'&&page.categories.map(c=>h('div',{key:c.id},flag(c.label+' · '+c.count,pick.categories.includes(c.id),
++        ()=>selection('categories',toggle(pick.categories,c.id))))),
++      pickTab==='Отдельные товары'&&h(React.Fragment,null,h('label',null,'Поиск по названию, артикулу или SKU',
++        h('input',{value:query,onChange:e=>{setQuery(e.target.value);setOffset(0);}})),
++        query.trim()&&btn('Добавить все найденные ('+page.total+')',()=>selection('search',[...new Set([...pick.search,query.trim()]) ])),
++        page.items.map(p=>{const base=pick.all||pick.categories.includes(p.category)||pick.search.some(q=>[p.title,p.offer,p.sku].some(v=>v.toLowerCase().includes(q.toLowerCase())));
++          const checked=(base||pick.include.includes(p.sku))&&!pick.exclude.includes(p.sku);
++          return h('div',{key:p.sku},flag(p.title+' · '+p.offer+' · '+p.sku,checked,v=>{
++            setPick(x=>({...x,include:v?[...new Set([...x.include,p.sku])]:x.include.filter(s=>s!==p.sku),
++                        exclude:v?x.exclude.filter(s=>s!==p.sku):[...new Set([...x.exclude,p.sku])]}));setPreview(null);}));
++        }),btn('Назад',()=>setOffset(offset-100),offset===0),btn('Дальше',()=>setOffset(offset+100),offset+100>=page.total)),
++      btn('Очистить выбор',()=>{setPick(blank());setPreview(null);}));
++    return h(Dialog,{label:title,close},error&&h('p',{role:'alert'},error),!home&&h('p',null,'Загружаю стратегии…'),
++      home&&!open&&h(React.Fragment,null,btn('Создать стратегию',()=>{reset(home.stores.length===1?home.stores[0].id:'');setOpen(true);}),
++        home.rules.map(r=>h('section',{key:r.id},h('h3',null,r.name),h('p',null,states[r.state]+' · товаров '+r.count+
++          (r.nextAt?' · следующая проверка '+new Date(r.nextAt*1000).toLocaleString('ru-RU'):'')),
++          btn(r.state==='paused'?'Возобновить':r.state==='active'?'Посмотреть настройки':'Открыть',()=>openRule(r.id)),
++          r.state==='active'&&btn('Проверить сейчас',async()=>{await call('check',r);await refresh();}),
++          r.state==='active'&&btn('Приостановить управление',async()=>{await call('pause',r);await refresh();}),
++          r.state!=='stopped'&&btn('Остановить биддер',async()=>{await call('stop',r);await refresh();}),
++          btn('Журнал',async()=>setHistory(await call('history',{id:r.id}))))),
++        home.rules.some(r=>r.state==='active')&&btn('Остановить все биддеры этого чата',async()=>{await call('stopAll');await refresh();}),
++        history&&h('section',null,h('h3',null,'Журнал'),history.events.map(e=>h('p',{key:e.id},new Date(e.at*1000).toLocaleString('ru-RU')+' · '+(e.result.message||({preview:'План подготовлен',confirmed:'План подтверждён',paused:'Управление приостановлено',stopped:'Управление остановлено'}[e.kind]||e.kind)))))),
++      open&&h('fieldset',{disabled:busy},fields,products,btn('Проверить товары и подобрать рекламу',applyPlan,!page||edit?.state==='active'),
++        preview&&h('section',null,h('h3',null,'План запуска'),h('p',null,preview.config.name+' · '+home.goals[preview.config.strategy]+' · '+preview.config.budget+' ₽ в неделю'),
++          h('p',null,preview.plan.ads.reason||'Кампании проверены.'),preview.plan.ads.actions.map((a,i)=>h('p',{key:i},({reuse:'Использовать действующую кампанию',activate:'Включить кампанию',reviewType:'Проверить тип кампании',createOrTransfer:'Подобрать отдельную кампанию'}[a.action])+(a.campaign?' № '+a.campaign:''))),h('p',null,'Выбрано товаров: '+preview.skus.length),
++          h('p',null,preview.skus.slice(slice,slice+100).join(', ')),slice>0&&btn('Предыдущие товары',()=>setSlice(slice-100)),
++          preview.skus.length>slice+100&&btn('Следующие товары',()=>setSlice(slice+100)),
++          btn(preview.config.mode==='observe'?'Подтвердить наблюдение':'Подтвердить управление',confirmed,preview.config.mode==='auto'&&!preview.plan.ads.ready)),
++        btn('К списку стратегий',async()=>{reset();setOpen(false);await refresh();})));
++  };
++};
+diff --git a/products/harness-platform/native/web/plugins.js b/products/harness-platform/native/web/plugins.js
+index e4c83ed..628a04b 100644
+--- a/products/harness-platform/native/web/plugins.js
++++ b/products/harness-platform/native/web/plugins.js
+@@ -300,7 +300,8 @@
+           unknown:'исход неизвестен',rejected:'доставка отклонена',disconnected:'аккаунт отвязан',blocked:'бот заблокирован'})[state]||state;
+       }
+     }
+-    const panels={timer:Timers,wb:Marketplace,ozon:Marketplace,images:Illustrations,telegram:TelegramReports};
++    const Bidder=window.octoBidderPanel(React,{Dialog,Action,Fold,api,send});
++    const panels={bidder:Bidder,timer:Timers,wb:Marketplace,ozon:Marketplace,images:Illustrations,telegram:TelegramReports};
+     function useCatalog(url) {
+       const [data,setData]=React.useState(null),[error,setError]=React.useState(''),[busy,setBusy]=React.useState(false);
+       React.useEffect(()=>{
+@@ -424,7 +425,9 @@
+     function Sidebar({wide,openCatalog}) {
+       const selection=ctx.uiWorkspace.selection;
+       const chat=React.useSyncExternalStore(cb=>selection.subscribe(cb),()=>selection.getSnapshot().sessionId);
+-      const selected=window.harnessAccount.hasChat(chat)?chat:null;
++      const routeChat=location.pathname.match(/^\/app\/chats\/([A-Za-z0-9_-]+)$/)?.[1];
++      const current=chat||routeChat;
++      const selected=window.harnessAccount.hasChat(current)?current:null;
+       return h(Menu,{key:selected||'account',chat:selected,wide,openCatalog});
+     }
+     const productPlugins={Sidebar,Catalog,CatalogSettings};
+diff --git a/products/harness-platform/platform_core/chat_api.py b/products/harness-platform/platform_core/chat_api.py
+index 70a3d26..acf8bf7 100644
+--- a/products/harness-platform/platform_core/chat_api.py
++++ b/products/harness-platform/platform_core/chat_api.py
+@@ -27,6 +27,7 @@ from .user_plugins import service as user_plugins, illustrations, telegram_route
+ from .browser_session import browser_routes, browser_token
+ from .chat_worker import ChatWorker, WorkerError
+ from .user_plugins.timer.dialog import Dialog as TimerDialog, is_price_timer_request
++from .user_plugins.bidder.operation import routes as bidder_routes
+ from .user_plugins.timer.routes import routes as timer_routes
+ from .user_plugins.telegram_delivery import Delivery as TelegramReports
+ from . import integrations, provider_keys, chat_connections, chat_defaults, turn_progress, chat_attachments, telegram_integration
+@@ -139,6 +140,9 @@ def create_app(database_path, chat_directory, *, composition_module=None):
+                     from .market_collect import Collector
+                     app.state.market_collector = Collector(app.state)
+                     extensions.push_async_callback(app.state.market_collector.close)
++                    from .user_plugins.bidder.scheduler import Scheduler as BidderScheduler
++                    app.state.bidder = BidderScheduler(app.state)
++                    extensions.push_async_callback(app.state.bidder.close)
+                     app.state.timers = TimerDialog(app.state)
+                     try:
+                         yield
+@@ -333,6 +337,7 @@ def create_app(database_path, chat_directory, *, composition_module=None):
+         *chat_connections.routes(_token,_body),
+         *telegram_integration.routes(_body),
+         *telegram_routes.routes(_body),
++        *bidder_routes(_token, _body),
+         *timer_routes(_token, _body),
+         *user_plugins.routes(_token,_body),
+         *illustrations.routes(_token),
+diff --git a/products/harness-platform/platform_core/chat_connections.py b/products/harness-platform/platform_core/chat_connections.py
+index c63b831..5a6973e 100644
+--- a/products/harness-platform/platform_core/chat_connections.py
++++ b/products/harness-platform/platform_core/chat_connections.py
+@@ -139,6 +139,9 @@ class ChatTools:
+         else:
+             report = capability(entries)
+             result = [report] if report else []
++        from .user_plugins.bidder.chat import tools as bidder_tools
++        with self.store._lock:
++            result.extend(bidder_tools(self.store, self.scope))
+         if local_read:result.append(local_read)
+         if direct:
+             result.append(direct)
+diff --git a/products/harness-platform/platform_core/retained_assets.py b/products/harness-platform/platform_core/retained_assets.py
+index 69aec7b..64bc715 100644
+--- a/products/harness-platform/platform_core/retained_assets.py
++++ b/products/harness-platform/platform_core/retained_assets.py
+@@ -8,7 +8,10 @@ from zipfile import BadZipFile, ZipFile
+ 
+ 
+ def application_bytes(ui):
+-    return b"\n;\n".join((ui / name).read_bytes() for name in ("plugins.js", "account.js", "connections.js"))
++    names = ("plugins.js", "account.js", "connections.js")
++    if (ui / "bidder.js").is_file():
++        names = ("bidder.js", *names)
++    return b"\n;\n".join((ui / name).read_bytes() for name in names)
+ 
+ 
+ @lru_cache(maxsize=1)
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/__init__.py b/products/harness-platform/platform_core/user_plugins/bidder/__init__.py
+new file mode 100644
+index 0000000..634c86f
+--- /dev/null
++++ b/products/harness-platform/platform_core/user_plugins/bidder/__init__.py
+@@ -0,0 +1 @@
++"""Ozon advertising rules and store-scoped data."""
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/campaigns.py b/products/harness-platform/platform_core/user_plugins/bidder/campaigns.py
+new file mode 100644
+index 0000000..1626bc9
+--- /dev/null
++++ b/products/harness-platform/platform_core/user_plugins/bidder/campaigns.py
+@@ -0,0 +1,103 @@
++"""Plan advertising only from a complete, current inventory."""
++from decimal import Decimal
++import time
++
++from .catalog import fingerprint
++from .economy import number
++
++MANUAL = "PRODUCT_CAMPAIGN_SKU_ADD_MODE_MANUAL"
++ACTIVE = "CAMPAIGN_STATE_RUNNING"
++INACTIVE = "CAMPAIGN_STATE_INACTIVE"
++
++
++def campaign_plan(inventory, skus, settings):
++    result = {"ready":False, "reason":"Ожидаю проверенные настройки и состав рекламы.", "campaigns":[], "actions":[]}
++    if not inventory or inventory.get("complete") is not True or not 0 <= time.time()-inventory["at"] <= 900:
++        return result
++    selected = set(skus)
++    relevant = {}
++    for row in inventory["campaigns"]:
++        members = set(row["products"])
++        if selected & members:
++            relevant[row["id"]] = row
++    explicit = set(settings.get("campaigns", ()))
++    if explicit - relevant.keys():
++        result["reason"] = "В выбранных кампаниях изменился состав товаров."
++        return result
++    outside = sorted(relevant.keys() - explicit) if explicit else []
++    if any(inventory.get("cpo", {}).get(sku) is True for sku in selected) and inventory.get("cpoCoverageVerified") is not True:
++        result["reason"] = "Нужно сверить расходы на рекламу с оплатой за заказ и сумму резерва."
++        return result
++    if inventory.get("unclassifiedSpend"):
++        result["reason"] = "Нужно сверить расходы рекламных размещений без разбивки по выбранным товарам."
++        return result
++    if outside:
++        result["externalCampaigns"] = outside
++        if inventory.get("externalCoverageVerified") is not True or inventory.get("outsideObligations") is None:
++            result["reason"] = "Нужно сверить расходы другой рекламы этих товаров. Её настройки сохранятся."
++            return result
++    covered, authorized = set(), []
++    for key, row in relevant.items():
++        if explicit and key not in explicit:
++            continue
++        members = set(row["products"])
++        if row["payment"] != "CPC" or row["strategy"] not in ("TARGET_BIDS", "TARGET_CIR"):
++            result["actions"].append({"campaign":key, "action":"reviewType"})
++            continue
++        if row["addMode"] != MANUAL or members - selected:
++            result["reason"] = "Кампания может добавить товары или изменить рекламу товаров вне выбранного списка."
++            return result
++        if covered & members:
++            result["reason"] = "Товар продвигается сразу в нескольких кампаниях. Выберите, какой управлять."
++            return result
++        if row["state"] not in (ACTIVE, INACTIVE) or row.get("weeklyRub") is None or number(row["weeklyRub"]) <= 0:
++            result["reason"] = "Проверьте состояние и конечный бюджет кампании."
++            return result
++        action = "reuse" if row["state"] == ACTIVE else "activate"
++        result["actions"].append({"campaign":key,"action":action,"baseline":fingerprint(row)})
++        authorized.append(key)
++        covered.update(members)
++    if selected - covered:
++        result["actions"].append({"action":"createOrTransfer","count":len(selected-covered)})
++        result["reason"] = "Для части товаров требуется согласовать создание рекламы или перенос."
++        return result
++    if any(a["action"] != "reuse" for a in result["actions"]):
++        result["reason"] = "Проверьте план изменения кампаний перед запуском."
++        return result
++    if settings["strategy"] == "N6" and len(authorized) < 2:
++        result["reason"] = "Для распределения бюджета выберите две независимые кампании."
++        return result
++    weekly = sum(number(relevant[c]["weeklyRub"]) for c in authorized)
++    if weekly + number(settings.get("reserve", 0)) + number(inventory.get("outsideObligations", 0) if outside or inventory.get("cpoCoverageVerified") else 0) > number(settings["budget"]):
++        result["reason"] = "Действующие лимиты и резерв превышают согласованный бюджет."
++        return result
++    result.update(ready=True, reason="", campaigns=sorted(authorized))
++    return result
++
++
++def change_payload(operation, before, value, sku=None):
++    """Only fields with a verifiable round trip may be submitted."""
++    money = number(value, minimum=Decimal("0.01"))
++    if before.get("addMode") != MANUAL:
++        raise ValueError("Не подтверждён фиксированный состав кампании.")
++    if operation == "weeklyBudget":
++        return "PATCH", "", {"weeklyBudget":micros(money)}
++    if sku not in before["products"]:
++        raise ValueError("Товар не входит в кампанию.")
++    current = before["products"][sku]
++    if not (current.get("keywordsVerified") is True and current.get("emptyKeywords") is True):
++        raise ValueError("Сохранность поисковых фраз и стоп-слов не подтверждена.")
++    if operation == "bid" and before["strategy"] == "TARGET_BIDS":
++        parameter = {"bid":micros(money)}
++    elif operation == "targetCir" and before["strategy"] == "TARGET_CIR" and 10 <= money <= 100 and money == int(money):
++        parameter = {"targetCir":int(money)}
++    else:
++        raise ValueError("Параметр несовместим с этой рекламой.")
++    return "PUT", "/products", {"bids":[{"sku":sku, **parameter}]}
++
++
++def micros(value):
++    result = value * 1_000_000
++    if result != int(result) or not 0 < result < 2**64:
++        raise ValueError("Проверьте размерность денежного параметра.")
++    return str(int(result))
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/catalog.py b/products/harness-platform/platform_core/user_plugins/bidder/catalog.py
+new file mode 100644
+index 0000000..e88be03
+--- /dev/null
++++ b/products/harness-platform/platform_core/user_plugins/bidder/catalog.py
+@@ -0,0 +1,121 @@
++"""Resolve a selection against one permission-checked catalogue receipt."""
++from collections import Counter
++from hashlib import sha256
++import json
++
++from starlette.exceptions import HTTPException
++
++from ... import market_access, market_data, market_query
++from ..registry import OZON, attached, store_row
++
++PLUGIN = "ozon-bidder"
++
++
++def encoded(value):
++    return json.dumps(value, separators=(",", ":"), ensure_ascii=False, sort_keys=True, allow_nan=False)
++
++
++def fingerprint(value):
++    return sha256(encoded(value).encode()).hexdigest()
++
++
++def require_plugin(db, scope):
++    if not attached(db, scope, PLUGIN):
++        raise HTTPException(403, "Включите «Биддер Ozon» в этом чате.")
++
++
++def stores(db, scope):
++    require_plugin(db, scope)
++    return [dict(id=cid, name=name) for cid, name in db.execute("""
++        SELECT i.id,i.name FROM account_integrations i JOIN market_data_links l ON l.cid=i.id
++        JOIN chat_integrations g ON g.connection_id=i.id JOIN market_data_stores s ON s.id=l.store
++        WHERE g.chat_id=? AND i.workspace=? AND s.workspace=i.workspace AND i.provider=s.provider
++        AND i.provider='ozon' AND i.version=l.version AND i.status='verified' ORDER BY i.name,i.id""",
++        (scope.chat_id, scope.workspace_id))]
++
++
++def binding(db, scope, cid, *, ads=False):
++    require_plugin(db, scope)
++    store_row(db, scope, OZON, cid)
++    found = market_data.binding(db, scope.workspace_id, cid)
++    if not found or found[1] != "ozon" or not market_access.allowed(db, cid, "catalog"):
++        raise HTTPException(403, "Подтвердите доступ к товарам этого магазина.")
++    if ads:
++        row = db.execute("""SELECT k.checks FROM integration_access_checks k JOIN account_integrations i
++            ON i.id=k.cid AND i.version=k.version WHERE i.id=?""", (cid,)).fetchone()
++        checks = json.loads(row[0]) if row else {}
++        if any(checks.get(key) != "verified" for key in ("Seller", "Performance")):
++            raise HTTPException(403, "Подтвердите доступ к товарам и рекламе магазина.")
++    version, = db.execute("SELECT version FROM account_integrations WHERE id=?", (cid,)).fetchone()
++    return found[0], version
++
++
++class Catalog:
++    def __init__(self, cards, observed):
++        self.rows, self.unavailable, self.categories = {}, Counter(), {}
++        self.observed = observed
++        for card in cards:
++            if card.get("archived") is not False or not card.get("skus"):
++                reason = "archive" if card.get("archived") is True else "missingSku" if not card.get("skus") else "unknownStatus"
++                self.unavailable[reason] += 1
++                continue
++            category = card.get("category") or ""
++            for sku in card["skus"]:
++                if sku in self.rows:
++                    raise HTTPException(409, "Один товар встречается в каталоге дважды. Обновите каталог.")
++                self.rows[sku] = dict(sku=sku, title=card["title"], offer=card["offer"], card=card["id"], category=category)
++            self.categories[category] = card.get("categoryName") or category or "Без категории"
++        self.revision = fingerprint(sorted((sku, row["card"], row["category"], row["offer"], row["title"]) for sku, row in self.rows.items()))
++
++    def matches(self, query):
++        query = query.strip().casefold()
++        return {sku for sku, r in self.rows.items() if not query or
++                any(query in r[k].casefold() for k in ("sku", "offer", "title"))}
++
++    def page(self, query, offset=0, category=None):
++        keys = sorted(k for k in self.matches(query) if category is None or self.rows[k]["category"] == category)
++        counts = Counter(r["category"] for r in self.rows.values())
++        return dict(revision=self.revision, total=len(keys), observed=self.observed,
++                    items=[self.rows[k] for k in keys[offset:offset + 100]], unavailable=self.unavailable,
++                    categories=[dict(id=k, label=v, count=counts[k]) for k, v in sorted(self.categories.items())])
++
++    def resolve(self, selection):
++        if not isinstance(selection, dict) or set(selection) - {"all", "categories", "include", "exclude", "search"}:
++            raise ValueError("Проверьте выбор товаров.")
++        if type(selection.get("all", False)) is not bool:
++            raise ValueError("Проверьте выбор всех товаров.")
++        keys = set(self.rows) if selection.get("all") else set()
++        for name in ("categories", "include", "exclude", "search"):
++            items = selection.get(name, [])
++            if not isinstance(items, list) or any(not isinstance(i, str) for i in items):
++                raise ValueError("Проверьте список товаров и категорий.")
++            items = set(items)
++            if name == "search":
++                for q in items:
++                    if not q.strip():
++                        raise ValueError("Введите название или артикул.")
++                    keys.update(self.matches(q))
++            elif name == "categories":
++                if items - self.categories.keys():
++                    raise HTTPException(409, "Список категорий изменился.")
++                keys.update(k for k, r in self.rows.items() if r["category"] in items)
++            elif items - self.rows.keys():
++                raise HTTPException(409, "Состав каталога изменился. Проверьте выбор.")
++            elif name == "include":
++                keys.update(items)
++        keys.difference_update(selection.get("exclude", []))
++        if not keys:
++            raise ValueError("Выберите хотя бы один доступный товар.")
++        return sorted(keys)
++
++
++def load(db, scope, cid):
++    sid, _ = binding(db, scope, cid)
++    path = market_query.main_path(db)
++    if market_data.path_for(path, scope.workspace_id, "ozon").is_file():
++        with market_data.local(path, scope.workspace_id, "ozon") as local:
++            hit = market_query.fetch(db, local, cid, sid, "catalog", "", "")
++            if hit:
++                body, observed = hit
++                return Catalog(body["cards"], observed)
++    raise HTTPException(409, "Ещё нет подтверждённого каталога. Обновите товары в плагине Ozon.")
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/chat.py b/products/harness-platform/platform_core/user_plugins/bidder/chat.py
+new file mode 100644
+index 0000000..e7f868c
+--- /dev/null
++++ b/products/harness-platform/platform_core/user_plugins/bidder/chat.py
+@@ -0,0 +1,79 @@
++"""One turn-scoped settings tool, also used for explanations and lookup."""
++from starlette.exceptions import HTTPException
++
++from ...catalog import Capability
++from ...market_report_cache import live
++from ...marketplace_matrix.plugin import current_turn
++from ..guides import Guide, Guides
++from . import catalog
++from .economy import GOALS
++from .operation import command
++
++ROWS = (
++    ("overview","Выбираем товары, цель и предел недельных расходов. Сначала покажи план, спроси только недостающее. Объясняй через деньги и товары.",("что умеет",),()),
++    ("field.budget","Сколько рублей в неделю можно потратить на всю рекламу выбранных товаров.",("бюджет","тысяч","лимит"),("budget","reserve")),
++    ("field.reserve","Какую часть денег оставить для прочей рекламы и ещё не учтённых списаний.",("резерв","отложить"),("reserve",)),
++    ("field.schedule","Когда перепроверять данные. Проверь дни, время и часовой пояс продавца.",("расписан","время провер"),("days","start","end","timezone","interval")),
++    ("setup.selection","Выбирай товары из подтверждённого каталога. Категория разворачивается в текущий список. Новые товары добавляет продавец.",("категор","все кольца","товары"),("selection","catalogRevision")),
++    ("setup.plan","Вызови list, затем catalog, затем preview с настройками и конечным выбором. Прочитай готовый план. Подтверждение разрешено только новым сообщением продавца с точным кодом или кнопкой в форме.",("настро","запус","созда"),("config","selection")),
++    ("action.pause","Пауза прекращает изменения биддером. Текущая реклама продолжает работать в Ozon.",("пауза","приостанов","останови"),("id","revision")),
++    ("reason.history","Сначала прочитай history. Назови время, фактическую причину и проверенное изменение. Если изменений ещё не было, так и скажи.",("почему","причин","вчера"),("id",)),
++    ("report.summary","Используй факты из журнала и назови период. Раздели заказы и выкупы, расходы и прибыль.",("итог","результат","покажи"),("id",)),
++)
++GOAL_TEXT = {
++    "N1":("Сколько рублей из каждых ста рублей заказов можно тратить на всю рекламу.",("доля рекламы","из заказов")),
++    "N2":("Сколько рублей из каждых ста рублей выручки должно остаться после учтённых расходов.",("каждых 100","каждых ста","маржиналь")),
++    "N3":("Сколько рублей должно остаться после расходов с каждого выкупленного товара.",("с каждой","с единицы","с одного")),
++    "N4":("Помогаю увеличить количество выкупленных товаров в пределах расходов. Для выбора ставки нужна история.",("продавать больше","больше выкупов")),
++    "N5":("Ищу вариант, при котором после учтённых расходов у магазина в сумме остаётся больше денег.",("общую прибыль","больше прибыли")),
++    "N6":("Перераспределяю деньги между выбранными кампаниями в пределах общего бюджета.",("распредел","между кампаниями")),
++}
++GUIDES = Guides([Guide(catalog.PLUGIN,key,1,key.split(".")[0],text,aliases,fields) for key,text,aliases,fields in ROWS] +
++                [Guide(catalog.PLUGIN,"goal."+k.lower(),1,"goal",t,a,("strategy","target")) for k,(t,a) in GOAL_TEXT.items()])
++
++
++def tools(store, scope):
++    if not catalog.attached(store._db, scope, catalog.PLUGIN):
++        return []
++    def describe(bound, args):
++        with store._lock:
++            catalog.require_plugin(store._db, bound)
++        return GUIDES.lookup(catalog.PLUGIN, args["query"])
++    def run(bound, args):
++        op, data = args["operation"], args.get("fields", {})
++        turn, _ = current_turn()
++        with store._write() as db:
++            if turn is None or not live(db, turn, bound):
++                raise PermissionError("Поручение завершилось.")
++            catalog.require_plugin(db, bound)
++            if op == "guide":
++                return GUIDES.lookup(catalog.PLUGIN, data.get("query","overview"))
++            if op == "confirm":
++                receipt = data.get("receipt", "")
++                if not receipt or turn.get("question","").strip().casefold() != ("подтверждаю "+receipt[:12]).casefold():
++                    return {"ok":False,"message":"Для запуска введите код из проверенного плана или нажмите кнопку в форме."}
++            if op == "stopAll":
++                return {"ok":False,"message":"Общая остановка доступна в форме плагина."}
++            db.execute("SAVEPOINT bidder_command")
++            try:
++                result = command(db, bound, op, data)
++            except (ValueError, KeyError, HTTPException) as err:
++                db.execute("ROLLBACK TO bidder_command")
++                db.execute("RELEASE bidder_command")
++                message = err.detail if isinstance(err,HTTPException) else str(err) if isinstance(err,ValueError) else "Заполните обязательные поля."
++                return {"ok":False,"message":message}
++            db.execute("RELEASE bidder_command")
++            if op == "catalog":
++                return {**result, "items":result["items"][:12], "nextOffset":int(data.get("offset",0))+12 if result["total"]>int(data.get("offset",0))+12 else None}
++            if op in ("get","preview","confirm","pause","stop"):
++                return {k:v for k,v in result.items() if k in ("id","cid","revision","state","plan","receipt","config")} | {
++                    "selectedCount":len(result["skus"]), "confirmationText":"Подтверждаю "+result["receipt"][:12]}
++            if op == "history":
++                return {"events":result["events"][:8]}
++            return result
++    return [Capability("bidder_settings","Настроить или объяснить управление рекламой Ozon под цель продавца, получить фактические результаты.",
++           {"type":"object","properties":{"operation":{"enum":["guide","list","catalog","get","preview","confirm","pause","stop","history","check"]},
++            "fields":{"type":"object","description":"Поля общей формы. Справка: query. Просмотр плана: cid, catalogRevision, selection, config. Для изменения также id, revision."}},
++            "required":["operation"],"additionalProperties":False},run,effect="edit"),
++            Capability("describe__bidder_settings","Одна подсказка для текущего действия.",{"type":"object","properties":{
++                "query":{"type":"string","maxLength":256},"offset":{"type":"integer"}},"required":["query"],"additionalProperties":False},describe)]
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/economy.py b/products/harness-platform/platform_core/user_plugins/bidder/economy.py
+new file mode 100644
+index 0000000..e55c4cc
+--- /dev/null
++++ b/products/harness-platform/platform_core/user_plugins/bidder/economy.py
+@@ -0,0 +1,166 @@
++"""Calculate limits in rubles on comparable, closed observation windows."""
++from dataclasses import dataclass
++from decimal import Decimal, InvalidOperation, ROUND_DOWN
++
++D = Decimal
++CENT = D("0.01")
++HUNDRED = D(100)
++GOALS = {
++    "N1": "Ограничить долю рекламы в заказах",
++    "N2": "Оставлять долю выручки после расходов",
++    "N3": "Оставлять сумму с выкупленного товара",
++    "N4": "Увеличить количество выкупленных товаров",
++    "N5": "Увеличить общую прибыль",
++    "N6": "Распределить бюджет между кампаниями",
++}
++
++
++class Missing(ValueError):
++    pass
++
++
++def number(value, *, minimum=0, maximum=None):
++    if type(value) not in (str, int, Decimal) or len(str(value)) > 40:
++        raise Missing("Укажите число.")
++    try:
++        value = D(str(value).replace(",", "."))
++    except InvalidOperation:
++        raise Missing("Укажите число.") from None
++    if (not value.is_finite() or abs(value.as_tuple().exponent) > 12 or value.adjusted() > 15
++            or minimum is not None and value < minimum or maximum is not None and value > maximum):
++        raise Missing("Проверьте значение и единицы измерения.")
++    return value
++
++
++@dataclass(frozen=True)
++class Decision:
++    reason: str
++    value: Decimal | None = None
++    allowance: Decimal | None = None
++
++
++def regulate(goal, target, fact, limits):
++    """Inputs are normalized by the collector, never supplied as observed facts by a client."""
++    if not all(fact.get(k) is True for k in ("fresh", "mature", "comparable", "newWindow")):
++        return Decision("WAIT_DATA")
++    try:
++        other = number(fact.get("otherAds"))
++        spend = number(fact.get("controlledAds"))
++        weekly_room = number(fact.get("availableToSpend"))
++        target = number(target, maximum=None if goal == "N3" else 100)
++        if goal == "N1":
++            revenue = number(fact.get("orderedRevenue"), minimum=CENT)
++            cap = revenue * target / HUNDRED - other
++            distance = (spend + other) * HUNDRED / revenue - target
++        elif goal in ("N2", "N3"):
++            revenue = number(fact.get("realizedRevenue"), minimum=CENT)
++            units = number(fact.get("realizedUnits"), minimum=1)
++            if units != units.to_integral_value() or fact.get("costCoverage") != "complete":
++                return Decision("WAIT_COST")
++            costs = number(fact.get("nonAdCosts"))
++            required = revenue * target / HUNDRED if goal == "N2" else units * target
++            cap = revenue - costs - other - required - number(limits.get("reserve"))
++            distance = (spend - cap) * HUNDRED / revenue
++        else:
++            raise ValueError("Неизвестная финансовая цель.")
++        if cap <= 0 or weekly_room == 0:
++            return Decision("NO_ALLOWANCE", allowance=cap)
++        cap = min(cap, weekly_room)
++        native = fact.get("mechanism")
++        if native == "TARGET_BIDS":
++            denominator = number(fact.get("forecastClicks"), minimum=1)
++            ceiling = cap / denominator
++        elif native == "TARGET_CIR" and fact.get("attributionVerified") is True:
++            ceiling = min(HUNDRED, HUNDRED * cap / number(fact.get("attributedRevenue"), minimum=CENT))
++        else:
++            return Decision("INCOMPATIBLE", allowance=cap)
++        minimum = number(fact.get("minimum"), minimum=CENT)
++        maximum = min(number(limits.get("parameterMax"), minimum=CENT), number(fact.get("maximum"), minimum=CENT), ceiling)
++        quantum = number(fact.get("increment"), minimum=CENT)
++        maximum = (maximum / quantum).to_integral_value(rounding=ROUND_DOWN) * quantum
++        if maximum < minimum:
++            return Decision("BELOW_MINIMUM", allowance=cap)
++        current = number(fact.get("current"), minimum=CENT)
++        band = number(limits.get("band"), maximum=100)
++        step = number(limits.get("step"), minimum=CENT, maximum=100) / HUNDRED
++        if distance > band or current > maximum:
++            proposed = min(maximum, max(minimum, current * (1 - step)))
++        elif distance < -band and limits.get("growth") is True and fact.get("stockRoom") is True:
++            proposed = min(maximum, current * (1 + step))
++        else:
++            return Decision("HOLD", allowance=cap)
++        proposed = (proposed / quantum).to_integral_value(rounding=ROUND_DOWN) * quantum
++        if proposed < minimum or proposed == current:
++            return Decision("HOLD", allowance=cap)
++        return Decision("DECREASE" if proposed < current else "INCREASE", proposed, cap)
++    except Missing:
++        return Decision("INCOMPLETE")
++
++
++def optimize(goal, observations, baseline, budget, stock, min_margin):
++    """Compare conservative bounds with the baseline from the same experiment."""
++    if goal not in ("N4", "N5"):
++        raise ValueError("Неизвестная цель оптимизации.")
++    try:
++        budget, stock, min_margin = number(budget), number(stock), number(min_margin)
++        candidates = []
++        before = None
++        for o in observations:
++            if o.get("comparable") is not True or o.get("mature") is not True or o.get("incrementality") is not True:
++                continue
++            revenue = number(o.get("realizedRevenue"), minimum=CENT)
++            ad = number(o.get("otherAds")) + number(o.get("controlledAds"))
++            units = number(o.get("realizedUnits"))
++            profit = revenue - number(o.get("nonAdCosts")) - ad
++            error = number(o.get("profitError"))
++            value, spread = (units, number(o.get("unitsError"))) if goal == "N4" else (profit, error)
++            setting = number(o.get("setting"), minimum=CENT)
++            if setting == baseline:
++                before = value + spread if before is None else max(before, value + spread)
++            if (ad <= budget and number(o.get("orderedUnits"), minimum=units) <= stock
++                    and HUNDRED * (profit - error) / revenue >= min_margin):
++                candidates.append((value - spread, -ad, setting))
++        if before is None or not candidates:
++            return Decision("WAIT_HISTORY")
++        score, _, setting = max(candidates)
++        if setting == baseline or score <= before:
++            return Decision("HOLD")
++        return Decision("CHANGE", setting)
++    except Missing:
++        return Decision("INCOMPLETE")
++
++
++def allocate(campaigns, total, reserved, outside):
++    """Multiple-choice knapsack on measured options. Prune dominated partial portfolios."""
++    pool = number(total) - number(reserved) - number(outside)
++    if not campaigns or pool <= 0:
++        return "NO_ALLOWANCE", {}
++    used_skus = set()
++    states = {D(0): (D(0), ())}
++    ids = []
++    for campaign in campaigns:
++        skus = set(campaign["skus"])
++        if not skus or skus & used_skus or campaign["id"] in ids:
++            return "CONFLICT", {}
++        used_skus.update(skus)
++        ids.append(campaign["id"])
++        minimum = max(number(campaign["minimum"]), number(campaign["spent"]) + number(campaign["pending"]))
++        maximum = number(campaign["maximum"])
++        options = [(number(limit), number(score, minimum=None)) for limit, score in campaign["options"]]
++        merged = {}
++        for cost, (value, selected) in states.items():
++            for limit, score in options:
++                new_cost = cost + limit
++                if minimum <= limit <= maximum and new_cost <= pool:
++                    previous = merged.get(new_cost)
++                    if previous is None or value + score > previous[0]:
++                        merged[new_cost] = value + score, (*selected, limit)
++        states, best = {}, None
++        for cost in sorted(merged):
++            if best is None or merged[cost][0] > best:
++                states[cost] = merged[cost]
++                best = merged[cost][0]
++        if not states:
++            return "INFEASIBLE", {}
++    _, selected = max(states.values(), key=lambda v: v[0])
++    return "PLAN", dict(zip(ids, selected, strict=True))
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/executor.py b/products/harness-platform/platform_core/user_plugins/bidder/executor.py
+new file mode 100644
+index 0000000..507726f
+--- /dev/null
++++ b/products/harness-platform/platform_core/user_plugins/bidder/executor.py
+@@ -0,0 +1,81 @@
++"""Durable journal for an authorized campaign operation and independent read-back."""
++import json
++from uuid import uuid4
++
++from starlette.exceptions import HTTPException
++
++from . import campaigns, catalog, economy, state
++
++
++def field_value(campaign, field, sku):
++    if field == "weeklyBudget":
++        return economy.number(campaign.get("weeklyRub"))
++    value = campaign["products"][sku].get(field)
++    if field == "bid":
++        return economy.number(value) / 1_000_000
++    if field == "targetCir":
++        return economy.number(value)
++    raise ValueError("Неизвестный параметр рекламы.")
++
++
++def open_intent(db, scope, item, before, field, sku, value, window, now):
++    revision, rule_id = item["revision"],item["id"]
++    latest = state.rule(db,scope,rule_id)
++    cfg = latest["config"]
++    if (latest["state"] != "active" or latest["revision"] != revision or cfg["mode"] != "auto"
++            or catalog.binding(db,scope,item["cid"],ads=True) != (item["store"],item["key_version"])
++            or state.next_time(cfg,now) != now):
++        raise ValueError("Управление приостановлено или изменились права.")
++    campaign = before["id"]
++    resources = [("campaign",campaign),*(("sku",s) for s in before["products"])]
++    if not before["products"] or before["state"]!=campaigns.ACTIVE or not set(before["products"])<=set(latest["skus"]):
++        raise ValueError("Изменился состав или состояние рекламы.")
++    for kind, resource in resources:
++        if not db.execute("""SELECT 1 FROM bidder_ownership WHERE (store,kind,resource,rule,revision)=(?,?,?,?,?)""",
++                (item["store"],kind,resource,rule_id,revision)).fetchone():
++            raise ValueError("Другая стратегия управляет рекламой.")
++        if db.execute("SELECT 1 FROM bidder_inflight WHERE (store,kind,resource)=(?,?,?)",(item["store"],kind,resource)).fetchone():
++            raise ValueError("Сначала нужно сверить предыдущую запись Ozon.")
++    prior = db.execute("""SELECT at,window FROM bidder_changes WHERE store=? AND campaign=? AND field=?
++            AND sku=? ORDER BY at DESC LIMIT 1""",(item["store"],campaign,field,sku)).fetchone()
++    if prior and (prior[1]>=window or now-prior[0]<cfg.get("changeHours",24)*3600):
++        raise ValueError("Ожидаю следующее независимое окно наблюдения.")
++    value = economy.number(value)
++    current = field_value(before,field,sku)
++    if value==current:
++        return None
++    if field != "weeklyBudget" and value>economy.number(cfg.get("parameterMax")) or (
++        field=="weeklyBudget" and value>economy.number(cfg["budget"])-economy.number(cfg.get("reserve",0))):
++        raise ValueError("Изменение превышает согласованный предел.")
++    if field!="weeklyBudget" and abs(value-current)>current*economy.number(cfg.get("step"))/100:
++        raise ValueError("Изменение превышает согласованный шаг.")
++    method, suffix, body = campaigns.change_payload(field,before,value,sku)
++    ident = uuid4().hex
++    ok = db.execute("""INSERT OR IGNORE INTO bidder_writes(id,rule,revision,campaign,field,sku,before_hash,before_state,
++        target,state,at) VALUES(?,?,?,?,?,?,?,?,?,'unknown',?)""",
++        (ident,rule_id,revision,campaign,field,sku,catalog.fingerprint(before),catalog.encoded(before),str(value),now)).rowcount
++    if not ok:
++        return None
++    db.executemany("INSERT INTO bidder_inflight VALUES(?,?,?,?)",[(item["store"],k,r,ident) for k,r in resources])
++    db.execute("INSERT INTO bidder_changes VALUES(?,?,?,?,?,?,?)",(ident,item["store"],campaign,field,sku,now,window))
++    return ident,method,suffix,body
++
++
++def reconcile(db, ident, observation):
++    row = db.execute("SELECT rule,revision,field,sku,before_state,target,state FROM bidder_writes WHERE id=?",(ident,)).fetchone()
++    if not row or row[-1]!="unknown":
++        return False
++    rule,rev,field,sku,raw,value,_ = row
++    expected = json.loads(raw)
++    if field=="weeklyBudget":
++        expected["weeklyRub"] = observation.get("weeklyRub")
++    elif sku in observation.get("products",{}):
++        expected["products"][sku][field] = observation["products"][sku].get(field)
++    if expected != observation or field_value(observation,field,sku) != economy.number(value):
++        return False
++    db.execute("UPDATE bidder_writes SET state='verified',observed=? WHERE id=?",(catalog.fingerprint(observation),ident))
++    db.execute("DELETE FROM bidder_inflight WHERE operation=?",(ident,))
++    state.event(db,rule,rev,"verified",{"campaign":observation["id"],"field":field,"value":value,
++                "message":"Ozon подтвердил изменение отдельным чтением."})
++    return True
++
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/observations.py b/products/harness-platform/platform_core/user_plugins/bidder/observations.py
+new file mode 100644
+index 0000000..3f822f8
+--- /dev/null
++++ b/products/harness-platform/platform_core/user_plugins/bidder/observations.py
+@@ -0,0 +1,209 @@
++"""Store comparable Ozon observations with credential generation and Moscow business date."""
++from datetime import datetime, timedelta
++from decimal import Decimal
++import json
++import time
++from zoneinfo import ZoneInfo
++
++from ... import market_data, market_query
++from . import catalog, economy
++
++SCHEMA = (
++    """CREATE TABLE IF NOT EXISTS bidder_samples(store TEXT,cid TEXT,generation INTEGER,day TEXT,campaign TEXT,
++        sku TEXT,observed INTEGER,setting TEXT,clicks INTEGER,expense TEXT,views INTEGER,receipt TEXT,
++        PRIMARY KEY(store,cid,generation,day,campaign,sku))""",
++    """CREATE TABLE IF NOT EXISTS bidder_proposals(rule TEXT,revision INTEGER,window TEXT,campaign TEXT,sku TEXT,
++        field TEXT,value TEXT,proof TEXT,observed INTEGER,PRIMARY KEY(rule,revision,window,campaign,sku,field))""",
++)
++
++
++def stats_rows(raw, campaigns, day):
++    rows = raw.get("rows")
++    if not isinstance(rows,list) or raw.get("total", len(rows)) != len(rows):
++        raise ValueError("Ozon не подтвердил полный состав строк рекламной статистики.")
++    total = {}
++    for row in rows:
++        if not isinstance(row,dict):
++            raise ValueError("Неполная строка рекламы.")
++        if row.get("date") != str(day):
++            raise ValueError("Статистика пришла за другой день.")
++        cid = str(row.get("campaignId",""))
++        if not cid and len(campaigns) == 1:
++            cid = next(iter(campaigns))
++        sku = str(row.get("sku",""))
++        if cid not in campaigns or sku not in campaigns[cid]["products"]:
++            raise ValueError("У строки статистики нет подтверждённой связи с кампанией и товаром.")
++        if (cid,sku) in total:
++            raise ValueError("У Ozon несколько строк на товар и кампанию, нужна сверка.")
++        spend = row.get("expense")
++        if isinstance(spend,float):
++            spend = str(spend)
++        expense = economy.number(spend)
++        clicks, views = [economy.number(row.get(k)) for k in ("clicks","views")]
++        if clicks != int(clicks) or views != int(views):
++            raise ValueError("Показатели активности пришли в неизвестных единицах.")
++        total[cid,sku] = int(clicks),str(expense),int(views)
++    return total
++
++
++async def collect(performance, scope, item, inventory, now):
++    from .performance import Deferred
++    pin = item["store"],item["key_version"]
++    cid = item["cid"]
++    today = datetime.fromtimestamp(now, ZoneInfo("Europe/Moscow")).date()
++    selected = set(item["skus"])
++    campaigns = {c["id"]:c for c in inventory["campaigns"] if selected.intersection(c["products"])}
++    keys = sorted(campaigns)
++    for day in (today, today-timedelta(days=1)):
++        ttl = 900 if day==today else 21600
++        for offset in range(0,len(keys),10):
++            batch = keys[offset:offset+10]
++            query = catalog.fingerprint([batch, str(day)])
++            payload = await performance.read(scope,cid,pin,"sku-stats",query,"/api/client/statistics/products/sku",
++                    body={"campaignIds":batch,"dateFrom":str(day),"dateTo":str(day)},ttl=ttl)
++            rows = stats_rows(payload,{k:campaigns[k] for k in batch},day)
++            with performance.app.identity._write() as db:
++                performance.check(db,scope,cid,pin)
++                proof = db.execute("""SELECT observed FROM bidder_reads WHERE store=? AND profile='performance'
++                    AND source='sku-stats' AND query=? AND scope=? AND error IS NULL""",
++                    (pin[0],query,catalog.fingerprint([cid,pin[1]]))).fetchone()
++                if not proof or not 0 <= now-proof[0] <= ttl:
++                    raise Deferred("Статистика требует обновления.")
++                for (campaign,sku),(clicks,expense,views) in rows.items():
++                    product = campaigns[campaign]["products"][sku]
++                    # A current bid cannot describe a previous day's effective bid.
++                    setting = catalog.encoded(product) if day==today else None
++                    db.execute("""INSERT INTO bidder_samples VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
++                        ON CONFLICT DO UPDATE SET observed=excluded.observed, clicks=excluded.clicks,
++                        expense=excluded.expense,views=excluded.views,receipt=excluded.receipt,
++                        setting=coalesce(excluded.setting,bidder_samples.setting)
++                        WHERE excluded.observed>=bidder_samples.observed""",
++                        (pin[0],cid,pin[1],str(day),campaign,sku,proof[0],setting,clicks,expense,views,
++                         catalog.fingerprint([query,day.isoformat(),campaign,sku,clicks,expense,views])))
++    return keys
++
++
++def snapshot(db, scope, item, inv, now):
++    cfg, sid, cid = item["config"],item["store"],item["cid"]
++    through = datetime.fromtimestamp(now,ZoneInfo("Europe/Moscow")).date()-timedelta(days=1)
++    since = through-timedelta(days=cfg.get("windowDays",7)-1)
++    keys = [c for c in inv["campaigns"] if set(item["skus"]).intersection(c["products"])]
++    owned = set(item["plan"]["ads"].get("campaigns",[]))
++    missing = set()
++    samples, clicks, spend, other = 0,0,Decimal(0),Decimal(0)
++    sku_set = set(item["skus"])
++    by_campaign = {r["id"]:r for r in keys}
++    rows = db.execute("""SELECT day,campaign,sku,clicks,expense FROM bidder_samples WHERE store=? AND cid=?
++          AND generation=? AND day BETWEEN ? AND ?""",(sid,cid,item["key_version"],str(since),str(through)))
++    for day,campaign,sku,n,amount in rows:
++        if campaign in by_campaign and sku in sku_set:
++            samples += 1
++            if campaign in owned:
++                clicks += n
++                spend += economy.number(amount)
++            else:
++                other += economy.number(amount)
++    if not keys or samples < cfg.get("windowDays",7)*sum(len(sku_set.intersection(c["products"])) for c in keys):
++        missing.add("закрытая история рекламных расходов за весь период")
++    if inv.get("unclassifiedSpend") or any(inv["cpo"].get(k) for k in sku_set):
++        missing.add("сверка расходов других размещений и оплаты за заказ")
++    costs = {}
++    path = market_query.main_path(db)
++    if market_data.path_for(path,scope.workspace_id,"ozon").is_file():
++        with market_data.local(path,scope.workspace_id,"ozon") as data:
++            for sku in item["skus"]:
++                cost = data.execute("""SELECT amount FROM costs WHERE store=? AND (sku=? OR sku='') AND since<=?
++                    ORDER BY (sku=?) DESC,since DESC LIMIT 1""",(sid,sku,str(through),sku)).fetchone()
++                if cost:
++                    costs[sku] = cost[0]
++    if cfg["strategy"] in ("N2","N3","N4","N5") and len(costs)!=len(item["skus"]):
++        missing.add("себестоимость выбранных товаров")
++    return {"from":str(since),"to":str(through),"campaigns":sorted(by_campaign),"rows":samples,
++            "controlledAds":str(spend),"externalCpc":str(other),"clicks":clicks,"coveredCosts":len(costs),
++            "missing":sorted(missing)}
++
++
++async def order_totals(performance, scope, item, first, last):
++    """Only basic Seller analytics, paginated by SKU. The same cache serves all shop rules."""
++    from .performance import Deferred
++    pin = item["store"],item["key_version"]
++    selected = set(item["skus"])
++    totals, seen, offset = {}, set(), 0
++    while True:
++        body = {"date_from":first,"date_to":last,"metrics":["ordered_units","revenue"],"dimension":["sku"],
++                "sort":[{"key":"revenue","order":"DESC"}],"limit":1000,"offset":offset}
++        page = await performance.read(scope,item["cid"],pin,"orders-by-sku",catalog.fingerprint(body),
++            "/v1/analytics/data",body=body,ttl=21600,seller=True)
++        if page is None:
++            raise Deferred("Ожидаю квоту данных о заказах.")
++        rows = page.get("result",{}).get("data")
++        if not isinstance(rows,list) or len(rows)>1000:
++            raise ValueError("Ozon не подтвердил группировку заказов по товарам.")
++        for row in rows:
++            dimensions,metrics = row.get("dimensions"),row.get("metrics")
++            if not isinstance(dimensions,list) or len(dimensions)!=1 or not isinstance(metrics,list) or len(metrics)!=2:
++                raise ValueError("Не совпала детализация заказов.")
++            sku = str(dimensions[0]["id"])
++            if not sku.isascii() or not sku.isdecimal() or sku in seen:
++                raise ValueError("Нужно сверить страницы отчёта о заказах.")
++            seen.add(sku)
++            if sku in selected:
++                units,revenue = (economy.number(str(value)) for value in metrics)
++                if units != int(units):
++                    raise ValueError("Неизвестные единицы количества заказов.")
++                totals[sku] = (int(units),revenue)
++        if len(rows)<1000:
++            break
++        offset += len(rows)
++    return {"orderedUnits":sum(v[0] for v in totals.values()),
++            "orderedRevenue":str(sum((v[1] for v in totals.values()),Decimal(0))),"productsWithOrders":len(totals)}
++
++
++def assess(db, scope, item, summary, inventory, now):
++    """Use only confirmed facts, reporting usable partial data alongside each missing source."""
++    goal = item["config"]["strategy"]
++    missing = set(summary["missing"])
++    owned = set(item["plan"]["ads"].get("campaigns",[]))
++    campaigns = [c for c in inventory["campaigns"] if c["id"] in owned]
++    result = {}
++    cfg = item["config"]
++    if goal in ("N2","N3","N4","N5") or goal=="N6" and cfg.get("objective")=="profit":
++        amounts, units = Decimal(0),Decimal(0)
++        for sku in item["skus"]:
++            ledger = market_query.economics(db,scope.workspace_id,item["cid"],item["store"],"ozon",
++                        summary["from"],summary["to"],sku=sku)
++            if ledger.get("complete") is not True or not 0<=now-ledger.get("observed",0)<=86400:
++                missing.add("сверенные расходы и выкупы по выбранным товарам")
++                break
++            amounts += economy.number(ledger["result"].get("revenueRub"))
++            units += economy.number(ledger["totalUnits"])
++        else:
++            result.update(realizedRevenue=str(amounts),realizedUnits=str(units))
++    if goal in ("N1","N2","N3"):
++        controlled = economy.number(summary["controlledAds"])
++        other = economy.number(summary["externalCpc"])
++        revenue = economy.number(summary["orderedRevenue"])
++        if not missing and goal=="N1" and revenue>0:
++            result["observedAdPercent"] = str((100*(controlled+other)/revenue).quantize(Decimal("0.01")))
++        # No data source currently certifies all weekly obligations and SKU-level bid units.
++        # Never convert missing budget headroom to the configured limit.
++        fact = dict(comparable=not missing,mature=not missing,fresh=True,newWindow=True,
++                    orderedRevenue=str(revenue),controlledAds=str(controlled),otherAds=str(other),
++                    forecastClicks=summary["clicks"],**{k:v for k,v in result.items() if k.startswith("realized")})
++        decision = economy.regulate(goal,cfg["target"],fact,cfg)
++        missing.add("доступный остаток недельного бюджета с учётом всех списаний")
++        if campaigns:
++            missing.add("подтверждённые параметры и допустимые ставки для выбранных товаров")
++        result["decision"] = decision.reason
++    elif goal in ("N4","N5"):
++        # A setting snapshot is not a measured campaign experiment with a control interval.
++        result["decision"] = economy.optimize(goal,[],Decimal(0),cfg["budget"],0,cfg.get("minMargin",0)).reason
++        missing.add("сопоставимые завершённые периоды до и после изменения рекламы")
++    else:
++        result["decision"] = "WAIT_HISTORY"
++        if len(campaigns)<2:
++            missing.add("две независимые кампании с разными товарами")
++        missing.add("проверенные варианты бюджета и их результат по каждой кампании")
++    result["missing"] = sorted(missing)
++    result["message"] = "Период с " + summary["from"] + " по " + summary["to"] + ". Для решения нужны " + ", ".join(result["missing"]) + "."
++    return result
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/operation.py b/products/harness-platform/platform_core/user_plugins/bidder/operation.py
+new file mode 100644
+index 0000000..a469d4e
+--- /dev/null
++++ b/products/harness-platform/platform_core/user_plugins/bidder/operation.py
+@@ -0,0 +1,99 @@
++"""Shared authenticated commands for the settings screen and Octopus."""
++from datetime import datetime
++import json
++import time
++
++from starlette.exceptions import HTTPException
++from starlette.responses import JSONResponse
++from starlette.routing import Route
++
++from ...chat_connections import scope_for
++from . import catalog, state
++from .economy import GOALS
++
++BASE = "/api/chats/{chat_id}/plugins/ozon-bidder"
++
++
++def command(db, scope, op, args):
++    catalog.require_plugin(db, scope)
++    if op == "list":
++        rules = db.execute("""SELECT id,revision,state,config,json_array_length(skus),next_at FROM bidder_rules
++            WHERE workspace=? AND chat=? ORDER BY rowid DESC""", (scope.workspace_id, scope.chat_id))
++        return {"stores":catalog.stores(db, scope), "goals":GOALS, "rules":[
++            dict(id=i, revision=r, state=s, name=json.loads(c)["name"], count=n, nextAt=t) for i,r,s,c,n,t in rules]}
++    if op == "catalog":
++        cat = catalog.load(db, scope, args["cid"])
++        offset = int(args.get("offset", 0))
++        if offset < 0:
++            raise ValueError("Проверьте страницу.")
++        return cat.page(args.get("query", ""), offset, args.get("category"))
++    if op == "preview":
++        return state.preview(db, scope, args["cid"], args["catalogRevision"], args["selection"], args["config"],
++                             previous=args.get("id"), expected=args.get("revision"),
++                             inventory=inventory(db, scope, args["cid"]))
++    if op == "stopAll":
++        items = db.execute("SELECT id,revision FROM bidder_rules WHERE workspace=? AND chat=? AND state<>'stopped'",
++                           (scope.workspace_id, scope.chat_id)).fetchall()
++        for ident, revision in items:
++            state.pause(db, scope, ident, revision, stop=True)
++        return {"stopped":len(items), "advertisingChanged":False}
++    item = state.rule(db, scope, args["id"])
++    if op in ("pause", "stop"):
++        return state.pause(db, scope, item["id"], args["revision"], op == "stop")
++    catalog.binding(db, scope, item["cid"])
++    if op == "get":
++        return item
++    if op == "confirm":
++        return state.confirm(db, scope, item["id"], args["revision"], args["receipt"],
++                             inventory=inventory(db, scope, item["cid"]))
++    if op == "check":
++        if item["state"] != "active" or item["revision"] != args["revision"]:
++            raise HTTPException(409, "Проверьте состояние и версию стратегии.")
++        db.execute("UPDATE bidder_rules SET next_at=unixepoch() WHERE id=?", (item["id"],))
++        return {"state":"queued"}
++    if op == "history":
++        rows = db.execute("""SELECT id,at,revision,kind,body FROM bidder_events WHERE rule=? ORDER BY id DESC LIMIT 100""", (item["id"],))
++        return {"events":[dict(id=k,at=t,revision=r,kind=e,result=json.loads(v)) for k,t,r,e,v in rows]}
++    raise ValueError("Неизвестная операция.")
++
++
++def inventory(db, scope, cid):
++    sid, version = catalog.binding(db, scope, cid)
++    row = db.execute("""SELECT fact FROM bidder_reads WHERE store=? AND profile='performance' AND source='inventory'
++        AND query='' AND scope=? AND error IS NULL AND observed>=unixepoch()-900""",
++        (sid, catalog.fingerprint([cid,version]))).fetchone()
++    return json.loads(row[0]) if row and row[0] else None
++
++
++def routes(get_token, body):
++    async def handle(req):
++        token = get_token(req, allow_cookie=True)
++        identity = req.app.state.identity
++        if req.method == "GET":
++            op, args = "list", {}
++        else:
++            data = await body(req, "op", "args", limit=2*1024*1024)
++            op, args = data["op"], data["args"]
++            if not isinstance(op, str) or not isinstance(args, dict):
++                raise ValueError("Проверьте параметры.")
++        if op in ("preview", "confirm"):
++            with identity._lock:
++                db = identity._db
++                scope = scope_for(db, token, req.path_params["chat_id"])
++                cid = args.get("cid") if op == "preview" else state.rule(db,scope,args.get("id"))["cid"]
++                cached = inventory(db, scope, cid)
++            if cached is None:
++                from .performance import Deferred
++                try:
++                    await req.app.state.bidder.performance.inventory(scope, cid)
++                except (Deferred, HTTPException, KeyError, ValueError):
++                    pass  # Observation remains available. Confirmation independently checks complete inventory.
++        with identity._write() if req.method == "POST" else identity._lock:
++            db = identity._db
++            scope = scope_for(db, token, req.path_params["chat_id"])
++            try:
++                result = command(db, scope, op, args)
++            except (KeyError, TypeError) as error:
++                raise HTTPException(400, "Проверьте параметры формы.") from error
++        return JSONResponse(result)
++    return [Route(BASE, handle, methods=["GET","POST"])]
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/performance.py b/products/harness-platform/platform_core/user_plugins/bidder/performance.py
+new file mode 100644
+index 0000000..31d7335
+--- /dev/null
++++ b/products/harness-platform/platform_core/user_plugins/bidder/performance.py
+@@ -0,0 +1,254 @@
++"""Scoped, paginated Performance reads. Secret material never enters snapshots."""
++import asyncio
++import json
++import time
++
++import httpx
++from starlette.exceptions import HTTPException
++
++from ...chat_connections import unseal
++from ...marketplace_matrix.ozon_campaign_actions import valid_id
++from . import catalog, queue
++from .economy import number
++
++ORIGIN = "https://api-performance.ozon.ru"
++ROOT = "/api/client/campaign"
++
++
++class Deferred(Exception):
++    pass
++
++
++def normalize_campaign(row, products):
++    strategy = row.get("productAutopilotStrategy")
++    if isinstance(strategy, dict):
++        strategy = strategy.get("strategy")
++    return {"id":str(row["id"]), "payment":row.get("PaymentType",row.get("paymentType")), "state":row["state"],
++            "strategy":strategy,"placement":row.get("placement"),
++            "weeklyRub":str(number(row["weeklyBudget"])/1_000_000) if row.get("weeklyBudget") is not None else None,
++            "addMode":(row.get("autopilot") or {}).get("skuAddMode"), "products":products}
++
++
++class Performance:
++    def __init__(self, app):
++        self.app = app
++        self.tokens = {}
++        self.token_lock = asyncio.Lock()
++
++    def check(self, db, scope, cid, pin):
++        if catalog.binding(db,scope,cid,ads=True) != pin:
++            raise HTTPException(403, "Подключение изменилось.")
++
++    async def token(self, scope, cid, pin):
++        async with self.token_lock:
++            with self.app.identity._lock:
++                db = self.app.identity._db
++                self.check(db,scope,cid,pin)
++                key = (scope.workspace_id,cid,pin[1])
++                found = self.tokens.get(key)
++                if found and found[1] > time.time():
++                    return found[0]
++                sealed, = db.execute("SELECT encrypted FROM account_integrations WHERE id=? AND workspace=?",
++                                      (cid,scope.workspace_id)).fetchone()
++                fields = unseal(scope.workspace_id,"ozon",cid,sealed)
++            reply = await self.app.http.post(ORIGIN+"/api/client/token",json={"client_id":fields["performance_id"],
++                "client_secret":fields["performance_secret"],"grant_type":"client_credentials"})
++            reply.raise_for_status()
++            payload = reply.json()
++            value = payload["access_token"]
++            if not isinstance(value,str) or not value or any(c.isspace() for c in value):
++                raise ValueError("Ozon не подтвердил доступ к рекламе.")
++            self.tokens = {k:v for k,v in self.tokens.items() if v[1] > time.time()}
++            self.tokens[key] = value, time.time()+max(0,int(payload["expires_in"])-30)
++            return value
++
++    async def read(self, scope, cid, pin, source, query, path, params=None, body=None, ttl=900, since=None, seller=False, stamps=None):
++        key = (pin[0],"seller" if seller else "performance",source,query,catalog.fingerprint([cid,pin[1]]))
++        if seller and (path != "/v1/analytics/data" or source != "orders-by-sku" or body is None):
++            raise ValueError("Неизвестный источник заказов.")
++        now = int(time.time())
++        with self.app.identity._write() as db:
++            self.check(db,scope,cid,pin)
++            cached = db.execute("""SELECT fact,observed FROM bidder_reads WHERE (store,profile,source,query,scope)=(?,?,?,?,?)
++                AND error IS NULL AND observed>?""", (*key,max(now-ttl,(since or 0)-1))).fetchone()
++            if cached and cached[0] is not None:
++                if stamps is not None:
++                    stamps.append(cached[1])
++                return json.loads(cached[0])
++            if since is not None:
++                db.execute("""UPDATE bidder_reads SET next_at=min(next_at,?) WHERE
++                    (store,profile,source,query,scope)=(?,?,?,?,?) AND observed<? AND error IS NULL""",(now,*key,since))
++            lease = queue.acquire(db,key,source,now)
++            if not lease:
++                raise Deferred()
++            if seller:
++                from .queue import seller_quota
++                if not seller_quota(db,key,lease,now):
++                    return None
++        try:
++            for attempt in range(2):
++                if seller:
++                    with self.app.identity._lock:
++                        db = self.app.identity._db
++                        self.check(db,scope,cid,pin)
++                        sealed, = db.execute("SELECT encrypted FROM account_integrations WHERE id=? AND workspace=?",
++                                             (cid,scope.workspace_id)).fetchone()
++                        fields = unseal(scope.workspace_id,"ozon",cid,sealed)
++                    headers = {"Client-Id":fields["client_id"],"Api-Key":fields["api_key"]}
++                    origin = "https://api-seller.ozon.ru"
++                else:
++                    token = await self.token(scope,cid,pin)
++                    with self.app.identity._lock:
++                        self.check(self.app.identity._db,scope,cid,pin)
++                    headers = {"Authorization":"Bearer "+token}
++                    origin = ORIGIN
++                reply = await self.app.http.request("GET" if body is None else "POST",origin+path,
++                    headers=headers,params=params,json=body,timeout=25)
++                if seller or reply.status_code != 401 or attempt:
++                    break
++                self.tokens.pop((scope.workspace_id,cid,pin[1]),None)
++            reply.raise_for_status()
++            result = reply.json()
++            if not isinstance(result,dict):
++                raise ValueError("Ozon вернул неполный ответ.")
++            with self.app.identity._write() as db:
++                self.check(db,scope,cid,pin)
++                observed = int(time.time())
++                if not queue.finish(db,key,lease,catalog.encoded(result),observed,ttl):
++                    raise Deferred()
++            if stamps is not None:
++                stamps.append(observed)
++            return result
++        except (httpx.HTTPError, ValueError, KeyError) as error:
++            response = getattr(error,"response",None)
++            status = response.status_code if response is not None else "network_or_schema"
++            headers = response.headers if response is not None else {}
++            with self.app.identity._write() as db:
++                queue.later(db,key,lease,"*",status,headers,int(time.time()),
++                            spacing=int(time.time())+86400 if status in (400,401,403) else 0)
++            raise Deferred("Ozon временно не подтвердил данные.") from None
++
++    async def inventory(self, scope, cid, *, since=None):
++        with self.app.identity._lock:
++            pin = catalog.binding(self.app.identity._db,scope,cid,ads=True)
++        stamps = []
++        payload = await self.read(scope,cid,pin,"campaigns","",ROOT,since=since,stamps=stamps)
++        rows = payload.get("list")
++        if not isinstance(rows,list) or int(payload.get("total",len(rows))) != len(rows):
++            raise Deferred("Ozon не подтвердил полный список кампаний.")
++        output, ids, unclassified = [], set(), False
++        for row in rows:
++            ident = str(row["id"])
++            if not valid_id(ident) or ident in ids:
++                raise Deferred("Ozon не подтвердил номера кампаний.")
++            ids.add(ident)
++            if row.get("state") in ("CAMPAIGN_STATE_ARCHIVED","CAMPAIGN_STATE_FINISHED"):
++                continue
++            payments = {row[k] for k in ("PaymentType", "paymentType") if k in row}
++            if payments != {"CPC"}:
++                unclassified = True
++                continue
++            members, page = {}, 1
++            while True:
++                data = await self.read(scope,cid,pin,"products",f"{ident}.{page}", ROOT+"/"+ident+"/v2/products",
++                                       {"page":page,"pageSize":100},ttl=900,since=since,stamps=stamps)
++                goods = data.get("products")
++                if not isinstance(goods,list) or len(goods)>100:
++                    raise Deferred("Ozon не подтвердил состав кампании.")
++                for product in goods:
++                    sku = str(product["sku"])
++                    if not valid_id(sku) or sku in members:
++                        raise Deferred("Повтор товара при чтении страниц кампании.")
++                    members[sku] = {k:product[k] for k in ("bid","targetCir","topPosition") if k in product}
++                    # A missing targeting field is not proof of an empty keyword list.
++                    members[sku]["keywordsVerified"] = isinstance(product.get("phrases"),list) and isinstance(product.get("stopWords"),list)
++                    members[sku]["emptyKeywords"] = product.get("phrases") == [] and product.get("stopWords") == []
++                if len(goods)<100:
++                    if "total" in data and int(data["total"]) != len(members):
++                        raise Deferred("Изменился состав кампании.")
++                    break
++                page += 1
++            output.append(normalize_campaign(row,members))
++        cpo, page, total = {}, 1, None
++        while True:
++            result = await self.read(scope,cid,pin,"cpo",str(page), ROOT+"/search_promo/v2/products",
++                                     body={"page":page,"pageSize":100},ttl=900,since=since,stamps=stamps)
++            goods, count = result["products"], int(result["total"])
++            if (total is not None and count!=total) or not isinstance(goods,list) or len(goods)>100:
++                raise Deferred("Ozon не подтвердил состав оплаты за заказ.")
++            total = count
++            for row in goods:
++                sku = str(row["sku"])
++                if not valid_id(sku) or sku in cpo or type(row.get("searchPromoStatus")) is not bool:
++                    raise Deferred("Некорректные сведения об оплате за заказ.")
++                cpo[sku] = row["searchPromoStatus"]
++            if len(cpo)==total:
++                break
++            if not goods or len(cpo)>total:
++                raise Deferred("Неполные сведения об оплате за заказ.")
++            page += 1
++        stamp=int(time.time())
++        inv={"complete":True,"at":stamp,"campaigns":output,"cpo":cpo}
++        key=(pin[0],"performance","inventory","",catalog.fingerprint([cid,pin[1]]))
++        with self.app.identity._write() as db:
++            self.check(db,scope,cid,pin)
++            if not stamps or not 0<=stamp-min(stamps)<=900:
++                raise Deferred("Данные о составе рекламы устарели.")
++            inv.update(at=min(stamps), unclassifiedSpend=unclassified)
++            db.execute("""INSERT INTO bidder_reads(store,profile,source,query,scope,next_at,fact,observed)
++                VALUES(?,?,?,?,?,?,?,?) ON CONFLICT DO UPDATE SET next_at=excluded.next_at,fact=excluded.fact,
++                observed=excluded.observed,error=NULL""",(*key,inv["at"]+900,catalog.encoded(inv),inv["at"]))
++        return inv
++
++    async def execute(self, scope, item, candidate, now):
++        """Send one confirmed intent. A transport error leaves the resource fenced."""
++        from . import executor, state
++        inv = await self.inventory(scope,item["cid"],since=int(time.time()))
++        row = next((r for r in inv["campaigns"] if r["id"]==candidate["campaign"]),None)
++        if row is None or catalog.fingerprint(row)!=candidate["baseline"]:
++            raise Deferred("Настройки рекламы изменились после расчёта.")
++        if inv.get("unclassifiedSpend") or not inv["complete"]:
++            raise Deferred("Изменилась полнота данных о других расходах.")
++        pin = item["store"],item["key_version"]
++        token = await self.token(scope,item["cid"],pin)
++        with self.app.identity._write() as db:
++            self.check(db,scope,item["cid"],pin)
++            proof = db.execute("""SELECT value,proof,observed FROM bidder_proposals
++                WHERE (rule,revision,window,campaign,sku,field)=(?,?,?,?,?,?)""",
++                (item["id"],item["revision"],candidate["window"],row["id"],candidate["sku"],candidate["field"])).fetchone()
++            if not proof or proof[:2]!=(candidate["value"],candidate["baseline"]) or not 0<=now-proof[2]<=60:
++                raise Deferred("Нужно повторить расчёт с текущими данными.")
++            intent = executor.open_intent(db,scope,item,row,candidate["field"],candidate["sku"],
++                                          candidate["value"],candidate["window"],int(time.time()))
++        if intent is None:
++            return
++        ident,method,suffix,body = intent
++        try:
++            reply = await self.app.http.request(method,ORIGIN+ROOT+"/"+row["id"]+suffix,
++                headers={"Authorization":"Bearer "+token},json=body,timeout=20)
++            if reply.status_code==429:
++                from ...marketplace_matrix.store_currency import retry_time
++                until = int(retry_time(reply.headers,time.time()) or time.time()+900)+1
++                with self.app.identity._write() as db:
++                    db.execute("""INSERT INTO bidder_quota VALUES(?,'performance','*',?) ON CONFLICT DO UPDATE
++                        SET not_before=max(not_before,excluded.not_before)""",(pin[0],until))
++        except httpx.HTTPError:
++            pass
++        # Even a 2xx reply does not release the fence.
++        after = int(time.time())+1
++        await asyncio.sleep(max(0,after-time.time()))
++        observed = await self.inventory(scope,item["cid"],since=after)
++        self.reconcile(scope,item,observed)
++
++    def reconcile(self, scope, item, inventory):
++        from . import executor
++        if not inventory.get("complete"):
++            return
++        by_id = {row["id"]:row for row in inventory["campaigns"]}
++        with self.app.identity._write() as db:
++            self.check(db,scope,item["cid"],(item["store"],item["key_version"]))
++            pending = db.execute("""SELECT w.id,w.campaign,w.at FROM bidder_writes w JOIN bidder_rules r ON r.id=w.rule
++                WHERE r.id=? AND r.cid=? AND w.state='unknown'""",(item["id"],item["cid"])).fetchall()
++            for ident,campaign,at in pending:
++                if inventory["at"]>at and campaign in by_id:
++                    executor.reconcile(db,ident,by_id[campaign])
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/queue.py b/products/harness-platform/platform_core/user_plugins/bidder/queue.py
+new file mode 100644
+index 0000000..2c9947b
+--- /dev/null
++++ b/products/harness-platform/platform_core/user_plugins/bidder/queue.py
+@@ -0,0 +1,95 @@
++"""Persistent single-flight reads and storage for write reconciliation."""
++from math import ceil
++import random
++import time
++from uuid import uuid4
++
++from ...marketplace_matrix.store_currency import retry_time
++
++TTL = {"campaigns":900,"products":3600,"today":900,"yesterday":21600,"spend":1800,
++       "cpo":3600,"prices":1800,"stocks":1800,"orders":21600,"finance":86400,
++       "limits":86400,"history":86400,"coefficients":604800}
++SCHEMA = (
++    """CREATE TABLE IF NOT EXISTS bidder_reads(store TEXT,profile TEXT,source TEXT,query TEXT,scope TEXT,
++        next_at INTEGER NOT NULL,attempt INTEGER NOT NULL DEFAULT 0,lease TEXT,until INTEGER NOT NULL DEFAULT 0,
++        fact TEXT,observed INTEGER,report_id TEXT,error TEXT,PRIMARY KEY(store,profile,source,query,scope))""",
++    """CREATE TABLE IF NOT EXISTS bidder_request_counts(store TEXT,profile TEXT,day TEXT,count INTEGER,
++        PRIMARY KEY(store,profile,day))""",
++    """CREATE TABLE IF NOT EXISTS bidder_quota(store TEXT,profile TEXT,group_id TEXT,not_before INTEGER NOT NULL,
++        PRIMARY KEY(store,profile,group_id))""",
++    """CREATE TABLE IF NOT EXISTS bidder_writes(id TEXT PRIMARY KEY,rule TEXT NOT NULL REFERENCES bidder_rules ON DELETE CASCADE,
++        revision INTEGER NOT NULL,campaign TEXT NOT NULL,field TEXT NOT NULL,sku TEXT NOT NULL,
++        before_hash TEXT NOT NULL,before_state TEXT NOT NULL,target TEXT NOT NULL,state TEXT NOT NULL,
++        observed TEXT,at INTEGER NOT NULL,UNIQUE(rule,revision,campaign,field,sku,before_hash,target))""",
++    """CREATE TABLE IF NOT EXISTS bidder_inflight(store TEXT,kind TEXT,resource TEXT,operation TEXT NOT NULL,
++        PRIMARY KEY(store,kind,resource))""",
++    """CREATE TABLE IF NOT EXISTS bidder_changes(operation TEXT PRIMARY KEY,store TEXT,campaign TEXT,
++        field TEXT,sku TEXT,at INTEGER,window TEXT)""",
++    """CREATE INDEX IF NOT EXISTS bidder_changes_resource ON bidder_changes(store,campaign,field,sku,at)""",
++    """CREATE TABLE IF NOT EXISTS bidder_delivery(event INTEGER PRIMARY KEY REFERENCES bidder_events ON DELETE CASCADE,
++        state TEXT NOT NULL,due INTEGER NOT NULL DEFAULT 0)""",
++)
++
++
++def install(db):
++    from .observations import SCHEMA as observations
++    for stmt in (*SCHEMA,*observations):
++        db.execute(stmt)
++
++
++def cadence_minutes(desired, pages, quota, reserved=0):
++    usable = quota * 4 // 5 - reserved
++    return max(desired, ceil(1440 * pages / usable)) if usable > 0 else None
++
++
++def acquire(db, key, group, now):
++    db.execute("INSERT OR IGNORE INTO bidder_reads(store,profile,source,query,scope,next_at) VALUES(?,?,?,?,?,0)", key)
++    lease = uuid4().hex
++    changed = db.execute("""UPDATE bidder_reads SET lease=?,until=? WHERE
++        (store,profile,source,query,scope)=(?,?,?,?,?) AND next_at<=? AND until<=?
++        AND NOT EXISTS(SELECT 1 FROM bidder_quota WHERE store=? AND profile=? AND group_id IN (?, '*') AND not_before>?)""",
++        (lease, now + 120, *key, now, now, key[0], key[1], group, now)).rowcount
++    return lease if changed else None
++
++
++def finish(db, key, lease, fact, now, ttl):
++    return db.execute("""UPDATE bidder_reads SET fact=?,observed=?,next_at=?,attempt=0,lease=NULL,until=0,error=NULL
++        WHERE (store,profile,source,query,scope)=(?,?,?,?,?) AND lease=? AND until>?""",
++        (fact, now, now + ttl, *key, lease, now)).rowcount == 1
++
++
++def later(db, key, lease, group, status, headers, now, *, reset=0, spacing=0):
++    row = db.execute("SELECT attempt FROM bidder_reads WHERE (store,profile,source,query,scope)=(?,?,?,?,?) AND lease=?", (*key, lease)).fetchone()
++    if not row:
++        return None
++    attempt = row[0]
++    backoff = (7, 14, 28, 56, 112)[attempt] if attempt < 5 else 900
++    known = retry_time(headers, now)
++    until = ceil(max(reset, spacing, known if known is not None else now+backoff, now) + random.uniform(.01, 1))
++    if status == 429:
++        db.execute("""INSERT INTO bidder_quota VALUES(?,?,?,?) ON CONFLICT DO UPDATE
++            SET not_before=max(not_before,excluded.not_before)""", (*key[:2], group, until))
++        until = db.execute("SELECT max(not_before) FROM bidder_quota WHERE store=? AND profile=? AND group_id IN (?, '*')",
++                           (*key[:2], group)).fetchone()[0]
++    db.execute("""UPDATE bidder_reads SET next_at=?,attempt=attempt+1,lease=NULL,until=0,error=?
++        WHERE (store,profile,source,query,scope)=(?,?,?,?,?) AND lease=?""",
++        (until, str(status), *key, lease))
++    return until
++
++
++def seller_quota(db, key, lease, now):
++    from datetime import datetime, timedelta, time as day_start
++    from zoneinfo import ZoneInfo
++    tz = ZoneInfo("Europe/Moscow")
++    day = datetime.fromtimestamp(now,tz).date()
++    midnight = int(datetime.combine(day+timedelta(days=1),day_start(),tz).timestamp())
++    db.execute("INSERT OR IGNORE INTO bidder_request_counts VALUES(?,?,?,0)",(*key[:2],str(day)))
++    used = db.execute("UPDATE bidder_request_counts SET count=count+1 WHERE store=? AND profile=? AND day=? AND count<40",
++                      (*key[:2],str(day))).rowcount
++    due = now+61 if used else midnight
++    db.execute("""INSERT INTO bidder_quota VALUES(?,?,'orders-by-sku',?) ON CONFLICT DO UPDATE
++        SET not_before=max(not_before,excluded.not_before)""",(*key[:2],due))
++    if not used:
++        db.execute("""UPDATE bidder_reads SET next_at=?,until=0,lease=NULL WHERE
++            (store,profile,source,query,scope)=(?,?,?,?,?) AND lease=?""",(due,*key,lease))
++    return bool(used)
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/scheduler.py b/products/harness-platform/platform_core/user_plugins/bidder/scheduler.py
+new file mode 100644
+index 0000000..b57b477
+--- /dev/null
++++ b/products/harness-platform/platform_core/user_plugins/bidder/scheduler.py
+@@ -0,0 +1,148 @@
++"""One background loop. Only accepted rules can request current sources."""
++import asyncio
++from datetime import datetime, timedelta
++import json
++import logging
++import time
++from zoneinfo import ZoneInfo
++
++from starlette.exceptions import HTTPException
++
++from ... import market_access, market_data, market_query
++from ...storage import Scope
++from . import catalog, state, observations, economy
++from .queue import TTL
++
++SOURCE_SET = {"catalog":86400, "prices":TTL["prices"], "inventory":TTL["stocks"], "orders":TTL["orders"],
++              "advertising":TTL["history"], "realized-items":TTL["finance"], "finance":TTL["finance"],
++              "settled-advertising":TTL["history"]}
++
++
++def refresh(db, item, now):
++    """Reopen completed scoped jobs only when due; no seed or year-long import."""
++    end = datetime.fromtimestamp(now, ZoneInfo("Europe/Moscow")).date() - timedelta(days=1)
++    start = end - timedelta(days=item["config"].get("windowDays", 7) - 1)
++    coverage = {}
++    for source, ttl in SOURCE_SET.items():
++        if source in ("realized-items", "finance", "settled-advertising") and item["config"]["strategy"] == "N1":
++            continue
++        if not market_access.allowed(db, item["cid"], source):
++            coverage[source] = "denied"
++            continue
++        dates = ("","") if source in ("catalog", "prices", "inventory") else (str(start), str(end))
++        key = market_data.enqueue(db, item["store"], source, *dates, cid=item["cid"])
++        status, finished = db.execute("SELECT state,finished FROM market_data_tasks WHERE id=?", (key,)).fetchone()
++        if status in ("done","incomplete") and (finished is None or now - finished >= ttl):
++            db.execute("UPDATE market_data_tasks SET state='queued',due=? WHERE id=?", (now,key))
++            status = "queued"
++        coverage[source] = status
++    return coverage
++
++
++def record(db, item, reason, result):
++    previous = db.execute("SELECT kind,body FROM bidder_events WHERE rule=? ORDER BY id DESC LIMIT 1", (item["id"],)).fetchone()
++    body = catalog.encoded(result)
++    if previous == (reason, body):
++        return
++    state.event(db, item["id"], item["revision"], reason, result)
++    if item["config"].get("telegram"):
++        db.execute("INSERT INTO bidder_delivery(event,state) VALUES(last_insert_rowid(),'ready')")
++
++
++class Scheduler:
++    def __init__(self, app):
++        from .performance import Performance
++        self.app = app
++        self.pending = None
++        self.performance = Performance(app)
++        self.task = asyncio.create_task(self.run())
++
++    async def close(self):
++        self.task.cancel()
++        await asyncio.gather(self.task, return_exceptions=True)
++
++    def due(self, now):
++        with self.app.identity._write() as db:
++            due = db.execute("""SELECT w.owner_id,r.workspace,r.chat,r.id FROM bidder_rules r JOIN workspaces w
++                ON w.workspace_id=r.workspace WHERE r.state='active' AND r.next_at<=?
++                ORDER BY r.next_at,r.rowid LIMIT 1""", (now,)).fetchone()
++            if not due:
++                return False
++            scope = Scope(*due[:3])
++            ident = due[3]
++            item = state.rule(db, scope, ident)
++            cfg = item["config"]
++            check_at = state.next_time(cfg, now)
++            if check_at > now:
++                db.execute("UPDATE bidder_rules SET next_at=? WHERE id=?", (check_at, ident))
++                return True
++            try:
++                sid, generation = catalog.binding(db, scope, item["cid"], ads=cfg["mode"] == "auto")
++                if (sid, generation) != (item["store"],item["key_version"]):
++                    raise HTTPException(403, "Подключение изменилось.")
++                coverage = refresh(db, item, now)
++                self.pending = scope, item, coverage
++                db.execute("UPDATE bidder_rules SET next_at=? WHERE id=?", (state.next_time(cfg,now+60*cfg["interval"]),ident))
++            except HTTPException as error:
++                state.pause(db, scope, ident, item["revision"])
++                record(db, item, "accessChanged", {"message":str(error.detail)})
++        self.app.market_collector.wake.set()
++        return True
++
++    async def evaluate(self, scope, item, coverage):
++        from .performance import Deferred
++        now = int(time.time())
++        result = {"sources":coverage,"advertisingChanged":False,"count":len(item["skus"])}
++        reason = "observation"
++        try:
++            inv = await self.performance.inventory(scope,item["cid"])
++            await observations.collect(self.performance,scope,item,inv,now)
++            with self.app.identity._lock:
++                result.update(observations.snapshot(self.app.identity._db,scope,item,inv,now))
++            result.update(await observations.order_totals(self.performance,scope,item,result["from"],result["to"]))
++            with self.app.identity._lock:
++                decision = observations.assess(self.app.identity._db,scope,item,result,inv,now)
++            result.update(decision)
++        except (Deferred, HTTPException, KeyError, TypeError, ValueError) as error:
++            reason = "waiting"
++            result["message"] = error.detail if isinstance(error,HTTPException) else str(error) if isinstance(error,Deferred) and str(error) else "Ожидаю подтверждённую статистику магазина и рекламы."
++        with self.app.identity._write() as db:
++            current = state.rule(db,scope,item["id"])
++            if current["state"]=="active" and current["revision"]==item["revision"]:
++                record(db,item,reason,result)
++
++    async def deliver(self):
++        with self.app.identity._write() as db:
++            row = db.execute("""SELECT d.event,r.workspace,r.config,e.body FROM bidder_delivery d
++                JOIN bidder_events e ON e.id=d.event JOIN bidder_rules r ON r.id=e.rule
++                JOIN chat_plugins p ON p.workspace_id=r.workspace AND p.chat_id=r.chat AND p.plugin_id=?
++                WHERE d.state='ready' AND d.due<=unixepoch() AND e.revision=r.revision
++                AND r.state='active' ORDER BY d.event LIMIT 1""", (catalog.PLUGIN,)).fetchone()
++            if not row:
++                return
++            ident, workspace, cfg, body = row
++            # Persist unknown before network I/O. A crash after Telegram accepts a message must not resend it.
++            db.execute("UPDATE bidder_delivery SET state='unknown' WHERE event=?", (ident,))
++        try:
++            await self.app.telegram.send(workspace, json.loads(cfg)["name"] + " · " + json.loads(body)["message"])
++        except Exception as error:
++            status = getattr(error, "status", "unknown")
++            state_name = "disconnected" if status in ("blocked", "disconnected") else "unknown"
++        else:
++            state_name = "sent"
++        with self.app.identity._write() as db:
++            db.execute("UPDATE bidder_delivery SET state=? WHERE event=?", (state_name, ident))
++
++    async def run(self):
++        while True:
++            try:
++                busy = self.due(int(time.time()))
++                if self.pending:
++                    work = self.pending
++                    self.pending = None
++                    await self.evaluate(*work)
++                await self.deliver()
++            except Exception as error:
++                logging.getLogger(__name__).warning("Bidder scheduler deferred: %s", type(error).__name__)
++                busy = False
++            await asyncio.sleep(0.1 if busy else 10)
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/state.py b/products/harness-platform/platform_core/user_plugins/bidder/state.py
+new file mode 100644
+index 0000000..95fef74
+--- /dev/null
++++ b/products/harness-platform/platform_core/user_plugins/bidder/state.py
+@@ -0,0 +1,206 @@
++"""Transactional strategy drafts, confirmations, ownership and decision history."""
++from datetime import datetime, time as wall_time, timedelta
++import json
++import sqlite3
++import time
++from uuid import uuid4
++from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
++
++from starlette.exceptions import HTTPException
++
++from . import catalog
++from .catalog import encoded, fingerprint
++from .economy import GOALS, number
++
++SCHEMA = (
++    """CREATE TABLE IF NOT EXISTS bidder_rules(
++        id TEXT PRIMARY KEY,workspace TEXT NOT NULL,chat TEXT NOT NULL,cid TEXT NOT NULL REFERENCES account_integrations(id) ON DELETE CASCADE,
++        store TEXT NOT NULL REFERENCES market_data_stores(id) ON DELETE CASCADE,key_version INTEGER NOT NULL,revision INTEGER NOT NULL,
++        state TEXT NOT NULL,config TEXT NOT NULL,skus TEXT NOT NULL,plan TEXT NOT NULL,receipt TEXT NOT NULL,next_at INTEGER,
++        FOREIGN KEY(workspace,chat) REFERENCES chats(workspace_id,chat_id) ON DELETE CASCADE)""",
++    "CREATE INDEX IF NOT EXISTS bidder_due ON bidder_rules(next_at) WHERE state='active'",
++    """CREATE TABLE IF NOT EXISTS bidder_ownership(store TEXT NOT NULL,kind TEXT NOT NULL,resource TEXT NOT NULL,
++        rule TEXT NOT NULL REFERENCES bidder_rules(id) ON DELETE CASCADE,revision INTEGER NOT NULL,
++        PRIMARY KEY(store,kind,resource))""",
++    """CREATE TABLE IF NOT EXISTS bidder_events(id INTEGER PRIMARY KEY,rule TEXT NOT NULL REFERENCES bidder_rules(id) ON DELETE CASCADE,
++        at INTEGER NOT NULL,revision INTEGER NOT NULL,kind TEXT NOT NULL,body TEXT NOT NULL)""",
++    "CREATE INDEX IF NOT EXISTS bidder_journal ON bidder_events(rule,id)",
++    """CREATE TRIGGER IF NOT EXISTS bidder_disable AFTER DELETE ON chat_plugins
++        WHEN OLD.plugin_id IN ('ozon-bidder','ozon') BEGIN
++        UPDATE bidder_rules SET state='paused',revision=revision+1,next_at=NULL WHERE workspace=OLD.workspace_id AND chat=OLD.chat_id;
++        DELETE FROM bidder_ownership WHERE rule IN (SELECT id FROM bidder_rules WHERE workspace=OLD.workspace_id AND chat=OLD.chat_id);
++        END""",
++    """CREATE TRIGGER IF NOT EXISTS bidder_detach AFTER DELETE ON chat_integrations BEGIN
++        UPDATE bidder_rules SET state='paused',revision=revision+1,next_at=NULL WHERE chat=OLD.chat_id AND cid=OLD.connection_id;
++        DELETE FROM bidder_ownership WHERE rule IN (SELECT id FROM bidder_rules WHERE chat=OLD.chat_id AND cid=OLD.connection_id);
++        END""",
++    """CREATE TRIGGER IF NOT EXISTS bidder_rotate AFTER UPDATE OF version,status ON account_integrations
++        WHEN OLD.version<>NEW.version OR NEW.status<>'verified' BEGIN
++        UPDATE bidder_rules SET state='paused',revision=revision+1,next_at=NULL WHERE cid=NEW.id;
++        DELETE FROM bidder_ownership WHERE rule IN (SELECT id FROM bidder_rules WHERE cid=NEW.id);
++        END""",
++)
++
++
++def install(db):
++    for statement in SCHEMA:
++        db.execute(statement)
++
++
++def config(raw):
++    keys = {"name", "strategy", "target", "budget", "reserve", "growth", "step", "band", "mode", "interval",
++            "timezone", "days", "start", "end", "telegram", "objective", "parameterMax", "campaigns",
++            "minStock", "experiment", "windowDays", "changeHours", "minMargin"}
++    if not isinstance(raw, dict) or raw.keys() - keys:
++        raise ValueError("Неизвестные настройки стратегии.")
++    out = dict(raw)
++    if not isinstance(out.get("name"), str) or not 1 <= len(out["name"].strip()) <= 150:
++        raise ValueError("Укажите название до 150 символов.")
++    if out.get("strategy") not in GOALS or out.get("mode") not in ("observe", "auto"):
++        raise ValueError("Выберите цель и режим работы.")
++    for key, low, high in (("budget", "0.01", None), ("reserve", 0, None), ("step", "0.01", 100),
++                           ("band", 0, 100), ("minMargin", 0, 100), ("parameterMax", "0.01", None)):
++        if key not in out and key != "budget":
++            continue
++        out[key] = str(number(out.get(key), minimum=number(low), maximum=high))
++    if number(out.get("reserve", 0)) > number(out["budget"]):
++        raise ValueError("Резерв превышает недельный бюджет.")
++    if out["strategy"] in ("N1", "N2", "N3"):
++        out["target"] = str(number(out.get("target"), maximum=None if out["strategy"] == "N3" else 100))
++    if out["strategy"] == "N6" and out.get("objective") not in ("sales", "profit"):
++        raise ValueError("Выберите цель распределения бюджета.")
++    for key in ("growth", "telegram", "experiment"):
++        if type(out.get(key, False)) is not bool:
++            raise ValueError("Проверьте переключатели.")
++    for key, low, high in (("interval", 5, 1440), ("windowDays", 1, 365), ("changeHours", 1, 8760), ("minStock", 0, 10**9)):
++        if key in out or key == "interval":
++            if type(out.get(key)) is not int or not low <= out[key] <= high:
++                raise ValueError("Проверьте частоту, период и ограничения.")
++    days = out.get("days")
++    if not isinstance(days, list) or not days or any(type(d) is not int or not 0 <= d <= 6 for d in days):
++        raise ValueError("Выберите дни недели.")
++    try:
++        if not isinstance(out.get("timezone"), str):
++            raise ValueError
++        ZoneInfo(out["timezone"])
++        a, b = (wall_time.fromisoformat(out[k]) for k in ("start", "end"))
++        if a.tzinfo or b.tzinfo or a >= b:
++            raise ValueError
++    except (ZoneInfoNotFoundError, ValueError, TypeError, KeyError):
++        raise ValueError("Проверьте время начала, окончания и часовой пояс.") from None
++    ids = out.get("campaigns", [])
++    if not isinstance(ids, list) or any(not isinstance(i, str) or not i.isascii() or not i.isdigit() for i in ids):
++        raise ValueError("Некорректный список кампаний.")
++    out["campaigns"] = sorted(set(ids))
++    return out
++
++
++def next_time(settings, now):
++    tz = ZoneInfo(settings["timezone"])
++    at = datetime.fromtimestamp(now, tz)
++    for delta in range(8):
++        day = at.date() + timedelta(days=delta)
++        if day.weekday() not in settings["days"]:
++            continue
++        start = datetime.combine(day, wall_time.fromisoformat(settings["start"]), tz)
++        end = datetime.combine(day, wall_time.fromisoformat(settings["end"]), tz)
++        candidate = max(start.timestamp(), now)
++        if candidate < end.timestamp():
++            return int(candidate)
++    raise ValueError("Проверьте расписание.")
++
++
++def rule(db, scope, ident):
++    catalog.require_plugin(db, scope)
++    cur = db.execute("SELECT * FROM bidder_rules WHERE workspace=? AND chat=? AND id=?",
++                     (scope.workspace_id, scope.chat_id, ident))
++    row = cur.fetchone()
++    if row is None:
++        raise HTTPException(404, "Стратегия не найдена.")
++    result = dict(zip((c[0] for c in cur.description), row))
++    for field in ("config", "skus", "plan"):
++        result[field] = json.loads(result[field])
++    return result
++
++
++def event(db, ident, revision, kind, body):
++    db.execute("INSERT INTO bidder_events(rule,at,revision,kind,body) VALUES(?,unixepoch(),?,?,?)",
++               (ident, revision, kind, encoded(body)))
++
++
++def preview(db, scope, cid, revision, selection, settings, *, previous=None, expected=None, inventory=None):
++    settings = config(settings)
++    sid, version = catalog.binding(db, scope, cid, ads=settings["mode"] == "auto")
++    current = catalog.load(db, scope, cid)
++    if current.revision != revision:
++        raise HTTPException(409, "Каталог обновился. Проверьте состав товаров.")
++    if time.time() - current.observed > 86400:
++        raise HTTPException(409, "Каталог старше суток. Обновите товары.")
++    skus = current.resolve(selection)
++    from .campaigns import campaign_plan
++    ads = campaign_plan(inventory, skus, settings)
++    plan = dict(catalogRevision=revision, count=len(skus), ads=ads, observed=current.observed)
++    ident = previous or uuid4().hex
++    if previous:
++        old = rule(db, scope, previous)
++        if old["revision"] != expected:
++            raise HTTPException(409, "Стратегию уже изменили. Откройте актуальную версию.")
++        if old["state"] == "active":
++            raise HTTPException(409, "Приостановите управление перед изменением стратегии.")
++        if old["cid"] != cid:
++            raise ValueError("Для другого магазина создайте отдельную стратегию.")
++    rev = expected + 1 if previous else 1
++    receipt = fingerprint([ident, rev, sid, version, skus, settings, plan])
++    db.execute("""INSERT INTO bidder_rules VALUES(?,?,?,?,?,?,?,'draft',?,?,?,?,NULL)
++        ON CONFLICT(id) DO UPDATE SET key_version=excluded.key_version,revision=excluded.revision,state='draft',
++        config=excluded.config,skus=excluded.skus,plan=excluded.plan,receipt=excluded.receipt,next_at=NULL""",
++        (ident, scope.workspace_id, scope.chat_id, cid, sid, version, rev, encoded(settings), encoded(skus), encoded(plan), receipt))
++    event(db, ident, rev, "preview", {"count":len(skus), "mode":settings["mode"]})
++    return rule(db, scope, ident)
++
++
++def confirm(db, scope, ident, revision, receipt, *, inventory=None):
++    item = rule(db, scope, ident)
++    if item["revision"] != revision or item["receipt"] != receipt:
++        raise HTTPException(409, "План изменился. Проверьте новую версию.")
++    if item["state"] == "active":
++        return item
++    if item["state"] != "draft":
++        raise HTTPException(409, "Для возобновления проверьте товары и подтвердите свежий план.")
++    settings = item["config"]
++    sid, version = catalog.binding(db, scope, item["cid"], ads=settings["mode"] == "auto")
++    current = catalog.load(db, scope, item["cid"])
++    if (sid != item["store"] or version != item["key_version"] or current.revision != item["plan"]["catalogRevision"]
++            or time.time() - current.observed > 86400):
++        raise HTTPException(409, "Магазин или каталог изменился. Проверьте план ещё раз.")
++    if settings["mode"] == "auto":
++        from .campaigns import campaign_plan
++        ads = campaign_plan(inventory, item["skus"], settings)
++        if ads != item["plan"]["ads"] or not ads["ready"]:
++            raise HTTPException(409, ads["reason"] or "Настройки рекламы изменились.")
++        resources = [("sku", k) for k in item["skus"]] + [("campaign", k) for k in ads["campaigns"]]
++        if any(db.execute("SELECT 1 FROM bidder_inflight WHERE (store,kind,resource)=(?,?,?)",(sid,kind,key)).fetchone()
++               for kind,key in resources):
++            raise HTTPException(409, "Ожидается проверка предыдущей записи в Ozon.")
++        try:
++            db.executemany("INSERT INTO bidder_ownership VALUES(?,?,?,?,?)",
++                           [(sid, kind, key, ident, revision) for kind, key in resources])
++        except sqlite3.IntegrityError:
++            raise HTTPException(409, "Другой биддер уже управляет товаром или кампанией.") from None
++    due = next_time(settings, int(time.time()))
++    db.execute("UPDATE bidder_rules SET state='active',next_at=? WHERE id=?", (due, ident))
++    event(db, ident, revision, "confirmed", {"receipt":receipt, "count":len(item["skus"])})
++    return rule(db, scope, ident)
++
++
++def pause(db, scope, ident, revision, stop=False):
++    item = rule(db, scope, ident)
++    status = "stopped" if stop else "paused"
++    if item["state"] == status:
++        return item
++    if item["revision"] != revision:
++        raise HTTPException(409, "Стратегию уже изменили.")
++    db.execute("UPDATE bidder_rules SET state=?,revision=revision+1,next_at=NULL WHERE id=?", (status, ident))
++    db.execute("DELETE FROM bidder_ownership WHERE rule=?", (ident,))
++    event(db, ident, revision + 1, status, {"advertisingChanged":False})
++    return rule(db, scope, ident)
+diff --git a/products/harness-platform/platform_core/user_plugins/guides.py b/products/harness-platform/platform_core/user_plugins/guides.py
+new file mode 100644
+index 0000000..afed071
+--- /dev/null
++++ b/products/harness-platform/platform_core/user_plugins/guides.py
+@@ -0,0 +1,33 @@
++"""Versioned plugin help, read on demand by an already-scoped help or setup action."""
++from dataclasses import asdict, dataclass
++
++
++@dataclass(frozen=True)
++class Guide:
++    plugin: str
++    id: str
++    version: int
++    purpose: str
++    text: str
++    aliases: tuple[str, ...] = ()
++    fields: tuple[str, ...] = ()
++
++
++class Guides:
++    def __init__(self, entries):
++        self.by_id = {(e.plugin, e.id): e for e in entries}
++        if len(self.by_id) != len(entries):
++            raise ValueError("Duplicate guide identifiers")
++
++    def lookup(self, plugin, query):
++        query = query.strip().casefold()
++        exact = self.by_id.get((plugin, query))
++        if exact is None:
++            candidates = ((sum(alias in query for alias in e.aliases),e.id,e) for e in self.by_id.values() if e.plugin == plugin)
++            score, _, exact = max(candidates, default=(0,"",None))
++            if not score:
++                exact = self.by_id.get((plugin,"overview"))
++        if exact is None:
++            return None
++        return {"plugin":plugin,"guide":exact.id,"version":exact.version,"purpose":exact.purpose,
++                "text":exact.text,"fields":list(exact.fields)}
+diff --git a/products/harness-platform/platform_core/user_plugins/registry.py b/products/harness-platform/platform_core/user_plugins/registry.py
+index feff127..a393137 100644
+--- a/products/harness-platform/platform_core/user_plugins/registry.py
++++ b/products/harness-platform/platform_core/user_plugins/registry.py
+@@ -119,7 +119,14 @@ TIMER = Plugin(
+     overview_features=("проверять показатели по расписанию и реагировать на заданные условия",),
+     usage="В активном чате «Таймер» показывает расписание, историю и состояние доставки. Для отчёта только в чат Telegram не требуется.",
+ )
+-CATALOG = {plugin.id: plugin for plugin in (WB, OZON, TIMER, TELEGRAM, ILLUSTRATIONS)}
++BIDDER = Plugin("ozon-bidder", "advertising", "Биддер Ozon",
++    "Следить за расходами на рекламу выбранных товаров и управлять ими в пределах согласованной цели.", "bidder",
++    operations=(("Настроить управление рекламой", "ozon", "Ozon Performance"),),
++    keywords="биддер управление рекламой прибыль расходы бюджет",
++    guest=GuestHelp("Вы выбираете товары, сколько готовы потратить и сколько хотите оставить после расходов. "
++                    "Сначала покажу план. Можно начать с наблюдения и посмотреть, хватает ли данных для изменений.",
++                    (("биддер",),), overview="Настраивать рекламу выбранных товаров под цель по продажам или прибыли."))
++CATALOG = {plugin.id: plugin for plugin in (WB, OZON, TIMER, TELEGRAM, ILLUSTRATIONS, BIDDER)}
+ CATEGORIES = (
+     {"id": "automation", "title": "Автоматизация", "parent": None},
+     {"id": "analytics", "title": "Аналитика", "parent": None},
+@@ -211,6 +218,9 @@ def install(db):
+     from .illustrations import SCHEMA as image_schema
+     from .timer.store import initialize as initialize_timers
+     initialize_timers(db)
++    from .bidder import state as bidder_state, queue as bidder_queue
++    bidder_state.install(db)
++    bidder_queue.install(db)
+     db.execute(image_schema)
+     db.execute("""CREATE TABLE IF NOT EXISTS plugin_action_models(workspace TEXT NOT NULL REFERENCES workspaces ON DELETE CASCADE,
+         plugin TEXT NOT NULL, action TEXT NOT NULL, model TEXT NOT NULL, effort TEXT NOT NULL, free INTEGER NOT NULL,
+diff --git a/products/harness-platform/tests/browser/test_bidder_browser.py b/products/harness-platform/tests/browser/test_bidder_browser.py
+new file mode 100644
+index 0000000..4e4d1fa
+--- /dev/null
++++ b/products/harness-platform/tests/browser/test_bidder_browser.py
+@@ -0,0 +1,73 @@
++"""Exercise the installed bidder in the native chat with a synthetic shop."""
++from re import compile as pattern
++from urllib.parse import urlsplit
++
++from playwright.async_api import expect
++from platform_core import market_data
++from platform_core.guest_registration import RegistrationStore
++from platform_core.storage import Scope
++from platform_core.user_plugins.registry import OZON, enable
++from test_account_browser import ProductBrowser, browser_error
++
++
++class BidderBrowser(ProductBrowser):
++    async def test_shop_to_observation_pause_and_journal(self):
++        with RegistrationStore(self.database) as identity:
++            login = identity.login("first-browser", self.password)
++            chat = identity.create_user_chat(login).chat_id
++        with RegistrationStore(self.database) as identity, identity._write() as db:
++            owner, workspace = db.execute("""SELECT w.owner_id,c.workspace_id FROM chats c JOIN workspaces w
++                 ON c.workspace_id=w.workspace_id WHERE c.chat_id=?""", (chat,)).fetchone()
++            scope = Scope(owner, workspace, chat)
++            enable(db, scope, OZON)
++            cid = "browser-synthetic-shop"
++            db.execute("INSERT INTO account_integrations VALUES(?,?,'ozon','Учебный магазин',x'00',1,'verified')",
++                       (cid, workspace))
++            sid = market_data.bind(db, workspace, "ozon", cid, 1, "browser-merchant")
++            db.execute("INSERT INTO integration_access_checks VALUES(?,1,?)", (cid,'{"Seller":"verified"}'))
++            db.execute("INSERT INTO chat_integrations VALUES(?,?)", (chat, cid))
++            db.execute("INSERT INTO user_plugin_stores VALUES('ozon',?,'generation',NULL)", (cid,))
++            task = market_data.enqueue(db, sid, "catalog", cid=cid)
++            cards = [dict(id="item", skus=["8412"], archived=False, title="Кольцо", offer="QA")]
++            with market_data.local(self.database, workspace, "ozon", True) as local:
++                proof = market_data.save_snapshot(local,sid,"catalog","","","",{"cards":cards},cid=cid)
++            db.execute("UPDATE market_data_tasks SET state='done',cid=?,key_version=1,receipt=? WHERE id=?", (cid,proof,task))
++        page = await self.browser.new_page(base_url=self.base_url)
++        self.addAsyncCleanup(page.close)
++        page.on("pageerror", lambda err: print("browser:",browser_error(err), flush=True))
++        page.on("requestfailed", lambda req: print("failed",urlsplit(req.url).path, flush=True))
++        page.on("console", lambda msg: print("console",browser_error(msg.text), flush=True) if msg.type=="error" else None)
++        page.on("response", lambda res: print("http",res.status,urlsplit(res.url).path, flush=True) if res.status>=400 else None)
++        await page.goto("/login")
++        await page.get_by_label("Логин", exact=True).fill("first-browser")
++        await page.get_by_label("Пароль", exact=True).fill(self.password)
++        await page.get_by_role("dialog").get_by_role("button", name="Войти", exact=True).click()
++        await page.wait_for_url(pattern(r".*/app/.*"))
++        await page.goto("/app/chats/" + chat)
++        await page.get_by_role("button", name="Плагины", exact=True).click()
++        directory = page.get_by_role("dialog", name="Плагины")
++        await directory.get_by_role("button", name="Установить Биддер Ozon", exact=True).click()
++        await directory.get_by_role("button", name="Закрыть").click()
++        row = page.get_by_role("navigation", name="Установленные плагины").get_by_role("listitem").filter(has_text="Биддер Ozon")
++        if await row.get_attribute("data-active") != "true":
++            await row.hover()
++            await row.get_by_role("button", name="Действия плагина «Биддер Ozon»").click()
++            menu = page.get_by_role("menu")
++            await expect(menu.get_by_role("menuitem", name="Подключить", exact=True)).to_be_visible()
++            await menu.get_by_role("menuitem", name="Подключить", exact=True).click()
++        await page.get_by_role("button", name="Биддер Ozon", exact=True).click()
++        panel = page.get_by_role("dialog", name="Биддер Ozon")
++        await panel.get_by_role("button", name="Создать стратегию").click()
++        await panel.get_by_label("Название", exact=True).fill("Наблюдение за кольцами")
++        await panel.get_by_label("Из каждых 100 ₽ заказов", exact=False).fill("15")
++        await panel.get_by_label("Недельный бюджет всей рекламы", exact=False).fill("1000")
++        await panel.get_by_label("Выбрать все текущие товары").check()
++        await panel.get_by_role("button", name="Проверить товары и подобрать рекламу").click()
++        await expect(panel.get_by_text("8412", exact=True)).to_be_visible()
++        await panel.get_by_role("button", name="Подтвердить наблюдение").click()
++        await panel.get_by_role("button", name="Приостановить управление").click()
++        await panel.get_by_role("button", name="Журнал").click()
++        await expect(panel.get_by_text("Управление приостановлено", exact=False)).to_be_visible()
++        await page.reload()
++        await page.get_by_role("button", name="Биддер Ozon", exact=True).click()
++        await expect(panel.get_by_role("button", name="Возобновить")).to_be_visible()
+diff --git a/products/harness-platform/tests/test_bidder.py b/products/harness-platform/tests/test_bidder.py
+new file mode 100644
+index 0000000..55f04f7
+--- /dev/null
++++ b/products/harness-platform/tests/test_bidder.py
+@@ -0,0 +1,218 @@
++import json
++from datetime import UTC, datetime
++from decimal import Decimal as D
++from pathlib import Path
++import sqlite3
++import tempfile
++import time
++import unittest
++from uuid import uuid4
++
++from starlette.exceptions import HTTPException
++
++from platform_core.guest_registration import RegistrationStore
++from platform_core.integrations import IntegrationStore
++from platform_core import market_data
++from platform_core.user_plugins.bidder import catalog, campaigns, economy, queue, state
++from platform_core.user_plugins.bidder.operation import command
++from platform_core.user_plugins.registry import OZON, enable
++
++
++def cfg(goal="N1", mode="observe"):
++    return dict(name="Example",strategy=goal,mode=mode,target="15",budget="12000",reserve="0",band="2",step="10",
++                parameterMax="8",campaigns=["7"] if mode=="auto" else [],growth=True,interval=15,days=list(range(7)),timezone="UTC",start="00:00",end="23:59:59")
++
++
++def inventory(*ids, products=None):
++    return {"at":int(time.time()),"complete":True,"cpo":{},"campaigns":[
++        dict(id=i,payment="CPC",state=campaigns.ACTIVE,strategy="TARGET_BIDS",addMode=campaigns.MANUAL,weeklyRub="1000",
++             products={s:{"bid":"5"} for s in (products or ["123"])}) for i in ids]}
++
++
++class Financial(unittest.TestCase):
++    def setUp(self):
++        self.fact = dict(otherAds=800,controlledAds=1200,availableToSpend=9000,orderedRevenue=10000,forecastClicks=140,
++                         fresh=True,mature=True,comparable=True,newWindow=True,current=5,minimum=1,maximum=50,
++                         increment="0.01",mechanism="TARGET_BIDS",stockRoom=True)
++
++    def test_n1_example(self):
++        d=economy.regulate("N1",15,self.fact,cfg())
++        self.assertEqual((d.reason,d.value,d.allowance),("DECREASE",D("4.50"),D("700")))
++
++    def test_n1_deadband(self):
++        self.assertEqual(economy.regulate("N1",15,self.fact|{"controlledAds":700},cfg()).reason,"HOLD")
++
++    def test_n1_no_unknown_or_stale(self):
++        for change in ({"fresh":False},{"orderedRevenue":0},{"otherAds":None},{"otherAds":1500},{"minimum":8}):
++            self.assertIsNone(economy.regulate("N1",15,self.fact|change,cfg()).value)
++
++    def test_finance_bases(self):
++        fact=self.fact|dict(otherAds=100,realizedRevenue=1000,realizedUnits=1,costCoverage="complete",nonAdCosts=600,forecastClicks=25)
++        for goal,target,revenue,cap in [("N2",15,1000,150),("N2",15,900,65),("N3",200,1000,100)]:
++            with self.subTest(goal=goal,revenue=revenue):
++                self.assertEqual(economy.regulate(goal,target,fact|{"realizedRevenue":revenue},cfg()).allowance,D(cap))
++
++    def test_incomplete_finances(self):
++        self.assertIsNone(economy.regulate("N3",200,self.fact,cfg()).value)
++
++    def test_cir_uses_attributed_base(self):
++        f=self.fact|dict(otherAds=100,realizedRevenue=1000,realizedUnits=1,costCoverage="complete",nonAdCosts=600,
++                         mechanism="TARGET_CIR",attributionVerified=True,attributedRevenue=1250,current=16,minimum=10,maximum=100,increment=1)
++        self.assertEqual(economy.regulate("N2",15,f,cfg()|{"parameterMax":100}).value,D("12"))
++
++    def test_optimization(self):
++        rows=[]
++        for bid,units,ad in [(4,30,5000),(7,50,9200),(12,60,15000),(20,60,18000)]:
++            rows.append(dict(setting=bid,realizedUnits=units,orderedUnits=units,otherAds=0,controlledAds=ad,realizedRevenue=units*1000,
++                             nonAdCosts=units*600,profitError=0,unitsError=0,mature=True,comparable=True,incrementality=True))
++        self.assertEqual(economy.optimize("N4",rows,D(4),15000,100,10).value,D(12))
++        self.assertEqual(economy.optimize("N5",rows,D(4),15000,100,10).value,D(7))
++        self.assertIsNone(economy.optimize("N4",rows,D(12),15000,100,10).value)
++        self.assertIsNone(economy.optimize("N5",[],D(4),15000,100,10).value)
++
++    def test_allocation(self):
++        a=dict(id="a",skus=["1"],minimum=3000,maximum=6000,spent=3000,pending=300,options=[(4000,100),(5000,130)])
++        b=a|dict(id="b",skus=["2"],options=[(4000,50),(5000,95)])
++        self.assertEqual(economy.allocate([a,b],12000,2000,1000),("PLAN",{"a":D(4000),"b":D(5000)}))
++        self.assertEqual(economy.allocate([a,b|{"skus":["1"]}],12000,0,0)[0],"CONFLICT")
++        self.assertEqual(economy.allocate([a,b],5000,0,0)[0],"INFEASIBLE")
++
++
++class ProductChoice(unittest.TestCase):
++    def test_combination_and_search(self):
++        cards=[dict(id=str(i),skus=[str(i)],archived=False,offer="ring-"+str(i),title="Кольцо",category=str(i%2),categoryName="Категория") for i in range(5000)]
++        c=catalog.Catalog(cards,1)
++        self.assertEqual(len(c.page("кольц",4900)["items"]),100)
++        choice=c.resolve({"categories":["0"],"include":["1","2"],"exclude":["4"]})
++        self.assertEqual(len(choice),2500)
++        self.assertEqual(len(c.resolve({"search":["КОЛЬЦО"],"exclude":["4"]})),4999)
++        self.assertEqual(len(c.page("ring-4900")["items"]),1)
++        self.assertNotIn("5000",choice)
++
++    def test_unknown_archive_is_not_eligible(self):
++        cards=[dict(id="p",skus=["10","20"],archived=False,offer="test",title="Тест"),dict(id="q",skus=["30"],archived=None),
++               dict(id="r",skus=[],archived=False),dict(id="s",skus=["40"],archived=True)]
++        c=catalog.Catalog(cards,1)
++        self.assertEqual(c.resolve({"all":True}),["10","20"])
++        self.assertEqual(sum(c.unavailable.values()),3)
++
++    def test_incompatible_or_expanding_campaign(self):
++        for key,value in (("addMode","AUTO"),("state","unknown"),("weeklyRub",None)):
++            inv=inventory("7");inv["campaigns"][0][key]=value
++            self.assertFalse(campaigns.campaign_plan(inv,["123"],cfg())["ready"])
++
++    def test_external_budget_is_not_hidden(self):
++        inv=inventory("7","8")
++        self.assertFalse(campaigns.campaign_plan(inv,["123"],cfg()|{"campaigns":["7"]})["ready"])
++        inv.update(externalCoverageVerified=True,outsideObligations=11500)
++        self.assertFalse(campaigns.campaign_plan(inv,["123"],cfg()|{"campaigns":["7"]})["ready"])
++
++    def test_write_units_and_keywords(self):
++        row=inventory("7")["campaigns"][0]
++        with self.assertRaises(ValueError): campaigns.change_payload("bid",row,"4.50","123")
++        row["products"]["123"].update(keywordsVerified=True,emptyKeywords=True)
++        self.assertEqual(campaigns.change_payload("bid",row,"4.50","123")[2]["bids"][0]["bid"],"4500000")
++        self.assertEqual(campaigns.change_payload("weeklyBudget",row,1000)[2],{"weeklyBudget":"1000000000"})
++
++    def test_waiting_and_no_duplicate_after_restart(self):
++        with tempfile.TemporaryDirectory() as directory:
++            path=Path(directory)/"work.db"
++            key=("store","performance","today","day","version")
++            with sqlite3.connect(path) as db:
++                queue.install(db)
++                lease=queue.acquire(db,key,"stats",100)
++                self.assertIsNotNone(lease)
++                self.assertIsNone(queue.acquire(db,key,"stats",101))
++                when=queue.later(db,key,lease,"stats",429,{"Retry-After":"60"},100,reset=190)
++                self.assertGreaterEqual(when,190)
++            with sqlite3.connect(path) as db:
++                self.assertIsNone(queue.acquire(db,key,"stats",180))
++                self.assertIsNotNone(queue.acquire(db,key,"stats",when))
++                self.assertIsNotNone(queue.acquire(db,("other",*key[1:]),"stats",180))
++
++    def test_rate_dates_and_fallback(self):
++        key=("s","p","x","q","g")
++        with sqlite3.connect(":memory:") as db:
++            queue.install(db)
++            for attempt,wait in enumerate([7,14,28,56,112,900]):
++                now=attempt*1000
++                lease=queue.acquire(db,key,"x",now)
++                when=queue.later(db,key,lease,"x",429,{"Retry-After":"bad"},now)
++                self.assertTrue(now+wait<=when<=now+wait+1)
++            now=9000
++            when=queue.later(db,key,queue.acquire(db,key,"x",now),"x",429,{"Retry-After":"Thu, 01 Jan 1970 03:00:00 GMT"},now)
++            self.assertGreaterEqual(when,10800)
++        self.assertEqual(queue.cadence_minutes(5,2,100),36)
++        self.assertIsNone(queue.cadence_minutes(5,2,100,80))
++
++
++class Rules(unittest.TestCase):
++    def setUp(self):
++        folder=Path(self.enterContext(tempfile.TemporaryDirectory()))
++        self.path=folder/"identity.db"
++        self.server=self.enterContext(RegistrationStore(self.path))
++        IntegrationStore(self.server)
++        self.server.create_account("bidder-fixture","test-password-for-bidder")
++        token=self.server.login("bidder-fixture","test-password-for-bidder")
++        self.scope=self.server.create_user_chat(token)
++        self.chat2=self.server.create_user_chat(token)
++        with self.server._write() as db:
++            for scope in (self.scope,self.chat2):
++                db.execute("INSERT OR IGNORE INTO entitlements VALUES(?,?)",(scope.workspace_id,catalog.PLUGIN))
++                db.execute("INSERT INTO chat_plugins VALUES(?,?,?)",(scope.workspace_id,scope.chat_id,catalog.PLUGIN))
++                enable(db,scope,OZON)
++            self.cid="connection-test"
++            ws=self.scope.workspace_id
++            db.execute("INSERT INTO account_integrations VALUES(?,?,'ozon','Demo',x'00',1,'verified')",(self.cid,ws))
++            self.sid=market_data.bind(db,ws,"ozon",self.cid,1,"synthetic-store")
++            db.execute("INSERT INTO integration_access_checks VALUES(?,1,?)",(self.cid,'{"Seller":"verified","Performance":"verified"}'))
++            for chat in (self.scope,self.chat2):
++                db.execute("INSERT INTO chat_integrations VALUES(?,?)",(chat.chat_id,self.cid))
++            db.execute("INSERT INTO user_plugin_stores VALUES('ozon',?,'generation',NULL)",(self.cid,))
++            task=market_data.enqueue(db,self.sid,"catalog",cid=self.cid)
++            with market_data.local(self.path,ws,"ozon",True) as local:
++                cards=[dict(id="product",skus=["123"],archived=False,title="Кольцо",offer="ring")]
++                proof=market_data.save_snapshot(local,self.sid,"catalog","","","",{"cards":cards},cid=self.cid)
++            db.execute("UPDATE market_data_tasks SET state='done',cid=?,key_version=1,receipt=? WHERE id=?",(self.cid,proof,task))
++
++    def preview(self,scope,mode):
++        with self.server._write() as db:
++            cat=catalog.load(db,scope,self.cid)
++            return state.preview(db,scope,self.cid,cat.revision,{"all":True},cfg(mode=mode),inventory=inventory("7"))
++
++    def confirm(self,scope,item):
++        with self.server._write() as db:
++            return state.confirm(db,scope,item["id"],item["revision"],item["receipt"],inventory=inventory("7"))
++
++    def test_atomic_conflict_and_stop(self):
++        first=self.preview(self.scope,"auto")
++        second=self.preview(self.chat2,"auto")
++        self.confirm(self.scope,first)
++        with self.assertRaises(HTTPException): self.confirm(self.chat2,second)
++        with self.server._write() as db:
++            self.assertEqual(db.execute("SELECT count(*) FROM bidder_ownership").fetchone(),(2,))
++            state.pause(db,self.scope,first["id"],first["revision"],stop=True)
++        with self.assertRaises(HTTPException): self.confirm(self.scope,first)
++        self.assertEqual(self.confirm(self.chat2,second)["state"],"active")
++
++    def test_multiple_observers_and_unchanged_membership(self):
++        first=self.preview(self.scope,"observe")
++        for item in (first,self.preview(self.scope,"observe")):
++            self.confirm(self.scope,item)
++        with self.server._write() as db:
++            self.assertEqual(db.execute("SELECT count(*) FROM bidder_ownership").fetchone(),(0,))
++            self.assertEqual(state.rule(db,self.scope,first["id"])["skus"],["123"])
++            self.assertEqual(command(db,self.scope,"stopAll",{})["stopped"],2)
++
++    def test_cross_chat_and_revocation(self):
++        item=self.preview(self.scope,"auto")
++        with self.assertRaises(HTTPException): self.confirm(self.chat2,item)
++        with self.server._write() as db:
++            db.execute("UPDATE account_integrations SET version=2 WHERE id=?",(self.cid,))
++            self.assertEqual(state.rule(db,self.scope,item["id"])["state"],"paused")
++        with self.assertRaises(HTTPException): self.confirm(self.scope,item)
++
++    def test_bad_schedule(self):
++        for fields in ({"days":[]},{"timezone":"bad zone"},{"end":"00:00"}):
++            with self.assertRaises(ValueError): state.config(cfg()|fields)
++
+diff --git a/products/harness-platform/tests/test_octopus_knowledge.py b/products/harness-platform/tests/test_octopus_knowledge.py
+index 95f5b43..6a68a6d 100644
+--- a/products/harness-platform/tests/test_octopus_knowledge.py
++++ b/products/harness-platform/tests/test_octopus_knowledge.py
+@@ -36,7 +36,8 @@ class PublishedKnowledge(unittest.TestCase):
+                     patch.dict(integrations.KEY_GUIDES, {"fixture":["Откройте часы."]}), patch.dict(CATALOG, {timer.id:timer}):
+                 start_release()
+                 cards=knowledge.published()
+-                self.assertEqual(len(cards),11)
++                self.assertEqual(len(cards),12)
++                self.assertIn("plugin/ozon-bidder", {card["id"] for card in cards})
+                 found=next(c for c in cards if c["id"]=="plugin/fixture-timer")
+                 self.assertEqual(found["operations"][0]["requires"],"integration/qa-source")
+                 self.assertIn(CATALOG["timer"].guest.overview,answer("Какие есть плагины?"))
+@@ -46,7 +47,7 @@ class PublishedKnowledge(unittest.TestCase):
+             start_release()
+             self.assertNotIn(timer.description,answer("Какие есть плагины?"))
+             self.assertIn(CATALOG["timer"].guest.overview,answer("Какие есть плагины?"))
+-            self.assertEqual(len(knowledge.published()),9)
++            self.assertEqual(len(knowledge.published()),10)
+ 
+     def test_account_preferences_and_cross_chat(self):
+         with tempfile.TemporaryDirectory() as d:
