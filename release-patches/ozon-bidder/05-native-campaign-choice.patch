@@ -1,0 +1,429 @@
+diff --git a/products/harness-platform/native/web/bidder.js b/products/harness-platform/native/web/bidder.js
+index 32e6727..d778b23 100644
+--- a/products/harness-platform/native/web/bidder.js
++++ b/products/harness-platform/native/web/bidder.js
+@@ -10,7 +10,7 @@ window.octoBidderPanel = function (React, {Dialog, Action, Fold, api, send}) {
+     const [home,setHome]=useState(null),[cid,setCid]=useState(''),[cfg,setCfg]=useState(initial);
+     const [pick,setPick]=useState(blank),[query,setQuery]=useState(''),[offset,setOffset]=useState(0);
+     const [page,setPage]=useState(null),[edit,setEdit]=useState(null),[preview,setPreview]=useState(null);
+-    const [campaignText,setCampaignText]=useState('');
++    const [campaigns,setCampaigns]=useState(null);
+     const [history,setHistory]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);
+     const [slice,setSlice]=useState(0),[open,setOpen]=useState(false),[pickTab,setPickTab]=useState('Все товары');
+     const call=(op,args={})=>send(url,{op,args});
+@@ -23,8 +23,8 @@ window.octoBidderPanel = function (React, {Dialog, Action, Fold, api, send}) {
+       return()=>{alive=false;};
+     },[cid,query,offset,url]);
+     function change(key,value){setCfg(c=>({...c,[key]:value}));setPreview(null);}
+-    function selection(key,value){setPick(p=>({...p,[key]:value}));setPreview(null);}
+-    function reset(id=''){setCampaignText('');setCid(id);setCfg(initial(home?.defaults));setPick(blank());setQuery('');setOffset(0);setEdit(null);setPreview(null);setHistory(null);setSlice(0);setError('');}
++    function selection(key,value){setPick(p=>({...p,[key]:value}));setCampaigns(null);change('campaigns',[]);}
++    function reset(id=''){setCampaigns(null);setCid(id);setCfg(initial(home?.defaults));setPick(blank());setQuery('');setOffset(0);setEdit(null);setPreview(null);setHistory(null);setSlice(0);setError('');}
+     async function act(fn){
+       setBusy(true);setError('');
+       try {await fn();} catch(e){setError(e.message);} finally{setBusy(false);}
+@@ -37,13 +37,16 @@ window.octoBidderPanel = function (React, {Dialog, Action, Fold, api, send}) {
+       opts.map(([id,label])=>h('option',{value:id,key:id},label))));
+     async function openRule(id){
+       const r=await call('get',{id});
+-      reset(r.cid);setCfg(r.config);setCampaignText(r.config.campaigns.join(', '));setPick({...blank(),include:r.skus});setEdit(r);setOpen(true);
++      reset(r.cid);setCfg(r.config);setPick({...blank(),include:r.skus});setEdit(r);setOpen(true);
+       if(r.state==='draft')setPreview(r);
++      if(r.config.mode==='auto')setCampaigns(await call('campaignChoices',{id}));
+     }
+     async function applyPlan(){
+       const r=await call('preview',{cid,catalogRevision:page.revision,selection:pick,config:cfg,
+         ...(edit?{id:edit.id,revision:edit.revision}:{})});
+-      setEdit(r);setPreview(r);setSlice(0);await refresh();
++      setEdit(r);setPreview(r);setSlice(0);
++      if(cfg.mode==='auto')setCampaigns(await call('campaignChoices',{id:r.id}));
++      await refresh();
+     }
+     async function confirmed(){
+       await call('confirm',{id:preview.id,revision:preview.revision,receipt:preview.receipt});
+@@ -51,7 +54,7 @@ window.octoBidderPanel = function (React, {Dialog, Action, Fold, api, send}) {
+     }
+     const fields=home&&open&&h(React.Fragment,null,
+       field('Название','name'),dropdown('Магазин',cid,[['','Выберите магазин'],...home.stores.map(s=>[s.id,s.name])],
+-        id=>{if(edit)reset(id);else{setCid(id);setPick(blank());setPage(null);setPreview(null);setOffset(0);}setOpen(true);}),
++        id=>{if(edit)reset(id);else{change('campaigns',[]);setCid(id);setPick(blank());setPage(null);setCampaigns(null);setPreview(null);setOffset(0);}setOpen(true);}),
+       !home.stores.length&&h('p',null,'Подключите магазин в разделе «Интеграции» и разрешите доступ в этом чате.'),
+       dropdown('Цель',cfg.strategy,Object.entries(home.goals),v=>change('strategy',v)),
+       ['N1','N2','N3'].includes(cfg.strategy)&&field({N1:'Из каждых 100 ₽ заказов тратить на рекламу до, ₽',N2:'Оставлять из каждых 100 ₽ выручки, ₽',N3:'Оставлять с одного выкупленного товара, ₽'}[cfg.strategy],'target','number',{min:0,step:'0.01'}),
+@@ -62,8 +65,7 @@ window.octoBidderPanel = function (React, {Dialog, Action, Fold, api, send}) {
+         field('Шаг изменения, %','step','number'),field('Допустимое отклонение, процентных пунктов','band','number'),
+         field('Минимальный остаток товара','minStock','number',{integer:true}),field('Минимальная маржа, %','minMargin','number'),
+         field('Максимальное значение рекламного параметра','parameterMax','number'),
+-        flag('Разрешить ограниченный эксперимент',cfg.experiment,v=>change('experiment',v)),
+-        h('label',null,'Номера управляемых кампаний через запятую',h('input',{value:campaignText,onChange:e=>{setCampaignText(e.target.value);change('campaigns',e.target.value.split(',').map(v=>v.trim()).filter(Boolean));}}))),
++        flag('Разрешить ограниченный эксперимент',cfg.experiment,v=>change('experiment',v))),
+       h(Fold,{label:'Расписание и уведомления'},field('Частота проверок, минуты','interval','number',{integer:true}),
+         field('Период анализа, закрытые дни','windowDays','number',{integer:true}),
+         field('Между изменениями, часы','changeHours','number',{integer:true}),field('Часовой пояс','timezone'),
+@@ -83,9 +85,9 @@ window.octoBidderPanel = function (React, {Dialog, Action, Fold, api, send}) {
+           const checked=(base||pick.include.includes(p.sku))&&!pick.exclude.includes(p.sku);
+           return h('div',{key:p.sku},flag(p.title+' · '+p.offer+' · '+p.sku,checked,v=>{
+             setPick(x=>({...x,include:v?[...new Set([...x.include,p.sku])]:x.include.filter(s=>s!==p.sku),
+-                        exclude:v?x.exclude.filter(s=>s!==p.sku):[...new Set([...x.exclude,p.sku])]}));setPreview(null);}));
++                        exclude:v?x.exclude.filter(s=>s!==p.sku):[...new Set([...x.exclude,p.sku])]}));setCampaigns(null);change('campaigns',[]);}));
+         }),btn('Назад',()=>setOffset(offset-100),offset===0),btn('Дальше',()=>setOffset(offset+100),offset+100>=page.total)),
+-      btn('Очистить выбор',()=>{setPick(blank());setPreview(null);}));
++      btn('Очистить выбор',()=>{setPick(blank());setCampaigns(null);change('campaigns',[]);}));
+     return h(Dialog,{label:title,close},error&&h('p',{role:'alert'},error),!home&&h('p',null,'Загружаю стратегии…'),
+       home&&!open&&h(React.Fragment,null,btn('Создать стратегию',()=>{reset(home.stores.length===1?home.stores[0].id:'');setOpen(true);}),
+         home.rules.map(r=>h('section',{key:r.id},h('h3',null,r.name),h('p',null,states[r.state]+' · товаров '+r.count+
+@@ -98,6 +100,14 @@ window.octoBidderPanel = function (React, {Dialog, Action, Fold, api, send}) {
+         home.rules.some(r=>r.state==='active')&&btn('Остановить все биддеры этого чата',async()=>{await call('stopAll');await refresh();}),
+         history&&h('section',null,h('h3',null,'Журнал'),history.events.map(e=>h('p',{key:e.id},new Date(e.at*1000).toLocaleString('ru-RU')+' · '+(e.result.message||({preview:'План подготовлен',confirmed:'План подтверждён',paused:'Управление приостановлено',stopped:'Управление остановлено'}[e.kind]||e.kind)))))),
+       open&&h('fieldset',{disabled:busy},fields,products,btn('Проверить товары и подобрать рекламу',applyPlan,!page||edit?.state==='active'),
++        cfg.mode==='auto'&&campaigns?.ready&&campaigns.total>0&&h('section',null,
++          h('h3',null,'Кампании выбранных товаров'),
++          campaigns.items.map(c=>h('div',{key:c.id},flag(c.title+' · '+({PLACEMENT_SEARCH_AND_CATEGORY:'Поиск и категории',PLACEMENT_TOP_PROMOTION:'Вывод в топ'}[c.placement]||c.placement||'Место не указано')+' · № '+c.id+' · выбрано '+c.selected+' из '+c.products,
++            cfg.campaigns.includes(c.id),()=>change('campaigns',toggle(cfg.campaigns,c.id))))),
++          campaigns.nextOffset!==null&&btn('Показать ещё кампании',async()=>{
++            const next=await call('campaignChoices',{id:edit.id,offset:campaigns.nextOffset});
++            setCampaigns({...next,items:[...campaigns.items,...next.items]});
++          })),
+         preview&&h('section',null,h('h3',null,'План запуска'),h('p',null,preview.config.name+' · '+home.goals[preview.config.strategy]+' · '+preview.config.budget+' ₽ в неделю'),
+           h('p',null,preview.plan.ads.reason||'Кампании проверены.'),preview.plan.ads.actions.map((a,i)=>h('p',{key:i},({reuse:'Использовать действующую кампанию',activate:'Включить кампанию',reviewType:'Проверить тип кампании',createOrTransfer:'Подобрать отдельную кампанию'}[a.action])+(a.campaign?' № '+a.campaign:''))),h('p',null,'Выбрано товаров: '+preview.skus.length),
+           h('p',null,preview.skus.slice(slice,slice+100).join(', ')),slice>0&&btn('Предыдущие товары',()=>setSlice(slice-100)),
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/chat.py b/products/harness-platform/platform_core/user_plugins/bidder/chat.py
+index 9194ea7..f3c5630 100644
+--- a/products/harness-platform/platform_core/user_plugins/bidder/chat.py
++++ b/products/harness-platform/platform_core/user_plugins/bidder/chat.py
+@@ -15,7 +15,7 @@ ROWS = (
+     ("field.reserve","Какую часть денег оставить для прочей рекламы и ещё не учтённых списаний.",("резерв","отложить"),("reserve",)),
+     ("field.schedule","Когда перепроверять данные. Проверь дни, время и часовой пояс продавца.",("расписан","время провер"),("days","start","end","timezone","interval")),
+     ("setup.selection","Выбирай товары из подтверждённого каталога. Категория разворачивается в текущий список. Новые товары добавляет продавец.",("категор","все кольца","товары"),("selection","catalogRevision")),
+-    ("setup.plan","Вызови list (магазины, цели, defaults), затем catalog с cid. Для preview передай cid, catalogRevision из catalog.revision, selection (all, categories, include, exclude, search), config (name, strategy N1–N6, budget в рублях за неделю, для N1–N3 также target). Назови продавцу режим, расписание и ограничения из плана. Прочитай готовый план. Подтверждение разрешено только новым сообщением продавца с точным кодом или кнопкой в форме.",("настро","запус","созда"),("config","selection")),
++    ("setup.plan","Вызови list (магазины, цели, defaults), затем catalog с cid. Для preview передай cid, catalogRevision из catalog.revision, selection (all, categories, include, exclude, search), config (name, strategy N1–N6, budget в рублях за неделю, для N1–N3 также target). Назови продавцу режим, расписание и ограничения из плана. Для выбранных товаров посмотри campaignChoices с id черновика. Если inventoryQueued=true, состав обновляется. После получения вариантов повтори preview для той же ревизии и покажи новый план. Если одноимённых вариантов несколько, различай по месту показа. Прочитай готовый план. Подтверждение разрешено только новым сообщением продавца с точным кодом или кнопкой в форме.",("настро","запус","созда"),("config","selection")),
+     ("field.stock","Сколько единиц оставить в запасе. При нехватке товара увеличение рекламы приостанавливается.",("остаток","запас"),("minStock",)),
+     ("field.step","На сколько процентов за один раз разрешено изменить настройку рекламы.",("шаг","за один раз"),("step","parameterMax")),
+     ("field.mode","Наблюдение собирает данные. Управление требует подтверждённого плана и достаточных данных.",("режим","наблюден"),("mode",)),
+@@ -73,13 +73,13 @@ def tools(store, scope):
+             if op == "catalog":
+                 return {**result, "items":result["items"][:12], "nextOffset":int(data.get("offset",0))+12 if result["total"]>int(data.get("offset",0))+12 else None}
+             if op in ("get","preview","confirm","pause","stop"):
+-                return {k:v for k,v in result.items() if k in ("id","cid","revision","state","plan","receipt","config")} | {
++                return {k:v for k,v in result.items() if k in ("id","cid","revision","state","plan","receipt","config","inventoryQueued")} | {
+                     "selectedCount":len(result["skus"]), "confirmationText":"Подтверждаю "+result["receipt"][:12]}
+             if op == "history":
+                 return {"events":result["events"][:8]}
+             return result
+     return [Capability("bidder_settings","Настроить или объяснить управление рекламой Ozon под цель продавца, получить фактические результаты.",
+-           {"type":"object","properties":{"operation":{"enum":["guide","list","catalog","get","preview","confirm","pause","stop","history","check"]},
++           {"type":"object","properties":{"operation":{"enum":["guide","list","catalog","get","preview","campaignChoices","confirm","pause","stop","history","check"]},
+             "fields":{"type":"object","description":"Поля общей формы. Справка: query. Просмотр плана: cid, catalogRevision, selection, config. Для изменения также id, revision."}},
+             "required":["operation"],"additionalProperties":False},run,effect="edit"),
+             Capability("describe__bidder_settings","Одна подсказка для текущего действия.",{"type":"object","properties":{
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/history.py b/products/harness-platform/platform_core/user_plugins/bidder/history.py
+index 3999a39..7d5da9b 100644
+--- a/products/harness-platform/platform_core/user_plugins/bidder/history.py
++++ b/products/harness-platform/platform_core/user_plugins/bidder/history.py
+@@ -17,6 +17,7 @@ from .performance import Deferred, ORIGIN
+ 
+ REPORTS = "/api/client/statistics"
+ MAX_BYTES = 8 * 1024 * 1024
++RECOVERY_PAGES = 3
+ SCHEMA = """CREATE TABLE IF NOT EXISTS bidder_history_reports(store TEXT,cid TEXT,generation INTEGER,query TEXT,
+     day TEXT,campaigns TEXT,requested INTEGER,uuid TEXT,state TEXT,next_at INTEGER,
+     PRIMARY KEY(store,cid,generation,query))"""
+@@ -165,27 +166,35 @@ async def backfill(performance,scope,item,inventory,now):
+             update("queued",uid,60)
+             return "Исторический отчёт поставлен в очередь."
+         if not uid:
+-            page = 1
+-            matches_seen, seen_pages = set(), set()
+-            while True:
++            matches_seen, seen_reports = set(), set()
++            expected, checked_count = None, 0
++            for page in range(1,RECOVERY_PAGES+1):
+                 listed = await performance.read(scope,cid,pin,"history-list",str(page),REPORTS+"/externallist",
+                     params={"page":page,"pageSize":100},ttl=120)
+                 items = listed.get("items")
+-                page_key = catalog.fingerprint(items)
+-                if not isinstance(items,list) or len(items)>100 or page_key in seen_pages:
++                total = listed.get("total")
++                if (not isinstance(items,list) or len(items)>100 or not re.fullmatch(r"[0-9]{1,12}",str(total))
++                        or expected not in (None,int(total))):
+                     raise ValueError
+-                seen_pages.add(page_key)
++                expected = int(total)
+                 for row in items:
+                     meta = row.get("meta")
+-                    if matches(meta,batch,day) and generated_uuid(meta):
++                    report_id = generated_uuid(meta)
++                    if not report_id or report_id in seen_reports:
++                        raise ValueError
++                    seen_reports.add(report_id)
++                    if matches(meta,batch,day):
+                         at = datetime.fromisoformat(meta["createdAt"])
+                         if at.tzinfo and asked-5 <= at.timestamp() <= asked+180:
+-                            matches_seen.add(generated_uuid(meta))
+-                if len(items)<100:
++                            matches_seen.add(report_id)
++                checked_count += len(items)
++                if checked_count > expected or (len(items)<100 and checked_count!=expected):
++                    raise ValueError
++                if checked_count==expected:
+                     break
+-                page += 1
+-            if len(matches_seen)!=1:
+-                return "Ozon пока не подтвердил номер отправленного отчёта. Повторное создание приостановлено."
++            if checked_count != expected or len(matches_seen)!=1:
++                update("sending",delay=21600)
++                return "Номер отправленного отчёта ещё не подтверждён. Повторно проверю список через шесть часов."
+             uid = matches_seen.pop()
+             update("queued",uid,0)
+         meta = await performance.read(scope,cid,pin,"history-status",uid,REPORTS+"/"+uid,ttl=120)
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/operation.py b/products/harness-platform/platform_core/user_plugins/bidder/operation.py
+index 30d8a76..2072eb1 100644
+--- a/products/harness-platform/platform_core/user_plugins/bidder/operation.py
++++ b/products/harness-platform/platform_core/user_plugins/bidder/operation.py
+@@ -28,9 +28,15 @@ def command(db, scope, op, args):
+             raise ValueError("Проверьте страницу.")
+         return cat.page(args.get("query", ""), offset, args.get("category"))
+     if op == "preview":
+-        return state.preview(db, scope, args["cid"], args["catalogRevision"], args["selection"], args["config"],
++        current = inventory(db,scope,args["cid"])
++        result = state.preview(db, scope, args["cid"], args["catalogRevision"], args["selection"], args["config"],
+                              previous=args.get("id"), expected=args.get("revision"),
+-                             inventory=inventory(db, scope, args["cid"]))
++                             inventory=current)
++        if current is None and result["config"]["mode"]=="auto":
++            db.execute("""INSERT OR IGNORE INTO bidder_inventory_jobs VALUES(?,?,?,?,unixepoch(),unixepoch())""",
++                       (scope.workspace_id,scope.chat_id,args["cid"],result["key_version"]))
++            result["inventoryQueued"] = True
++        return result
+     if op == "stopAll":
+         items = db.execute("SELECT id,revision FROM bidder_rules WHERE workspace=? AND chat=? AND state<>'stopped'",
+                            (scope.workspace_id, scope.chat_id)).fetchall()
+@@ -41,6 +47,23 @@ def command(db, scope, op, args):
+     if op in ("pause", "stop"):
+         return state.pause(db, scope, item["id"], args["revision"], op == "stop")
+     catalog.binding(db, scope, item["cid"])
++    if op == "campaignChoices":
++        catalog.binding(db,scope,item["cid"],ads=True)
++        inv = inventory(db,scope,item["cid"])
++        if not inv or inv.get("complete") is not True:
++            return {"ready":False,"items":[],"nextOffset":None}
++        chosen,offset = set(item["skus"]),int(args.get("offset",0))
++        if offset<0:
++            raise ValueError("Проверьте страницу.")
++        matches = []
++        for row in inv["campaigns"]:
++            members = set(row["products"])
++            if chosen & members:
++                matches.append(dict(id=row["id"],title=row.get("title") or row["id"],state=row["state"],
++                                    placement=row["placement"],selected=len(chosen & members),products=len(members)))
++        matches.sort(key=lambda r:int(r["id"]))
++        return {"ready":True,"items":matches[offset:offset+12],"total":len(matches),
++                "nextOffset":offset+12 if offset+12<len(matches) else None}
+     if op == "get":
+         return item
+     if op == "confirm":
+@@ -58,7 +81,10 @@ def command(db, scope, op, args):
+ 
+ 
+ def inventory(db, scope, cid):
+-    sid, version = catalog.binding(db, scope, cid)
++    try:
++        sid, version = catalog.binding(db, scope, cid, ads=True)
++    except HTTPException:
++        return None
+     row = db.execute("""SELECT fact FROM bidder_reads WHERE store=? AND profile='performance' AND source='inventory'
+         AND query='' AND scope=? AND error IS NULL AND observed>=unixepoch()-900""",
+         (sid, catalog.fingerprint([cid,version]))).fetchone()
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/performance.py b/products/harness-platform/platform_core/user_plugins/bidder/performance.py
+index aeb0198..260896a 100644
+--- a/products/harness-platform/platform_core/user_plugins/bidder/performance.py
++++ b/products/harness-platform/platform_core/user_plugins/bidder/performance.py
+@@ -23,7 +23,7 @@ def normalize_campaign(row, products):
+     strategy = row.get("productAutopilotStrategy")
+     if isinstance(strategy, dict):
+         strategy = strategy.get("strategy")
+-    return {"id":str(row["id"]), "payment":row.get("PaymentType",row.get("paymentType")), "state":row["state"],
++    return {"id":str(row["id"]), "title":str(row.get("title") or "")[:300], "payment":row.get("PaymentType",row.get("paymentType")), "state":row["state"],
+             "strategy":strategy,"placement":row.get("placement"),
+             "weeklyRub":str(number(row["weeklyBudget"])/1_000_000) if row.get("weeklyBudget") is not None else None,
+             "addMode":(row.get("autopilot") or {}).get("skuAddMode"), "products":products}
+@@ -132,19 +132,38 @@ class Performance:
+         with self.app.identity._lock:
+             pin = catalog.binding(self.app.identity._db,scope,cid,ads=True)
+         stamps = []
+-        payload = await self.read(scope,cid,pin,"campaigns","",ROOT,since=since,stamps=stamps)
+-        rows = payload.get("list")
+-        if not isinstance(rows,list) or int(payload.get("total",len(rows))) != len(rows):
+-            raise Deferred("Ozon не подтвердил полный список кампаний.")
+-        output, ids, unclassified = [], set(), False
++        rows, ids, page, expected = [], set(), 1, None
++        while True:
++            payload = await self.read(scope,cid,pin,"campaigns",str(page),ROOT,{"page":page,"pageSize":100},since=since,stamps=stamps)
++            batch = payload.get("list")
++            if not isinstance(batch,list) or len(batch)>100:
++                raise Deferred("Ozon не подтвердил полный список кампаний.")
++            if "total" in payload:
++                count = int(payload["total"])
++                if expected not in (None,count):
++                    raise Deferred("Список кампаний изменился во время чтения.")
++                expected = count
++            for row in batch:
++                ident = str(row["id"])
++                if not valid_id(ident) or ident in ids:
++                    raise Deferred("Ozon не подтвердил номера кампаний.")
++                ids.add(ident)
++            rows.extend(batch)
++            if len(batch)<100 or len(rows)==expected:
++                if expected is not None and len(rows)!=expected:
++                    raise Deferred("Ozon не подтвердил полный список кампаний.")
++                break
++            if expected is not None and len(rows)>expected:
++                raise Deferred("Изменилось количество кампаний.")
++            page += 1
++        output, unclassified = [], False
+         for row in rows:
+             ident = str(row["id"])
+-            if not valid_id(ident) or ident in ids:
+-                raise Deferred("Ozon не подтвердил номера кампаний.")
+-            ids.add(ident)
+             if row.get("state") in ("CAMPAIGN_STATE_ARCHIVED","CAMPAIGN_STATE_FINISHED"):
+                 continue
+             payments = {row[k] for k in ("PaymentType", "paymentType") if k in row}
++            if payments == {"CPO"} and row.get("advObjectType") == "SEARCH_PROMO":
++                continue
+             if payments != {"CPC"}:
+                 unclassified = True
+                 continue
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/queue.py b/products/harness-platform/platform_core/user_plugins/bidder/queue.py
+index cb4044d..605a3b0 100644
+--- a/products/harness-platform/platform_core/user_plugins/bidder/queue.py
++++ b/products/harness-platform/platform_core/user_plugins/bidder/queue.py
+@@ -10,6 +10,8 @@ TTL = {"campaigns":900,"products":3600,"today":900,"yesterday":21600,"spend":180
+        "cpo":3600,"prices":1800,"stocks":1800,"orders":21600,"finance":86400,
+        "limits":86400,"history":86400,"coefficients":604800}
+ SCHEMA = (
++    """CREATE TABLE IF NOT EXISTS bidder_inventory_jobs(workspace TEXT,chat TEXT,cid TEXT,generation INTEGER,
++        requested INTEGER,next_at INTEGER,PRIMARY KEY(workspace,chat,cid,generation))""",
+     """CREATE TABLE IF NOT EXISTS bidder_reads(store TEXT,profile TEXT,source TEXT,query TEXT,scope TEXT,
+         next_at INTEGER NOT NULL,attempt INTEGER NOT NULL DEFAULT 0,lease TEXT,until INTEGER NOT NULL DEFAULT 0,
+         fact TEXT,observed INTEGER,report_id TEXT,error TEXT,PRIMARY KEY(store,profile,source,query,scope))""",
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/scheduler.py b/products/harness-platform/platform_core/user_plugins/bidder/scheduler.py
+index 9cabc03..b77b1f2 100644
+--- a/products/harness-platform/platform_core/user_plugins/bidder/scheduler.py
++++ b/products/harness-platform/platform_core/user_plugins/bidder/scheduler.py
+@@ -129,6 +129,32 @@ class Scheduler:
+         if proposals and item["config"]["mode"]=="auto":
+             await self.performance.execute(scope,item,proposals[0],int(time.time()))
+ 
++    async def preview_inventory(self, now):
++        from .performance import Deferred
++        with self.app.identity._write() as db:
++            row = db.execute("""SELECT w.owner_id,j.workspace,j.chat,j.cid,j.generation,j.requested
++                FROM bidder_inventory_jobs j JOIN workspaces w ON w.workspace_id=j.workspace
++                WHERE j.next_at<=? ORDER BY j.next_at LIMIT 1""",(now,)).fetchone()
++            if not row:
++                return
++            actor,workspace,chat,cid,generation,requested = row
++            key = (workspace,chat,cid,generation)
++            db.execute("""UPDATE bidder_inventory_jobs SET next_at=? WHERE (workspace,chat,cid,generation)=(?,?,?,?)""",
++                       (now+120,*key))
++        scope = Scope(actor,workspace,chat)
++        try:
++            with self.app.identity._lock:
++                _,current = catalog.binding(self.app.identity._db,scope,cid,ads=True)
++            if current == generation and now-requested<=900:
++                await self.performance.inventory(scope,cid)
++        except Deferred:
++            if now-requested<=900:
++                return
++        except (HTTPException, ValueError, KeyError, TypeError):
++            pass
++        with self.app.identity._write() as db:
++            db.execute("DELETE FROM bidder_inventory_jobs WHERE (workspace,chat,cid,generation)=(?,?,?,?)",key)
++
+     async def retry_readback(self, now):
+         from .performance import Deferred
+         with self.app.identity._write() as db:
+@@ -176,6 +202,7 @@ class Scheduler:
+         while True:
+             try:
+                 await self.retry_readback(int(time.time()))
++                await self.preview_inventory(int(time.time()))
+                 busy = self.due(int(time.time()))
+                 if self.pending:
+                     work = self.pending
+diff --git a/products/harness-platform/tests/test_bidder.py b/products/harness-platform/tests/test_bidder.py
+index 18f114e..760076f 100644
+--- a/products/harness-platform/tests/test_bidder.py
++++ b/products/harness-platform/tests/test_bidder.py
+@@ -377,6 +377,26 @@ class Rules(unittest.TestCase):
+         asyncio.run(check())
+         self.assertEqual(posts,["/api/client/statistics"])
+ 
++    def test_unknown_report_has_bounded_lookup_without_resubmission(self):
++        import asyncio
++        from unittest.mock import AsyncMock
++        from platform_core.user_plugins.bidder import history, performance
++        item = self.confirm(self.scope,self.preview(self.scope,"observe"))
++        now = int(time.time())
++        with self.server._write() as db:
++            db.execute("INSERT INTO bidder_history_reports VALUES(?,?,?,?,?,?,?,NULL,'sending',0)",
++                       (self.sid,self.cid,1,"query","2026-11-12",'["7"]',now))
++        transport = performance.Performance(SimpleNamespace(identity=self.server))
++        def list_page(*args,**kwargs):
++            return {"total":"5000","items":[{"meta":{"UUID":str(uuid4()), "kind":"VIDEO"}} for _ in range(100)]}
++        transport.read = AsyncMock(side_effect=list_page)
++        asyncio.run(history.backfill(transport,self.scope,item,inventory("7"),now))
++        self.assertEqual(transport.read.await_count,history.RECOVERY_PAGES)
++        with self.server._lock:
++            stage,due = self.server._db.execute("SELECT state,next_at FROM bidder_history_reports").fetchone()
++            self.assertEqual(stage,"sending")
++            self.assertGreaterEqual(due,now+21600)
++
+     def test_report_rejects_wrong_campaign_and_ambiguous_amounts(self):
+         from io import BytesIO
+         from zipfile import ZipFile
+@@ -394,6 +414,43 @@ class Rules(unittest.TestCase):
+         with self.assertRaises(ValueError):
+             history.parse_file(raw.replace("НДС".encode(),b"USD"),["7"])
+ 
++    def test_choices_by_draft_keep_both_placements_and_check_ad_access(self):
++        import json
++        item = self.preview(self.scope,"auto")
++        with self.server._write() as db:
++            key = (self.sid,"performance","inventory","",catalog.fingerprint([self.cid,1]))
++            inv = inventory("7","8")
++            for row,placement in zip(inv["campaigns"],("PLACEMENT_SEARCH_AND_CATEGORY","PLACEMENT_TOP_PROMOTION"),strict=True):
++                row.update(title="Одно имя",placement=placement)
++            db.execute("""INSERT INTO bidder_reads(store,profile,source,query,scope,next_at,fact,observed)
++                VALUES(?,?,?,?,?,0,?,unixepoch())""",(*key,json.dumps(inv)))
++            result = command(db,self.scope,"campaignChoices",{"id":item["id"]})
++            self.assertEqual([(r["id"],r["title"],r["placement"]) for r in result["items"]],
++                [("7","Одно имя","PLACEMENT_SEARCH_AND_CATEGORY"),("8","Одно имя","PLACEMENT_TOP_PROMOTION")])
++            db.execute("UPDATE integration_access_checks SET checks=? WHERE cid=?",('{"Seller":"verified"}',self.cid))
++            with self.assertRaises(HTTPException):
++                command(db,self.scope,"campaignChoices",{"id":item["id"]})
++
++    def test_chat_preview_requests_first_inventory_without_active_rule(self):
++        import asyncio
++        from unittest.mock import AsyncMock
++        from platform_core.user_plugins.bidder.scheduler import Scheduler
++        with self.server._write() as db:
++            cat = catalog.load(db,self.scope,self.cid)
++            args = dict(cid=self.cid,catalogRevision=cat.revision,selection={"all":True},config=cfg(mode="auto"))
++            result = command(db,self.scope,"preview",args)
++            self.assertTrue(result["inventoryQueued"])
++            self.assertFalse(result["plan"]["ads"]["ready"])
++            command(db,self.scope,"preview",args)
++            self.assertEqual(db.execute("SELECT count(*) FROM bidder_inventory_jobs").fetchone(),(1,))
++        scheduler = object.__new__(Scheduler)
++        scheduler.app = SimpleNamespace(identity=self.server)
++        scheduler.performance = SimpleNamespace(inventory=AsyncMock(return_value=inventory("7")))
++        asyncio.run(scheduler.preview_inventory(int(time.time())))
++        scheduler.performance.inventory.assert_awaited_once_with(self.scope,self.cid)
++        with self.server._lock:
++            self.assertEqual(self.server._db.execute("SELECT count(*) FROM bidder_inventory_jobs").fetchone(),(0,))
++
+     def test_bad_schedule(self):
+         for fields in ({"days":[]},{"timezone":"bad zone"},{"end":"00:00"}):
+             with self.assertRaises(ValueError): state.config(cfg()|fields)
