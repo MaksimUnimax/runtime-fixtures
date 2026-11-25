@@ -1,0 +1,429 @@
+diff --git a/products/harness-platform/platform_core/marketplace_matrix/read_templates.json b/products/harness-platform/platform_core/marketplace_matrix/read_templates.json
+index aa40cbb..e2cf3cd 100644
+--- a/products/harness-platform/platform_core/marketplace_matrix/read_templates.json
++++ b/products/harness-platform/platform_core/marketplace_matrix/read_templates.json
+@@ -8035,6 +8035,56 @@
+       "$.list": 12
+     }
+   },
++  {
++    "id": "read.performance.performance_cpc_campaigns_for_sku",
++    "profile": "performance",
++    "http": "GET",
++    "path": "/api/client/campaign",
++    "purpose": "Найти по SKU действующие кампании Ozon с оплатой за клик, в которых рекламируется товар.",
++    "category": "Campaign",
++    "operation": null,
++    "source": "OZ-P",
++    "access": [],
++    "state": "ready",
++    "input": {
++      "parameterNames": [
++        "sku",
++        "continuation"
++      ]
++    },
++    "searchTerms": "в каких кампаниях в какой кампании участвует товар где рекламируется продвигается этот SKU артикул состоит размещения по sku оплата за клик CPC товары кампании",
++    "guidanceVerified": true,
++    "requestGuide": "Передай SKU из запроса или каталога. Если получен next, вызови этот же инструмент с тем же sku и continuation из ответа.",
++    "responseGuide": "Объедини совпадения всех частей до next=null. Во время неполного обхода сообщай только о проверенных кампаниях. Учитывай каждое размещение, в том числе одноимённые кампании с разными ID.",
++    "contract": {
++      "url": "https://api-performance.ozon.ru/api/client/campaign",
++      "http": "GET",
++      "schema": {
++        "type": "object",
++        "additionalProperties": false,
++        "required": [
++          "sku"
++        ],
++        "properties": {
++          "sku": {
++            "type": "string",
++            "pattern": "^[1-9][0-9]{0,19}$"
++          },
++          "continuation": {
++            "type": "string",
++            "pattern": "^[0-9a-f]{64}:[1-9][0-9]{0,8}$"
++          }
++        }
++      }
++    },
++    "sampleRows": {
++      "$.matches": 12
++    },
++    "errorRules": {
++      "READ_LOOKUP_CHANGED": "Список кампаний изменился. Начните поиск по тому же SKU с первой части.",
++      "READ_CAMPAIGN_RESPONSE_MISMATCH": "Ozon не подтвердил полный состав списка. Повторите чтение."
++    }
++  },
+   {
+     "id": "read.performance.performance_campaign_by_id",
+     "profile": "performance",
+@@ -8181,7 +8231,7 @@
+       ]
+     },
+     "searchTerms": "конкурентные ставки рекламной кампании по sku ставка ставка конкурентов",
+-    "requestGuide": "Нужны номер рекламной кампании и SKU товаров. При отсутствии номера кампании запроси его у пользователя. Используй типы параметров метода, без подстановки другой кампании.",
++    "requestGuide": "Нужны номер рекламной кампании и SKU товаров. Для известного SKU сначала получи кампании через read.performance.performance_cpc_campaigns_for_sku. Используй типы параметров метода, без подстановки другой кампании.",
+     "errorRules": {
+       "READ_IDENTIFIER_NOT_PROVEN": "Для конкурентных ставок Ozon укажите номер рекламной кампании и SKU товара."
+     },
+@@ -8547,7 +8597,7 @@
+     "sampleRows": {
+       "$.rows": 12
+     },
+-    "requestGuide": "Передавай campaignIds как массив строковых идентификаторов кампаний Ozon с оплатой за клик. Номера бери из вопроса или подтверждённого списка кампаний этого магазина. Поля dateFrom и dateTo — календарные даты по Москве в формате ГГГГ-ММ-ДД. Для одного дня передай эту дату в обоих полях. Метод рассчитан на текущие и предыдущие сутки. Если номеров кампаний нет, не отправляй запрос с пустым списком. Попроси указать номера кампаний.",
++    "requestGuide": "Передавай campaignIds как массив строковых идентификаторов кампаний Ozon с оплатой за клик. Номера бери из вопроса или подтверждённого списка кампаний этого магазина. Поля dateFrom и dateTo — календарные даты по Москве в формате ГГГГ-ММ-ДД. Для одного дня передай эту дату в обоих полях. Метод рассчитан на текущие и предыдущие сутки. Если номеров кампаний нет, не отправляй запрос с пустым списком. Если известен SKU, найди его кампании через read.performance.performance_cpc_campaigns_for_sku. Для всего магазина сначала получи read.performance.performance_active_campaigns.",
+     "guidanceVerified": true
+   },
+   {
+diff --git a/products/harness-platform/platform_core/marketplace_matrix/read_templates.py b/products/harness-platform/platform_core/marketplace_matrix/read_templates.py
+index 1ad46da..ceb5807 100644
+--- a/products/harness-platform/platform_core/marketplace_matrix/read_templates.py
++++ b/products/harness-platform/platform_core/marketplace_matrix/read_templates.py
+@@ -43,6 +43,7 @@ OZON_VOUCHER_PATH = "/v1/seller-actions/voucher/get"
+ OZON_RETURN_PNG = "read.seller.return_giveout_get_png"
+ OZON_RETURN_PNG_PATH = "/v1/return/giveout/get-png"
+ ACTIVE_CAMPAIGNS = "read.performance.performance_active_campaigns"
++CAMPAIGNS_FOR_SKU = "read.performance.performance_cpc_campaigns_for_sku"
+ CAMPAIGN_BY_ID = "read.performance.performance_campaign_by_id"
+ CAMPAIGN_LIST_URL = "https://api-performance.ozon.ru/api/client/campaign"
+ SUPPLEMENTAL_HOSTS = {
+@@ -163,7 +164,7 @@ def describe(card):
+         description.update(mode="edit", actionTemplateId=card["actionTemplateId"])
+     if "input" in card:
+         description["input"] = card["input"]
+-    if card.get("id") in (CAMPAIGN_BY_ID,ACTIVE_CAMPAIGNS):
++    if card.get("id") in (CAMPAIGN_BY_ID,ACTIVE_CAMPAIGNS,CAMPAIGNS_FOR_SKU):
+         description["parameterSchema"] = card["contract"]["schema"]
+     if card.get("guidanceVerified"):
+         for key in ("requestGuide", "responseGuide"):
+@@ -528,6 +529,8 @@ def supplemental_route(card, params):
+             or origin.netloc not in SUPPLEMENTAL_HOSTS[card["profile"]]
+             or origin.path != template or origin.query or origin.fragment):
+         raise Rejected("READ_FIXED_TRANSPORT")
++    if card["id"] == CAMPAIGNS_FOR_SKU:
++        return method, CAMPAIGN_LIST_URL + "?state=CAMPAIGN_STATE_RUNNING&page=1&pageSize=100", None
+     if card["id"] == ACTIVE_CAMPAIGNS:
+         return method, CAMPAIGN_LIST_URL + "?state=CAMPAIGN_STATE_RUNNING", None
+     if card["id"] in (WB_CARD_LOOKUP, WB_TRASH_LOOKUP):
+@@ -660,6 +663,10 @@ def supplemental_send(authority, store, card, route, *, credentials=None, write_
+             match = re.fullmatch(re.escape(CAMPAIGN_LIST_URL) + r"\?campaignIds=([1-9][0-9]{0,19})", url)
+             if method != "GET" or body is not None or not match or int(match[1]) >= 2**64:
+                 raise Rejected("READ_PARAMS_SCHEMA")
++        elif card["id"] == CAMPAIGNS_FOR_SKU:
++            if method != "GET" or body is not None or not re.fullmatch(
++                    re.escape(CAMPAIGN_LIST_URL) + r"\?state=CAMPAIGN_STATE_RUNNING&page=[1-9][0-9]{0,8}&pageSize=100", url):
++                raise Rejected("READ_FIXED_TRANSPORT")
+         elif card["id"] == ACTIVE_CAMPAIGNS:
+             if (method,url,body) != ("GET",CAMPAIGN_LIST_URL+"?state=CAMPAIGN_STATE_RUNNING",None):
+                 raise Rejected("READ_FIXED_TRANSPORT")
+@@ -910,7 +917,7 @@ def _pinned_request(store, card, params):
+     return request
+ 
+ 
+-def _active_campaigns(data, offset=0):
++def _active_campaigns(data, offset=0, *, all_rows=False):
+     from semantics import Rejected
+     rows = data.get("list") if isinstance(data,dict) else None
+     if not isinstance(rows,list) or "total" in data and str(data["total"])!=str(len(rows)):
+@@ -931,9 +938,94 @@ def _active_campaigns(data, offset=0):
+         out.append({"id":key,"title":str(row.get("title") or "")[:300],"state":row["state"],
+                     "paymentType":next(iter(payment),None),"advObjectType":row.get("advObjectType")})
+     out.sort(key=lambda r:int(r["id"]))
++    if all_rows:
++        return out
+     return {"total":len(out),"nextOffset":offset+PAGE_SIZE if offset+PAGE_SIZE<len(out) else None,"list":out[offset:offset+PAGE_SIZE]}
+ 
+ 
++def _campaign_pages(first, read_page):
++    from semantics import Rejected
++
++    payload, page, expected = first, 1, None
++    rows, seen = [], set()
++    while True:
++        batch = payload.get("list") if isinstance(payload, dict) else None
++        if not isinstance(batch, list) or len(batch) > 100:
++            raise Rejected("READ_CAMPAIGN_RESPONSE_MISMATCH")
++        total = payload.get("total")
++        if total is not None:
++            if not re.fullmatch(r"[0-9]{1,12}", str(total)) or expected not in (None, int(total)):
++                raise Rejected("READ_CAMPAIGN_RESPONSE_MISMATCH")
++            expected = int(total)
++        for row in batch:
++            ident = str(row.get("id")) if isinstance(row, dict) else ""
++            if not ident.isascii() or not ident.isdecimal() or ident in seen:
++                raise Rejected("READ_CAMPAIGN_RESPONSE_MISMATCH")
++            seen.add(ident)
++        rows.extend(batch)
++        if len(batch) < 100 or len(rows) == expected:
++            if expected is not None and len(rows) != expected:
++                raise Rejected("READ_CAMPAIGN_RESPONSE_MISMATCH")
++            return {"list":rows}
++        if expected is not None and len(rows) > expected:
++            raise Rejected("READ_CAMPAIGN_RESPONSE_MISMATCH")
++        page += 1
++        payload = read_page(page)
++
++
++def _cpc_for_sku(raw, params, read_products):
++    from hashlib import sha256
++    from semantics import Rejected
++
++    sku = params["sku"]
++    campaigns = []
++    for row in _active_campaigns(raw, all_rows=True):
++        if row["advObjectType"] == "SKU" and not row["paymentType"]:
++            raise Rejected("READ_CAMPAIGN_RESPONSE_MISMATCH")
++        if row["paymentType"] == "CPC" and row["advObjectType"] in (None, "SKU"):
++            campaigns.append(row)
++    signature = sha256(json.dumps([sku, campaigns], sort_keys=True).encode()).hexdigest()
++    offset = 0
++    if cursor := params.get("continuation"):
++        previous, index = cursor.split(":")
++        offset = int(index)
++        if previous != signature or offset >= len(campaigns) or offset % PAGE_SIZE:
++            raise Rejected("READ_LOOKUP_CHANGED")
++    matches = []
++    for row in campaigns[offset:offset + PAGE_SIZE]:
++        page, count, expected = 1, 0, None
++        seen = set()
++        while True:
++            data = read_products(row["id"], page)
++            products = data.get("products") if isinstance(data, dict) else None
++            if not isinstance(products, list) or len(products) > 100:
++                raise Rejected("READ_CAMPAIGN_RESPONSE_MISMATCH")
++            total = data.get("total")
++            if total is not None:
++                if not re.fullmatch(r"[0-9]{1,12}", str(total)) or expected not in (None, int(total)):
++                    raise Rejected("READ_CAMPAIGN_RESPONSE_MISMATCH")
++                expected = int(total)
++            for product in products:
++                key = str(product.get("sku", "")) if isinstance(product, dict) else ""
++                if not re.fullmatch(r"[1-9][0-9]{0,19}", key) or key in seen:
++                    raise Rejected("READ_CAMPAIGN_RESPONSE_MISMATCH")
++                seen.add(key)
++            count += len(products)
++            if expected is not None and count > expected:
++                raise Rejected("READ_CAMPAIGN_RESPONSE_MISMATCH")
++            if sku in seen:
++                matches.append(row)
++                break
++            if count == expected or len(products) < 100:
++                if expected is not None and count != expected:
++                    raise Rejected("READ_CAMPAIGN_RESPONSE_MISMATCH")
++                break
++            page += 1
++    end = min(offset + PAGE_SIZE, len(campaigns))
++    return {"sku":sku, "matches":matches, "totalCampaigns":len(campaigns),
++            "checkedFrom":offset, "checkedThrough":end, "next":f"{signature}:{end}" if end < len(campaigns) else None}
++
++
+ def _campaign_for_id(data, campaign_id):
+     from semantics import Rejected
+     from .campaign_inventory import OZON_STATES
+@@ -1174,6 +1266,28 @@ def _read_store(authority, store, card, params, directory, selected_proofs, turn
+             route = supplemental_route(card, params)
+             data, receipt = _with_rate_retries(authority, platform, card["id"],
+                                                 lambda: supplemental_send(authority, store, card, route), calls)
++            if card["id"] == CAMPAIGNS_FOR_SKU:
++                product_card = cards()["read.performance.performance_campaign_products"]
++                transport = HTTPTransport(directory, {}, selected_proofs, enabled=True,
++                    read_surface_policy=lambda: {"enabled": True, "pin": read_surface.PIN})
++
++                def read_products(campaign, page):
++                    target = _pinned_request(store, product_card, {"campaignId":campaign, "page":page, "pageSize":100})
++                    def send(request):
++                        return _with_rate_retries(authority, platform, request.operation,
++                            lambda: transport.execute(request, store, on_dispatch=authority.check), calls)
++
++                    authentication = transport.prepare(target, store)
++                    if authentication:
++                        send(authentication)
++                    return send(target)[0]
++
++                def read_campaign_page(page):
++                    url = CAMPAIGN_LIST_URL + f"?state=CAMPAIGN_STATE_RUNNING&page={page}&pageSize=100"
++                    return _with_rate_retries(authority, platform, card["id"],
++                        lambda: supplemental_send(authority, store, card, ("GET", url, None)), calls)[0]
++
++                data = _cpc_for_sku(_campaign_pages(data, read_campaign_page), params, read_products)
+         else:
+             request = _pinned_request(store, card, params)
+             transport_type = StickerTransport if presentation and presentation["kind"] == "stickers" else HTTPTransport
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/observations.py b/products/harness-platform/platform_core/user_plugins/bidder/observations.py
+index ea1298a..b74a5bf 100644
+--- a/products/harness-platform/platform_core/user_plugins/bidder/observations.py
++++ b/products/harness-platform/platform_core/user_plugins/bidder/observations.py
+@@ -111,7 +111,7 @@ def snapshot(db, scope, item, inv, now):
+     rows = db.execute("""SELECT day,campaign,sku,clicks,expense FROM bidder_samples WHERE store=? AND cid=?
+           AND generation=? AND day BETWEEN ? AND ?""",(sid,cid,item["key_version"],str(since),str(through)))
+     for day,campaign,sku,n,amount in rows:
+-        if campaign in by_campaign and sku in sku_set:
++        if campaign in by_campaign and sku in sku_set and sku in by_campaign[campaign]["products"]:
+             samples += 1
+             if campaign in owned:
+                 clicks += n
+@@ -235,7 +235,8 @@ def assess(db, scope, item, summary, inventory, now):
+     facts = {}
+     for source,observed,body,receipt in rows:
+         value = json.loads(body)
+-        if 0<=now-observed<=900 and receipt==catalog.fingerprint(value):
++        ttl = 86400 if source == "advertising" else 900
++        if 0 <= now-observed <= ttl and receipt==catalog.fingerprint(value):
+             facts[source] = value
+     confirmed = dict(composition=not inventory.get("unclassifiedSpend") and bool(campaigns),
+                      period=not any("закрытая история" in reason for reason in missing),
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/performance.py b/products/harness-platform/platform_core/user_plugins/bidder/performance.py
+index 6829ac9..aeb0198 100644
+--- a/products/harness-platform/platform_core/user_plugins/bidder/performance.py
++++ b/products/harness-platform/platform_core/user_plugins/bidder/performance.py
+@@ -202,8 +202,18 @@ class Performance:
+ 
+     async def execute(self, scope, item, candidate, now):
+         """Send one confirmed intent. A transport error leaves the resource fenced."""
+-        from . import executor, state
++        from . import campaigns, executor, state
+         inv = await self.inventory(scope,item["cid"],since=int(time.time()))
++        cfg = item["config"]
++        authorized = set(item["plan"]["ads"]["campaigns"])
++        live_plan = campaigns.campaign_plan(inv,item["skus"],cfg)
++        if not live_plan["ready"] or set(live_plan["campaigns"])!=authorized:
++            raise Deferred("Изменились кампании или обязательства магазина.")
++        if candidate["field"]=="weeklyBudget":
++            caps = sum(number(c["weeklyRub"]) for c in inv["campaigns"]
++                       if c["id"] in authorized and c["id"]!=candidate["campaign"])
++            if caps+number(candidate["value"])+number(cfg.get("reserve",0))+number(inv.get("outsideObligations",0))>number(cfg["budget"]):
++                raise Deferred("Сумма недельных лимитов превышает согласованный бюджет.")
+         row = next((r for r in inv["campaigns"] if r["id"]==candidate["campaign"]),None)
+         if row is None or catalog.fingerprint(row)!=candidate["baseline"]:
+             raise Deferred("Настройки рекламы изменились после расчёта.")
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/scheduler.py b/products/harness-platform/platform_core/user_plugins/bidder/scheduler.py
+index 2736478..7040e11 100644
+--- a/products/harness-platform/platform_core/user_plugins/bidder/scheduler.py
++++ b/products/harness-platform/platform_core/user_plugins/bidder/scheduler.py
+@@ -24,7 +24,7 @@ def refresh(db, item, now):
+     start = end - timedelta(days=item["config"].get("windowDays", 7) - 1)
+     coverage = {}
+     for source, ttl in SOURCE_SET.items():
+-        if source in ("realized-items", "finance", "settled-advertising") and item["config"]["strategy"] == "N1":
++        if source in ("realized-items", "finance") and item["config"]["strategy"] == "N1":
+             continue
+         if not market_access.allowed(db, item["cid"], source):
+             coverage[source] = "denied"
+diff --git a/products/harness-platform/tests/fixtures/marketplace_edit_cases.py b/products/harness-platform/tests/fixtures/marketplace_edit_cases.py
+index 14c010c..72fb3a6 100644
+--- a/products/harness-platform/tests/fixtures/marketplace_edit_cases.py
++++ b/products/harness-platform/tests/fixtures/marketplace_edit_cases.py
+@@ -2057,6 +2057,40 @@ class MarketplaceEdits(unittest.TestCase):
+         self.assertTrue(reply["ok"],reply)
+         self.assertEqual(reply["data"]["list"][0]["id"],"738")
+ 
++    def test_active_campaigns_for_sku_through_dispatcher(self):
++        from urllib.parse import parse_qs, urlsplit
++        cid = self.integrations.save(self.token,"ozon","Проверка по товару",
++                {"performance_id":"fixture-list","performance_secret":"fixture-secret"},chatId=self.scope.chat_id)["id"]
++        self.turn("В каких кампаниях рекламируется товар SKU 723?")
++        result = self.call(cid,"find",query="в каких кампаниях рекламируется товар SKU")
++        self.assertEqual(result["templates"][0]["id"],read_templates.CAMPAIGNS_FOR_SKU)
++        paths = []
++        def provider(req, **opts):
++            if check := opts.get("on_dispatch"):
++                check()
++            path = urlsplit(req.full_url).path
++            if path.endswith("/api/client/token"):
++                return b'{"access_token":"fixture-list-token","expires_in":1800}',200
++            self.assertEqual(req.get_method(),"GET")
++            paths.append(path)
++            if path.endswith("/api/client/campaign"):
++                return json.dumps({"list":[{"state":"CAMPAIGN_STATE_RUNNING","id":i,"advObjectType":"SKU",
++                    "paymentType":"CPC","title":"Одно название"} for i in ("3","5","7")]}).encode(),200
++            self.assertIn(path,[f"/api/client/campaign/{i}/v2/products" for i in ("3","5","7")])
++            page = int(parse_qs(urlsplit(req.full_url).query)["page"][0])
++            if "/3/" in path and page == 1:
++                rows = [{"sku":str(i)} for i in range(1,101)]
++            else:
++                rows = [{"sku":"651" if "/5/" in path else "723"}]
++            return json.dumps({"products":rows}).encode(),200
++        self.send.side_effect = provider
++        result = self.call(cid,"read",templateId=read_templates.CAMPAIGNS_FOR_SKU,params={"sku":"723"})
++        self.assertTrue(result["ok"],result)
++        data = result["data"]
++        self.assertEqual([r["id"] for r in data["matches"]],["3","7"])
++        self.assertEqual((data["totalCampaigns"],data["next"]),(3,None))
++        self.assertEqual(len(paths),5)
++
+     def test_performance_campaign_status_reads_only_the_created_id(self):
+         cid = self.integrations.save(
+             self.token, "ozon", "Проверка кампании " + uuid4().hex[:8],
+diff --git a/products/harness-platform/tests/fixtures/marketplace_matrix_cases.py b/products/harness-platform/tests/fixtures/marketplace_matrix_cases.py
+index 2e7197a..ea87f6e 100644
+--- a/products/harness-platform/tests/fixtures/marketplace_matrix_cases.py
++++ b/products/harness-platform/tests/fixtures/marketplace_matrix_cases.py
+@@ -46,6 +46,22 @@ class MarketplaceMatrix(unittest.TestCase):
+         with self.assertRaises(Rejected):
+             reads._active_campaigns(response|{"total":15})
+ 
++    def test_campaign_lookup_continuation_and_incomplete_pages(self):
++        from platform_core.marketplace_matrix import read_templates as reads
++        from semantics import Rejected
++        raw = {"list":[dict(id=str(i),state="CAMPAIGN_STATE_RUNNING",paymentType="CPC") for i in range(1,16)]}
++        params = {"sku":"123"}
++        def empty(campaign,page):
++            return {"products":[], "total":0}
++        page = reads._cpc_for_sku(raw,params,empty)
++        self.assertEqual((page["checkedThrough"],page["totalCampaigns"]),(12,15))
++        continuation = dict(params,continuation=page["next"])
++        self.assertIsNone(reads._cpc_for_sku(raw,continuation,empty)["next"])
++        with self.assertRaises(Rejected):
++            reads._cpc_for_sku({"list":raw["list"][1:]},continuation,empty)
++        with self.assertRaises(Rejected):
++            reads._cpc_for_sku(raw,params,lambda *args: {"products":[], "total":1})
++
+     def setUp(self):
+         self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+         db = self.root / "account.sqlite"
+diff --git a/products/harness-platform/tests/test_bidder.py b/products/harness-platform/tests/test_bidder.py
+index 7fde205..6b5f138 100644
+--- a/products/harness-platform/tests/test_bidder.py
++++ b/products/harness-platform/tests/test_bidder.py
+@@ -18,7 +18,7 @@ from starlette.exceptions import HTTPException
+ from platform_core.guest_registration import RegistrationStore
+ from platform_core.integrations import IntegrationStore
+ from platform_core import market_data
+-from platform_core.user_plugins.bidder import catalog, campaigns, economy, executor, observations, queue, state
++from platform_core.user_plugins.bidder import catalog, campaigns, decisions, economy, executor, observations, queue, state
+ from platform_core.user_plugins.bidder.operation import command
+ from platform_core.user_plugins.registry import OZON, enable
+ 
+@@ -82,6 +82,30 @@ class Financial(unittest.TestCase):
+         self.assertEqual(economy.allocate([a,b|{"skus":["1"]}],12000,0,0)[0],"CONFLICT")
+         self.assertEqual(economy.allocate([a,b],5000,0,0)[0],"INFEASIBLE")
+ 
++    def test_dispatch_on_mature_closed_scope(self):
++        row = inventory("7")["campaigns"][0]
++        row["products"]["123"] = {"bid":"5000000"}
++        item = {"config":cfg(mode="auto"),"plan":{"ads":{"campaigns":["7"]}}}
++        inv = {"complete":True,"campaigns":[row]}
++        proof = {"coverage":dict.fromkeys(("week","otherAds","composition","period","costs"),True),
++                 "window":"2026-11-24","products":[self.fact|{"campaign":"7","sku":"123"}]}
++        status,plans,missing = decisions.calculate(item,inv,proof)
++        self.assertEqual((status,D(plans[0]["value"]),missing),("PROPOSE",D("4.50"),[]))
++        self.assertEqual(decisions.calculate(item,inv,proof|{"coverage":{}})[0],"WAIT_DATA")
++        row["products"]["123"]["bid"]="6000000"
++        self.assertEqual(decisions.calculate(item,inv,proof)[0],"WAIT_DATA")
++
++    def test_budget_moves_decrease_before_increase(self):
++        first=inventory("7",products=["123"])["campaigns"][0]|{"weeklyRub":"6000"}
++        second=inventory("8",products=["124"])["campaigns"][0]|{"weeklyRub":"3000"}
++        item={"config":cfg("N6",mode="auto"),"plan":{"ads":{"campaigns":["7","8"]}}}
++        evidence={"coverage":dict.fromkeys(("week","otherAds","composition","period","costs"),True),
++                  "window":"2026-11-24","outsideObligations":"3000","portfolio":[
++                      dict(id="7",skus=["123"],minimum=2000,maximum=8000,spent=500,pending=100,options=[(4000,100)]),
++                      dict(id="8",skus=["124"],minimum=2000,maximum=8000,spent=100,pending=100,options=[(5000,150)])]}
++        status,plans,_ = decisions.calculate(item,{"complete":True,"campaigns":[second,first]},evidence)
++        self.assertEqual((status,[p["campaign"] for p in plans]),("PROPOSE",["7","8"]))
++
+ 
+ class ProductChoice(unittest.TestCase):
+     def test_combination_and_search(self):
