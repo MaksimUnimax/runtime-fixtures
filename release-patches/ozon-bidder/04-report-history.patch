@@ -1,0 +1,349 @@
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/history.py b/products/harness-platform/platform_core/user_plugins/bidder/history.py
+new file mode 100644
+index 0000000..3999a39
+--- /dev/null
++++ b/products/harness-platform/platform_core/user_plugins/bidder/history.py
+@@ -0,0 +1,223 @@
++"""Backfill closed CPC days from scoped Ozon reports, retaining unknown submissions across restarts."""
++import csv
++from datetime import datetime, timedelta
++from hashlib import sha256
++from io import BytesIO, StringIO
++import json
++import re
++import time
++from zipfile import BadZipFile, ZipFile
++from zoneinfo import ZoneInfo
++
++import httpx
++
++from ...marketplace_matrix.performance_report_file import generated_uuid
++from . import catalog, economy
++from .performance import Deferred, ORIGIN
++
++REPORTS = "/api/client/statistics"
++MAX_BYTES = 8 * 1024 * 1024
++SCHEMA = """CREATE TABLE IF NOT EXISTS bidder_history_reports(store TEXT,cid TEXT,generation INTEGER,query TEXT,
++    day TEXT,campaigns TEXT,requested INTEGER,uuid TEXT,state TEXT,next_at INTEGER,
++    PRIMARY KEY(store,cid,generation,query))"""
++
++
++def matches(meta, batch, day):
++    if not isinstance(meta, dict) or meta.get("kind") != "STATS":
++        return False
++    request = meta.get("request")
++    if not isinstance(request, dict) or not isinstance(request.get("campaigns"), list):
++        return False
++    return (sorted(map(str, request["campaigns"])) == sorted(batch)
++            and request.get("dateFrom") == request.get("dateTo") == day
++            and request.get("groupBy") == "NO_GROUP_BY")
++
++
++def parse_file(raw, batch):
++    if len(raw) > MAX_BYTES:
++        raise ValueError("Файл истории превышает допустимый размер.")
++    if len(batch) == 1:
++        files = [(batch[0],raw)]
++    else:
++        with ZipFile(BytesIO(raw)) as archive:
++            entries = archive.infolist()
++            wanted = {c + ".csv" for c in batch}
++            if (len(entries) != len(wanted) or {e.filename for e in entries} != wanted
++                    or sum(e.file_size for e in entries) > MAX_BYTES or any(e.flag_bits & 1 for e in entries)):
++                raise ValueError("Состав архива отличается от запрошенных кампаний.")
++            files = [(i.filename[:-4], archive.read(i)) for i in entries]
++    stats = {}
++    for campaign, data in files:
++        rows = csv.reader(StringIO(data.decode("utf-8-sig")),delimiter=";")
++        columns = None
++        for row in rows:
++            fields = [s.casefold().strip().replace("ё","е") for s in row]
++            if columns is None:
++                if "sku" not in fields:
++                    continue
++                if fields.count("sku") != 1 or fields.count("клики") != 1 or fields.count("показы") != 1:
++                    raise ValueError("Неизвестные колонки рекламной статистики.")
++                money = [i for i,s in enumerate(fields) if re.fullmatch(r"расход,\s*(?:₽|р\.?|руб\.?),\s*с ндс",s)]
++                if len(money) != 1:
++                    raise ValueError("Не подтверждены валюта и НДС расходов.")
++                columns = fields.index("sku"),fields.index("клики"),money[0],fields.index("показы")
++                continue
++            if not any(fields):
++                continue
++            if len(fields) <= max(columns):
++                raise ValueError("Неполная строка рекламного отчёта.")
++            sku,clicks,expense,views = [fields[i] for i in columns]
++            if sku in ("всего","итого"):
++                continue
++            if not re.fullmatch(r"[1-9][0-9]{0,19}",sku) or (campaign,sku) in stats:
++                raise ValueError("Не подтверждена строка товара в истории.")
++            clicks,expense,views = [economy.number(s.replace("\u00a0","").replace(" ","")) for s in (clicks,expense,views)]
++            if clicks != int(clicks) or views != int(views):
++                raise ValueError("Не подтверждены единицы показов и кликов.")
++            stats[campaign,sku] = (int(clicks),str(expense),int(views))
++        if columns is None:
++            raise ValueError("Отчёт не содержит заголовок по товарам.")
++    return stats
++
++
++async def backfill(performance,scope,item,inventory,now):
++    pin = item["store"],item["key_version"]
++    cid = item["cid"]
++    campaigns = sorted(c["id"] for c in inventory["campaigns"] if set(item["skus"]).intersection(c["products"]))
++    today = datetime.fromtimestamp(now,ZoneInfo("Europe/Moscow")).date()
++    if not campaigns or item["config"].get("windowDays",7) < 2:
++        return None
++    with performance.app.identity._write() as db:
++        performance.check(db,scope,cid,pin)
++        if db.execute("""SELECT 1 FROM bidder_quota WHERE store=? AND profile='performance'
++                AND group_id IN ('history','*') AND not_before>?""",(pin[0],now)).fetchone():
++            return "Ожидаю квоту исторических отчётов Ozon."
++        identity = (pin[0],cid,pin[1])
++        # Work on one report per store per tick, including the status of an interrupted submission.
++        active = db.execute("""SELECT query,day,campaigns,requested,uuid,state,next_at FROM bidder_history_reports
++            WHERE (store,cid,generation)=(?,?,?) AND state IN ('sending','queued','retry') ORDER BY requested LIMIT 1""",identity).fetchone()
++        if active:
++            key,day,encoded,asked,uid,stage,due = active
++            if now < due:
++                return "Ожидаю готовность истории рекламы."
++            batch = json.loads(encoded)
++            db.execute("UPDATE bidder_history_reports SET next_at=? WHERE (store,cid,generation,query)=(?,?,?,?)",
++                       (now+120,*identity,key))
++            create = stage == "retry"
++            if create:
++                asked = now
++                db.execute("""UPDATE bidder_history_reports SET requested=?,state='sending' WHERE
++                    (store,cid,generation,query)=(?,?,?,?)""",(asked,*identity,key))
++        else:
++            # Prefer the most recent missing closed day. Reports from earlier rules with the same scope are reused.
++            job = None
++            for days_ago in range(2,item["config"].get("windowDays",7)+1):
++                day = str(today-timedelta(days=days_ago))
++                for first in range(0,len(campaigns),10):
++                    batch = campaigns[first:first+10]
++                    key = catalog.fingerprint([day,batch])
++                    if not db.execute("SELECT 1 FROM bidder_history_reports WHERE (store,cid,generation,query)=(?,?,?,?)",
++                                      (*identity,key)).fetchone():
++                        job = (key,day,batch)
++                        break
++                if job:
++                    break
++            if not job:
++                return None
++            key,day,batch = job
++            # A timeout after the POST must never start a second billable report.
++            asked,uid,stage,create = now,None,"sending",True
++            db.execute("INSERT INTO bidder_history_reports VALUES(?,?,?,?,?,?,?,NULL,'sending',?)",
++                       (*identity,key,day,catalog.encoded(batch),asked,now+120))
++    args = (*identity,key)
++    def update(stage,uid=None,delay=120):
++        with performance.app.identity._write() as db:
++            performance.check(db,scope,cid,pin)
++            db.execute("""UPDATE bidder_history_reports SET state=?,uuid=coalesce(?,uuid),next_at=?
++                WHERE (store,cid,generation,query)=(?,?,?,?) AND state IN ('sending','queued')""",
++                       (stage,uid,int(time.time())+delay,*args))
++    def checked():
++        with performance.app.identity._lock:
++            performance.check(performance.app.identity._db,scope,cid,pin)
++    try:
++        if create:
++            token = await performance.token(scope,cid,pin)
++            checked()
++            reply = await performance.app.http.post(ORIGIN+REPORTS,headers={"Authorization":"Bearer "+token},
++                json={"dateFrom":day,"dateTo":day,"campaigns":batch,"groupBy":"NO_GROUP_BY"},timeout=25)
++            if reply.status_code == 429:
++                from ...marketplace_matrix.store_currency import retry_time
++                due = int(retry_time(reply.headers,now) or now+900)+1
++                with performance.app.identity._write() as db:
++                    performance.check(db,scope,cid,pin)
++                    db.execute("""UPDATE bidder_history_reports SET state='retry',next_at=? WHERE
++                        (store,cid,generation,query)=(?,?,?,?) AND state='sending'""",(due,*args))
++                    db.execute("""INSERT INTO bidder_quota VALUES(?,'performance','*',?) ON CONFLICT DO UPDATE
++                        SET not_before=max(not_before,excluded.not_before)""",(pin[0],due))
++                return "Ожидаю квоту исторических отчётов Ozon."
++            if reply.status_code in (400,401,403,422):
++                update("rejected")
++                return "Ozon отклонил запрос исторического отчёта."
++            reply.raise_for_status()
++            uid = generated_uuid(reply.json())
++            if not uid:
++                raise ValueError
++            update("queued",uid,60)
++            return "Исторический отчёт поставлен в очередь."
++        if not uid:
++            page = 1
++            matches_seen, seen_pages = set(), set()
++            while True:
++                listed = await performance.read(scope,cid,pin,"history-list",str(page),REPORTS+"/externallist",
++                    params={"page":page,"pageSize":100},ttl=120)
++                items = listed.get("items")
++                page_key = catalog.fingerprint(items)
++                if not isinstance(items,list) or len(items)>100 or page_key in seen_pages:
++                    raise ValueError
++                seen_pages.add(page_key)
++                for row in items:
++                    meta = row.get("meta")
++                    if matches(meta,batch,day) and generated_uuid(meta):
++                        at = datetime.fromisoformat(meta["createdAt"])
++                        if at.tzinfo and asked-5 <= at.timestamp() <= asked+180:
++                            matches_seen.add(generated_uuid(meta))
++                if len(items)<100:
++                    break
++                page += 1
++            if len(matches_seen)!=1:
++                return "Ozon пока не подтвердил номер отправленного отчёта. Повторное создание приостановлено."
++            uid = matches_seen.pop()
++            update("queued",uid,0)
++        meta = await performance.read(scope,cid,pin,"history-status",uid,REPORTS+"/"+uid,ttl=120)
++        if not matches(meta,batch,day) or generated_uuid(meta)!=uid:
++            raise ValueError
++        if meta.get("state") == "ERROR":
++            update("rejected")
++            return "Ozon завершил формирование отчёта с ошибкой."
++        if meta.get("state") != "OK":
++            return "Ozon готовит исторический отчёт."
++        token = await performance.token(scope,cid,pin)
++        checked()
++        data = bytearray()
++        async with performance.app.http.stream("GET",ORIGIN+REPORTS+"/report",params={"UUID":uid},
++                headers={"Authorization":"Bearer "+token},timeout=30) as response:
++            response.raise_for_status()
++            async for chunk in response.aiter_bytes():
++                if len(data)+len(chunk) > MAX_BYTES:
++                    raise ValueError
++                data.extend(chunk)
++        parsed = parse_file(bytes(data),batch)
++        stamp = int(time.time())
++        receipt = sha256(data).hexdigest()
++        with performance.app.identity._write() as db:
++            performance.check(db,scope,cid,pin)
++            for (campaign,sku),(clicks,expense,views) in parsed.items():
++                db.execute("""INSERT INTO bidder_samples VALUES(?,?,?,?,?,?,?,NULL,?,?,?,?)
++                    ON CONFLICT DO UPDATE SET clicks=excluded.clicks,expense=excluded.expense,views=excluded.views,
++                    observed=excluded.observed,receipt=excluded.receipt WHERE excluded.observed>=bidder_samples.observed""",
++                    (*identity,day,campaign,sku,stamp,clicks,expense,views,receipt))
++            db.execute("""UPDATE bidder_history_reports SET state='done' WHERE
++                (store,cid,generation,query,uuid)=(?,?,?,?,?)""",(*args,uid))
++        return "История рекламы сверена по файлу Ozon."
++    except (httpx.HTTPError,KeyError,TypeError,ValueError,BadZipFile,RuntimeError,Deferred):
++        return "Ожидаю сверку исторического отчёта Ozon."
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/queue.py b/products/harness-platform/platform_core/user_plugins/bidder/queue.py
+index 2691302..cb4044d 100644
+--- a/products/harness-platform/platform_core/user_plugins/bidder/queue.py
++++ b/products/harness-platform/platform_core/user_plugins/bidder/queue.py
+@@ -35,7 +35,8 @@ SCHEMA = (
+ 
+ def install(db):
+     from .observations import SCHEMA as observations
+-    for stmt in (*SCHEMA,*observations):
++    from .history import SCHEMA as report_schema
++    for stmt in (*SCHEMA,*observations,report_schema):
+         db.execute(stmt)
+ 
+ 
+diff --git a/products/harness-platform/platform_core/user_plugins/bidder/scheduler.py b/products/harness-platform/platform_core/user_plugins/bidder/scheduler.py
+index 7040e11..9cabc03 100644
+--- a/products/harness-platform/platform_core/user_plugins/bidder/scheduler.py
++++ b/products/harness-platform/platform_core/user_plugins/bidder/scheduler.py
+@@ -98,6 +98,9 @@ class Scheduler:
+         try:
+             inv = await self.performance.inventory(scope,item["cid"])
+             await observations.collect(self.performance,scope,item,inv,now)
++            from .history import backfill
++            if history_status := await backfill(self.performance,scope,item,inv,now):
++                result["historyStatus"] = history_status
+             with self.app.identity._lock:
+                 result.update(observations.snapshot(self.app.identity._db,scope,item,inv,now))
+             result.update(await observations.order_totals(self.performance,scope,item,result["from"],result["to"]))
+diff --git a/products/harness-platform/tests/fixtures/marketplace_matrix_cases.py b/products/harness-platform/tests/fixtures/marketplace_matrix_cases.py
+index ea87f6e..9e1056a 100644
+--- a/products/harness-platform/tests/fixtures/marketplace_matrix_cases.py
++++ b/products/harness-platform/tests/fixtures/marketplace_matrix_cases.py
+@@ -50,6 +50,12 @@ class MarketplaceMatrix(unittest.TestCase):
+         from platform_core.marketplace_matrix import read_templates as reads
+         from semantics import Rejected
+         raw = {"list":[dict(id=str(i),state="CAMPAIGN_STATE_RUNNING",paymentType="CPC") for i in range(1,16)]}
++        first = {"list":[dict(id=str(i)) for i in range(1,101)], "total":101}
++        second = {"list":[{"id":"101"}],"total":101}
++        self.assertEqual(len(reads._campaign_pages(first, lambda p:second)["list"]),101)
++        for invalid in ({"list":[], "total":101}, {"list":[{"id":"2"}],"total":101}, dict(second,total=102)):
++            with self.assertRaises(Rejected):
++                reads._campaign_pages(first, lambda p:invalid)
+         params = {"sku":"123"}
+         def empty(campaign,page):
+             return {"products":[], "total":0}
+diff --git a/products/harness-platform/tests/test_bidder.py b/products/harness-platform/tests/test_bidder.py
+index 6b5f138..18f114e 100644
+--- a/products/harness-platform/tests/test_bidder.py
++++ b/products/harness-platform/tests/test_bidder.py
+@@ -330,6 +330,70 @@ class Rules(unittest.TestCase):
+             self.assertEqual(db.execute("SELECT count(*) FROM bidder_writes").fetchone(),(0,))
+             self.assertEqual(db.execute("SELECT kind FROM bidder_events WHERE rule=? ORDER BY id DESC LIMIT 1",(item["id"],)).fetchone(),("waiting",))
+ 
++    def test_closed_day_report_recovers_a_lost_post_without_repeating_it(self):
++        import asyncio
++        import httpx
++        from unittest.mock import AsyncMock
++        from platform_core.user_plugins.bidder import history, performance
++        item = self.confirm(self.scope,self.preview(self.scope,"observe"))
++        now = int(time.time())
++        uid = "a644ebbb-f477-463b-b165-8a7aecefbd61"
++        request = {}
++        posts = []
++        def provider(req):
++            path = req.url.path
++            if req.method == "POST":
++                import json
++                request.update(json.loads(req.content))
++                posts.append(path)
++                raise httpx.ReadTimeout("response lost",request=req)
++            meta = {"UUID":uid,"state":"OK","kind":"STATS","request":request,
++                    "createdAt":datetime.fromtimestamp(now,UTC).isoformat()}
++            if path.endswith("/externallist"):
++                return httpx.Response(200,json={"items":[{"meta":meta}],"total":"1"})
++            if path.endswith("/"+uid):
++                return httpx.Response(200,json=meta)
++            self.assertEqual((path,req.url.params["UUID"]),("/api/client/statistics/report",uid))
++            return httpx.Response(200,content="SKU;Показы;Клики;Расход, Р, с НДС\n123;10;2;3,55".encode())
++        async def check():
++            async with httpx.AsyncClient(transport=httpx.MockTransport(provider)) as http:
++                app = SimpleNamespace(identity=self.server,http=http)
++                transport = performance.Performance(app)
++                transport.token = AsyncMock(return_value="fixture")
++                await history.backfill(transport,self.scope,item,inventory("7"),now)
++                with self.server._write() as db:
++                    self.assertEqual(db.execute("SELECT state,uuid FROM bidder_history_reports").fetchone(),("sending",None))
++                    db.execute("UPDATE bidder_history_reports SET next_at=0")
++                # A fresh client simulates a scheduler restart after the server accepted the first POST.
++                transport = performance.Performance(app)
++                transport.token = AsyncMock(return_value="fixture")
++                await history.backfill(transport,self.scope,item,inventory("7"),now+1)
++                with self.server._lock:
++                    db = self.server._db
++                    self.assertEqual(db.execute("SELECT state,uuid FROM bidder_history_reports").fetchone(),("done",uid))
++                    self.assertEqual(db.execute("SELECT campaign,sku,clicks,expense,views FROM bidder_samples").fetchone(),
++                                     ("7","123",2,"3.55",10))
++                    self.assertEqual(db.execute("SELECT count(*) FROM coin_attempts").fetchone(),(0,))
++        asyncio.run(check())
++        self.assertEqual(posts,["/api/client/statistics"])
++
++    def test_report_rejects_wrong_campaign_and_ambiguous_amounts(self):
++        from io import BytesIO
++        from zipfile import ZipFile
++        from platform_core.user_plugins.bidder import history
++        raw = "SKU;Показы;Клики;Расход, Р, с НДС\n123;10;2;3,55\n".encode()
++        archive = BytesIO()
++        with ZipFile(archive,"w") as z:
++            for campaign in ("7","8"):
++                z.writestr(campaign+".csv",raw)
++        self.assertEqual(len(history.parse_file(archive.getvalue(),["7","8"])),2)
++        with self.assertRaises(ValueError):
++            history.parse_file(archive.getvalue(),["7","9"])
++        with self.assertRaises(ValueError):
++            history.parse_file(raw + raw.splitlines()[1],["7"])
++        with self.assertRaises(ValueError):
++            history.parse_file(raw.replace("НДС".encode(),b"USD"),["7"])
++
+     def test_bad_schedule(self):
+         for fields in ({"days":[]},{"timezone":"bad zone"},{"end":"00:00"}):
+             with self.assertRaises(ValueError): state.config(cfg()|fields)
