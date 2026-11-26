@@ -1,0 +1,2092 @@
+diff --git a/products/harness-platform/deploy/competitors/ROLLBACK_RU.md b/products/harness-platform/deploy/competitors/ROLLBACK_RU.md
+new file mode 100644
+index 0000000..972b7cd
+--- /dev/null
++++ b/products/harness-platform/deploy/competitors/ROLLBACK_RU.md
+@@ -0,0 +1,8 @@
++# Восстановление версии плагина
++
++Схема применяется при старте платформы функцией `platform_core.competitors.service.install`. Она оставляет прежние столбцы исследования и заказов и добавляет таблицы квитанций, повторов, временных ограничений и восстановления сессии. Первый запуск заменяет старый триггер удаления использованных заказов и очищает материалы уже удалённых исследований. Эти материалы не восстанавливаются при откате. Журнал поставщика хранит минимальные технические идентификаторы и расход.
++
++1. По штатному регламенту релиза зафиксировать фактический путь `current`, версию исполняемой среды, состояние процессов, подтверждённый снимок SQLite и соответствующий журнал отзывов. Для production требуется допуск владельца.
++2. Остановить новые исследования, дождаться завершения рабочих процессов и сохранить текущий журнал заказов и квитанций. Сверить принятые идентификаторы, неизвестные исходы, карантин и фактические `used_checks_total`. Для карантина сохранить обе наблюдаемые величины и ответ поставщика. Старый worker не понимает новые состояния журнала.
++3. Возвращать только предыдущий согласованный релиз через штатный механизм выкладки. Пока есть незавершённые исследования, квитанции с расхождениями или ожидающие авторизации, использовать для отката сборку без включённого плагина. При возврате к его старой версии сначала завершить финансовую сверку и остановить доступ к новому и старому обработчикам конкурентного анализа.
++4. Сохранить новые таблицы и журнал отзывов. Переключение версии приложения не требует восстановления устаревшей базы поверх последующих заказов. Проверить чат, базовые плагины и кошелёк, целостность БД, отсутствие новых обращений поставщику. При повторном обновлении сверить число и сумму квитанций, неизменность идентификаторов и доступность старых отчётов.
+diff --git a/products/harness-platform/deploy/competitors/migration.sql b/products/harness-platform/deploy/competitors/migration.sql
+new file mode 100644
+index 0000000..c0223e1
+--- /dev/null
++++ b/products/harness-platform/deploy/competitors/migration.sql
+@@ -0,0 +1,80 @@
++PRAGMA foreign_keys=ON;
++
++BEGIN IMMEDIATE;
++
++DROP TRIGGER IF EXISTS competitor_forget;
++
++CREATE TABLE IF NOT EXISTS competitor_studies(
++        id TEXT PRIMARY KEY, workspace TEXT NOT NULL REFERENCES workspaces ON DELETE CASCADE,
++        chat TEXT NOT NULL REFERENCES chats ON DELETE CASCADE, actor TEXT NOT NULL, digest BLOB NOT NULL,
++        form TEXT NOT NULL, result TEXT NOT NULL, status TEXT NOT NULL, error TEXT NOT NULL DEFAULT '',
++        lease TEXT, due REAL NOT NULL DEFAULT 0, created REAL NOT NULL);
++
++CREATE TABLE IF NOT EXISTS competitor_assets(id TEXT PRIMARY KEY,research TEXT NOT NULL REFERENCES competitor_studies ON DELETE CASCADE,
++        sku TEXT NOT NULL,url TEXT NOT NULL,mime TEXT NOT NULL,digest TEXT NOT NULL,content BLOB NOT NULL,selected INTEGER NOT NULL,
++        UNIQUE(research,sku,url));
++
++CREATE TABLE IF NOT EXISTS competitor_drafts(chat TEXT PRIMARY KEY REFERENCES chats ON DELETE CASCADE,revision INTEGER NOT NULL,form TEXT NOT NULL);
++
++CREATE TABLE IF NOT EXISTS competitor_exchanges(chat TEXT REFERENCES chats ON DELETE CASCADE,request TEXT,text TEXT,answer TEXT,PRIMARY KEY(chat,request));
++
++CREATE TABLE IF NOT EXISTS competitor_jobs(
++      research TEXT NOT NULL, phase TEXT NOT NULL, label TEXT NOT NULL UNIQUE, account TEXT NOT NULL,
++      kind TEXT NOT NULL, region TEXT NOT NULL, rows TEXT NOT NULL, reserved INTEGER NOT NULL,
++      state TEXT NOT NULL, due REAL NOT NULL, order_id TEXT, used INTEGER, data TEXT, error TEXT,
++      PRIMARY KEY(research,phase));
++
++CREATE TABLE IF NOT EXISTS competitor_receipts(
++       account TEXT NOT NULL,order_id TEXT NOT NULL,label TEXT NOT NULL UNIQUE,used INTEGER NOT NULL CHECK(used>=0),
++       PRIMARY KEY(account,order_id));
++
++CREATE TABLE IF NOT EXISTS competitor_backoff(account TEXT PRIMARY KEY,label TEXT NOT NULL,due REAL NOT NULL);
++
++CREATE TABLE IF NOT EXISTS competitor_attempts(label TEXT PRIMARY KEY,attempts INTEGER NOT NULL);
++
++CREATE TABLE IF NOT EXISTS competitor_polls(label TEXT PRIMARY KEY,attempts INTEGER NOT NULL DEFAULT 0);
++
++CREATE TABLE IF NOT EXISTS competitor_incidents(label TEXT NOT NULL,reason TEXT NOT NULL,
++        accepted_id TEXT,reported_id TEXT,accepted_checks INTEGER,reported_checks INTEGER,created REAL NOT NULL,
++        PRIMARY KEY(label,reason));
++
++CREATE INDEX IF NOT EXISTS competitor_jobs_account ON competitor_jobs(account,state);
++
++CREATE TABLE IF NOT EXISTS competitor_seller_cache(cid TEXT REFERENCES account_integrations(id) ON DELETE CASCADE,
++       version INTEGER,since TEXT,until TEXT,sku TEXT,payload TEXT NOT NULL,PRIMARY KEY(cid,version,since,until,sku));
++
++CREATE TRIGGER IF NOT EXISTS competitor_detach AFTER DELETE ON chat_plugins WHEN OLD.plugin_id='ozon-competitors'
++        BEGIN UPDATE competitor_studies SET status='revoked',lease=NULL WHERE chat=OLD.chat_id;
++        DELETE FROM competitor_drafts WHERE chat=OLD.chat_id; END;
++
++CREATE TRIGGER IF NOT EXISTS competitor_revoke AFTER DELETE ON chat_integrations
++        BEGIN UPDATE competitor_studies SET status='revoked',lease=NULL WHERE chat=OLD.chat_id AND
++        OLD.connection_id IN (json_extract(form,'$.parser'),json_extract(form,'$.store')); END;
++
++CREATE TRIGGER IF NOT EXISTS competitor_reconcile_revoked AFTER UPDATE OF status ON competitor_studies
++       WHEN NEW.status='revoked' BEGIN
++       UPDATE competitor_jobs SET error='Сверка ожидает восстановления доступа к исходному заказу'
++       WHERE research=NEW.id AND used IS NULL AND state NOT IN ('declined','not-sent'); END;
++
++CREATE TRIGGER IF NOT EXISTS competitor_finance_revocation AFTER UPDATE OF status ON competitor_studies
++       WHEN NEW.status='revoked' BEGIN
++       UPDATE competitor_jobs SET state=CASE WHEN state='rate-limited' THEN 'not-sent' ELSE 'detached-pending' END,
++         used=CASE WHEN state='rate-limited' THEN 0 ELSE used END,due=0,rows='[]',data=NULL,
++         error='Требуется авторизованная сверка' WHERE research=NEW.id AND used IS NULL AND state<>'quarantine';
++       END;
++
++CREATE TABLE IF NOT EXISTS competitor_auth_pause(research TEXT PRIMARY KEY REFERENCES competitor_studies(id)
++       ON DELETE CASCADE, execution TEXT NOT NULL);
++
++CREATE TRIGGER IF NOT EXISTS competitor_detach_finance AFTER DELETE ON competitor_studies BEGIN
++       UPDATE competitor_jobs SET rows='[]',data=NULL,region='',kind='',error=NULL,
++         state=CASE WHEN state='quarantine' THEN state WHEN used IS NOT NULL OR state='rate-limited' THEN 'detached-settled' ELSE 'detached-pending' END,
++         used=CASE WHEN state='rate-limited' THEN 0 ELSE used END,due=0 WHERE research=OLD.id;
++       END;
++
++UPDATE competitor_jobs SET rows='[]',data=NULL,region='',kind='',error=NULL,due=0,
++        state=CASE WHEN used IS NULL THEN 'detached-pending' ELSE 'detached-settled' END
++        WHERE state NOT IN ('detached-pending','detached-settled','quarantine')
++        AND NOT EXISTS(SELECT 1 FROM competitor_studies r WHERE r.id=competitor_jobs.research AND r.status<>'revoked');
++
++COMMIT;
+diff --git a/products/harness-platform/native/web/competitors.js b/products/harness-platform/native/web/competitors.js
+index cddb3ab..9f70666 100644
+--- a/products/harness-platform/native/web/competitors.js
++++ b/products/harness-platform/native/web/competitors.js
+@@ -1,6 +1,6 @@
+ /* The chat and settings panel edit the same server-versioned draft. */
+ window.octoCompetitorPanel = function(React,h,api,send,Dialog,Action) {
+-  const statusNames={running:'Идёт сбор',paused:'Требуется сверка',done:'Готово',stopped:'Остановлено',selection:'Выберите конкурентов'};
++  const statusNames={reauth:'Требуется подтвердить доступ',running:'Идёт сбор',paused:'Требуется сверка',done:'Готово',stopped:'Остановлено',selection:'Выберите конкурентов'};
+   return function Competitors({url,title,close}) {
+     const [meta,setMeta]=React.useState(null),[form,setForm]=React.useState(null),[study,setStudy]=React.useState(null);
+     const [error,setError]=React.useState(''),[busy,setBusy]=React.useState(false),[skus,setSkus]=React.useState([]);
+@@ -57,6 +57,7 @@ window.octoCompetitorPanel = function(React,h,api,send,Dialog,Action) {
+       h('p',null,'Верхний бюджет '+form.budget+' проверок. Ориентир по базовому тарифу '+(form.budget*0.20).toFixed(2)+' ₽. Поставщик учитывает фактические проверки по каждому отчёту.'),
+       button('Рассчитать смету',async()=>setEstimate(await send(url+'/estimate',{form:clean()})),!form.parser),
+       estimate&&h('section',null,estimate.stages.map(s=>h('p',{key:s.stage},s.stage+' · '+(s.checks??'после первичной выборки'))),h('p',null,'Сбор с вашим ключом · 0 монет Октопорта. Предел '+estimate.cap+' проверок parser.market.')),
++      form.parser&&button('Сверить ранее принятые заказы',async()=>{const r=await send(url+'/reconcile',{parser:form.parser});setError(r.message);}),
+       button('Сохранить черновик',async()=>{const m=await send(url+'/save',{revision:meta.revision,form:clean()});setMeta({...m,products:meta.products});setForm(m.form);}),
+       button('Подтвердить лимит и начать',async()=>{
+         if(!launch.current){
+@@ -131,9 +132,17 @@ window.octoCompetitorPanel = function(React,h,api,send,Dialog,Action) {
+       const run=(action,extra={})=>async()=>show(await send(url+'/'+action,{id:study.id,...extra}));
+       const rows=Object.values(d.kernel||{}).flatMap(k=>Object.values(k.phrases||{}));
+       const failedSearch=rows.some(r=>r.status==='ERROR'||r.status==='INCOMPLETE')||(rows.length>0&&rows.every(r=>r.status==='UNCHECKED'));
+-      const heading=study.status==='done'&&failedSearch?'Завершено с неполными данными поиска':statusNames[study.status]||study.status;
++      const photoErrors=Object.entries(d.gallery||{}).flatMap(([sku,entries])=>Object.entries(entries).filter(([,v])=>v.error).map(([url,v])=>({sku,url,error:v.error})));
++      const q=study.quality;
++      const partial=q?q.partial:failedSearch||photoErrors.length>0||(d.targets||[]).some(s=>!d.cards?.[s]||d.cards[s].error);
++      const heading=study.status==='done'&&partial?(q?.outcome==='failed'?'Карточки не подтверждены':'Завершено с неполными данными'):(statusNames[study.status]||study.status);
+       return h('section',null,h('h3',null,heading),h('p',null,'Этап '+d.phase+' · '+study.form.region),
+-        d.noConfirmedPeers&&h('p',null,'В проверенной выборке подходящих конкурентов не подтверждено.'),
++        q&&h('p',null,'Выбрано товаров '+q.requested+' · подтверждено карточек '+q.validated+' · получены отзывы для '+q.reviewed+' · скачано фото '+q.photoFetched),
++        photoErrors.map(v=>h('p',{key:v.sku+v.url},v.sku+' · '+v.url+' · '+v.error)),
++        photoErrors.length>0&&study.status==='done'&&button('Повторить загрузку недостающих фото',run('retry-photos')),
++        d.seller?.errors?.length>0&&study.status==='done'&&button('Повторить неполные срезы Seller',run('retry-seller')),
++        study.status==='reauth'&&button('Подтвердить доступ',run('resume')),
++        d.noConfirmedPeers&&!q?.partial&&h('p',null,'В проверенной выборке подходящих конкурентов не подтверждено.'),
+         study.error&&h('p',{role:'alert'},study.error),
+         study.status==='running'&&button('Остановить',run('stop')),
+         study.status==='paused'&&h('div',null,h('label',null,'Новый верхний лимит проверок',h('input',{type:'number',value:increase,onChange:e=>setIncrease(e.target.value)})),button('Подтвердить новый лимит',run('budget',{budget:Number(increase)}),Number(increase)<=study.form.budget)),
+@@ -172,7 +181,7 @@ window.octoCompetitorPanel = function(React,h,api,send,Dialog,Action) {
+         }),d.recommendations?.map((r,i)=>h('p',{key:i},r.text+' Отчёты '+r.orders.join(', ')))),
+         d.groups?.length>1&&h('section',null,h('h3',null,'Группы по категории и типу'),d.groups.map(g=>h('p',{key:g.own[0]},[g.category,g.type,g.own.join(', '),'подходящих '+g.eligible.length].join(' · ')))),
+         h('details',null,h('summary',null,'Причины отбора и данные сравнения'),h('pre',null,JSON.stringify({decisions:d.decisions,shared:d.shared,unique:d.unique,gaps:d.gaps,comparison:d.comparisonCards,seller:d.seller,performance:d.performance},null,2))),
+-        h('details',null,h('summary',null,'Квитанции'),study.receipts.map(r=>h('p',{key:r.label},[r.phase,r.state,r.order,r.checks==null?'зарезервировано '+r.reserved:'проверок '+r.checks,r.error].filter(Boolean).join(' · '),r.retryable?.length>0&&['done','selection'].includes(study.status)&&button('Повторить ошибочные строки ('+r.retryable.length+') в пределах лимита',run('retry-rows',{label:r.label}))))),
++        h('details',null,h('summary',null,'Квитанции'),study.receipts.map(r=>h('p',{key:r.label},[r.phase,r.state,r.order,r.checks==null?'зарезервировано '+r.reserved:'проверок '+r.checks,r.error].filter(Boolean).join(' · '),r.order&&r.retryable?.length>0&&['done','selection'].includes(study.status)&&button('Перечитать оплаченный отчёт',run('reread',{label:r.label})),r.retryable?.length>0&&['done','selection'].includes(study.status)&&button('Повторить ошибочные строки ('+r.retryable.length+') в пределах лимита',run('retry-rows',{label:r.label}))))),
+         study.status==='done'&&button('Передать результат в чат',toChat),
+         h('a',{href:url+'/export?id='+study.id,download:true},'Скачать отчёт JSON'),
+         button('К списку исследований',async()=>{const m=await list(form.store);setMeta(m);setForm(m.form);setStudy(null);launch.current=null;}));
+diff --git a/products/harness-platform/platform_core/chat_api.py b/products/harness-platform/platform_core/chat_api.py
+index eacda39..fb6ef84 100644
+--- a/products/harness-platform/platform_core/chat_api.py
++++ b/products/harness-platform/platform_core/chat_api.py
+@@ -288,11 +288,12 @@ def create_app(database_path, chat_directory, *, composition_module=None):
+                 competitor_reply=None
+                 if action=="turn" and not data.get("attachments"):
+                     with identity._write() as db:
+-                        facts=competitor_routes.explanation(db,scope,data["text"])
++                        intent=competitor_routes.resolve(db,scope,data["text"])
++                        facts=competitor_routes.explanation(db,scope,data["text"],intent)
+                         if facts:
+                             data["knowledge"]["competitorFacts"]=facts
+                         else:
+-                            competitor_reply=competitor_routes.command(db,scope,data["requestId"],data["text"])
++                            competitor_reply=competitor_routes.command(db,scope,data["requestId"],data["text"],intent)
+                 if competitor_reply:
+                     result=await req.app.state.worker.request(scope,"competitorExchange",requestId=data["requestId"],text=data["text"],answer=competitor_reply)
+                 elif action == "turn" and not data.get("attachments") and timers.matches(scope,data["requestId"],data["text"],hint):
+diff --git a/products/harness-platform/platform_core/competitors/analysis.py b/products/harness-platform/platform_core/competitors/analysis.py
+index d7a22bf..a8f85eb 100644
+--- a/products/harness-platform/platform_core/competitors/analysis.py
++++ b/products/harness-platform/platform_core/competitors/analysis.py
+@@ -6,6 +6,7 @@ from collections import defaultdict
+ from datetime import datetime,timezone
+ from urllib.parse import urlsplit
+ 
++from .contracts import number, text
+ from .parser import exact, unique, match_rows
+ 
+ 
+@@ -21,8 +22,8 @@ def characteristics(value):
+             for child in node:
+                 visit(child)
+         elif isinstance(node,dict):
+-            if node.get('name') and isinstance(node.get('values'),list):
+-                fields[str(node['name'])].extend(str(v['text']) for v in node['values'] if isinstance(v,dict) and v.get('text'))
++            if text(node.get('name')) and isinstance(node.get('values'),list):
++                fields[text(node['name'])].extend(text(v['text'],2000) for v in node['values'] if isinstance(v,dict) and text(v.get('text')))
+             else:
+                 for k in ('characteristics','short','long','full','groups','items'):
+                     visit(node.get(k))
+@@ -43,16 +44,44 @@ def photo_url(url):
+ def category_path(breadcrumbs):
+     result=[]
+     for item in breadcrumbs or []:
+-        if not isinstance(item,dict) or not item.get('name'):
++        if not isinstance(item,dict) or not text(item.get('name')):
+             continue
+         link=urlsplit(str(item.get('link') or ''))
+-        if link.netloc.lower() not in ('www.ozon.ru','ozon.ru'):
++        if link.scheme!='https' or link.netloc.lower() not in ('www.ozon.ru','ozon.ru'):
+             continue
+         if re.fullmatch(r'/category/[\w-]+-[0-9]+/?',link.path):
+-            result.append({'name':str(item['name']),'url':link.geturl()})
++            result.append({'name':text(item['name']),'url':link._replace(query='',fragment='').geturl()})
+     return result
+ 
+ 
++def shop_url(value):
++    if isinstance(value,str):
++        try:
++            u=urlsplit(value)
++            if u.scheme=='https' and u.netloc.lower() in ('ozon.ru','www.ozon.ru') and u.path.startswith('/seller/'):
++                return u._replace(fragment='',query='').geturl()
++        except ValueError:
++            pass
++    return None
++
++
++def review_rows(comments):
++    if not isinstance(comments,list):
++        return {'error':'MISSING_REVIEWS'}
++    rows=[]
++    invalid=0
++    for c in comments:
++        if not isinstance(c,dict) or not any(text(c.get(k)) for k in ('Comment','Pro','Contra','Title','Published')):
++            invalid+=1
++            continue
++        row={k:text(c.get(k),12000) for k in ('Published','Comment','Pro','Contra','Title')}
++        row['Rating']=number(c.get('Rating'),1,5,integer=True)
++        if c.get('Rating') is not None and row['Rating'] is None:
++            invalid+=1
++        rows.append(row)
++    return {'reviews':rows,'invalidRows':invalid}
++
++
+ def card(offer):
+     attrs=characteristics(offer.get('CharacteristicsObject') or offer.get('Characteristics'))
+     for field in ('Breadcrumbs', 'Offer_pics'):
+@@ -63,18 +92,18 @@ def card(offer):
+             raise ValueError('INVALID_FIELD: '+field)
+     path=category_path(offer.get('Breadcrumbs'))
+     crumbs=[b['name'] for b in path]
+-    result={'sku':exact(offer),'title':offer.get('Name'),'description':offer.get('Seo_description'),
++    result={'sku':exact(offer),'title':text(offer.get('Name'),2000),'description':text(offer.get('Seo_description'),80000),
+             'characteristics':attrs,'breadcrumbs':crumbs,'publicCategories':path,'type':next(iter(attrs.get('Тип',[])),None),
+             'photos':unique([u for u in offer.get('Offer_pics') or [] if photo_url(u)]),
+-            'url':f"https://www.ozon.ru/product/{exact(offer)}/",'sellerRating':offer.get('ShopRating') or None,
+-            'brand':offer.get('Brand_found') or None,'questions':offer.get('SkuQuestions') or None,
+-            'seller':offer.get('ShopName'),'sellerId':offer.get('ShopId'),'sellerUrl':offer.get('ShopUrl'),
+-            'rating':offer.get('SkuRating') or None,'ratingCount':offer.get('SkuRates'),
+-            'delivery':offer.get('DeliveryTerm') or None,'available':offer.get('Ozon_available'),
+-            'stock':offer.get('Ozon_stockcount'),'source':'parser.market'}
++            'url':f"https://www.ozon.ru/product/{exact(offer)}/",'sellerRating':number(offer.get('ShopRating'),0,5) or None,
++            'brand':text(offer.get('Brand_found')),'questions':number(offer.get('SkuQuestions'),integer=True),
++            'seller':text(offer.get('ShopName')),'sellerId':text(offer.get('ShopId')) or number(offer.get('ShopId'),integer=True),'sellerUrl':shop_url(offer.get('ShopUrl')),
++            'rating':number(offer.get('SkuRating'),0,5) or None,'ratingCount':number(offer.get('SkuRates'),integer=True),
++            'delivery':text(offer.get('DeliveryTerm')) or number(offer.get('DeliveryTerm')),'available':offer.get('Ozon_available') if type(offer.get('Ozon_available')) is bool else None,
++            'stock':number(offer.get('Ozon_stockcount'),integer=True),'source':'parser.market'}
+     for k in ('Price','PromoPrice','OldPrice','Ozon_sellerprice','OZON_couponPrice'):
+         value=offer.get(k)
+-        result[k]=value if isinstance(value,(float,int)) and value>0 else None
++        result[k]=number(value) or None
+     return result
+ 
+ 
+@@ -84,9 +113,9 @@ def parse_batch(kind,rows,report):
+         key=row['name']
+         offers=item['offers'] if item else []
+         if kind=='search':
+-            results=[{'sku':exact(o),'title':o.get('Name'),'index':i} for i,o in enumerate(offers,1) if isinstance(o,dict)]
++            results=[{'sku':exact(o),'title':text(o.get('Name'),2000),'index':i} for i,o in enumerate(offers,1) if isinstance(o,dict)]
+             depth=int(row['donotsearch'])
+-            invalid=any(not h['sku'] for h in results) or len({h['sku'] for h in results})!=len(results)
++            invalid=len(results)!=len(offers) or any(not h['sku'] for h in results) or len({h['sku'] for h in results})!=len(results)
+             state='ERROR' if error else 'INCOMPLETE' if len(results)<depth or invalid else 'OK'
+             data[key]=dict(state=state,error=error,hits=results,actual=len(offers),depth=depth)
+         else:
+@@ -102,11 +131,9 @@ def parse_batch(kind,rows,report):
+                     data[key]={'error':str(exc)[:160] if isinstance(exc,ValueError) else 'INVALID_CARD_FIELDS'}
+             else:
+                 comments=matches[0].get('Offer_userComments')
+-                data[key]=({'error':'MISSING_REVIEWS'} if not isinstance(comments,list) else
+-                    {'reviews':[{**{k:c.get(k) for k in ('Published','Comment','Pro','Contra','Title')},'Rating':c.get('Rating') or None}
+-                                for c in comments if isinstance(c,dict)]})
+-        data[key].update(order=report['id'],code=row['code'],region=report.get('regioncode'),
+-                         collected=report.get('received'),sort='normal' if kind=='search' else None)
++                data[key]=review_rows(comments)
++        data[key].update(order=report['id'],code=row['code'],region=text(report.get('regioncode')) or number(report.get('regioncode'),integer=True),
++                         collected=text(report.get('received')) or number(report.get('received')),sort='normal' if kind=='search' else None)
+     return data
+ 
+ 
+@@ -118,7 +145,7 @@ def observed(skuses,phrases,search):
+             row=search.get(phrase,{})
+             idx=next((hit['index'] for hit in row.get('hits',[]) if hit['sku']==sku),None)
+             state='FOUND' if idx else {'OK':'NOT_FOUND_IN_SAMPLE'}.get(row.get('state'), row.get('state','UNCHECKED'))
+-            found[phrase]=dict(status=state,response_index=idx,actual_count=row.get('actual'),requested_depth=row.get('depth'),order=row.get('order'),code=row.get('code'),region=row.get('region'),collected=row.get('collected'),sort=row.get('sort'))
++            found[phrase]=dict(status=state,coverage=row.get('state','UNCHECKED'),response_index=idx,actual_count=row.get('actual'),requested_depth=row.get('depth'),order=row.get('order'),code=row.get('code'),region=row.get('region'),collected=row.get('collected'),sort=row.get('sort'))
+         matrix[sku]={'phrases':found,'top':{str(n):[p for p,r in found.items() if r['response_index'] and r['response_index']<=n] for n in (3,5,10,32)}}
+     return matrix
+ 
+@@ -163,54 +190,98 @@ def candidates(cards,reviews,extra=()):
+     return dict(phrases)
+ 
+ 
+-# These are uses, not visual, price, brand or demographic attributes.
+-# Prefer the product name and explicit use fields over incidental mentions in prose.
+-USES = {
+-    'подвеска в автомобиль': r'(?:подвеск\w*|четки|висюльк\w*|подвесной оберег).{0,40}(?:на зеркало|в машин|в авто|автомобильн)|автомобильн\w* (?:четки|подвеск)|(?:крепится|подвешива\w*|веша\w*) на зеркало(?: заднего вида)?',
+-    'крепление на одежду': r'\bбулавк|\bброшь|на лацкан|на изнаночн\w+ сторон\w+ одежды',
+-    'ношение на запястье': r'браслет|(?:обхват|на) запясть',
+-    'ношение на шее': r'на ше[юе]|(?:как |шаманский )кулон|ожерелье',
+-    'декор интерьера': r'ловец снов|(?:на стен[уе]|в спальн|для декора интерьера)',
+-    'работа за письменным столом': r'письменн\w* стол|стол (?:для письма|письменн)',
+-    'приём пищи': r'обеденн\w* стол|стол (?:для обеда|обеденн)',
+-    'брелок для ключей': r'брелок|для связки ключей',
+-}
+-BROAD_TYPE = re.compile(r'амулет|оберег|аксессуар|сувенир|универсальн|принадлежност|прочее|набор товаров|декоративн|украшение')
++# Functional relations can be expressed through the structured attributes or
++# the same linguistic relations in a title or a statement about intended use.
++# Context alone (a room, a vehicle, a possible gift) does not prove a function.
++FUNCTION_FIELDS={'назначение','основное назначение','область применения','способ установки',
++                 'способ крепления','место установки','тип крепления','вид применения'}
++BROAD_TYPE=re.compile(r'амулет|оберег|аксессуар|сувенир|универсальн|принадлежност|прочее|набор товаров|декоративн|украшение')
++FUNCTION_WORDS={'браслет':'запястье','булавк':'одежду','брошь':'одежду','кулон':'шею',
++                'ожерелье':'шею','обеденн':'приём пищи','письменн':'письмо','брелок':'ключей'}
++RELATION=re.compile(r'\b(для|на|под)\s+([а-яa-z-]+(?:\s+(?!(?:для|на|под|в|с|и|или)\b)[а-яa-z-]+){0,2})')
++DECLARED=re.compile(r'предназнач|применя|использу|крепи|закреп|подвеш|повесить|ставится|устанавлива|монтиру|носится')
++NEGATION=re.compile(r'\b(?:не|нельзя|запрещено|невозможно)\b')
++AUDIENCE=re.compile(r'мужчин|женщин|детей|ребенк|подар|взросл|повседнев|универсал|скидк')
++def uses_in(value):
++    uses=set()
++    for marker,meaning in FUNCTION_WORDS.items():
++        if re.search(r'\b'+marker,value):
++            uses.add(meaning)
++    for rel,members in RELATION.findall(value):
++        words=members.split()
++        if rel=='под' and words[0]=='заказ' or AUDIENCE.search(members):
++            continue
++        # Discard trailing prepositions and qualifiers after the governing noun.
++        obj=next((w for w in words if w not in ('в','и','на','с','или') and not w.endswith(('ную','нюю','ую','ое','ее','ной'))),words[0])
++        if obj.startswith('запясть'): obj='запястье'
++        if 'одежд' in members: obj='одежду'
++        uses.add(obj)
++    return uses
++
++def purpose_facts(card):
++    return [(key,v) for key,values in card.get('characteristics',{}).items()
++            if normalized(key) in FUNCTION_FIELDS or normalized(key).startswith(('назначение ','основное назначение '))
++            for v in values if isinstance(v,str) and v.strip() and not AUDIENCE.search(normalized(v))]
++
++def object_key(word):
++    # Match grammatical case on the governing object of a functional relation.
++    # Keep its original spelling for the UI and the audit trail.
++    return re.sub(r'(?:ами|ями|ах|ях|ам|ям|ом|ем|ой|ей|[аоеуыюяи])$','',word) if len(word)>4 and ' ' not in word else word
+ 
+ def purpose(card):
+-    attrs=card.get('characteristics',{})
+-    explicit=[normalized(v) for k,values in attrs.items()
+-              if normalized(k) in ('назначение','основное назначение','область применения')
+-              for v in values if isinstance(v,str) and v.strip()]
+-    title=normalized(card.get('title') or '')
+-    statement=normalized(' '.join(explicit))
+-    def extract(value):
+-        return {use for use,pattern in USES.items() if re.search(pattern,value)}
+-    primary=extract(title)|extract(statement)
+-    automotive=r'в (?:салон |зеркало )?(?:машин|авто)|автомобильн\w* (?:амулет|оберег)'
+-    description=normalized(card.get('description') or '')
+-    if re.search(automotive,title) and 'подвеска в автомобиль' not in primary:
+-        # A car-specific title establishes the primary context. Confirm the function
+-        # from a mounting statement; mere proximity to the mirror is insufficient.
+-        hanging=r'\b(?:повесить|подвесить|крепится|подвешивается|вешается)\s+на\s+(?:салонное\s+)?зеркало\b'
+-        if re.search(r'\bна зеркало\b',title) or re.search(hanging,description):
+-            primary.add('подвеска в автомобиль')
+-        else:
+-            primary.add('для автомобиля, вид крепления не подтверждён')
+-    if primary:
+-        return primary
+-    # A location somewhere in a long description is not the item's primary use.
+-    # Only use a direct mounting/purpose statement when the name is inconclusive.
+-    declarations=re.findall(r'(?:предназначен\w*|основное назначение|крепится|подвешива\w*)\s+[^.!?;]{2,100}',description)
+-    declared=set().union(*(extract(sentence) for sentence in declarations))
+-    if declared:
+-        return declared
+-    return {'назначение: '+v for v in explicit if not re.search(r'подар|мужчин|женщин|детск|взросл|универсал|повседнев|для детей',v)}
+-
++    # Merchandising suffixes often describe an accessory, inscription or material.
++    # Read the head of the title and let actual use statements corroborate it.
++    title=normalized(re.split(r'[/|;,.]',card.get('title') or '',maxsplit=1)[0])
++    positive=set()
++    negative=set()
++    def add(value,structured=False):
++        for clause in re.split(r'[.!?;,]|\bно\b',value.casefold()):
++            stmt=normalized(clause)
++            found=uses_in(stmt)
++            if structured and not found and stmt and not AUDIENCE.search(stmt):
++                found={stmt}
++            (negative if NEGATION.search(stmt) else positive).update(found)
++    # A suffix describing an accessory or connector cannot disprove the primary
++    # function explicitly supplied by Ozon. Keep direct contradictory primary
++    # statements (including explicit negation) for an unresolved decision.
++    facts=purpose_facts(card)
++    if facts:
++        for key,v in facts:
++            add(v,True)
++        main=re.split(r'[.;,]',card.get('title') or '',maxsplit=1)[0]
++        if NEGATION.search(normalized(main)) or any(DECLARED.search(c) and NEGATION.search(c) for c in
++                    re.split(r'[.!?;]',(card.get('description') or '').casefold())):
++            positive.add('противоречие: не подтверждён')
++        head=normalized(main)
++        for marker,target in FUNCTION_WORDS.items():
++            if re.search(r'\b'+marker,head) and target not in positive:
++                positive.add(target)
++    else:
++        add(title)
++    for clause in re.split(r'[.!?;]',(card.get('description') or '').casefold()):
++        if not facts and DECLARED.search(clause) and not (positive and re.search(r'можно|также|дополнительно',clause)):
++            add(clause)
++    by_object={}
++    for term in sorted(positive,key=lambda v:(v not in title.split(),v)):
++        by_object.setdefault(object_key(term),term)
++    positive=set(by_object.values())
++    if set(by_object) & {object_key(term) for term in negative}:
++        return positive|{'противоречие: не подтверждён'}
++    if not positive and (negative or re.search(r'\bв (?:авто|машин)',title)):
++        return {'вид применения не подтверждён'}
++    return positive
++
++def category_key(card):
++    public=card.get('publicCategories') or []
++    if public:
++        url=public[-1].get('url','')
++        m=re.fullmatch(r'https://(?:www\.)?ozon\.ru/category/[\w-]+-(\d+)/?',url)
++        if m:
++            return ('ozon-public',m[1])
++    return ('path',tuple(normalized(v) for v in card.get('breadcrumbs',[]) if isinstance(v,str)))
+ 
+ def profile(card):
+-    return ((card.get('breadcrumbs') or [''])[-1], card.get('type') or '', purpose(card))
+-
++    return ((card.get('breadcrumbs') or [''])[-1],card.get('type') or '',purpose(card),category_key(card))
+ 
+ def decision(sku,c,own,seen,profiles):
+     if not sku or 'error' in c:
+@@ -219,14 +290,18 @@ def decision(sku,c,own,seen,profiles):
+         return 'OWN',sku
+     if sku in seen:
+         return 'DUPLICATE',sku
+-    leaf,typ,uses=profile(c)
++    leaf,typ,uses,category=profile(c)
+     if not leaf or not profiles:
+         return 'NEEDS_CHECK','Нет подтверждённой публичной категории'
+-    matching=[p for p in profiles if normalized(p[0])==normalized(leaf)]
++    matching=[p for p in profiles if (p[3]==category if len(p)>3 and p[3][0]==category[0] else normalized(p[0])==normalized(leaf))]
++    if any(len(p)>3 and p[3][0]!=category[0] for p in matching):
++        matching=[p for p in matching if len(p)<=3 or p[3][0]==category[0]]
++        if not matching:
++            return 'NEEDS_CHECK','Нет сопоставимого публичного идентификатора категории'
+     if not matching:
+         if any(not p[0] for p in profiles):
+             return 'NEEDS_CHECK','У части исходных товаров неизвестна категория'
+-        return 'OTHER_CATEGORY',leaf
++        return 'OTHER_CATEGORY',leaf+' · '+str(category[1])
+     same=[p for p in matching if typ and normalized(p[1])==normalized(typ)]
+     if not same:
+         if not typ or any(not p[1] for p in matching):
+@@ -235,15 +310,21 @@ def decision(sku,c,own,seen,profiles):
+     uncertain=False
+     for p in same:
+         required=p[2] if len(p)>2 else set()
+-        common=uses & required
+-        if common and (uses==required or len(uses)==1) and not any('не подтверждён' in use for use in common):
++        required_keys={object_key(v) for v in required}
++        common={v for v in uses if object_key(v) in required_keys}
++        if common and (len(common)==len(uses)==len(required)==1) and not any('не подтверждён' in use for use in common):
+             return 'ELIGIBLE',f"{leaf} / {typ} / {', '.join(sorted(common))}"
+         if not uses and not required and not BROAD_TYPE.search(normalized(typ)):
+             return 'ELIGIBLE',f'{leaf} / {typ}'
+-        if common or not uses or not required or any(v.startswith('назначение: ') or 'не подтверждён' in v for v in uses|required):
++        if common or len(uses)>1 or len(required)>1 or not uses or not required or any(v.startswith('назначение: ') or 'не подтверждён' in v for v in uses|required):
+             uncertain=True
+     if uncertain:
+         return 'NEEDS_CHECK','Основное назначение не подтверждено для обеих карточек: '+typ
++    # A use verb elsewhere in prose does not establish that a marketing claim
++    # describes an incompatible primary function. Require a structured fact or
++    # an identified product form before declaring that mismatch.
++    if not purpose_facts(c) and not (uses & set(FUNCTION_WORDS.values())):
++        return 'NEEDS_CHECK','Нет подтверждения различия основных назначений: '+', '.join(sorted(uses))
+     return 'OTHER_TYPE','Другое назначение: '+', '.join(sorted(uses))+'; ожидается '+', '.join(sorted(set.union(*(p[2] for p in same))))
+ 
+ 
+@@ -315,7 +396,7 @@ def peer_groups(selected,cards,eligible):
+         leaf=(own.get('breadcrumbs') or [''])[-1]
+         kind=own.get('type') or ''
+         uses=tuple(sorted(purpose(own)))
+-        group=groups.setdefault((normalized(leaf),normalized(kind),uses),dict(category=leaf,type=kind,purpose=list(uses),own=[],eligible=[]))
++        group=groups.setdefault((category_key(own),normalized(kind),uses),dict(category=leaf,type=kind,purpose=list(uses),own=[],eligible=[]))
+         group['own'].append(sku)
+     for group in groups.values():
+         profiles=[profile(cards[s]) for s in group['own']]
+diff --git a/products/harness-platform/platform_core/competitors/contracts.py b/products/harness-platform/platform_core/competitors/contracts.py
+new file mode 100644
+index 0000000..0b9147c
+--- /dev/null
++++ b/products/harness-platform/platform_core/competitors/contracts.py
+@@ -0,0 +1,45 @@
++"""Bounded normalized values at the external-provider boundary."""
++import re
++
++
++def text(value, limit=500):
++    return value.strip()[:limit] if isinstance(value,str) and value.strip() else None
++
++
++def number(value, low=0, high=2**53-1, *, integer=False):
++    if type(value) not in (int,float) or not low <= value <= high:
++        return None
++    if integer and not float(value).is_integer():
++        return None
++    return int(value) if integer else value
++
++
++def diagnostic(value, secrets=()):
++    # Never echo unstructured response bodies. Retain local classifications and
++    # the actionable provider reasons in the supported source contract.
++    msg=str(value)
++    for token in secrets:
++        if isinstance(token,str) and token:
++            msg=msg.replace(token,'[скрыто]')
++    msg=re.sub(r'https?://\S+|\b[\w.+-]+@[\w.-]+|\bBearer\s+\S+|(?:api.?key|token|secret|password)\s*[:=]\s*\S+', '[скрыто]',msg,flags=re.I)
++    return ' '.join(msg.split())[:240]
++
++
++def external_error(value):
++    msg=str(value).casefold()
++    for marker,reason in [('преми','Требуется подписка'),('premium','Требуется подписка'),('архив','Кампания в архиве'),('лимит','Превышен лимит параметра'),('limit','Превышен лимит параметра'),('credential','Ошибка авторизации'),('invalid api','Ошибка авторизации')]:
++        if marker in msg:
++            return reason
++    return 'Поставщик отклонил запрос'
++
++
++def region_matches(requested, reported):
++    # Recorded parser.market reports echo the lower-case name of the region.
++    # Compare other explicit codes only with a directly requested matching code.
++    return reported is None or str(requested).strip().casefold()==str(reported).strip().casefold()
++
++
++def stored_json(value):
++    """Old study snapshots may contain non-standard NaN/Infinity literals."""
++    import json
++    return json.loads(value,parse_constant=lambda _:None)
+diff --git a/products/harness-platform/platform_core/competitors/coverage.py b/products/harness-platform/platform_core/competitors/coverage.py
+new file mode 100644
+index 0000000..9ce36f1
+--- /dev/null
++++ b/products/harness-platform/platform_core/competitors/coverage.py
+@@ -0,0 +1,28 @@
++"""Single business outcome projection for stored studies, export, UI and Octopus."""
++def quality(data):
++    targets=data.get('targets',[])
++    cards=data.get('cards',{})
++    reviewed=data.get('reviews',{})
++    good=[s for s in targets if s in cards and not cards[s].get('error')]
++    observations=[v for s in targets for v in data.get('kernel',{}).get(s,{}).get('phrases',{}).values()]
++    photos=[p for s in targets for p in data.get('gallery',{}).get(s,{}).values()]
++    failures=[]
++    for group,rows in [('card',cards),('review',reviewed)]:
++        failures.extend({'source':group,'sku':s,'error':v['error']} for s,v in rows.items() if v.get('error'))
++    search_errors=sum(v['status'] in ('ERROR','INCOMPLETE') or v.get('coverage')=='INCOMPLETE' for v in observations)
++    discovery_errors=[{'source':'search','phrase':q,'error':v.get('error') or 'ERROR'} for q,v in data.get('search',{}).items() if v.get('state')=='ERROR']
++    failures.extend(discovery_errors)
++    missing_search=bool(observations) and all(v['status']=='UNCHECKED' for v in observations)
++    photo_errors=sum(bool(p.get('error')) for p in photos)
++    analytics_errors=bool(data.get('seller',{}).get('missingSummary')) or any(data.get(src,{}).get(k) for src,k in [('seller','error'),('seller','errors'),('performance','failed'),('performance','error')])
++    partial_reviews=any(v.get('invalidRows') for v in reviewed.values())
++    reviewed_count=sum(isinstance(reviewed.get(s,{}).get('reviews'),list) for s in good)
++    missing_reviews=data.get('phase')=='done' and reviewed_count<len(good)
++    missing_photos=sum(1 for sku in good for url in cards[sku].get('photos',[]) if url not in data.get('gallery',{}).get(sku,{}))
++    incomplete=bool(missing_reviews or missing_photos or partial_reviews or failures or photo_errors or analytics_errors or search_errors or missing_search or len(good)<len(targets))
++    return dict(requested=len(targets),fetched=sum(s in cards and not cards[s].get('error') for s in targets),validated=len(good),
++                reviewed=reviewed_count,
++                searchVerified=sum(v['status'] in ('FOUND','NOT_FOUND_IN_SAMPLE') for v in observations),
++                searchIncomplete=search_errors,photoFetched=sum(bool(p.get('asset')) for p in photos),
++                photoPending=missing_photos,photoFailed=photo_errors,failures=failures,partial=incomplete,
++                outcome='empty' if data.get('noConfirmedPeers') and not incomplete else 'failed' if targets and not good else 'partial' if incomplete else 'complete')
+diff --git a/products/harness-platform/platform_core/competitors/engine.py b/products/harness-platform/platform_core/competitors/engine.py
+index 503db84..4b89263 100644
+--- a/products/harness-platform/platform_core/competitors/engine.py
++++ b/products/harness-platform/platform_core/competitors/engine.py
+@@ -1,13 +1,15 @@
+ """Advance an authorized research one recoverable phase at a time."""
+ import hashlib
+ import io
++import time
++import httpx
+ import json
+ from pathlib import Path
+ from uuid import uuid4
+ from PIL import Image
+ 
+-from .analysis import normalized,candidates, decision, observed, photo_url, ranked, peer_groups, suggested, profile, verification_phrases
+-from .parser import fetch, products, batches, unique, SourceError
++from .analysis import normalized,candidates, decision, observed, photo_url, ranked, peer_groups, suggested, profile, verification_phrases, purpose_facts, category_key
++from .parser import fetch, products, batches, unique, review_subjects, SourceError
+ from .own import OzonError,ad_totals
+ 
+ def photo(db,rid,sku,url,authorize):
+@@ -39,19 +41,41 @@ def advance(journal,rid,f,d,source,own,checkpoint):
+         missing=[v for v in unique(items) if v not in store or (kind=='search' and store[v].get('depth',0)<(depth or f['depth']))]
+         if not missing:
+             return True
+-        rows=products(kind,missing,depth or f['depth'])
+-        grouped=list(batches(rows))
+-        received={}
+-        for part in grouped:
++        depth=depth or f['depth']
++        # Freeze row codes and split boundaries before the first external order.
++        # A restarted worker uses the original plan even after a partial commit.
++        plans=d.setdefault('batchPlans',{})
++        plan=plans.get(phase)
++        if plan is None:
++            plan=list(batches(products(kind,missing,depth)))
++            plans[phase]=plan
++            checkpoint()
++        for part in plan:
++            if all(r['name'] in store and (kind!='search' or store[r['name']].get('depth',0)>=depth) for r in part):
++                continue
+             key=phase
+             old=journal.get(rid,key)
+-            if len(grouped)>1 or old and json.loads(old['rows'])!=part:
++            if len(plan)>1 or old and json.loads(old['rows'])!=part:
+                 key=phase+'-'+hashlib.sha256(json.dumps(part,sort_keys=True).encode()).hexdigest()[:16]
+-            result=journal.step(rid,key,kind,f['region'],part,f['budget'],source)
++            try:
++                result=journal.step(rid,key,kind,f['region'],part,f['budget'],source)
++            except SourceError:
++                failed=journal.get(rid,key)
++                if not failed or failed['state']!='declined':
++                    raise
++                result={r['name']:dict(error=failed['error'],state='ERROR',order=failed['order_id'],code=r['code'],
++                                       depth=depth,hits=[]) for r in part}
+             if result is None:
+                 return False
+-            received.update(result)
+-        store.update(received)
++            saved=journal.get(rid,key)
++            if saved:
++                for entry in result.values():
++                    entry['label']=saved['label']
++            store.update(result)
++            checkpoint()
++        plans.pop(phase,None)
++        if any(v not in store for v in missing):
++            return False
+         return True
+     def move(stage):
+         d.setdefault('phases',[]).append(phase)
+@@ -59,12 +83,24 @@ def advance(journal,rid,f,d,source,own,checkpoint):
+ 
+     if phase=='retry-rows':
+         job=d['retry']
+-        result=journal.step(rid,job['key'],job['kind'],f['region'],job['rows'],f['budget'],source)
++        inputs=job.get('originalRows',job['rows'])
++        result=journal.step(rid,job['key'],job['kind'],f['region'],inputs,f['budget'],source)
+         if result is None:
+             return
++        result={r['name']:result[r['name']] for r in job['rows'] if r['name'] in result}
+         cache={'cards':cards,'search':search,'reviews':d.setdefault('reviews',{})}[job['kind']]
++        receipt=journal.get(rid,job['key'])
++        if receipt:
++            for item in result.values():
++                item['label']=receipt['label']
+         cache.update(result)
+-        if job['return']=='selection':
++        origin=job.get('origin',job['phase']).split('-')[0]
++        if origin=='expand':
++            d.setdefault('expanded',{}).update(result)
++            move('expand')
++        elif origin in ('discover','profile'):
++            move(origin)
++        elif job['return']=='selection':
+             move('qualify')
+         elif job['kind']=='cards':
+             move('reviews')
+@@ -75,11 +111,13 @@ def advance(journal,rid,f,d,source,own,checkpoint):
+             return
+         phrases=[]
+         for sku in selected:
+-            leaf,kind,uses=profile(cards[sku])
++            leaf,kind,uses,_=profile(cards[sku])
+             title=candidates({sku:cards[sku]}, {})
+             title_phrase=next((q for q,origins in title.items() if [sku,'title'] in origins and len(q.split())>=2),None)
+             phrases.extend(q for q in (leaf,kind,*sorted(uses),title_phrase) if q)
+-        phrases=unique(phrases+f['phrases'])
++        # Preserve the first provider spelling while sending case/whitespace
++        # variants of the same discovery phrase only once.
++        phrases=list({normalized(q):q for q in reversed(phrases+f['phrases'])}.values())[::-1]
+         if not phrases:
+             raise ValueError('Не удалось определить категорию и тип выбранных товаров')
+         d['discovery']=phrases
+@@ -88,22 +126,25 @@ def advance(journal,rid,f,d,source,own,checkpoint):
+         expanded=d.setdefault('expanded',{})
+         if not batch('search',d['discovery'],expanded,depth=32):
+             return
+-        d['firstSample']=dict(search)
++        d.setdefault('firstSample',dict(search))
+         search.update(expanded)
++        d.pop('noConfirmedPeers',None)
+         d['pool']=ranked(expanded,{h['sku'] for row in expanded.values() for h in row['hits'] if h['sku']})
+         move('qualify-expanded')
+     elif phase=='discover':
+         if not batch('search',d['discovery'],search):
+             return
+-        pool=ranked(search,{h['sku'] for q in search.values() for h in q['hits'] if h['sku']})
++        discovered={q:search[q] for q in d['discovery']}
++        pool=ranked(discovered,{h['sku'] for q in discovered.values() for h in q['hits'] if h['sku']})
+         seen=set()
+         audit=[]
+-        for phrase,row in search.items():
++        for phrase,row in discovered.items():
+             for hit in row['hits']:
+                 sku=hit['sku']
+                 if not sku or sku in seen:
+                     audit.append(dict(sku=sku,phrase=phrase,index=hit['index'],reason='DUPLICATE' if sku else 'INVALID'))
+                 seen.add(sku)
++        d.pop('noConfirmedPeers',None)
+         d['poolAudit']=audit
+         d['pool']=pool
+         move('qualify')
+@@ -114,6 +155,9 @@ def advance(journal,rid,f,d,source,own,checkpoint):
+         def classify():
+             reasons={s:decision(s,cards.get(s,{}),f['own'],set(),profiles) for s in d['pool'] if s in cards or s in f['own']}
+             d['decisions']=reasons
++            d['classificationEvidence']={s:{'category':category_key(cards[s]),'type':cards[s].get('type'),
++                   'purposeFields':purpose_facts(cards[s]),'title':cards[s].get('title'),'order':cards[s].get('order')}
++                   for s in dict.fromkeys(selected+list(reasons)) if s in cards}
+             d['eligible']=ranked(discovery,{s for s,(reason,_) in reasons.items() if reason=='ELIGIBLE'})
+             d['groups']=peer_groups(selected,cards,d['eligible'])
+             d['targets']=suggested(d['groups'],goal)
+@@ -148,7 +192,7 @@ def advance(journal,rid,f,d,source,own,checkpoint):
+         if batch('cards',targets,cards):
+             move('reviews')
+     elif phase=='reviews':
+-        if batch('reviews',[s for s in unique(targets+(selected if f['mode']=='A' else [])) if s in cards and not cards[s].get('error')],d.setdefault('reviews',{})):
++        if batch('reviews',[s for s in review_subjects(f['mode'],targets,selected) if s in cards and not cards[s].get('error')],d.setdefault('reviews',{})):
+             move('dictionary')
+     elif phase=='dictionary':
+         words=candidates({s:cards[s] for s in targets if s in cards},d.get('reviews',{}),[(q,'форма') for q in f['phrases']])
+@@ -170,7 +214,7 @@ def advance(journal,rid,f,d,source,own,checkpoint):
+             try:
+                 d['seller']=own.seller(f.get('relatedSkus',selected),f['sellerPeriod'],cache=(journal.db,f['store'],f['storeVersion']))
+             except OzonError as exc:
+-                d['seller']={'error':str(exc)}
++                d['seller']=getattr(exc,'partial',{'error':str(exc)})
+             checkpoint()
+         if 'performance' not in d and not own.fields.get('performance_secret'):
+             d['performance']={'reason':'Нет рекламного ключа'}
+@@ -196,11 +240,16 @@ def advance(journal,rid,f,d,source,own,checkpoint):
+                         if state in ('ERROR','CANCELLED'):
+                             raise OzonError('Performance '+state)
+                         if data is None:
+-                            return
++                            checkpoint()
++                            continue
+                         job['rows']=data['rows']
+-                    except (ValueError,KeyError) as exc:
+-                        job['error']=str(exc)[:240] or 'Повреждён отчёт Performance'
++                        if data.get('invalidRows'):
++                            job['error']='Некорректные строки CSV: '+str(data['invalidRows'])
++                    except (ValueError,KeyError,httpx.TransportError) as exc:
++                        job['error']=type(exc).__name__ if isinstance(exc,httpx.TransportError) else str(exc)[:240] or 'Повреждён отчёт Performance'
+                     checkpoint()
++                if any('rows' not in job and not job.get('error') for job in d['adBatches']):
++                    return
+                 rows=[r for job in d['adBatches'] for r in job.get('rows',[])]
+                 failures=[{k:job[k] for k in ('campaigns','uuid','state','error') if k in job}
+                           for job in d['adBatches'] if job.get('error')]
+@@ -252,14 +301,20 @@ def advance(journal,rid,f,d,source,own,checkpoint):
+         for s in targets:
+             entries=gallery.setdefault(s,{})
+             for u in cards.get(s,{}).get('photos',[]):
+-                if u in entries:
++                saved=entries.get(u,{})
++                if saved.get('asset') or saved.get('attempts',0)>=3:
++                    continue
++                if saved.get('next',0)>time.time():
+                     continue
+                 try:
+-                    entries[u]={'asset':photo(journal.db,rid,s,u,source.authorize)}
++                    entries[u]={'asset':photo(journal.db,rid,s,u,source.authorize),'fetchedAt':time.time()}
+                 except (SourceError,ValueError,OSError) as exc:
+-                    entries[u]={'error':str(exc)}
++                    attempts=saved.get('attempts',0)+1
++                    entries[u]={'error':str(exc),'attempts':attempts,'next':time.time()+10*attempts}
+                 checkpoint()
+                 return
++        if any(v.get('error') and v.get('attempts',0)<3 for entries in gallery.values() for v in entries.values()):
++            return
+         groups={}
+         for phrase in d.get('candidates',{}):
+             groups.setdefault(normalized(phrase),[]).append(phrase)
+diff --git a/products/harness-platform/platform_core/competitors/jobs.py b/products/harness-platform/platform_core/competitors/jobs.py
+index a05bfb3..e273954 100644
+--- a/products/harness-platform/platform_core/competitors/jobs.py
++++ b/products/harness-platform/platform_core/competitors/jobs.py
+@@ -6,6 +6,7 @@ import time
+ import uuid
+ from contextlib import contextmanager
+ from .analysis import parse_batch
++from .contracts import diagnostic, region_matches, number
+ from .parser import estimate, SourceError
+ 
+ SCHEMA = (
+@@ -14,6 +15,15 @@ SCHEMA = (
+       kind TEXT NOT NULL, region TEXT NOT NULL, rows TEXT NOT NULL, reserved INTEGER NOT NULL,
+       state TEXT NOT NULL, due REAL NOT NULL, order_id TEXT, used INTEGER, data TEXT, error TEXT,
+       PRIMARY KEY(research,phase))''',
++    '''CREATE TABLE IF NOT EXISTS competitor_receipts(
++       account TEXT NOT NULL,order_id TEXT NOT NULL,label TEXT NOT NULL UNIQUE,used INTEGER NOT NULL CHECK(used>=0),
++       PRIMARY KEY(account,order_id))''',
++    '''CREATE TABLE IF NOT EXISTS competitor_backoff(account TEXT PRIMARY KEY,label TEXT NOT NULL,due REAL NOT NULL)''',
++    '''CREATE TABLE IF NOT EXISTS competitor_attempts(label TEXT PRIMARY KEY,attempts INTEGER NOT NULL)''',
++    '''CREATE TABLE IF NOT EXISTS competitor_polls(label TEXT PRIMARY KEY,attempts INTEGER NOT NULL DEFAULT 0)''',
++    '''CREATE TABLE IF NOT EXISTS competitor_incidents(label TEXT NOT NULL,reason TEXT NOT NULL,
++        accepted_id TEXT,reported_id TEXT,accepted_checks INTEGER,reported_checks INTEGER,created REAL NOT NULL,
++        PRIMARY KEY(label,reason))''',
+     'CREATE INDEX IF NOT EXISTS competitor_jobs_account ON competitor_jobs(account,state)',
+ )
+ 
+@@ -34,6 +44,7 @@ class Journal:
+     def __init__(self,path):
+         self.db=sqlite3.connect(path,isolation_level=None,timeout=15)
+         self.db.row_factory=sqlite3.Row
++        self.authorize_commit=lambda:None
+         for sql in SCHEMA:
+             self.db.execute(sql)
+ 
+@@ -46,16 +57,24 @@ class Journal:
+     def step(self,rid,phase,kind,region,rows,cap,source):
+         account=hashlib.sha256(source.key.encode()).hexdigest()
+         row=self.get(rid,phase)
+-        if row and row['state']=='not-sent':
++        if row and row['state']=='not-sent' and not self.db.execute('SELECT 1 FROM competitor_attempts WHERE label=? AND attempts>=5',(row['label'],)).fetchone():
+             # The prior refusal was definitive, so acquire a fresh reservation on resume.
+             self.db.execute("DELETE FROM competitor_jobs WHERE label=? AND state='not-sent'",(row['label'],))
+             row=self.get(rid,phase)
+         if not row:
++            self.reconcile_detached(account,source)
++            if self.db.execute("SELECT 1 FROM competitor_backoff WHERE account=? AND due>?",(account,time.time())).fetchone():
++                return None
++            if self.db.execute("SELECT 1 FROM competitor_jobs WHERE research=? AND state='quarantine'",(rid,)).fetchone():
++                raise SourceError('Расхождение квитанции. Новые заказы остановлены')
+             prior_used=self.db.execute('SELECT COALESCE(SUM(used),0) FROM competitor_jobs WHERE account=?',(account,)).fetchone()[0]
+             balance,pending=source.balance()
++            if number(balance,integer=True) is None or number(pending,integer=True) is None:
++                raise SourceError('Неверный остаток проверок поставщика')
+             with transaction(self.db):
+                 row=self.get(rid,phase)
+                 if not row:
++                    self.authorize_commit()
+                     own,=self.db.execute('SELECT COALESCE(SUM(COALESCE(used,reserved)),0) FROM competitor_jobs WHERE research=?',(rid,)).fetchone()
+                     holds,=self.db.execute('SELECT COALESCE(SUM(reserved),0) FROM competitor_jobs WHERE account=? AND used IS NULL',(account,)).fetchone()
+                     reserve=estimate(rows)
+@@ -72,14 +91,18 @@ class Journal:
+             raise ValueError('Ключ задания изменился. Требуется сверка исходной квитанции')
+         if json.loads(row['rows'])!=rows or row['kind']!=kind or row['region']!=region:
+             raise ValueError('Состав сохранённого задания отличается от нового плана')
+-        if row['state'] in ('declined','provider-stopped'):
++        if row['state'] in ('declined','quarantine','awaiting-manual'):
+             raise SourceError(row['error'] or 'Поставщик отклонил задание')
++        if row['state']=='not-sent':
++            return {r['name']:dict(error='RATE_LIMIT_EXHAUSTED',state='ERROR',code=r['code'],hits=[],order=None,depth=0) for r in rows}
+         if row['data'] is not None:
+             return json.loads(row['data'])
+         if row['due']>time.time():
+             return None
+         source.authorize()
+         if row['state']=='rate-limited':
++            if self.db.execute('SELECT 1 FROM competitor_backoff WHERE account=? AND label<>? AND due>?',(account,row['label'],time.time())).fetchone():
++                return None
+             with transaction(self.db):
+                 claimed=self.db.execute("UPDATE competitor_jobs SET state='submitting',due=? WHERE label=? AND state='rate-limited' AND due<=?",
+                                         (time.time()+60,row['label'],time.time())).rowcount
+@@ -88,40 +111,134 @@ class Journal:
+             return None
+         return self.poll_existing(row,source)
+ 
+-    def poll_existing(self,row,source):
++    def poll_existing(self,row,source,*,manual=False):
+         """Read one existing label. This path cannot create an order."""
+         if hashlib.sha256(source.key.encode()).hexdigest()!=row['account']:
+             raise ValueError('Для сверки требуется исходное подключение parser.market')
++        # Claim the read before the network call. An expired lease can be taken
++        # by another worker. Only its current holder may materialize a response.
++        if self.db.execute('SELECT 1 FROM competitor_backoff WHERE account=? AND due>?',(row['account'],time.time())).fetchone():
++            return None
++        token=time.time()+90
++        with transaction(self.db):
++            claimed=self.db.execute("""UPDATE competitor_jobs SET due=? WHERE label=? AND due<=?
++                AND data IS NULL AND state NOT IN ('completed','declined','quarantine','detached-settled','not-sent')""",
++                (token,row['label'],time.time())).rowcount
++            if claimed:
++                self.db.execute("""INSERT INTO competitor_polls VALUES(?,1)
++                    ON CONFLICT(label) DO UPDATE SET attempts=attempts+1""",(row['label'],))
++                attempts=self.db.execute('SELECT attempts FROM competitor_polls WHERE label=?',(row['label'],)).fetchone()[0]
++                if attempts>32 and not manual:
++                    self.db.execute("UPDATE competitor_jobs SET state=?,error=?,due=? WHERE label=?",
++                        ('detached-manual' if row['state'].startswith('detached') else 'awaiting-manual',
++                         'Требуется ручная сверка исходной квитанции',time.time()+60,row['label']))
++                    return None
++        if not claimed:
++            return None
+         try:
++            source.authorize()
+             state,report=source.poll(row['label'])
+-            if report is None:
+-                terminal=any(w in str(state).lower() for w in ('fail','error','cancel','reject','отмен','ошиб'))
+-                self.db.execute('UPDATE competitor_jobs SET state=?,due=?,order_id=coalesce(?,order_id),error=coalesce(?,error) WHERE label=?',
+-                    ('provider-stopped' if terminal else state,time.time()+25,getattr(source,'order_id',None),
+-                     'Поставщик остановил задание: '+str(state)[:100] if terminal else None,row['label']))
+-                return None
+-            used=report.get('used_checks_total')
+-            if type(used) is not int or used<0:
+-                raise SourceError('Отсутствует used_checks_total')
+-            # Persist the provider receipt independently of row decoding.
+-            self.db.execute("UPDATE competitor_jobs SET state='received',order_id=?,used=? WHERE label=?",
+-                            (str(report['id']),used,row['label']))
+-            data=parse_batch(row['kind'],json.loads(row['rows']),report)
+-            self.db.execute('UPDATE competitor_jobs SET state=?,order_id=?,used=?,data=?,error=NULL WHERE label=?',
+-                ('completed',str(report['id']),used,json.dumps(data,ensure_ascii=False),row['label']))
+-            return data
++            with transaction(self.db):
++                current=self.db.execute('SELECT * FROM competitor_jobs WHERE label=? AND due=?',(row['label'],token)).fetchone()
++                if not current:
++                    return None
++                label=current['label']
++                detached=current['state'].startswith('detached-')
++                oid=(report.get('id') if isinstance(report,dict) else getattr(source,'order_id',None))
++                oid=str(oid) if type(oid) in (str,int) and 0<len(str(oid))<=100 else None
++                def conflict(reason):
++                    reported=report.get('used_checks_total') if isinstance(report,dict) else None
++                    self.quarantine(current,reason,oid,reported)
++                if current['order_id'] and oid and str(current['order_id'])!=oid:
++                    conflict('Изменился ID принятого заказа')
++                    return None
++                if report is None:
++                    terminal=any(w in str(state).lower() for w in ('fail','error','cancel','reject','отмен','ошиб'))
++                    pending='detached-pending' if detached else 'awaiting-receipt' if terminal else 'waiting'
++                    self.db.execute('UPDATE competitor_jobs SET state=?,due=?,order_id=coalesce(order_id,?),error=? WHERE label=?',
++                                    (pending,time.time()+(300 if terminal else 25),oid,'Ожидаем финансовую квитанцию' if terminal else None,label))
++                    return None
++                used=report.get('used_checks_total')
++                if not oid or type(used) is not int or not 0<=used<=2**53-1:
++                    raise SourceError('Отсутствует корректный ID или used_checks_total')
++                if report.get('userlabel',label)!=label:
++                    conflict('Квитанция относится к другому заданию')
++                    return None
++                legacy=self.db.execute("""SELECT 1 FROM competitor_jobs WHERE account=? AND order_id=?
++                    AND label<>? AND used IS NOT NULL""",(current['account'],oid,label)).fetchone()
++                receipt=self.db.execute('SELECT label,used FROM competitor_receipts WHERE account=? AND order_id=?',(current['account'],oid)).fetchone()
++                if legacy or (receipt and tuple(receipt)!=(label,used)) or current['used'] not in (None,used):
++                    conflict('Квитанция противоречит ранее сохранённому заказу или расходу')
++                    return None
++                self.db.execute('INSERT OR IGNORE INTO competitor_receipts VALUES(?,?,?,?)',(current['account'],oid,label,used))
++                self.db.execute("UPDATE competitor_jobs SET state=?,order_id=?,used=? WHERE label=?",
++                                ('detached-settled' if detached else 'received',oid,used,label))
++                if used>current['reserved']:
++                    conflict('Расход поставщика превысил согласованный резерв')
++                    return None
++                if detached:
++                    return None
++            scope_ok=region_matches(current['region'],report.get('regioncode'))
++            data=parse_batch(current['kind'],json.loads(current['rows']),report)
++            if not scope_ok:
++                data={k:dict(error='REGION_MISMATCH',state='ERROR',hits=[],reviews=[],code=v['code'],order=oid,
++                             region=v.get('region'),depth=v.get('depth',0)) for k,v in data.items()}
++            source.authorize()
++            with transaction(self.db):
++                self.authorize_commit()
++                written=self.db.execute("""UPDATE competitor_jobs SET state='completed',data=?,error=NULL WHERE label=?
++                AND state='received' AND due=?""",(json.dumps(data,ensure_ascii=False,allow_nan=False),label,token)).rowcount
++            return data if written else None
+         except (ValueError,KeyError,SourceError) as exc:
+-            self.db.execute('UPDATE competitor_jobs SET error=?,due=? WHERE label=?',(str(exc)[:220],time.time()+getattr(exc,'retry_after',45),row['label']))
++            if getattr(exc,'status',0)==429:
++                self.db.execute("""INSERT INTO competitor_backoff VALUES(?,?,?) ON CONFLICT(account) DO UPDATE
++                    SET due=max(due,excluded.due),label=excluded.label""",(row['account'],row['label'],time.time()+exc.retry_after))
++            self.db.execute('UPDATE competitor_jobs SET error=?,due=? WHERE label=? AND due=?',
++                (diagnostic(exc,(source.key,)),time.time()+getattr(exc,'retry_after',45),row['label'],token))
+             return None
+ 
++    def quarantine(self,row,reason,reported_id,reported_checks=None):
++        # Store only bounded provider identifiers and check counts. Never store
++        # the raw error body or original research contents in a financial incident.
++        actual=number(reported_checks,integer=True)
++        self.db.execute("INSERT OR IGNORE INTO competitor_incidents VALUES(?,?,?,?,?,?,?)",
++            (row['label'],reason,row['order_id'],reported_id,row['used'],actual,time.time()))
++        self.db.execute("UPDATE competitor_jobs SET state='quarantine',error=? WHERE label=?",(reason,row['label']))
++
++    def reconcile_detached(self,account,source,*,manual=False):
++        job=self.db.execute("""SELECT * FROM competitor_jobs WHERE account=? AND (state='detached-pending' OR
++            (? AND state='detached-manual')) AND due<=? ORDER BY due LIMIT 1""",(account,manual,time.time())).fetchone()
++        if job:
++            self.poll_existing(job,source,manual=manual)
++        if not job:
++            return 'no-due'
++        state=self.db.execute('SELECT state FROM competitor_jobs WHERE label=?',(job['label'],)).fetchone()[0]
++        return state
+ 
+     def dispatch(self,source,kind,region,label,rows):
++        self.db.execute("""INSERT INTO competitor_attempts VALUES(?,1) ON CONFLICT(label)
++            DO UPDATE SET attempts=attempts+1""",(label,))
+         try:
+             oid=source.submit(kind,region,label,rows)
+         except Exception as exc:
+             status=getattr(exc,'status',0)
+             state='rate-limited' if status==429 else 'declined' if status in (400,401,403,422) else 'unknown'
+-            self.db.execute('UPDATE competitor_jobs SET state=?,error=?,due=?,used=? WHERE label=?',
+-                (state,str(exc)[:220],time.time()+getattr(exc,'retry_after',30),0 if state=='declined' else None,label))
++            if status==429:
++                attempts=self.db.execute('SELECT attempts FROM competitor_attempts WHERE label=?',(label,)).fetchone()[0]
++                self.db.execute("""INSERT INTO competitor_backoff SELECT account,label,? FROM competitor_jobs WHERE label=?
++                    ON CONFLICT(account) DO UPDATE SET due=max(due,excluded.due),label=excluded.label""",(time.time()+getattr(exc,'retry_after',30),label))
++                if attempts>=5:
++                    state='not-sent'
++            self.db.execute("UPDATE competitor_jobs SET state=?,error=?,due=?,used=? WHERE label=? AND state='submitting'", 
++                (state,diagnostic(exc,(source.key,)),time.time()+getattr(exc,'retry_after',30),0 if state in ('declined','not-sent') else None,label))
+         else:
+-            self.db.execute("UPDATE competitor_jobs SET state='waiting',order_id=?,error=NULL,due=? WHERE label=?",(oid,time.time()+15,label))
++            # An accepted response may arrive after STOP, deletion or a racing
++            # poll. Pin its identity even when all product material is gone.
++            with transaction(self.db):
++                row=self.db.execute('SELECT * FROM competitor_jobs WHERE label=?',(label,)).fetchone()
++                known=str(oid) if type(oid) in (str,int) and 0<len(str(oid))<=100 else None
++                if row and known and row['order_id'] and known!=row['order_id']:
++                    self.quarantine(row,'Изменился ID принятого заказа',known)
++                elif row:
++                    self.db.execute("UPDATE competitor_jobs SET order_id=coalesce(order_id,?) WHERE label=?",(known,label))
++                    self.db.execute("UPDATE competitor_jobs SET state='waiting',error=NULL,due=? WHERE label=? AND state='submitting'",(time.time()+15,label))
+diff --git a/products/harness-platform/platform_core/competitors/own.py b/products/harness-platform/platform_core/competitors/own.py
+index b1e87ce..dc59acc 100644
+--- a/products/harness-platform/platform_core/competitors/own.py
++++ b/products/harness-platform/platform_core/competitors/own.py
+@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
+ from uuid import UUID
+ 
+ import httpx
++from .contracts import number,text,external_error
+ 
+ 
+ class OzonError(ValueError):
+@@ -29,14 +30,25 @@ def performance_csv(payload, skus=None):
+     if not expected.issubset(reader.fieldnames or []):
+         raise OzonError('Неизвестный заголовок CSV Performance')
+     rows=[]
+-    for row in reader:
+-        sku=row['SKU'].strip()
+-        if not sku.isdecimal() or (skus is not None and sku not in skus):
++    invalid=[]
++    for index,row in enumerate(reader,3):
++        sku=text(row.get('SKU'),20)
++        if sku and sku.isdecimal() and skus is not None and sku not in skus:
+             continue
+-        phrase=row['Поисковый запрос'].strip()
++        phrase=text(row.get('Поисковый запрос'),500)
++        raw=[(row.get(k) or '').replace(' ','') for k in ('Показы','Клики')]
++        if not sku or not sku.isascii() or not sku.isdecimal() or not phrase or not all(v.isascii() and v.isdecimal() and len(v)<=15 for v in raw):
++            invalid.append(index)
++            continue
++        impressions,clicks=map(int,raw)
+         rows.append(dict(sku=sku,phrase=phrase,kind='catalog' if phrase.casefold().endswith('(каталог)') else 'search',
+-                         impressions=int(row['Показы'].replace(' ','')),clicks=int(row['Клики'].replace(' ',''))))
+-    return dict(rows=rows,totals=ad_totals(rows))
++                         impressions=impressions,clicks=clicks))
++    totals=ad_totals(rows)
++    if invalid and not rows:
++        for v in totals.values():
++            v.update(impressions=None,clicks=None)
++    return dict(rows=rows,totals=totals,invalidRows=invalid)
++
+ 
+ 
+ def ad_totals(rows):
+@@ -56,7 +68,13 @@ class Own:
+         self.bearer=None
+         self.skipped=[]
+ 
+-    def request(self,method,path,*,performance=False,params=None,body=None,csv_report=False):
++    def request(self,method,path,**kwargs):
++        try:
++            return self._request(method,path,**kwargs)
++        except (httpx.TransportError,UnicodeError,json.JSONDecodeError) as exc:
++            raise OzonError('Ozon '+type(exc).__name__) from None
++
++    def _request(self,method,path,*,performance=False,params=None,body=None,csv_report=False):
+         self.guard('advertising' if performance else 'catalog')
+         if performance:
+             origin='https://api-performance.ozon.ru'
+@@ -89,7 +107,7 @@ class Own:
+                             detail=str(obj.get('message') or obj.get('error') or '')[:200]
+                         except (ValueError,AttributeError):
+                             detail=''
+-                        raise OzonError(f'{path} HTTP {res.status_code} {detail}')
++                        raise OzonError(f'{path} HTTP {res.status_code} {external_error(detail)}')
+                     return bytes(result) if csv_report else json.loads(result)
+             time.sleep(wait)
+ 
+@@ -98,20 +116,30 @@ class Own:
+         self.guard('catalog')
+         skus=list(dict.fromkeys(skus))
+         per_sku={}
+-        missing=list(skus)
+-        if cache:
+-            db,cid,version=cache
+-            for sku in skus:
+-                row=db.execute("SELECT payload FROM competitor_seller_cache WHERE cid=? AND version=? AND since=? AND until=? AND sku=?",
+-                    (cid,version,period['date_from'],period['date_to'],sku)).fetchone()
+-                if row:
+-                    per_sku[sku]=json.loads(row[0])
+-            missing=[sku for sku in skus if sku not in per_sku]
+-        cached=len(per_sku)
+-        for sku in missing:
+-            per_sku[sku]={'summary':{},'queries':{}}
+-        for sort in ('BY_SEARCHES','BY_GMV'):
++        keys=('BY_SEARCHES','BY_GMV')
++        errors=[]
++        def save(sku):
++            if cache:
++                self.guard('catalog')
++                db.execute("INSERT OR REPLACE INTO competitor_seller_cache VALUES(?,?,?,?,?,?)",
++                    (cid,version,period['date_from'],period['date_to'],sku,json.dumps(per_sku[sku],ensure_ascii=False,allow_nan=False)))
++        for sku in skus:
++            item={'summary':{},'queries':{},'parts':[]}
++            if cache:
++                db,cid,version=cache
++                stored=db.execute("SELECT payload FROM competitor_seller_cache WHERE cid=? AND version=? AND since=? AND until=? AND sku=?",
++                                   (cid,version,period['date_from'],period['date_to'],sku)).fetchone()
++                if stored:
++                    item=json.loads(stored[0])
++                    # Earlier releases wrote a cache entry only after all four calls succeeded.
++                    item.setdefault('parts',[k+suffix for k in keys for suffix in ('/details','/summary')])
++            per_sku[sku]=item
++        cached=sum(len(v['parts'])==4 for v in per_sku.values())
++        metrics=('unique_search_users','gmv','order_count','position','unique_view_users','view_conversion','query_index')
++        for sort in keys:
+             for detail,size in ((False,1000),(True,6)):
++                part=sort+('/details' if detail else '/summary')
++                missing=[sku for sku in skus if part not in per_sku[sku]['parts']]
+                 for start in range(0,len(missing),size):
+                     batch=missing[start:start+size]
+                     body={**period,'skus':batch,'sort_by':sort,'sort_dir':'DESCENDING','page_size':100 if detail else 1000}
+@@ -119,43 +147,66 @@ class Own:
+                     if detail:
+                         path+='/details'
+                         body['limit_by_sku']=15
+-                    res=self.request('POST',path,body=body)
+-                    rows=res.get('queries' if detail else 'items')
+-                    if not isinstance(rows,list) or res.get('page_count',1)>1 or res.get('total',len(rows))!=len(rows):
+-                        raise OzonError('Неполный ответ Seller '+sort)
++                    try:
++                        res=self.request('POST',path,body=body)
++                        rows=res.get('queries' if detail else 'items') if isinstance(res,dict) else None
++                        if not isinstance(rows,list) or res.get('page_count',1) not in (0,1) or res.get('total',len(rows))!=len(rows):
++                            raise OzonError('Неполный ответ Seller')
++                    except (OzonError,httpx.TransportError) as exc:
++                        errors.append(dict(part=part,skus=batch,error=str(exc) if isinstance(exc,OzonError) else type(exc).__name__))
++                        continue
+                     seen=set()
++                    invalid=set()
+                     counts={}
+-                    for row in rows:
+-                        sku=str(row['sku'])
+-                        key=row['query'] if detail else ''
+-                        if sku not in batch or (sku,key) in seen:
+-                            raise OzonError('Лишняя или повторная строка Seller '+sort)
+-                        seen.add((sku,key))
++                    for i,row in enumerate(rows):
++                        sku=str(row.get('sku')) if isinstance(row,dict) else ''
++                        key=text(row.get('query'),500) if detail and isinstance(row,dict) else ''
+                         counts[sku]=counts.get(sku,0)+1
+-                        if detail and counts[sku]>15:
+-                            raise OzonError('Seller вернул более 15 фраз на SKU в срезе')
++                        if sku not in batch or (detail and counts[sku]>15) or (detail and not key) or (sku,key) in seen or any(
++                                row.get(m) is not None and number(row[m]) is None for m in metrics):
++                            invalid.update([sku] if sku in batch else batch)
++                            errors.append(dict(part=part,row=i+1,error='Некорректная или повторная строка Seller'))
++                            continue
++                        seen.add((sku,key))
++                        item=per_sku[sku]
++                        safe={m:row[m] for m in ('sku','query','currency',*metrics) if m in row}
+                         if detail:
+-                            group=per_sku[sku]['queries']
+-                            if key in group and any(group[key].get(m)!=row.get(m) for m in
+-                                ('unique_search_users','gmv','currency','order_count','position','unique_view_users','view_conversion')):
+-                                raise OzonError('Расхождение показателей между срезами Seller для SKU '+sku)
+-                            fact=group.setdefault(key,{**row,'sorts':[],'rankBySort':{}})
+-                            fact['sorts'].append(sort)
+-                            fact['rankBySort'][sort]=row.get('query_index')
++                            fact=item['queries'].get(key)
++                            if fact and any(fact.get(m)!=safe.get(m) for m in ('currency',*metrics[:-1])):
++                                errors.append(dict(part=part,sku=sku,error='Расхождение показателей между срезами Seller'))
++                                fact['conflict']=True
++                                invalid.add(sku)
++                                continue
++                            if not fact:
++                                fact=item['queries'][key]={**safe,'sorts':[],'rankBySort':{}}
++                            if sort not in fact['sorts']:
++                                fact['sorts'].append(sort)
++                            fact['rankBySort'][sort]=safe.get('query_index')
+                         else:
+-                            per_sku[sku]['summary'][sort]=row
++                            item['summary'][sort]=safe
++                    for sku in batch:
++                        if sku not in invalid:
++                            per_sku[sku]['parts'].append(part)
++                        save(sku)
+         self.guard('catalog')
+-        if cache and missing:
+-            db.executemany("INSERT OR REPLACE INTO competitor_seller_cache VALUES(?,?,?,?,?,?)",
+-                [(cid,version,period['date_from'],period['date_to'],sku,json.dumps(per_sku[sku],ensure_ascii=False)) for sku in missing])
++        if cache:
+             db.execute("DELETE FROM competitor_seller_cache WHERE cid=? AND (version<>? OR until<?)",(cid,version,period['date_to']))
+         summaries=[v['summary']['BY_SEARCHES'] for v in per_sku.values() if 'BY_SEARCHES' in v['summary']]
+-        return dict(period=period,limitBySku=15,sorts=['BY_SEARCHES','BY_GMV'],cachedSkus=cached,
++        result=dict(errors=errors,period=period,limitBySku=15,sorts=['BY_SEARCHES','BY_GMV'],cachedSkus=cached,
+                     summary=summaries,summaryBySort={s:[v['summary'][s] for v in per_sku.values() if s in v['summary']] for s in ('BY_SEARCHES','BY_GMV')},
+-                    queries=[q for v in per_sku.values() for q in v['queries'].values()],
++                    queries=[q for v in per_sku.values() for q in v['queries'].values() if not q.get('conflict')],
+                     missingSummary=[k for k,v in per_sku.items() if len(v['summary'])!=2],
+                     withoutQueries=[k for k,v in per_sku.items() if not v['queries']])
+ 
++        # Preserve the existing caller contract for mutually contradictory
++        # reports while allowing the research to retain the independent facts.
++        conflicts=[v for v in errors if v['error'].startswith('Расхождение')]
++        if conflicts:
++            exc=OzonError(conflicts[0]['error'])
++            exc.partial=result
++            raise exc
++        return result
++
+     def campaigns(self,skus,period=None):
+         result=[]
+         campaigns=self.request('GET','/api/client/campaign',performance=True).get('list',[])
+diff --git a/products/harness-platform/platform_core/competitors/parser.py b/products/harness-platform/platform_core/competitors/parser.py
+index 82fcbe1..15cfb21 100644
+--- a/products/harness-platform/platform_core/competitors/parser.py
++++ b/products/harness-platform/platform_core/competitors/parser.py
+@@ -5,6 +5,7 @@ import re
+ import urllib.error
+ import urllib.request
+ from urllib.parse import urlsplit
++from .contracts import external_error
+ 
+ API = 'https://parser.market/wp-json/client-api/v1/'
+ DIGITS = re.compile(r'[1-9][0-9]{0,18}')
+@@ -77,8 +78,14 @@ def batches(rows,limit=1024*1024):
+         yield group
+ 
+ 
++def check_units(kind,depth=1):
++    return math.ceil(depth/16) if kind=='search' else 1
++
++def review_subjects(mode,targets,selected):
++    return unique(list(targets)+(list(selected) if mode=='A' else []))
++
+ def estimate(rows):
+-    return sum(math.ceil(int(r['donotsearch'])/16) if str(r.get('donotsearch','')).isdigit() else 1 for r in rows)
++    return sum(check_units('search',int(r['donotsearch'])) if str(r.get('donotsearch','')).isdigit() else check_units('cards') for r in rows)
+ 
+ 
+ def fetch(url, *, body=None, limit=LIMIT):
+@@ -101,7 +108,7 @@ def fetch(url, *, body=None, limit=LIMIT):
+             detail=re.sub(r'https?://\S+|[\w.+-]+@[\w.-]+','[скрыто]',detail)
+         except (ValueError,OSError):
+             pass
+-        raise SourceError(f'HTTP {e.code} {detail}'.strip(), e.code, max(5,min(3600,int(delay))) if delay.isdecimal() else 30) from None
++        raise SourceError(f'HTTP {e.code} {external_error(detail)}'.strip(), e.code, max(5,int(delay)) if delay.isascii() and delay.isdecimal() and len(delay)<=9 else 30) from None
+     except (OSError, TimeoutError) as e:
+         raise SourceError(type(e).__name__) from None
+ 
+@@ -123,12 +130,15 @@ class Parser:
+         obj = flatten(json.loads(fetch(API+method, body={'apikey':self.key,**args}, limit=4*1024*1024)[0]))
+         if obj.get('result') != 'success':
+             message = str(obj.get('message') or obj.get('error') or obj.get('result') or 'Неверный формат')
+-            raise SourceError(message.replace(self.key,'[скрыто]')[:220])
++            raise SourceError(external_error(message))
+         return obj
+ 
+     def balance(self):
+         obj=self.call('get-balanse')
+-        return int(obj['checks_total']), int(obj.get('checks_pending',0))
++        values=[str(obj.get('checks_total')),str(obj.get('checks_pending',0))]
++        if any(not re.fullmatch('[0-9]{1,15}',value) for value in values):
++            raise SourceError('Некорректный баланс parser.market')
++        return tuple(map(int,values))
+ 
+     def submit(self, kind, region, label, rows):
+         result=self.call('send-order',market='ozon' if kind=='cards' else 'ozons',
+@@ -173,6 +183,8 @@ def match_rows(expected,report):
+             item=matches[0]
+             if item.get('name')!=row['name']:
+                 reason='NAME_MISMATCH'
++            elif item.get('donotsearch') not in (None,'') and 'donotsearch' in row and str(item['donotsearch'])!=row['donotsearch']:
++                reason='DEPTH_MISMATCH'
+             elif not isinstance(item.get('offers'),list):
+                 reason='MISSING_OFFERS'
+         result.append((row,reason,None if reason else matches[0]))
+diff --git a/products/harness-platform/platform_core/competitors/routes.py b/products/harness-platform/platform_core/competitors/routes.py
+index 0fcb79c..7cb8fb0 100644
+--- a/products/harness-platform/platform_core/competitors/routes.py
++++ b/products/harness-platform/platform_core/competitors/routes.py
+@@ -8,8 +8,10 @@ from starlette.responses import JSONResponse,Response
+ from starlette.routing import Route
+ from ..chat_connections import scope_for
+ from ..identity import _secret_digest
+-from .service import PLUGIN,guard,permitted,catalog,validate,freeze
+-from .parser import ref,unique
++from .service import reconcile_account,PLUGIN,guard,permitted,catalog,validate,freeze
++from .parser import ref,unique,check_units,review_subjects
++from .coverage import quality
++from .contracts import stored_json
+ 
+ 
+ def draft(db,chat):
+@@ -33,30 +35,50 @@ def lookup(db,scope,rid):
+     return row
+ 
+ 
+-def failed_items(kind,rows,current):
++def failed_items(kind,rows,current,order=None,phase=None,label=None):
+     cache=current.get({'cards':'cards','reviews':'reviews','search':'search'}[kind],{})
++    if kind=='search' and phase and phase.startswith('expand'):
++        cache=current.get('expanded',cache)
+     def failed(r):
+         entry=cache.get(r['name'],{})
++        if label and entry.get('label') and label!=entry['label']:
++            return False
++        if order is not None and str(entry.get('order'))!=str(order):
++            return False
++        if kind=='search' and entry.get('depth')!=int(r['donotsearch']):
++            return False
+         return entry.get('code')==r['code'] and (entry.get('error') or entry.get('state') in ('ERROR','INCOMPLETE'))
+     return [r for r in rows if failed(r)]
+ 
+ 
++# A revised selection can reuse downloaded assets internally. Project only
++# the currently selected reference SKUs through every user-facing surface.
++ASSET_SCOPE="research=? AND sku IN (SELECT value FROM json_each(?))"
++
++def asset_scope(research,data):
++    return research,json.dumps(data.get('targets',[]))
++
+ def details(db,scope,rid):
+     status,error,f,d=lookup(db,scope,rid)
+     receipts=[dict(phase=p,state=s,order=o,checks=u,reserved=v,error=e,label=l) for p,s,o,u,v,e,l in db.execute(
+         'SELECT phase,state,order_id,used,reserved,error,label FROM competitor_jobs WHERE research=? ORDER BY rowid',(rid,))]
+-    result=json.loads(d)
++    result=stored_json(d)
++    if 'gallery' in result:
++        result['gallery']={sku:v for sku,v in result['gallery'].items() if sku in result.get('targets',[])}
+     for r in receipts:
+-        if r['state']=='completed':
++        if r['state']=='quarantine':
++            incident=db.execute('SELECT reason,accepted_id,reported_id,accepted_checks,reported_checks,created FROM competitor_incidents WHERE label=?',(r['label'],)).fetchall()
++            r['incidents']=[dict(zip(('reason','acceptedOrder','reportedOrder','acceptedChecks','reportedChecks','time'),v)) for v in incident]
++        if r['state'] in ('completed','declined'):
+             kind,rows=db.execute('SELECT kind,rows FROM competitor_jobs WHERE label=?',(r['label'],)).fetchone()
+-            r['retryable']=[item['name'] for item in failed_items(kind,json.loads(rows),result)]
++            r['retryable']=[item['name'] for item in failed_items(kind,json.loads(rows),result,r['order'],result.get('retryOrigins',{}).get(r['phase'],r['phase']),r['label'])]
+     assets=[dict(id=i,sku=k,mime=m,sha256=h,selected=bool(sel),bytes=n) for i,k,m,h,sel,n in db.execute(
+-        'SELECT id,sku,mime,digest,selected,length(content) FROM competitor_assets WHERE research=?',(rid,))]
+-    return dict(id=rid,status=status,error=error,form=json.loads(f),result=result,receipts=receipts,assets=assets)
++        'SELECT id,sku,mime,digest,selected,length(content) FROM competitor_assets WHERE '+ASSET_SCOPE,asset_scope(rid,result))]
++    return dict(id=rid,status=status,error=error,quality=quality(result),form=json.loads(f),result=result,receipts=receipts,assets=assets)
+ 
+ 
+ def quote(f):
+-    unit=(f.get('verifyDepth',f['depth'])+15)//16
++    unit=check_units('search',f.get('verifyDepth',f['depth']))
+     n=len(f['refs']) if f['mode']=='B' else f['count']
+     stages=[]
+     if f['mode']=='A':
+@@ -66,7 +88,7 @@ def quote(f):
+         stages.append({'stage':'Прямые карточки','checks':n})
+         if f.get('compareOwn'):
+             stages.append({'stage':'Явно выбранные собственные карточки','checks':len(f['skus'])})
+-    stages.extend([{'stage':'Отзывы, до 20 на карточку','checks':n},
++    stages.extend([{'stage':'Отзывы, до 20 на карточку','checks':len(review_subjects(f['mode'],range(n),f.get('skus',[])))},
+                    {'stage':'Проверка новых фраз во всей группе','checks':f['phraseLimit']*unit}])
+     return {'stages':stages,'cap':f['budget'],'knownChecks':sum(s['checks'] or 0 for s in stages),
+             'hasUnknown':any(s['checks'] is None for s in stages),'baseRubPerCheck':'0.20','octoportCoinsForCollection':0}
+@@ -98,33 +120,68 @@ def new(db,scope,digest,key,revision):
+     return key
+ 
+ 
+-def explanation(db,scope,text):
+-    topic=re.search(r'конкурент|референс|этих карточек|этого исследования',text,re.I)
+-    subject=re.search(r'результат|отч[её]т|ядр[оа]|фраз|запрос|топ|описани|характеристик|фото|отзыв|спрос|рекомендаци',text,re.I)
+-    reading=re.search(r'объясни|проанализируй|сравни|дай|сделай вывод|покажи|выведи|по каким|каки[ех]|сколько|где',text,re.I)
++from dataclasses import dataclass
++
++@dataclass(frozen=True)
++class Intent:
++    action: str
++    research: str = ''
++    choices: tuple = ()
++
++def resolve(db,scope,text):
++    if not isinstance(text,str):
++        return Intent('other')
++    topic=bool(re.search(r'конкурент|референс|этих карточек|этого исследования|ядро.{0,16}(ozon|озон)|ozon\.ru/product/',text,re.I))
+     followup=re.fullmatch(r'\s*(?:покажи (?:его|их) топовые фразы|по каким запросам он есть,? а мой товар не найден|сравни описани[ея] и характеристики)[.?!\s]*',text,re.I)
+-    if not ((topic or followup) and subject and reading) or re.search(r'нов(?:ый|ое) (?:анализ|исследование)|ozon\.ru/product/|подбер|измени',text,re.I):
+-        return None
++    if not (topic or followup or re.search(r'исследовани[ея]\s+#',text,re.I)):
++        return Intent('other')
+     from ..user_plugins.registry import attached
+     if not attached(db,scope,PLUGIN):
+-        return None
+-    requested=re.search(r'исследование\s+#([0-9a-f]{32})\b',text,re.I)
+-    requested_id=requested[1].lower() if requested else None
+-    if not requested_id:
+-        last=db.execute("""SELECT text FROM competitor_exchanges WHERE chat=? AND text LIKE
+-                           'Передать результат анализа конкурентов, исследование #%'
+-                           ORDER BY rowid DESC LIMIT 1""",(scope.chat_id,)).fetchone()
+-        if last:
+-            requested_id=last[0].rsplit('#',1)[-1]
+-    row=db.execute("""SELECT id FROM competitor_studies WHERE chat=? AND workspace=? AND actor=? AND status='done'
+-                      AND (? IS NULL OR id=?) ORDER BY created DESC LIMIT 1""",
+-                   (scope.chat_id,scope.workspace_id,scope.actor_id,requested_id,requested_id)).fetchone()
+-    if not row:
+-        if requested:
++        return Intent('other')
++    explicit=re.search(r'исследовани[ея]\s+#([0-9a-f]{32})\b',text,re.I)
++    if explicit and re.fullmatch(r'Передать результат анализа конкурентов, исследование #[0-9a-f]{32}',text,re.I):
++        return Intent('transfer',explicit[1].lower())
++    if re.search(r'подбер|подобрать|нов(?:ый|ое) (?:анализ|исследование)|ozon\.ru/product/',text,re.I):
++        return Intent('new')
++    if re.search(r'измени|выбер|выбери',text,re.I):
++        return Intent('choose' if re.search(r'выбер|выбери',text,re.I) else 'modify')
++    subjects=set(re.findall(r'(?<![\w#])[1-9]\d{5,18}(?!\w)',text))
++    if subjects and re.search(r'проанализируй|изучи|разбери|разбор',text,re.I) and not explicit:
++        return Intent('new')
++    if not re.search(r'результат|отч[её]т|ядр[оа]|фраз|запрос|топ|описани|характеристик|фото|отзыв|спрос|рекомендаци',text,re.I):
++        return Intent('new') if re.search(r'анализ|разбери|изучи|найди',text,re.I) else Intent('other')
++    rows=db.execute("""SELECT id FROM competitor_studies WHERE chat=? AND workspace=? AND actor=? AND status='done'
++                    AND (? IS NULL OR id=?) ORDER BY created DESC""",
++                    (scope.chat_id,scope.workspace_id,scope.actor_id,explicit[1].lower() if explicit else None,explicit[1].lower() if explicit else None))
++    matches=[]
++    for (rid,) in rows:
++        try:
++            _,_,form,data=lookup(db,scope,rid)
++        except HTTPException:
++            continue
++        if subjects and not subjects<=set(json.loads(data).get('targets',[])+json.loads(form).get('skus',[])):
++            continue
++        matches.append(rid)
++    if not matches:
++        if explicit:
+             raise HTTPException(404,'Готовое исследование недоступно в этом чате')
++        return Intent('missing') if subjects else Intent('other')
++    if len(matches)>1:
++        shared=db.execute("""SELECT text FROM competitor_exchanges WHERE chat=? AND text LIKE
++                          'Передать результат анализа конкурентов, исследование #%' ORDER BY rowid DESC LIMIT 1""",(scope.chat_id,)).fetchone()
++        current=shared[0].rsplit('#',1)[-1] if shared and not subjects else None
++        if current not in matches:
++            return Intent('clarify',choices=tuple(matches[:10]))
++        matches=[current]
++    return Intent('compare' if re.search(r'сравни|сопостав',text,re.I) else 'read',matches[0])
++
++def explanation(db,scope,text,intent=None):
++    intent=intent or resolve(db,scope,text)
++    if intent.action not in ('read','compare'):
+         return None
++    row=(intent.research,)
+     _,_,form,encoded=lookup(db,scope,row[0])
+-    data=json.loads(encoded)
++    data=stored_json(encoded)
+     own=json.loads(form).get('skus',[])
+     samples=[]
+     for sku,k in data.get('kernel',{}).items():
+@@ -132,7 +189,7 @@ def explanation(db,scope,text):
+                             found=sum(v['status']=='FOUND' for v in k['phrases'].values()),
+                             collected=len(k['phrases']),reviews=len(data.get('reviews',{}).get(sku,{}).get('reviews',[])),
+                             cardOrder='parser-report-'+str(data['cards'][sku].get('order'))))
+-    photos,selected=db.execute('SELECT count(*),coalesce(sum(selected),0) FROM competitor_assets WHERE research=?',(row[0],)).fetchone()
++    photos,selected=db.execute('SELECT count(*),coalesce(sum(selected),0) FROM competitor_assets WHERE '+ASSET_SCOPE,asset_scope(row[0],data)).fetchone()
+     source_text=[]
+     wants_text=bool(re.search(r'описани|текст карточ',text,re.I))
+     wants_attrs=bool(re.search(r'характеристик|свойств',text,re.I))
+@@ -151,6 +208,7 @@ def explanation(db,scope,text):
+     elif own:
+         ids=unique([own[0],*data.get('targets',[]),*own[1:]])
+     # Bound quoted catalogue material even for a whole-category study.
++    samples=[v for v in samples if v['sku'] in ids]
+     total_cards=len(ids)
+     ids=ids[:12]
+     if wants_text or wants_attrs or wants_reviews or wants_terms:
+@@ -173,7 +231,7 @@ def explanation(db,scope,text):
+                     item['gaps']=data.get('gaps',{}).get(sku,[])[:50]
+             source_text.append(item)
+     if re.search(r'фото',text,re.I):
+-        for asset,sku,chosen in db.execute('SELECT id,sku,selected FROM competitor_assets WHERE research=? ORDER BY selected DESC,rowid LIMIT 100',(row[0],)):
++        for asset,sku,chosen in db.execute('SELECT id,sku,selected FROM competitor_assets WHERE '+ASSET_SCOPE+' ORDER BY selected DESC,rowid LIMIT 100',asset_scope(row[0],data)):
+             if sku in ids:
+                 source_text.append(dict(sku=sku,selected=bool(chosen),photo=f'/api/chats/{scope.chat_id}/plugins/{PLUGIN}/photo?id={row[0]}&asset={asset}'))
+     demand={}
+@@ -182,20 +240,38 @@ def explanation(db,scope,text):
+         demand={'meaning':matrix['note'],'region':matrix['region'],'depth':matrix['depth'],'period':matrix['sellerPeriod'],
+                 'anchors':{sku:{target:stats['top'] for target,stats in anchor['products'].items() if target==sku or target in data['targets']}
+                            for sku,anchor in list(matrix['anchors'].items())[:3]}}
+-    return {'researchId':row[0],'availableCards':total_cards,'sourceExcerpts':source_text,'knownPhraseDemand':demand,'сопоставимых проверенных фраз':data.get('quantitative',{}).get('checked'),'samples':samples,'исследовано товаров':len(samples),'скачано фотографий':photos,'выбрано фотографий как референсы':selected,
++    return {'researchId':row[0],'availableCards':total_cards,'sourceExcerpts':source_text,'knownPhraseDemand':demand,'сопоставимых проверенных фраз':data.get('quantitative',{}).get('checked'),'samples':samples,'quality':quality(data),'исследовано товаров':quality(data)['validated'],'скачано фотографий':photos,'выбрано фотографий как референсы':selected,
+             'mode':'A' if 'discovery' in data else 'B'}
+ 
+ 
+-def command(db,scope,rid,text):
+-    transfer=re.fullmatch(r'Передать результат анализа конкурентов, исследование #([0-9a-f]{32})',text,re.I) if isinstance(text,str) else None
+-    if transfer:
+-        status,_,form,encoded=lookup(db,scope,transfer[1])
++def command(db,scope,rid,text,intent=None):
++    intent=intent or resolve(db,scope,text)
++    if intent.action=='clarify':
++        return 'Укажите номер исследования: '+', '.join('#'+s for s in intent.choices)
++    if intent.action=='missing':
++        return 'В доступных исследованиях этого чата нет результата для указанного SKU. Чтобы создать исследование, попросите проанализировать этот SKU.'
++    if intent.action=='choose':
++        choices=db.execute("SELECT id FROM competitor_studies WHERE workspace=? AND chat=? AND actor=? AND status='selection' ORDER BY created DESC",
++                           (scope.workspace_id,scope.chat_id,scope.actor_id)).fetchall()
++        available=[]
++        for (key,) in choices:
++            try:
++                lookup(db,scope,key)
++                available.append(key)
++            except HTTPException:
++                continue
++        if available:
++            return 'Подтвердите состав и лимит в форме исследования '+', '.join('#'+k for k in available[:10])+'.'
++    if intent.action=='transfer':
++        status,_,form,encoded=lookup(db,scope,intent.research)
+         if status!='done':
+             raise HTTPException(409,'Исследование ещё не завершено')
+-        data=json.loads(encoded)
+-        photos=db.execute('SELECT count(*) FROM competitor_assets WHERE research=?',(transfer[1],)).fetchone()[0]
+-        lines=[f"Исследование #{transfer[1]} · режим {json.loads(form)['mode']}.",
+-               f"Исследовано товаров: {len(data.get('targets',[]))}. Скачано фотографий: {photos}."]
++        data=stored_json(encoded)
++        photos=db.execute('SELECT count(*) FROM competitor_assets WHERE '+ASSET_SCOPE,asset_scope(intent.research,data)).fetchone()[0]
++        lines=[f"Исследование #{intent.research} · режим {json.loads(form)['mode']}.",
++               f"Исследовано товаров: {quality(data)['validated']}. Скачано фотографий: {photos}."]
++        for failure in quality(data)['failures']:
++            lines.append(str(failure.get('sku') or failure.get('phrase'))+' · '+str(failure['error']))
+         for sku,kernel in data.get('kernel',{}).items():
+             lines.append(f"SKU {sku} · фраз в ТОП-5 полученной выдачи: {len(kernel['top']['5'])}.")
+             errors=sum(r['status'] in ('ERROR','INCOMPLETE') for r in kernel['phrases'].values())
+@@ -208,12 +284,7 @@ def command(db,scope,rid,text):
+         if not old:
+             db.execute('INSERT INTO competitor_exchanges VALUES(?,?,?,?)',(scope.chat_id,rid,text,answer))
+         return old[1] if old else answer
+-    if not isinstance(text,str) or not re.search(r'(анализ\w*|подбер\w*|найди|изуч\w*|покажи|измени|разбер\w*|сравни|разбор)',text,re.I):
+-        return None
+-    if not re.search(r'конкурент|референс|ядро.{0,16}(ozon|озон)|ozon\.ru/product/',text,re.I):
+-        return None
+-    from ..user_plugins.registry import attached
+-    if not attached(db,scope,PLUGIN):
++    if intent.action not in ('new','modify','choose'):
+         return None
+     old=db.execute('SELECT text,answer FROM competitor_exchanges WHERE chat=? AND request=?',(scope.chat_id,rid)).fetchone()
+     if old:
+@@ -249,11 +320,16 @@ def routes(token_for,body):
+         action=req.path_params.get('action','')
+         args={}
+         if req.method=='POST':
+-            keys={'estimate':('form',),'save':('revision','form'),'start':('revision','requestId'),'choose':('id','skus'),
+-                  'budget':('id','budget'),'retry-rows':('id','label'),'expand':('id',),'more':('id',),'retry-ads':('id',),'stop':('id',),'resume':('id',),'select-photo':('id','asset','selected')}
++            keys={'reconcile':('parser',),'estimate':('form',),'save':('revision','form'),'start':('revision','requestId'),'choose':('id','skus'),
++                  'budget':('id','budget'),'retry-rows':('id','label'),'reread':('id','label'),'expand':('id',),'more':('id',),'retry-photos':('id',),'retry-seller':('id',),'retry-ads':('id',),'stop':('id',),'resume':('id',),'select-photo':('id','asset','selected')}
+             if action not in keys:
+                 raise HTTPException(404,'Неизвестная команда')
+             args=await body(req,*keys[action])
++        if action=='reconcile' and req.method=='POST':
++            from starlette.concurrency import run_in_threadpool
++            with identity._lock:
++                path=identity._db.execute('PRAGMA database_list').fetchone()[2]
++            return JSONResponse(await run_in_threadpool(reconcile_account,path,token,req.path_params['chat_id'],args['parser']))
+         with (identity._write() if req.method=='POST' else identity._lock):
+             db=identity._db
+             scope=scope_for(db,token,req.path_params['chat_id'])
+@@ -268,10 +344,19 @@ def routes(token_for,body):
+                     rid=new(db,scope,_secret_digest(token),args['requestId'],args['revision'])
+                 else:
+                     status,_,_,encoded=lookup(db,scope,rid)
+-                    d=json.loads(encoded)
++                    d=stored_json(encoded)
+                     if action=='stop':
+                         db.execute("UPDATE competitor_studies SET status='stopped',lease=NULL,due=0 WHERE id=? AND status IN ('running','selection','paused')",(rid,))
++                    elif action=='resume' and status=='reauth':
++                        old=db.execute('SELECT execution FROM competitor_auth_pause WHERE research=?',(rid,)).fetchone()
++                        db.execute("UPDATE competitor_studies SET status=?,digest=?,error='',due=0 WHERE id=?",
++                                   (old[0] if old else 'stopped',_secret_digest(token),rid))
++                        db.execute('DELETE FROM competitor_auth_pause WHERE research=?',(rid,))
+                     elif action=='resume' and status in ('paused','stopped'):
++                        # A manual resume renews polling on the original label only.
++                        for row in db.execute("SELECT label FROM competitor_jobs WHERE research=? AND state='awaiting-manual'",(rid,)).fetchall():
++                            db.execute('DELETE FROM competitor_polls WHERE label=?',(row[0],))
++                            db.execute("UPDATE competitor_jobs SET state='waiting',due=0 WHERE label=?",(row[0],))
+                         db.execute('UPDATE competitor_studies SET status=?,digest=?,error=?,due=0 WHERE id=?',
+                             ('selection' if d['phase']=='selection' else 'running',_secret_digest(token),'',rid))
+                     elif action=='budget':
+@@ -282,23 +367,49 @@ def routes(token_for,body):
+                         f['budget']=amount
+                         db.execute("UPDATE competitor_studies SET form=?,status='running',due=0,error='',digest=? WHERE id=?",
+                             (json.dumps(f),_secret_digest(token),rid))
+-                    elif action=='retry-rows':
+-                        job=db.execute("SELECT kind,rows,phase FROM competitor_jobs WHERE research=? AND label=? AND state='completed'",(rid,args['label'])).fetchone()
++                    elif action in ('retry-rows','reread'):
++                        job=db.execute("SELECT kind,rows,phase,order_id FROM competitor_jobs WHERE research=? AND label=? AND state IN ('completed','declined')",(rid,args['label'])).fetchone()
+                         if status not in ('done','selection') or not job:
+                             raise HTTPException(409,'Повтор строк доступен после завершения этапа')
+-                        kind,encoded_rows,phase=job
+-                        rows=failed_items(kind,json.loads(encoded_rows),d)
++                        kind,encoded_rows,phase,order=job
++                        original_phase=phase
++                        phase=d.get('retryOrigins',{}).get(phase,phase)
++                        rows=failed_items(kind,json.loads(encoded_rows),d,order,phase,args['label'])
+                         if not rows:
+                             raise HTTPException(409,'В этом задании нет оставшихся ошибочных строк')
+                         d['retry']={'kind':kind,'rows':rows,'key':'retry-'+uuid4().hex[:16],'phase':phase,'return':d['phase']}
++                        if action=='reread':
++                            if not order:
++                                raise HTTPException(409,'Отсутствует принятый заказ для чтения')
++                            db.execute("UPDATE competitor_jobs SET state='received',due=0,data=NULL WHERE research=? AND label=? AND used IS NOT NULL",(rid,args['label']))
++                            db.execute('DELETE FROM competitor_polls WHERE label=?',(args['label'],))
++                            d['retry'].update(originalRows=json.loads(encoded_rows),key=original_phase)
++                        d.setdefault('retryOrigins',{})[d['retry']['key']]=phase
+                         d['phase']='retry-rows'
+                         db.execute("UPDATE competitor_studies SET status='running',due=0,lease=NULL,digest=?,result=? WHERE id=?",(_secret_digest(token),json.dumps(d),rid))
++                    elif action in ('retry-photos','retry-seller'):
++                        if status!='done':
++                            raise HTTPException(409,'Исследование ещё выполняется')
++                        if action=='retry-photos':
++                            for entries in d.get('gallery',{}).values():
++                                for url in list(entries):
++                                    if entries[url].get('error'):
++                                        del entries[url]
++                            d['phase']='gallery'
++                        else:
++                            if not (d.get('seller',{}).get('errors') or d.get('seller',{}).get('error')):
++                                raise HTTPException(409,'Нет ошибочных пакетов Seller')
++                            d.pop('seller',None)
++                            d['phase']='own'
++                        db.execute("UPDATE competitor_studies SET status='running',due=0,digest=?,result=? WHERE id=?",
++                                   (_secret_digest(token),json.dumps(d),rid))
+                     elif action=='retry-ads':
+                         retry=[j for j in d.get('adBatches',[]) if j.get('error') and j.get('uuid') and j.get('state') not in ('ERROR','CANCELLED')]
+                         if status!='done' or not retry:
+                             raise HTTPException(409,'Нет отчётов Performance, доступных для повторного чтения')
+                         for job in retry:
+                             del job['error']
++                            job.pop('rows',None)
+                         d.pop('performance',None)
+                         d.update(phase='own',retryAdsOnly=True)
+                         db.execute("UPDATE competitor_studies SET status='running',due=0,lease=NULL,digest=?,result=? WHERE id=?",
+@@ -333,12 +444,12 @@ def routes(token_for,body):
+                         db.execute("UPDATE competitor_studies SET status=?,due=0,lease=NULL,digest=?,result=? WHERE id=?",
+                                    ('running' if skus else 'done',_secret_digest(token),json.dumps(d),rid))
+                     elif action=='select-photo':
+-                        if type(args['selected'])!=bool or not db.execute('UPDATE competitor_assets SET selected=? WHERE research=? AND id=?',(args['selected'],rid,args['asset'])).rowcount:
++                        if type(args['selected'])!=bool or not db.execute('UPDATE competitor_assets SET selected=? WHERE '+ASSET_SCOPE+' AND id=?',(args['selected'],*asset_scope(rid,d),args['asset'])).rowcount:
+                             raise HTTPException(404,'Фотография недоступна')
+             if rid:
+                 result=details(db,scope,rid)
+                 if action=='photo':
+-                    item=db.execute('SELECT mime,content FROM competitor_assets WHERE research=? AND id=?',(rid,req.query_params.get('asset'))).fetchone()
++                    item=db.execute('SELECT mime,content FROM competitor_assets WHERE '+ASSET_SCOPE+' AND id=?',(*asset_scope(rid,result['result']),req.query_params.get('asset'))).fetchone()
+                     if not item:
+                         raise HTTPException(404,'Фотография недоступна')
+                     disposition='attachment' if req.query_params.get('download')=='1' else 'inline'
+diff --git a/products/harness-platform/platform_core/competitors/service.py b/products/harness-platform/platform_core/competitors/service.py
+index 5bef104..061f3fb 100644
+--- a/products/harness-platform/platform_core/competitors/service.py
++++ b/products/harness-platform/platform_core/competitors/service.py
+@@ -1,5 +1,6 @@
+ import asyncio
+ import json
++import hashlib
+ import re
+ import sqlite3
+ import time
+@@ -12,6 +13,7 @@ from ..market_access import allowed
+ from ..storage import Scope
+ from ..user_plugins.registry import attached
+ from .engine import advance
++from .contracts import diagnostic,stored_json
+ from .jobs import Journal,transaction,SCHEMA as JOB_SCHEMA
+ from .own import Own,periods,OzonError
+ from .parser import Parser,ref,unique
+@@ -41,13 +43,32 @@ SCHEMA=(
+        WHEN NEW.status='revoked' BEGIN
+        UPDATE competitor_jobs SET error='Сверка ожидает восстановления доступа к исходному заказу'
+        WHERE research=NEW.id AND used IS NULL AND state NOT IN ('declined','not-sent'); END""",
+-    '''CREATE TRIGGER IF NOT EXISTS competitor_forget AFTER DELETE ON competitor_studies
+-        BEGIN DELETE FROM competitor_jobs WHERE research=OLD.id AND used IS NOT NULL; END''',
++    """CREATE TRIGGER IF NOT EXISTS competitor_finance_revocation AFTER UPDATE OF status ON competitor_studies
++       WHEN NEW.status='revoked' BEGIN
++       UPDATE competitor_jobs SET state=CASE WHEN state='rate-limited' THEN 'not-sent' ELSE 'detached-pending' END,
++         used=CASE WHEN state='rate-limited' THEN 0 ELSE used END,due=0,rows='[]',data=NULL,
++         error='Требуется авторизованная сверка' WHERE research=NEW.id AND used IS NULL AND state<>'quarantine';
++       END""",
++    """CREATE TABLE IF NOT EXISTS competitor_auth_pause(research TEXT PRIMARY KEY REFERENCES competitor_studies(id)
++       ON DELETE CASCADE, execution TEXT NOT NULL)""",
++    """CREATE TRIGGER IF NOT EXISTS competitor_detach_finance AFTER DELETE ON competitor_studies BEGIN
++       UPDATE competitor_jobs SET rows='[]',data=NULL,region='',kind='',error=NULL,
++         state=CASE WHEN state='quarantine' THEN state WHEN used IS NOT NULL OR state='rate-limited' THEN 'detached-settled' ELSE 'detached-pending' END,
++         used=CASE WHEN state='rate-limited' THEN 0 ELSE used END,due=0 WHERE research=OLD.id;
++       END""",
+ )
+ 
+ def install(db):
++    db.execute('DROP TRIGGER IF EXISTS competitor_forget')
+     for sql in SCHEMA:
+         db.execute(sql)
++    db.execute("""UPDATE competitor_jobs SET rows='[]',data=NULL,region='',kind='',error=NULL,due=0,
++        state=CASE WHEN used IS NULL THEN 'detached-pending' ELSE 'detached-settled' END
++        WHERE state NOT IN ('detached-pending','detached-settled','quarantine')
++        AND NOT EXISTS(SELECT 1 FROM competitor_studies r WHERE r.id=competitor_jobs.research AND r.status<>'revoked')""")
++
++class SessionExpired(Exception):
++    pass
+ 
+ 
+ def guard(db,scope):
+@@ -131,7 +152,7 @@ def record_receipts(db,scope,rid):
+     from .. import coins
+     from ..operation_grants import ensure_operation_schema
+     with transaction(db):
+-        rows=db.execute("SELECT label FROM competitor_jobs WHERE research=? AND state IN ('completed','received') AND used IS NOT NULL",(rid,)).fetchall()
++        rows=db.execute("SELECT label FROM competitor_jobs WHERE research=? AND (state IN ('completed','received') OR label IN (SELECT label FROM competitor_receipts)) AND used IS NOT NULL",(rid,)).fetchall()
+         if not rows:
+             return
+         ensure_operation_schema(db)
+@@ -159,20 +180,22 @@ def tick(path):
+         row=db.execute(f'''UPDATE competitor_studies SET lease=?,due=? WHERE id=(
+             SELECT r.id FROM competitor_studies r WHERE r.due<=? AND (r.status='running' OR
+             (r.status='stopped' AND EXISTS(SELECT 1 FROM competitor_jobs j WHERE j.research=r.id AND
+-             ((j.due<=? AND j.data IS NULL AND j.state NOT IN ('declined','provider-stopped','not-sent')) OR
++             ((j.due<=? AND j.data IS NULL AND j.state NOT IN ('declined','quarantine','not-sent','detached-settled','awaiting-manual','detached-manual')) OR
+               (j.used IS NOT NULL AND j.state IN ('completed','received') AND {missing_receipt}))))) ORDER BY r.due,r.created LIMIT 1)
+             RETURNING *''',(lease,now+180,now,now)).fetchone()
+         if not row:
+             return False
+         rid=row['id']
+         f=json.loads(row['form'])
+-        d=json.loads(row['result'])
++        d=stored_json(row['result'])
+         scope=Scope(row['actor'],row['workspace'],row['chat'])
+         def authorize():
+             permitted(db,scope,f)
+-            if not db.execute('''SELECT 1 FROM identity_sessions s JOIN competitor_studies r ON r.digest=s.digest
+-              WHERE r.id=? AND r.lease=? AND r.status=? AND s.actor_id=? AND s.expires_at>?''',(rid,lease,row['status'],scope.actor_id,time.time())).fetchone():
+-                raise HTTPException(403,'Исследование остановлено или сессия отозвана')
++            if not db.execute('SELECT 1 FROM competitor_studies WHERE id=? AND lease=? AND status=?',(rid,lease,row['status'])).fetchone():
++                raise HTTPException(403,'Исследование остановлено или изменился доступ')
++            if not db.execute('SELECT 1 FROM identity_sessions WHERE digest=? AND actor_id=? AND expires_at>?',
++                              (row['digest'],scope.actor_id,time.time())).fetchone():
++                raise SessionExpired('Для восстановления доступа к исследованию войдите повторно')
+             db.execute('UPDATE competitor_studies SET due=? WHERE id=? AND lease=?',(time.time()+180,rid,lease))
+         def fields(provider,key):
+             return unseal(scope.workspace_id,provider,f[key],connection(db,scope,f[key],provider)[1])
+@@ -186,11 +209,12 @@ def tick(path):
+             db.execute('UPDATE competitor_studies SET result=? WHERE id=? AND lease=?',(json.dumps(d,ensure_ascii=False),rid,lease))
+         try:
+             authorize()
++            journal.authorize_commit=authorize
+             source=Parser(fields('parser-market','parser')['token'],authorize)
+             if row['status']=='stopped':
+                 db.execute("UPDATE competitor_jobs SET state='not-sent',used=0 WHERE research=? AND state='rate-limited'",(rid,))
+                 job=db.execute("""SELECT * FROM competitor_jobs WHERE research=? AND due<=? AND data IS NULL
+-                                  AND state NOT IN ('declined','provider-stopped','not-sent') ORDER BY due LIMIT 1""",(rid,now)).fetchone()
++                                  AND state NOT IN ('declined','quarantine','not-sent','detached-settled','awaiting-manual','detached-manual') ORDER BY due LIMIT 1""",(rid,now)).fetchone()
+                 if job:
+                     journal.poll_existing(job,source)
+                 record_receipts(db,scope,rid)
+@@ -204,8 +228,15 @@ def tick(path):
+             status={'done':'done','selection':'selection'}.get(d['phase'],'running')
+             db.execute('UPDATE competitor_studies SET result=?,status=?,due=?,lease=NULL,error=? WHERE id=? AND lease=?',
+                 (json.dumps(d,ensure_ascii=False),status,time.time()+(20 if before==d['phase'] and before!='gallery' else 0),'',rid,lease))
++        except SessionExpired as exc:
++            with transaction(db):
++                changed=db.execute("UPDATE competitor_studies SET status='reauth',error=?,lease=NULL WHERE id=? AND lease=?",(str(exc),rid,lease)).rowcount
++                if changed:
++                    db.execute("UPDATE competitor_jobs SET error=? WHERE research=? AND used IS NULL",(str(exc),rid))
++                    db.execute('INSERT OR REPLACE INTO competitor_auth_pause VALUES(?,?)',(rid,row['status']))
+         except Exception as exc:
+-            message=str(getattr(exc,'detail',exc))[:275]
++            record_receipts(db,scope,rid)
++            message=diagnostic(getattr(exc,'detail',exc))
+             db.execute('UPDATE competitor_studies SET status=?,error=?,lease=NULL WHERE id=? AND lease=?',
+                     ('revoked' if isinstance(exc,HTTPException) and exc.status_code==403 else 'stopped' if row['status']=='stopped' else 'paused',message,rid,lease))
+         return True
+@@ -213,8 +244,33 @@ def tick(path):
+         journal.close()
+ 
+ 
++def reconcile_account(path,token,chat,connection_id):
++    """Offline research authorization is never reused to poll a deleted chat."""
++    with closing(Journal(path)) as journal:
++        db=journal.db
++        scope=scope_for(db,token,chat)
++        guard(db,scope)
++        version,blob=connection(db,scope,connection_id,'parser-market')
++        def authorize():
++            current=scope_for(db,token,chat)
++            guard(db,current)
++            connection(db,current,connection_id,'parser-market',version=version)
++        secret=unseal(scope.workspace_id,'parser-market',connection_id,blob)['token']
++        source=Parser(secret,authorize)
++        outcome=journal.reconcile_detached(hashlib.sha256(secret.encode()).hexdigest(),source,manual=True)
++        authorize()
++        messages={'no-due':'Сейчас нет квитанций, доступных для повторной сверки.',
++                  'detached-settled':'Поставщик подтвердил окончательный расход.',
++                  'quarantine':'Квитанция противоречит сохранённой записи. Требуется сверка с поставщиком.'}
++        return {'state':outcome,'message':messages.get(outcome,'Окончательная квитанция ещё не получена.')}
++
+ async def maintain(path):
+-    while True:
+-        ran=await asyncio.to_thread(tick,path)
+-        await asyncio.sleep(1 if ran else 4)
++    async def worker():
++        while True:
++            try:
++                ran=await asyncio.to_thread(tick,path)
++            except sqlite3.OperationalError:
++                ran=False
++            await asyncio.sleep(1 if ran else 4)
++    await asyncio.gather(worker(),worker())
+ 
+diff --git a/products/harness-platform/tests/test_competitor_architecture.py b/products/harness-platform/tests/test_competitor_architecture.py
+new file mode 100644
+index 0000000..d411c9d
+--- /dev/null
++++ b/products/harness-platform/tests/test_competitor_architecture.py
+@@ -0,0 +1,167 @@
++"""Financial, classification and source-coverage invariants across research lifecycles."""
++import json
++import sqlite3
++import tempfile
++import time
++import unittest
++from pathlib import Path
++from unittest.mock import patch
++
++from platform_core.competitors import analysis, own, routes, service
++from platform_core.competitors.coverage import quality
++from platform_core.competitors.jobs import Journal
++from platform_core.competitors.parser import products
++from platform_core.storage import Scope
++
++
++class Source:
++    key='offline-account'
++    def __init__(self):
++        self.orders={}
++        self.states={}
++    def authorize(self): pass
++    def balance(self): return 20,0
++    def submit(self,kind,region,label,rows):
++        oid=str(100+len(self.orders))
++        self.orders[label]=oid,rows
++        return oid
++    def poll(self,label):
++        if label in self.states:
++            return self.states[label],None
++        oid,rows=self.orders[label]
++        return 'completed',{'id':oid,'used_checks_total':len(rows),'regioncode':'москва',
++                            'data':[{**r,'offers':[{'Marketid':r['name'],'Name':'Товар'}]} for r in rows]}
++
++
++class Financial(unittest.TestCase):
++    def setUp(self):
++        tmp=tempfile.TemporaryDirectory()
++        self.addCleanup(tmp.cleanup)
++        self.path=Path(tmp.name)/'db'
++        self.j=Journal(self.path)
++        self.addCleanup(self.j.close)
++        self.source=Source()
++        self.rows=products('cards',['101'])
++    def send(self):
++        self.j.step('study','cards','cards','Москва',self.rows,1,self.source)
++        self.j.db.execute('UPDATE competitor_jobs SET due=0')
++        return self.j.get('study','cards')
++    def test_late_poll_is_fenced_even_after_same_order_completes(self):
++        job=self.send()
++        other=Journal(self.path)
++        self.addCleanup(other.close)
++        ordinary=self.source.poll
++        def late(label):
++            other.db.execute('UPDATE competitor_jobs SET due=0')
++            with patch.object(self.source,'poll',side_effect=ordinary):
++                self.assertTrue(other.poll_existing(other.get('study','cards'),self.source))
++            state,report=ordinary(label)
++            report['used_checks_total']=9
++            return state,report
++        with patch.object(self.source,'poll',side_effect=late):
++            self.assertIsNone(self.j.poll_existing(job,self.source))
++        self.assertEqual(tuple(self.j.db.execute('SELECT used,state FROM competitor_jobs').fetchone()),(1,'completed'))
++    def test_scope_lost_between_balance_and_reservation(self):
++        def revoked():
++            raise PermissionError('scope revoked')
++        self.j.authorize_commit=revoked
++        with self.assertRaises(PermissionError):
++            self.send()
++        self.assertFalse(self.source.orders)
++        self.assertIsNone(self.j.get('study','cards'))
++
++    def test_late_acknowledgement_preserves_detached_order_without_material(self):
++        def delayed(kind,region,label,rows):
++            self.j.db.execute("UPDATE competitor_jobs SET state='detached-pending',rows='[]' WHERE label=?",(label,))
++            return '341'
++        with patch.object(self.source,'submit',side_effect=delayed):
++            row=self.send()
++        self.assertEqual((row['state'],row['order_id'],row['rows']),('detached-pending','341','[]'))
++
++    def test_terminal_then_receipt_settles_one_order(self):
++        job=self.send()
++        self.source.states[job['label']]='cancelled'
++        self.j.poll_existing(job,self.source)
++        self.assertEqual(self.j.get('study','cards')['state'],'awaiting-receipt')
++        self.source.states.clear()
++        self.j.db.execute('UPDATE competitor_jobs SET due=0')
++        self.j.poll_existing(self.j.get('study','cards'),self.source)
++        self.assertEqual(self.j.get('study','cards')['used'],1)
++        self.assertEqual(len(self.source.orders),1)
++    def test_deleted_research_late_account_reconciliation_has_no_material(self):
++        job=self.send()
++        self.j.db.execute("UPDATE competitor_jobs SET state='detached-pending',rows='[]',data=NULL")
++        self.j.reconcile_detached(job['account'],self.source,manual=True)
++        new=self.j.get('study','cards')
++        self.assertEqual((new['state'],new['rows'],new['data'],new['used']),('detached-settled','[]',None,1))
++        self.assertEqual(self.j.db.execute('SELECT count(*) FROM competitor_receipts').fetchone()[0],1)
++    def test_parse_crash_reopens_on_same_receipt_without_resubmit(self):
++        job=self.send()
++        with patch('platform_core.competitors.jobs.parse_batch',side_effect=RuntimeError('restart')):
++            with self.assertRaises(RuntimeError):
++                self.j.poll_existing(job,self.source)
++        self.j.db.execute('UPDATE competitor_jobs SET due=0')
++        restored=Journal(self.path)
++        self.addCleanup(restored.close)
++        self.assertEqual(restored.step('study','cards','cards','Москва',self.rows,1,self.source)['101']['sku'],'101')
++        self.assertEqual(len(self.source.orders),1)
++
++
++class Facts(unittest.TestCase):
++    def test_pump_with_different_connector_has_same_primary_purpose(self):
++        def card(title):
++            return dict(title=title,type='Насос',breadcrumbs=['Спорт','Насосы'],characteristics={'Назначение насоса':['Велосипедный насос']})
++        self.assertEqual(analysis.decision('2',card('Насос с головкой на шланге'),[],set(),[analysis.profile(card('Насос под ниппель'))])[0],'ELIGIBLE')
++    def test_title_suffix_and_inflection_do_not_override_mount(self):
++        a=dict(type='Аксессуар',breadcrumbs=['Декор'],title='Подвеска на зеркало',description='Крепится на зеркале.')
++        b=dict(a,title='Декор в автомобиль / рисунок на дереве / для удачи',description='Можно повесить на зеркало, носить с собой.')
++        self.assertEqual(analysis.decision('2',b,[],set(),[analysis.profile(a)])[0],'ELIGIBLE')
++        b['description']='Нельзя повесить на зеркало.'
++        self.assertNotEqual(analysis.decision('2',b,[],set(),[analysis.profile(a)])[0],'ELIGIBLE')
++
++    def test_different_category_namespaces_remain_uncertain(self):
++        a=dict(type='Весы',breadcrumbs=['Кухня','Весы'],title='Весы')
++        b={**a,'publicCategories':[{'url':'https://www.ozon.ru/category/vesy-456/'}]}
++        self.assertEqual(analysis.decision('2',a,[],set(),[analysis.profile(b)])[0],'NEEDS_CHECK')
++    def test_equal_leaf_names_in_distinct_paths(self):
++        a=dict(type='Фильтр',breadcrumbs=['Аквариумистика','Фильтры'])
++        b=dict(a,breadcrumbs=['Водопровод','Фильтры'])
++        self.assertEqual(analysis.decision('2',a,[],set(),[analysis.profile(b)])[0],'OTHER_CATEGORY')
++    def test_saved_error_receipt_cannot_authorize_another(self):
++        rows=products('search',['поиск'],32)
++        result={'search':{'поиск':{'depth':32,'order':'100','label':'a','code':'Q1','state':'ERROR'}}}
++        self.assertFalse(routes.failed_items('search',rows,result,'101','verify','b'))
++        self.assertTrue(routes.failed_items('search',rows,result,'100','verify','a'))
++    def test_revised_target_list_scopes_photos_and_chosen_references(self):
++        db=sqlite3.connect(':memory:')
++        self.addCleanup(db.close)
++        db.execute('CREATE TABLE competitor_assets(research,sku,selected)')
++        db.executemany('INSERT INTO competitor_assets VALUES(?,?,?)',[('r','1',1),('r','2',0),('other','2',1)])
++        args=routes.asset_scope('r',{'targets':['2']})
++        self.assertEqual(db.execute('SELECT count(*),sum(selected) FROM competitor_assets WHERE '+routes.ASSET_SCOPE,args).fetchone(),(1,0))
++        self.assertFalse(db.execute('UPDATE competitor_assets SET selected=1 WHERE '+routes.ASSET_SCOPE+' AND sku=?',(*args,'1')).rowcount)
++
++    def test_no_measurements_when_all_csv_rows_fail(self):
++        parsed=own.performance_csv('Отчёт\nSKU;Поисковый запрос;Показы;Клики\n101;поиск;-10;0\n'.encode())
++        self.assertEqual(parsed['invalidRows'],[3])
++        self.assertIsNone(parsed['totals']['all']['impressions'])
++    def test_coverage_keeps_found_position_in_incomplete_sample(self):
++        rows=products('search',['запрос'],3)
++        src=analysis.parse_batch('search',rows,{'id':'1','data':[{**rows[0],'offers':[None,{'Marketid':'111'}]}]})
++        kernel=analysis.observed(['111'],['запрос'],src)
++        fact=kernel['111']['phrases']['запрос']
++        self.assertEqual((fact['status'],fact['response_index'],fact['coverage']),('FOUND',2,'INCOMPLETE'))
++        q=quality({'targets':['111'],'kernel':kernel,'cards':{'111':{'sku':'111'}}})
++        self.assertTrue(q['partial'])
++    def test_research_selection_follows_scope_and_exact_subject(self):
++        db=sqlite3.connect(':memory:')
++        self.addCleanup(db.close)
++        db.executescript('CREATE TABLE competitor_studies(id,workspace,chat,actor,status,created,form,result,error);CREATE TABLE competitor_exchanges(chat,text);')
++        scope=Scope('u','w','c')
++        for rid,actor,skus in [('1','u',['123456','345678']),('2','u',['234567','345678']),('other','v',['123456'])]:
++            db.execute('INSERT INTO competitor_studies VALUES(?,?,?,?,?,?,?,?,?)',(rid,'w','c',actor,'done',1,'{}',json.dumps({'targets':skus}),''))
++        with patch('platform_core.user_plugins.registry.attached',return_value=True),patch.object(routes,'permitted'):
++            self.assertEqual(routes.resolve(db,scope,'Покажи фото конкурента 123456').research,'1')
++            self.assertEqual(routes.resolve(db,scope,'Покажи фото конкурента 345678').action,'clarify')
++            self.assertEqual(routes.resolve(db,scope,'Проанализируй конкурента 987654 по фразам').action,'new')
++            self.assertEqual(routes.resolve(db,scope,'Погода завтра').action,'other')
+diff --git a/products/harness-platform/tests/test_competitor_review.py b/products/harness-platform/tests/test_competitor_review.py
+index 4fafe76..9a280b9 100644
+--- a/products/harness-platform/tests/test_competitor_review.py
++++ b/products/harness-platform/tests/test_competitor_review.py
+@@ -48,6 +48,10 @@ class Classification(unittest.TestCase):
+         self.assertEqual(self.reason(dict(vehicle,description='На двусторонний скотч у зеркала заднего вида.')),'NEEDS_CHECK')
+         self.assertEqual(self.reason(dict(card('Семейный талисман'),description='Крепится на зеркало заднего вида.')),'ELIGIBLE')
+ 
++    def test_optional_location_does_not_establish_a_different_primary_use(self):
++        product=dict(card('Набор минералов'), description='Можно использовать на выбранном месте.')
++        self.assertEqual(self.reason(product),'NEEDS_CHECK')
++
+     def test_representative_dictionary(self):
+         words={'одно':['форма'],'Этот талисман поможет':[['1','description']]}
+         for i in range(5):
+diff --git a/release-manifest.json b/release-manifest.json
+index 6e15098..66fe1e9 100644
+--- a/release-manifest.json
++++ b/release-manifest.json
+@@ -46,6 +46,8 @@
+   "products/harness-platform/deploy/alisa-ui/portal-html.conf": "095b7ae016e0966bbd5b64779f01421f655d7df2",
+   "products/harness-platform/deploy/alisa-ui/portal.css": "c3bf7be56d4057ff2b1de08a245a167d0be401d1",
+   "products/harness-platform/deploy/alisa-ui/theme.css": "9be9e662353eeb3e2dcfa686cfff5b83b01ff5be",
++  "products/harness-platform/deploy/competitors/ROLLBACK_RU.md": "972b7cdd539215a5a20f0ca9b7ffd243f77c8ae2",
++  "products/harness-platform/deploy/competitors/migration.sql": "c0223e135d93e38200cc329c9fd215bb16d6fde6",
+   "products/harness-platform/deploy/harness-prod.service": "75b81df61960126a0c734aec0a9778e47c297946",
+   "products/harness-platform/deploy/harness-prod.socket": "7c7c160d815b754b115ff3801da3f11e851d4f66",
+   "products/harness-platform/deploy/nginx.conf": "c686484cacbce140ff3a51afc01a467729912716",
+@@ -189,7 +191,7 @@
+   "products/harness-platform/native/web/chat-workspace.pack": "a6f2885fed04cba59ed85588b6aad0493e77fa7f",
+   "products/harness-platform/native/web/checkout.css": "ea1ba2456b53c148ea1ba080dc6eb78523248051",
+   "products/harness-platform/native/web/checkout.js": "482ac99def83a268cf84822e0a8a58a7481f0fbc",
+-  "products/harness-platform/native/web/competitors.js": "cddb3ab66214d9e5dc7af1ae9939d5eb36f70cea",
++  "products/harness-platform/native/web/competitors.js": "9f70666208f8f680920e06b7b3ed443721395534",
+   "products/harness-platform/native/web/connections.js": "27acf5826f4df8a4000d8638d5142c41908dea1b",
+   "products/harness-platform/native/web/file-cost.js": "98dad6eb8d68a101f7572bff71f824ecf9f31e8e",
+   "products/harness-platform/native/web/file-drafts.js": "08701bafb72bb4545afc31d337c62aab3795b335",
+@@ -218,7 +220,7 @@
+   "products/harness-platform/platform_core/admin_visits.py": "fa5ba21ae26d00508321bd8bc75b25ee3233f255",
+   "products/harness-platform/platform_core/browser_session.py": "9824d81b1bca14abc2e32f775087470928a5ba7a",
+   "products/harness-platform/platform_core/catalog.py": "e8ac2b8c5edef1f900b184b3fda49a539883e611",
+-  "products/harness-platform/platform_core/chat_api.py": "eacda39143f9eb9d92ed6de5d2bc99917058d770",
++  "products/harness-platform/platform_core/chat_api.py": "fb6ef8480951f2183bec70c49fd1f92a906d62a3",
+   "products/harness-platform/platform_core/chat_attachments.py": "10254c5869a8e7e243d609aa14e93e45002515f9",
+   "products/harness-platform/platform_core/chat_connections.py": "c63b831064068ef75b7fa6c48d3facc3be284004",
+   "products/harness-platform/platform_core/chat_defaults.py": "0701d61a27dd1cc5e33ce0898b52b932cfbf40a4",
+@@ -227,14 +229,16 @@
+   "products/harness-platform/platform_core/checkout.py": "47bfcce102e0863ae729a17620a9d9632b177087",
+   "products/harness-platform/platform_core/coin_review.py": "10558c20a88c09cb6782cb661da0d9a8faca347e",
+   "products/harness-platform/platform_core/coins.py": "5f9cc85172f023b2ca48fcf660914581df3d319c",
+-  "products/harness-platform/platform_core/competitors/analysis.py": "d7a22bfd6ba4ac12ab5f75697c9997ae8eb7b208",
++  "products/harness-platform/platform_core/competitors/analysis.py": "a8f85ebb46e665fd7857fcd7283869106f3a1772",
+   "products/harness-platform/platform_core/competitors/comparison.py": "f53fd0439240bc545d30bddfe54fd282881fbeff",
+-  "products/harness-platform/platform_core/competitors/engine.py": "503db849494e873c83a11e37ac9269df4b67c48e",
+-  "products/harness-platform/platform_core/competitors/jobs.py": "a05bfb37d617aef2651bae37168bae7f44fc3f68",
+-  "products/harness-platform/platform_core/competitors/own.py": "b1e87ce202d6723174ab9963624c72053750eab9",
+-  "products/harness-platform/platform_core/competitors/parser.py": "82fcbe172aa9ad085a71ba6fdaf7f0227065ed89",
+-  "products/harness-platform/platform_core/competitors/routes.py": "0fcb79c1712458f9e51f1ece0770847068427062",
+-  "products/harness-platform/platform_core/competitors/service.py": "5bef104838252303bf16580d9f1a3ce17314af4e",
++  "products/harness-platform/platform_core/competitors/contracts.py": "0b9147c30e314c86efba1bdf6f4afdb5acf19307",
++  "products/harness-platform/platform_core/competitors/coverage.py": "9ce36f13f87010fab54a8c86dffdce60b05ce5ae",
++  "products/harness-platform/platform_core/competitors/engine.py": "4b89263b270ba366c7a8aefe0f8a4294797df317",
++  "products/harness-platform/platform_core/competitors/jobs.py": "e273954070de2d129d163a22f037c8703e509acf",
++  "products/harness-platform/platform_core/competitors/own.py": "dc59acc18cfb082cf50d9a1d3614e84d871d3d2d",
++  "products/harness-platform/platform_core/competitors/parser.py": "15cfb21266fe4cbc4457a271fbe797405761d09d",
++  "products/harness-platform/platform_core/competitors/routes.py": "7cb8fb0130d2aecc299a66cb6a2f125b4fa6f2b1",
++  "products/harness-platform/platform_core/competitors/service.py": "061f3fb2fffb3e870de6a51e0194532ba82ed8fe",
+   "products/harness-platform/platform_core/deepseek_media.py": "fbc3d03040f377973b1dd4f3df3c28b7a2c32d32",
+   "products/harness-platform/platform_core/dispatch.py": "73131a1f631b01a880496e8cd74c60f02e67619b",
+   "products/harness-platform/platform_core/file_processing.py": "5368c0337b871b6326a2339e8ad13a0dec2ca9a3",
+@@ -423,8 +427,9 @@
+   "products/harness-platform/tests/test_chat_attachments.py": "84a5158696e2ba9829d6ec76883c2b95ea19d8b7",
+   "products/harness-platform/tests/test_checkout.py": "adc54a746ed52d999d189559ecccb005dde1a2dd",
+   "products/harness-platform/tests/test_coin_wallet.py": "2e8292a684717c2d33bf4788a0357a302ffbd0a9",
++  "products/harness-platform/tests/test_competitor_architecture.py": "d411c9d7d65e8baefead241350bb201a79b3ad8b",
+   "products/harness-platform/tests/test_competitor_comparison.py": "7a31bc74822debbec7ffea50d5fb6197aaef6efc",
+-  "products/harness-platform/tests/test_competitor_review.py": "4fafe762f6e20949309d1f787485bc136513790e",
++  "products/harness-platform/tests/test_competitor_review.py": "9a280b955bbb89daa02fc3f1b53d93f5f5b1780e",
+   "products/harness-platform/tests/test_dispatch.py": "c8a11e7c4914e4a43b2ff342f350d4b13f1419e3",
+   "products/harness-platform/tests/test_files_independent_regressions.py": "e7b113b3749166061ed65725bd5946832af91f1f",
+   "products/harness-platform/tests/test_guest_activity.py": "fc476dc90ac4f0c6e991bd9def74d3b806125502",
