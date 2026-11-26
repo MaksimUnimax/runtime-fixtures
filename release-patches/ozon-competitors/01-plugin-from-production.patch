@@ -377,7 +377,7 @@ index 0000000..612163b
 +    print(json.dumps(results,ensure_ascii=False,indent=1))
 diff --git a/products/harness-platform/acceptance/competitor_invariants/new_probes.py b/products/harness-platform/acceptance/competitor_invariants/new_probes.py
 new file mode 100644
-index 0000000..d87ee0f
+index 0000000..c6e5553
 --- /dev/null
 +++ b/products/harness-platform/acceptance/competitor_invariants/new_probes.py
 @@ -0,0 +1,131 @@
@@ -460,13 +460,13 @@ index 0000000..d87ee0f
 +
 +def route_context():
 +    f,d=own_state();d['phase']='done';d['kernel']=analysis.observed(d['targets'],d['candidates'],d['search']);d['cards']['200001']['description']='SYNTHETIC_OZON_PRIVATE_REPORT';
-+    messages=['Сравни характеристики конкурентов DeepSeek и OpenRouter.','Какие поисковые фразы используют конкуренты на Wildberries?','Покажи топовые фразы конкурента 200001','Сколько будет 2+2?','Какая погода завтра?']
++    messages=['Сравни характеристики конкурентов DeepSeek и OpenRouter.','Какие поисковые фразы используют конкуренты на Wildberries?','Покажи топовые фразы конкурента 200001','Сколько будет 2+2?','Какая погода завтра?','Изучи конкурента Xiaomi https://www.ozon.ru/product/200001/', 'Покажи фразы конкурента Xiaomi SKU 200001', 'Покажи фразы конкурента Xiaomi SKU 200002', 'Покажи фразы конкурента на Wildberries SKU 200001', 'Покажи фразы конкурента компании Atlas','Сравни характеристики конкурентов сервиса Atlas со SKU 200001']
 +    with tempfile.TemporaryDirectory() as tmp:
 +        db=setup(Path(tmp)/'db',f,d,'done');facts=[]
 +        with patch('platform_core.user_plugins.registry.attached',return_value=True),patch.object(routes,'permitted'):
 +            for message in messages:
 +                intent=routes.resolve(db,SCOPE,message);context=routes.explanation(db,SCOPE,message,intent);facts.append({'text':message,'action':intent.action,'research':intent.research,'has_report':context is not None,'sku':[s['sku'] for s in context.get('samples',[])] if context else []})
-+        return facts[0]['action']=='other' and facts[1]['action']=='other' and facts[2]['has_report'] and not any(x['has_report'] for x in facts[3:]),facts
++        return facts[0]['action']=='other' and facts[1]['action']=='other' and facts[2]['has_report'] and not any(x['has_report'] for x in facts[3:6]) and facts[5]['action']=='new' and facts[6]['has_report'] and not any(x['has_report'] for x in facts[7:]) and facts[8]['action']=='other',facts
 +
 +def performance_invalid_all():
 +    f,d=own_state();d['seller']={'queries':[]};d['adBatches']=[{'campaigns':['1'],'uuid':'00000000-0000-0000-0000-000000000001'}];client=own.Own({'performance_secret':'dummy'},lambda x:None)
@@ -3534,10 +3534,10 @@ index 0000000..15cfb21
 +
 diff --git a/products/harness-platform/platform_core/competitors/routes.py b/products/harness-platform/platform_core/competitors/routes.py
 new file mode 100644
-index 0000000..679e347
+index 0000000..373c7c7
 --- /dev/null
 +++ b/products/harness-platform/platform_core/competitors/routes.py
-@@ -0,0 +1,513 @@
+@@ -0,0 +1,519 @@
 +import json
 +import re
 +import time
@@ -3699,12 +3699,18 @@ index 0000000..679e347
 +    words=re.sub(r'https?://(?:www\.)?ozon\.ru/product/\S+|#[0-9a-f]{32}', ' ',text,flags=re.I)
 +    foreign_market=re.search(r'\b(?:wildberries|вайлдберриз|валберис|wb|вб|amazon|авито|яндекс\s*маркет)\b',words,re.I)
 +    named=re.findall(r'\b[a-zA-Z][a-zA-Z0-9_.-]*\b',words)
-+    if foreign_market or any(v.casefold() not in {'ozon','sku','id','top','performance','seller','api'} for v in named):
++    # A reference or study identifier binds the product even when its brand is
++    # written in Latin. Foreign marketplaces still exclude this plugin.
++    product_ref=explicit or re.search(r'https?://(?:www\.)?ozon\.ru/product/\S+|\b(?:sku|артикул)\s*[№:#-]?\s*[1-9]\d{5,18}\b',text,re.I)
++    named_subject=any(v.casefold() not in {'ozon','sku','id','top','performance','seller','api'} for v in named)
++    organization=re.search(r'\bконкурент\w*\s+(?:компании|сервиса|площадки|модели)\s+([^\s.,!?]+)',words,re.I)
++    foreign_subject=organization and organization[1].casefold() not in ('ozon','озон','октопорт')
++    if foreign_market or foreign_subject or (named_subject and not product_ref):
 +        return Intent('other')
 +    # A competitor qualified by a different named entity (including Cyrillic)
 +    # is not the seller's product merely because there is a study in the chat.
 +    qualifier=re.search(r'\bконкурент(?:ов|ами|ам|а|у|ы)?\s+(?:компании\s+|сервиса\s+|площадки\s+)?([А-ЯЁ][а-яёА-ЯЁ-]+)\b',words)
-+    if qualifier and qualifier[1].casefold() not in ('озон','октопорт'):
++    if qualifier and not product_ref and qualifier[1].casefold() not in ('озон','октопорт'):
 +        return Intent('other')
 +    if re.search(r'подбер|подобрать|нов(?:ый|ое) (?:анализ|исследование)|ozon\.ru/product/',text,re.I):
 +        return Intent('new')

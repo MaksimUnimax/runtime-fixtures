@@ -377,7 +377,7 @@ index 0000000..612163b
 +    print(json.dumps(results,ensure_ascii=False,indent=1))
 diff --git a/products/harness-platform/acceptance/competitor_invariants/new_probes.py b/products/harness-platform/acceptance/competitor_invariants/new_probes.py
 new file mode 100644
-index 0000000..d87ee0f
+index 0000000..c6e5553
 --- /dev/null
 +++ b/products/harness-platform/acceptance/competitor_invariants/new_probes.py
 @@ -0,0 +1,131 @@
@@ -460,13 +460,13 @@ index 0000000..d87ee0f
 +
 +def route_context():
 +    f,d=own_state();d['phase']='done';d['kernel']=analysis.observed(d['targets'],d['candidates'],d['search']);d['cards']['200001']['description']='SYNTHETIC_OZON_PRIVATE_REPORT';
-+    messages=['Сравни характеристики конкурентов DeepSeek и OpenRouter.','Какие поисковые фразы используют конкуренты на Wildberries?','Покажи топовые фразы конкурента 200001','Сколько будет 2+2?','Какая погода завтра?']
++    messages=['Сравни характеристики конкурентов DeepSeek и OpenRouter.','Какие поисковые фразы используют конкуренты на Wildberries?','Покажи топовые фразы конкурента 200001','Сколько будет 2+2?','Какая погода завтра?','Изучи конкурента Xiaomi https://www.ozon.ru/product/200001/', 'Покажи фразы конкурента Xiaomi SKU 200001', 'Покажи фразы конкурента Xiaomi SKU 200002', 'Покажи фразы конкурента на Wildberries SKU 200001', 'Покажи фразы конкурента компании Atlas','Сравни характеристики конкурентов сервиса Atlas со SKU 200001']
 +    with tempfile.TemporaryDirectory() as tmp:
 +        db=setup(Path(tmp)/'db',f,d,'done');facts=[]
 +        with patch('platform_core.user_plugins.registry.attached',return_value=True),patch.object(routes,'permitted'):
 +            for message in messages:
 +                intent=routes.resolve(db,SCOPE,message);context=routes.explanation(db,SCOPE,message,intent);facts.append({'text':message,'action':intent.action,'research':intent.research,'has_report':context is not None,'sku':[s['sku'] for s in context.get('samples',[])] if context else []})
-+        return facts[0]['action']=='other' and facts[1]['action']=='other' and facts[2]['has_report'] and not any(x['has_report'] for x in facts[3:]),facts
++        return facts[0]['action']=='other' and facts[1]['action']=='other' and facts[2]['has_report'] and not any(x['has_report'] for x in facts[3:6]) and facts[5]['action']=='new' and facts[6]['has_report'] and not any(x['has_report'] for x in facts[7:]) and facts[8]['action']=='other',facts
 +
 +def performance_invalid_all():
 +    f,d=own_state();d['seller']={'queries':[]};d['adBatches']=[{'campaigns':['1'],'uuid':'00000000-0000-0000-0000-000000000001'}];client=own.Own({'performance_secret':'dummy'},lambda x:None)
@@ -2762,7 +2762,7 @@ index 82fcbe1..15cfb21 100644
                  reason='MISSING_OFFERS'
          result.append((row,reason,None if reason else matches[0]))
 diff --git a/products/harness-platform/platform_core/competitors/routes.py b/products/harness-platform/platform_core/competitors/routes.py
-index 0fcb79c..679e347 100644
+index 0fcb79c..373c7c7 100644
 --- a/products/harness-platform/platform_core/competitors/routes.py
 +++ b/products/harness-platform/platform_core/competitors/routes.py
 @@ -8,8 +8,10 @@ from starlette.responses import JSONResponse,Response
@@ -2859,7 +2859,7 @@ index 0fcb79c..679e347 100644
                     {'stage':'Проверка новых фраз во всей группе','checks':f['phraseLimit']*unit}])
      return {'stages':stages,'cap':f['budget'],'knownChecks':sum(s['checks'] or 0 for s in stages),
              'hasUnknown':any(s['checks'] is None for s in stages),'baseRubPerCheck':'0.20','octoportCoinsForCollection':0}
-@@ -98,33 +133,84 @@ def new(db,scope,digest,key,revision):
+@@ -98,33 +133,90 @@ def new(db,scope,digest,key,revision):
      return key
  
  
@@ -2909,12 +2909,18 @@ index 0fcb79c..679e347 100644
 +    words=re.sub(r'https?://(?:www\.)?ozon\.ru/product/\S+|#[0-9a-f]{32}', ' ',text,flags=re.I)
 +    foreign_market=re.search(r'\b(?:wildberries|вайлдберриз|валберис|wb|вб|amazon|авито|яндекс\s*маркет)\b',words,re.I)
 +    named=re.findall(r'\b[a-zA-Z][a-zA-Z0-9_.-]*\b',words)
-+    if foreign_market or any(v.casefold() not in {'ozon','sku','id','top','performance','seller','api'} for v in named):
++    # A reference or study identifier binds the product even when its brand is
++    # written in Latin. Foreign marketplaces still exclude this plugin.
++    product_ref=explicit or re.search(r'https?://(?:www\.)?ozon\.ru/product/\S+|\b(?:sku|артикул)\s*[№:#-]?\s*[1-9]\d{5,18}\b',text,re.I)
++    named_subject=any(v.casefold() not in {'ozon','sku','id','top','performance','seller','api'} for v in named)
++    organization=re.search(r'\bконкурент\w*\s+(?:компании|сервиса|площадки|модели)\s+([^\s.,!?]+)',words,re.I)
++    foreign_subject=organization and organization[1].casefold() not in ('ozon','озон','октопорт')
++    if foreign_market or foreign_subject or (named_subject and not product_ref):
 +        return Intent('other')
 +    # A competitor qualified by a different named entity (including Cyrillic)
 +    # is not the seller's product merely because there is a study in the chat.
 +    qualifier=re.search(r'\bконкурент(?:ов|ами|ам|а|у|ы)?\s+(?:компании\s+|сервиса\s+|площадки\s+)?([А-ЯЁ][а-яёА-ЯЁ-]+)\b',words)
-+    if qualifier and qualifier[1].casefold() not in ('озон','октопорт'):
++    if qualifier and not product_ref and qualifier[1].casefold() not in ('озон','октопорт'):
 +        return Intent('other')
 +    if re.search(r'подбер|подобрать|нов(?:ый|ое) (?:анализ|исследование)|ozon\.ru/product/',text,re.I):
 +        return Intent('new')
@@ -2965,7 +2971,7 @@ index 0fcb79c..679e347 100644
      own=json.loads(form).get('skus',[])
      samples=[]
      for sku,k in data.get('kernel',{}).items():
-@@ -132,7 +218,7 @@ def explanation(db,scope,text):
+@@ -132,7 +224,7 @@ def explanation(db,scope,text):
                              found=sum(v['status']=='FOUND' for v in k['phrases'].values()),
                              collected=len(k['phrases']),reviews=len(data.get('reviews',{}).get(sku,{}).get('reviews',[])),
                              cardOrder='parser-report-'+str(data['cards'][sku].get('order'))))
@@ -2974,7 +2980,7 @@ index 0fcb79c..679e347 100644
      source_text=[]
      wants_text=bool(re.search(r'описани|текст карточ',text,re.I))
      wants_attrs=bool(re.search(r'характеристик|свойств',text,re.I))
-@@ -151,6 +237,7 @@ def explanation(db,scope,text):
+@@ -151,6 +243,7 @@ def explanation(db,scope,text):
      elif own:
          ids=unique([own[0],*data.get('targets',[]),*own[1:]])
      # Bound quoted catalogue material even for a whole-category study.
@@ -2982,7 +2988,7 @@ index 0fcb79c..679e347 100644
      total_cards=len(ids)
      ids=ids[:12]
      if wants_text or wants_attrs or wants_reviews or wants_terms:
-@@ -173,7 +260,7 @@ def explanation(db,scope,text):
+@@ -173,7 +266,7 @@ def explanation(db,scope,text):
                      item['gaps']=data.get('gaps',{}).get(sku,[])[:50]
              source_text.append(item)
      if re.search(r'фото',text,re.I):
@@ -2991,7 +2997,7 @@ index 0fcb79c..679e347 100644
              if sku in ids:
                  source_text.append(dict(sku=sku,selected=bool(chosen),photo=f'/api/chats/{scope.chat_id}/plugins/{PLUGIN}/photo?id={row[0]}&asset={asset}'))
      demand={}
-@@ -182,20 +269,43 @@ def explanation(db,scope,text):
+@@ -182,20 +275,43 @@ def explanation(db,scope,text):
          demand={'meaning':matrix['note'],'region':matrix['region'],'depth':matrix['depth'],'period':matrix['sellerPeriod'],
                  'anchors':{sku:{target:stats['top'] for target,stats in anchor['products'].items() if target==sku or target in data['targets']}
                             for sku,anchor in list(matrix['anchors'].items())[:3]}}
@@ -3044,7 +3050,7 @@ index 0fcb79c..679e347 100644
          for sku,kernel in data.get('kernel',{}).items():
              lines.append(f"SKU {sku} · фраз в ТОП-5 полученной выдачи: {len(kernel['top']['5'])}.")
              errors=sum(r['status'] in ('ERROR','INCOMPLETE') for r in kernel['phrases'].values())
-@@ -208,12 +318,7 @@ def command(db,scope,rid,text):
+@@ -208,12 +324,7 @@ def command(db,scope,rid,text):
          if not old:
              db.execute('INSERT INTO competitor_exchanges VALUES(?,?,?,?)',(scope.chat_id,rid,text,answer))
          return old[1] if old else answer
@@ -3058,7 +3064,7 @@ index 0fcb79c..679e347 100644
          return None
      old=db.execute('SELECT text,answer FROM competitor_exchanges WHERE chat=? AND request=?',(scope.chat_id,rid)).fetchone()
      if old:
-@@ -249,11 +354,16 @@ def routes(token_for,body):
+@@ -249,11 +360,16 @@ def routes(token_for,body):
          action=req.path_params.get('action','')
          args={}
          if req.method=='POST':
@@ -3077,7 +3083,7 @@ index 0fcb79c..679e347 100644
          with (identity._write() if req.method=='POST' else identity._lock):
              db=identity._db
              scope=scope_for(db,token,req.path_params['chat_id'])
-@@ -268,10 +378,22 @@ def routes(token_for,body):
+@@ -268,10 +384,22 @@ def routes(token_for,body):
                      rid=new(db,scope,_secret_digest(token),args['requestId'],args['revision'])
                  else:
                      status,_,_,encoded=lookup(db,scope,rid)
@@ -3102,7 +3108,7 @@ index 0fcb79c..679e347 100644
                          db.execute('UPDATE competitor_studies SET status=?,digest=?,error=?,due=0 WHERE id=?',
                              ('selection' if d['phase']=='selection' else 'running',_secret_digest(token),'',rid))
                      elif action=='budget':
-@@ -282,23 +404,53 @@ def routes(token_for,body):
+@@ -282,23 +410,53 @@ def routes(token_for,body):
                          f['budget']=amount
                          db.execute("UPDATE competitor_studies SET form=?,status='running',due=0,error='',digest=? WHERE id=?",
                              (json.dumps(f),_secret_digest(token),rid))
@@ -3161,7 +3167,7 @@ index 0fcb79c..679e347 100644
                          d.pop('performance',None)
                          d.update(phase='own',retryAdsOnly=True)
                          db.execute("UPDATE competitor_studies SET status='running',due=0,lease=NULL,digest=?,result=? WHERE id=?",
-@@ -333,12 +485,12 @@ def routes(token_for,body):
+@@ -333,12 +491,12 @@ def routes(token_for,body):
                          db.execute("UPDATE competitor_studies SET status=?,due=0,lease=NULL,digest=?,result=? WHERE id=?",
                                     ('running' if skus else 'done',_secret_digest(token),json.dumps(d),rid))
                      elif action=='select-photo':
@@ -3695,7 +3701,7 @@ index 691c5d9..01c6418 100644
          row=p.products('search',['q'],8)[0]
          hit=lambda i:{'OfferId':str(i),'Place':0}
 diff --git a/release-manifest.json b/release-manifest.json
-index 6e15098..d3a6416 100644
+index 6e15098..1b9bba6 100644
 --- a/release-manifest.json
 +++ b/release-manifest.json
 @@ -14,6 +14,16 @@
@@ -3706,7 +3712,7 @@ index 6e15098..d3a6416 100644
 +  "products/harness-platform/acceptance/competitor_invariants/checkpoints.py": "9827dd64782a58348a78aa8e96f963fdb42d66e9",
 +  "products/harness-platform/acceptance/competitor_invariants/extra_probes.py": "9f6c2a24517e7817c1f0a443cbcfaf69ce6f4b89",
 +  "products/harness-platform/acceptance/competitor_invariants/lifecycle.py": "612163b518dd63b9b6897c39a0607c1d6e2c62ad",
-+  "products/harness-platform/acceptance/competitor_invariants/new_probes.py": "d87ee0f68ec9aeed72da4dcfe19ba639c265eb3f",
++  "products/harness-platform/acceptance/competitor_invariants/new_probes.py": "c6e555333ff1f109de95447f700d660acc4e5bbc",
 +  "products/harness-platform/acceptance/competitor_invariants/positive.py": "2511ff97a3bc123f6e274d07af92648736ed0c08",
 +  "products/harness-platform/acceptance/competitor_invariants/race_probe.py": "a50c56eeddc72d387bcfaf26c280a81e90a47b85",
 +  "products/harness-platform/acceptance/competitor_invariants/system_probes.py": "ce63454068810ac5aa561c17c338180416e4bb23",
@@ -3762,7 +3768,7 @@ index 6e15098..d3a6416 100644
 +  "products/harness-platform/platform_core/competitors/jobs.py": "e273954070de2d129d163a22f037c8703e509acf",
 +  "products/harness-platform/platform_core/competitors/own.py": "2e3412173a1880acaf9859ded5436034cbf9abc9",
 +  "products/harness-platform/platform_core/competitors/parser.py": "15cfb21266fe4cbc4457a271fbe797405761d09d",
-+  "products/harness-platform/platform_core/competitors/routes.py": "679e3476039be7e31dfb9a6437098ad51384a56d",
++  "products/harness-platform/platform_core/competitors/routes.py": "373c7c7f991bc1bc79f232e6aeafef5c25eb92d7",
 +  "products/harness-platform/platform_core/competitors/service.py": "e054ab7831cdb3ad394e2c5d134bc202fb38b315",
    "products/harness-platform/platform_core/deepseek_media.py": "fbc3d03040f377973b1dd4f3df3c28b7a2c32d32",
    "products/harness-platform/platform_core/dispatch.py": "73131a1f631b01a880496e8cd74c60f02e67619b",
