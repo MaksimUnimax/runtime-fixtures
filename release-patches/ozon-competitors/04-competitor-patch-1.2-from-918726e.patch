@@ -742,10 +742,10 @@ index 6cd1bf0..9bfe4c4 100644
          if not batch('search',d['verify'],search,f.get('verifyDepth',f['depth'])):
 diff --git a/products/harness-platform/platform_core/competitors/enrichment.py b/products/harness-platform/platform_core/competitors/enrichment.py
 new file mode 100644
-index 0000000..0f3c816
+index 0000000..e8bb34a
 --- /dev/null
 +++ b/products/harness-platform/platform_core/competitors/enrichment.py
-@@ -0,0 +1,330 @@
+@@ -0,0 +1,336 @@
 +"""Durable enrichment operations using the same wallet as the model gateway."""
 +import hashlib
 +import json
@@ -862,9 +862,15 @@ index 0000000..0f3c816
 +                json.dumps(request,ensure_ascii=False),now))
 +
 +
++def targets_for_commerce(data,form):
++    if 'commercialTargets' in data:
++        return data['commercialTargets']
++    return [s for s in data['targets'] if s not in form.get('own',[])]
++
++
 +def reserve(db,scope,rid,form,data,authorize,group):
 +    config=form['enrichment']
-+    targets=[s for s in data['targets'] if s not in form.get('own',[])]
++    targets=targets_for_commerce(data,form)
 +    bill=[]
 +    if group and config['semantic']:
 +        bill.append((DS,{'skus':[item['sku'] for item in group],'inputHash':fingerprint(group)},config['semanticLimit']))
@@ -1070,7 +1076,7 @@ index 0000000..0f3c816
 +            'state':'skipped','reason':'Нет карточек с подтверждённым содержимым'}
 +        data['phase']='commercial'
 +    else:
-+        targets=[s for s in data['targets'] if s not in form.get('own',[])]
++        targets=targets_for_commerce(data,form)
 +        data['commercial']=run(db,path,scope,rid,BH,form,group,payload,gateway,authorize,data.get('enrichmentBlocked',{})) if targets else {
 +            'state':'skipped','reason':'Нет внешних SKU'}
 +        data.pop('enrichmentBlocked',None)
@@ -1398,7 +1404,7 @@ index 0000000..f24cd89
 +        words.setdefault(row['phrase'],[]).extend([link['sku'],'deepseek'] for link in row['links'])
 +    return words
 diff --git a/products/harness-platform/platform_core/competitors/service.py b/products/harness-platform/platform_core/competitors/service.py
-index e054ab7..059e82b 100644
+index e054ab7..2e6bf5f 100644
 --- a/products/harness-platform/platform_core/competitors/service.py
 +++ b/products/harness-platform/platform_core/competitors/service.py
 @@ -1,5 +1,6 @@
@@ -1434,7 +1440,29 @@ index e054ab7..059e82b 100644
      db.execute("""UPDATE competitor_jobs SET rows='[]',data=NULL,region='',kind='',error=NULL,due=0,
          state=CASE WHEN used IS NULL THEN 'detached-pending' ELSE 'detached-settled' END
          WHERE state NOT IN ('detached-pending','detached-settled','quarantine')
-@@ -172,7 +178,7 @@ def record_receipts(db,scope,rid):
+@@ -141,6 +147,21 @@ def freeze(db,scope,form):
+     return f
+ 
+ 
++def commercial_targets(db,scope,form,targets):
++    """Use only chat-authorized Ozon catalogues to exclude already owned refs."""
++    exterior=[s for s in targets if s not in form.get('own',[])]
++    if not exterior:
++        return []
++    marks=','.join('?' for _ in exterior)
++    identified=db.execute(f"""SELECT DISTINCT p.sku,i.id FROM account_integrations i
++        JOIN chat_integrations g ON g.connection_id=i.id
++        JOIN user_plugin_products p ON p.cid=i.id AND p.plugin='ozon'
++        WHERE i.workspace=? AND g.chat_id=? AND i.provider='ozon' AND i.status='verified'
++          AND p.sku IN ({marks})""",(scope.workspace_id,scope.chat_id,*exterior))
++    own={sku for sku,cid in identified if allowed(db,cid,'catalog')}
++    return [sku for sku in exterior if sku not in own]
++
++
+ def permitted(db,scope,f):
+     guard(db,scope)
+     connection(db,scope,f['parser'],'parser-market',version=f['parserVersion'])
+@@ -172,7 +193,7 @@ def record_receipts(db,scope,rid):
                  db.execute('UPDATE coin_orders SET cap=0,closed=1 WHERE operation_id=?',(oid,))
  
  
@@ -1443,19 +1471,21 @@ index e054ab7..059e82b 100644
      journal=Journal(path)
      db=journal.db
      db.execute('PRAGMA foreign_keys=ON')
-@@ -229,7 +235,10 @@ def tick(path):
+@@ -229,7 +250,12 @@ def tick(path):
                  return True
              own=Own(fields('ozon','store'),own_guard) if f.get('storeVersion') else None
              before=d['phase']
 -            advance(journal,rid,f,d,source,own,checkpoint)
 +            if before in ('semantic','commercial') and f.get('enrichment'):
++                if 'commercialTargets' not in d:
++                    d['commercialTargets']=commercial_targets(db,scope,f,d['targets'])
 +                enrichment.advance(db,path,scope,rid,f,d,gateway or os.getenv('HARNESS_MODEL_GATEWAY_URL'),authorize,checkpoint)
 +            else:
 +                advance(journal,rid,f,d,source,own,checkpoint)
              record_receipts(db,scope,rid)
              authorize()
              status={'done':'done','selection':'selection'}.get(d['phase'],'running')
-@@ -271,11 +280,11 @@ def reconcile_account(path,token,chat,connection_id):
+@@ -271,11 +297,11 @@ def reconcile_account(path,token,chat,connection_id):
                    'quarantine':'Квитанция противоречит сохранённой записи. Требуется сверка с поставщиком.'}
          return {'state':outcome,'message':messages.get(outcome,'Окончательная квитанция ещё не получена.')}
  
@@ -1554,10 +1584,10 @@ index 131e496..d939139 100644
      parser=argparse.ArgumentParser()
 diff --git a/products/harness-platform/tests/test_competitor_enrichment.py b/products/harness-platform/tests/test_competitor_enrichment.py
 new file mode 100644
-index 0000000..a390b2b
+index 0000000..96b5ca1
 --- /dev/null
 +++ b/products/harness-platform/tests/test_competitor_enrichment.py
-@@ -0,0 +1,264 @@
+@@ -0,0 +1,281 @@
 +import json
 +from concurrent.futures import ThreadPoolExecutor
 +from datetime import date
@@ -1798,6 +1828,23 @@ index 0000000..a390b2b
 +                else:
 +                    self.assertEqual(receipt['chargedRub'],'0')
 +
++    def test_reference_mode_excludes_only_authorized_own_cards_from_bhapi(self):
++        self.db.executescript("""
++            CREATE TABLE account_integrations(id TEXT,workspace TEXT,provider TEXT,status TEXT);
++            CREATE TABLE user_plugin_products(cid TEXT,plugin TEXT,sku TEXT);
++        """)
++        ws=self.scope.workspace_id
++        for ident,workspace,chat,sku in [('own',ws,self.scope.chat_id,'200001'),
++                                          ('elsewhere','other',self.scope.chat_id,'200002'),
++                                          ('no-chat',ws,'another-chat','200003')]:
++            self.db.execute("INSERT INTO account_integrations VALUES (?,?,'ozon','verified')",(ident,workspace))
++            self.db.execute("INSERT INTO chat_integrations VALUES (?,?)",(ident,chat))
++            self.db.execute("INSERT INTO user_plugin_products VALUES (?,'ozon',?)",(ident,sku))
++        with patch.object(service,'allowed',return_value=True):
++            external=service.commercial_targets(self.db,self.scope,{'mode':'B','own':[]},
++                                                ['200001','200002','200003'])
++        self.assertEqual(external,['200002','200003'])
++
 +    def test_concurrent_workers_claim_only_one_request(self):
 +        rid='9'*32
 +        form,data=self.study(rid,['123001'])
@@ -1823,7 +1870,7 @@ index 0000000..a390b2b
 +            send.assert_called_once()
 +        self.assertEqual(enrichment.public_receipts(self.db,rid)['bhapi']['chargedRub'],'2.79')
 diff --git a/release-manifest.json b/release-manifest.json
-index 1b9bba6..9e99660 100644
+index 1b9bba6..a5ac031 100644
 --- a/release-manifest.json
 +++ b/release-manifest.json
 @@ -1,7 +1,7 @@
@@ -1900,7 +1947,7 @@ index 1b9bba6..9e99660 100644
 -  "products/harness-platform/platform_core/competitors/engine.py": "6cd1bf09e5f4c5a490cd6eda3158142a23806fad",
 +  "products/harness-platform/platform_core/competitors/coverage.py": "26ce5beeca51283434fdad1aef2f3d660b08a826",
 +  "products/harness-platform/platform_core/competitors/engine.py": "9bfe4c4c91392114904fa8640aba252f03060166",
-+  "products/harness-platform/platform_core/competitors/enrichment.py": "0f3c816d9d67a1b6add2a7c1f5754c43d2a1719c",
++  "products/harness-platform/platform_core/competitors/enrichment.py": "e8bb34af5731906bab6f1f557c60084a3e250259",
    "products/harness-platform/platform_core/competitors/facts.py": "78990286cf0f041464ff1a0f96e66697a2fa7949",
    "products/harness-platform/platform_core/competitors/jobs.py": "e273954070de2d129d163a22f037c8703e509acf",
    "products/harness-platform/platform_core/competitors/own.py": "2e3412173a1880acaf9859ded5436034cbf9abc9",
@@ -1909,7 +1956,7 @@ index 1b9bba6..9e99660 100644
 -  "products/harness-platform/platform_core/competitors/service.py": "e054ab7831cdb3ad394e2c5d134bc202fb38b315",
 +  "products/harness-platform/platform_core/competitors/routes.py": "f4e05f9ffdc3cd1702104b3d788a5c1ca282c51c",
 +  "products/harness-platform/platform_core/competitors/semantic.py": "f24cd890dd95886734fbbbe5f12641aaa1163d0c",
-+  "products/harness-platform/platform_core/competitors/service.py": "059e82b7fc89ba6440868e4065f2d0454b3b4bb6",
++  "products/harness-platform/platform_core/competitors/service.py": "2e6bf5ffeb23e43520a506019b1fb851167dc322",
    "products/harness-platform/platform_core/deepseek_media.py": "fbc3d03040f377973b1dd4f3df3c28b7a2c32d32",
    "products/harness-platform/platform_core/dispatch.py": "73131a1f631b01a880496e8cd74c60f02e67619b",
    "products/harness-platform/platform_core/file_processing.py": "5368c0337b871b6326a2339e8ad13a0dec2ca9a3",
@@ -1939,7 +1986,7 @@ index 1b9bba6..9e99660 100644
    "products/harness-platform/tests/test_coin_wallet.py": "2e8292a684717c2d33bf4788a0357a302ffbd0a9",
    "products/harness-platform/tests/test_competitor_architecture.py": "d411c9d7d65e8baefead241350bb201a79b3ad8b",
    "products/harness-platform/tests/test_competitor_comparison.py": "7a31bc74822debbec7ffea50d5fb6197aaef6efc",
-+  "products/harness-platform/tests/test_competitor_enrichment.py": "a390b2b9548a656774d6ec7cd72fdcbbcffd9695",
++  "products/harness-platform/tests/test_competitor_enrichment.py": "96b5ca1d00d08d46cc65a80f7e0452f549053ee0",
    "products/harness-platform/tests/test_competitor_review.py": "b5acd725ef244dd3d0fa6e529bec9660a574a09a",
    "products/harness-platform/tests/test_competitor_system_invariants.py": "65c6d83f781096c0a5386e5c87f03f706b9accb4",
    "products/harness-platform/tests/test_dispatch.py": "c8a11e7c4914e4a43b2ff342f350d4b13f1419e3",
