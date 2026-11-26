@@ -99,7 +99,7 @@ index 0000000..c0223e1
 +
 +COMMIT;
 diff --git a/products/harness-platform/native/web/competitors.js b/products/harness-platform/native/web/competitors.js
-index cddb3ab..9f70666 100644
+index cddb3ab..0f7e19b 100644
 --- a/products/harness-platform/native/web/competitors.js
 +++ b/products/harness-platform/native/web/competitors.js
 @@ -1,6 +1,6 @@
@@ -118,7 +118,7 @@ index cddb3ab..9f70666 100644
        button('Сохранить черновик',async()=>{const m=await send(url+'/save',{revision:meta.revision,form:clean()});setMeta({...m,products:meta.products});setForm(m.form);}),
        button('Подтвердить лимит и начать',async()=>{
          if(!launch.current){
-@@ -131,9 +132,17 @@ window.octoCompetitorPanel = function(React,h,api,send,Dialog,Action) {
+@@ -131,9 +132,18 @@ window.octoCompetitorPanel = function(React,h,api,send,Dialog,Action) {
        const run=(action,extra={})=>async()=>show(await send(url+'/'+action,{id:study.id,...extra}));
        const rows=Object.values(d.kernel||{}).flatMap(k=>Object.values(k.phrases||{}));
        const failedSearch=rows.some(r=>r.status==='ERROR'||r.status==='INCOMPLETE')||(rows.length>0&&rows.every(r=>r.status==='UNCHECKED'));
@@ -130,6 +130,7 @@ index cddb3ab..9f70666 100644
        return h('section',null,h('h3',null,heading),h('p',null,'Этап '+d.phase+' · '+study.form.region),
 -        d.noConfirmedPeers&&h('p',null,'В проверенной выборке подходящих конкурентов не подтверждено.'),
 +        q&&h('p',null,'Выбрано товаров '+q.requested+' · подтверждено карточек '+q.validated+' · получены отзывы для '+q.reviewed+' · скачано фото '+q.photoFetched),
++        (q?.failures||[]).filter(v=>v.source==='review').map(v=>h('p',{key:v.sku+v.error},v.sku+' · '+v.error)),
 +        photoErrors.map(v=>h('p',{key:v.sku+v.url},v.sku+' · '+v.url+' · '+v.error)),
 +        photoErrors.length>0&&study.status==='done'&&button('Повторить загрузку недостающих фото',run('retry-photos')),
 +        d.seller?.errors?.length>0&&study.status==='done'&&button('Повторить неполные срезы Seller',run('retry-seller')),
@@ -138,12 +139,12 @@ index cddb3ab..9f70666 100644
          study.error&&h('p',{role:'alert'},study.error),
          study.status==='running'&&button('Остановить',run('stop')),
          study.status==='paused'&&h('div',null,h('label',null,'Новый верхний лимит проверок',h('input',{type:'number',value:increase,onChange:e=>setIncrease(e.target.value)})),button('Подтвердить новый лимит',run('budget',{budget:Number(increase)}),Number(increase)<=study.form.budget)),
-@@ -172,7 +181,7 @@ window.octoCompetitorPanel = function(React,h,api,send,Dialog,Action) {
+@@ -172,7 +182,7 @@ window.octoCompetitorPanel = function(React,h,api,send,Dialog,Action) {
          }),d.recommendations?.map((r,i)=>h('p',{key:i},r.text+' Отчёты '+r.orders.join(', ')))),
          d.groups?.length>1&&h('section',null,h('h3',null,'Группы по категории и типу'),d.groups.map(g=>h('p',{key:g.own[0]},[g.category,g.type,g.own.join(', '),'подходящих '+g.eligible.length].join(' · ')))),
          h('details',null,h('summary',null,'Причины отбора и данные сравнения'),h('pre',null,JSON.stringify({decisions:d.decisions,shared:d.shared,unique:d.unique,gaps:d.gaps,comparison:d.comparisonCards,seller:d.seller,performance:d.performance},null,2))),
 -        h('details',null,h('summary',null,'Квитанции'),study.receipts.map(r=>h('p',{key:r.label},[r.phase,r.state,r.order,r.checks==null?'зарезервировано '+r.reserved:'проверок '+r.checks,r.error].filter(Boolean).join(' · '),r.retryable?.length>0&&['done','selection'].includes(study.status)&&button('Повторить ошибочные строки ('+r.retryable.length+') в пределах лимита',run('retry-rows',{label:r.label}))))),
-+        h('details',null,h('summary',null,'Квитанции'),study.receipts.map(r=>h('p',{key:r.label},[r.phase,r.state,r.order,r.checks==null?'зарезервировано '+r.reserved:'проверок '+r.checks,r.error].filter(Boolean).join(' · '),r.order&&r.retryable?.length>0&&['done','selection'].includes(study.status)&&button('Перечитать оплаченный отчёт',run('reread',{label:r.label})),r.retryable?.length>0&&['done','selection'].includes(study.status)&&button('Повторить ошибочные строки ('+r.retryable.length+') в пределах лимита',run('retry-rows',{label:r.label}))))),
++        h('details',null,h('summary',null,'Квитанции'),study.receipts.map(r=>h('p',{key:r.label},[r.phase,r.state,r.order,r.checks==null?'зарезервировано '+r.reserved:'проверок '+r.checks,r.error].filter(Boolean).join(' · '),r.order&&(r.rereadable??r.retryable)?.length>0&&['done','selection'].includes(study.status)&&button('Перечитать оплаченный отчёт',run('reread',{label:r.label})),r.retryable?.length>0&&['done','selection'].includes(study.status)&&button('Повторить ошибочные строки ('+r.retryable.length+') в пределах лимита',run('retry-rows',{label:r.label}))))),
          study.status==='done'&&button('Передать результат в чат',toChat),
          h('a',{href:url+'/export?id='+study.id,download:true},'Скачать отчёт JSON'),
          button('К списку исследований',async()=>{const m=await list(form.store);setMeta(m);setForm(m.form);setStudy(null);launch.current=null;}));
@@ -167,7 +168,7 @@ index eacda39..fb6ef84 100644
                      result=await req.app.state.worker.request(scope,"competitorExchange",requestId=data["requestId"],text=data["text"],answer=competitor_reply)
                  elif action == "turn" and not data.get("attachments") and timers.matches(scope,data["requestId"],data["text"],hint):
 diff --git a/products/harness-platform/platform_core/competitors/analysis.py b/products/harness-platform/platform_core/competitors/analysis.py
-index d7a22bf..36124f8 100644
+index d7a22bf..855dad4 100644
 --- a/products/harness-platform/platform_core/competitors/analysis.py
 +++ b/products/harness-platform/platform_core/competitors/analysis.py
 @@ -6,6 +6,7 @@ from collections import defaultdict
@@ -189,7 +190,7 @@ index d7a22bf..36124f8 100644
              else:
                  for k in ('characteristics','short','long','full','groups','items'):
                      visit(node.get(k))
-@@ -43,16 +44,44 @@ def photo_url(url):
+@@ -43,16 +44,46 @@ def photo_url(url):
  def category_path(breadcrumbs):
      result=[]
      for item in breadcrumbs or []:
@@ -227,8 +228,10 @@ index d7a22bf..36124f8 100644
 +            invalid+=1
 +            continue
 +        row={k:text(c.get(k),12000) for k in ('Published','Comment','Pro','Contra','Title')}
-+        row['Rating']=number(c.get('Rating'),1,5,integer=True)
-+        if c.get('Rating') is not None and row['Rating'] is None:
++        rating=number(c.get('Rating'),0,5,integer=True)
++        # The supplier uses numeric zero for an unpublished individual rating.
++        row['Rating']=rating or None
++        if c.get('Rating') is not None and rating is None:
 +            invalid+=1
 +        rows.append(row)
 +    return {'reviews':rows,'invalidRows':invalid}
@@ -237,7 +240,7 @@ index d7a22bf..36124f8 100644
  def card(offer):
      attrs=characteristics(offer.get('CharacteristicsObject') or offer.get('Characteristics'))
      for field in ('Breadcrumbs', 'Offer_pics'):
-@@ -63,18 +92,18 @@ def card(offer):
+@@ -63,18 +94,18 @@ def card(offer):
              raise ValueError('INVALID_FIELD: '+field)
      path=category_path(offer.get('Breadcrumbs'))
      crumbs=[b['name'] for b in path]
@@ -264,7 +267,7 @@ index d7a22bf..36124f8 100644
      return result
  
  
-@@ -84,9 +113,9 @@ def parse_batch(kind,rows,report):
+@@ -84,9 +115,9 @@ def parse_batch(kind,rows,report):
          key=row['name']
          offers=item['offers'] if item else []
          if kind=='search':
@@ -276,7 +279,7 @@ index d7a22bf..36124f8 100644
              state='ERROR' if error else 'INCOMPLETE' if len(results)<depth or invalid else 'OK'
              data[key]=dict(state=state,error=error,hits=results,actual=len(offers),depth=depth)
          else:
-@@ -102,11 +131,9 @@ def parse_batch(kind,rows,report):
+@@ -102,11 +133,9 @@ def parse_batch(kind,rows,report):
                      data[key]={'error':str(exc)[:160] if isinstance(exc,ValueError) else 'INVALID_CARD_FIELDS'}
              else:
                  comments=matches[0].get('Offer_userComments')
@@ -291,7 +294,7 @@ index d7a22bf..36124f8 100644
      return data
  
  
-@@ -118,7 +145,7 @@ def observed(skuses,phrases,search):
+@@ -118,7 +147,7 @@ def observed(skuses,phrases,search):
              row=search.get(phrase,{})
              idx=next((hit['index'] for hit in row.get('hits',[]) if hit['sku']==sku),None)
              state='FOUND' if idx else {'OK':'NOT_FOUND_IN_SAMPLE'}.get(row.get('state'), row.get('state','UNCHECKED'))
@@ -300,7 +303,7 @@ index d7a22bf..36124f8 100644
          matrix[sku]={'phrases':found,'top':{str(n):[p for p,r in found.items() if r['response_index'] and r['response_index']<=n] for n in (3,5,10,32)}}
      return matrix
  
-@@ -163,54 +190,136 @@ def candidates(cards,reviews,extra=()):
+@@ -163,54 +192,136 @@ def candidates(cards,reviews,extra=()):
      return dict(phrases)
  
  
@@ -481,7 +484,7 @@ index d7a22bf..36124f8 100644
  
  def decision(sku,c,own,seen,profiles):
      if not sku or 'error' in c:
-@@ -219,14 +328,18 @@ def decision(sku,c,own,seen,profiles):
+@@ -219,14 +330,18 @@ def decision(sku,c,own,seen,profiles):
          return 'OWN',sku
      if sku in seen:
          return 'DUPLICATE',sku
@@ -503,7 +506,7 @@ index d7a22bf..36124f8 100644
      same=[p for p in matching if typ and normalized(p[1])==normalized(typ)]
      if not same:
          if not typ or any(not p[1] for p in matching):
-@@ -235,15 +348,21 @@ def decision(sku,c,own,seen,profiles):
+@@ -235,15 +350,21 @@ def decision(sku,c,own,seen,profiles):
      uncertain=False
      for p in same:
          required=p[2] if len(p)>2 else set()
@@ -528,7 +531,7 @@ index d7a22bf..36124f8 100644
      return 'OTHER_TYPE','Другое назначение: '+', '.join(sorted(uses))+'; ожидается '+', '.join(sorted(set.union(*(p[2] for p in same))))
  
  
-@@ -315,7 +434,7 @@ def peer_groups(selected,cards,eligible):
+@@ -315,7 +436,7 @@ def peer_groups(selected,cards,eligible):
          leaf=(own.get('breadcrumbs') or [''])[-1]
          kind=own.get('type') or ''
          uses=tuple(sorted(purpose(own)))
@@ -590,10 +593,10 @@ index 0000000..0b9147c
 +    return json.loads(value,parse_constant=lambda _:None)
 diff --git a/products/harness-platform/platform_core/competitors/coverage.py b/products/harness-platform/platform_core/competitors/coverage.py
 new file mode 100644
-index 0000000..9ce36f1
+index 0000000..a5d431d
 --- /dev/null
 +++ b/products/harness-platform/platform_core/competitors/coverage.py
-@@ -0,0 +1,28 @@
+@@ -0,0 +1,30 @@
 +"""Single business outcome projection for stored studies, export, UI and Octopus."""
 +def quality(data):
 +    targets=data.get('targets',[])
@@ -611,11 +614,13 @@ index 0000000..9ce36f1
 +    missing_search=bool(observations) and all(v['status']=='UNCHECKED' for v in observations)
 +    photo_errors=sum(bool(p.get('error')) for p in photos)
 +    analytics_errors=bool(data.get('seller',{}).get('missingSummary')) or any(data.get(src,{}).get(k) for src,k in [('seller','error'),('seller','errors'),('performance','failed'),('performance','error')])
-+    partial_reviews=any(v.get('invalidRows') for v in reviewed.values())
++    for sku,group in reviewed.items():
++        if group.get('invalidRows'):
++            failures.append({'source':'review','sku':sku,'error':'Некорректные строки отзывов: '+str(group['invalidRows'])})
 +    reviewed_count=sum(isinstance(reviewed.get(s,{}).get('reviews'),list) for s in good)
 +    missing_reviews=data.get('phase')=='done' and reviewed_count<len(good)
 +    missing_photos=sum(1 for sku in good for url in cards[sku].get('photos',[]) if url not in data.get('gallery',{}).get(sku,{}))
-+    incomplete=bool(missing_reviews or missing_photos or partial_reviews or failures or photo_errors or analytics_errors or search_errors or missing_search or len(good)<len(targets))
++    incomplete=bool(missing_reviews or missing_photos or failures or photo_errors or analytics_errors or search_errors or missing_search or len(good)<len(targets))
 +    return dict(requested=len(targets),fetched=sum(s in cards and not cards[s].get('error') for s in targets),validated=len(good),
 +                reviewed=reviewed_count,
 +                searchVerified=sum(v['status'] in ('FOUND','NOT_FOUND_IN_SAMPLE') for v in observations),
@@ -1345,7 +1350,7 @@ index 82fcbe1..15cfb21 100644
                  reason='MISSING_OFFERS'
          result.append((row,reason,None if reason else matches[0]))
 diff --git a/products/harness-platform/platform_core/competitors/routes.py b/products/harness-platform/platform_core/competitors/routes.py
-index 0fcb79c..7cb8fb0 100644
+index 0fcb79c..7c705af 100644
 --- a/products/harness-platform/platform_core/competitors/routes.py
 +++ b/products/harness-platform/platform_core/competitors/routes.py
 @@ -8,8 +8,10 @@ from starlette.responses import JSONResponse,Response
@@ -1361,24 +1366,29 @@ index 0fcb79c..7cb8fb0 100644
  
  
  def draft(db,chat):
-@@ -33,30 +35,50 @@ def lookup(db,scope,rid):
+@@ -33,30 +35,57 @@ def lookup(db,scope,rid):
      return row
  
  
 -def failed_items(kind,rows,current):
-+def failed_items(kind,rows,current,order=None,phase=None,label=None):
++def failed_items(kind,rows,current,order=None,phase=None,label=None,*,reread=False):
      cache=current.get({'cards':'cards','reviews':'reviews','search':'search'}[kind],{})
 +    if kind=='search' and phase and phase.startswith('expand'):
 +        cache=current.get('expanded',cache)
      def failed(r):
          entry=cache.get(r['name'],{})
+-        return entry.get('code')==r['code'] and (entry.get('error') or entry.get('state') in ('ERROR','INCOMPLETE'))
 +        if label and entry.get('label') and label!=entry['label']:
 +            return False
 +        if order is not None and str(entry.get('order'))!=str(order):
 +            return False
 +        if kind=='search' and entry.get('depth')!=int(r['donotsearch']):
 +            return False
-         return entry.get('code')==r['code'] and (entry.get('error') or entry.get('state') in ('ERROR','INCOMPLETE'))
++        if entry.get('code')!=r['code']:
++            return False
++        if reread and kind=='reviews' and entry.get('invalidRows'):
++            return True
++        return entry.get('error') or entry.get('state') in ('ERROR','INCOMPLETE')
      return [r for r in rows if failed(r)]
  
  
@@ -1405,7 +1415,10 @@ index 0fcb79c..7cb8fb0 100644
 +        if r['state'] in ('completed','declined'):
              kind,rows=db.execute('SELECT kind,rows FROM competitor_jobs WHERE label=?',(r['label'],)).fetchone()
 -            r['retryable']=[item['name'] for item in failed_items(kind,json.loads(rows),result)]
-+            r['retryable']=[item['name'] for item in failed_items(kind,json.loads(rows),result,r['order'],result.get('retryOrigins',{}).get(r['phase'],r['phase']),r['label'])]
++            args=(kind,json.loads(rows),result,r['order'],result.get('retryOrigins',{}).get(r['phase'],r['phase']),r['label'])
++            r['retryable']=[item['name'] for item in failed_items(*args)]
++            if kind=='reviews' and r['order']:
++                r['rereadable']=[item['name'] for item in failed_items(*args,reread=True)]
      assets=[dict(id=i,sku=k,mime=m,sha256=h,selected=bool(sel),bytes=n) for i,k,m,h,sel,n in db.execute(
 -        'SELECT id,sku,mime,digest,selected,length(content) FROM competitor_assets WHERE research=?',(rid,))]
 -    return dict(id=rid,status=status,error=error,form=json.loads(f),result=result,receipts=receipts,assets=assets)
@@ -1419,7 +1432,7 @@ index 0fcb79c..7cb8fb0 100644
      n=len(f['refs']) if f['mode']=='B' else f['count']
      stages=[]
      if f['mode']=='A':
-@@ -66,7 +88,7 @@ def quote(f):
+@@ -66,7 +95,7 @@ def quote(f):
          stages.append({'stage':'Прямые карточки','checks':n})
          if f.get('compareOwn'):
              stages.append({'stage':'Явно выбранные собственные карточки','checks':len(f['skus'])})
@@ -1428,7 +1441,7 @@ index 0fcb79c..7cb8fb0 100644
                     {'stage':'Проверка новых фраз во всей группе','checks':f['phraseLimit']*unit}])
      return {'stages':stages,'cap':f['budget'],'knownChecks':sum(s['checks'] or 0 for s in stages),
              'hasUnknown':any(s['checks'] is None for s in stages),'baseRubPerCheck':'0.20','octoportCoinsForCollection':0}
-@@ -98,33 +120,68 @@ def new(db,scope,digest,key,revision):
+@@ -98,33 +127,68 @@ def new(db,scope,digest,key,revision):
      return key
  
  
@@ -1518,7 +1531,7 @@ index 0fcb79c..7cb8fb0 100644
      own=json.loads(form).get('skus',[])
      samples=[]
      for sku,k in data.get('kernel',{}).items():
-@@ -132,7 +189,7 @@ def explanation(db,scope,text):
+@@ -132,7 +196,7 @@ def explanation(db,scope,text):
                              found=sum(v['status']=='FOUND' for v in k['phrases'].values()),
                              collected=len(k['phrases']),reviews=len(data.get('reviews',{}).get(sku,{}).get('reviews',[])),
                              cardOrder='parser-report-'+str(data['cards'][sku].get('order'))))
@@ -1527,7 +1540,7 @@ index 0fcb79c..7cb8fb0 100644
      source_text=[]
      wants_text=bool(re.search(r'описани|текст карточ',text,re.I))
      wants_attrs=bool(re.search(r'характеристик|свойств',text,re.I))
-@@ -151,6 +208,7 @@ def explanation(db,scope,text):
+@@ -151,6 +215,7 @@ def explanation(db,scope,text):
      elif own:
          ids=unique([own[0],*data.get('targets',[]),*own[1:]])
      # Bound quoted catalogue material even for a whole-category study.
@@ -1535,7 +1548,7 @@ index 0fcb79c..7cb8fb0 100644
      total_cards=len(ids)
      ids=ids[:12]
      if wants_text or wants_attrs or wants_reviews or wants_terms:
-@@ -173,7 +231,7 @@ def explanation(db,scope,text):
+@@ -173,7 +238,7 @@ def explanation(db,scope,text):
                      item['gaps']=data.get('gaps',{}).get(sku,[])[:50]
              source_text.append(item)
      if re.search(r'фото',text,re.I):
@@ -1544,7 +1557,7 @@ index 0fcb79c..7cb8fb0 100644
              if sku in ids:
                  source_text.append(dict(sku=sku,selected=bool(chosen),photo=f'/api/chats/{scope.chat_id}/plugins/{PLUGIN}/photo?id={row[0]}&asset={asset}'))
      demand={}
-@@ -182,20 +240,38 @@ def explanation(db,scope,text):
+@@ -182,20 +247,38 @@ def explanation(db,scope,text):
          demand={'meaning':matrix['note'],'region':matrix['region'],'depth':matrix['depth'],'period':matrix['sellerPeriod'],
                  'anchors':{sku:{target:stats['top'] for target,stats in anchor['products'].items() if target==sku or target in data['targets']}
                             for sku,anchor in list(matrix['anchors'].items())[:3]}}
@@ -1592,7 +1605,7 @@ index 0fcb79c..7cb8fb0 100644
          for sku,kernel in data.get('kernel',{}).items():
              lines.append(f"SKU {sku} · фраз в ТОП-5 полученной выдачи: {len(kernel['top']['5'])}.")
              errors=sum(r['status'] in ('ERROR','INCOMPLETE') for r in kernel['phrases'].values())
-@@ -208,12 +284,7 @@ def command(db,scope,rid,text):
+@@ -208,12 +291,7 @@ def command(db,scope,rid,text):
          if not old:
              db.execute('INSERT INTO competitor_exchanges VALUES(?,?,?,?)',(scope.chat_id,rid,text,answer))
          return old[1] if old else answer
@@ -1606,7 +1619,7 @@ index 0fcb79c..7cb8fb0 100644
          return None
      old=db.execute('SELECT text,answer FROM competitor_exchanges WHERE chat=? AND request=?',(scope.chat_id,rid)).fetchone()
      if old:
-@@ -249,11 +320,16 @@ def routes(token_for,body):
+@@ -249,11 +327,16 @@ def routes(token_for,body):
          action=req.path_params.get('action','')
          args={}
          if req.method=='POST':
@@ -1625,7 +1638,7 @@ index 0fcb79c..7cb8fb0 100644
          with (identity._write() if req.method=='POST' else identity._lock):
              db=identity._db
              scope=scope_for(db,token,req.path_params['chat_id'])
-@@ -268,10 +344,19 @@ def routes(token_for,body):
+@@ -268,10 +351,19 @@ def routes(token_for,body):
                      rid=new(db,scope,_secret_digest(token),args['requestId'],args['revision'])
                  else:
                      status,_,_,encoded=lookup(db,scope,rid)
@@ -1646,7 +1659,7 @@ index 0fcb79c..7cb8fb0 100644
                          db.execute('UPDATE competitor_studies SET status=?,digest=?,error=?,due=0 WHERE id=?',
                              ('selection' if d['phase']=='selection' else 'running',_secret_digest(token),'',rid))
                      elif action=='budget':
-@@ -282,23 +367,49 @@ def routes(token_for,body):
+@@ -282,23 +374,49 @@ def routes(token_for,body):
                          f['budget']=amount
                          db.execute("UPDATE competitor_studies SET form=?,status='running',due=0,error='',digest=? WHERE id=?",
                              (json.dumps(f),_secret_digest(token),rid))
@@ -1661,7 +1674,7 @@ index 0fcb79c..7cb8fb0 100644
 +                        kind,encoded_rows,phase,order=job
 +                        original_phase=phase
 +                        phase=d.get('retryOrigins',{}).get(phase,phase)
-+                        rows=failed_items(kind,json.loads(encoded_rows),d,order,phase,args['label'])
++                        rows=failed_items(kind,json.loads(encoded_rows),d,order,phase,args['label'],reread=action=='reread')
                          if not rows:
                              raise HTTPException(409,'В этом задании нет оставшихся ошибочных строк')
                          d['retry']={'kind':kind,'rows':rows,'key':'retry-'+uuid4().hex[:16],'phase':phase,'return':d['phase']}
@@ -1700,7 +1713,7 @@ index 0fcb79c..7cb8fb0 100644
                          d.pop('performance',None)
                          d.update(phase='own',retryAdsOnly=True)
                          db.execute("UPDATE competitor_studies SET status='running',due=0,lease=NULL,digest=?,result=? WHERE id=?",
-@@ -333,12 +444,12 @@ def routes(token_for,body):
+@@ -333,12 +451,12 @@ def routes(token_for,body):
                          db.execute("UPDATE competitor_studies SET status=?,due=0,lease=NULL,digest=?,result=? WHERE id=?",
                                     ('running' if skus else 'done',_secret_digest(token),json.dumps(d),rid))
                      elif action=='select-photo':
@@ -2081,8 +2094,39 @@ index 4fafe76..b5acd72 100644
      def test_representative_dictionary(self):
          words={'одно':['форма'],'Этот талисман поможет':[['1','description']]}
          for i in range(5):
+diff --git a/products/harness-platform/tests/test_ozon_competitors.py b/products/harness-platform/tests/test_ozon_competitors.py
+index 691c5d9..fdb99c8 100644
+--- a/products/harness-platform/tests/test_ozon_competitors.py
++++ b/products/harness-platform/tests/test_ozon_competitors.py
+@@ -63,8 +63,26 @@ class Domain(unittest.TestCase):
+     def test_review_minimization(self):
+         row=p.products('reviews',['111'])[0]
+         result=a.parse_batch('reviews',[row],{'id':9,'data':[dict(row,offers=[dict(Marketid='111',SkuRates=32,Offer_userComments=[dict(Username='private',AuthorId=123,Published='d',Rating=0,Comment='слово')])])]})
++        self.assertEqual(result['111']['invalidRows'],0)
+         review=result['111']['reviews'][0]
+         self.assertIsNone(review['Rating']);self.assertEqual(review['Comment'],'слово');self.assertNotIn('private',str(result));self.assertNotIn('AuthorId',review)
++    def test_review_ratings_and_legacy_readback(self):
++        from platform_core.competitors.coverage import quality
++        from platform_core.competitors.routes import failed_items
++        for raw in (None,0,0.0,1,5,True,-1,6,1.5,'0'):
++            with self.subTest(raw=raw):
++                reviews=a.review_rows([dict(Comment='Текст',Rating=raw)])
++                invalid=type(raw) is bool or raw in (-1,6,1.5,'0')
++                self.assertEqual(reviews['invalidRows'],int(invalid))
++                self.assertEqual(reviews['reviews'][0]['Rating'],raw if type(raw) is int and 1<=raw<=5 else None)
++                current=dict(phase='done',targets=['111'],cards={'111':{}},reviews={'111':reviews})
++                self.assertEqual(quality(current)['partial'],invalid)
++        rows=p.products('reviews',['111'])
++        old={'reviews':{'111':dict(order='13',code=rows[0]['code'],invalidRows=1)}}
++        self.assertEqual(failed_items('reviews',rows,old,'13',reread=True),rows)
++        self.assertFalse(failed_items('reviews',rows,old,'13'))
++        self.assertFalse(failed_items('reviews',rows,old,'14',reread=True))
++
+     def test_evidence_outcomes(self):
+         row=p.products('search',['q'],8)[0]
+         hit=lambda i:{'OfferId':str(i),'Place':0}
 diff --git a/release-manifest.json b/release-manifest.json
-index 6e15098..7077b21 100644
+index 6e15098..054f1f3 100644
 --- a/release-manifest.json
 +++ b/release-manifest.json
 @@ -46,6 +46,8 @@
@@ -2099,7 +2143,7 @@ index 6e15098..7077b21 100644
    "products/harness-platform/native/web/checkout.css": "ea1ba2456b53c148ea1ba080dc6eb78523248051",
    "products/harness-platform/native/web/checkout.js": "482ac99def83a268cf84822e0a8a58a7481f0fbc",
 -  "products/harness-platform/native/web/competitors.js": "cddb3ab66214d9e5dc7af1ae9939d5eb36f70cea",
-+  "products/harness-platform/native/web/competitors.js": "9f70666208f8f680920e06b7b3ed443721395534",
++  "products/harness-platform/native/web/competitors.js": "0f7e19b0986ab3a5ecec1218af9b3f2b3d7c3446",
    "products/harness-platform/native/web/connections.js": "27acf5826f4df8a4000d8638d5142c41908dea1b",
    "products/harness-platform/native/web/file-cost.js": "98dad6eb8d68a101f7572bff71f824ecf9f31e8e",
    "products/harness-platform/native/web/file-drafts.js": "08701bafb72bb4545afc31d337c62aab3795b335",
@@ -2117,7 +2161,7 @@ index 6e15098..7077b21 100644
    "products/harness-platform/platform_core/coin_review.py": "10558c20a88c09cb6782cb661da0d9a8faca347e",
    "products/harness-platform/platform_core/coins.py": "5f9cc85172f023b2ca48fcf660914581df3d319c",
 -  "products/harness-platform/platform_core/competitors/analysis.py": "d7a22bfd6ba4ac12ab5f75697c9997ae8eb7b208",
-+  "products/harness-platform/platform_core/competitors/analysis.py": "36124f8c1d7bc8a3ef9db845d893cb56b47e57b2",
++  "products/harness-platform/platform_core/competitors/analysis.py": "855dad408d05b4aa98d0179ff5e367d07530c2a4",
    "products/harness-platform/platform_core/competitors/comparison.py": "f53fd0439240bc545d30bddfe54fd282881fbeff",
 -  "products/harness-platform/platform_core/competitors/engine.py": "503db849494e873c83a11e37ac9269df4b67c48e",
 -  "products/harness-platform/platform_core/competitors/jobs.py": "a05bfb37d617aef2651bae37168bae7f44fc3f68",
@@ -2126,12 +2170,12 @@ index 6e15098..7077b21 100644
 -  "products/harness-platform/platform_core/competitors/routes.py": "0fcb79c1712458f9e51f1ece0770847068427062",
 -  "products/harness-platform/platform_core/competitors/service.py": "5bef104838252303bf16580d9f1a3ce17314af4e",
 +  "products/harness-platform/platform_core/competitors/contracts.py": "0b9147c30e314c86efba1bdf6f4afdb5acf19307",
-+  "products/harness-platform/platform_core/competitors/coverage.py": "9ce36f13f87010fab54a8c86dffdce60b05ce5ae",
++  "products/harness-platform/platform_core/competitors/coverage.py": "a5d431d6c42c1ddaedcbf6ff485ddec1d667f41c",
 +  "products/harness-platform/platform_core/competitors/engine.py": "4b89263b270ba366c7a8aefe0f8a4294797df317",
 +  "products/harness-platform/platform_core/competitors/jobs.py": "e273954070de2d129d163a22f037c8703e509acf",
 +  "products/harness-platform/platform_core/competitors/own.py": "dc59acc18cfb082cf50d9a1d3614e84d871d3d2d",
 +  "products/harness-platform/platform_core/competitors/parser.py": "15cfb21266fe4cbc4457a271fbe797405761d09d",
-+  "products/harness-platform/platform_core/competitors/routes.py": "7cb8fb0130d2aecc299a66cb6a2f125b4fa6f2b1",
++  "products/harness-platform/platform_core/competitors/routes.py": "7c705aff6a0b5626225d1cc15340967b0bfceb5b",
 +  "products/harness-platform/platform_core/competitors/service.py": "061f3fb2fffb3e870de6a51e0194532ba82ed8fe",
    "products/harness-platform/platform_core/deepseek_media.py": "fbc3d03040f377973b1dd4f3df3c28b7a2c32d32",
    "products/harness-platform/platform_core/dispatch.py": "73131a1f631b01a880496e8cd74c60f02e67619b",
@@ -2147,3 +2191,12 @@ index 6e15098..7077b21 100644
    "products/harness-platform/tests/test_dispatch.py": "c8a11e7c4914e4a43b2ff342f350d4b13f1419e3",
    "products/harness-platform/tests/test_files_independent_regressions.py": "e7b113b3749166061ed65725bd5946832af91f1f",
    "products/harness-platform/tests/test_guest_activity.py": "fc476dc90ac4f0c6e991bd9def74d3b806125502",
+@@ -443,7 +448,7 @@
+   "products/harness-platform/tests/test_openrouter_catalog.py": "d4ff8daff0033de1970396cd6af1d20ef3bb35c1",
+   "products/harness-platform/tests/test_openrouter_operations.py": "db7351753d9616fb0c978f792ff69e1be4e0ff74",
+   "products/harness-platform/tests/test_openrouter_recovery.py": "49628d7452cf9384b5e0662a36f34fc526895de3",
+-  "products/harness-platform/tests/test_ozon_competitors.py": "691c5d967b8b657238d0474db881d24a340c07a5",
++  "products/harness-platform/tests/test_ozon_competitors.py": "fdb99c8df41eb7e13bdb0878ad324a1e254c18e3",
+   "products/harness-platform/tests/test_ozon_plugin.py": "85fea6926a6bfa468914b291391a9176aa1e0232",
+   "products/harness-platform/tests/test_plugin_publication.py": "2d7a424012bc01f2308ed7ab75a174fa7f4742bd",
+   "products/harness-platform/tests/test_public_info.py": "7fc1d8a4c1b4fc0985834ee05d485723f5de5b74",

@@ -288,10 +288,10 @@ index b6edad5..f8023c9 100644
    display:inline-flex; align-items:center; justify-content:flex-end; gap:4px;
 diff --git a/products/harness-platform/native/web/competitors.js b/products/harness-platform/native/web/competitors.js
 new file mode 100644
-index 0000000..9f70666
+index 0000000..0f7e19b
 --- /dev/null
 +++ b/products/harness-platform/native/web/competitors.js
-@@ -0,0 +1,192 @@
+@@ -0,0 +1,193 @@
 +/* The chat and settings panel edit the same server-versioned draft. */
 +window.octoCompetitorPanel = function(React,h,api,send,Dialog,Action) {
 +  const statusNames={reauth:'Требуется подтвердить доступ',running:'Идёт сбор',paused:'Требуется сверка',done:'Готово',stopped:'Остановлено',selection:'Выберите конкурентов'};
@@ -432,6 +432,7 @@ index 0000000..9f70666
 +      const heading=study.status==='done'&&partial?(q?.outcome==='failed'?'Карточки не подтверждены':'Завершено с неполными данными'):(statusNames[study.status]||study.status);
 +      return h('section',null,h('h3',null,heading),h('p',null,'Этап '+d.phase+' · '+study.form.region),
 +        q&&h('p',null,'Выбрано товаров '+q.requested+' · подтверждено карточек '+q.validated+' · получены отзывы для '+q.reviewed+' · скачано фото '+q.photoFetched),
++        (q?.failures||[]).filter(v=>v.source==='review').map(v=>h('p',{key:v.sku+v.error},v.sku+' · '+v.error)),
 +        photoErrors.map(v=>h('p',{key:v.sku+v.url},v.sku+' · '+v.url+' · '+v.error)),
 +        photoErrors.length>0&&study.status==='done'&&button('Повторить загрузку недостающих фото',run('retry-photos')),
 +        d.seller?.errors?.length>0&&study.status==='done'&&button('Повторить неполные срезы Seller',run('retry-seller')),
@@ -475,7 +476,7 @@ index 0000000..9f70666
 +        }),d.recommendations?.map((r,i)=>h('p',{key:i},r.text+' Отчёты '+r.orders.join(', ')))),
 +        d.groups?.length>1&&h('section',null,h('h3',null,'Группы по категории и типу'),d.groups.map(g=>h('p',{key:g.own[0]},[g.category,g.type,g.own.join(', '),'подходящих '+g.eligible.length].join(' · ')))),
 +        h('details',null,h('summary',null,'Причины отбора и данные сравнения'),h('pre',null,JSON.stringify({decisions:d.decisions,shared:d.shared,unique:d.unique,gaps:d.gaps,comparison:d.comparisonCards,seller:d.seller,performance:d.performance},null,2))),
-+        h('details',null,h('summary',null,'Квитанции'),study.receipts.map(r=>h('p',{key:r.label},[r.phase,r.state,r.order,r.checks==null?'зарезервировано '+r.reserved:'проверок '+r.checks,r.error].filter(Boolean).join(' · '),r.order&&r.retryable?.length>0&&['done','selection'].includes(study.status)&&button('Перечитать оплаченный отчёт',run('reread',{label:r.label})),r.retryable?.length>0&&['done','selection'].includes(study.status)&&button('Повторить ошибочные строки ('+r.retryable.length+') в пределах лимита',run('retry-rows',{label:r.label}))))),
++        h('details',null,h('summary',null,'Квитанции'),study.receipts.map(r=>h('p',{key:r.label},[r.phase,r.state,r.order,r.checks==null?'зарезервировано '+r.reserved:'проверок '+r.checks,r.error].filter(Boolean).join(' · '),r.order&&(r.rereadable??r.retryable)?.length>0&&['done','selection'].includes(study.status)&&button('Перечитать оплаченный отчёт',run('reread',{label:r.label})),r.retryable?.length>0&&['done','selection'].includes(study.status)&&button('Повторить ошибочные строки ('+r.retryable.length+') в пределах лимита',run('retry-rows',{label:r.label}))))),
 +        study.status==='done'&&button('Передать результат в чат',toChat),
 +        h('a',{href:url+'/export?id='+study.id,download:true},'Скачать отчёт JSON'),
 +        button('К списку исследований',async()=>{const m=await list(form.store);setMeta(m);setForm(m.form);setStudy(null);launch.current=null;}));
@@ -583,10 +584,10 @@ index a70cc05..fb6ef84 100644
          *integrations.routes(_token, _body),
 diff --git a/products/harness-platform/platform_core/competitors/analysis.py b/products/harness-platform/platform_core/competitors/analysis.py
 new file mode 100644
-index 0000000..36124f8
+index 0000000..855dad4
 --- /dev/null
 +++ b/products/harness-platform/platform_core/competitors/analysis.py
-@@ -0,0 +1,447 @@
+@@ -0,0 +1,449 @@
 +"""Deterministic research, keeping original labels and observed positions."""
 +import json
 +import re
@@ -664,8 +665,10 @@ index 0000000..36124f8
 +            invalid+=1
 +            continue
 +        row={k:text(c.get(k),12000) for k in ('Published','Comment','Pro','Contra','Title')}
-+        row['Rating']=number(c.get('Rating'),1,5,integer=True)
-+        if c.get('Rating') is not None and row['Rating'] is None:
++        rating=number(c.get('Rating'),0,5,integer=True)
++        # The supplier uses numeric zero for an unpublished individual rating.
++        row['Rating']=rating or None
++        if c.get('Rating') is not None and rating is None:
 +            invalid+=1
 +        rows.append(row)
 +    return {'reviews':rows,'invalidRows':invalid}
@@ -1157,10 +1160,10 @@ index 0000000..0b9147c
 +    return json.loads(value,parse_constant=lambda _:None)
 diff --git a/products/harness-platform/platform_core/competitors/coverage.py b/products/harness-platform/platform_core/competitors/coverage.py
 new file mode 100644
-index 0000000..9ce36f1
+index 0000000..a5d431d
 --- /dev/null
 +++ b/products/harness-platform/platform_core/competitors/coverage.py
-@@ -0,0 +1,28 @@
+@@ -0,0 +1,30 @@
 +"""Single business outcome projection for stored studies, export, UI and Octopus."""
 +def quality(data):
 +    targets=data.get('targets',[])
@@ -1178,11 +1181,13 @@ index 0000000..9ce36f1
 +    missing_search=bool(observations) and all(v['status']=='UNCHECKED' for v in observations)
 +    photo_errors=sum(bool(p.get('error')) for p in photos)
 +    analytics_errors=bool(data.get('seller',{}).get('missingSummary')) or any(data.get(src,{}).get(k) for src,k in [('seller','error'),('seller','errors'),('performance','failed'),('performance','error')])
-+    partial_reviews=any(v.get('invalidRows') for v in reviewed.values())
++    for sku,group in reviewed.items():
++        if group.get('invalidRows'):
++            failures.append({'source':'review','sku':sku,'error':'Некорректные строки отзывов: '+str(group['invalidRows'])})
 +    reviewed_count=sum(isinstance(reviewed.get(s,{}).get('reviews'),list) for s in good)
 +    missing_reviews=data.get('phase')=='done' and reviewed_count<len(good)
 +    missing_photos=sum(1 for sku in good for url in cards[sku].get('photos',[]) if url not in data.get('gallery',{}).get(sku,{}))
-+    incomplete=bool(missing_reviews or missing_photos or partial_reviews or failures or photo_errors or analytics_errors or search_errors or missing_search or len(good)<len(targets))
++    incomplete=bool(missing_reviews or missing_photos or failures or photo_errors or analytics_errors or search_errors or missing_search or len(good)<len(targets))
 +    return dict(requested=len(targets),fetched=sum(s in cards and not cards[s].get('error') for s in targets),validated=len(good),
 +                reviewed=reviewed_count,
 +                searchVerified=sum(v['status'] in ('FOUND','NOT_FOUND_IN_SAMPLE') for v in observations),
@@ -2229,10 +2234,10 @@ index 0000000..15cfb21
 +
 diff --git a/products/harness-platform/platform_core/competitors/routes.py b/products/harness-platform/platform_core/competitors/routes.py
 new file mode 100644
-index 0000000..7cb8fb0
+index 0000000..7c705af
 --- /dev/null
 +++ b/products/harness-platform/platform_core/competitors/routes.py
-@@ -0,0 +1,472 @@
+@@ -0,0 +1,479 @@
 +import json
 +import re
 +import time
@@ -2270,7 +2275,7 @@ index 0000000..7cb8fb0
 +    return row
 +
 +
-+def failed_items(kind,rows,current,order=None,phase=None,label=None):
++def failed_items(kind,rows,current,order=None,phase=None,label=None,*,reread=False):
 +    cache=current.get({'cards':'cards','reviews':'reviews','search':'search'}[kind],{})
 +    if kind=='search' and phase and phase.startswith('expand'):
 +        cache=current.get('expanded',cache)
@@ -2282,7 +2287,11 @@ index 0000000..7cb8fb0
 +            return False
 +        if kind=='search' and entry.get('depth')!=int(r['donotsearch']):
 +            return False
-+        return entry.get('code')==r['code'] and (entry.get('error') or entry.get('state') in ('ERROR','INCOMPLETE'))
++        if entry.get('code')!=r['code']:
++            return False
++        if reread and kind=='reviews' and entry.get('invalidRows'):
++            return True
++        return entry.get('error') or entry.get('state') in ('ERROR','INCOMPLETE')
 +    return [r for r in rows if failed(r)]
 +
 +
@@ -2306,7 +2315,10 @@ index 0000000..7cb8fb0
 +            r['incidents']=[dict(zip(('reason','acceptedOrder','reportedOrder','acceptedChecks','reportedChecks','time'),v)) for v in incident]
 +        if r['state'] in ('completed','declined'):
 +            kind,rows=db.execute('SELECT kind,rows FROM competitor_jobs WHERE label=?',(r['label'],)).fetchone()
-+            r['retryable']=[item['name'] for item in failed_items(kind,json.loads(rows),result,r['order'],result.get('retryOrigins',{}).get(r['phase'],r['phase']),r['label'])]
++            args=(kind,json.loads(rows),result,r['order'],result.get('retryOrigins',{}).get(r['phase'],r['phase']),r['label'])
++            r['retryable']=[item['name'] for item in failed_items(*args)]
++            if kind=='reviews' and r['order']:
++                r['rereadable']=[item['name'] for item in failed_items(*args,reread=True)]
 +    assets=[dict(id=i,sku=k,mime=m,sha256=h,selected=bool(sel),bytes=n) for i,k,m,h,sel,n in db.execute(
 +        'SELECT id,sku,mime,digest,selected,length(content) FROM competitor_assets WHERE '+ASSET_SCOPE,asset_scope(rid,result))]
 +    return dict(id=rid,status=status,error=error,quality=quality(result),form=json.loads(f),result=result,receipts=receipts,assets=assets)
@@ -2609,7 +2621,7 @@ index 0000000..7cb8fb0
 +                        kind,encoded_rows,phase,order=job
 +                        original_phase=phase
 +                        phase=d.get('retryOrigins',{}).get(phase,phase)
-+                        rows=failed_items(kind,json.loads(encoded_rows),d,order,phase,args['label'])
++                        rows=failed_items(kind,json.loads(encoded_rows),d,order,phase,args['label'],reread=action=='reread')
 +                        if not rows:
 +                            raise HTTPException(409,'В этом задании нет оставшихся ошибочных строк')
 +                        d['retry']={'kind':kind,'rows':rows,'key':'retry-'+uuid4().hex[:16],'phase':phase,'return':d['phase']}
@@ -3589,10 +3601,10 @@ index 95f5b43..a3e4fdf 100644
          with tempfile.TemporaryDirectory() as d:
 diff --git a/products/harness-platform/tests/test_ozon_competitors.py b/products/harness-platform/tests/test_ozon_competitors.py
 new file mode 100644
-index 0000000..691c5d9
+index 0000000..fdb99c8
 --- /dev/null
 +++ b/products/harness-platform/tests/test_ozon_competitors.py
-@@ -0,0 +1,235 @@
+@@ -0,0 +1,253 @@
 +import copy
 +import json
 +import sqlite3
@@ -3658,8 +3670,26 @@ index 0000000..691c5d9
 +    def test_review_minimization(self):
 +        row=p.products('reviews',['111'])[0]
 +        result=a.parse_batch('reviews',[row],{'id':9,'data':[dict(row,offers=[dict(Marketid='111',SkuRates=32,Offer_userComments=[dict(Username='private',AuthorId=123,Published='d',Rating=0,Comment='слово')])])]})
++        self.assertEqual(result['111']['invalidRows'],0)
 +        review=result['111']['reviews'][0]
 +        self.assertIsNone(review['Rating']);self.assertEqual(review['Comment'],'слово');self.assertNotIn('private',str(result));self.assertNotIn('AuthorId',review)
++    def test_review_ratings_and_legacy_readback(self):
++        from platform_core.competitors.coverage import quality
++        from platform_core.competitors.routes import failed_items
++        for raw in (None,0,0.0,1,5,True,-1,6,1.5,'0'):
++            with self.subTest(raw=raw):
++                reviews=a.review_rows([dict(Comment='Текст',Rating=raw)])
++                invalid=type(raw) is bool or raw in (-1,6,1.5,'0')
++                self.assertEqual(reviews['invalidRows'],int(invalid))
++                self.assertEqual(reviews['reviews'][0]['Rating'],raw if type(raw) is int and 1<=raw<=5 else None)
++                current=dict(phase='done',targets=['111'],cards={'111':{}},reviews={'111':reviews})
++                self.assertEqual(quality(current)['partial'],invalid)
++        rows=p.products('reviews',['111'])
++        old={'reviews':{'111':dict(order='13',code=rows[0]['code'],invalidRows=1)}}
++        self.assertEqual(failed_items('reviews',rows,old,'13',reread=True),rows)
++        self.assertFalse(failed_items('reviews',rows,old,'13'))
++        self.assertFalse(failed_items('reviews',rows,old,'14',reread=True))
++
 +    def test_evidence_outcomes(self):
 +        row=p.products('search',['q'],8)[0]
 +        hit=lambda i:{'OfferId':str(i),'Place':0}
