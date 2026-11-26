@@ -913,7 +913,7 @@ index 9bfe4c4..02e2b2d 100644
          move('done')
  
 diff --git a/products/harness-platform/platform_core/competitors/enrichment.py b/products/harness-platform/platform_core/competitors/enrichment.py
-index e8bb34a..b7f23f6 100644
+index e8bb34a..5785afa 100644
 --- a/products/harness-platform/platform_core/competitors/enrichment.py
 +++ b/products/harness-platform/platform_core/competitors/enrichment.py
 @@ -1,7 +1,10 @@
@@ -927,7 +927,7 @@ index e8bb34a..b7f23f6 100644
  import re
  import time
  from uuid import uuid4
-@@ -11,12 +14,14 @@ import httpx
+@@ -11,12 +14,27 @@ import httpx
  from .. import coins, provider_keys
  from ..operation_grants import ensure_operation_schema, issue_grant, revoke_grant
  from . import bhapi, semantic
@@ -939,10 +939,23 @@ index e8bb34a..b7f23f6 100644
  HOLD = 'competitor-semantic-hold-v1'
  BH_RATE = 'bhapi-v1'
 +DS_RATE = 'deepseek-2026-11-18'
++
++
++class DispatchAuthorizationLost(Exception):
++    """The last scope check failed before the transport saw a request."""
++
++
++def authorize_transport(authorize):
++    try:
++        authorize()
++    except Exception as exc:
++        raise DispatchAuthorizationLost from exc
++
++
  SCHEMA = (
      """CREATE TABLE IF NOT EXISTS competitor_commercial_settings(
         singleton INTEGER PRIMARY KEY CHECK(singleton=1), enabled INTEGER NOT NULL,
-@@ -25,25 +30,68 @@ SCHEMA = (
+@@ -25,25 +43,68 @@ SCHEMA = (
         research TEXT NOT NULL, provider TEXT NOT NULL, operation TEXT NOT NULL UNIQUE,
         plan_hash TEXT NOT NULL, state TEXT NOT NULL, request TEXT, result TEXT,
         created REAL NOT NULL, provider_id TEXT, PRIMARY KEY(research,provider))""",
@@ -1017,7 +1030,7 @@ index e8bb34a..b7f23f6 100644
  def key_version(key):
      return hashlib.sha256(key.encode()).hexdigest() if key else None
  
-@@ -77,8 +125,9 @@ def configuration(db, gateway=None):
+@@ -77,8 +138,9 @@ def configuration(db, gateway=None):
      fx=coins.rub_rate()
      deepseek_key=provider_keys.read('deepseek')
      configured_gateway=gateway or os.getenv('HARNESS_MODEL_GATEWAY_URL')
@@ -1028,7 +1041,7 @@ index e8bb34a..b7f23f6 100644
              'commercial':settings_now['enabled'] and settings_now['configured'],
              'bhapiKey':key_version(provider_keys.read('bhapi')) if settings_now['enabled'] else None,
              'bhapiTariff':settings_now['version'], 'bhapiUnits':coins.parse_amount(settings_now['rub'],allow_zero=True)
-@@ -99,6 +148,7 @@ def estimate(plan):
+@@ -99,6 +161,7 @@ def estimate(plan):
  
  def record(db,scope,rid,provider,request,bound,config):
      operation=uuid4().hex
@@ -1036,7 +1049,7 @@ index e8bb34a..b7f23f6 100644
      db.execute('INSERT INTO usage_operations VALUES (?,?,?,?,?,?)',
                 (operation,scope.actor_id,scope.workspace_id,scope.chat_id,provider,rid))
      db.execute('INSERT INTO coin_orders(operation_id,workspace_id,cap,markup,coins_per_usd) VALUES(?,?,?,0,1)',
-@@ -110,8 +160,10 @@ def record(db,scope,rid,provider,request,bound,config):
+@@ -110,8 +173,10 @@ def record(db,scope,rid,provider,request,bound,config):
                 ('hold:'+operation,operation,bound,'BHAPI' if provider==BH else semantic.MODEL,int(now*1000),
                  BH_RATE if provider==BH else HOLD,'fixed' if provider==BH else 'reservation'))
      db.execute('INSERT INTO competitor_enrichment VALUES (?,?,?,?,?,?,NULL,?,NULL)',
@@ -1049,7 +1062,7 @@ index e8bb34a..b7f23f6 100644
  
  
  def targets_for_commerce(data,form):
-@@ -120,24 +172,42 @@ def targets_for_commerce(data,form):
+@@ -120,24 +185,42 @@ def targets_for_commerce(data,form):
      return [s for s in data['targets'] if s not in form.get('own',[])]
  
  
@@ -1104,7 +1117,7 @@ index e8bb34a..b7f23f6 100644
          coins.close_orders(db,scope.workspace_id)
          remaining=coins.balances(db,scope.workspace_id)[0]
          # Insufficient funds for one provider do not discard the independent affordable stage.
-@@ -159,7 +229,7 @@ def receipt(db,operation):
+@@ -159,7 +242,7 @@ def receipt(db,operation):
                         (operation,)).fetchall()
      valid=[r for r in entries if r[4]!=HOLD]
      return {'operationId':operation,'reservedRub':coins.display(sum(r[0] for r in entries if r[1] is None)),
@@ -1113,7 +1126,7 @@ index e8bb34a..b7f23f6 100644
              'providerId':next((r[2] for r in valid if r[2]),None),
              'usage':next((json.loads(r[3]) for r in valid if r[3]),None)}
  
-@@ -170,31 +240,77 @@ def public_receipts(db,rid):
+@@ -170,31 +253,77 @@ def public_receipts(db,rid):
                  'SELECT provider,operation,state FROM competitor_enrichment WHERE research=?',(rid,))}
  
  
@@ -1203,7 +1216,7 @@ index e8bb34a..b7f23f6 100644
  
  
  def reconcile_bhapi(db, operation, charged, evidence):
-@@ -202,35 +318,36 @@ def reconcile_bhapi(db, operation, charged, evidence):
+@@ -202,35 +331,36 @@ def reconcile_bhapi(db, operation, charged, evidence):
              or type(charged) is not bool or not isinstance(evidence,str)
              or not re.fullmatch(r'[\w .:/-]{5,120}',evidence)):
          raise ValueError('Укажите операцию, исход и ссылку на квитанцию или идентификатор сверки')
@@ -1252,7 +1265,8 @@ index e8bb34a..b7f23f6 100644
 -                      direct_override=(semantic.MODEL,'off'))
 +                      direct_override=(semantic.MODEL,'off'), execution_fence=fence)
      try:
-         authorize()
+-        authorize()
++        authorize_transport(authorize)
          with httpx.Client(timeout=75,follow_redirects=False,trust_env=False) as client:
              headers={'x-api-key':grant.token,'content-type':'application/json','anthropic-version':'2023-06-01'}
 -            if version:
@@ -1260,7 +1274,7 @@ index e8bb34a..b7f23f6 100644
              with client.stream('POST',gateway.rstrip('/')+'/v1/messages',content=semantic.encoded(payload),
                                 headers=headers) as response:
                  if response.status_code!=200:
-@@ -242,61 +359,85 @@ def model_call(path,scope,rid,gateway,group,payload,authorize,version):
+@@ -242,61 +372,86 @@ def model_call(path,scope,rid,gateway,group,payload,authorize,version):
                          return ({'state':'error','reason':'Ответ DeepSeek превысил лимит'},None)
          obj=json.loads(raw)
          try:
@@ -1342,7 +1356,7 @@ index e8bb34a..b7f23f6 100644
 +                                 bool(key) and settings(db)['version']==config['bhapiTariff'])
 +            if current:
 +                changed=db.execute("""UPDATE competitor_execution SET dispatched=? WHERE operation=? AND dispatched IS NULL
-+                    AND fence IS (SELECT lease FROM competitor_studies WHERE id=?)""",(time.time(),operation,rid)).rowcount
++                    AND fence IS NOT NULL AND fence=(SELECT lease FROM competitor_studies WHERE id=?)""",(time.time(),operation,rid)).rowcount
 +                if changed!=1 or db.execute("UPDATE competitor_enrichment SET state='dispatching' WHERE operation=? AND state='claimed'",
 +                                            (operation,)).rowcount!=1:
 +                    raise PermissionError('План операции изменился')
@@ -1372,10 +1386,19 @@ index e8bb34a..b7f23f6 100644
 -                finish(db,rid,provider,operation,result,0)
 -                return result
 -            authorize()
++            authorize_transport(authorize)
              code,obj,header_id=bhapi.send(key,request['body'])
              if code==200:
                  result=bhapi.normalize(obj,request['body'],request['period'])
-@@ -311,7 +452,7 @@ def run(db,path,scope,rid,provider,form,group,payload,gateway,authorize,blocked)
+@@ -307,11 +462,15 @@ def run(db,path,scope,rid,provider,form,group,payload,gateway,authorize,blocked)
+                 result={'state':'unknown' if unknown else 'error','reason':f'BHAPI HTTP {code}',
+                         'requested':len(request['body']['product_ids']),'received':0,'requestedPeriod':request['period']}
+                 finish(db,rid,provider,operation,result,None if unknown else 0,bhapi.safe_value(header_id))
++    except DispatchAuthorizationLost as exc:
++        finish(db,rid,provider,operation,{'state':'cancelled','reason':'Доступ потерян до обращения к транспорту'},0,
++               release_semantic=(provider==DS))
++        raise exc.__cause__ from None
+     except (httpx.HTTPError,ValueError,TypeError,RecursionError) as exc:
          result={'state':'unknown','reason':summary+' · '+type(exc).__name__+'; требуется сверка'}
          if provider==BH:
              result.update(requested=len(request['body']['product_ids']),received=0,requestedPeriod=request['period'])
@@ -1384,7 +1407,7 @@ index e8bb34a..b7f23f6 100644
      except PermissionError:
          result={'state':'error','reason':'Доступ к операции изменился'}
          finish(db,rid,provider,operation,result,0,release_semantic=(provider==DS))
-@@ -319,18 +460,23 @@ def run(db,path,scope,rid,provider,form,group,payload,gateway,authorize,blocked)
+@@ -319,18 +478,23 @@ def run(db,path,scope,rid,provider,form,group,payload,gateway,authorize,blocked)
  
  
  def advance(db,path,scope,rid,form,data,gateway,authorize,checkpoint):
@@ -2092,10 +2115,18 @@ index 7a31bc7..1929ad4 100644
          form={'depth':16,'region':'Москва'}
          full=dict(actual=16,depth=16,state='OK',hits=[{'sku':'23','index':2}])
 diff --git a/products/harness-platform/tests/test_competitor_enrichment.py b/products/harness-platform/tests/test_competitor_enrichment.py
-index 96b5ca1..b0c1513 100644
+index 96b5ca1..0a51664 100644
 --- a/products/harness-platform/tests/test_competitor_enrichment.py
 +++ b/products/harness-platform/tests/test_competitor_enrichment.py
-@@ -84,7 +84,8 @@ class BHAPIContract(TestCase):
+@@ -5,6 +5,7 @@ from pathlib import Path
+ from threading import Event
+ import sqlite3
+ import tempfile
++import time
+ from unittest import TestCase
+ from unittest.mock import patch
+ 
+@@ -84,7 +85,8 @@ class BHAPIContract(TestCase):
                  if count:
                      row=value['rows'][0]
                      self.assertEqual(row['metrics']['sales_units'],0)
@@ -2105,7 +2136,7 @@ index 96b5ca1..b0c1513 100644
                      self.assertIn('order_conversion_percent',row['notes'])
                      self.assertIsNone(row['providerFields']['stock_units'])
                      self.assertEqual(row['providerFields']['extra_metric'],{'forecast':'7'})
-@@ -115,9 +116,8 @@ class EnrichmentOperations(TestCase):
+@@ -115,16 +117,15 @@ class EnrichmentOperations(TestCase):
          self.config=enrichment.configuration(self.db,'http://127.0.0.1:1')
          self.config['semantic']=True
  
@@ -2117,7 +2148,17 @@ index 96b5ca1..b0c1513 100644
                                'http://127.0.0.1:1',self.authorize,{})
  
      def study(self,rid,targets,own=()):
-@@ -134,16 +134,16 @@ class EnrichmentOperations(TestCase):
+         form={'enrichment':self.config,'own':list(own)}
+-        self.db.execute("""INSERT INTO competitor_studies(id,workspace,chat,actor,digest,form,result,status,created)
+-                           VALUES(?,?,?,?,?,?,?,'running',1)""",
+-                        (rid,self.scope.workspace_id,self.scope.chat_id,self.scope.actor_id,b'session',json.dumps(form),'{}'))
++        self.db.execute("""INSERT INTO competitor_studies(id,workspace,chat,actor,digest,form,result,status,lease,due,created)
++                           VALUES(?,?,?,?,?,?,?,'running',?,?,1)""",
++                        (rid,self.scope.workspace_id,self.scope.chat_id,self.scope.actor_id,b'session',json.dumps(form),'{}','worker-'+rid,time.time()+180))
+         return form,{'targets':targets}
+ 
+     def test_one_batch_late_read_and_independent_providers(self):
+@@ -134,16 +135,16 @@ class EnrichmentOperations(TestCase):
          self.assertEqual(enrichment.reserve(self.db,self.scope,rid,form,data,self.authorize,[{'sku':s} for s in targets]),{})
          self.assertEqual(coins.balances(self.db,self.scope.workspace_id)[1],self.config['semanticLimit']+coins.parse_amount('2.79'))
          with patch.object(enrichment,'model_call',return_value=({'state':'error','reason':'fixture'},None)) as model:
@@ -2138,7 +2179,7 @@ index 96b5ca1..b0c1513 100644
              send.assert_called_once()
              self.assertEqual(send.call_args.args[1]['product_ids'],targets[1:])
          self.assertEqual(enrichment.public_receipts(self.db,rid)['bhapi']['chargedRub'],'2.79')
-@@ -155,8 +155,8 @@ class EnrichmentOperations(TestCase):
+@@ -155,8 +156,8 @@ class EnrichmentOperations(TestCase):
          form,data=self.study(rid,['123001'])
          enrichment.reserve(self.db,self.scope,rid,form,data,self.authorize,[])
          with patch.object(bhapi,'send',side_effect=httpx.ReadTimeout('fixture')) as send:
@@ -2149,7 +2190,7 @@ index 96b5ca1..b0c1513 100644
              send.assert_called_once()
          self.db.execute("UPDATE competitor_studies SET status='revoked' WHERE id=?",(rid,))
          row=self.db.execute('SELECT state,request,result FROM competitor_enrichment WHERE research=?',(rid,)).fetchone()
-@@ -169,14 +169,14 @@ class EnrichmentOperations(TestCase):
+@@ -169,14 +170,14 @@ class EnrichmentOperations(TestCase):
          enrichment.reserve(self.db,self.scope,rid,form,data,self.authorize,[])
          self.db.execute("UPDATE competitor_enrichment SET state='dispatching' WHERE research=?",(rid,))
          with patch.object(bhapi,'send') as send:
@@ -2166,7 +2207,7 @@ index 96b5ca1..b0c1513 100644
              send.assert_not_called()
          self.assertEqual(enrichment.public_receipts(self.db,rid)['bhapi']['chargedRub'],'0')
  
-@@ -203,8 +203,8 @@ class EnrichmentOperations(TestCase):
+@@ -203,8 +204,8 @@ class EnrichmentOperations(TestCase):
                  enrichment.reserve(self.db,self.scope,rid,form,data,self.authorize,[])
                  with patch.object(bhapi,'send',return_value=(200,{'status':'success','data':{'items':[]}},None)) as send:
                      if targets:
@@ -2177,7 +2218,7 @@ index 96b5ca1..b0c1513 100644
                          send.assert_called_once()
                          self.assertEqual(send.call_args.args[1]['product_ids'],targets)
                      else:
-@@ -220,8 +220,8 @@ class EnrichmentOperations(TestCase):
+@@ -220,8 +221,8 @@ class EnrichmentOperations(TestCase):
                  form,data=self.study(rid,['123001'])
                  enrichment.reserve(self.db,self.scope,rid,form,data,self.authorize,[])
                  with patch.object(bhapi,'send',return_value=(status,None,'qa-error-id')) as send:
@@ -2188,7 +2229,7 @@ index 96b5ca1..b0c1513 100644
                      send.assert_called_once()
                  receipt=enrichment.public_receipts(self.db,rid)['bhapi']
                  self.assertEqual(receipt['providerId'],'qa-error-id' if status not in (301,503) else None)
-@@ -264,10 +264,12 @@ class EnrichmentOperations(TestCase):
+@@ -264,10 +265,12 @@ class EnrichmentOperations(TestCase):
          def provider_call(*_):
              counted.set()
              self.assertTrue(complete.wait(5))
@@ -2203,7 +2244,7 @@ index 96b5ca1..b0c1513 100644
          with patch.object(bhapi,'send',side_effect=provider_call) as send,ThreadPoolExecutor(2) as pool:
              first=pool.submit(worker)
              self.assertTrue(counted.wait(5))
-@@ -279,3 +281,198 @@ class EnrichmentOperations(TestCase):
+@@ -279,3 +282,206 @@ class EnrichmentOperations(TestCase):
              self.assertEqual(first.result(timeout=5)['state'],'complete')
              send.assert_called_once()
          self.assertEqual(enrichment.public_receipts(self.db,rid)['bhapi']['chargedRub'],'2.79')
@@ -2235,7 +2276,6 @@ index 96b5ca1..b0c1513 100644
 +                        self.assertEqual(config['semanticKey'],enrichment.key_version('fixture-deepseek-key'))
 +
 +    def test_sys_late_success_blocks_active_reconciliation_and_preserves_proof(self):
-+        import time
 +        sku='200001'
 +        rid='03'*16
 +        form,data=self.study(rid,[sku])
@@ -2281,22 +2321,31 @@ index 96b5ca1..b0c1513 100644
 +
 +    def test_sys_pre_send_hold_is_released_on_definitive_revocation(self):
 +        from starlette.exceptions import HTTPException
-+        rid='05'*16
-+        form,data=self.study(rid,['200001'])
-+        enrichment.reserve(self.db,self.scope,rid,form,data,self.authorize,[])
-+        calls=0
-+        def authorize():
-+            nonlocal calls
-+            calls+=1
-+            if calls==3:
-+                raise HTTPException(403,'fixture authorization revoked')
-+        with patch.object(bhapi,'send') as send, self.assertRaises(HTTPException):
-+            enrichment.run(self.db,self.path,self.scope,rid,enrichment.BH,None,authorize,{})
-+        send.assert_not_called()
-+        entry=enrichment.public_receipts(self.db,rid)['bhapi']
-+        self.assertEqual((entry['state'],entry['chargedRub'],entry['reservedRub']),('cancelled','0','0'))
-+        self.assertIsNone(self.db.execute('SELECT dispatched FROM competitor_execution WHERE operation=?',
-+                                         (entry['operationId'],)).fetchone()[0])
++        from types import SimpleNamespace
++        for provider,fail_on in ((enrichment.BH,3),(enrichment.BH,4),(enrichment.DS,4)):
++            with self.subTest(provider=provider,fail_on=fail_on):
++                rid=(('0b' if provider==enrichment.DS else '0a')+str(fail_on)*30)
++                form,data=self.study(rid,['200001'])
++                group=[{'sku':'200001'}] if provider==enrichment.DS else []
++                enrichment.reserve(self.db,self.scope,rid,form,data,self.authorize,group)
++                calls=0
++                def authorize():
++                    nonlocal calls
++                    calls+=1
++                    if calls==fail_on:
++                        raise HTTPException(403,'fixture authorization revoked')
++                with (patch.object(bhapi,'send') as send,patch.object(enrichment.httpx,'Client') as model_client,
++                      patch.object(enrichment,'issue_grant',return_value=SimpleNamespace(token='fixture')),
++                      patch.object(enrichment,'revoke_grant') as revoke,self.assertRaises(HTTPException)):
++                    enrichment.run(self.db,self.path,self.scope,rid,provider,'http://127.0.0.1:1',authorize,{})
++                send.assert_not_called()
++                model_client.assert_not_called()
++                self.assertEqual(revoke.call_count,int(provider==enrichment.DS))
++                entry=enrichment.public_receipts(self.db,rid)[provider.split('.')[-1]]
++                self.assertEqual((entry['state'],entry['chargedRub'],entry['reservedRub']),('cancelled','0','0'))
++                dispatched=self.db.execute('SELECT dispatched FROM competitor_execution WHERE operation=?',
++                                           (entry['operationId'],)).fetchone()[0]
++                self.assertEqual(dispatched is None,fail_on==3)
 +
 +    def test_confirmed_group_and_commercial_scope_survive_retry_and_export(self):
 +        from platform_core.competitors import routes
@@ -2665,7 +2714,7 @@ index d6284a5..7a3d598 100644
 +  assert.equal(charges[0][1],'semantic-upstream-fixture');
 +});
 diff --git a/release-manifest.json b/release-manifest.json
-index a5ac031..bf87e3e 100644
+index a5ac031..6d12ba3 100644
 --- a/release-manifest.json
 +++ b/release-manifest.json
 @@ -1,7 +1,7 @@
@@ -2739,7 +2788,7 @@ index a5ac031..bf87e3e 100644
 -  "products/harness-platform/platform_core/competitors/enrichment.py": "e8bb34af5731906bab6f1f557c60084a3e250259",
 +  "products/harness-platform/platform_core/competitors/coverage.py": "8754b2cab2468f697b43407807d65445672f5850",
 +  "products/harness-platform/platform_core/competitors/engine.py": "02e2b2d14103cf2f84efcd59f48211a774b76663",
-+  "products/harness-platform/platform_core/competitors/enrichment.py": "b7f23f699002ca25ff923770d27e5b05f26cf208",
++  "products/harness-platform/platform_core/competitors/enrichment.py": "5785afacb120fd3ca962799b06c60da9a824daec",
    "products/harness-platform/platform_core/competitors/facts.py": "78990286cf0f041464ff1a0f96e66697a2fa7949",
    "products/harness-platform/platform_core/competitors/jobs.py": "e273954070de2d129d163a22f037c8703e509acf",
    "products/harness-platform/platform_core/competitors/own.py": "2e3412173a1880acaf9859ded5436034cbf9abc9",
@@ -2774,7 +2823,7 @@ index a5ac031..bf87e3e 100644
 -  "products/harness-platform/tests/test_competitor_enrichment.py": "96b5ca1d00d08d46cc65a80f7e0452f549053ee0",
 -  "products/harness-platform/tests/test_competitor_review.py": "b5acd725ef244dd3d0fa6e529bec9660a574a09a",
 +  "products/harness-platform/tests/test_competitor_comparison.py": "1929ad4afba6ecfa09428e256b604e7431e62e69",
-+  "products/harness-platform/tests/test_competitor_enrichment.py": "b0c1513bc4bcc43126e6bcc1a751ee7be533946f",
++  "products/harness-platform/tests/test_competitor_enrichment.py": "0a516643f76bb10bb968ed2650f8ad0485f8d7fe",
 +  "products/harness-platform/tests/test_competitor_patch12_review.py": "45178c8f2661f850ee9b4bf7b43144b5d06f9d68",
 +  "products/harness-platform/tests/test_competitor_review.py": "f58abd0cd3cb8182b632db78c305365ee12cb65f",
    "products/harness-platform/tests/test_competitor_system_invariants.py": "65c6d83f781096c0a5386e5c87f03f706b9accb4",
