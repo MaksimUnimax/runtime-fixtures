@@ -504,7 +504,7 @@ index 936193b..6ba5fea 100644
      return h(Dialog,{label:title,close,className:'octo-plugin-settings competitor-settings'},error&&h('p',{role:'alert'},error),content());
    };
 diff --git a/products/harness-platform/platform_core/competitors/analysis.py b/products/harness-platform/platform_core/competitors/analysis.py
-index fed810b..862fe72 100644
+index fed810b..3eb938e 100644
 --- a/products/harness-platform/platform_core/competitors/analysis.py
 +++ b/products/harness-platform/platform_core/competitors/analysis.py
 @@ -45,29 +45,39 @@ def discovery_seeds(card):
@@ -527,8 +527,8 @@ index fed810b..862fe72 100644
 -    if not base:
 -        base=(card.get('breadcrumbs') or [''])[-1]
 +    promo=re.compile(r'\b(?:подарок\s+для|на\s+любой\s+праздник|хит\s+продаж|лучший\s+подарок|успейте\s+купить|идеальн\w*\s+подарок|gift\s+for)\b',re.I)
-+    clauses=[x.strip(' .,!?:—-').casefold() for x in
-+             re.split(r'\s+[–—-]\s+|[,;]|(?<=[а-яa-z])\.\s+',without_quotes,flags=re.I) if x.strip()]
++    clauses=[' '.join(x.strip(' .,!?:—-').casefold().split()) for x in
++             re.split(r'\s+[–—-]\s+|[,;]|\.(?=\s+[^\d]|$)',without_quotes) if x.strip()]
 +    anchored=[]
 +    for clause in clauses:
 +        if promo.search(clause):
@@ -540,8 +540,8 @@ index fed810b..862fe72 100644
 +    kind=' '.join(str(kind).casefold().split())
 +    def score(label):
 +        components=set(label.split())
-+        return (bool(set(kind.split()) & components),
-+                bool(re.search(r'\b(?:для|на|под|от|в)\s+\w+',label)),min(len(components),6))
++        return (bool(re.search(r'\b(?:для|на|под|от|в)\s+\w+',label)),
++                bool(set(kind.split()) & components),min(len(components),6))
 +    label=max(anchored,key=score,default='')
 +    leaf=(card.get('breadcrumbs') or [''])[-1]
 +    base=label or kind or leaf
@@ -2404,10 +2404,10 @@ index 96b5ca1..b0c1513 100644
 +            asyncio.run(verify())
 diff --git a/products/harness-platform/tests/test_competitor_patch12_review.py b/products/harness-platform/tests/test_competitor_patch12_review.py
 new file mode 100644
-index 0000000..21c4d6b
+index 0000000..45178c8
 --- /dev/null
 +++ b/products/harness-platform/tests/test_competitor_patch12_review.py
-@@ -0,0 +1,135 @@
+@@ -0,0 +1,139 @@
 +"""Offline acceptance cases from the independent patch 1.2 review."""
 +import json
 +from datetime import date
@@ -2500,6 +2500,10 @@ index 0000000..21c4d6b
 +        self.assertEqual(queries[0],'мышь usb')
 +        self.assertFalse(any('подарок' in q for q in queries))
 +        self.assertTrue(all(len(q)<=180 for q in queries))
++        label='Сувенир — чашка для горячих напитков. Коллекция «Север». Сувенир.'
++        queries=analysis.discovery_seeds({'title':label,'type':'Сувенир'})
++        self.assertIn('чашка для горячих напитков',queries[0])
++        self.assertIn('север',queries[0])
 +
 +    def test_bh_empty_sku_and_invalid_metrics_have_distinct_coverage(self):
 +        sku='200001'
@@ -2661,7 +2665,7 @@ index d6284a5..7a3d598 100644
 +  assert.equal(charges[0][1],'semantic-upstream-fixture');
 +});
 diff --git a/release-manifest.json b/release-manifest.json
-index a5ac031..9d1198e 100644
+index a5ac031..bf87e3e 100644
 --- a/release-manifest.json
 +++ b/release-manifest.json
 @@ -1,7 +1,7 @@
@@ -2726,7 +2730,7 @@ index a5ac031..9d1198e 100644
    "products/harness-platform/platform_core/coins.py": "06adb630767dd061ee0899f6f1fe406a73c6febe",
 -  "products/harness-platform/platform_core/competitors/analysis.py": "fed810b29f96e44c1e09b883e3b13a7059cd5429",
 -  "products/harness-platform/platform_core/competitors/bhapi.py": "755aecdd0d9a9aea9563d0ff6424c82d7522e385",
-+  "products/harness-platform/platform_core/competitors/analysis.py": "862fe724bb919c817730f5499b0176e449f808a7",
++  "products/harness-platform/platform_core/competitors/analysis.py": "3eb938e59d3ffc330e0d7028d2b362fa11baa455",
 +  "products/harness-platform/platform_core/competitors/bhapi.py": "6eccbf49b6c5fb5d349ec81de02c0ab8cecb72d3",
    "products/harness-platform/platform_core/competitors/comparison.py": "f53fd0439240bc545d30bddfe54fd282881fbeff",
    "products/harness-platform/platform_core/competitors/contracts.py": "0b9147c30e314c86efba1bdf6f4afdb5acf19307",
@@ -2771,7 +2775,7 @@ index a5ac031..9d1198e 100644
 -  "products/harness-platform/tests/test_competitor_review.py": "b5acd725ef244dd3d0fa6e529bec9660a574a09a",
 +  "products/harness-platform/tests/test_competitor_comparison.py": "1929ad4afba6ecfa09428e256b604e7431e62e69",
 +  "products/harness-platform/tests/test_competitor_enrichment.py": "b0c1513bc4bcc43126e6bcc1a751ee7be533946f",
-+  "products/harness-platform/tests/test_competitor_patch12_review.py": "21c4d6b65b32cc826d3e0b0982552da006013093",
++  "products/harness-platform/tests/test_competitor_patch12_review.py": "45178c8f2661f850ee9b4bf7b43144b5d06f9d68",
 +  "products/harness-platform/tests/test_competitor_review.py": "f58abd0cd3cb8182b632db78c305365ee12cb65f",
    "products/harness-platform/tests/test_competitor_system_invariants.py": "65c6d83f781096c0a5386e5c87f03f706b9accb4",
    "products/harness-platform/tests/test_dispatch.py": "c8a11e7c4914e4a43b2ff342f350d4b13f1419e3",
