@@ -1,3 +1,1079 @@
+diff --git a/products/harness-platform/acceptance/competitor_invariants/batch_matrix.py b/products/harness-platform/acceptance/competitor_invariants/batch_matrix.py
+new file mode 100644
+index 0000000..efbfed9
+--- /dev/null
++++ b/products/harness-platform/acceptance/competitor_invariants/batch_matrix.py
+@@ -0,0 +1,67 @@
++"""Deterministic 3-source x 3-packet x 2-fault check with restart on every tick."""
++import json,tempfile
++from pathlib import Path
++from unittest.mock import patch
++from platform_core.competitors import engine,jobs
++from platform_core.competitors.jobs import Journal
++
++def scenario(kind,index,fault):
++    subjects=[str(100001+i) for i in range(6)]
++    items=['фраза '+s for s in subjects] if kind=='search' else subjects
++    phase={'cards':'cards','reviews':'reviews','search':'verify'}[kind]
++    f={'mode':'B','skus':[],'depth':2,'region':'Москва','budget':12}
++    initial={'phase':phase,'targets':subjects,'cards':{} if kind=='cards' else {s:{'sku':s} for s in subjects},
++             'verify':items,'candidates':dict.fromkeys(items,[])}
++    saved=json.dumps(initial)
++    payments={};polled=[];injected=False
++    class Source:
++        key='qa-fixture'
++        def authorize(self):pass
++        def balance(self):return (100,0)
++        def submit(self,kind,region,label,rows):
++            assert label not in payments
++            payments[label]=(str(len(payments)+1),rows)
++            return payments[label][0]
++        def poll(self,label):
++            order,rows=payments[label];polled.append(order);data=[]
++            for ri,row in enumerate(rows):
++                if fault=='missing-row' and order==str(index+1) and ri==0:continue
++                offers=[{'Marketid':row['name'],'Name':'Карточка','Offer_userComments':[{'Comment':'Отзыв'}]}] if kind!='search' else [{'Marketid':s} for s in subjects[:2]]
++                data.append(dict(row,offers=offers))
++            return 'completed',{'id':order,'used_checks_total':len(rows),'data':data,'regioncode':'Москва'}
++    parse=jobs.parse_batch
++    def interrupted(k,rows,report):
++        nonlocal injected
++        if fault=='parse-restart' and report['id']==str(index+1) and not injected:
++            injected=True
++            raise KeyboardInterrupt('simulated termination')
++        return parse(k,rows,report)
++    with tempfile.TemporaryDirectory() as area,patch.object(engine,'batches',lambda rows:[rows[i:i+2] for i in range(0,len(rows),2)]),patch.object(jobs,'parse_batch',interrupted):
++        for step in range(20):
++            state=json.loads(saved);j=Journal(Path(area)/'journal.sqlite')
++            def checkpoint():
++                nonlocal saved
++                saved=json.dumps(state)
++            try:
++                j.db.execute('UPDATE competitor_jobs SET due=0')
++                engine.advance(j,'study',f,state,Source(),None,checkpoint)
++                checkpoint()
++                if state['phase']!=phase:break
++            except KeyboardInterrupt:
++                assert fault=='parse-restart'
++            finally:j.close()
++        else:raise AssertionError('did not complete')
++        store=state[{'cards':'cards','search':'search','reviews':'reviews'}[kind]]
++        failed={key for key,value in store.items() if value.get('error')}
++        assert set(store)==set(items) and failed==({items[index*2]} if fault=='missing-row' else set()),(kind,fault,failed)
++        assert len(payments)==3 and injected==(fault=='parse-restart')
++        j=Journal(Path(area)/'journal.sqlite')
++        try:
++            counts=list(map(tuple,j.db.execute("select order_id,used,state from competitor_jobs order by rowid")))
++            assert counts==[(str(i),2,'completed') for i in range(1,4)]
++        finally:j.close()
++        return dict(source=kind,part=index+1,fault=fault,submit=len(payments),orders=counts,polls=polled,
++                    healthy=len(store)-len(failed),failed=sorted(failed),reopens=step)
++if __name__=='__main__':
++    rows=[scenario(kind,index,fault) for kind in ('cards','reviews','search') for index in range(3) for fault in ('missing-row','parse-restart')]
++    print(json.dumps(rows,indent=1))
+diff --git a/products/harness-platform/acceptance/competitor_invariants/checkpoints.py b/products/harness-platform/acceptance/competitor_invariants/checkpoints.py
+new file mode 100644
+index 0000000..9827dd6
+--- /dev/null
++++ b/products/harness-platform/acceptance/competitor_invariants/checkpoints.py
+@@ -0,0 +1,110 @@
++"""Two real SQLite workers on separate tenants at each persisted result boundary."""
++import json
++import sqlite3
++import tempfile
++import threading
++from contextlib import ExitStack
++from pathlib import Path
++from unittest.mock import patch
++
++from platform_core.competitors import service,jobs
++from platform_core.admin_statistics import purge_workspace
++from platform_core.operation_grants import ensure_operation_schema
++from positive import setup,fbase,endpoint,Source
++
++
++def scenario(boundary,action):
++    with tempfile.TemporaryDirectory() as temp:
++        path=Path(temp)/'db'
++        db=setup(path,fbase(),{'phase':'cards','targets':['200001']})
++        db.execute('PRAGMA foreign_keys=ON')
++        db.execute("ALTER TABLE workspaces ADD COLUMN owner_id TEXT")
++        db.execute("UPDATE workspaces SET owner_id='actor'")
++        db.execute("ALTER TABLE chats ADD COLUMN workspace_id TEXT")
++        db.execute("UPDATE chats SET workspace_id='workspace'")
++        db.execute("ALTER TABLE account_integrations ADD COLUMN workspace TEXT")
++        ensure_operation_schema(db)
++        entered=threading.Event()
++        released=threading.Event()
++        errors=[]
++        sent={}
++        class Provider(Source):
++            def submit(self,kind,region,label,rows):
++                self.authorize()
++                assert label not in sent
++                sent[label]=(str(len(sent)+71),rows)
++                return sent[label][0]
++            def poll(self,label):
++                self.authorize()
++                order,rows=sent[label]
++                return 'completed',{'id':order,'used_checks_total':len(rows),'data':[
++                    dict(row,offers=[dict(Marketid=row['name'],Name='Товар')]) for row in rows]}
++        def pause():
++            if threading.current_thread().name=='first' and not entered.is_set():
++                entered.set()
++                assert released.wait(10)
++        mod,name,position={
++            'receipt':(jobs,'parse_batch','before'),'parse':(jobs,'parse_batch','after'),
++            'checkpoint':(service,'advance','after'),'before-wallet':(service,'record_receipts','before'),
++            'after-wallet':(service,'record_receipts','after')}[boundary]
++        original=getattr(mod,name)
++        def around(*args,**kwargs):
++            if position=='before':pause()
++            result=original(*args,**kwargs)
++            if position=='after':pause()
++            return result
++        def worker():
++            try:
++                service.tick(path)
++            except BaseException as exc:
++                errors.append(str(exc))
++        with ExitStack() as stack:
++            for k,v in [('permitted',lambda *a:None),('connection',lambda *a:(1,None)),
++                        ('unseal',lambda *a:{'token':Provider.key}),('Parser',Provider)]:
++                stack.enter_context(patch.object(service,k,v))
++            assert service.tick(path)
++            db.execute('UPDATE competitor_jobs SET due=0')
++            db.execute('UPDATE competitor_studies SET due=0')
++            stack.enter_context(patch.object(mod,name,side_effect=around))
++            t=threading.Thread(name='first',target=worker)
++            t.start()
++            try:
++                assert entered.wait(5),boundary
++                db.execute("INSERT INTO chats VALUES('chat2','workspace2')")
++                db.execute("INSERT INTO workspaces VALUES('workspace2','actor2')")
++                db.execute("INSERT INTO identity_sessions SELECT x'02','actor2',expires_at FROM identity_sessions LIMIT 1")
++                db.execute("""INSERT INTO competitor_studies SELECT 'next','workspace2','chat2','actor2',x'02',form,
++                           '{"phase":"cards","targets":["200002"]}','running','',NULL,0,created+1 FROM competitor_studies WHERE id='study'""")
++                if action=='stop':endpoint(db,'stop',{'id':'study'})
++                elif action=='expire':db.execute("UPDATE identity_sessions SET expires_at=0 WHERE actor_id='actor'")
++                elif action=='revoke':db.execute("UPDATE competitor_studies SET status='revoked',lease=NULL WHERE id='study'")
++                elif action=='delete-chat':db.execute("DELETE FROM chats WHERE chat_id='chat'")
++                else:
++                    db.execute('BEGIN IMMEDIATE')
++                    purge_workspace(db,'actor','workspace')
++                    db.commit()
++                # Give the second tenant the first turn after the interleaving.
++                db.execute("UPDATE competitor_studies SET due=9999999999 WHERE id='study'")
++                assert service.tick(path)
++                assert db.execute("SELECT count(*) FROM competitor_jobs WHERE research='next'").fetchone()[0]==1
++            finally:
++                released.set()
++                t.join(10)
++            assert not errors and not t.is_alive(),errors
++            db.execute("UPDATE competitor_jobs SET due=0 WHERE research='next'")
++            db.execute("UPDATE competitor_studies SET due=0 WHERE id='next'")
++            db.execute("UPDATE competitor_studies SET due=9999999999 WHERE id='study'")
++            assert service.tick(path)
++            row=db.execute("SELECT state,used,data FROM competitor_jobs WHERE research='study'").fetchone()
++            if action.startswith('delete'):
++                assert row==('detached-settled',1,None),row
++            assert db.execute("SELECT count(*) FROM competitor_receipts").fetchone()[0]==2
++            assert len(sent)==2
++            assert db.execute("SELECT count(*) FROM usage_operations WHERE workspace_id='workspace2'").fetchone()[0]==1
++        db.close()
++        return {'checkpoint':boundary,'action':action,'submissions':len(sent),'receipts':2,'secondTenantProgress':True}
++
++
++if __name__=='__main__':
++    print(json.dumps([scenario(boundary,action) for boundary in ('receipt','parse','checkpoint','before-wallet','after-wallet')
++                      for action in ('stop','expire','revoke','delete-chat','delete-account')],indent=1))
+diff --git a/products/harness-platform/acceptance/competitor_invariants/extra_probes.py b/products/harness-platform/acceptance/competitor_invariants/extra_probes.py
+new file mode 100644
+index 0000000..9f6c2a2
+--- /dev/null
++++ b/products/harness-platform/acceptance/competitor_invariants/extra_probes.py
+@@ -0,0 +1,94 @@
++"""Additional independent provider-boundary probes. Local synthetic responses only."""
++import json,tempfile,traceback,time,io,zlib,struct
++from pathlib import Path
++from types import SimpleNamespace
++from unittest.mock import patch
++from platform_core.competitors import analysis,engine,own,service,routes
++from platform_core.competitors.coverage import quality
++from platform_core.competitors.jobs import Journal
++from platform_core.competitors.parser import products,SourceError
++from positive import setup,endpoint,fbase,own_state,Source
++
++results={}
++def case(name,fn):
++    try:
++        passed,actual=fn();results[name]={'invariant':bool(passed),'actual':actual}
++    except Exception as exc:results[name]={'invariant':None,'harness_error':repr(exc),'trace':traceback.format_exc()}
++
++def seller_conflict_recovery():
++    f,d=own_state();client=own.Own({},lambda x:None);period=f['sellerPeriod'];round_no=0;calls=[]
++    def response(method,path,*,body=None,**kw):
++        calls.append((round_no,body['sort_by'],path))
++        if path.endswith('/details'):
++            return {'queries':[{'sku':'100001','query':'фильтр для воды','unique_search_users':100 if body['sort_by']=='BY_SEARCHES' or round_no else 999,'gmv':100}]}
++        return {'items':[{'sku':'100001','unique_search_users':100}]}
++    with tempfile.TemporaryDirectory() as tmp:
++        db=setup(Path(tmp)/'db',f,d);cache=(db,'shop',1)
++        with patch.object(client,'request',side_effect=response):
++            try:first=client.seller(['100001'],period,cache=cache)
++            except own.OzonError as e:first=e.partial
++            round_no=1;second=client.seller(['100001'],period,cache=cache)
++            round_no=2;third=client.seller(['100001'],period,cache=cache)
++        stored=json.loads(db.execute('SELECT payload FROM competitor_seller_cache').fetchone()[0]);return len(second['queries'])==len(third['queries'])==1,dict(first_errors=first['errors'],second_errors=second['errors'],second_queries=second['queries'],third_cached=third['cachedSkus'],third_queries=third['queries'],stored=stored,calls=calls)
++
++def partial_campaign_catalog():
++    f,d=own_state();d['seller']={'queries':[]};client=own.Own({'performance_secret':'dummy'},lambda x:None);calls=[]
++    def provider(method,path,**kw):
++        calls.append(path)
++        if path=='/api/client/campaign':return {'list':[{'id':'1','PaymentType':'CPC','placement':['PLACEMENT_TOP_PROMOTION']},{'id':'2','PaymentType':'CPC','placement':['PLACEMENT_TOP_PROMOTION']}]}
++        if '/campaign/1/' in path:return {'products':[{'sku':'100001'}]}
++        if '/campaign/2/' in path:raise own.OzonError('HTTP 503')
++        if path.endswith('/phrases'):return {'UUID':'00000000-0000-0000-0000-000000000001'}
++        if kw.get('csv_report'):return 'Отчёт\nSKU;Поисковый запрос;Показы;Клики\n100001;подвеска на зеркало;100;10\n'.encode()
++        return {'state':'OK'}
++    with tempfile.TemporaryDirectory() as tmp:
++        db=setup(Path(tmp)/'db',f,d)
++        with patch.object(client,'request',side_effect=provider):engine.advance(SimpleNamespace(db=db),'study',f,d,None,client,lambda:None)
++        return bool(d.get('performance',{}).get('rows')),dict(calls=calls,performance=d.get('performance'),ad_batches=d.get('adBatches'),phase=d['phase'])
++
++def photo_oversize_isolation():
++    from PIL import Image
++    stream=io.BytesIO()
++    Image.new('RGB',(1,1)).save(stream,format='PNG')
++    valid=stream.getvalue()
++    original=Image.open
++    def decode(fp,*args,**kwargs):
++        if seen[-1]==bad:
++            raise Image.DecompressionBombError('image exceeds decoder limit')
++        return original(fp,*args,**kwargs)
++    f=fbase();bad='https://ir.ozone.ru/oversize.png';good='https://ir.ozone.ru/valid.png'
++    d={'phase':'gallery','targets':['200001'],'cards':{'200001':{'photos':[bad,good]}}};seen=[]
++    def transport(url,**kw):seen.append(url);return valid,'image/png'
++    with tempfile.TemporaryDirectory() as tmp:
++        db=setup(Path(tmp)/'db',f,d);j=SimpleNamespace(db=db);src=SimpleNamespace(authorize=lambda:None);error=None
++        with patch.object(engine,'fetch',side_effect=transport),patch.object(Image,'open',side_effect=decode):
++            try:
++                for i in range(3):
++                    engine.advance(j,'study',f,d,src,None,lambda:None)
++            except Exception as e:error=type(e).__name__+': '+str(e)
++        return not error and bool(d.get('gallery',{}).get('200001',{}).get(good,{}).get('asset')),dict(error=error,visited=seen,gallery=d.get('gallery'),saved=db.execute('SELECT count(*) FROM competitor_assets').fetchone()[0],phase=d['phase'])
++
++def full_journal_reread():
++    f=fbase();d={'phase':'reviews','targets':['200001','200002'],'cards':{'200001':{'title':'a'},'200002':{'title':'b'}}}
++    class FakeProvider:
++        key='offline-repeat';sent=[];reads=0
++        def authorize(self):pass
++        def balance(self):return 100,0
++        def submit(self,kind,region,label,rows):self.sent.append((label,rows));return '1'
++        def poll(self,label):
++            self.reads+=1;rows=self.sent[0][1]
++            healthy=[{**rows[0],'offers':[{'Marketid':'200001','Offer_userComments':[{'Comment':'Previously verified','Rating':5},'corrupt']}]}] if self.reads==1 else []
++            return 'completed',{'id':'1','regioncode':'Москва','userlabel':label,'used_checks_total':2,'data':healthy+[{**rows[1],'offers':[{'Marketid':'200002','Offer_userComments':[{'Comment':'Healthy peer','Rating':5}]}]}]}
++    with tempfile.TemporaryDirectory() as tmp:
++        path=Path(tmp)/'db';db=setup(path,f,d);src=FakeProvider();j=Journal(path)
++        def checkpoint():db.execute('UPDATE competitor_studies SET result=? WHERE id=?',(json.dumps(d),'study'))
++        engine.advance(j,'study',f,d,src,None,checkpoint);j.db.execute('UPDATE competitor_jobs SET due=0')
++        engine.advance(j,'study',f,d,src,None,checkpoint)
++        assert d['reviews']['200001']['reviews'][0]['Comment']=='Previously verified'
++        d['phase']='done';checkpoint();db.execute("UPDATE competitor_studies SET status='done'")
++        label=j.get('study','reviews')['label'];resp=endpoint(db,'reread',{'id':'study','label':label});d=json.loads(resp.body)['result'];engine.advance(j,'study',f,d,src,None,checkpoint)
++        receipt_count=db.execute('SELECT count(*) FROM competitor_receipts').fetchone()[0];current=d['reviews']['200001'];peer=d['reviews']['200002'];used=j.get('study','reviews')['used'];j.close()
++        return len(current.get('reviews',[]))==1,dict(http=resp.status_code,submits=len(src.sent),polls=src.reads,receipts=receipt_count,used=used,after_reread=current,peer_reviews=len(peer.get('reviews',[])))
++
++for name,fn in [('seller_cache_conflict_recovery',seller_conflict_recovery),('partial_campaign_discovery',partial_campaign_catalog),('oversize_image_does_not_block_peer',photo_oversize_isolation),('reread_real_journal_integration',full_journal_reread)]:case(name,fn)
++print(json.dumps(results,ensure_ascii=False,indent=2))
+diff --git a/products/harness-platform/acceptance/competitor_invariants/lifecycle.py b/products/harness-platform/acceptance/competitor_invariants/lifecycle.py
+new file mode 100644
+index 0000000..612163b
+--- /dev/null
++++ b/products/harness-platform/acceptance/competitor_invariants/lifecycle.py
+@@ -0,0 +1,82 @@
++"""Cross authorization transitions with each durable supplier boundary, in a disposable database."""
++import json,sqlite3,tempfile,time
++from pathlib import Path
++from unittest.mock import patch
++from platform_core.competitors import service
++from platform_core.competitors.jobs import Journal
++from platform_core.competitors.parser import products,SourceError
++from platform_core.identity import _secret_digest
++from positive import setup,endpoint,fbase,TOKEN
++
++def scenario(boundary,action):
++    f=fbase();f['parser']='connection'
++    with tempfile.TemporaryDirectory() as td:
++        path=Path(td)/'db';db=setup(path,f,{'phase':'cards','targets':['200001']})
++        db.execute('PRAGMA foreign_keys=ON')
++        sends=[];reads=[]
++        class Provider:
++            key='offline-parser-account'
++            def __init__(self,key=None,authorize=lambda:None):self.authorize=authorize
++            def balance(self):self.authorize();return 10,0
++            def submit(self,kind,region,label,rows):
++                self.authorize();sends.append(label)
++                if boundary=='429':raise SourceError('HTTP 429',429,5)
++                if boundary=='unknown':raise SourceError('HTTP 503',503)
++                return '11'
++            def poll(self,label):
++                self.authorize();reads.append(label)
++                return 'completed',dict(id='11',used_checks_total=1,regioncode='Москва',data=[dict(code='C1',name='200001',offers=[dict(Marketid='200001',Name='Контроль')])])
++        def due():
++            db.execute('UPDATE competitor_studies SET due=0')
++            db.execute('UPDATE competitor_jobs SET due=0')
++        with patch.object(service,'permitted'),patch.object(service,'connection',return_value=(1,None)),patch.object(service,'unseal',return_value={'token':Provider.key}),patch.object(service,'Parser',Provider):
++            if boundary!='before':
++                assert service.tick(path);due()
++            if boundary=='receipt':
++                with patch('platform_core.competitors.jobs.parse_batch',side_effect=ValueError('interrupted')):
++                    assert service.tick(path)
++                assert db.execute('select used from competitor_jobs').fetchone()[0]==1
++            if boundary=='parsed':
++                assert service.tick(path)
++            due()
++            n=len(sends);r=len(reads)
++            if action=='stop':endpoint(db,'stop',{'id':'study'})
++            if action=='expired':
++                db.execute("update identity_sessions set expires_at=0")
++            if action=='delete':
++                db.execute("delete from chats where chat_id='chat'")
++            if action=='detach':
++                db.execute("insert into chat_plugins values('ozon-competitors','chat')")
++                db.execute("delete from chat_plugins where chat_id='chat'")
++            if action=='rotate':
++                from starlette.exceptions import HTTPException
++                with patch.object(service,'permitted',side_effect=HTTPException(403,'Версия подключения изменилась')):
++                    service.tick(path)
++            service.tick(path)
++            assert len(sends)==n
++            if action not in ('stop',):
++                assert len(reads)==r
++            if action=='expired':
++                db.execute('insert into identity_sessions values(?,?,?)',(_secret_digest(TOKEN),'actor',time.time()+60))
++                value=json.loads(endpoint(db,'resume',{'id':'study'}).body)
++                assert value['status']=='running'
++            if action in ('delete','detach') and n and boundary not in ('429','parsed','receipt'):
++                with JournalCloser(path) as journal:
++                    row=journal.db.execute('select * from competitor_jobs').fetchone()
++                    assert row['state']=='detached-pending' and row['rows']=='[]'
++                    journal.reconcile_detached(row['account'],Provider(),manual=True)
++                    after=journal.db.execute('select * from competitor_jobs').fetchone()
++                    assert after['data'] is None and after['used']==1 and after['state']=='detached-settled'
++            states=[list(row) for row in db.execute('select state,used,order_id from competitor_jobs')]
++            assert len(set(sends))==len(sends)
++            db.close()
++            return dict(boundary=boundary,action=action,submits=len(sends),polls=len(reads),financial=states)
++from contextlib import contextmanager
++@contextmanager
++def JournalCloser(path):
++    j=Journal(path)
++    try:yield j
++    finally:j.close()
++if __name__=='__main__':
++    results=[scenario(b,a) for b in ('before','accepted','unknown','429','receipt','parsed') for a in ('stop','expired','detach','rotate','delete')]
++    print(json.dumps(results,ensure_ascii=False,indent=1))
+diff --git a/products/harness-platform/acceptance/competitor_invariants/new_probes.py b/products/harness-platform/acceptance/competitor_invariants/new_probes.py
+new file mode 100644
+index 0000000..d87ee0f
+--- /dev/null
++++ b/products/harness-platform/acceptance/competitor_invariants/new_probes.py
+@@ -0,0 +1,131 @@
++"""Independent cross-module probes. Synthetic provider responses; no network or credentials."""
++import json,tempfile,sqlite3,time,traceback
++from pathlib import Path
++from types import SimpleNamespace
++from unittest.mock import patch
++from platform_core.competitors import analysis, engine, routes, service, own
++from platform_core.competitors.coverage import quality
++from platform_core.competitors.parser import products
++from platform_core.competitors.jobs import Journal
++from platform_core.identity import _secret_digest
++from positive import setup,endpoint,fbase,own_state,FakeJournal,SCOPE,TOKEN,Source
++
++results={}
++def case(name,fn):
++    try:
++        passed,actual=fn();results[name]={'invariant':bool(passed),'actual':actual}
++    except Exception as exc:results[name]={'invariant':None,'harness_error':repr(exc),'trace':traceback.format_exc()}
++
++def stop_reauth():
++    f=fbase(); d={'phase':'cards','targets':['200001']}
++    Source.sent=[];Source.polled=[]
++    with tempfile.TemporaryDirectory() as tmp:
++        path=Path(tmp)/'db';db=setup(path,f,d)
++        db.execute('UPDATE identity_sessions SET expires_at=0')
++        with patch.object(service,'permitted'),patch.object(service,'connection',return_value=(1,None)),patch.object(service,'unseal',return_value={'token':Source.key}),patch.object(service,'Parser',Source):
++            service.tick(path)
++            expired=db.execute('SELECT status FROM competitor_studies').fetchone()[0]
++            db.execute('INSERT INTO identity_sessions VALUES(?,?,?)',(_secret_digest(TOKEN),'actor',time.time()+3600))
++            resp=endpoint(db,'stop',{'id':'study'});stopped=json.loads(resp.body)['status']
++            resp=endpoint(db,'resume',{'id':'study'});resumed=json.loads(resp.body)['status']
++            service.tick(path)
++            return stopped=='stopped' or (stopped=='reauth' and resumed=='stopped' and not Source.sent),dict(expired=expired,stop_http=200,after_stop=stopped,after_reauth=resumed,new_submits=len(Source.sent))
++
++def partial_reread():
++    f=fbase();rows=products('reviews',['200001','200002']);d={'phase':'done','targets':['200001','200002'],'cards':{'200001':{'title':'a'},'200002':{'title':'b'}},'reviews':{'200001':{'reviews':[{'Comment':'first healthy review'}],'invalidRows':1,'order':'1','code':rows[0]['code'],'label':'old'},'200002':{'reviews':[{'Comment':'other healthy'}],'invalidRows':0,'order':'1','code':rows[1]['code'],'label':'old'}}}
++    with tempfile.TemporaryDirectory() as tmp:
++        db=setup(Path(tmp)/'db',f,d,'done')
++        db.execute('INSERT INTO competitor_jobs VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',('study','reviews','old','hash','reviews','Москва',json.dumps(rows),2,'completed',0,'1',2,json.dumps(d['reviews']),None))
++        response=endpoint(db,'reread',{'id':'study','label':'old'});d=json.loads(response.body)['result']
++        new={'200001':{'error':'MISSING_CODE','order':'1','code':rows[0]['code']},'200002':{'reviews':[{'Comment':'other healthy'}],'invalidRows':0,'order':'1','code':rows[1]['code']}}
++        j=FakeJournal(new);engine.advance(j,'study',f,d,None,None,lambda:None)
++        return len(d['reviews']['200001'].get('reviews',[]))==1,dict(http=response.status_code,old_valid_review_count=1,current=d['reviews'],other_survives=len(d['reviews']['200002'].get('reviews',[]))==1,phase=d['phase'])
++
++def incomplete_empty():
++    data={'phase':'done','targets':[],'noConfirmedPeers':True,'search':{'подвеска на зеркало':{'state':'INCOMPLETE','actual':2,'depth':32,'hits':[]}},'cards':{}}
++    q=quality(data)
++    return q['partial'] and q['outcome']!='empty',q
++
++def empty_card():
++    rows=products('cards',['200001']);data=analysis.parse_batch('cards',rows,{'id':'1','data':[{**rows[0],'offers':[{'Marketid':'200001'}]}]})
++    q=quality({'phase':'done','targets':['200001'],'cards':data,'reviews':{'200001':{'reviews':[]}},'kernel':analysis.observed(['200001'],[],{})})
++    return q['partial'] or q['validated']==0,dict(card=data['200001'],quality=q)
++
++def broad_type_conflict():
++    a=dict(title='Фильтр для аквариума',type='Фильтр для воды',breadcrumbs=['Фильтры для воды'],characteristics={'Назначение':['Для очистки воды']},description='Предназначен для фильтрации воды в аквариуме.')
++    b=dict(a,title='Фильтр для бассейна',description='Предназначен для фильтрации воды в бассейне.')
++    state,reason=analysis.decision('200001',b,[],set(),[analysis.profile(a)])
++    return state!='ELIGIBLE',dict(anchor=a,candidate=b,anchorPurpose=sorted(analysis.purpose(a)),candidatePurpose=sorted(analysis.purpose(b)),state=state,reason=reason)
++
++def mount_not_purpose():
++    a=dict(title='Держатель для телефона',type='Держатель телефона',breadcrumbs=['Держатели'],characteristics={'Назначение':['Для телефона'],'Тип крепления':['На присоске']})
++    b=dict(a,characteristics={'Назначение':['Для телефона'],'Тип крепления':['На клейкой основе']})
++    state,reason=analysis.decision('200001',b,[],set(),[analysis.profile(a)])
++    return state=='ELIGIBLE',dict(anchor=a,candidate=b,anchorPurpose=sorted(analysis.purpose(a)),candidatePurpose=sorted(analysis.purpose(b)),state=state,reason=reason)
++
++def control_other_category():
++    a=dict(title='Фильтр для аквариума',type='Фильтр',breadcrumbs=['Аквариумистика','Фильтры'],characteristics={})
++    b=dict(a,breadcrumbs=['Бассейны','Фильтры'])
++    state,reason=analysis.decision('200001',b,[],set(),[analysis.profile(a)])
++    return state=='OTHER_CATEGORY',dict(state=state,reason=reason)
++
++def control_same_purpose():
++    a=dict(title='Подвеска на зеркало',type='Магический амулет, оберег',breadcrumbs=['Обереги'],characteristics={'Назначение':['На зеркало'],'Материал':['Дерево']},Price=100)
++    b=dict(a,characteristics={'Назначение':['На зеркало'],'Материал':['Металл']},Price=1000)
++    state,reason=analysis.decision('200001',b,[],set(),[analysis.profile(a)])
++    return state=='ELIGIBLE',dict(state=state,reason=reason)
++
++def route_context():
++    f,d=own_state();d['phase']='done';d['kernel']=analysis.observed(d['targets'],d['candidates'],d['search']);d['cards']['200001']['description']='SYNTHETIC_OZON_PRIVATE_REPORT';
++    messages=['Сравни характеристики конкурентов DeepSeek и OpenRouter.','Какие поисковые фразы используют конкуренты на Wildberries?','Покажи топовые фразы конкурента 200001','Сколько будет 2+2?','Какая погода завтра?']
++    with tempfile.TemporaryDirectory() as tmp:
++        db=setup(Path(tmp)/'db',f,d,'done');facts=[]
++        with patch('platform_core.user_plugins.registry.attached',return_value=True),patch.object(routes,'permitted'):
++            for message in messages:
++                intent=routes.resolve(db,SCOPE,message);context=routes.explanation(db,SCOPE,message,intent);facts.append({'text':message,'action':intent.action,'research':intent.research,'has_report':context is not None,'sku':[s['sku'] for s in context.get('samples',[])] if context else []})
++        return facts[0]['action']=='other' and facts[1]['action']=='other' and facts[2]['has_report'] and not any(x['has_report'] for x in facts[3:]),facts
++
++def performance_invalid_all():
++    f,d=own_state();d['seller']={'queries':[]};d['adBatches']=[{'campaigns':['1'],'uuid':'00000000-0000-0000-0000-000000000001'}];client=own.Own({'performance_secret':'dummy'},lambda x:None)
++    payload='Отчёт\nSKU;Поисковый запрос;Показы;Клики\n100001;поиск;-10;0\n'.encode()
++    with tempfile.TemporaryDirectory() as tmp:
++        db=setup(Path(tmp)/'db',f,d)
++        with patch.object(client,'request',side_effect=lambda *a,**kw:payload if kw.get('csv_report') else {'state':'OK'}):
++            engine.advance(SimpleNamespace(db=db),'study',f,d,None,client,lambda:None)
++        standalone=own.performance_csv(payload);output=d['performance'];return output['totals']['all']['impressions'] is None and output['totals']['all']['clicks'] is None,dict(parsed=standalone['totals']['all'],research=output,phase=d['phase'])
++
++def csv_oversized_row():
++    f,d=own_state();d['seller']={'queries':[]};d['adBatches']=[{'campaigns':['1'],'uuid':'00000000-0000-0000-0000-000000000001'},{'campaigns':['2'],'uuid':'00000000-0000-0000-0000-000000000002'}];client=own.Own({'performance_secret':'dummy'},lambda x:None)
++    head='Отчёт\nSKU;Поисковый запрос;Показы;Клики\n'; valid='100001;подвеска на зеркало;100;10\n'
++    def provider(*a,**kw):
++        if not kw.get('csv_report'):return {'state':'OK'}
++        return (head+valid+(('100001;'+'x'*140000+';10;1\n') if kw['params']['UUID'].endswith('2') else '')).encode()
++    with tempfile.TemporaryDirectory() as tmp:
++        db=setup(Path(tmp)/'db',f,d);exception=None
++        with patch.object(client,'request',side_effect=provider):
++            try:engine.advance(SimpleNamespace(db=db),'study',f,d,None,client,lambda:None)
++            except Exception as e:exception=type(e).__name__+': '+str(e)
++        return exception is None and 'performance' in d and len(d['performance']['rows'])>=1,dict(exception=exception,phase=d['phase'],successful_batches=sum('rows' in j for j in d['adBatches']),has_result='performance' in d)
++
++def no_campaign_access_vs_failure():
++    f,d=own_state();d['seller']={'queries':[]};client=own.Own({'performance_secret':'dummy'},lambda x:None)
++    with tempfile.TemporaryDirectory() as tmp:
++        db=setup(Path(tmp)/'db',f,d)
++        with patch.object(client,'campaigns',side_effect=own.OzonError('Ozon ReadTimeout')):engine.advance(SimpleNamespace(db=db),'study',f,d,None,client,lambda:None)
++        d['reviews']={'200001':{'reviews':[]}};d['phase']='done';q=quality(d)
++        return q['partial'],dict(performance=d['performance'],quality=q)
++
++def dedup_same_phrase():
++    # Exact phrase is common to 2 cards; common search plan must not multiply by count.
++    c={'200001':{'title':'Фильтр для воды','breadcrumbs':['Фильтры'],'characteristics':{}},'200002':{'title':'Фильтр для воды','breadcrumbs':['Фильтры'],'characteristics':{}}}
++    words=analysis.candidates(c,{})
++    qs=analysis.verification_phrases(words,list(c),[],10)
++    return qs.count('Фильтр для воды')==1 and len(words['Фильтр для воды'])==2,dict(queries=qs,sources=words['Фильтр для воды'])
++
++def partial_search_rank():
++    row=products('search',['фраза'],32);data=analysis.parse_batch('search',row,{'id':'1','data':[{**row[0],'offers':[{'Marketid':'200001'},None,{'Marketid':'200002'}]}]})
++    k=analysis.observed(['200002','200003'],['фраза'],data)
++    return k['200002']['phrases']['фраза']['response_index']==3 and k['200003']['phrases']['фраза']['status']=='INCOMPLETE',k
++
++for name,fn in [('stop_after_session_expiry',stop_reauth),('reread_preserves_partial_row',partial_reread),('empty_after_incomplete_discovery',incomplete_empty),('sku_only_card_quality',empty_card),('generic_purpose_conflicting_specific_titles',broad_type_conflict),('mount_type_not_primary_purpose',mount_not_purpose),('other_category_control',control_other_category),('price_material_control',control_same_purpose),('chat_topic_boundary',route_context),('invalid_performance_total',performance_invalid_all),('csv_large_invalid_row',csv_oversized_row),('performance_failure_quality',no_campaign_access_vs_failure),('one_phrase_two_skus',dedup_same_phrase),('incomplete_search_position',partial_search_rank)]:case(name,fn)
++print(json.dumps(results,indent=2,ensure_ascii=False))
+diff --git a/products/harness-platform/acceptance/competitor_invariants/positive.py b/products/harness-platform/acceptance/competitor_invariants/positive.py
+new file mode 100644
+index 0000000..2511ff9
+--- /dev/null
++++ b/products/harness-platform/acceptance/competitor_invariants/positive.py
+@@ -0,0 +1,213 @@
++"""Acceptance fixtures derived from the rejected build. Assertions specify corrected behavior."""
++import asyncio, json, sys, tempfile, time, sqlite3, os
++from pathlib import Path
++from contextlib import contextmanager
++from unittest.mock import patch
++from types import SimpleNamespace
++import httpx
++from starlette.exceptions import HTTPException
++from starlette.responses import JSONResponse
++from platform_core.competitors import analysis, engine, routes, service, own
++from platform_core.competitors.jobs import Journal
++from platform_core.competitors.parser import products, SourceError
++from platform_core.storage import Scope
++from platform_core.identity import _secret_digest
++
++SCOPE=Scope('actor','workspace','chat')
++TOKEN='n'*43
++
++def setup(path,form,result,status='running'):
++    db=sqlite3.connect(path,isolation_level=None)
++    db.executescript('''CREATE TABLE workspaces(workspace_id TEXT PRIMARY KEY);CREATE TABLE chats(chat_id TEXT PRIMARY KEY);CREATE TABLE account_integrations(id TEXT PRIMARY KEY);CREATE TABLE chat_plugins(plugin_id TEXT,chat_id TEXT);CREATE TABLE chat_integrations(connection_id TEXT,chat_id TEXT);CREATE TABLE identity_sessions(digest BLOB PRIMARY KEY,actor_id TEXT,expires_at REAL);INSERT INTO workspaces VALUES('workspace');INSERT INTO chats VALUES('chat');''')
++    service.install(db)
++    db.execute('INSERT INTO identity_sessions VALUES(?,?,?)',(b'session','actor',time.time()+3600))
++    db.execute('INSERT INTO competitor_studies(id,workspace,chat,actor,digest,form,result,status,created) VALUES(?,?,?,?,?,?,?,?,?)',('study','workspace','chat','actor',b'session',json.dumps(form),json.dumps(result),status,time.time()))
++    return db
++
++def endpoint(db,action,args):
++    @contextmanager
++    def write():yield db
++    identity=SimpleNamespace(_db=db,_write=write,_lock=write())
++    req=SimpleNamespace(method='POST',app=SimpleNamespace(state=SimpleNamespace(identity=identity)),path_params={'chat_id':'chat','action':action},query_params={})
++    async def body(req,*keys):return args
++    fn=routes.routes(lambda req,**kw:TOKEN,body)[1].endpoint
++    with patch.object(routes,'scope_for',return_value=SCOPE),patch.object(routes,'guard'),patch.object(routes,'permitted'):
++        return asyncio.run(fn(req))
++
++class Source:
++    key='local-fake-token'; sent=[]; polled=[]
++    def __init__(self,key=None,authorize=lambda:None):self.authorize=authorize
++    def balance(self):self.authorize();return 100,0
++    def submit(self,kind,region,label,rows):self.authorize();self.sent.append((label,rows));return '123'
++    def poll(self,label):
++        self.authorize();self.polled.append(label)
++        rows=next(r for l,r in self.sent if l==label)
++        return 'completed',{'id':'123','used_checks_total':len(rows),'data':[dict(r,offers=[{'Marketid':r['name']}]) for r in rows]}
++
++def fbase(mode='B',**kw):
++    f=service.validate(dict(mode=mode,refs=['200001'],budget=60,**kw));f.update(parserVersion=1,skus=[],own=[]);return f
++
++def fixture_card(title):return dict(title=title,breadcrumbs=['Амулеты'],type='Магический амулет, оберег',characteristics={},photos=[])
++
++class FakeJournal:
++    db=None
++    def __init__(self,result):self.result=result;self.calls=[]
++    def get(self,*a):return None
++    def step(self,rid,phase,kind,region,rows,cap,source):self.calls.append({'phase':phase,'kind':kind,'rows':rows});return self.result
++
++def retry_discovery():
++    f=fbase('A',count=5,depth=8);f.update(skus=['100001'],own=['100001'])
++    q='подвеска на зеркало'; initial={'state':'ERROR','error':'MISSING_CODE','hits':[],'depth':8,'order':1,'code':'Q1'}
++    d={'phase':'selection','targets':[],'discovery':[q],'pool':[],'eligible':[],'search':{q:initial},'cards':{'100001':fixture_card('Подвеска на зеркало')}}
++    with tempfile.TemporaryDirectory() as tmp:
++        db=setup(Path(tmp)/'test.db',f,d,'selection')
++        rows=products('search',[q],8)
++        db.execute('INSERT INTO competitor_jobs VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',('study','discover','old','hash','search','Москва',json.dumps(rows),1,'completed',0,'1',1,json.dumps({q:initial}),None))
++        resp=endpoint(db,'retry-rows',{'id':'study','label':'old'})
++        d=json.loads(resp.body)['result']
++        fixed=dict(state='OK',hits=[dict(sku='200001',index=1)],depth=8,actual=8,order=2,code='Q1')
++        j=FakeJournal({q:fixed})
++        engine.advance(j,'study',f,d,None,None,lambda:None)
++        phase_after_retry=d['phase']
++        engine.advance(j,'study',f,d,None,None,lambda:None)
++        result=dict(http=resp.status_code,after_retry=phase_after_retry,search_found=d['search'][q]['hits'],pool=d['pool'],eligible=d['eligible'],phase=d['phase'],card_requests=[x for x in j.calls if x['kind']=='cards'])
++        assert result['http']==200 and result['search_found'] and result['pool']==['200001'] and result['phase']=='qualify'
++        return result
++
++def wrong_retry_receipt():
++    q='подвеска на зеркало'; shallow=products('search',[q],8);deep=products('search',[q],32)
++    current={'search':{q:dict(code='Q1',order=22,depth=32,state='ERROR',error='MISSING_CODE')}}
++    old=routes.failed_items('search',shallow,current);new=routes.failed_items('search',deep,current)
++    assert not old and new==deep
++    return dict(failed_order=22,failed_depth=32,old_successful_order=11,old_offered_for_retry=old,new_offered_for_retry=new)
++
++def expired_session():
++    f=fbase();d={'phase':'cards','targets':['200001']}
++    Source.sent=[];Source.polled=[]
++    with tempfile.TemporaryDirectory() as tmp:
++        path=Path(tmp)/'test.db';db=setup(path,f,d)
++        with patch.object(service,'permitted'),patch.object(service,'connection',return_value=(1,None)),patch.object(service,'unseal',return_value={'token':Source.key}),patch.object(service,'Parser',Source):
++            assert service.tick(path)
++            db.execute('UPDATE competitor_studies SET due=0');db.execute('UPDATE competitor_jobs SET due=0')
++            db.execute('UPDATE identity_sessions SET expires_at=0')
++            assert service.tick(path)
++            state,error=db.execute('SELECT status,error FROM competitor_studies').fetchone()
++            db.execute('INSERT INTO identity_sessions VALUES(?,?,?)',(_secret_digest(TOKEN),'actor',time.time()+3600))
++            try: endpoint(db,'resume',{'id':'study'});http=200
++            except HTTPException as e:http=e.status_code
++            job=dict(zip(['state','reserved','used','error'],db.execute('SELECT state,reserved,used,error FROM competitor_jobs').fetchone()))
++            ledger_exists=bool(db.execute("SELECT 1 FROM sqlite_master WHERE name='usage_operations'").fetchone())
++            result=dict(state=state,error=error,new_valid_session=True,resume_http=http,submits=len(Source.sent),polls=len(Source.polled),job=job,ledger_exists=ledger_exists)
++            assert state=='reauth' and http==200 and len(Source.sent)==1 and not Source.polled and job['used'] is None
++            assert service.tick(path)
++            assert len(Source.sent)==len(Source.polled)==1
++            assert db.execute('SELECT used FROM competitor_jobs').fetchone()[0]==1
++            return result
++
++def own_state():
++    f=fbase('A',phraseLimit=1,ownPhraseLimit=0);f.update(skus=['100001'],own=['100001'],relatedSkus=['100001'],store='shop',storeVersion=1,sellerPeriod={'date_from':'2026-10-28','date_to':'2026-11-25'},adPeriod={'dateFrom':'2026-11-19','dateTo':'2026-11-25'})
++    d={'phase':'own','targets':['200001'],'cards':{'100001':fixture_card('Подвеска на зеркало'),'200001':fixture_card('Подвеска на зеркало')},'candidates':{'подвеска на зеркало':[['200001','title']]},'verify':['подвеска на зеркало'],'search':{'подвеска на зеркало':{'state':'OK','hits':[{'sku':'200001','index':1}],'depth':32,'actual':32,'order':1}}}
++    return f,d
++
++def seller_partial():
++    f,d=own_state();client=own.Own({},lambda x:None);calls=[]
++    def response(method,path,*,body=None,**kw):
++        calls.append([path,body['sort_by']]);
++        if body['sort_by']=='BY_GMV':raise own.OzonError('Seller HTTP 503')
++        if path.endswith('/details'):return {'queries':[{'sku':'100001','query':'подвеска на зеркало','unique_search_users':321,'gmv':100}]}
++        return {'items':[{'sku':'100001'}]}
++    with tempfile.TemporaryDirectory() as tmp:
++        db=setup(Path(tmp)/'test.db',f,d)
++        j=SimpleNamespace(db=db)
++        with patch.object(client,'request',side_effect=response):engine.advance(j,'study',f,d,None,client,lambda:None)
++        result=dict(calls=calls,successful_query_users=321,output_seller=d['seller'],stored_cache=db.execute('SELECT count(*) FROM competitor_seller_cache').fetchone()[0],phase=d['phase'],known_demand=d['quantitative']['anchors']['100001']['products']['200001']['top']['5']['knownDemand'])
++        assert len(calls)==4 and d['seller']['queries'][0]['unique_search_users']==321 and result['stored_cache']==1 and result['known_demand']==321
++        calls.clear()
++        with patch.object(client,'request',side_effect=response):
++            client.seller(f['relatedSkus'],f['sellerPeriod'],cache=(db,'shop',1))
++        assert len(calls)==2 and all(sort=='BY_GMV' for _,sort in calls)
++        return result
++
++def performance_transport_and_csv():
++    result={}
++    for name in ['timeout','truncated_csv','invalid_numeric_csv']:
++        f,d=own_state();d['seller']={'queries':[]};d['adBatches']=[{'campaigns':['1'],'uuid':'00000000-0000-0000-0000-000000000001'},{'campaigns':['2'],'uuid':'00000000-0000-0000-0000-000000000002'}];client=own.Own({'performance_secret':'dummy'},lambda x:None)
++        reports={}
++        def request(method,path,*,params=None,csv_report=False,**kw):
++            if not csv_report:return {'state':'OK'}
++            uid=params['UUID'];reports[uid]=reports.get(uid,0)+1
++            valid='Отчёт\nSKU;Поисковый запрос;Показы;Клики\n100001;подвеска на зеркало;100;10\n'
++            if uid.endswith('1'):return valid.encode()
++            if name=='timeout':raise httpx.ReadTimeout('controlled timeout')
++            if name=='truncated_csv':return (valid+'100001;оберег;50\n').encode()
++            return (valid+'100001;оберег;not-a-number;1\n').encode()
++        with tempfile.TemporaryDirectory() as tmp:
++            db=setup(Path(tmp)/'test.db',f,d)
++            errors=[]
++            with patch.object(client,'request',side_effect=request):
++                try:engine.advance(SimpleNamespace(db=db),'study',f,d,None,client,lambda:None)
++                except Exception as e:errors.append(type(e).__name__+': '+str(e))
++            result[name]=dict(errors=errors,phase=d['phase'],has_final_performance='performance' in d,successful_first_rows=len(d['adBatches'][0].get('rows',[])),second_error=d['adBatches'][1].get('error'),final_rows=len(d.get('performance',{}).get('rows',[])),reports=reports)
++    assert all(r['has_final_performance'] and not r['errors'] and r['second_error'] and r['successful_first_rows']==1 for r in result.values())
++    assert [result[k]['final_rows'] for k in ('timeout','truncated_csv','invalid_numeric_csv')]==[1,2,2]
++    return result
++
++def bad_json_numeric():
++    rows=products('cards',['100001','200001'])
++    report={'id':42,'data':[dict(rows[0],offers=[{'Marketid':'100001','Name':'Healthy','Price':100}]),dict(rows[1],offers=[{'Marketid':'200001','Name':'Invalid numeric','SkuRating':float('nan'),'Price':float('inf')}])]}
++    data=analysis.parse_batch('cards',rows,report)
++    try:JSONResponse(data);err=None
++    except ValueError as exc:err=str(exc)
++    assert err is None and data['100001']['title']=='Healthy' and data['200001']['rating'] is None and data['200001']['Price'] is None
++    return dict(healthy_saved=True,bad_row_error=data['200001'].get('error'),bad_rating=str(data['200001']['rating']),bad_price=str(data['200001']['Price']),json_serialization_error=err)
++
++def chat_new_sku():
++    f,d=own_state();d['phase']='done';d['kernel']={'200001':{'top':{'3':[],'5':[],'10':[],'32':[]},'phrases':{}}}
++    with tempfile.TemporaryDirectory() as tmp:
++        db=setup(Path(tmp)/'test.db',f,d,'done');text='Проанализируй конкурента SKU 999999999 по поисковым фразам'
++        with patch('platform_core.user_plugins.registry.attached',return_value=True),patch.object(routes,'permitted'):
++            facts=routes.explanation(db,SCOPE,text)
++            answer=None if facts else routes.command(db,SCOPE,'new',text)
++        result=dict(text=text,returned_research_id=facts.get('researchId') if facts else None,samples=[x['sku'] for x in facts.get('samples',[])] if facts else [],draft_revision=routes.draft(db,'chat')[0],command_answer=answer)
++        assert result['returned_research_id'] is None and result['draft_revision']==1 and routes.draft(db,'chat')[1]['refs']==['999999999']
++        return result
++
++def purpose_negation():
++    anchor=fixture_card('Подвеска на зеркало в машину')
++    specimens=[dict(fixture_card('Оберег в автомобиль'),description='Нельзя повесить на зеркало. Фигурка ставится на приборную панель.'),dict(fixture_card('Оберег в машину'),description='Не подвешивается на зеркало. Ставится на панель.')]
++    results=[]
++    for card in specimens:
++        status,reason=analysis.decision('200001',card,['100001'],set(),[analysis.profile(anchor)])
++        results.append(dict(title=card['title'],description=card['description'],status=status,reason=reason))
++    assert all(x['status'] in ('NEEDS_CHECK','OTHER_TYPE') for x in results)
++    return results
++
++def partial_parser_batch():
++    f=fbase();f['refs']=['200001','200002'];d={'phase':'cards','targets':f['refs']}
++    class SplitSource(Source):
++        sent=[];polled=[]
++        def submit(self,kind,region,label,rows):
++            self.authorize();self.sent.append((label,rows))
++            if rows[0]['name']=='200002':raise SourceError('controlled HTTP 400',status=400)
++            return '123'
++    with tempfile.TemporaryDirectory() as tmp:
++        path=Path(tmp)/'test.db';db=setup(path,f,d)
++        with patch.object(service,'permitted'),patch.object(service,'connection',return_value=(1,None)),patch.object(service,'unseal',return_value={'token':SplitSource.key}),patch.object(service,'Parser',SplitSource),patch.object(engine,'batches',side_effect=lambda rows:[[r] for r in rows]):
++            for _ in range(3):
++                assert service.tick(path);db.execute('UPDATE competitor_studies SET due=0');db.execute('UPDATE competitor_jobs SET due=0')
++            status,result,error=db.execute('SELECT status,result,error FROM competitor_studies').fetchone()
++            completed=db.execute("SELECT data,used FROM competitor_jobs WHERE state='completed'").fetchone()
++            assert completed and '200001' in json.loads(completed[0]) and completed[1]==1
++            assert '200001' in json.loads(result)['cards'] and json.loads(result)['cards']['200002'].get('error')
++            assert len(SplitSource.sent)==2
++            ops=db.execute("SELECT count(*) FROM usage_operations WHERE source='parser.market'").fetchone()[0]
++            return dict(status=status,error=error,paid_completed_data=list(json.loads(completed[0])),receipt_count=ops,visible_cards=list(json.loads(result)['cards']),submitted=len(SplitSource.sent))
++
++if __name__=='__main__':
++    funcs=[retry_discovery,wrong_retry_receipt,expired_session,seller_partial,performance_transport_and_csv,bad_json_numeric,chat_new_sku,purpose_negation,partial_parser_batch]
++    result={}
++    for fn in funcs:
++        try:result[fn.__name__]={'passed':True,'result':fn()}
++        except Exception as exc:
++            import traceback;result[fn.__name__]={'passed':False,'error':type(exc).__name__+': '+str(exc),'traceback':traceback.format_exc()}
++    print(json.dumps(result,ensure_ascii=False,indent=2));assert all(r['passed'] for r in result.values())
+diff --git a/products/harness-platform/acceptance/competitor_invariants/race_probe.py b/products/harness-platform/acceptance/competitor_invariants/race_probe.py
+new file mode 100644
+index 0000000..a50c56e
+--- /dev/null
++++ b/products/harness-platform/acceptance/competitor_invariants/race_probe.py
+@@ -0,0 +1,29 @@
++"""Race between confirmed provider receipt and platform-account deletion. Offline only."""
++import json,tempfile,sqlite3,time,traceback
++from pathlib import Path
++from unittest.mock import patch
++from platform_core.competitors import service,jobs,analysis
++from positive import setup,fbase,Source
++
++def run():
++ f=fbase();d={'phase':'cards','targets':['200001']};Source.sent=[];Source.polled=[]
++ with tempfile.TemporaryDirectory() as tmp:
++  path=Path(tmp)/'db';db=setup(path,f,d);db.execute('PRAGMA foreign_keys=ON')
++  with patch.object(service,'permitted'),patch.object(service,'connection',return_value=(1,None)),patch.object(service,'unseal',return_value={'token':Source.key}),patch.object(service,'Parser',Source):
++   assert service.tick(path)
++   db.execute('UPDATE competitor_jobs SET due=0');db.execute('UPDATE competitor_studies SET due=0')
++   real=analysis.parse_batch;stage={}
++   def deleted_after_receipt(kind,rows,report):
++    stage['receipts_before_delete']=db.execute('SELECT count(*) FROM competitor_receipts').fetchone()[0]
++    db.execute("DELETE FROM workspaces WHERE workspace_id='workspace'")
++    stage['studies_after_delete']=db.execute('SELECT count(*) FROM competitor_studies').fetchone()[0]
++    return real(kind,rows,report)
++   exc=None
++   with patch.object(jobs,'parse_batch',side_effect=deleted_after_receipt):
++    try:service.tick(path)
++    except Exception as e:exc=type(e).__name__+': '+str(e)
++   assert stage=={'receipts_before_delete':1,'studies_after_delete':0},stage
++   row=db.execute('SELECT state,used,data FROM competitor_jobs').fetchone()
++   actual={'exception':exc,'boundary':stage,'submits':len(Source.sent),'polls':len(Source.polled),'job':list(row),'receipt_count':db.execute('SELECT count(*) FROM competitor_receipts').fetchone()[0]}
++   return {'invariant':exc is None,'actual':actual}
++print(json.dumps({'receipt_committed_then_account_deleted':run()},ensure_ascii=False,indent=2))
+diff --git a/products/harness-platform/acceptance/competitor_invariants/system_probes.py b/products/harness-platform/acceptance/competitor_invariants/system_probes.py
+new file mode 100644
+index 0000000..ce63454
+--- /dev/null
++++ b/products/harness-platform/acceptance/competitor_invariants/system_probes.py
+@@ -0,0 +1,271 @@
++"""Independent system audit, candidate 5877dab. No live API, production DB or provider keys.
++Run with PYTHONPATH pointing to candidate products/harness-platform.
++Every check describes an invariant. A violated invariant is a product finding, not a failed test harness.
++"""
++import json, sqlite3, tempfile, time, sys, math, traceback
++from pathlib import Path
++from types import SimpleNamespace
++from unittest.mock import patch
++from starlette.exceptions import HTTPException
++from starlette.responses import JSONResponse
++from platform_core.competitors import analysis, engine, service, routes, own, parser, comparison
++from platform_core.competitors.jobs import Journal
++from platform_core.competitors.parser import products, SourceError
++sys.path.insert(0,str(Path(__file__).parent))
++import positive as prev
++
++class Stub:
++    key='synthetic-local'; order_id=None
++    def __init__(self,balance=100, used=1, order='111', region='Москва', submit_status=0):
++        self.b=balance; self.used=used; self.order=order; self.region=region; self.status=submit_status; self.sends=[]; self.polls=[]
++    def authorize(self): pass
++    def balance(self):return self.b,0
++    def submit(self,kind,region,label,rows):
++        self.sends.append((kind,region,label,rows))
++        if self.status:raise SourceError('synthetic status',self.status,1)
++        return self.order
++    def poll(self,label):
++        self.polls.append(label)
++        rows=self.sends[0][-1]
++        return 'completed', {'id':self.order,'regioncode':self.region,'used_checks_total':self.used,'data':[dict(r,offers=[{'Marketid':r['name']}]) for r in rows]}
++
++def due(j):j.db.execute('UPDATE competitor_jobs SET due=0')
++def jout(j):return [dict(x) for x in j.db.execute('SELECT research,phase,label,order_id,state,used,reserved,error FROM competitor_jobs')]
++
++def cap_actual():
++    with tempfile.TemporaryDirectory() as tmp:
++        j=Journal(Path(tmp)/'db');s=Stub(used=2)
++        rows=products('cards',['200001']);j.step('r','card','cards','Москва',rows,1,s);due(j);j.step('r','card','cards','Москва',rows,1,s)
++        row=jout(j)[0];j.close()
++        return row['used']<=1 or (row['error'] is not None and row['state']!='completed'),dict(cap=1,estimate=1,actual=row['used'],state=row['state'],error=row['error'],sends=len(s.sends))
++
++def changed_order():
++    with tempfile.TemporaryDirectory() as tmp:
++        j=Journal(Path(tmp)/'db');s=Stub(order='111');rows=products('cards',['200001'])
++        j.step('r','card','cards','Москва',rows,10,s);due(j);s.order='222';j.step('r','card','cards','Москва',rows,10,s)
++        row=jout(j)[0];j.close()
++        return row['order_id']=='111' and row['state']!='completed',dict(accepted='111',reported='222',stored=row)
++
++def wrong_region():
++    with tempfile.TemporaryDirectory() as tmp:
++        j=Journal(Path(tmp)/'db');s=Stub(region='OTHER_REGION');rows=products('cards',['200001'])
++        j.step('r','card','cards','Москва',rows,10,s);due(j);data=j.step('r','card','cards','Москва',rows,10,s)
++        row=jout(j)[0];j.close()
++        return data is None or data['200001'].get('error') is not None,dict(requested='Москва',returned=data['200001']['region'],state=row['state'])
++
++def receipt_rewrite():
++    with tempfile.TemporaryDirectory() as tmp:
++        j=Journal(Path(tmp)/'db');s=Stub(used=1);rows=products('cards',['200001']);j.step('r','card','cards','Москва',rows,10,s);due(j)
++        # Simulate a crash immediately after committing the receipt but before row decoding.
++        with patch('platform_core.competitors.jobs.parse_batch',side_effect=RuntimeError('interrupted after receipt')):
++            try:j.step('r','card','cards','Москва',rows,10,s)
++            except RuntimeError:pass
++        old=jout(j)[0];s.used=3;due(j);j.step('r','card','cards','Москва',rows,10,s);new=jout(j)[0];j.close()
++        return old['used']==new['used'],dict(old=old,new=new,polls=len(s.polls),submits=len(s.sends))
++
++def exhausted_429():
++    with tempfile.TemporaryDirectory() as tmp:
++        j=Journal(Path(tmp)/'db');s=Stub(submit_status=429);rows=products('cards',['200001']);
++        for _ in range(12):j.step('r','card','cards','Москва',rows,10,s);due(j)
++        row=jout(j)[0];j.close()
++        return len(s.sends)<=5,dict(attempts=len(s.sends),state=row['state'],reserved=row['reserved'],used=row['used'])
++
++def terminal_provider_hold():
++    with tempfile.TemporaryDirectory() as tmp:
++        j=Journal(Path(tmp)/'db');s=Stub(balance=1);rows=products('cards',['200001']);j.step('r','card','cards','Москва',rows,1,s);due(j)
++        s.poll=lambda label:('cancelled',None)
++        j.step('r','card','cards','Москва',rows,1,s)
++        row=jout(j)[0]
++        try:j.step('r2','card','cards','Москва',rows,1,s);blocked=False
++        except ValueError:blocked=True
++        j.close()
++        # Cannot release unknown cost, but terminal status currently prevents any later polling/reconciliation.
++        return not (blocked and row['state']=='provider-stopped' and row['used'] is None),dict(terminal=row,new_research_blocked=blocked,provider_balance=1)
++
++def deleted_study_orphan():
++    f=prev.fbase();d={'phase':'cards','targets':['200001']}
++    with tempfile.TemporaryDirectory() as tmp:
++        path=Path(tmp)/'db';db=prev.setup(path,f,d);db.execute('PRAGMA foreign_keys=ON');j=Journal(path);s=Stub(balance=1);rows=products('cards',['200001']);j.step('study','card','cards','Москва',rows,1,s)
++        db.execute("DELETE FROM chats WHERE chat_id='chat'");due(j)
++        row=jout(j)[0]
++        try:j.step('second','card','cards','Москва',rows,1,s);blocked=False
++        except ValueError:blocked=True
++        did_tick=service.tick(path)
++        orphan=db.execute('SELECT count(*) FROM competitor_jobs j LEFT JOIN competitor_studies r ON r.id=j.research WHERE r.id IS NULL AND j.used IS NULL').fetchone()[0]
++        j.close();db.close()
++        return not (orphan and blocked and not did_tick),dict(orphan_holds=orphan,orphan=row,worker_found_study=did_tick,new_study_blocked=blocked)
++
++def deleted_settled_receipt():
++    f=prev.fbase();d={'phase':'cards','targets':['200001']}
++    with tempfile.TemporaryDirectory() as tmp:
++        path=Path(tmp)/'db';db=prev.setup(path,f,d);db.execute('PRAGMA foreign_keys=ON');j=Journal(path);s=Stub();rows=products('cards',['200001']);j.step('study','card','cards','Москва',rows,10,s);due(j);j.step('study','card','cards','Москва',rows,10,s)
++        service.record_receipts(j.db,prev.SCOPE,'study')
++        before=jout(j);db.execute("DELETE FROM chats WHERE chat_id='chat'");after=jout(j)
++        ledger=db.execute("SELECT count(*) FROM usage_operations WHERE source='parser.market'").fetchone()[0]
++        j.close();db.close()
++        return bool(after) or not ledger,dict(before=before,after=after,ledger_rows=ledger)
++
++def budget_quote_a():
++    f=prev.fbase('A',count=5,phraseLimit=1,depth=8);f.update(skus=['100001','100002'])
++    q=routes.quote(f);reported=next(s['checks'] for s in q['stages'] if s['stage'].startswith('Отзывы'))
++    # engine explicitly requests competitor targets plus selected own SKUs in A.
++    class Capture:
++        db=None
++        def __init__(self):self.rows=[]
++        def get(self,*a):return None
++        def step(self,rid,phase,kind,region,rows,cap,source):self.rows.extend(rows);return {r['name']:{'reviews':[]} for r in rows}
++    j=Capture();targets=[str(200001+i) for i in range(5)];d={'phase':'reviews','targets':targets,'cards':{s:{} for s in targets+f['skus']}}
++    engine.advance(j,'r',f,d,None,None,lambda:None)
++    return reported==len(j.rows),dict(quote_reviews=reported,planned_reviews=len(j.rows),selected_own=f['skus'],targets=targets)
++
++def false_complete_search():
++    rows=products('search',['фраза'],2);report={'id':'1','data':[dict(rows[0],offers=[{'Marketid':'200001'},'damaged',{'Marketid':'200002'}])]}
++    data=analysis.parse_batch('search',rows,report)['фраза'];miss=analysis.observed(['200003'],['фраза'],{'фраза':data})['200003']['phrases']['фраза']
++    return data['state']!='OK' and miss['status']!='NOT_FOUND_IN_SAMPLE',dict(row=data,absent=miss)
++
++def malformed_review_fields():
++    rows=products('reviews',['200001']);report={'id':'1','data':[dict(rows[0],offers=[{'Marketid':'200001','Offer_userComments':[{'Comment':{'bad':'shape'},'Rating':-1}, {'Comment':'ok','Rating':6},'broken']}])]}
++    data=analysis.parse_batch('reviews',rows,report)['200001'];reviews=data.get('reviews',[])
++    return bool(data.get('error')) or all(isinstance(x.get('Comment'),str) and (x.get('Rating') is None or 1<=x['Rating']<=5) for x in reviews),dict(row=data)
++
++def invalid_performance_numbers():
++    payload='Заголовок\nSKU;Поисковый запрос;Показы;Клики\n200001;фраза;10;20\n200001;другая;-10;-3\n'.encode()
++    d=own.performance_csv(payload,{'200001'})
++    return all(r['impressions']>=0 and r['clicks']>=0 for r in d['rows']),dict(result=d)
++
++def distinct_public_category():
++    def c(path):return dict(title='Фильтр для воды',type='Фильтр для воды',breadcrumbs=['Фильтры'],publicCategories=[{'name':'Фильтры','url':'https://www.ozon.ru/category/'+path}],characteristics={})
++    a,b=c('filter-123'),c('filter-456');state,reason=analysis.decision('200001',b,[],set(),[analysis.profile(a)])
++    return state!='ELIGIBLE',dict(a=a['publicCategories'],b=b['publicCategories'],result=state,reason=reason)
++
++def conflicting_usage():
++    a=prev.fixture_card('Подвеска на зеркало в машину');b=dict(prev.fixture_card('Подвеска на зеркало в машину'),characteristics={'Назначение':['На запястье']},description='Регулируемый браслет для ношения на запястье')
++    state,reason=analysis.decision('200001',b,[],set(),[analysis.profile(a)])
++    return state!='ELIGIBLE',dict(result=state,reason=reason,profile=sorted(analysis.profile(b)[2]))
++
++def seller_missing_summary():
++    client=own.Own({},lambda x:None)
++    def request(method,path,*,body=None,**kwargs):return {'queries':[]} if path.endswith('/details') else {'items':[]}
++    with patch.object(client,'request',side_effect=request):d=client.seller(['200001'],{'date_from':'2026-10-28','date_to':'2026-11-25'})
++    # Explicit missing summary and withoutQueries should not be false complete data.
++    return d['missingSummary']==['200001'] and d['withoutQueries']==['200001'],dict(result=d)
++
++def seller_invalid_numbers():
++    client=own.Own({},lambda x:None)
++    def request(method,path,*,body=None,**kwargs):return {'queries':[{'sku':'200001','query':'фраза','unique_search_users':-10,'gmv':-30}]} if path.endswith('/details') else {'items':[{'sku':'200001'}]}
++    try:
++        with patch.object(client,'request',side_effect=request):d=client.seller(['200001'],{'date_from':'2026-10-28','date_to':'2026-11-25'})
++    except ValueError as e:return True,dict(error=str(e))
++    return all(q['unique_search_users']>=0 for q in d['queries']),dict(queries=d['queries'])
++
++def direct_missing_card():
++    f=prev.fbase(phraseLimit=1);d={'phase':'cards','targets':['200001']}
++    j=prev.FakeJournal({'200001':{'error':'SKU_MISMATCH','order':1}})
++    for _ in range(10):
++        if d['phase']=='done':break
++        engine.advance(j,'r',f,d,None,None,lambda:None)
++    with tempfile.TemporaryDirectory() as tmp:
++        db=prev.setup(Path(tmp)/'db',f,d,'done')
++        with patch('platform_core.user_plugins.registry.attached',return_value=True),patch.object(routes,'permitted'):
++            fact=routes.explanation(db,prev.SCOPE,'Покажи фразы конкурента')
++        db.close()
++    return not (d['phase']=='done' and fact and fact['исследовано товаров']>0),dict(phase=d['phase'],card=d['cards']['200001'],fact=fact)
++
++def completed_photo_retry():
++    f=prev.fbase();url='https://ir.ozone.ru/a.jpg';d={'phase':'gallery','targets':['200001'],'cards':{'200001':{'photos':[url]}}}
++    j=SimpleNamespace(db=None);s=SimpleNamespace(authorize=lambda:None)
++    with patch.object(engine,'photo',side_effect=SourceError('HTTP 503',503)) as p:engine.advance(j,'r',f,d,s,None,lambda:None)
++    with patch.object(engine,'photo',return_value='valid_asset') as p:
++        engine.advance(j,'r',f,d,s,None,lambda:None)
++        called=p.call_count
++    return d['phase']!='done' or called>0,dict(phase=d['phase'],gallery=d['gallery'],retry_after_recovery=called)
++
++def duplicate_order_across_phases():
++    with tempfile.TemporaryDirectory() as tmp:
++        j=Journal(Path(tmp)/'db');s=Stub(order='111');rows=products('cards',['200001'])
++        j.step('r','first','cards','Москва',rows,10,s);due(j);j.step('r','first','cards','Москва',rows,10,s)
++        j.step('r','second','cards','Москва',rows,10,s);due(j);j.step('r','second','cards','Москва',rows,10,s)
++        data=jout(j);j.close()
++        return len({x['order_id'] for x in data if x['state']=='completed'})==len([x for x in data if x['state']=='completed']),dict(rows=data)
++
++def same_plan_idempotent():
++    with tempfile.TemporaryDirectory() as tmp:
++        j=Journal(Path(tmp)/'db');s=Stub();rows=products('cards',['200001']);j.step('r','card','cards','Москва',rows,10,s);j.step('r','card','cards','Москва',rows,10,s);due(j);j.step('r','card','cards','Москва',rows,10,s);j.step('r','card','cards','Москва',rows,10,s)
++        j.close();return len(s.sends)==1 and len(s.polls)==1,dict(sends=len(s.sends),polls=len(s.polls))
++
++def mismatch_rows_isolated():
++    rows=products('cards',['200001','200002']);report={'id':'1','data':[dict(rows[0],offers=[{'Marketid':'200001'}]),dict(rows[1],offers=[{'Marketid':'200003'}])]}
++    data=analysis.parse_batch('cards',rows,report)
++    return data['200001']['sku']=='200001' and data['200002']['error']=='SKU_MISMATCH',dict(result=data)
++
++def cross_user_idor():
++    f=prev.fbase();d={'phase':'cards','targets':['200001']}
++    with tempfile.TemporaryDirectory() as tmp:
++        db=prev.setup(Path(tmp)/'db',f,d)
++        try:
++            with patch.object(routes,'permitted'):routes.lookup(db,service.Scope('other','workspace','chat'),'study')
++        except HTTPException as e:return e.status_code==404,dict(status=e.status_code)
++        finally:db.close()
++        return False,dict(status=200)
++
++def unknown_submit_no_duplicate():
++    with tempfile.TemporaryDirectory() as tmp:
++        j=Journal(Path(tmp)/'db');s=Stub(submit_status=503);rows=products('cards',['200001']);j.step('r','card','cards','Москва',rows,10,s);s.poll=lambda label:('pending',None)
++        for _ in range(6):due(j);j.step('r','card','cards','Москва',rows,10,s)
++        data=jout(j);j.close();return len(s.sends)==1,dict(sends=len(s.sends),state=data[0]['state'])
++
++def secure_photo_urls():
++    bad=['http://ir.ozone.ru/a.jpg','https://ir.ozone.ru@127.0.0.1/a.jpg','https://ir.ozone.ru.evil.invalid/a.jpg','https://127.0.0.1/a.jpg','https://ir.ozone.ru:8080/a.jpg']
++    return all(not analysis.photo_url(u) for u in bad) and analysis.photo_url('https://ir.ozone.ru/a.jpg'),dict(rejected=[u for u in bad if not analysis.photo_url(u)])
++
++def secret_in_provider_error():
++    from contextlib import contextmanager
++    sentinel='SYNTHETIC_NOT_A_REAL_KEY_9876'
++    client=own.Own({'client_id':'1','api_key':sentinel},lambda x:None)
++    class Response:
++        status_code=400;headers={}
++        def iter_bytes(self):yield json.dumps({'message':'invalid credential '+sentinel}).encode()
++    @contextmanager
++    def stream(*args,**kwargs):yield Response()
++    with patch.object(own.httpx,'stream',stream):
++        try:client.request('POST','/v1/analytics/product-queries',body={})
++        except own.OzonError as e:
++            return sentinel not in str(e),dict(redacted=sentinel not in str(e),error=str(e))
++    return False,dict(error='did not raise expected error')
++
++def concurrent_same_plan():
++    from concurrent.futures import ThreadPoolExecutor
++    from threading import Barrier,Lock
++    with tempfile.TemporaryDirectory() as tmp:
++        path=Path(tmp)/'db';j=Journal(path);j.close();s=Stub();barrier=Barrier(2);lock=Lock();rows=products('cards',['200001'])
++        def run():
++            j=Journal(path)
++            try:barrier.wait(timeout=5);j.step('r','same-phase','cards','Москва',rows,10,s)
++            finally:j.close()
++        with ThreadPoolExecutor(max_workers=2) as pool:list(pool.map(lambda _:run(),range(2)))
++        j=Journal(path);data=jout(j);j.close()
++        return len(s.sends)==1 and len(data)==1,dict(submits=len(s.sends),jobs=data)
++
++def concurrent_reserve_limit():
++    from concurrent.futures import ThreadPoolExecutor
++    from threading import Barrier
++    with tempfile.TemporaryDirectory() as tmp:
++        path=Path(tmp)/'db';j=Journal(path);j.close();s=Stub(balance=1);barrier=Barrier(2);rows=products('cards',['200001'])
++        def run(r):
++            j=Journal(path)
++            try:
++                barrier.wait(timeout=5)
++                try:j.step(r,'card','cards','Москва',rows,1,s);return 'admitted'
++                except ValueError:return 'blocked'
++            finally:j.close()
++        with ThreadPoolExecutor(max_workers=2) as pool:states=list(pool.map(run,['first','second']))
++        return sorted(states)==['admitted','blocked'] and len(s.sends)==1,dict(states=states,submits=len(s.sends))
++
++CASES=[cap_actual,changed_order,wrong_region,receipt_rewrite,exhausted_429,terminal_provider_hold,deleted_study_orphan,deleted_settled_receipt,budget_quote_a,false_complete_search,malformed_review_fields,invalid_performance_numbers,distinct_public_category,conflicting_usage,seller_missing_summary,seller_invalid_numbers,direct_missing_card,completed_photo_retry,duplicate_order_across_phases,same_plan_idempotent,mismatch_rows_isolated,cross_user_idor,unknown_submit_no_duplicate,secure_photo_urls,secret_in_provider_error,concurrent_same_plan,concurrent_reserve_limit]
++if __name__=='__main__':
++    out={}
++    for fn in CASES:
++        try:
++            ok,result=fn();out[fn.__name__]={'status':'PASS' if ok else 'FAIL','result':result}
++        except Exception as e:out[fn.__name__]={'status':'PROBE_ERROR','error':repr(e),'traceback':traceback.format_exc()}
++    print(json.dumps(out,ensure_ascii=False,indent=2,default=str))
+diff --git a/products/harness-platform/acceptance/competitor_invariants/ui_projection.mjs b/products/harness-platform/acceptance/competitor_invariants/ui_projection.mjs
+new file mode 100644
+index 0000000..5896fa8
+--- /dev/null
++++ b/products/harness-platform/acceptance/competitor_invariants/ui_projection.mjs
+@@ -0,0 +1,9 @@
++import fs from 'node:fs';import vm from 'node:vm';import path from 'node:path';
++const context={window:{}};vm.createContext(context);vm.runInContext(fs.readFileSync(path.join(process.env.OCTOPORT_REVIEW_PROJECT,'native/web/competitors.js'),'utf8'),context);
++const form={mode:'B',parser:'p',store:'',selected:[],categories:[],refs:['200001'],phrases:[],region:'Москва',depth:16,verifyDepth:32,count:5,budget:60,phraseLimit:16,ownPhraseLimit:3,allSelected:false,compareOwn:false};
++const meta={form,connections:[],products:[],studies:[],revision:1};
++function render(result){const study={id:'r',status:'done',form,error:'',assets:[],receipts:[],result};const state=[meta,form,study,'',false,['200001'],null,'','','rank',''];let i=0;const React={Fragment:'fragment',useState:()=>[state[i++],()=>{}],useRef:()=>({current:null}),useEffect:()=>{}};const h=(type,props,...children)=>({type,props,children});const Panel=context.window.octoCompetitorPanel(React,h,()=>{},()=>{},'Dialog','Action');const tree=Panel({url:'/api/chats/x/plugins/ozon-competitors',title:'Анализ конкурентов Ozon',close:()=>{}});function text(v){if(v==null||v===false)return '';if(Array.isArray(v))return v.map(text).join('\n');if(typeof v==='object')return text(v.children);return String(v);}return text(tree);}
++const empty={phrases:{},top:{'3':[],'5':[],'10':[],'32':[]}};
++const miss=render({phase:'done',targets:['200001'],cards:{'200001':{error:'SKU_MISMATCH'}},kernel:{'200001':empty}});
++const gallery=render({phase:'done',targets:['200001'],cards:{'200001':{title:'Товар',photos:['https://ir.ozone.ru/a.jpg']}},kernel:{'200001':empty},gallery:{'200001':{'https://ir.ozone.ru/a.jpg':{error:'SYNTHETIC_PHOTO_HTTP_503'}}}});
++console.log(JSON.stringify({missingCard:{showsReady:miss.includes('Готово'),showsError:miss.includes('SKU_MISMATCH'),text:miss},gallery:{showsReady:gallery.includes('Готово'),showsError:gallery.includes('SYNTHETIC_PHOTO_HTTP_503'),text:gallery}},null,2));
+diff --git a/products/harness-platform/acceptance/competitor_invariants/ui_quality_probe.mjs b/products/harness-platform/acceptance/competitor_invariants/ui_quality_probe.mjs
+new file mode 100644
+index 0000000..017aeaa
+--- /dev/null
++++ b/products/harness-platform/acceptance/competitor_invariants/ui_quality_probe.mjs
+@@ -0,0 +1,10 @@
++import fs from 'node:fs';import vm from 'node:vm';import path from 'node:path';
++const context={window:{}};vm.createContext(context);vm.runInContext(fs.readFileSync(path.join(process.env.OCTOPORT_REVIEW_PROJECT,'native/web/competitors.js'),'utf8'),context);
++const form={mode:'B',parser:'p',store:'',selected:[],categories:[],refs:['200001'],phrases:[],region:'Москва',depth:16,verifyDepth:32,count:5,budget:60,phraseLimit:16,ownPhraseLimit:3,allSelected:false,compareOwn:false};
++const meta={form,connections:[],products:[],studies:[],revision:1};
++function render(result,quality,status='done'){const study={id:'r',status,quality,form,error:'',assets:[],receipts:[],result};const state=[meta,form,study,'',false,['200001'],null,'','','rank',''];let i=0;const React={Fragment:'fragment',useState:()=>[state[i++],()=>{}],useRef:()=>({current:null}),useEffect:()=>{}};const h=(type,props,...children)=>({type,props,children});const Panel=context.window.octoCompetitorPanel(React,h,()=>{},()=>{},'Dialog','Action');const tree=Panel({url:'/api/chats/x/plugins/ozon-competitors',title:'Анализ конкурентов Ozon',close:()=>{}});function text(v){if(v==null||v===false)return '';if(Array.isArray(v))return v.map(text).join('\n');if(typeof v==='object')return text(v.children);return String(v);}return text(tree);}
++const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
++const empty=render({phase:'done',targets:[],noConfirmedPeers:true,search:{'фильтр':{state:'INCOMPLETE',depth:32,actual:2}}},d.empty_after_incomplete_discovery.actual);
++const c=d.sku_only_card_quality.actual;
++const sku=render({phase:'done',targets:['200001'],cards:{'200001':c.card},reviews:{'200001':{reviews:[]}},kernel:{}},c.quality);
++console.log(JSON.stringify({incompleteDiscovery:{showsReady:empty.includes('Готово'),showsPartial:empty.includes('Завершено с неполными данными'),text:empty},skuOnly:{showsReady:sku.includes('Готово'),showsPartial:sku.includes('Завершено с неполными данными'),text:sku}},null,2));
 diff --git a/products/harness-platform/deploy/competitors/ROLLBACK_RU.md b/products/harness-platform/deploy/competitors/ROLLBACK_RU.md
 new file mode 100644
 index 0000000..972b7cd
@@ -99,7 +1175,7 @@ index 0000000..c0223e1
 +
 +COMMIT;
 diff --git a/products/harness-platform/native/web/competitors.js b/products/harness-platform/native/web/competitors.js
-index cddb3ab..0f7e19b 100644
+index cddb3ab..0f8360c 100644
 --- a/products/harness-platform/native/web/competitors.js
 +++ b/products/harness-platform/native/web/competitors.js
 @@ -1,6 +1,6 @@
@@ -118,7 +1194,7 @@ index cddb3ab..0f7e19b 100644
        button('Сохранить черновик',async()=>{const m=await send(url+'/save',{revision:meta.revision,form:clean()});setMeta({...m,products:meta.products});setForm(m.form);}),
        button('Подтвердить лимит и начать',async()=>{
          if(!launch.current){
-@@ -131,9 +132,18 @@ window.octoCompetitorPanel = function(React,h,api,send,Dialog,Action) {
+@@ -131,11 +132,20 @@ window.octoCompetitorPanel = function(React,h,api,send,Dialog,Action) {
        const run=(action,extra={})=>async()=>show(await send(url+'/'+action,{id:study.id,...extra}));
        const rows=Object.values(d.kernel||{}).flatMap(k=>Object.values(k.phrases||{}));
        const failedSearch=rows.some(r=>r.status==='ERROR'||r.status==='INCOMPLETE')||(rows.length>0&&rows.every(r=>r.status==='UNCHECKED'));
@@ -130,15 +1206,27 @@ index cddb3ab..0f7e19b 100644
        return h('section',null,h('h3',null,heading),h('p',null,'Этап '+d.phase+' · '+study.form.region),
 -        d.noConfirmedPeers&&h('p',null,'В проверенной выборке подходящих конкурентов не подтверждено.'),
 +        q&&h('p',null,'Выбрано товаров '+q.requested+' · подтверждено карточек '+q.validated+' · получены отзывы для '+q.reviewed+' · скачано фото '+q.photoFetched),
-+        (q?.failures||[]).filter(v=>v.source==='review').map(v=>h('p',{key:v.sku+v.error},v.sku+' · '+v.error)),
++        (q?.failures||[]).map((v,i)=>h('p',{key:v.source+i},[v.sku||v.phrase||v.campaign||v.source,v.error].filter(Boolean).join(' · '))),
 +        photoErrors.map(v=>h('p',{key:v.sku+v.url},v.sku+' · '+v.url+' · '+v.error)),
 +        photoErrors.length>0&&study.status==='done'&&button('Повторить загрузку недостающих фото',run('retry-photos')),
-+        d.seller?.errors?.length>0&&study.status==='done'&&button('Повторить неполные срезы Seller',run('retry-seller')),
++        (d.seller?.error||d.seller?.errors?.length>0)&&study.status==='done'&&button('Повторить неполные срезы Seller',run('retry-seller')),
 +        study.status==='reauth'&&button('Подтвердить доступ',run('resume')),
 +        d.noConfirmedPeers&&!q?.partial&&h('p',null,'В проверенной выборке подходящих конкурентов не подтверждено.'),
          study.error&&h('p',{role:'alert'},study.error),
-         study.status==='running'&&button('Остановить',run('stop')),
+-        study.status==='running'&&button('Остановить',run('stop')),
++        ['reauth','running','selection','paused'].includes(study.status)&&button('Остановить',run('stop')),
          study.status==='paused'&&h('div',null,h('label',null,'Новый верхний лимит проверок',h('input',{type:'number',value:increase,onChange:e=>setIncrease(e.target.value)})),button('Подтвердить новый лимит',run('budget',{budget:Number(increase)}),Number(increase)<=study.form.budget)),
+         ['paused','stopped'].includes(study.status)&&button('Продолжить',run('resume')),
+         study.status==='selection'&&h('fieldset',null,h('legend',null,'Поисковые конкуренты'),
+@@ -155,7 +165,7 @@ window.octoCompetitorPanel = function(React,h,api,send,Dialog,Action) {
+               onChange:e=>{const selected=e.target.checked;setStudy({...study,assets:study.assets.map(item=>item.id===a.id?{...item,selected}:item)});
+                 act(async()=>{try{await run('select-photo',{asset:a.id,selected})();}catch(err){setStudy(study);throw err;}});}}),'Выбрать референсом'));}));}),
+         matrix(d.quantitative),
+-        study.status==='done'&&d.adBatches?.some(j=>j.error&&j.uuid&&!['CANCELLED','ERROR'].includes(j.state))&&button('Повторить чтение отчётов Performance',run('retry-ads')),
++        study.status==='done'&&(d.campaignErrors?.length>0||d.adBatches?.some(j=>j.error&&j.uuid&&!['CANCELLED','ERROR'].includes(j.state)))&&button('Повторить чтение отчётов Performance',run('retry-ads')),
+         d.performance?.reason&&h('p',null,'Рекламные фразы · '+d.performance.reason),
+         study.form.mode==='B'&&!study.form.compareOwn&&d.kernel&&h('p',null,'Данные спроса Seller доступны при сравнении со своим товаром.'),
+         d.comparisonCards&&h('section',null,h('h3',null,'Сравнение с вашими товарами'),Object.entries(d.comparisonCards).map(([sku,comparison])=>{
 @@ -172,7 +182,7 @@ window.octoCompetitorPanel = function(React,h,api,send,Dialog,Action) {
          }),d.recommendations?.map((r,i)=>h('p',{key:i},r.text+' Отчёты '+r.orders.join(', ')))),
          d.groups?.length>1&&h('section',null,h('h3',null,'Группы по категории и типу'),d.groups.map(g=>h('p',{key:g.own[0]},[g.category,g.type,g.own.join(', '),'подходящих '+g.eligible.length].join(' · ')))),
@@ -168,7 +1256,7 @@ index eacda39..fb6ef84 100644
                      result=await req.app.state.worker.request(scope,"competitorExchange",requestId=data["requestId"],text=data["text"],answer=competitor_reply)
                  elif action == "turn" and not data.get("attachments") and timers.matches(scope,data["requestId"],data["text"],hint):
 diff --git a/products/harness-platform/platform_core/competitors/analysis.py b/products/harness-platform/platform_core/competitors/analysis.py
-index d7a22bf..855dad4 100644
+index d7a22bf..658c326 100644
 --- a/products/harness-platform/platform_core/competitors/analysis.py
 +++ b/products/harness-platform/platform_core/competitors/analysis.py
 @@ -6,6 +6,7 @@ from collections import defaultdict
@@ -303,7 +1391,7 @@ index d7a22bf..855dad4 100644
          matrix[sku]={'phrases':found,'top':{str(n):[p for p,r in found.items() if r['response_index'] and r['response_index']<=n] for n in (3,5,10,32)}}
      return matrix
  
-@@ -163,54 +192,136 @@ def candidates(cards,reviews,extra=()):
+@@ -163,54 +192,167 @@ def candidates(cards,reviews,extra=()):
      return dict(phrases)
  
  
@@ -320,30 +1408,10 @@ index d7a22bf..855dad4 100644
 -    'брелок для ключей': r'брелок|для связки ключей',
 -}
 -BROAD_TYPE = re.compile(r'амулет|оберег|аксессуар|сувенир|универсальн|принадлежност|прочее|набор товаров|декоративн|украшение')
--
--def purpose(card):
--    attrs=card.get('characteristics',{})
--    explicit=[normalized(v) for k,values in attrs.items()
--              if normalized(k) in ('назначение','основное назначение','область применения')
--              for v in values if isinstance(v,str) and v.strip()]
--    title=normalized(card.get('title') or '')
--    statement=normalized(' '.join(explicit))
--    def extract(value):
--        return {use for use,pattern in USES.items() if re.search(pattern,value)}
--    primary=extract(title)|extract(statement)
--    automotive=r'в (?:салон |зеркало )?(?:машин|авто)|автомобильн\w* (?:амулет|оберег)'
--    description=normalized(card.get('description') or '')
--    if re.search(automotive,title) and 'подвеска в автомобиль' not in primary:
--        # A car-specific title establishes the primary context. Confirm the function
--        # from a mounting statement; mere proximity to the mirror is insufficient.
--        hanging=r'\b(?:повесить|подвесить|крепится|подвешивается|вешается)\s+на\s+(?:салонное\s+)?зеркало\b'
--        if re.search(r'\bна зеркало\b',title) or re.search(hanging,description):
--            primary.add('подвеска в автомобиль')
 +# Functional relations can be expressed through the structured attributes or
 +# the same linguistic relations in a title or a statement about intended use.
 +# Context alone (a room, a vehicle, a possible gift) does not prove a function.
-+FUNCTION_FIELDS={'назначение','основное назначение','область применения','способ установки',
-+                 'способ крепления','место установки','тип крепления','вид применения'}
++FUNCTION_FIELDS={'назначение','основное назначение','область применения','вид применения'}
 +BROAD_TYPE=re.compile(r'амулет|оберег|аксессуар|сувенир|универсальн|принадлежност|прочее|набор товаров|декоративн|украшение')
 +FUNCTION_WORDS={'браслет':'запястье','булавк':'одежду','брошь':'одежду','кулон':'шею',
 +                'ожерелье':'шею','обеденн':'приём пищи','письменн':'письмо','брелок':'ключей'}
@@ -399,17 +1467,7 @@ index d7a22bf..855dad4 100644
 +        if first_negative:
 +            corroborated.update(uses_in(clause[:first_negative.start()]))
 +            denied.update(uses_in(clause[first_negative.end():]))
-         else:
--            primary.add('для автомобиля, вид крепления не подтверждён')
--    if primary:
--        return primary
--    # A location somewhere in a long description is not the item's primary use.
--    # Only use a direct mounting/purpose statement when the name is inconclusive.
--    declarations=re.findall(r'(?:предназначен\w*|основное назначение|крепится|подвешива\w*)\s+[^.!?;]{2,100}',description)
--    declared=set().union(*(extract(sentence) for sentence in declarations))
--    if declared:
--        return declared
--    return {'назначение: '+v for v in explicit if not re.search(r'подар|мужчин|женщин|детск|взросл|универсал|повседнев|для детей',v)}
++        else:
 +            corroborated.update(uses_in(clause))
 +    confirmed=set()
 +    for clause in named:
@@ -420,11 +1478,26 @@ index d7a22bf..855dad4 100644
 +        if declared and declared <= corroborated and declared.isdisjoint(denied):
 +            confirmed.update(declared)
 +    return confirmed
++
  
- 
--def profile(card):
--    return ((card.get('breadcrumbs') or [''])[-1], card.get('type') or '', purpose(card))
-+def purpose(card):
+ def purpose(card):
+-    attrs=card.get('characteristics',{})
+-    explicit=[normalized(v) for k,values in attrs.items()
+-              if normalized(k) in ('назначение','основное назначение','область применения')
+-              for v in values if isinstance(v,str) and v.strip()]
+-    title=normalized(card.get('title') or '')
+-    statement=normalized(' '.join(explicit))
+-    def extract(value):
+-        return {use for use,pattern in USES.items() if re.search(pattern,value)}
+-    primary=extract(title)|extract(statement)
+-    automotive=r'в (?:салон |зеркало )?(?:машин|авто)|автомобильн\w* (?:амулет|оберег)'
+-    description=normalized(card.get('description') or '')
+-    if re.search(automotive,title) and 'подвеска в автомобиль' not in primary:
+-        # A car-specific title establishes the primary context. Confirm the function
+-        # from a mounting statement; mere proximity to the mirror is insufficient.
+-        hanging=r'\b(?:повесить|подвесить|крепится|подвешивается|вешается)\s+на\s+(?:салонное\s+)?зеркало\b'
+-        if re.search(r'\bна зеркало\b',title) or re.search(hanging,description):
+-            primary.add('подвеска в автомобиль')
 +    # Merchandising suffixes often describe an accessory, inscription or material.
 +    # Read the head of the title and let actual use statements corroborate it.
 +    parts=re.split(r'[/|;,.]',card.get('title') or '')
@@ -454,11 +1527,29 @@ index d7a22bf..855dad4 100644
 +            if re.search(r'\b'+marker,head) and target not in positive:
 +                positive.add(target)
 +    else:
-+        add(title)
++        # A direct intended object takes precedence over the following method
++        # of attachment. A mounting location by itself can still define a use.
++        primary=application_domain(card)
++        if primary and not NEGATION.search(title):
++            positive.update(v for v in uses_in(title) if domain_key(v) in primary)
+         else:
+-            primary.add('для автомобиля, вид крепления не подтверждён')
+-    if primary:
+-        return primary
+-    # A location somewhere in a long description is not the item's primary use.
+-    # Only use a direct mounting/purpose statement when the name is inconclusive.
+-    declarations=re.findall(r'(?:предназначен\w*|основное назначение|крепится|подвешива\w*)\s+[^.!?;]{2,100}',description)
+-    declared=set().union(*(extract(sentence) for sentence in declarations))
+-    if declared:
+-        return declared
+-    return {'назначение: '+v for v in explicit if not re.search(r'подар|мужчин|женщин|детск|взросл|универсал|повседнев|для детей',v)}
++            add(title)
 +        if len(parts)>1:
 +            positive.update(confirmed_title_uses(parts[1:],card.get('description') or ''))
 +    for clause in re.split(r'[.!?;]',(card.get('description') or '').casefold()):
 +        if not facts and DECLARED.search(clause) and not (positive and re.search(r'можно|также|дополнительно',clause)):
++            if application_domain(card) and re.search(r'крепи|закреп|монтиру|устанавлива',clause) and not NEGATION.search(clause):
++                continue
 +            add(clause)
 +    by_object={}
 +    for term in sorted(positive,key=lambda v:(v not in title.split(),v)):
@@ -478,18 +1569,44 @@ index d7a22bf..855dad4 100644
 +        if m:
 +            return ('ozon-public',m[1])
 +    return ('path',tuple(normalized(v) for v in card.get('breadcrumbs',[]) if isinstance(v,str)))
++
++def domain_key(word):
++    # Normalize common equivalent catalog nouns, retaining unknown words.
++    stem=object_key(word)
++    return {'смартфон':'телефон','автомашин':'автомобил','автомобиль':'автомобил'}.get(stem,stem)
++
++
++def application_domain(card):
++    """Object served by the product, distinct from its function and mounting method."""
++    title=normalized(re.split(r'[.;|/]',card.get('title') or '',maxsplit=1)[0])
++    title=title.split(' с ',1)[0]
++    domain=set()
++    for relation,phrase in RELATION.findall(title):
++        if relation=='для' and not AUDIENCE.search(phrase):
++            domain.update(domain_key(v) for v in uses_in('для '+phrase))
++    return domain
  
-+def profile(card):
-+    return ((card.get('breadcrumbs') or [''])[-1],card.get('type') or '',purpose(card),category_key(card))
+ 
+ def profile(card):
+-    return ((card.get('breadcrumbs') or [''])[-1], card.get('type') or '', purpose(card))
+-
++    domain=application_domain(card)
++    description=normalized(card.get('description') or '')
++    evidence=set()
++    for clause in re.split(r'[.!?;]',description):
++        if DECLARED.search(clause) and not NEGATION.search(clause):
++            evidence.update(domain_key(w) for w in re.findall(r'\b[а-яa-z-]+\b',clause))
++    return ((card.get('breadcrumbs') or [''])[-1],card.get('type') or '',purpose(card),category_key(card),
++            domain,domain & evidence)
  
  def decision(sku,c,own,seen,profiles):
      if not sku or 'error' in c:
-@@ -219,14 +330,18 @@ def decision(sku,c,own,seen,profiles):
+@@ -219,31 +361,53 @@ def decision(sku,c,own,seen,profiles):
          return 'OWN',sku
      if sku in seen:
          return 'DUPLICATE',sku
 -    leaf,typ,uses=profile(c)
-+    leaf,typ,uses,category=profile(c)
++    leaf,typ,uses,category,domain,confirmed=profile(c)
      if not leaf or not profiles:
          return 'NEEDS_CHECK','Нет подтверждённой публичной категории'
 -    matching=[p for p in profiles if normalized(p[0])==normalized(leaf)]
@@ -506,14 +1623,25 @@ index d7a22bf..855dad4 100644
      same=[p for p in matching if typ and normalized(p[1])==normalized(typ)]
      if not same:
          if not typ or any(not p[1] for p in matching):
-@@ -235,15 +350,21 @@ def decision(sku,c,own,seen,profiles):
+             return 'NEEDS_CHECK','Не подтверждён тип товара'
+         return 'OTHER_TYPE',typ
      uncertain=False
++    incompatible_domains=[]
      for p in same:
++        other_domain=p[4] if len(p)>4 else set()
++        if domain and other_domain and domain!=other_domain:
++            # Similar functions (such as water filtration) do not establish
++            # interchangeability across distinct named applications.
++            if len(p)>5 and confirmed==domain and p[5]==other_domain and domain.isdisjoint(other_domain):
++                incompatible_domains.append(', '.join(sorted(other_domain)))
++            else:
++                uncertain=True
++            continue
          required=p[2] if len(p)>2 else set()
 -        common=uses & required
 -        if common and (uses==required or len(uses)==1) and not any('не подтверждён' in use for use in common):
-+        required_keys={object_key(v) for v in required}
-+        common={v for v in uses if object_key(v) in required_keys}
++        required_keys={domain_key(v) for v in required}
++        common={v for v in uses if domain_key(v) in required_keys}
 +        if common and (len(common)==len(uses)==len(required)==1) and not any('не подтверждён' in use for use in common):
              return 'ELIGIBLE',f"{leaf} / {typ} / {', '.join(sorted(common))}"
          if not uses and not required and not BROAD_TYPE.search(normalized(typ)):
@@ -521,6 +1649,8 @@ index d7a22bf..855dad4 100644
 -        if common or not uses or not required or any(v.startswith('назначение: ') or 'не подтверждён' in v for v in uses|required):
 +        if common or len(uses)>1 or len(required)>1 or not uses or not required or any(v.startswith('назначение: ') or 'не подтверждён' in v for v in uses|required):
              uncertain=True
++    if len(incompatible_domains)==len(same):
++        return 'OTHER_TYPE','Разное подтверждённое применение: '+', '.join(sorted(domain))+' / '+', '.join(incompatible_domains)
      if uncertain:
          return 'NEEDS_CHECK','Основное назначение не подтверждено для обеих карточек: '+typ
 +    # A use verb elsewhere in prose does not establish that a marketing claim
@@ -531,12 +1661,12 @@ index d7a22bf..855dad4 100644
      return 'OTHER_TYPE','Другое назначение: '+', '.join(sorted(uses))+'; ожидается '+', '.join(sorted(set.union(*(p[2] for p in same))))
  
  
-@@ -315,7 +436,7 @@ def peer_groups(selected,cards,eligible):
+@@ -315,7 +479,7 @@ def peer_groups(selected,cards,eligible):
          leaf=(own.get('breadcrumbs') or [''])[-1]
          kind=own.get('type') or ''
          uses=tuple(sorted(purpose(own)))
 -        group=groups.setdefault((normalized(leaf),normalized(kind),uses),dict(category=leaf,type=kind,purpose=list(uses),own=[],eligible=[]))
-+        group=groups.setdefault((category_key(own),normalized(kind),uses),dict(category=leaf,type=kind,purpose=list(uses),own=[],eligible=[]))
++        group=groups.setdefault((category_key(own),normalized(kind),uses,tuple(sorted(application_domain(own)))),dict(category=leaf,type=kind,purpose=list(uses),own=[],eligible=[]))
          group['own'].append(sku)
      for group in groups.values():
          profiles=[profile(cards[s]) for s in group['own']]
@@ -593,27 +1723,52 @@ index 0000000..0b9147c
 +    return json.loads(value,parse_constant=lambda _:None)
 diff --git a/products/harness-platform/platform_core/competitors/coverage.py b/products/harness-platform/platform_core/competitors/coverage.py
 new file mode 100644
-index 0000000..a5d431d
+index 0000000..f6977e0
 --- /dev/null
 +++ b/products/harness-platform/platform_core/competitors/coverage.py
-@@ -0,0 +1,30 @@
+@@ -0,0 +1,55 @@
 +"""Single business outcome projection for stored studies, export, UI and Octopus."""
++CARD_FIELDS=('title','description','characteristics','publicCategories','type','seller','sellerId','photos',
++             'Price','PromoPrice','brand','rating','available','stock')
++
++
++def card_fields(card):
++    return [k for k in CARD_FIELDS if card.get(k) not in (None,'',[],{})]
++
++
 +def quality(data):
 +    targets=data.get('targets',[])
 +    cards=data.get('cards',{})
 +    reviewed=data.get('reviews',{})
-+    good=[s for s in targets if s in cards and not cards[s].get('error')]
++    fetched=[s for s in targets if s in cards and not cards[s].get('error')]
++    fields={s:card_fields(cards[s]) for s in fetched}
++    good=[s for s in fetched if fields[s]]
++    failures=[{'source':'card','sku':s,'error':'Получен SKU без данных карточки'} for s in fetched if not fields[s]]
 +    observations=[v for s in targets for v in data.get('kernel',{}).get(s,{}).get('phrases',{}).values()]
 +    photos=[p for s in targets for p in data.get('gallery',{}).get(s,{}).values()]
-+    failures=[]
 +    for group,rows in [('card',cards),('review',reviewed)]:
 +        failures.extend({'source':group,'sku':s,'error':v['error']} for s,v in rows.items() if v.get('error'))
++    for kind,items in [('card',cards),('review',reviewed),('search',data.get('search',{}))]:
++        for subject,item in items.items():
++            if item.get('attemptError'):
++                failures.append({'source':kind,('phrase' if kind=='search' else 'sku'):subject,'error':item['attemptError']})
 +    search_errors=sum(v['status'] in ('ERROR','INCOMPLETE') or v.get('coverage')=='INCOMPLETE' for v in observations)
 +    discovery_errors=[{'source':'search','phrase':q,'error':v.get('error') or 'ERROR'} for q,v in data.get('search',{}).items() if v.get('state')=='ERROR']
 +    failures.extend(discovery_errors)
++    incomplete_phrases=[q for q,v in data.get('search',{}).items() if v.get('state')=='INCOMPLETE']
++    for phrase in incomplete_phrases:
++        sample=data['search'][phrase]
++        failures.append({'source':'search','phrase':phrase,'error':'Неполная выдача',
++                         'actual':sample.get('actual'),'depth':sample.get('depth')})
 +    missing_search=bool(observations) and all(v['status']=='UNCHECKED' for v in observations)
 +    photo_errors=sum(bool(p.get('error')) for p in photos)
 +    analytics_errors=bool(data.get('seller',{}).get('missingSummary')) or any(data.get(src,{}).get(k) for src,k in [('seller','error'),('seller','errors'),('performance','failed'),('performance','error')])
++    for src in ('seller','performance'):
++        obj=data.get(src,{})
++        if obj.get('error'):
++            failures.append({'source':src,'error':obj['error']})
++        for item in obj.get('failed',[]) or obj.get('errors',[]):
++            failures.append({'source':src,**item})
 +    for sku,group in reviewed.items():
 +        if group.get('invalidRows'):
 +            failures.append({'source':'review','sku':sku,'error':'Некорректные строки отзывов: '+str(group['invalidRows'])})
@@ -621,17 +1776,17 @@ index 0000000..a5d431d
 +    missing_reviews=data.get('phase')=='done' and reviewed_count<len(good)
 +    missing_photos=sum(1 for sku in good for url in cards[sku].get('photos',[]) if url not in data.get('gallery',{}).get(sku,{}))
 +    incomplete=bool(missing_reviews or missing_photos or failures or photo_errors or analytics_errors or search_errors or missing_search or len(good)<len(targets))
-+    return dict(requested=len(targets),fetched=sum(s in cards and not cards[s].get('error') for s in targets),validated=len(good),
++    return dict(requested=len(targets),fetched=len(fetched),validated=len(good),cardFields=fields,
 +                reviewed=reviewed_count,
 +                searchVerified=sum(v['status'] in ('FOUND','NOT_FOUND_IN_SAMPLE') for v in observations),
-+                searchIncomplete=search_errors,photoFetched=sum(bool(p.get('asset')) for p in photos),
++                searchIncomplete=max(search_errors,len(incomplete_phrases)),photoFetched=sum(bool(p.get('asset')) for p in photos),
 +                photoPending=missing_photos,photoFailed=photo_errors,failures=failures,partial=incomplete,
-+                outcome='empty' if data.get('noConfirmedPeers') and not incomplete else 'failed' if targets and not good else 'partial' if incomplete else 'complete')
++                outcome='empty' if data.get('noConfirmedPeers') and not incomplete else 'failed' if targets and not fetched else 'partial' if incomplete else 'complete')
 diff --git a/products/harness-platform/platform_core/competitors/engine.py b/products/harness-platform/platform_core/competitors/engine.py
-index 503db84..4b89263 100644
+index 503db84..6cd1bf0 100644
 --- a/products/harness-platform/platform_core/competitors/engine.py
 +++ b/products/harness-platform/platform_core/competitors/engine.py
-@@ -1,13 +1,15 @@
+@@ -1,14 +1,17 @@
  """Advance an authorized research one recoverable phase at a time."""
  import hashlib
  import io
@@ -647,9 +1802,24 @@ index 503db84..4b89263 100644
 +from .analysis import normalized,candidates, decision, observed, photo_url, ranked, peer_groups, suggested, profile, verification_phrases, purpose_facts, category_key
 +from .parser import fetch, products, batches, unique, review_subjects, SourceError
  from .own import OzonError,ad_totals
++from .facts import merge_result
  
  def photo(db,rid,sku,url,authorize):
-@@ -39,19 +41,41 @@ def advance(journal,rid,f,d,source,own,checkpoint):
+     if not photo_url(url):
+@@ -18,7 +21,11 @@ def photo(db,rid,sku,url,authorize):
+         return old[0]
+     authorize()
+     data,mime=fetch(url,limit=8*1024*1024)
+-    with Image.open(io.BytesIO(data)) as img:
++    try:
++        image=Image.open(io.BytesIO(data))
++    except Image.DecompressionBombError as exc:
++        raise ValueError('Превышен безопасный размер изображения') from exc
++    with image as img:
+         if (img.format not in ('JPEG','PNG','WEBP') or img.width*img.height>24_000_000 or
+                 Image.MIME[img.format]!=mime):
+             raise ValueError('Формат, размер или MIME изображения не прошёл проверку')
+@@ -39,19 +46,41 @@ def advance(journal,rid,f,d,source,own,checkpoint):
          missing=[v for v in unique(items) if v not in store or (kind=='search' and store[v].get('depth',0)<(depth or f['depth']))]
          if not missing:
              return True
@@ -699,7 +1869,7 @@ index 503db84..4b89263 100644
          return True
      def move(stage):
          d.setdefault('phases',[]).append(phase)
-@@ -59,12 +83,24 @@ def advance(journal,rid,f,d,source,own,checkpoint):
+@@ -59,12 +88,25 @@ def advance(journal,rid,f,d,source,own,checkpoint):
  
      if phase=='retry-rows':
          job=d['retry']
@@ -714,6 +1884,7 @@ index 503db84..4b89263 100644
 +        if receipt:
 +            for item in result.values():
 +                item['label']=receipt['label']
++        result={key:merge_result(job['kind'],cache.get(key),entry) for key,entry in result.items()}
          cache.update(result)
 -        if job['return']=='selection':
 +        origin=job.get('origin',job['phase']).split('-')[0]
@@ -726,12 +1897,12 @@ index 503db84..4b89263 100644
              move('qualify')
          elif job['kind']=='cards':
              move('reviews')
-@@ -75,11 +111,13 @@ def advance(journal,rid,f,d,source,own,checkpoint):
+@@ -75,11 +117,13 @@ def advance(journal,rid,f,d,source,own,checkpoint):
              return
          phrases=[]
          for sku in selected:
 -            leaf,kind,uses=profile(cards[sku])
-+            leaf,kind,uses,_=profile(cards[sku])
++            leaf,kind,uses,*_=profile(cards[sku])
              title=candidates({sku:cards[sku]}, {})
              title_phrase=next((q for q,origins in title.items() if [sku,'title'] in origins and len(q.split())>=2),None)
              phrases.extend(q for q in (leaf,kind,*sorted(uses),title_phrase) if q)
@@ -742,7 +1913,7 @@ index 503db84..4b89263 100644
          if not phrases:
              raise ValueError('Не удалось определить категорию и тип выбранных товаров')
          d['discovery']=phrases
-@@ -88,22 +126,25 @@ def advance(journal,rid,f,d,source,own,checkpoint):
+@@ -88,22 +132,25 @@ def advance(journal,rid,f,d,source,own,checkpoint):
          expanded=d.setdefault('expanded',{})
          if not batch('search',d['discovery'],expanded,depth=32):
              return
@@ -771,7 +1942,7 @@ index 503db84..4b89263 100644
          d['poolAudit']=audit
          d['pool']=pool
          move('qualify')
-@@ -114,6 +155,9 @@ def advance(journal,rid,f,d,source,own,checkpoint):
+@@ -114,6 +161,9 @@ def advance(journal,rid,f,d,source,own,checkpoint):
          def classify():
              reasons={s:decision(s,cards.get(s,{}),f['own'],set(),profiles) for s in d['pool'] if s in cards or s in f['own']}
              d['decisions']=reasons
@@ -781,7 +1952,7 @@ index 503db84..4b89263 100644
              d['eligible']=ranked(discovery,{s for s,(reason,_) in reasons.items() if reason=='ELIGIBLE'})
              d['groups']=peer_groups(selected,cards,d['eligible'])
              d['targets']=suggested(d['groups'],goal)
-@@ -148,7 +192,7 @@ def advance(journal,rid,f,d,source,own,checkpoint):
+@@ -148,7 +198,7 @@ def advance(journal,rid,f,d,source,own,checkpoint):
          if batch('cards',targets,cards):
              move('reviews')
      elif phase=='reviews':
@@ -790,7 +1961,7 @@ index 503db84..4b89263 100644
              move('dictionary')
      elif phase=='dictionary':
          words=candidates({s:cards[s] for s in targets if s in cards},d.get('reviews',{}),[(q,'форма') for q in f['phrases']])
-@@ -170,7 +214,7 @@ def advance(journal,rid,f,d,source,own,checkpoint):
+@@ -170,18 +220,29 @@ def advance(journal,rid,f,d,source,own,checkpoint):
              try:
                  d['seller']=own.seller(f.get('relatedSkus',selected),f['sellerPeriod'],cache=(journal.db,f['store'],f['storeVersion']))
              except OzonError as exc:
@@ -799,27 +1970,83 @@ index 503db84..4b89263 100644
              checkpoint()
          if 'performance' not in d and not own.fields.get('performance_secret'):
              d['performance']={'reason':'Нет рекламного ключа'}
-@@ -196,11 +240,16 @@ def advance(journal,rid,f,d,source,own,checkpoint):
+         if 'performance' not in d:
+             try:
+-                if 'adBatches' not in d:
+-                    campaigns=own.campaigns(set(f.get('relatedSkus',selected)),f['adPeriod'])
+-                    d['adBatches']=[{'campaigns':campaigns[i:i+10]} for i in range(0,len(campaigns),10)]
++                if 'adBatches' not in d or d.get('retryCampaigns'):
++                    subjects=set(f.get('relatedSkus',selected))
++                    retry=d.get('retryCampaigns')
++                    try:
++                        campaigns=own.campaigns(subjects,f['adPeriod'],only=set(retry)) if isinstance(retry,list) else own.campaigns(subjects,f['adPeriod'])
++                        d['campaignErrors']=list(getattr(own,'campaign_errors',[]))
++                    except (OzonError,httpx.TransportError) as exc:
++                        campaigns=[]
++                        d['campaignErrors']=[{'source':'campaign-list','error':str(exc) if isinstance(exc,OzonError) else type(exc).__name__}]
++                    jobs=d.setdefault('adBatches',[])
++                    queued={c for job in jobs for c in job['campaigns']}
++                    campaigns=[c for c in campaigns if c not in queued]
++                    jobs.extend({'campaigns':campaigns[i:i+10]} for i in range(0,len(campaigns),10))
++                    d.pop('retryCampaigns',None)
+                     checkpoint()
+                 for job in d['adBatches']:
+-                    if 'rows' in job or job.get('error'):
++                    if ('rows' in job and not job.get('pendingRead')) or job.get('error'):
+                         continue
+                     try:
+                         if 'uuid' not in job:
+@@ -196,21 +257,42 @@ def advance(journal,rid,f,d,source,own,checkpoint):
                          if state in ('ERROR','CANCELLED'):
                              raise OzonError('Performance '+state)
                          if data is None:
 -                            return
-+                            checkpoint()
-+                            continue
-                         job['rows']=data['rows']
+-                        job['rows']=data['rows']
 -                    except (ValueError,KeyError) as exc:
 -                        job['error']=str(exc)[:240] or 'Повреждён отчёт Performance'
++                            checkpoint()
++                            continue
++                        previous=job.get('rows',[])
++                        fresh=data['rows']
++                        # A UUID names an immutable report. Retain independently
++                        # confirmed rows and their multiplicity across partial reads.
++                        if previous:
++                            from collections import Counter
++                            seen=Counter(tuple(sorted(row.items())) for row in fresh)
++                            for row in previous:
++                                key=tuple(sorted(row.items()))
++                                if seen[key]:
++                                    seen[key]-=1
++                                else:
++                                    fresh.append(row)
++                                    job['error']='При чтении UUID отсутствуют ранее подтверждённые строки'
++                        job['rows']=fresh
++                        job.pop('pendingRead',None)
 +                        if data.get('invalidRows'):
 +                            job['error']='Некорректные строки CSV: '+str(data['invalidRows'])
 +                    except (ValueError,KeyError,httpx.TransportError) as exc:
 +                        job['error']=type(exc).__name__ if isinstance(exc,httpx.TransportError) else str(exc)[:240] or 'Повреждён отчёт Performance'
                      checkpoint()
-+                if any('rows' not in job and not job.get('error') for job in d['adBatches']):
++                if any(('rows' not in job or job.get('pendingRead')) and not job.get('error') for job in d['adBatches']):
 +                    return
                  rows=[r for job in d['adBatches'] for r in job.get('rows',[])]
                  failures=[{k:job[k] for k in ('campaigns','uuid','state','error') if k in job}
                            for job in d['adBatches'] if job.get('error')]
-@@ -252,14 +301,20 @@ def advance(journal,rid,f,d,source,own,checkpoint):
+-                d['performance']=dict(rows=rows,totals=ad_totals(rows),period=f['adPeriod'],skipped=own.skipped,failed=failures)
++                failures+=d.get('campaignErrors',[])
++                d['performance']=dict(rows=rows,totals=ad_totals(rows,incomplete=bool(failures)),period=f['adPeriod'],skipped=own.skipped,failed=failures)
+                 if failures:
+                     d['performance']['reason']='Недоступно пакетов: '+str(len(failures))+'. '+ '; '.join(j['error'] for j in failures)
+-                if not d['adBatches']:
++                if not d['adBatches'] and not failures:
+                     d['performance']['reason']='Нет подходящей кампании для выбранных SKU'
+             except OzonError as exc:
+-                d['performance']={'reason':str(exc)}
++                d['performance']={'error':str(exc),'reason':str(exc)}
+         supplemental=[(r['query'],['Seller',str(r['sku'])]) for r in d['seller'].get('queries',[])]
+         supplemental.extend((r['phrase'],['Performance',r['sku']]) for r in d['performance'].get('rows',[]) if r['kind']=='search')
+         d['ownDictionary']=candidates({s:cards[s] for s in selected if s in cards},d.get('reviews',{}),supplemental)
+@@ -252,14 +334,20 @@ def advance(journal,rid,f,d,source,own,checkpoint):
          for s in targets:
              entries=gallery.setdefault(s,{})
              for u in cards.get(s,{}).get('photos',[]):
@@ -843,6 +2070,63 @@ index 503db84..4b89263 100644
          groups={}
          for phrase in d.get('candidates',{}):
              groups.setdefault(normalized(phrase),[]).append(phrase)
+diff --git a/products/harness-platform/platform_core/competitors/facts.py b/products/harness-platform/platform_core/competitors/facts.py
+new file mode 100644
+index 0000000..7899028
+--- /dev/null
++++ b/products/harness-platform/platform_core/competitors/facts.py
+@@ -0,0 +1,51 @@
++"""Reconcile observations for a fixed research row without losing confirmed facts."""
++from collections import defaultdict, deque
++
++
++def retained(previous, current, reason):
++    return {**previous, 'lastAttempt': {k:current.get(k) for k in ('order','code','label','region','collected')},
++            'attemptError': reason}
++
++
++def merge_result(kind, previous, current):
++    if not previous or previous.get('error'):
++        return current
++    if current.get('error'):
++        return retained(previous,current,current['error'])
++    if kind=='reviews':
++        # Match repeated identical texts by occurrence. Ratings can be enriched
++        # independently without duplicating the text or changing source order.
++        fields=('Published','Title','Comment','Pro','Contra')
++        key=lambda r:tuple(r.get(k) for k in fields)
++        indexes=defaultdict(deque)
++        out=list(previous.get('reviews',[]))
++        for i,row in enumerate(out):
++            indexes[key(row)].append(i)
++        missing=len(out)
++        for row in current.get('reviews',[]):
++            queue=indexes[key(row)]
++            if queue:
++                i=queue.popleft()
++                out[i]={**out[i],**{k:v for k,v in row.items() if v is not None}}
++                missing-=1
++            else:
++                out.append(row)
++        result={**current,'reviews':out}
++        if missing:
++            return retained(result,current,'В новом ответе отсутствуют сохранённые отзывы')
++        return result
++    if kind=='search':
++        if current.get('state')!='OK':
++            old={(v.get('sku'),v.get('index')) for v in previous.get('hits',[]) if v.get('sku')}
++            new={(v.get('sku'),v.get('index')) for v in current.get('hits',[]) if v.get('sku')}
++            if old-new:
++                return retained(previous,current,'Повторная выдача неполна')
++        return current
++    # Keep directly verified fields of the same card when rereading the same
++    # order. A separately purchased report has its own time and provenance.
++    if str(previous.get('order'))==str(current.get('order')):
++        missing={k:v for k,v in previous.items() if k not in ('attemptError','lastAttempt')
++                 and v not in (None,'',[],{}) and current.get(k) in (None,'',[],{})}
++        if missing:
++            return retained({**current,**missing},current,'В новом ответе отсутствуют сохранённые поля карточки')
++    return current
 diff --git a/products/harness-platform/platform_core/competitors/jobs.py b/products/harness-platform/platform_core/competitors/jobs.py
 index a05bfb3..e273954 100644
 --- a/products/harness-platform/platform_core/competitors/jobs.py
@@ -1082,7 +2366,7 @@ index a05bfb3..e273954 100644
 +                    self.db.execute("UPDATE competitor_jobs SET order_id=coalesce(order_id,?) WHERE label=?",(known,label))
 +                    self.db.execute("UPDATE competitor_jobs SET state='waiting',error=NULL,due=? WHERE label=? AND state='submitting'",(time.time()+15,label))
 diff --git a/products/harness-platform/platform_core/competitors/own.py b/products/harness-platform/platform_core/competitors/own.py
-index b1e87ce..dc59acc 100644
+index b1e87ce..2e34121 100644
 --- a/products/harness-platform/platform_core/competitors/own.py
 +++ b/products/harness-platform/platform_core/competitors/own.py
 @@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
@@ -1093,19 +2377,48 @@ index b1e87ce..dc59acc 100644
  
  
  class OzonError(ValueError):
-@@ -29,14 +30,25 @@ def performance_csv(payload, skus=None):
-     if not expected.issubset(reader.fieldnames or []):
+@@ -22,30 +23,59 @@ def periods(now=None):
+ def performance_csv(payload, skus=None):
+     if len(payload)>24*1024*1024:
+         raise OzonError('Превышен размер CSV Performance')
+-    src=io.StringIO(payload.decode('utf-8-sig'),newline='')
++    try:
++        src=io.StringIO(payload.decode('utf-8-sig'),newline='')
++    except UnicodeDecodeError as exc:
++        raise OzonError('Недопустимая кодировка CSV Performance') from exc
+     src.readline()
+-    reader=csv.DictReader(src,delimiter=';')
++    reader=csv.reader(src,delimiter=';',strict=True)
+     expected={'SKU','Поисковый запрос','Показы','Клики'}
+-    if not expected.issubset(reader.fieldnames or []):
++    try:
++        header=next(reader,[])
++    except csv.Error as exc:
++        raise OzonError('Некорректный заголовок CSV Performance') from exc
++    if not expected.issubset(header) or len(header)!=len(set(header)):
          raise OzonError('Неизвестный заголовок CSV Performance')
      rows=[]
 -    for row in reader:
 -        sku=row['SKU'].strip()
 -        if not sku.isdecimal() or (skus is not None and sku not in skus):
 +    invalid=[]
-+    for index,row in enumerate(reader,3):
-+        sku=text(row.get('SKU'),20)
-+        if sku and sku.isdecimal() and skus is not None and sku not in skus:
++    while True:
++        index=reader.line_num+2
++        try:
++            cells=next(reader)
++        except StopIteration:
++            break
++        except csv.Error:
++            invalid.append(index)
              continue
 -        phrase=row['Поисковый запрос'].strip()
++        if len(cells)!=len(header):
++            invalid.append(index)
++            continue
++        row=dict(zip(header,cells))
++        sku=text(row.get('SKU'),20)
++        if sku and sku.isdecimal() and skus is not None and sku not in skus:
++            continue
 +        phrase=text(row.get('Поисковый запрос'),500)
 +        raw=[(row.get(k) or '').replace(' ','') for k in ('Показы','Клики')]
 +        if not sku or not sku.isascii() or not sku.isdecimal() or not phrase or not all(v.isascii() and v.isdecimal() and len(v)<=15 for v in raw):
@@ -1116,18 +2429,30 @@ index b1e87ce..dc59acc 100644
 -                         impressions=int(row['Показы'].replace(' ','')),clicks=int(row['Клики'].replace(' ',''))))
 -    return dict(rows=rows,totals=ad_totals(rows))
 +                         impressions=impressions,clicks=clicks))
-+    totals=ad_totals(rows)
-+    if invalid and not rows:
-+        for v in totals.values():
-+            v.update(impressions=None,clicks=None)
++    totals=ad_totals(rows,incomplete=bool(invalid))
 +    return dict(rows=rows,totals=totals,invalidRows=invalid)
 +
  
  
- def ad_totals(rows):
-@@ -56,7 +68,13 @@ class Own:
+-def ad_totals(rows):
++def ad_totals(rows,*,incomplete=False):
+     totals={}
+     for kind in ('all','search','catalog'):
+         group=[r for r in rows if kind=='all' or r['kind']==kind]
+         imp=sum(r['impressions'] for r in group)
+         clicks=sum(r['clicks'] for r in group)
+-        totals[kind]=dict(rows=len(group),phrases=len({r['phrase'] for r in group}),impressions=imp,clicks=clicks,ctr=100*clicks/imp if imp else None)
++        if incomplete and not group:
++            imp=clicks=None
++        totals[kind]=dict(coverage='partial' if incomplete else 'complete',rows=len(group),phrases=len({r['phrase'] for r in group}),impressions=imp,clicks=clicks,ctr=100*clicks/imp if imp else None)
+     return totals
+ 
+ 
+@@ -55,8 +85,15 @@ class Own:
+         self.guard=guard
          self.bearer=None
          self.skipped=[]
++        self.campaign_errors=[]
  
 -    def request(self,method,path,*,performance=False,params=None,body=None,csv_report=False):
 +    def request(self,method,path,**kwargs):
@@ -1140,7 +2465,7 @@ index b1e87ce..dc59acc 100644
          self.guard('advertising' if performance else 'catalog')
          if performance:
              origin='https://api-performance.ozon.ru'
-@@ -89,7 +107,7 @@ class Own:
+@@ -89,7 +126,7 @@ class Own:
                              detail=str(obj.get('message') or obj.get('error') or '')[:200]
                          except (ValueError,AttributeError):
                              detail=''
@@ -1149,7 +2474,7 @@ index b1e87ce..dc59acc 100644
                      return bytes(result) if csv_report else json.loads(result)
              time.sleep(wait)
  
-@@ -98,20 +116,30 @@ class Own:
+@@ -98,20 +135,52 @@ class Own:
          self.guard('catalog')
          skus=list(dict.fromkeys(skus))
          per_sku={}
@@ -1166,23 +2491,45 @@ index b1e87ce..dc59acc 100644
 -        for sku in missing:
 -            per_sku[sku]={'summary':{},'queries':{}}
 -        for sort in ('BY_SEARCHES','BY_GMV'):
++        snapshots={}
 +        keys=('BY_SEARCHES','BY_GMV')
 +        errors=[]
 +        def save(sku):
 +            if cache:
 +                self.guard('catalog')
-+                db.execute("INSERT OR REPLACE INTO competitor_seller_cache VALUES(?,?,?,?,?,?)",
-+                    (cid,version,period['date_from'],period['date_to'],sku,json.dumps(per_sku[sku],ensure_ascii=False,allow_nan=False)))
++                payload=json.dumps(per_sku[sku],ensure_ascii=False,allow_nan=False)
++                if payload==snapshots.get(sku):
++                    return
++                key=(cid,version,period['date_from'],period['date_to'],sku)
++                saved=db.execute('''INSERT INTO competitor_seller_cache VALUES(?,?,?,?,?,?)
++                    ON CONFLICT(cid,version,since,until,sku) DO UPDATE SET payload=excluded.payload
++                    WHERE competitor_seller_cache.payload IS ?''',(*key,payload,snapshots.get(sku))).rowcount
++                if not saved:
++                    raise OzonError('Срез Seller обновлён параллельным исследованием. Повторите чтение кэша.')
++                snapshots[sku]=payload
 +        for sku in skus:
 +            item={'summary':{},'queries':{},'parts':[]}
 +            if cache:
 +                db,cid,version=cache
 +                stored=db.execute("SELECT payload FROM competitor_seller_cache WHERE cid=? AND version=? AND since=? AND until=? AND sku=?",
 +                                   (cid,version,period['date_from'],period['date_to'],sku)).fetchone()
++                snapshots[sku]=stored[0] if stored else None
 +                if stored:
 +                    item=json.loads(stored[0])
 +                    # Earlier releases wrote a cache entry only after all four calls succeeded.
 +                    item.setdefault('parts',[k+suffix for k in keys for suffix in ('/details','/summary')])
++            if 'detailsBySort' not in item:
++                # Old caches stored a merged row and per-sort ranks. Conflicting
++                # entries had lost the alternative, so both cuts need rechecking.
++                item['detailsBySort']={k:{} for k in keys}
++                for query,fact in item['queries'].items():
++                    for k in fact.get('sorts',[]):
++                        value={m:v for m,v in fact.items() if m not in ('rankBySort','sorts','conflict')}
++                        value['query_index']=fact.get('rankBySort',{}).get(k)
++                        item['detailsBySort'][k][query]=value
++                    if fact.get('conflict'):
++                        item.setdefault('disputed',[]).append(query)
++                        item['parts']=[p for p in item['parts'] if not p.endswith('/details')]
 +            per_sku[sku]=item
 +        cached=sum(len(v['parts'])==4 for v in per_sku.values())
 +        metrics=('unique_search_users','gmv','order_count','position','unique_view_users','view_conversion','query_index')
@@ -1193,7 +2540,7 @@ index b1e87ce..dc59acc 100644
                  for start in range(0,len(missing),size):
                      batch=missing[start:start+size]
                      body={**period,'skus':batch,'sort_by':sort,'sort_dir':'DESCENDING','page_size':100 if detail else 1000}
-@@ -119,43 +147,66 @@ class Own:
+@@ -119,47 +188,88 @@ class Own:
                      if detail:
                          path+='/details'
                          body['limit_by_sku']=15
@@ -1240,17 +2587,8 @@ index b1e87ce..dc59acc 100644
 -                            fact=group.setdefault(key,{**row,'sorts':[],'rankBySort':{}})
 -                            fact['sorts'].append(sort)
 -                            fact['rankBySort'][sort]=row.get('query_index')
-+                            fact=item['queries'].get(key)
-+                            if fact and any(fact.get(m)!=safe.get(m) for m in ('currency',*metrics[:-1])):
-+                                errors.append(dict(part=part,sku=sku,error='Расхождение показателей между срезами Seller'))
-+                                fact['conflict']=True
-+                                invalid.add(sku)
-+                                continue
-+                            if not fact:
-+                                fact=item['queries'][key]={**safe,'sorts':[],'rankBySort':{}}
-+                            if sort not in fact['sorts']:
-+                                fact['sorts'].append(sort)
-+                            fact['rankBySort'][sort]=safe.get('query_index')
++                            by_sort=item['detailsBySort'].setdefault(sort,{})
++                            by_sort[key]=safe
                          else:
 -                            per_sku[sku]['summary'][sort]=row
 +                            item['summary'][sort]=safe
@@ -1258,6 +2596,25 @@ index b1e87ce..dc59acc 100644
 +                        if sku not in invalid:
 +                            per_sku[sku]['parts'].append(part)
 +                        save(sku)
++        for sku,item in per_sku.items():
++            by_sort=item['detailsBySort']
++            pending=set(item.get('disputed',[]))
++            queries={}
++            for phrase in dict.fromkeys(q for k in keys for q in by_sort[k]):
++                facts={k:by_sort[k][phrase] for k in keys if phrase in by_sort[k]}
++                reference=next(iter(facts.values()))
++                mismatch=any(any(row.get(m)!=reference.get(m) for m in ('currency',*metrics[:-1])) for row in facts.values())
++                if mismatch or (phrase in pending and len(facts)!=len(keys)):
++                    pending.add(phrase)
++                    errors.append(dict(part='details',sku=sku,error='Расхождение показателей между срезами Seller'))
++                    continue
++                pending.discard(phrase)
++                queries[phrase]={**reference,'sorts':list(facts),'rankBySort':{k:v.get('query_index') for k,v in facts.items()}}
++            item['queries']=queries
++            item['disputed']=sorted(pending)
++            if pending:
++                item['parts']=[part for part in item['parts'] if not part.endswith('/details')]
++            save(sku)
          self.guard('catalog')
 -        if cache and missing:
 -            db.executemany("INSERT OR REPLACE INTO competitor_seller_cache VALUES(?,?,?,?,?,?)",
@@ -1273,6 +2630,7 @@ index b1e87ce..dc59acc 100644
                      missingSummary=[k for k,v in per_sku.items() if len(v['summary'])!=2],
                      withoutQueries=[k for k,v in per_sku.items() if not v['queries']])
  
+-    def campaigns(self,skus,period=None):
 +        # Preserve the existing caller contract for mutually contradictory
 +        # reports while allowing the research to retain the independent facts.
 +        conflicts=[v for v in errors if v['error'].startswith('Расхождение')]
@@ -1282,9 +2640,63 @@ index b1e87ce..dc59acc 100644
 +            raise exc
 +        return result
 +
-     def campaigns(self,skus,period=None):
++    def campaigns(self,skus,period=None,*,only=None):
          result=[]
-         campaigns=self.request('GET','/api/client/campaign',performance=True).get('list',[])
+-        campaigns=self.request('GET','/api/client/campaign',performance=True).get('list',[])
+-        for c in campaigns:
++        catalog=self.request('GET','/api/client/campaign',performance=True)
++        if not isinstance(catalog,dict) or not isinstance(catalog.get('list'),list):
++            raise OzonError('Некорректный список рекламных кампаний')
++        campaigns=catalog['list']
++        for i,c in enumerate(campaigns):
++            if not isinstance(c,dict) or not str(c.get('id','')).isdecimal():
++                self.campaign_errors.append(dict(source='campaign',row=i+1,error='Некорректная запись кампании'))
++                continue
++            if only is not None and str(c['id']) not in only:
++                continue
+             if c.get('PaymentType',c.get('paymentType'))!='CPC' or 'PLACEMENT_TOP_PROMOTION' not in (c.get('placement') or []):
+                 continue
+             if period and (c.get('fromDate','')>period['dateTo'] or (c.get('toDate') and c['toDate']<period['dateFrom']) or (c.get('state')=='CAMPAIGN_STATE_INACTIVE' and (c.get('updatedAt') or '9999')[:10]<period['dateFrom'])):
+@@ -173,20 +283,27 @@ class Own:
+             while True:
+                 try:
+                     obj=self.request('GET',f'/api/client/campaign/{cid}/v2/products',performance=True,params={'page':page,'pageSize':100})
+-                except OzonError as exc:
+-                    if 'HTTP 400' in str(exc) and 'архив' in str(exc).casefold():
+-                        self.skipped.append({'campaign':cid,'reason':str(exc)})
++                    products=obj.get('products',obj.get('list')) if isinstance(obj,dict) else None
++                    if not isinstance(products,list) or any(not isinstance(p,dict) or not str(p.get('sku','')).isdecimal() for p in products):
++                        raise OzonError('Некорректный состав кампании')
++                    if any(str(p['sku']) in skus for p in products):
++                        result.append(cid)
+                         break
+-                    raise
+-                products=obj.get('products',obj.get('list',[]))
+-                if any(str(p.get('sku')) in skus for p in products):
+-                    result.append(cid)
+-                    break
+-                if len(products)<100 or page*100>=int(obj.get('total',page*100+1)):
++                    total=number(obj.get('total',page*100+1),integer=True)
++                    if total is None:
++                        raise OzonError('Некорректное число товаров кампании')
++                    if len(products)<100 or page*100>=total:
++                        break
++                    page+=1
++                    if page>1000:
++                        raise OzonError('Превышен предел страниц кампании')
++                except (OzonError,httpx.TransportError) as exc:
++                    reason=str(exc) if isinstance(exc,OzonError) else type(exc).__name__
++                    if 'HTTP 400' in reason and 'архив' in reason.casefold():
++                        self.skipped.append({'campaign':cid,'reason':reason})
++                    else:
++                        self.campaign_errors.append({'source':'campaign','campaign':cid,'error':reason})
+                     break
+-                page+=1
+-                if page>1000:
+-                    raise OzonError('Превышен предел страниц кампании')
+         return sorted(set(result))
+ 
+     def order_phrases(self,campaigns,period):
 diff --git a/products/harness-platform/platform_core/competitors/parser.py b/products/harness-platform/platform_core/competitors/parser.py
 index 82fcbe1..15cfb21 100644
 --- a/products/harness-platform/platform_core/competitors/parser.py
@@ -1350,7 +2762,7 @@ index 82fcbe1..15cfb21 100644
                  reason='MISSING_OFFERS'
          result.append((row,reason,None if reason else matches[0]))
 diff --git a/products/harness-platform/platform_core/competitors/routes.py b/products/harness-platform/platform_core/competitors/routes.py
-index 0fcb79c..7c705af 100644
+index 0fcb79c..679e347 100644
 --- a/products/harness-platform/platform_core/competitors/routes.py
 +++ b/products/harness-platform/platform_core/competitors/routes.py
 @@ -8,8 +8,10 @@ from starlette.responses import JSONResponse,Response
@@ -1361,12 +2773,12 @@ index 0fcb79c..7c705af 100644
 -from .parser import ref,unique
 +from .service import reconcile_account,PLUGIN,guard,permitted,catalog,validate,freeze
 +from .parser import ref,unique,check_units,review_subjects
-+from .coverage import quality
++from .coverage import quality,card_fields
 +from .contracts import stored_json
  
  
  def draft(db,chat):
-@@ -33,30 +35,57 @@ def lookup(db,scope,rid):
+@@ -33,30 +35,63 @@ def lookup(db,scope,rid):
      return row
  
  
@@ -1378,6 +2790,10 @@ index 0fcb79c..7c705af 100644
      def failed(r):
          entry=cache.get(r['name'],{})
 -        return entry.get('code')==r['code'] and (entry.get('error') or entry.get('state') in ('ERROR','INCOMPLETE'))
++        if entry.get('attemptError'):
++            attempt=entry.get('lastAttempt') or {}
++            if reread and str(order)==str(attempt.get('order')) and label==attempt.get('label') and r['code']==attempt.get('code'):
++                return True
 +        if label and entry.get('label') and label!=entry['label']:
 +            return False
 +        if order is not None and str(entry.get('order'))!=str(order):
@@ -1386,6 +2802,8 @@ index 0fcb79c..7c705af 100644
 +            return False
 +        if entry.get('code')!=r['code']:
 +            return False
++        if reread and kind=='cards' and not card_fields(entry):
++            return True
 +        if reread and kind=='reviews' and entry.get('invalidRows'):
 +            return True
 +        return entry.get('error') or entry.get('state') in ('ERROR','INCOMPLETE')
@@ -1417,7 +2835,7 @@ index 0fcb79c..7c705af 100644
 -            r['retryable']=[item['name'] for item in failed_items(kind,json.loads(rows),result)]
 +            args=(kind,json.loads(rows),result,r['order'],result.get('retryOrigins',{}).get(r['phase'],r['phase']),r['label'])
 +            r['retryable']=[item['name'] for item in failed_items(*args)]
-+            if kind=='reviews' and r['order']:
++            if r['order']:
 +                r['rereadable']=[item['name'] for item in failed_items(*args,reread=True)]
      assets=[dict(id=i,sku=k,mime=m,sha256=h,selected=bool(sel),bytes=n) for i,k,m,h,sel,n in db.execute(
 -        'SELECT id,sku,mime,digest,selected,length(content) FROM competitor_assets WHERE research=?',(rid,))]
@@ -1432,7 +2850,7 @@ index 0fcb79c..7c705af 100644
      n=len(f['refs']) if f['mode']=='B' else f['count']
      stages=[]
      if f['mode']=='A':
-@@ -66,7 +95,7 @@ def quote(f):
+@@ -66,7 +101,7 @@ def quote(f):
          stages.append({'stage':'Прямые карточки','checks':n})
          if f.get('compareOwn'):
              stages.append({'stage':'Явно выбранные собственные карточки','checks':len(f['skus'])})
@@ -1441,7 +2859,7 @@ index 0fcb79c..7c705af 100644
                     {'stage':'Проверка новых фраз во всей группе','checks':f['phraseLimit']*unit}])
      return {'stages':stages,'cap':f['budget'],'knownChecks':sum(s['checks'] or 0 for s in stages),
              'hasUnknown':any(s['checks'] is None for s in stages),'baseRubPerCheck':'0.20','octoportCoinsForCollection':0}
-@@ -98,33 +127,68 @@ def new(db,scope,digest,key,revision):
+@@ -98,33 +133,84 @@ def new(db,scope,digest,key,revision):
      return key
  
  
@@ -1486,6 +2904,18 @@ index 0fcb79c..7c705af 100644
 +    explicit=re.search(r'исследовани[ея]\s+#([0-9a-f]{32})\b',text,re.I)
 +    if explicit and re.fullmatch(r'Передать результат анализа конкурентов, исследование #[0-9a-f]{32}',text,re.I):
 +        return Intent('transfer',explicit[1].lower())
++    # Bind a request to its subject before selecting an operation or loading any
++    # studies. A named, unrelated subject must fall through to the general chat.
++    words=re.sub(r'https?://(?:www\.)?ozon\.ru/product/\S+|#[0-9a-f]{32}', ' ',text,flags=re.I)
++    foreign_market=re.search(r'\b(?:wildberries|вайлдберриз|валберис|wb|вб|amazon|авито|яндекс\s*маркет)\b',words,re.I)
++    named=re.findall(r'\b[a-zA-Z][a-zA-Z0-9_.-]*\b',words)
++    if foreign_market or any(v.casefold() not in {'ozon','sku','id','top','performance','seller','api'} for v in named):
++        return Intent('other')
++    # A competitor qualified by a different named entity (including Cyrillic)
++    # is not the seller's product merely because there is a study in the chat.
++    qualifier=re.search(r'\bконкурент(?:ов|ами|ам|а|у|ы)?\s+(?:компании\s+|сервиса\s+|площадки\s+)?([А-ЯЁ][а-яёА-ЯЁ-]+)\b',words)
++    if qualifier and qualifier[1].casefold() not in ('озон','октопорт'):
++        return Intent('other')
 +    if re.search(r'подбер|подобрать|нов(?:ый|ое) (?:анализ|исследование)|ozon\.ru/product/',text,re.I):
 +        return Intent('new')
 +    if re.search(r'измени|выбер|выбери',text,re.I):
@@ -1495,6 +2925,10 @@ index 0fcb79c..7c705af 100644
 +        return Intent('new')
 +    if not re.search(r'результат|отч[её]т|ядр[оа]|фраз|запрос|топ|описани|характеристик|фото|отзыв|спрос|рекомендаци',text,re.I):
 +        return Intent('new') if re.search(r'анализ|разбери|изучи|найди',text,re.I) else Intent('other')
++    anchored=explicit or subjects or followup or re.search(r'озон|ozon|мо[иейя]|сво[иейя]|наш|эт(?:их карточек|ого исследования)',text,re.I)
++    bare_request=re.fullmatch(r'\s*(?:покажи|сравни|сопоставь|перечисли|какие)\s+(?:(?:топовые|поисковые|основные)\s+)?(?:фразы|фото|отзывы|характеристики|описани[ея]|результат|отч[её]т)\s+конкурент(?:а|ов)?[.?!\s]*',text,re.I)
++    if not (anchored or bare_request):
++        return Intent('topic-clarify')
 +    rows=db.execute("""SELECT id FROM competitor_studies WHERE chat=? AND workspace=? AND actor=? AND status='done'
 +                    AND (? IS NULL OR id=?) ORDER BY created DESC""",
 +                    (scope.chat_id,scope.workspace_id,scope.actor_id,explicit[1].lower() if explicit else None,explicit[1].lower() if explicit else None))
@@ -1531,7 +2965,7 @@ index 0fcb79c..7c705af 100644
      own=json.loads(form).get('skus',[])
      samples=[]
      for sku,k in data.get('kernel',{}).items():
-@@ -132,7 +196,7 @@ def explanation(db,scope,text):
+@@ -132,7 +218,7 @@ def explanation(db,scope,text):
                              found=sum(v['status']=='FOUND' for v in k['phrases'].values()),
                              collected=len(k['phrases']),reviews=len(data.get('reviews',{}).get(sku,{}).get('reviews',[])),
                              cardOrder='parser-report-'+str(data['cards'][sku].get('order'))))
@@ -1540,7 +2974,7 @@ index 0fcb79c..7c705af 100644
      source_text=[]
      wants_text=bool(re.search(r'описани|текст карточ',text,re.I))
      wants_attrs=bool(re.search(r'характеристик|свойств',text,re.I))
-@@ -151,6 +215,7 @@ def explanation(db,scope,text):
+@@ -151,6 +237,7 @@ def explanation(db,scope,text):
      elif own:
          ids=unique([own[0],*data.get('targets',[]),*own[1:]])
      # Bound quoted catalogue material even for a whole-category study.
@@ -1548,7 +2982,7 @@ index 0fcb79c..7c705af 100644
      total_cards=len(ids)
      ids=ids[:12]
      if wants_text or wants_attrs or wants_reviews or wants_terms:
-@@ -173,7 +238,7 @@ def explanation(db,scope,text):
+@@ -173,7 +260,7 @@ def explanation(db,scope,text):
                      item['gaps']=data.get('gaps',{}).get(sku,[])[:50]
              source_text.append(item)
      if re.search(r'фото',text,re.I):
@@ -1557,7 +2991,7 @@ index 0fcb79c..7c705af 100644
              if sku in ids:
                  source_text.append(dict(sku=sku,selected=bool(chosen),photo=f'/api/chats/{scope.chat_id}/plugins/{PLUGIN}/photo?id={row[0]}&asset={asset}'))
      demand={}
-@@ -182,20 +247,38 @@ def explanation(db,scope,text):
+@@ -182,20 +269,43 @@ def explanation(db,scope,text):
          demand={'meaning':matrix['note'],'region':matrix['region'],'depth':matrix['depth'],'period':matrix['sellerPeriod'],
                  'anchors':{sku:{target:stats['top'] for target,stats in anchor['products'].items() if target==sku or target in data['targets']}
                             for sku,anchor in list(matrix['anchors'].items())[:3]}}
@@ -1572,6 +3006,8 @@ index 0fcb79c..7c705af 100644
 -        status,_,form,encoded=lookup(db,scope,transfer[1])
 +def command(db,scope,rid,text,intent=None):
 +    intent=intent or resolve(db,scope,text)
++    if intent.action=='topic-clarify':
++        return 'Вы имеете в виду исследование товаров Ozon? Укажите площадку, SKU или номер исследования.'
 +    if intent.action=='clarify':
 +        return 'Укажите номер исследования: '+', '.join('#'+s for s in intent.choices)
 +    if intent.action=='missing':
@@ -1600,12 +3036,15 @@ index 0fcb79c..7c705af 100644
 +        photos=db.execute('SELECT count(*) FROM competitor_assets WHERE '+ASSET_SCOPE,asset_scope(intent.research,data)).fetchone()[0]
 +        lines=[f"Исследование #{intent.research} · режим {json.loads(form)['mode']}.",
 +               f"Исследовано товаров: {quality(data)['validated']}. Скачано фотографий: {photos}."]
-+        for failure in quality(data)['failures']:
-+            lines.append(str(failure.get('sku') or failure.get('phrase'))+' · '+str(failure['error']))
++        coverage=quality(data)
++        if coverage['partial']:
++            lines.append('Исследование завершено с неполными данными.')
++        for failure in coverage['failures']:
++            lines.append(str(failure.get('sku') or failure.get('phrase') or failure.get('source'))+' · '+str(failure['error']))
          for sku,kernel in data.get('kernel',{}).items():
              lines.append(f"SKU {sku} · фраз в ТОП-5 полученной выдачи: {len(kernel['top']['5'])}.")
              errors=sum(r['status'] in ('ERROR','INCOMPLETE') for r in kernel['phrases'].values())
-@@ -208,12 +291,7 @@ def command(db,scope,rid,text):
+@@ -208,12 +318,7 @@ def command(db,scope,rid,text):
          if not old:
              db.execute('INSERT INTO competitor_exchanges VALUES(?,?,?,?)',(scope.chat_id,rid,text,answer))
          return old[1] if old else answer
@@ -1619,7 +3058,7 @@ index 0fcb79c..7c705af 100644
          return None
      old=db.execute('SELECT text,answer FROM competitor_exchanges WHERE chat=? AND request=?',(scope.chat_id,rid)).fetchone()
      if old:
-@@ -249,11 +327,16 @@ def routes(token_for,body):
+@@ -249,11 +354,16 @@ def routes(token_for,body):
          action=req.path_params.get('action','')
          args={}
          if req.method=='POST':
@@ -1638,13 +3077,17 @@ index 0fcb79c..7c705af 100644
          with (identity._write() if req.method=='POST' else identity._lock):
              db=identity._db
              scope=scope_for(db,token,req.path_params['chat_id'])
-@@ -268,10 +351,19 @@ def routes(token_for,body):
+@@ -268,10 +378,22 @@ def routes(token_for,body):
                      rid=new(db,scope,_secret_digest(token),args['requestId'],args['revision'])
                  else:
                      status,_,_,encoded=lookup(db,scope,rid)
 -                    d=json.loads(encoded)
+-                    if action=='stop':
 +                    d=stored_json(encoded)
-                     if action=='stop':
++                    if action=='stop' and status=='reauth':
++                        db.execute("UPDATE competitor_studies SET error='Остановка сохранена. Подтверждение доступа оставит сбор остановленным.' WHERE id=?",(rid,))
++                        db.execute("INSERT OR REPLACE INTO competitor_auth_pause VALUES(?,'stopped')",(rid,))
++                    elif action=='stop':
                          db.execute("UPDATE competitor_studies SET status='stopped',lease=NULL,due=0 WHERE id=? AND status IN ('running','selection','paused')",(rid,))
 +                    elif action=='resume' and status=='reauth':
 +                        old=db.execute('SELECT execution FROM competitor_auth_pause WHERE research=?',(rid,)).fetchone()
@@ -1659,7 +3102,7 @@ index 0fcb79c..7c705af 100644
                          db.execute('UPDATE competitor_studies SET status=?,digest=?,error=?,due=0 WHERE id=?',
                              ('selection' if d['phase']=='selection' else 'running',_secret_digest(token),'',rid))
                      elif action=='budget':
-@@ -282,23 +374,49 @@ def routes(token_for,body):
+@@ -282,23 +404,53 @@ def routes(token_for,body):
                          f['budget']=amount
                          db.execute("UPDATE competitor_studies SET form=?,status='running',due=0,error='',digest=? WHERE id=?",
                              (json.dumps(f),_secret_digest(token),rid))
@@ -1705,15 +3148,20 @@ index 0fcb79c..7c705af 100644
 +                                   (_secret_digest(token),json.dumps(d),rid))
                      elif action=='retry-ads':
                          retry=[j for j in d.get('adBatches',[]) if j.get('error') and j.get('uuid') and j.get('state') not in ('ERROR','CANCELLED')]
-                         if status!='done' or not retry:
+-                        if status!='done' or not retry:
++                        discovery=d.get('campaignErrors',[])
++                        if status!='done' or not (retry or discovery):
                              raise HTTPException(409,'Нет отчётов Performance, доступных для повторного чтения')
                          for job in retry:
                              del job['error']
-+                            job.pop('rows',None)
++                            job['pendingRead']=True
++                        if discovery:
++                            ids=[v['campaign'] for v in discovery if v.get('campaign')]
++                            d['retryCampaigns']=ids if len(ids)==len(discovery) else True
                          d.pop('performance',None)
                          d.update(phase='own',retryAdsOnly=True)
                          db.execute("UPDATE competitor_studies SET status='running',due=0,lease=NULL,digest=?,result=? WHERE id=?",
-@@ -333,12 +451,12 @@ def routes(token_for,body):
+@@ -333,12 +485,12 @@ def routes(token_for,body):
                          db.execute("UPDATE competitor_studies SET status=?,due=0,lease=NULL,digest=?,result=? WHERE id=?",
                                     ('running' if skus else 'done',_secret_digest(token),json.dumps(d),rid))
                      elif action=='select-photo':
@@ -1729,7 +3177,7 @@ index 0fcb79c..7c705af 100644
                          raise HTTPException(404,'Фотография недоступна')
                      disposition='attachment' if req.query_params.get('download')=='1' else 'inline'
 diff --git a/products/harness-platform/platform_core/competitors/service.py b/products/harness-platform/platform_core/competitors/service.py
-index 5bef104..061f3fb 100644
+index 5bef104..e054ab7 100644
 --- a/products/harness-platform/platform_core/competitors/service.py
 +++ b/products/harness-platform/platform_core/competitors/service.py
 @@ -1,5 +1,6 @@
@@ -1782,16 +3230,23 @@ index 5bef104..061f3fb 100644
  
  
  def guard(db,scope):
-@@ -131,7 +152,7 @@ def record_receipts(db,scope,rid):
+@@ -131,7 +152,14 @@ def record_receipts(db,scope,rid):
      from .. import coins
      from ..operation_grants import ensure_operation_schema
      with transaction(db):
 -        rows=db.execute("SELECT label FROM competitor_jobs WHERE research=? AND state IN ('completed','received') AND used IS NOT NULL",(rid,)).fetchall()
++        # The supplier ledger survives owner deletion. Only a currently owned
++        # study may project a receipt into the workspace wallet. The write
++        # transaction serializes this decision with the account/chat cascade.
++        owner=db.execute("SELECT 1 FROM competitor_studies WHERE id=? AND actor=? AND workspace=? AND chat=?",
++                         (rid,scope.actor_id,scope.workspace_id,scope.chat_id)).fetchone()
++        if not owner:
++            return
 +        rows=db.execute("SELECT label FROM competitor_jobs WHERE research=? AND (state IN ('completed','received') OR label IN (SELECT label FROM competitor_receipts)) AND used IS NOT NULL",(rid,)).fetchall()
          if not rows:
              return
          ensure_operation_schema(db)
-@@ -159,20 +180,22 @@ def tick(path):
+@@ -159,20 +187,22 @@ def tick(path):
          row=db.execute(f'''UPDATE competitor_studies SET lease=?,due=? WHERE id=(
              SELECT r.id FROM competitor_studies r WHERE r.due<=? AND (r.status='running' OR
              (r.status='stopped' AND EXISTS(SELECT 1 FROM competitor_jobs j WHERE j.research=r.id AND
@@ -1819,7 +3274,7 @@ index 5bef104..061f3fb 100644
              db.execute('UPDATE competitor_studies SET due=? WHERE id=? AND lease=?',(time.time()+180,rid,lease))
          def fields(provider,key):
              return unseal(scope.workspace_id,provider,f[key],connection(db,scope,f[key],provider)[1])
-@@ -186,11 +209,12 @@ def tick(path):
+@@ -186,11 +216,12 @@ def tick(path):
              db.execute('UPDATE competitor_studies SET result=? WHERE id=? AND lease=?',(json.dumps(d,ensure_ascii=False),rid,lease))
          try:
              authorize()
@@ -1833,7 +3288,7 @@ index 5bef104..061f3fb 100644
                  if job:
                      journal.poll_existing(job,source)
                  record_receipts(db,scope,rid)
-@@ -204,8 +228,15 @@ def tick(path):
+@@ -204,8 +235,15 @@ def tick(path):
              status={'done':'done','selection':'selection'}.get(d['phase'],'running')
              db.execute('UPDATE competitor_studies SET result=?,status=?,due=?,lease=NULL,error=? WHERE id=? AND lease=?',
                  (json.dumps(d,ensure_ascii=False),status,time.time()+(20 if before==d['phase'] and before!='gallery' else 0),'',rid,lease))
@@ -1850,7 +3305,7 @@ index 5bef104..061f3fb 100644
              db.execute('UPDATE competitor_studies SET status=?,error=?,lease=NULL WHERE id=? AND lease=?',
                      ('revoked' if isinstance(exc,HTTPException) and exc.status_code==403 else 'stopped' if row['status']=='stopped' else 'paused',message,rid,lease))
          return True
-@@ -213,8 +244,33 @@ def tick(path):
+@@ -213,8 +251,33 @@ def tick(path):
          journal.close()
  
  
@@ -2094,8 +3549,122 @@ index 4fafe76..b5acd72 100644
      def test_representative_dictionary(self):
          words={'одно':['форма'],'Этот талисман поможет':[['1','description']]}
          for i in range(5):
+diff --git a/products/harness-platform/tests/test_competitor_system_invariants.py b/products/harness-platform/tests/test_competitor_system_invariants.py
+new file mode 100644
+index 0000000..65c6d83
+--- /dev/null
++++ b/products/harness-platform/tests/test_competitor_system_invariants.py
+@@ -0,0 +1,108 @@
++"""End-to-end invariant suites use temporary stores and offline provider fixtures."""
++import json
++import os
++from pathlib import Path
++import subprocess
++import sys
++import tempfile
++import unittest
++
++
++ROOT=Path(__file__).resolve().parents[1]
++SUITE=ROOT/'acceptance/competitor_invariants'
++
++
++def run(script, *args):
++    env=dict(os.environ,PYTHONPATH=os.pathsep.join([str(ROOT),os.environ.get('PYTHONPATH','')]),OCTOPORT_REVIEW_PROJECT=str(ROOT))
++    exe='node' if script.endswith('.mjs') else sys.executable
++    proc=subprocess.run([exe,str(SUITE/script),*args],env=env,capture_output=True,text=True,timeout=120)
++    if proc.returncode:
++        raise AssertionError(proc.stderr[-2000:] or proc.stdout[-1500:])
++    return json.loads(proc.stdout)
++
++
++class SystemInvariants(unittest.TestCase):
++    def test_previous_system_and_lifecycle(self):
++        sets=[('system_probes',27,'status','PASS'),('positive',9,'passed',True)]
++        for name,size,field,expected in sets:
++            result=run(name+'.py')
++            self.assertEqual(len(result),size)
++            for key,row in result.items():
++                with self.subTest(key=key):
++                    self.assertEqual(row.get(field),expected,row)
++        self.assertEqual(len(run('lifecycle.py')),30)
++        self.assertEqual(len(run('batch_matrix.py')),18)
++        for value in run('ui_projection.mjs').values():
++            self.assertTrue(value['showsError'])
++            self.assertFalse(value['showsReady'])
++
++    def test_two_tenants_at_durable_checkpoints(self):
++        self.assertEqual(len(run('checkpoints.py')),25)
++
++    def test_cross_module_reviews(self):
++        for suite,size in [('new_probes',14),('extra_probes',4),('race_probe',1)]:
++            results=run(suite+'.py')
++            self.assertEqual(len(results),size)
++            for key,row in results.items():
++                with self.subTest(key=key):
++                    self.assertIs(row.get('invariant'),True,row)
++            if suite=='new_probes':
++                with tempfile.TemporaryDirectory() as temp:
++                    path=Path(temp)/'projection.json'
++                    path.write_text(json.dumps(results))
++                    for key,row in run('ui_quality_probe.mjs',str(path)).items():
++                        with self.subTest(key=key):
++                            self.assertTrue(row['showsPartial'])
++                            self.assertFalse(row['showsReady'])
++
++class CrossSourceContracts(unittest.TestCase):
++    def test_primary_application_and_secondary_details(self):
++        from platform_core.competitors.analysis import decision,profile
++        def card(title, use, desc=''):
++            return dict(title=title,type='Устройство',breadcrumbs=['Каталог','Оборудование'],
++                        characteristics={'Назначение':[use]},description=desc)
++        pairs=[
++            (card('Фильтр для аквариума','Очистка воды','Предназначен для воды в аквариуме.'),
++             card('Фильтр для бассейна','Очистка воды','Предназначен для воды в бассейне.'),'OTHER_TYPE'),
++            (card('Нагреватель для теплицы','Нагрев','Используется в теплице.'),
++             card('Нагреватель для террариума','Нагрев','Используется в террариуме.'),'OTHER_TYPE'),
++            (card('Подставка для смартфона','Для смартфона'),card('Подставка для телефона','Для телефона'),'ELIGIBLE'),
++            (card('Датчик для почвы','Измерение'),card('Датчик для воздуха','Измерение'),'NEEDS_CHECK'),
++            (card('Кронштейн для планшета на винтах','Для планшета'),card('Кронштейн для планшета на зажиме','Для планшета'),'ELIGIBLE')]
++        for left,right,expected in pairs:
++            for own,ref in ((left,right),(right,left)):
++                with self.subTest(own=own['title'],ref=ref['title']):
++                    self.assertEqual(decision('2',ref,[],set(),[profile(own)])[0],expected)
++
++    def test_review_evidence_survives_repeated_empty_and_partial_reads(self):
++        from platform_core.competitors.facts import merge_result
++        one={'Comment':'Текст','Rating':None}
++        two={'Comment':'Другой','Rating':3}
++        original={'reviews':[one,one,two],'order':'7','code':'R1','invalidRows':1}
++        newer={'order':'7','code':'R1','reviews':[dict(one,Rating=5)],'invalidRows':0}
++        cache=merge_result('reviews',original,newer)
++        self.assertEqual(len(cache['reviews']),3)
++        self.assertEqual(cache['reviews'][0]['Rating'],5)
++        for observation in ({**newer,'reviews':[]},{'error':'MISSING_CODE','order':'7'},newer):
++            cache=merge_result('reviews',cache,observation)
++            self.assertEqual(len(cache['reviews']),3)
++            self.assertIn('attemptError',cache)
++        cache=merge_result('reviews',cache,{**newer,'reviews':[dict(one,Rating=5),one,two]})
++        self.assertNotIn('attemptError',cache)
++        self.assertEqual(len(cache['reviews']),3)
++
++    def test_invalid_csv_positions_and_unknown_totals(self):
++        from platform_core.competitors.own import performance_csv
++        header='Отчёт\nSKU;Поисковый запрос;Показы;Клики\n'
++        good='123;фраза;0;0\n'
++        bad='123;испорчено;-1;нет\n'
++        for idx in range(3):
++            records=[good,good]
++            records.insert(idx,bad)
++            out=performance_csv((header+''.join(records)).encode())
++            self.assertEqual(len(out['rows']),2)
++            self.assertEqual(out['totals']['all']['impressions'],0)
++            self.assertEqual(out['invalidRows'],[idx+3])
++        unknown=performance_csv((header+bad).encode())['totals']['all']
++        self.assertIsNone(unknown['impressions'])
++        self.assertIsNone(unknown['clicks'])
 diff --git a/products/harness-platform/tests/test_ozon_competitors.py b/products/harness-platform/tests/test_ozon_competitors.py
-index 691c5d9..fdb99c8 100644
+index 691c5d9..01c6418 100644
 --- a/products/harness-platform/tests/test_ozon_competitors.py
 +++ b/products/harness-platform/tests/test_ozon_competitors.py
 @@ -63,8 +63,26 @@ class Domain(unittest.TestCase):
@@ -2114,7 +3683,7 @@ index 691c5d9..fdb99c8 100644
 +                invalid=type(raw) is bool or raw in (-1,6,1.5,'0')
 +                self.assertEqual(reviews['invalidRows'],int(invalid))
 +                self.assertEqual(reviews['reviews'][0]['Rating'],raw if type(raw) is int and 1<=raw<=5 else None)
-+                current=dict(phase='done',targets=['111'],cards={'111':{}},reviews={'111':reviews})
++                current=dict(phase='done',targets=['111'],cards={'111':{'title':'Тестовый товар'}},reviews={'111':reviews})
 +                self.assertEqual(quality(current)['partial'],invalid)
 +        rows=p.products('reviews',['111'])
 +        old={'reviews':{'111':dict(order='13',code=rows[0]['code'],invalidRows=1)}}
@@ -2126,10 +3695,27 @@ index 691c5d9..fdb99c8 100644
          row=p.products('search',['q'],8)[0]
          hit=lambda i:{'OfferId':str(i),'Place':0}
 diff --git a/release-manifest.json b/release-manifest.json
-index 6e15098..054f1f3 100644
+index 6e15098..d3a6416 100644
 --- a/release-manifest.json
 +++ b/release-manifest.json
-@@ -46,6 +46,8 @@
+@@ -14,6 +14,16 @@
+   "products/harness-platform/acceptance/archive_chat/live/gateway.mjs": "77e13dfeff25daa19d9373192655c9ac6e94fe71",
+   "products/harness-platform/acceptance/archive_chat/model.mjs": "adb5dabd5b755763cf301e11729debff8e4f110e",
+   "products/harness-platform/acceptance/chat_attachments/model.mjs": "d83457f3f8a38f6df9d68f44f7aef0f1dc32b67c",
++  "products/harness-platform/acceptance/competitor_invariants/batch_matrix.py": "efbfed9e5a36762448a58b024a00d808b76f6bc8",
++  "products/harness-platform/acceptance/competitor_invariants/checkpoints.py": "9827dd64782a58348a78aa8e96f963fdb42d66e9",
++  "products/harness-platform/acceptance/competitor_invariants/extra_probes.py": "9f6c2a24517e7817c1f0a443cbcfaf69ce6f4b89",
++  "products/harness-platform/acceptance/competitor_invariants/lifecycle.py": "612163b518dd63b9b6897c39a0607c1d6e2c62ad",
++  "products/harness-platform/acceptance/competitor_invariants/new_probes.py": "d87ee0f68ec9aeed72da4dcfe19ba639c265eb3f",
++  "products/harness-platform/acceptance/competitor_invariants/positive.py": "2511ff97a3bc123f6e274d07af92648736ed0c08",
++  "products/harness-platform/acceptance/competitor_invariants/race_probe.py": "a50c56eeddc72d387bcfaf26c280a81e90a47b85",
++  "products/harness-platform/acceptance/competitor_invariants/system_probes.py": "ce63454068810ac5aa561c17c338180416e4bb23",
++  "products/harness-platform/acceptance/competitor_invariants/ui_projection.mjs": "5896fa8ddf562bb7e664c4fb65b90a652ba14888",
++  "products/harness-platform/acceptance/competitor_invariants/ui_quality_probe.mjs": "017aeaa3648e8e39c44f3f809acc83df26214abf",
+   "products/harness-platform/acceptance/competitors_replay.py": "162a2d2794cc8027eff36b6a5bcdaea2f4b9fa03",
+   "products/harness-platform/acceptance/fetch_fleurs.py": "cddcf7dae2a023bb6b214ba8ef27e015cc487792",
+   "products/harness-platform/acceptance/files_browser.py": "3ce6694b7219d1d2cb2f6ea5fc5c36a4c1714bd4",
+@@ -46,6 +56,8 @@
    "products/harness-platform/deploy/alisa-ui/portal-html.conf": "095b7ae016e0966bbd5b64779f01421f655d7df2",
    "products/harness-platform/deploy/alisa-ui/portal.css": "c3bf7be56d4057ff2b1de08a245a167d0be401d1",
    "products/harness-platform/deploy/alisa-ui/theme.css": "9be9e662353eeb3e2dcfa686cfff5b83b01ff5be",
@@ -2138,16 +3724,16 @@ index 6e15098..054f1f3 100644
    "products/harness-platform/deploy/harness-prod.service": "75b81df61960126a0c734aec0a9778e47c297946",
    "products/harness-platform/deploy/harness-prod.socket": "7c7c160d815b754b115ff3801da3f11e851d4f66",
    "products/harness-platform/deploy/nginx.conf": "c686484cacbce140ff3a51afc01a467729912716",
-@@ -189,7 +191,7 @@
+@@ -189,7 +201,7 @@
    "products/harness-platform/native/web/chat-workspace.pack": "a6f2885fed04cba59ed85588b6aad0493e77fa7f",
    "products/harness-platform/native/web/checkout.css": "ea1ba2456b53c148ea1ba080dc6eb78523248051",
    "products/harness-platform/native/web/checkout.js": "482ac99def83a268cf84822e0a8a58a7481f0fbc",
 -  "products/harness-platform/native/web/competitors.js": "cddb3ab66214d9e5dc7af1ae9939d5eb36f70cea",
-+  "products/harness-platform/native/web/competitors.js": "0f7e19b0986ab3a5ecec1218af9b3f2b3d7c3446",
++  "products/harness-platform/native/web/competitors.js": "0f8360c94c306ff8df5efeb9ae2f456785a6d47d",
    "products/harness-platform/native/web/connections.js": "27acf5826f4df8a4000d8638d5142c41908dea1b",
    "products/harness-platform/native/web/file-cost.js": "98dad6eb8d68a101f7572bff71f824ecf9f31e8e",
    "products/harness-platform/native/web/file-drafts.js": "08701bafb72bb4545afc31d337c62aab3795b335",
-@@ -218,7 +220,7 @@
+@@ -218,7 +230,7 @@
    "products/harness-platform/platform_core/admin_visits.py": "fa5ba21ae26d00508321bd8bc75b25ee3233f255",
    "products/harness-platform/platform_core/browser_session.py": "9824d81b1bca14abc2e32f775087470928a5ba7a",
    "products/harness-platform/platform_core/catalog.py": "e8ac2b8c5edef1f900b184b3fda49a539883e611",
@@ -2156,12 +3742,12 @@ index 6e15098..054f1f3 100644
    "products/harness-platform/platform_core/chat_attachments.py": "10254c5869a8e7e243d609aa14e93e45002515f9",
    "products/harness-platform/platform_core/chat_connections.py": "c63b831064068ef75b7fa6c48d3facc3be284004",
    "products/harness-platform/platform_core/chat_defaults.py": "0701d61a27dd1cc5e33ce0898b52b932cfbf40a4",
-@@ -227,14 +229,16 @@
+@@ -227,14 +239,17 @@
    "products/harness-platform/platform_core/checkout.py": "47bfcce102e0863ae729a17620a9d9632b177087",
    "products/harness-platform/platform_core/coin_review.py": "10558c20a88c09cb6782cb661da0d9a8faca347e",
    "products/harness-platform/platform_core/coins.py": "5f9cc85172f023b2ca48fcf660914581df3d319c",
 -  "products/harness-platform/platform_core/competitors/analysis.py": "d7a22bfd6ba4ac12ab5f75697c9997ae8eb7b208",
-+  "products/harness-platform/platform_core/competitors/analysis.py": "855dad408d05b4aa98d0179ff5e367d07530c2a4",
++  "products/harness-platform/platform_core/competitors/analysis.py": "658c326534c97b7621820b5df7a84d2fdf8fddff",
    "products/harness-platform/platform_core/competitors/comparison.py": "f53fd0439240bc545d30bddfe54fd282881fbeff",
 -  "products/harness-platform/platform_core/competitors/engine.py": "503db849494e873c83a11e37ac9269df4b67c48e",
 -  "products/harness-platform/platform_core/competitors/jobs.py": "a05bfb37d617aef2651bae37168bae7f44fc3f68",
@@ -2170,17 +3756,18 @@ index 6e15098..054f1f3 100644
 -  "products/harness-platform/platform_core/competitors/routes.py": "0fcb79c1712458f9e51f1ece0770847068427062",
 -  "products/harness-platform/platform_core/competitors/service.py": "5bef104838252303bf16580d9f1a3ce17314af4e",
 +  "products/harness-platform/platform_core/competitors/contracts.py": "0b9147c30e314c86efba1bdf6f4afdb5acf19307",
-+  "products/harness-platform/platform_core/competitors/coverage.py": "a5d431d6c42c1ddaedcbf6ff485ddec1d667f41c",
-+  "products/harness-platform/platform_core/competitors/engine.py": "4b89263b270ba366c7a8aefe0f8a4294797df317",
++  "products/harness-platform/platform_core/competitors/coverage.py": "f6977e0cb110920aea0ee0904bc19da6978870e2",
++  "products/harness-platform/platform_core/competitors/engine.py": "6cd1bf09e5f4c5a490cd6eda3158142a23806fad",
++  "products/harness-platform/platform_core/competitors/facts.py": "78990286cf0f041464ff1a0f96e66697a2fa7949",
 +  "products/harness-platform/platform_core/competitors/jobs.py": "e273954070de2d129d163a22f037c8703e509acf",
-+  "products/harness-platform/platform_core/competitors/own.py": "dc59acc18cfb082cf50d9a1d3614e84d871d3d2d",
++  "products/harness-platform/platform_core/competitors/own.py": "2e3412173a1880acaf9859ded5436034cbf9abc9",
 +  "products/harness-platform/platform_core/competitors/parser.py": "15cfb21266fe4cbc4457a271fbe797405761d09d",
-+  "products/harness-platform/platform_core/competitors/routes.py": "7c705aff6a0b5626225d1cc15340967b0bfceb5b",
-+  "products/harness-platform/platform_core/competitors/service.py": "061f3fb2fffb3e870de6a51e0194532ba82ed8fe",
++  "products/harness-platform/platform_core/competitors/routes.py": "679e3476039be7e31dfb9a6437098ad51384a56d",
++  "products/harness-platform/platform_core/competitors/service.py": "e054ab7831cdb3ad394e2c5d134bc202fb38b315",
    "products/harness-platform/platform_core/deepseek_media.py": "fbc3d03040f377973b1dd4f3df3c28b7a2c32d32",
    "products/harness-platform/platform_core/dispatch.py": "73131a1f631b01a880496e8cd74c60f02e67619b",
    "products/harness-platform/platform_core/file_processing.py": "5368c0337b871b6326a2339e8ad13a0dec2ca9a3",
-@@ -423,8 +427,9 @@
+@@ -423,8 +438,10 @@
    "products/harness-platform/tests/test_chat_attachments.py": "84a5158696e2ba9829d6ec76883c2b95ea19d8b7",
    "products/harness-platform/tests/test_checkout.py": "adc54a746ed52d999d189559ecccb005dde1a2dd",
    "products/harness-platform/tests/test_coin_wallet.py": "2e8292a684717c2d33bf4788a0357a302ffbd0a9",
@@ -2188,15 +3775,16 @@ index 6e15098..054f1f3 100644
    "products/harness-platform/tests/test_competitor_comparison.py": "7a31bc74822debbec7ffea50d5fb6197aaef6efc",
 -  "products/harness-platform/tests/test_competitor_review.py": "4fafe762f6e20949309d1f787485bc136513790e",
 +  "products/harness-platform/tests/test_competitor_review.py": "b5acd725ef244dd3d0fa6e529bec9660a574a09a",
++  "products/harness-platform/tests/test_competitor_system_invariants.py": "65c6d83f781096c0a5386e5c87f03f706b9accb4",
    "products/harness-platform/tests/test_dispatch.py": "c8a11e7c4914e4a43b2ff342f350d4b13f1419e3",
    "products/harness-platform/tests/test_files_independent_regressions.py": "e7b113b3749166061ed65725bd5946832af91f1f",
    "products/harness-platform/tests/test_guest_activity.py": "fc476dc90ac4f0c6e991bd9def74d3b806125502",
-@@ -443,7 +448,7 @@
+@@ -443,7 +460,7 @@
    "products/harness-platform/tests/test_openrouter_catalog.py": "d4ff8daff0033de1970396cd6af1d20ef3bb35c1",
    "products/harness-platform/tests/test_openrouter_operations.py": "db7351753d9616fb0c978f792ff69e1be4e0ff74",
    "products/harness-platform/tests/test_openrouter_recovery.py": "49628d7452cf9384b5e0662a36f34fc526895de3",
 -  "products/harness-platform/tests/test_ozon_competitors.py": "691c5d967b8b657238d0474db881d24a340c07a5",
-+  "products/harness-platform/tests/test_ozon_competitors.py": "fdb99c8df41eb7e13bdb0878ad324a1e254c18e3",
++  "products/harness-platform/tests/test_ozon_competitors.py": "01c641880c69ded629baf53b37538a0d97806433",
    "products/harness-platform/tests/test_ozon_plugin.py": "85fea6926a6bfa468914b291391a9176aa1e0232",
    "products/harness-platform/tests/test_plugin_publication.py": "2d7a424012bc01f2308ed7ab75a174fa7f4742bd",
    "products/harness-platform/tests/test_public_info.py": "7fc1d8a4c1b4fc0985834ee05d485723f5de5b74",
