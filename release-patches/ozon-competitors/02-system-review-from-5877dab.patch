@@ -167,7 +167,7 @@ index eacda39..fb6ef84 100644
                      result=await req.app.state.worker.request(scope,"competitorExchange",requestId=data["requestId"],text=data["text"],answer=competitor_reply)
                  elif action == "turn" and not data.get("attachments") and timers.matches(scope,data["requestId"],data["text"],hint):
 diff --git a/products/harness-platform/platform_core/competitors/analysis.py b/products/harness-platform/platform_core/competitors/analysis.py
-index d7a22bf..a8f85eb 100644
+index d7a22bf..36124f8 100644
 --- a/products/harness-platform/platform_core/competitors/analysis.py
 +++ b/products/harness-platform/platform_core/competitors/analysis.py
 @@ -6,6 +6,7 @@ from collections import defaultdict
@@ -300,7 +300,7 @@ index d7a22bf..a8f85eb 100644
          matrix[sku]={'phrases':found,'top':{str(n):[p for p,r in found.items() if r['response_index'] and r['response_index']<=n] for n in (3,5,10,32)}}
      return matrix
  
-@@ -163,54 +190,98 @@ def candidates(cards,reviews,extra=()):
+@@ -163,54 +190,136 @@ def candidates(cards,reviews,extra=()):
      return dict(phrases)
  
  
@@ -317,6 +317,25 @@ index d7a22bf..a8f85eb 100644
 -    'брелок для ключей': r'брелок|для связки ключей',
 -}
 -BROAD_TYPE = re.compile(r'амулет|оберег|аксессуар|сувенир|универсальн|принадлежност|прочее|набор товаров|декоративн|украшение')
+-
+-def purpose(card):
+-    attrs=card.get('characteristics',{})
+-    explicit=[normalized(v) for k,values in attrs.items()
+-              if normalized(k) in ('назначение','основное назначение','область применения')
+-              for v in values if isinstance(v,str) and v.strip()]
+-    title=normalized(card.get('title') or '')
+-    statement=normalized(' '.join(explicit))
+-    def extract(value):
+-        return {use for use,pattern in USES.items() if re.search(pattern,value)}
+-    primary=extract(title)|extract(statement)
+-    automotive=r'в (?:салон |зеркало )?(?:машин|авто)|автомобильн\w* (?:амулет|оберег)'
+-    description=normalized(card.get('description') or '')
+-    if re.search(automotive,title) and 'подвеска в автомобиль' not in primary:
+-        # A car-specific title establishes the primary context. Confirm the function
+-        # from a mounting statement; mere proximity to the mirror is insufficient.
+-        hanging=r'\b(?:повесить|подвесить|крепится|подвешивается|вешается)\s+на\s+(?:салонное\s+)?зеркало\b'
+-        if re.search(r'\bна зеркало\b',title) or re.search(hanging,description):
+-            primary.add('подвеска в автомобиль')
 +# Functional relations can be expressed through the structured attributes or
 +# the same linguistic relations in a title or a statement about intended use.
 +# Context alone (a room, a vehicle, a possible gift) does not prove a function.
@@ -354,26 +373,30 @@ index d7a22bf..a8f85eb 100644
 +    # Match grammatical case on the governing object of a functional relation.
 +    # Keep its original spelling for the UI and the audit trail.
 +    return re.sub(r'(?:ами|ями|ах|ях|ам|ям|ом|ем|ой|ей|[аоеуыюяи])$','',word) if len(word)>4 and ' ' not in word else word
- 
- def purpose(card):
--    attrs=card.get('characteristics',{})
--    explicit=[normalized(v) for k,values in attrs.items()
--              if normalized(k) in ('назначение','основное назначение','область применения')
--              for v in values if isinstance(v,str) and v.strip()]
--    title=normalized(card.get('title') or '')
--    statement=normalized(' '.join(explicit))
--    def extract(value):
--        return {use for use,pattern in USES.items() if re.search(pattern,value)}
--    primary=extract(title)|extract(statement)
--    automotive=r'в (?:салон |зеркало )?(?:машин|авто)|автомобильн\w* (?:амулет|оберег)'
--    description=normalized(card.get('description') or '')
--    if re.search(automotive,title) and 'подвеска в автомобиль' not in primary:
--        # A car-specific title establishes the primary context. Confirm the function
--        # from a mounting statement; mere proximity to the mirror is insufficient.
--        hanging=r'\b(?:повесить|подвесить|крепится|подвешивается|вешается)\s+на\s+(?:салонное\s+)?зеркало\b'
--        if re.search(r'\bна зеркало\b',title) or re.search(hanging,description):
--            primary.add('подвеска в автомобиль')
--        else:
++
++def confirmed_title_uses(parts, description):
++    """Use a later product designation when the description independently identifies it."""
++    subject=re.match(r'[а-яa-z][а-яa-z-]+', normalized(description))
++    if not subject:
++        return set()
++    named=[normalized(part) for part in parts if re.match(re.escape(subject[0])+r'\b',normalized(part))]
++    if not named:
++        return set()
++    corroborated=set()
++    denied=set()
++    for part in parts:
++        clause=normalized(part)
++        negative=NEGATION.search(clause)
++        if negative:
++            denied.update(uses_in(clause[negative.end():]))
++    for clause in re.split(r'[.!?;,]|\bно\b', normalized(description)):
++        # A negation after the target (e.g. «на полку, не только ...») does
++        # not negate the relation. A negative use claim before it remains a veto.
++        first_negative=NEGATION.search(clause)
++        if first_negative:
++            corroborated.update(uses_in(clause[:first_negative.start()]))
++            denied.update(uses_in(clause[first_negative.end():]))
+         else:
 -            primary.add('для автомобиля, вид крепления не подтверждён')
 -    if primary:
 -        return primary
@@ -384,10 +407,25 @@ index d7a22bf..a8f85eb 100644
 -    if declared:
 -        return declared
 -    return {'назначение: '+v for v in explicit if not re.search(r'подар|мужчин|женщин|детск|взросл|универсал|повседнев|для детей',v)}
--
++            corroborated.update(uses_in(clause))
++    confirmed=set()
++    for clause in named:
++        if (NEGATION.search(clause)
++                or re.search(r'\b(?:в комплекте|в подарок|приобретается отдельно)\b',clause)):
++            continue
++        declared=uses_in(clause)
++        if declared and declared <= corroborated and declared.isdisjoint(denied):
++            confirmed.update(declared)
++    return confirmed
+ 
+ 
+-def profile(card):
+-    return ((card.get('breadcrumbs') or [''])[-1], card.get('type') or '', purpose(card))
++def purpose(card):
 +    # Merchandising suffixes often describe an accessory, inscription or material.
 +    # Read the head of the title and let actual use statements corroborate it.
-+    title=normalized(re.split(r'[/|;,.]',card.get('title') or '',maxsplit=1)[0])
++    parts=re.split(r'[/|;,.]',card.get('title') or '')
++    title=normalized(parts[0])
 +    positive=set()
 +    negative=set()
 +    def add(value,structured=False):
@@ -414,6 +452,8 @@ index d7a22bf..a8f85eb 100644
 +                positive.add(target)
 +    else:
 +        add(title)
++        if len(parts)>1:
++            positive.update(confirmed_title_uses(parts[1:],card.get('description') or ''))
 +    for clause in re.split(r'[.!?;]',(card.get('description') or '').casefold()):
 +        if not facts and DECLARED.search(clause) and not (positive and re.search(r'можно|также|дополнительно',clause)):
 +            add(clause)
@@ -436,14 +476,12 @@ index d7a22bf..a8f85eb 100644
 +            return ('ozon-public',m[1])
 +    return ('path',tuple(normalized(v) for v in card.get('breadcrumbs',[]) if isinstance(v,str)))
  
- def profile(card):
--    return ((card.get('breadcrumbs') or [''])[-1], card.get('type') or '', purpose(card))
--
++def profile(card):
 +    return ((card.get('breadcrumbs') or [''])[-1],card.get('type') or '',purpose(card),category_key(card))
  
  def decision(sku,c,own,seen,profiles):
      if not sku or 'error' in c:
-@@ -219,14 +290,18 @@ def decision(sku,c,own,seen,profiles):
+@@ -219,14 +328,18 @@ def decision(sku,c,own,seen,profiles):
          return 'OWN',sku
      if sku in seen:
          return 'DUPLICATE',sku
@@ -465,7 +503,7 @@ index d7a22bf..a8f85eb 100644
      same=[p for p in matching if typ and normalized(p[1])==normalized(typ)]
      if not same:
          if not typ or any(not p[1] for p in matching):
-@@ -235,15 +310,21 @@ def decision(sku,c,own,seen,profiles):
+@@ -235,15 +348,21 @@ def decision(sku,c,own,seen,profiles):
      uncertain=False
      for p in same:
          required=p[2] if len(p)>2 else set()
@@ -490,7 +528,7 @@ index d7a22bf..a8f85eb 100644
      return 'OTHER_TYPE','Другое назначение: '+', '.join(sorted(uses))+'; ожидается '+', '.join(sorted(set.union(*(p[2] for p in same))))
  
  
-@@ -315,7 +396,7 @@ def peer_groups(selected,cards,eligible):
+@@ -315,7 +434,7 @@ def peer_groups(selected,cards,eligible):
          leaf=(own.get('breadcrumbs') or [''])[-1]
          kind=own.get('type') or ''
          uses=tuple(sorted(purpose(own)))
@@ -2010,10 +2048,10 @@ index 0000000..d411c9d
 +            self.assertEqual(routes.resolve(db,scope,'Проанализируй конкурента 987654 по фразам').action,'new')
 +            self.assertEqual(routes.resolve(db,scope,'Погода завтра').action,'other')
 diff --git a/products/harness-platform/tests/test_competitor_review.py b/products/harness-platform/tests/test_competitor_review.py
-index 4fafe76..9a280b9 100644
+index 4fafe76..b5acd72 100644
 --- a/products/harness-platform/tests/test_competitor_review.py
 +++ b/products/harness-platform/tests/test_competitor_review.py
-@@ -48,6 +48,10 @@ class Classification(unittest.TestCase):
+@@ -48,6 +48,29 @@ class Classification(unittest.TestCase):
          self.assertEqual(self.reason(dict(vehicle,description='На двусторонний скотч у зеркала заднего вида.')),'NEEDS_CHECK')
          self.assertEqual(self.reason(dict(card('Семейный талисман'),description='Крепится на зеркало заднего вида.')),'ELIGIBLE')
  
@@ -2021,11 +2059,30 @@ index 4fafe76..9a280b9 100644
 +        product=dict(card('Набор минералов'), description='Можно использовать на выбранном месте.')
 +        self.assertEqual(self.reason(product),'NEEDS_CHECK')
 +
++    def test_full_stop_before_confirmed_product_designation(self):
++        candidate=dict(card('Серия Сфера. Подвеска на зеркало в машину. Талисман'),
++                       description='Подвеска из серии Сфера. Талисман на зеркало автомобиля не только украшает салон.')
++        self.assertEqual(self.reason(candidate),'ELIGIBLE')
++        # The same contract applies to a different product class and relation.
++        anchor=dict(card('Держатель для планшета'),type='Аксессуар')
++        real=dict(anchor,title='Коллекция Атлас. Держатель для планшета.',
++                  description='Держатель из коллекции Атлас. Подставка для планшета.')
++        self.assertEqual(analysis.decision('32',real,[],set(),[analysis.profile(anchor)])[0],'ELIGIBLE')
++
++    def test_later_accessory_or_negative_use_does_not_become_primary(self):
++        for title,description in [
++            ('Серия Сфера. Подвеска на зеркало в комплекте','Подвеска из комплекта подходит на зеркало.'),
++            ('Талисман. Подвеска на зеркало','Чехол для переноски. Рисунок на зеркало в комплекте.'),
++            ('Серия Сфера. Подвеска на зеркало','Подвеска из металла. Не устанавливается на зеркало.'),
++            ('Серия Сфера. Подвеска на зеркало. Не монтировать на зеркало','Подвеска на зеркало автомобиля.'),
++            ('Браслет на запястье. Подвеска на зеркало','Подвеска на зеркало из подарочного набора.')]:
++            self.assertNotEqual(self.reason(dict(card(title),description=description)),'ELIGIBLE')
++
      def test_representative_dictionary(self):
          words={'одно':['форма'],'Этот талисман поможет':[['1','description']]}
          for i in range(5):
 diff --git a/release-manifest.json b/release-manifest.json
-index 6e15098..66fe1e9 100644
+index 6e15098..7077b21 100644
 --- a/release-manifest.json
 +++ b/release-manifest.json
 @@ -46,6 +46,8 @@
@@ -2060,7 +2117,7 @@ index 6e15098..66fe1e9 100644
    "products/harness-platform/platform_core/coin_review.py": "10558c20a88c09cb6782cb661da0d9a8faca347e",
    "products/harness-platform/platform_core/coins.py": "5f9cc85172f023b2ca48fcf660914581df3d319c",
 -  "products/harness-platform/platform_core/competitors/analysis.py": "d7a22bfd6ba4ac12ab5f75697c9997ae8eb7b208",
-+  "products/harness-platform/platform_core/competitors/analysis.py": "a8f85ebb46e665fd7857fcd7283869106f3a1772",
++  "products/harness-platform/platform_core/competitors/analysis.py": "36124f8c1d7bc8a3ef9db845d893cb56b47e57b2",
    "products/harness-platform/platform_core/competitors/comparison.py": "f53fd0439240bc545d30bddfe54fd282881fbeff",
 -  "products/harness-platform/platform_core/competitors/engine.py": "503db849494e873c83a11e37ac9269df4b67c48e",
 -  "products/harness-platform/platform_core/competitors/jobs.py": "a05bfb37d617aef2651bae37168bae7f44fc3f68",
@@ -2086,7 +2143,7 @@ index 6e15098..66fe1e9 100644
 +  "products/harness-platform/tests/test_competitor_architecture.py": "d411c9d7d65e8baefead241350bb201a79b3ad8b",
    "products/harness-platform/tests/test_competitor_comparison.py": "7a31bc74822debbec7ffea50d5fb6197aaef6efc",
 -  "products/harness-platform/tests/test_competitor_review.py": "4fafe762f6e20949309d1f787485bc136513790e",
-+  "products/harness-platform/tests/test_competitor_review.py": "9a280b955bbb89daa02fc3f1b53d93f5f5b1780e",
++  "products/harness-platform/tests/test_competitor_review.py": "b5acd725ef244dd3d0fa6e529bec9660a574a09a",
    "products/harness-platform/tests/test_dispatch.py": "c8a11e7c4914e4a43b2ff342f350d4b13f1419e3",
    "products/harness-platform/tests/test_files_independent_regressions.py": "e7b113b3749166061ed65725bd5946832af91f1f",
    "products/harness-platform/tests/test_guest_activity.py": "fc476dc90ac4f0c6e991bd9def74d3b806125502",

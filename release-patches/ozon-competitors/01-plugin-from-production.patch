@@ -583,10 +583,10 @@ index a70cc05..fb6ef84 100644
          *integrations.routes(_token, _body),
 diff --git a/products/harness-platform/platform_core/competitors/analysis.py b/products/harness-platform/platform_core/competitors/analysis.py
 new file mode 100644
-index 0000000..a8f85eb
+index 0000000..36124f8
 --- /dev/null
 +++ b/products/harness-platform/platform_core/competitors/analysis.py
-@@ -0,0 +1,409 @@
+@@ -0,0 +1,447 @@
 +"""Deterministic research, keeping original labels and observed positions."""
 +import json
 +import re
@@ -817,10 +817,46 @@ index 0000000..a8f85eb
 +    # Keep its original spelling for the UI and the audit trail.
 +    return re.sub(r'(?:ами|ями|ах|ях|ам|ям|ом|ем|ой|ей|[аоеуыюяи])$','',word) if len(word)>4 and ' ' not in word else word
 +
++def confirmed_title_uses(parts, description):
++    """Use a later product designation when the description independently identifies it."""
++    subject=re.match(r'[а-яa-z][а-яa-z-]+', normalized(description))
++    if not subject:
++        return set()
++    named=[normalized(part) for part in parts if re.match(re.escape(subject[0])+r'\b',normalized(part))]
++    if not named:
++        return set()
++    corroborated=set()
++    denied=set()
++    for part in parts:
++        clause=normalized(part)
++        negative=NEGATION.search(clause)
++        if negative:
++            denied.update(uses_in(clause[negative.end():]))
++    for clause in re.split(r'[.!?;,]|\bно\b', normalized(description)):
++        # A negation after the target (e.g. «на полку, не только ...») does
++        # not negate the relation. A negative use claim before it remains a veto.
++        first_negative=NEGATION.search(clause)
++        if first_negative:
++            corroborated.update(uses_in(clause[:first_negative.start()]))
++            denied.update(uses_in(clause[first_negative.end():]))
++        else:
++            corroborated.update(uses_in(clause))
++    confirmed=set()
++    for clause in named:
++        if (NEGATION.search(clause)
++                or re.search(r'\b(?:в комплекте|в подарок|приобретается отдельно)\b',clause)):
++            continue
++        declared=uses_in(clause)
++        if declared and declared <= corroborated and declared.isdisjoint(denied):
++            confirmed.update(declared)
++    return confirmed
++
++
 +def purpose(card):
 +    # Merchandising suffixes often describe an accessory, inscription or material.
 +    # Read the head of the title and let actual use statements corroborate it.
-+    title=normalized(re.split(r'[/|;,.]',card.get('title') or '',maxsplit=1)[0])
++    parts=re.split(r'[/|;,.]',card.get('title') or '')
++    title=normalized(parts[0])
 +    positive=set()
 +    negative=set()
 +    def add(value,structured=False):
@@ -847,6 +883,8 @@ index 0000000..a8f85eb
 +                positive.add(target)
 +    else:
 +        add(title)
++        if len(parts)>1:
++            positive.update(confirmed_title_uses(parts[1:],card.get('description') or ''))
 +    for clause in re.split(r'[.!?;]',(card.get('description') or '').casefold()):
 +        if not facts and DECLARED.search(clause) and not (positive and re.search(r'можно|также|дополнительно',clause)):
 +            add(clause)
@@ -3288,10 +3326,10 @@ index 0000000..7a31bc7
 +
 diff --git a/products/harness-platform/tests/test_competitor_review.py b/products/harness-platform/tests/test_competitor_review.py
 new file mode 100644
-index 0000000..9a280b9
+index 0000000..b5acd72
 --- /dev/null
 +++ b/products/harness-platform/tests/test_competitor_review.py
-@@ -0,0 +1,215 @@
+@@ -0,0 +1,234 @@
 +"""Regression tests for the independent review of bcd99583ad32."""
 +import json
 +import sqlite3
@@ -3345,6 +3383,25 @@ index 0000000..9a280b9
 +    def test_optional_location_does_not_establish_a_different_primary_use(self):
 +        product=dict(card('Набор минералов'), description='Можно использовать на выбранном месте.')
 +        self.assertEqual(self.reason(product),'NEEDS_CHECK')
++
++    def test_full_stop_before_confirmed_product_designation(self):
++        candidate=dict(card('Серия Сфера. Подвеска на зеркало в машину. Талисман'),
++                       description='Подвеска из серии Сфера. Талисман на зеркало автомобиля не только украшает салон.')
++        self.assertEqual(self.reason(candidate),'ELIGIBLE')
++        # The same contract applies to a different product class and relation.
++        anchor=dict(card('Держатель для планшета'),type='Аксессуар')
++        real=dict(anchor,title='Коллекция Атлас. Держатель для планшета.',
++                  description='Держатель из коллекции Атлас. Подставка для планшета.')
++        self.assertEqual(analysis.decision('32',real,[],set(),[analysis.profile(anchor)])[0],'ELIGIBLE')
++
++    def test_later_accessory_or_negative_use_does_not_become_primary(self):
++        for title,description in [
++            ('Серия Сфера. Подвеска на зеркало в комплекте','Подвеска из комплекта подходит на зеркало.'),
++            ('Талисман. Подвеска на зеркало','Чехол для переноски. Рисунок на зеркало в комплекте.'),
++            ('Серия Сфера. Подвеска на зеркало','Подвеска из металла. Не устанавливается на зеркало.'),
++            ('Серия Сфера. Подвеска на зеркало. Не монтировать на зеркало','Подвеска на зеркало автомобиля.'),
++            ('Браслет на запястье. Подвеска на зеркало','Подвеска на зеркало из подарочного набора.')]:
++            self.assertNotEqual(self.reason(dict(card(title),description=description)),'ELIGIBLE')
 +
 +    def test_representative_dictionary(self):
 +        words={'одно':['форма'],'Этот талисман поможет':[['1','description']]}
